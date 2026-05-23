@@ -16,11 +16,19 @@ import { IngestionModule } from './ingestion/ingestion.module';
     ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: Number(process.env.DB_PORT) || 5432,
-      username: process.env.DB_USER || 'iqs_user',
-      password: process.env.DB_PASSWORD || 'iqs_password',
-      database: process.env.DB_NAME || 'iqs_db',
+      ...(process.env.DATABASE_URL
+        ? { url: process.env.DATABASE_URL }
+        : {
+            host: process.env.DB_HOST || 'localhost',
+            port: Number(process.env.DB_PORT) || 5432,
+            username: process.env.DB_USER || 'iqs_user',
+            password: process.env.DB_PASSWORD || 'iqs_password',
+            database: process.env.DB_NAME || 'iqs_db',
+          }),
+      ssl:
+        process.env.DB_SSL === 'true' || (process.env.DATABASE_URL || '').includes('sslmode=require')
+          ? { rejectUnauthorized: false }
+          : false,
       entities: [Company, InsiderTransaction, IqsScore],
       synchronize: true,
       logging: false,
