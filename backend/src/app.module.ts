@@ -14,25 +14,29 @@ import { IngestionModule } from './ingestion/ingestion.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      ...(process.env.DATABASE_URL
-        ? { url: process.env.DATABASE_URL }
-        : {
-            host: process.env.DB_HOST || 'localhost',
-            port: Number(process.env.DB_PORT) || 5432,
-            username: process.env.DB_USER || 'iqs_user',
-            password: process.env.DB_PASSWORD || 'iqs_password',
-            database: process.env.DB_NAME || 'iqs_db',
-          }),
-      ssl:
-        process.env.DB_SSL === 'true' || (process.env.DATABASE_URL || '').includes('sslmode=require')
-          ? { rejectUnauthorized: false }
-          : false,
-      entities: [Company, InsiderTransaction, IqsScore],
-      synchronize: true,
-      logging: false,
-    }),
+    (() => {
+      const dbHost = process.env.DB_HOST || 'localhost';
+      const isLocal =
+        !process.env.DATABASE_URL && (dbHost === 'localhost' || dbHost === '127.0.0.1');
+      const sslDisabled = process.env.DB_SSL === 'false';
+      const useSsl = !isLocal && !sslDisabled;
+      return TypeOrmModule.forRoot({
+        type: 'postgres',
+        ...(process.env.DATABASE_URL
+          ? { url: process.env.DATABASE_URL }
+          : {
+              host: dbHost,
+              port: Number(process.env.DB_PORT) || 5432,
+              username: process.env.DB_USER || 'iqs_user',
+              password: process.env.DB_PASSWORD || 'iqs_password',
+              database: process.env.DB_NAME || 'iqs_db',
+            }),
+        ssl: useSsl ? { rejectUnauthorized: false } : false,
+        entities: [Company, InsiderTransaction, IqsScore],
+        synchronize: true,
+        logging: false,
+      });
+    })(),
     CompaniesModule,
     TransactionsModule,
     IqsModule,
