@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { TopHeader } from "./TopHeader";
+import { LiveTicker } from "./LiveTicker";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -10,6 +11,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar open={open} onClose={() => setOpen(false)} />
       <div className="flex-1 min-w-0 flex flex-col">
         <TopHeader onMenuOpen={() => setOpen(true)} />
+        <LiveTicker />
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 sm:py-8">{children}</main>
       </div>
     </div>
