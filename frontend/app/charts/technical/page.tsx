@@ -1,15 +1,19 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import { PremiumChartPreview } from "@/components/charts/PremiumChartPreview";
 
 export default function TechnicalChartPage() {
   return (
-    <ComingSoon
+    <PremiumChartPreview
       title="Technical chart"
-      description="Per-ticker candlesticks with insider transactions overlaid as markers."
-      premium
+      subtitle="Per-ticker candlesticks with insider transactions overlaid as markers."
+      variant="candle"
+      description="Combine price action with insider conviction markers — see exactly when the CEO bought, on the chart itself."
       features={[
-        "Daily/weekly candles",
-        "Insider buy/sell markers on the price line",
+        "Daily / weekly / monthly candles",
+        "Insider buy & sell markers on the price line",
         "RSI, MACD, moving averages",
+        "Volume profile + insider-volume overlay",
+        "Drawing tools (trendlines, fibs)",
+        "Save chart layouts",
       ]}
     />
   );

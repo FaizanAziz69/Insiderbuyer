@@ -1,15 +1,19 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import { PremiumChartPreview } from "@/components/charts/PremiumChartPreview";
 
 export default function SentimentChartPage() {
   return (
-    <ComingSoon
+    <PremiumChartPreview
       title="Sentiment chart"
-      description="Bullish vs bearish insider sentiment over time."
-      premium
+      subtitle="Bullish vs bearish insider sentiment over time."
+      variant="line"
+      description="Daily sentiment scoring derived from IQS movements, sector-normalized, and benchmarked against the S&P 500."
       features={[
         "Daily sentiment scoring derived from IQS",
-        "Aggregate or per-sector",
+        "Aggregate or per-sector view",
         "Compare against S&P 500 returns",
+        "Export to PNG for reports",
+        "Annotated with major insider events",
+        "180/365-day trends",
       ]}
     />
   );
