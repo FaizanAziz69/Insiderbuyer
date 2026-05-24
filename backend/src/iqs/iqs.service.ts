@@ -211,11 +211,11 @@ export class IqsService {
 
   async getDashboard() {
     const since24h = new Date(Date.now() - 24 * 3600 * 1000);
-    const since7d = new Date(Date.now() - 7 * 86400 * 1000);
+    const since30d = new Date(Date.now() - 30 * 86400 * 1000);
 
     const txRecent = await this.txRepo
       .createQueryBuilder('t')
-      .where('t.transactionDate >= :since', { since: since7d })
+      .where('t.transactionDate >= :since', { since: since30d })
       .leftJoinAndSelect('t.company', 'c')
       .orderBy('t.transactionDate', 'DESC')
       .getMany();
@@ -253,7 +253,7 @@ export class IqsService {
     const topSector = sectors[0] || { name: '—', value: 0, count: 0 };
 
     const days: { date: string; count: number; value: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
+    for (let i = 29; i >= 0; i--) {
       const day = new Date();
       day.setUTCHours(0, 0, 0, 0);
       day.setUTCDate(day.getUTCDate() - i);

@@ -54,48 +54,68 @@ export class SecClient {
     });
   }
 
-  async searchRecentForm4(daysBack = 7, limit = 500): Promise<SecFilingHit[]> {
-    const dateFrom = new Date(Date.now() - daysBack * 86400000).toISOString().slice(0, 10);
-    const dateTo = new Date().toISOString().slice(0, 10);
+  async searchRecentForm4(daysBack = 7, maxTotal = 4000): Promise<SecFilingHit[]> {
     const url = 'https://efts.sec.gov/LATEST/search-index';
     const pageSize = 100;
     const out: SecFilingHit[] = [];
+    const seen = new Set<string>();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
-    for (let from = 0; from < limit; from += pageSize) {
-      const params = {
-        q: '',
-        dateRange: 'custom',
-        startdt: dateFrom,
-        enddt: dateTo,
-        forms: '4',
-        from,
-        size: Math.min(pageSize, limit - from),
-      };
-      const { data } = await this.http.get(url, { params });
-      const hits = data?.hits?.hits || [];
-      if (!hits.length) break;
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const chunkDays = 4;
+    const totalChunks = Math.ceil(daysBack / chunkDays);
 
-      for (const h of hits) {
-        const src = h._source || {};
-        const accessionNo = (h._id || '').split(':')[0] || src.adsh || '';
-        const cik = Array.isArray(src.ciks) ? src.ciks[0] : src.ciks || '';
-        const ticker = Array.isArray(src.tickers) ? src.tickers[0] : src.tickers || null;
-        const name = Array.isArray(src.display_names)
-          ? (src.display_names[0] || '').replace(/\s+\(.*\)\s*$/, '')
-          : src.display_names || '';
-        const primaryDoc = (h._id || '').split(':')[1] || '';
-        out.push({
-          accessionNo,
-          cik: String(cik).replace(/^0+/, ''),
-          ticker: ticker ? String(ticker).toUpperCase() : null,
-          companyName: name,
-          formType: src.form || '4',
-          filedAt: src.file_date || '',
-          primaryDoc,
-        });
+    for (let c = 0; c < totalChunks && out.length < maxTotal; c++) {
+      const endDate = new Date(today.getTime() - c * chunkDays * 86400000);
+      const startDate = new Date(today.getTime() - (c + 1) * chunkDays * 86400000 + 86400000);
+      const dateFrom = fmt(startDate);
+      const dateTo = fmt(endDate);
+
+      for (let from = 0; from < 400; from += pageSize) {
+        const params = {
+          q: '',
+          dateRange: 'custom',
+          startdt: dateFrom,
+          enddt: dateTo,
+          forms: '4',
+          from,
+          size: pageSize,
+        };
+        let data: any;
+        try {
+          ({ data } = await this.http.get(url, { params }));
+        } catch {
+          break;
+        }
+        const hits = data?.hits?.hits || [];
+        if (!hits.length) break;
+
+        for (const h of hits) {
+          const src = h._source || {};
+          const accessionNo = (h._id || '').split(':')[0] || src.adsh || '';
+          if (!accessionNo || seen.has(accessionNo)) continue;
+          seen.add(accessionNo);
+          const cik = Array.isArray(src.ciks) ? src.ciks[0] : src.ciks || '';
+          const ticker = Array.isArray(src.tickers) ? src.tickers[0] : src.tickers || null;
+          const name = Array.isArray(src.display_names)
+            ? (src.display_names[0] || '').replace(/\s+\(.*\)\s*$/, '')
+            : src.display_names || '';
+          const primaryDoc = (h._id || '').split(':')[1] || '';
+          out.push({
+            accessionNo,
+            cik: String(cik).replace(/^0+/, ''),
+            ticker: ticker ? String(ticker).toUpperCase() : null,
+            companyName: name,
+            formType: src.form || '4',
+            filedAt: src.file_date || '',
+            primaryDoc,
+          });
+          if (out.length >= maxTotal) break;
+        }
+        if (hits.length < pageSize) break;
+        await new Promise((r) => setTimeout(r, 100));
       }
-      if (hits.length < pageSize) break;
-      await new Promise((r) => setTimeout(r, 120));
     }
     return out;
   }

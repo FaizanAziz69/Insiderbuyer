@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Company } from './entities/company.entity';
 import { InsiderTransaction } from './entities/insider-transaction.entity';
 import { IqsScore } from './entities/iqs-score.entity';
+import { ProcessedFiling } from './entities/processed-filing.entity';
 import { CompaniesModule } from './companies/companies.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { IqsModule } from './iqs/iqs.module';
@@ -32,7 +33,7 @@ import { IngestionModule } from './ingestion/ingestion.module';
               database: process.env.DB_NAME || 'iqs_db',
             }),
         ssl: useSsl ? { rejectUnauthorized: false } : false,
-        entities: [Company, InsiderTransaction, IqsScore],
+        entities: [Company, InsiderTransaction, IqsScore, ProcessedFiling],
         synchronize: true,
         logging: false,
       });

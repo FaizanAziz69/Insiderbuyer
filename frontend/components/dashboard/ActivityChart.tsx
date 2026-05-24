@@ -18,23 +18,26 @@ export function ActivityChart({ days }: { days: Day[] }) {
       <div className="flex items-baseline justify-between mb-5">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="text-[15px] font-semibold">7-day insider activity</div>
+            <div className="text-[15px] font-semibold">30-day insider activity</div>
             <span className="live-dot live-dot-good text-faint">live</span>
           </div>
           <div className="text-xs text-mute mt-0.5">Daily count of insider buys</div>
         </div>
         <div className="text-sm text-mute tabular font-medium">
-          <span className="text-good font-bold">{totalTrades}</span> total
+          <span className="text-good font-bold">{totalTrades}</span> trades · last 30d
         </div>
       </div>
 
       <div className="relative h-56">
-        <div className="absolute inset-0 flex items-end justify-between gap-2 sm:gap-3">
+        <div className="absolute inset-0 flex items-end justify-between gap-[3px] sm:gap-1">
           {days.map((d, i) => {
             const h = (d.count / max) * 100;
             const date = new Date(d.date);
-            const label = date.toLocaleDateString(undefined, { weekday: "short" });
-            const dayNum = date.getDate();
+            const showLabel = days.length <= 10 || i % 5 === 0 || i === days.length - 1;
+            const label = showLabel
+              ? date.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+              : "";
+            const dayNum = "";
             const isActive = hover === i;
             return (
               <div

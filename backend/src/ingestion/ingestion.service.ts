@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
 import { InsiderTransaction } from '../entities/insider-transaction.entity';
+import { ProcessedFiling } from '../entities/processed-filing.entity';
 import { normalizeRole } from '../common/role.util';
 import { SecClient } from './sec.client';
 import { QuoteClient } from './quote.client';
@@ -17,6 +18,7 @@ export class IngestionService implements OnModuleInit {
   constructor(
     @InjectRepository(Company) private readonly companies: Repository<Company>,
     @InjectRepository(InsiderTransaction) private readonly txRepo: Repository<InsiderTransaction>,
+    @InjectRepository(ProcessedFiling) private readonly processedRepo: Repository<ProcessedFiling>,
     private readonly sec: SecClient,
     private readonly quote: QuoteClient,
     private readonly iqs: IqsService,
@@ -35,22 +37,43 @@ export class IngestionService implements OnModuleInit {
   async runIngestion(daysBack = 7): Promise<{ filings: number; transactions: number; companies: number }> {
     if (this.running) return { filings: 0, transactions: 0, companies: 0 };
     this.running = true;
+    const deadline = Date.now() + 50000;
     const summary = { filings: 0, transactions: 0, companies: 0 };
     try {
       this.logger.log(`Fetching SEC Form 4 filings (${daysBack}d back)...`);
-      const filings = await this.sec.searchRecentForm4(daysBack, 200);
+      const filings = await this.sec.searchRecentForm4(daysBack, 4000);
       summary.filings = filings.length;
       this.logger.log(`Found ${filings.length} Form 4 filings`);
 
       const seenCompanies = new Set<string>();
 
       for (const f of filings) {
+        if (Date.now() > deadline) {
+          this.logger.warn('Deadline reached, stopping early');
+          break;
+        }
         if (!f.cik || !f.accessionNo) continue;
+
+        const alreadyProcessed = await this.processedRepo.findOne({
+          where: { accessionNumber: f.accessionNo },
+        });
+        if (alreadyProcessed) continue;
+
         try {
           const xml = await this.sec.fetchForm4Xml(f.cik, f.accessionNo, f.primaryDoc);
-          if (!xml) continue;
+          if (!xml) {
+            await this.processedRepo.save(
+              this.processedRepo.create({ accessionNumber: f.accessionNo, qualifyingTransactions: 0 }),
+            );
+            continue;
+          }
           const parsed = this.sec.parseForm4(xml);
-          if (!parsed || !parsed.transactions.length) continue;
+          if (!parsed || !parsed.transactions.length) {
+            await this.processedRepo.save(
+              this.processedRepo.create({ accessionNumber: f.accessionNo, qualifyingTransactions: 0 }),
+            );
+            continue;
+          }
 
           const issuerCik = parsed.issuerCik || f.cik;
           const issuerName = parsed.issuerName || f.companyName || 'Unknown';
@@ -80,13 +103,10 @@ export class IngestionService implements OnModuleInit {
           seenCompanies.add(company.id);
           const filingUrl = this.sec.buildFilingIndexUrl(issuerCik, f.accessionNo);
 
+          let qualifying = 0;
           for (let i = 0; i < parsed.transactions.length; i++) {
             const p = parsed.transactions[i];
             const role = normalizeRole(p.rawTitle, p.isDirector, p.isOfficer);
-            const exists = await this.txRepo.findOne({
-              where: { accessionNumber: f.accessionNo, lineNumber: i },
-            });
-            if (exists) continue;
             const totalValue = p.sharesBought * p.pricePerShare;
             const previousHoldings = Math.max(0, p.postHoldings - p.sharesBought);
             await this.txRepo.save(
@@ -107,12 +127,20 @@ export class IngestionService implements OnModuleInit {
                 filingUrl,
               }),
             );
+            qualifying++;
             summary.transactions++;
           }
+
+          await this.processedRepo.save(
+            this.processedRepo.create({
+              accessionNumber: f.accessionNo,
+              qualifyingTransactions: qualifying,
+            }),
+          );
         } catch (err: any) {
           this.logger.warn(`Filing ${f.accessionNo}: ${err?.message || err}`);
         }
-        await this.delay(120);
+        await this.delay(80);
       }
 
       summary.companies = seenCompanies.size;
