@@ -337,6 +337,54 @@ export class IqsService {
     };
   }
 
+  async getVolumeSeries(daysBack: number) {
+    const since = new Date(Date.now() - daysBack * 86400 * 1000);
+    since.setUTCHours(0, 0, 0, 0);
+
+    const rows = await this.txRepo
+      .createQueryBuilder('t')
+      .where('t.transactionDate >= :since', { since })
+      .getMany();
+
+    const totalCount = rows.length;
+    const totalValue = rows.reduce((a, t) => a + Number(t.totalValue), 0);
+
+    const byRole = {
+      CEO: 0,
+      CFO: 0,
+      COO: 0,
+      Director: 0,
+      Other: 0,
+    } as Record<string, number>;
+    for (const t of rows) byRole[t.role] = (byRole[t.role] || 0) + Number(t.totalValue);
+
+    const dayMs = 86400000;
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const buckets: { date: string; count: number; value: number }[] = [];
+    for (let i = daysBack - 1; i >= 0; i--) {
+      const day = new Date(today.getTime() - i * dayMs);
+      buckets.push({ date: day.toISOString().slice(0, 10), count: 0, value: 0 });
+    }
+    const idx = new Map(buckets.map((b, i) => [b.date, i]));
+    for (const t of rows) {
+      const k = new Date(t.transactionDate).toISOString().slice(0, 10);
+      const i = idx.get(k);
+      if (i === undefined) continue;
+      buckets[i].count += 1;
+      buckets[i].value += Number(t.totalValue);
+    }
+
+    return {
+      windowDays: daysBack,
+      totalCount,
+      totalValue,
+      avgPerDay: totalCount / Math.max(1, daysBack),
+      byRole,
+      series: buckets,
+    };
+  }
+
   async getTopInsiders(limit = 20) {
     const rows = await this.txRepo
       .createQueryBuilder('t')

@@ -24,12 +24,12 @@ export class IngestionService implements OnModuleInit {
 
   async onModuleInit() {
     if ((process.env.INGEST_ON_BOOT || 'true') !== 'true') return;
-    setTimeout(() => this.runIngestion(14).catch((e) => this.logger.error(e?.message || e)), 2000);
+    setTimeout(() => this.runIngestion(30).catch((e) => this.logger.error(e?.message || e)), 2000);
   }
 
   @Cron(process.env.INGEST_CRON || '0 */6 * * *')
   async scheduled() {
-    await this.runIngestion(2);
+    await this.runIngestion(3);
   }
 
   async runIngestion(daysBack = 7): Promise<{ filings: number; transactions: number; companies: number }> {

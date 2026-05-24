@@ -69,6 +69,12 @@ export class IqsController {
     return this.iqs.getTopInsiders(limit ? Number(limit) : 20);
   }
 
+  @Get('charts/volume')
+  async volumeChart(@Query('days') days?: string) {
+    const n = Math.min(365, Math.max(7, Number(days) || 30));
+    return this.iqs.getVolumeSeries(n);
+  }
+
   @Get('health')
   health() {
     return { ok: true, ts: new Date().toISOString() };

@@ -115,6 +115,15 @@ export interface InsiderRow {
   trades: number;
 }
 
+export interface VolumeSeriesResponse {
+  windowDays: number;
+  totalCount: number;
+  totalValue: number;
+  avgPerDay: number;
+  byRole: Record<"CEO" | "CFO" | "COO" | "Director" | "Other", number>;
+  series: Array<{ date: string; count: number; value: number }>;
+}
+
 export async function fetcher<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);

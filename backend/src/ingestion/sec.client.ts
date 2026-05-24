@@ -54,39 +54,50 @@ export class SecClient {
     });
   }
 
-  async searchRecentForm4(daysBack = 7, limit = 200): Promise<SecFilingHit[]> {
+  async searchRecentForm4(daysBack = 7, limit = 500): Promise<SecFilingHit[]> {
     const dateFrom = new Date(Date.now() - daysBack * 86400000).toISOString().slice(0, 10);
+    const dateTo = new Date().toISOString().slice(0, 10);
     const url = 'https://efts.sec.gov/LATEST/search-index';
-    const params = {
-      q: '',
-      dateRange: 'custom',
-      startdt: dateFrom,
-      enddt: new Date().toISOString().slice(0, 10),
-      forms: '4',
-      from: 0,
-      size: limit,
-    };
-    const { data } = await this.http.get(url, { params });
-    const hits = data?.hits?.hits || [];
-    return hits.map((h: any) => {
-      const src = h._source || {};
-      const accessionNo = (h._id || '').split(':')[0] || src.adsh || '';
-      const cik = Array.isArray(src.ciks) ? src.ciks[0] : src.ciks || '';
-      const ticker = Array.isArray(src.tickers) ? src.tickers[0] : src.tickers || null;
-      const name = Array.isArray(src.display_names)
-        ? (src.display_names[0] || '').replace(/\s+\(.*\)\s*$/, '')
-        : src.display_names || '';
-      const primaryDoc = (h._id || '').split(':')[1] || '';
-      return {
-        accessionNo,
-        cik: String(cik).replace(/^0+/, ''),
-        ticker: ticker ? String(ticker).toUpperCase() : null,
-        companyName: name,
-        formType: src.form || '4',
-        filedAt: src.file_date || '',
-        primaryDoc,
-      } as SecFilingHit;
-    });
+    const pageSize = 100;
+    const out: SecFilingHit[] = [];
+
+    for (let from = 0; from < limit; from += pageSize) {
+      const params = {
+        q: '',
+        dateRange: 'custom',
+        startdt: dateFrom,
+        enddt: dateTo,
+        forms: '4',
+        from,
+        size: Math.min(pageSize, limit - from),
+      };
+      const { data } = await this.http.get(url, { params });
+      const hits = data?.hits?.hits || [];
+      if (!hits.length) break;
+
+      for (const h of hits) {
+        const src = h._source || {};
+        const accessionNo = (h._id || '').split(':')[0] || src.adsh || '';
+        const cik = Array.isArray(src.ciks) ? src.ciks[0] : src.ciks || '';
+        const ticker = Array.isArray(src.tickers) ? src.tickers[0] : src.tickers || null;
+        const name = Array.isArray(src.display_names)
+          ? (src.display_names[0] || '').replace(/\s+\(.*\)\s*$/, '')
+          : src.display_names || '';
+        const primaryDoc = (h._id || '').split(':')[1] || '';
+        out.push({
+          accessionNo,
+          cik: String(cik).replace(/^0+/, ''),
+          ticker: ticker ? String(ticker).toUpperCase() : null,
+          companyName: name,
+          formType: src.form || '4',
+          filedAt: src.file_date || '',
+          primaryDoc,
+        });
+      }
+      if (hits.length < pageSize) break;
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    return out;
   }
 
   buildFilingDocUrl(cik: string, accessionNo: string, primaryDoc: string): string {
