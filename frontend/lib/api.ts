@@ -60,6 +60,61 @@ export interface CompanyDetail {
   }>;
 }
 
+export interface DashboardResponse {
+  metrics: {
+    insiderBuys24h: number;
+    pct24hVs7d: number;
+    totalRecentValue: number;
+    confidence: number;
+    topSector: { name: string; value: number };
+  };
+  sectors: Array<{ name: string; value: number; count: number }>;
+  activity: Array<{ date: string; count: number; value: number }>;
+  topTrades: Array<{
+    id: string;
+    insiderName: string;
+    role: string;
+    rawTitle: string;
+    ticker: string | null;
+    companyName: string;
+    sector: string | null;
+    totalValue: number;
+    sharesBought: number;
+    pricePerShare: number;
+    transactionDate: string;
+  }>;
+}
+
+export interface TradeRow {
+  id: string;
+  insiderName: string;
+  role: string;
+  rawTitle: string;
+  ticker: string | null;
+  companyName: string;
+  sector: string | null;
+  sharesBought: number;
+  pricePerShare: number;
+  totalValue: number;
+  previousHoldings: number | null;
+  transactionDate: string;
+  filingUrl: string;
+}
+
+export interface TradesResponse {
+  total: number;
+  rows: TradeRow[];
+}
+
+export interface InsiderRow {
+  name: string;
+  role: string;
+  ticker: string | null;
+  company: string;
+  totalValue: number;
+  trades: number;
+}
+
 export async function fetcher<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
@@ -93,6 +148,18 @@ export function formatDate(s: string | null | undefined): string {
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return s;
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+export function formatRelative(s: string | null | undefined): string {
+  if (!s) return "—";
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return formatDate(s);
 }
 
 export function scoreTier(iqs: number): { label: string; cls: string } {

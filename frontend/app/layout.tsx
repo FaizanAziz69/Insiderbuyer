@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
+import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
-  title: "Insider Buying — IQS Dashboard",
+  title: "insiderbuying — Insider intelligence, instantly",
   description:
-    "Insider Buying ranks every U.S. public company by the conviction behind recent insider purchases — sourced daily from SEC Form 4 filings.",
+    "Track insider buys and sells in real-time. SEC Form 4 analysis reveals where smart money is accumulating.",
 };
 
 const themeScript = `
@@ -26,14 +23,12 @@ const themeScript = `
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="antialiased">
-        <div className="aurora" />
-        <div className="scanlines" />
-        <div className="relative z-10">{children}</div>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

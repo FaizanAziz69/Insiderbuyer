@@ -46,6 +46,29 @@ export class IqsController {
     return detail;
   }
 
+  @Get('dashboard')
+  async dashboard() {
+    return this.iqs.getDashboard();
+  }
+
+  @Get('trades')
+  async trades(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('q') q?: string,
+  ) {
+    return this.iqs.getAllTrades({
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+      q: q || undefined,
+    });
+  }
+
+  @Get('insiders')
+  async insiders(@Query('limit') limit?: string) {
+    return this.iqs.getTopInsiders(limit ? Number(limit) : 20);
+  }
+
   @Get('health')
   health() {
     return { ok: true, ts: new Date().toISOString() };

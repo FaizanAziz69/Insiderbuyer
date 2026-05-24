@@ -208,4 +208,160 @@ export class IqsService {
 
     return { company: companyOut, score, transactions };
   }
+
+  async getDashboard() {
+    const since24h = new Date(Date.now() - 24 * 3600 * 1000);
+    const since7d = new Date(Date.now() - 7 * 86400 * 1000);
+
+    const txRecent = await this.txRepo
+      .createQueryBuilder('t')
+      .where('t.transactionDate >= :since', { since: since7d })
+      .leftJoinAndSelect('t.company', 'c')
+      .orderBy('t.transactionDate', 'DESC')
+      .getMany();
+
+    const buys24h = txRecent.filter((t) => t.transactionDate >= since24h);
+    const total24hValue = buys24h.reduce((a, t) => a + Number(t.totalValue), 0);
+    const totalRecentValue = txRecent.reduce((a, t) => a + Number(t.totalValue), 0);
+    const avg7dPerDay = txRecent.length > 0 ? txRecent.length / 7 : 0;
+    const pct24hVs7d =
+      avg7dPerDay > 0 ? ((buys24h.length - avg7dPerDay) / avg7dPerDay) * 100 : 0;
+
+    const scores = await this.scores
+      .createQueryBuilder('s')
+      .where('s.asOfDate = (SELECT MAX("asOfDate") FROM iqs_scores)')
+      .getMany();
+    const avgIqs =
+      scores.length > 0
+        ? scores.reduce((a, s) => a + Number(s.iqs), 0) / scores.length
+        : 0;
+    const maxIqs = scores.length > 0 ? Math.max(...scores.map((s) => Number(s.iqs))) : 1;
+    const confidence = maxIqs > 0 ? Math.min(10, (avgIqs / maxIqs) * 10) : 0;
+
+    const sectorAgg = new Map<string, { value: number; count: number }>();
+    for (const t of txRecent) {
+      const sec = t.company?.sector || 'Other';
+      const cur = sectorAgg.get(sec) || { value: 0, count: 0 };
+      cur.value += Number(t.totalValue);
+      cur.count += 1;
+      sectorAgg.set(sec, cur);
+    }
+    const sectors = Array.from(sectorAgg.entries())
+      .map(([name, v]) => ({ name, value: v.value, count: v.count }))
+      .sort((a, b) => b.value - a.value);
+
+    const topSector = sectors[0] || { name: '—', value: 0, count: 0 };
+
+    const days: { date: string; count: number; value: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const day = new Date();
+      day.setUTCHours(0, 0, 0, 0);
+      day.setUTCDate(day.getUTCDate() - i);
+      const next = new Date(day);
+      next.setUTCDate(next.getUTCDate() + 1);
+      const slice = txRecent.filter(
+        (t) => new Date(t.transactionDate) >= day && new Date(t.transactionDate) < next,
+      );
+      days.push({
+        date: day.toISOString().slice(0, 10),
+        count: slice.length,
+        value: slice.reduce((a, t) => a + Number(t.totalValue), 0),
+      });
+    }
+
+    const topTrades = txRecent
+      .slice()
+      .sort((a, b) => Number(b.totalValue) - Number(a.totalValue))
+      .slice(0, 5)
+      .map((t) => ({
+        id: t.id,
+        insiderName: t.insiderName,
+        role: t.role,
+        rawTitle: t.rawTitle,
+        ticker: t.company?.ticker || null,
+        companyName: t.company?.name || '',
+        sector: t.company?.sector || null,
+        totalValue: Number(t.totalValue),
+        sharesBought: Number(t.sharesBought),
+        pricePerShare: Number(t.pricePerShare),
+        transactionDate: t.transactionDate,
+      }));
+
+    return {
+      metrics: {
+        insiderBuys24h: buys24h.length,
+        pct24hVs7d,
+        totalRecentValue,
+        confidence,
+        topSector: { name: topSector.name, value: topSector.value },
+      },
+      sectors,
+      activity: days,
+      topTrades,
+    };
+  }
+
+  async getAllTrades(opts: { limit?: number; offset?: number; q?: string }) {
+    const limit = Math.min(opts.limit ?? 100, 500);
+    const offset = opts.offset ?? 0;
+    const qb = this.txRepo
+      .createQueryBuilder('t')
+      .leftJoinAndSelect('t.company', 'c')
+      .orderBy('t.transactionDate', 'DESC')
+      .addOrderBy('t.totalValue', 'DESC');
+    if (opts.q) {
+      qb.andWhere(
+        '(LOWER(c.ticker) LIKE :q OR LOWER(c.name) LIKE :q OR LOWER(t.insiderName) LIKE :q)',
+        { q: `%${opts.q.toLowerCase()}%` },
+      );
+    }
+    const total = await qb.getCount();
+    const rows = await qb.limit(limit).offset(offset).getMany();
+    return {
+      total,
+      rows: rows.map((t) => ({
+        id: t.id,
+        insiderName: t.insiderName,
+        role: t.role,
+        rawTitle: t.rawTitle,
+        ticker: t.company?.ticker || null,
+        companyName: t.company?.name || '',
+        sector: t.company?.sector || null,
+        sharesBought: Number(t.sharesBought),
+        pricePerShare: Number(t.pricePerShare),
+        totalValue: Number(t.totalValue),
+        previousHoldings: t.previousHoldings === null ? null : Number(t.previousHoldings),
+        transactionDate: t.transactionDate,
+        filingUrl: t.filingUrl,
+      })),
+    };
+  }
+
+  async getTopInsiders(limit = 20) {
+    const rows = await this.txRepo
+      .createQueryBuilder('t')
+      .leftJoinAndSelect('t.company', 'c')
+      .getMany();
+    const agg = new Map<
+      string,
+      { name: string; role: string; ticker: string | null; company: string; totalValue: number; trades: number }
+    >();
+    for (const t of rows) {
+      const key = `${t.insiderName.toLowerCase()}|${t.companyId}`;
+      const cur = agg.get(key) || {
+        name: t.insiderName,
+        role: t.role,
+        ticker: t.company?.ticker || null,
+        company: t.company?.name || '',
+        totalValue: 0,
+        trades: 0,
+      };
+      cur.totalValue += Number(t.totalValue);
+      cur.trades += 1;
+      agg.set(key, cur);
+    }
+    return Array.from(agg.values())
+      .sort((a, b) => b.totalValue - a.totalValue)
+      .slice(0, limit);
+  }
 }
