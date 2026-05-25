@@ -28,7 +28,7 @@ export function TopHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
   return (
     <>
       <header
-        className="sticky top-0 z-20 h-16 border-b flex items-center justify-between px-4 sm:px-6 gap-4"
+        className="h-16 border-b flex items-center justify-between px-4 sm:px-6 gap-4"
         style={{ background: "var(--bg-2)", borderColor: "var(--border)" }}
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
