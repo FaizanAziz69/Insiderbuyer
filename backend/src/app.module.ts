@@ -10,6 +10,7 @@ import { CompaniesModule } from './companies/companies.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { IqsModule } from './iqs/iqs.module';
 import { IngestionModule } from './ingestion/ingestion.module';
+import { NewsModule } from './news/news.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { IngestionModule } from './ingestion/ingestion.module';
     TransactionsModule,
     IqsModule,
     IngestionModule,
+    NewsModule,
   ],
 })
 export class AppModule {}

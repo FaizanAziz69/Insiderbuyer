@@ -385,6 +385,82 @@ export class IqsService {
     };
   }
 
+  async getIdeas() {
+    const qb = this.scores
+      .createQueryBuilder('s')
+      .innerJoin(Company, 'c', 'c.id = s.company_id')
+      .where('s.asOfDate = (SELECT MAX("asOfDate") FROM iqs_scores)')
+      .select([
+        's.company_id as "companyId"',
+        'c.ticker as ticker',
+        'c.name as name',
+        'c.sector as sector',
+        'c."marketCap" as "marketCap"',
+        's.iqs as iqs',
+        's."distinctBuyers" as "distinctBuyers"',
+        's."transactionCount" as "transactionCount"',
+        's."totalPurchaseValue" as "totalPurchaseValue"',
+      ]);
+
+    const all = await qb.getRawMany();
+    const rows = all.map((r: any) => ({
+      companyId: r.companyId,
+      ticker: r.ticker,
+      name: r.name,
+      sector: r.sector,
+      marketCap: r.marketCap !== null ? Number(r.marketCap) : null,
+      iqs: Number(r.iqs),
+      distinctBuyers: Number(r.distinctBuyers),
+      transactionCount: Number(r.transactionCount),
+      totalPurchaseValue: Number(r.totalPurchaseValue),
+    }));
+
+    const byIqs = [...rows].sort((a, b) => b.iqs - a.iqs);
+    const cluster = rows.filter((r) => r.distinctBuyers >= 2).sort((a, b) => b.iqs - a.iqs);
+    const megacap = rows
+      .filter((r) => (r.marketCap || 0) >= 1e10)
+      .sort((a, b) => b.iqs - a.iqs);
+    const smallcap = rows
+      .filter((r) => r.marketCap !== null && r.marketCap < 5e8 && r.iqs >= 1.5)
+      .sort((a, b) => b.iqs - a.iqs);
+    const byValue = [...rows].sort((a, b) => b.totalPurchaseValue - a.totalPurchaseValue);
+
+    return {
+      lists: [
+        {
+          slug: 'highest-conviction',
+          title: 'Highest conviction',
+          subtitle: 'Top-ranked by Insider Buying Quality Score',
+          rows: byIqs.slice(0, 10),
+        },
+        {
+          slug: 'cluster-buying',
+          title: 'Cluster buying alerts',
+          subtitle: 'Multiple insiders accumulating in concert',
+          rows: cluster.slice(0, 10),
+        },
+        {
+          slug: 'mega-cap-moves',
+          title: 'Mega-cap insider moves',
+          subtitle: 'Companies above $10B with fresh insider buys',
+          rows: megacap.slice(0, 10),
+        },
+        {
+          slug: 'small-cap-conviction',
+          title: 'Small-cap conviction',
+          subtitle: 'Under $500M with strong IQS — biggest potential, biggest risk',
+          rows: smallcap.slice(0, 10),
+        },
+        {
+          slug: 'biggest-dollar-buys',
+          title: 'Biggest dollar buys',
+          subtitle: 'Ranked by total purchase value',
+          rows: byValue.slice(0, 10),
+        },
+      ],
+    };
+  }
+
   async getTopInsiders(limit = 20) {
     const rows = await this.txRepo
       .createQueryBuilder('t')

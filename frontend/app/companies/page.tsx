@@ -3,6 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { API_BASE, RankingsResponse, fetcher, formatCurrency } from "@/lib/api";
+import { TierBadge } from "@/components/TierBadge";
 
 export default function CompaniesPage() {
   const { data, isLoading } = useSWR<RankingsResponse>(
@@ -26,6 +27,7 @@ export default function CompaniesPage() {
               <tr>
                 <th className="w-12">#</th>
                 <th>Ticker</th>
+                <th>Tier</th>
                 <th>Company</th>
                 <th>Sector</th>
                 <th className="text-right">IQS</th>
@@ -39,13 +41,13 @@ export default function CompaniesPage() {
             <tbody>
               {isLoading || !data ? (
                 <tr>
-                  <td colSpan={10} className="text-center text-mute py-10">
+                  <td colSpan={11} className="text-center text-mute py-10">
                     Loading…
                   </td>
                 </tr>
               ) : data.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center text-mute py-10">
+                  <td colSpan={11} className="text-center text-mute py-10">
                     No ranked companies yet.
                   </td>
                 </tr>
@@ -64,6 +66,9 @@ export default function CompaniesPage() {
                       ) : (
                         "—"
                       )}
+                    </td>
+                    <td>
+                      <TierBadge iqs={r.iqs} size="sm" />
                     </td>
                     <td className="truncate max-w-[260px]">{r.name}</td>
                     <td className="text-mute text-xs truncate max-w-[180px]">

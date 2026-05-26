@@ -75,6 +75,11 @@ export class IqsController {
     return this.iqs.getVolumeSeries(n);
   }
 
+  @Get('ideas')
+  async ideas() {
+    return this.iqs.getIdeas();
+  }
+
   @Get('health')
   health() {
     return { ok: true, ts: new Date().toISOString() };

@@ -8,6 +8,7 @@ import { TopTrades } from "@/components/dashboard/TopTrades";
 import { MarketSignals } from "@/components/dashboard/MarketSignals";
 import { ActivityChart } from "@/components/dashboard/ActivityChart";
 import { PremiumCTA } from "@/components/dashboard/PremiumCTA";
+import { NewsWidget } from "@/components/news/NewsWidget";
 
 export default function DashboardPage() {
   const { data, isLoading } = useSWR<DashboardResponse>(
@@ -134,6 +135,8 @@ export default function DashboardPage() {
       </section>
 
       {data && data.activity.length > 0 && <ActivityChart days={data.activity} />}
+
+      <NewsWidget />
 
       <PremiumCTA />
     </div>

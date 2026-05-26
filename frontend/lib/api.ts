@@ -115,6 +115,42 @@ export interface InsiderRow {
   trades: number;
 }
 
+export interface NewsItem {
+  id: string;
+  title: string;
+  description: string;
+  link: string;
+  source: string;
+  category: string;
+  pubDate: string;
+}
+
+export interface NewsResponse {
+  total: number;
+  items: NewsItem[];
+}
+
+export interface IdeaRow {
+  companyId: string;
+  ticker: string | null;
+  name: string;
+  sector: string | null;
+  marketCap: number | null;
+  iqs: number;
+  distinctBuyers: number;
+  transactionCount: number;
+  totalPurchaseValue: number;
+}
+
+export interface IdeasResponse {
+  lists: Array<{
+    slug: string;
+    title: string;
+    subtitle: string;
+    rows: IdeaRow[];
+  }>;
+}
+
 export interface VolumeSeriesResponse {
   windowDays: number;
   totalCount: number;
