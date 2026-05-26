@@ -1,12 +1,8 @@
 "use client";
 import { motion } from "framer-motion";
-import { ExternalLink, FileText, Megaphone, TrendingUp } from "lucide-react";
+import { ExternalLink, MapPin } from "lucide-react";
 import { NewsItem, formatRelative } from "@/lib/api";
-
-const ICONS: Record<string, any> = {
-  "Press release": Megaphone,
-  "Speech & statement": FileText,
-};
+import { NewsImage } from "./NewsImage";
 
 function hashStr(s: string) {
   let h = 0;
@@ -17,12 +13,7 @@ function hashStr(s: string) {
 }
 
 export function NewsCard({ item, index = 0 }: { item: NewsItem; index?: number }) {
-  const Icon = ICONS[item.category] || FileText;
   const seed = hashStr(item.id || item.title);
-  const hue = seed % 360;
-  const hue2 = (hue + 50) % 360;
-  const imgSeed = `${seed}`.slice(0, 8);
-  const imgUrl = `https://picsum.photos/seed/${imgSeed}/640/360`;
 
   return (
     <motion.a
@@ -34,37 +25,26 @@ export function NewsCard({ item, index = 0 }: { item: NewsItem; index?: number }
       transition={{ duration: 0.45, delay: 0.04 * index, ease: [0.22, 1, 0.36, 1] }}
       className="card card-lift block group overflow-hidden"
     >
-      <div className="relative h-36 overflow-hidden bg-[var(--bg-3)]">
-        <img
-          src={imgUrl}
-          alt=""
-          loading="lazy"
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-        />
-        <div
-          className="absolute inset-0"
-          style={{
-            background: `linear-gradient(135deg, hsla(${hue}, 75%, 50%, 0.65) 0%, hsla(${hue2}, 80%, 55%, 0.55) 100%)`,
-            mixBlendMode: "multiply",
-          }}
-        />
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(180deg, transparent 0%, transparent 40%, rgba(0,0,0,0.45) 100%)",
-          }}
-        />
+      <div className="relative h-36 overflow-hidden">
+        <div className="absolute inset-0 transition-transform duration-700 group-hover:scale-105">
+          <NewsImage category={item.category} seed={seed} />
+        </div>
         <div
           className="absolute top-3 left-3 inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-white"
           style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(8px)" }}
         >
-          <Icon className="h-3 w-3" />
           {item.category}
         </div>
-        <div className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 text-white text-[11px] font-semibold drop-shadow">
-          <TrendingUp className="h-3 w-3" />
+        <div
+          className="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-white"
+          style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(8px)" }}
+        >
+          <MapPin className="h-2.5 w-2.5" />
+          {item.region === "US" ? "🇺🇸 US" : "🇨🇦 CA"}
+        </div>
+        <div className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 text-white text-[11px] font-semibold drop-shadow-md">
           {item.source}
+          <span className="text-white/70">· {item.label}</span>
         </div>
         <div
           className="absolute bottom-3 right-3 text-white text-[10px] font-mono px-2 py-0.5 rounded"
@@ -82,7 +62,7 @@ export function NewsCard({ item, index = 0 }: { item: NewsItem; index?: number }
         )}
         <div className="mt-3 inline-flex items-center gap-1 text-[11px] text-faint group-hover:text-accent transition">
           <ExternalLink className="h-3 w-3" />
-          Read on sec.gov
+          Read on {item.source}
         </div>
       </div>
     </motion.a>

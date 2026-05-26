@@ -115,13 +115,18 @@ export interface InsiderRow {
   trades: number;
 }
 
+export type NewsCategory = "Market" | "Economy" | "Funds" | "Regulatory";
+export type NewsRegion = "US" | "Canada";
+
 export interface NewsItem {
   id: string;
   title: string;
   description: string;
   link: string;
   source: string;
-  category: string;
+  category: NewsCategory;
+  region: NewsRegion;
+  label: string;
   pubDate: string;
 }
 

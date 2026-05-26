@@ -19,13 +19,13 @@ import { ThemeToggle } from "./ThemeToggle";
 import { LoginModal } from "./LoginModal";
 
 const NAV = [
-  { label: "Markets", href: "/", icon: Home },
-  { label: "Stocks", href: "/companies", icon: TrendingUp },
+  { label: "Home", href: "/", icon: Home },
+  { label: "Markets", href: "/markets", icon: TrendingUp },
+  { label: "Stocks", href: "/companies", icon: Activity },
+  { label: "Funds", href: "/funds", icon: Sparkles },
+  { label: "Economy", href: "/economy", icon: LineChart },
   { label: "News", href: "/news", icon: Newspaper },
-  { label: "Ideas", href: "/lists", icon: Sparkles },
-  { label: "Insiders", href: "/insiders", icon: Activity },
   { label: "Sectors", href: "/sectors", icon: Flame },
-  { label: "Charts", href: "/charts/volume", icon: LineChart },
 ];
 
 export function TopHeader({ onMenuOpen }: { onMenuOpen: () => void }) {

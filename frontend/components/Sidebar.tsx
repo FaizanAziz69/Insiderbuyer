@@ -31,8 +31,11 @@ type NavItem =
 
 const NAV: NavItem[] = [
   { type: "link", label: "Home", href: "/", icon: Home },
-  { type: "link", label: "Watchlist", href: "/watchlist", icon: Eye },
+  { type: "link", label: "Markets", href: "/markets", icon: TrendingUp },
   { type: "link", label: "Stocks", href: "/companies", icon: TrendingUp },
+  { type: "link", label: "Funds", href: "/funds", icon: Sparkles },
+  { type: "link", label: "Economy", href: "/economy", icon: LineChart },
+  { type: "link", label: "Watchlist", href: "/watchlist", icon: Eye },
   {
     type: "group",
     key: "trades",
