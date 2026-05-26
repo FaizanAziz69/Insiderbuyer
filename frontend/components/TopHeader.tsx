@@ -14,7 +14,6 @@ import {
   Sparkles,
   TrendingUp,
   User,
-  Video,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { LoginModal } from "./LoginModal";
@@ -27,7 +26,6 @@ const NAV = [
   { label: "Insiders", href: "/insiders", icon: Activity },
   { label: "Sectors", href: "/sectors", icon: Flame },
   { label: "Charts", href: "/charts/volume", icon: LineChart },
-  { label: "Videos", href: "/videos", icon: Video },
 ];
 
 export function TopHeader({ onMenuOpen }: { onMenuOpen: () => void }) {

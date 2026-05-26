@@ -130,21 +130,6 @@ export interface NewsResponse {
   items: NewsItem[];
 }
 
-export interface VideoTopic {
-  id: string;
-  title: string;
-  channel: string;
-  category: "Market" | "Stocks" | "Funds" | "ETFs" | "Education" | "Earnings";
-  duration: string;
-  topic: string;
-  hue: number;
-}
-
-export interface VideosResponse {
-  total: number;
-  items: VideoTopic[];
-}
-
 export interface IdeaRow {
   companyId: string;
   ticker: string | null;

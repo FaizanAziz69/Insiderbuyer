@@ -33,7 +33,6 @@ const NAV: NavItem[] = [
   { type: "link", label: "Home", href: "/", icon: Home },
   { type: "link", label: "Watchlist", href: "/watchlist", icon: Eye },
   { type: "link", label: "Stocks", href: "/companies", icon: TrendingUp },
-  { type: "link", label: "Videos", href: "/videos", icon: LineChart },
   {
     type: "group",
     key: "trades",

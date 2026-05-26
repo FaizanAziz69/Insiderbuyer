@@ -10,7 +10,6 @@ import { MarketSignals } from "@/components/dashboard/MarketSignals";
 import { ActivityChart } from "@/components/dashboard/ActivityChart";
 import { PremiumCTA } from "@/components/dashboard/PremiumCTA";
 import { NewsWidget } from "@/components/news/NewsWidget";
-import { VideosWidget } from "@/components/videos/VideosWidget";
 
 const TAGLINES = [
   "instantly",
@@ -87,8 +86,8 @@ export default function DashboardPage() {
             transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
             className="mt-3 text-soft text-base max-w-2xl"
           >
-            Track insider buys, market news, and stock & fund explainers — all in one live feed,
-            sourced from SEC filings.
+            Track insider buys, market news, and the conviction behind today's smart-money moves —
+            all sourced live from SEC filings.
           </motion.p>
         </div>
       </section>
@@ -145,8 +144,6 @@ export default function DashboardPage() {
           </>
         )}
       </section>
-
-      <VideosWidget />
 
       {data && data.sectors.length > 0 && <SectorHeatmap sectors={data.sectors} />}
 
