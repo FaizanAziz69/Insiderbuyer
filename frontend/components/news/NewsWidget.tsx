@@ -1,16 +1,30 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ExternalLink, Newspaper } from "lucide-react";
+import { useEffect, useState } from "react";
 import { API_BASE, NewsResponse, fetcher, formatRelative } from "@/lib/api";
+
+const ROTATE_MS = 9000;
 
 export function NewsWidget() {
   const { data, isLoading } = useSWR<NewsResponse>(
-    `${API_BASE}/news?limit=6`,
+    `${API_BASE}/news?limit=24`,
     fetcher,
     { refreshInterval: 5 * 60 * 1000, revalidateOnFocus: false },
   );
+
+  const [page, setPage] = useState(0);
+  const pages = Math.max(1, Math.ceil((data?.items.length || 0) / 5));
+
+  useEffect(() => {
+    if (pages <= 1) return;
+    const id = setInterval(() => setPage((p) => (p + 1) % pages), ROTATE_MS);
+    return () => clearInterval(id);
+  }, [pages]);
+
+  const visible = data?.items.slice(page * 5, page * 5 + 5) || [];
 
   return (
     <div className="card overflow-hidden">
@@ -21,11 +35,29 @@ export function NewsWidget() {
             <div className="text-[15px] font-semibold">Market news</div>
             <span className="live-dot live-dot-good text-faint">live</span>
           </div>
-          <div className="text-xs text-mute mt-0.5">SEC press releases & speeches</div>
+          <div className="text-xs text-mute mt-0.5">SEC press releases & speeches · rotating</div>
         </div>
-        <Link href="/news" className="text-xs text-accent hover:underline font-medium">
-          View all →
-        </Link>
+        <div className="flex items-center gap-2">
+          {pages > 1 && (
+            <div className="hidden sm:flex items-center gap-1">
+              {Array.from({ length: pages }).map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setPage(i)}
+                  className="h-1.5 rounded-full transition-all"
+                  style={{
+                    width: i === page ? 16 : 6,
+                    background: i === page ? "var(--accent)" : "var(--border-strong)",
+                  }}
+                  aria-label={`Page ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
+          <Link href="/news" className="text-xs text-accent hover:underline font-medium">
+            View all →
+          </Link>
+        </div>
       </div>
       {isLoading || !data ? (
         <ul className="divide-y divide-[var(--border)]">
@@ -37,38 +69,42 @@ export function NewsWidget() {
             </li>
           ))}
         </ul>
-      ) : data.items.length === 0 ? (
+      ) : visible.length === 0 ? (
         <div className="px-5 py-10 text-sm text-mute text-center">
           No news right now. Check back later.
         </div>
       ) : (
-        <ul className="divide-y divide-[var(--border)]">
-          {data.items.slice(0, 5).map((n, i) => (
-            <motion.li
-              key={n.id}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.35, delay: 0.04 * i }}
-            >
-              <a
-                href={n.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block px-5 py-3.5 hover:bg-[var(--accent-soft)] transition group"
-              >
-                <div className="flex items-center gap-2 text-[11px] text-mute mb-1">
-                  <span className="font-semibold text-soft">{n.source}</span>
-                  <span className="text-faint">·</span>
-                  <span>{n.category}</span>
-                  <span className="ml-auto text-faint">{formatRelative(n.pubDate)}</span>
-                </div>
-                <div className="text-[13px] font-semibold leading-snug line-clamp-2 group-hover:text-accent transition">
-                  {n.title}
-                </div>
-              </a>
-            </motion.li>
-          ))}
-        </ul>
+        <AnimatePresence mode="wait">
+          <motion.ul
+            key={page}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="divide-y divide-[var(--border)]"
+          >
+            {visible.map((n, i) => (
+              <li key={n.id}>
+                <a
+                  href={n.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block px-5 py-3.5 hover:bg-[var(--accent-soft)] transition group"
+                >
+                  <div className="flex items-center gap-2 text-[11px] text-mute mb-1">
+                    <span className="font-semibold text-soft">{n.source}</span>
+                    <span className="text-faint">·</span>
+                    <span>{n.category}</span>
+                    <span className="ml-auto text-faint">{formatRelative(n.pubDate)}</span>
+                  </div>
+                  <div className="text-[13px] font-semibold leading-snug line-clamp-2 group-hover:text-accent transition">
+                    {n.title}
+                  </div>
+                </a>
+              </li>
+            ))}
+          </motion.ul>
+        </AnimatePresence>
       )}
     </div>
   );

@@ -1,37 +1,46 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
-import { Bell, ChevronRight, LogIn, Menu, Search, Sparkles, User } from "lucide-react";
+import { useState } from "react";
+import {
+  Activity,
+  Bell,
+  Flame,
+  Home,
+  LineChart,
+  LogIn,
+  Menu,
+  Newspaper,
+  Sparkles,
+  TrendingUp,
+  User,
+  Video,
+} from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { LoginModal } from "./LoginModal";
 
-function prettify(seg: string) {
-  return seg.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
+const NAV = [
+  { label: "Markets", href: "/", icon: Home },
+  { label: "Stocks", href: "/companies", icon: TrendingUp },
+  { label: "News", href: "/news", icon: Newspaper },
+  { label: "Ideas", href: "/lists", icon: Sparkles },
+  { label: "Insiders", href: "/insiders", icon: Activity },
+  { label: "Sectors", href: "/sectors", icon: Flame },
+  { label: "Charts", href: "/charts/volume", icon: LineChart },
+  { label: "Videos", href: "/videos", icon: Video },
+];
 
 export function TopHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
   const pathname = usePathname() || "/";
   const [loginOpen, setLoginOpen] = useState(false);
 
-  const crumbs = useMemo(() => {
-    const segs = pathname.split("/").filter(Boolean);
-    const trail: { href: string; label: string }[] = [{ href: "/", label: "Dashboard" }];
-    let acc = "";
-    for (const s of segs) {
-      acc += "/" + s;
-      trail.push({ href: acc, label: prettify(decodeURIComponent(s)) });
-    }
-    return trail;
-  }, [pathname]);
-
   return (
     <>
       <header
-        className="h-16 border-b flex items-center justify-between px-4 sm:px-6 gap-4"
+        className="h-16 border-b flex items-center justify-between px-3 sm:px-4 lg:px-6 gap-3"
         style={{ background: "var(--bg-2)", borderColor: "var(--border)" }}
       >
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
           <button
             onClick={onMenuOpen}
             className="lg:hidden h-9 w-9 rounded-md hover:bg-[var(--bg-3)] flex items-center justify-center transition"
@@ -39,40 +48,33 @@ export function TopHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
           >
             <Menu className="h-5 w-5" />
           </button>
-
-          <nav className="hidden sm:flex items-center gap-1.5 text-sm text-mute min-w-0">
-            {crumbs.map((c, i) => (
-              <span key={c.href} className="inline-flex items-center gap-1.5 truncate">
-                {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-faint flex-shrink-0" />}
-                {i === crumbs.length - 1 ? (
-                  <span className="text-soft font-semibold truncate">{c.label}</span>
-                ) : (
-                  <Link href={c.href} className="hover:text-accent transition truncate">
-                    {c.label}
-                  </Link>
-                )}
-              </span>
-            ))}
-          </nav>
         </div>
 
-        <div className="hidden md:block w-full max-w-md">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-faint pointer-events-none" />
-            <input
-              placeholder="Search insiders, symbols, sectors…"
-              className="input-base pl-10"
-            />
-            <kbd
-              className="hidden lg:inline-flex absolute right-2 top-1/2 -translate-y-1/2 items-center px-1.5 py-0.5 text-[10px] font-mono rounded border"
-              style={{ borderColor: "var(--border-strong)", color: "var(--text-faint)" }}
-            >
-              ⌘ K
-            </kbd>
-          </div>
-        </div>
+        <nav className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-thin">
+          {NAV.map((n) => {
+            const Icon = n.icon;
+            const isActive =
+              n.href === "/"
+                ? pathname === "/"
+                : pathname === n.href || pathname.startsWith(n.href + "/");
+            return (
+              <Link
+                key={n.href}
+                href={n.href}
+                className="inline-flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-md text-[13px] font-semibold whitespace-nowrap transition"
+                style={{
+                  background: isActive ? "var(--accent-soft)" : "transparent",
+                  color: isActive ? "var(--accent)" : "var(--text-soft)",
+                }}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {n.label}
+              </Link>
+            );
+          })}
+        </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           <Link
             href="/alerts"
             className="hidden sm:inline-flex h-9 w-9 rounded-md hover:bg-[var(--bg-3)] items-center justify-center relative transition"
@@ -97,7 +99,7 @@ export function TopHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
           </Link>
           <button
             onClick={() => setLoginOpen(true)}
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 h-9 rounded-md text-[13px] font-semibold border transition hover:bg-[var(--bg-3)]"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 h-9 rounded-md text-[13px] font-semibold border transition hover:bg-[var(--bg-3)]"
             style={{
               borderColor: "var(--border-strong)",
               color: "var(--text-soft)",

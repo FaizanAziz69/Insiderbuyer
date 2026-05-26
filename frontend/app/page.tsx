@@ -1,6 +1,7 @@
 "use client";
 import useSWR from "swr";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { API_BASE, DashboardResponse, fetcher, formatCurrency } from "@/lib/api";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { SectorHeatmap } from "@/components/dashboard/SectorHeatmap";
@@ -9,6 +10,15 @@ import { MarketSignals } from "@/components/dashboard/MarketSignals";
 import { ActivityChart } from "@/components/dashboard/ActivityChart";
 import { PremiumCTA } from "@/components/dashboard/PremiumCTA";
 import { NewsWidget } from "@/components/news/NewsWidget";
+import { VideosWidget } from "@/components/videos/VideosWidget";
+
+const TAGLINES = [
+  "instantly",
+  "in real-time",
+  "in one feed",
+  "decoded",
+  "without the noise",
+];
 
 export default function DashboardPage() {
   const { data, isLoading } = useSWR<DashboardResponse>(
@@ -18,6 +28,12 @@ export default function DashboardPage() {
   );
 
   const m = data?.metrics;
+
+  const [taglineIdx, setTaglineIdx] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTaglineIdx((i) => (i + 1) % TAGLINES.length), 3200);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div className="max-w-7xl mx-auto space-y-7 sm:space-y-9">
@@ -49,7 +65,21 @@ export default function DashboardPage() {
             style={{ letterSpacing: "-0.8px" }}
           >
             Insider intelligence,{" "}
-            <span className="gradient-text">instantly</span>.
+            <span className="relative inline-block">
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={taglineIdx}
+                  initial={{ opacity: 0, y: 18, filter: "blur(8px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, y: -18, filter: "blur(8px)" }}
+                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                  className="gradient-text inline-block"
+                >
+                  {TAGLINES[taglineIdx]}
+                </motion.span>
+              </AnimatePresence>
+            </span>
+            .
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 18 }}
@@ -57,8 +87,8 @@ export default function DashboardPage() {
             transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
             className="mt-3 text-soft text-base max-w-2xl"
           >
-            Track insider buys and sells in real-time. SEC filing analysis reveals where smart
-            money is accumulating.
+            Track insider buys, market news, and stock & fund explainers — all in one live feed,
+            sourced from SEC filings.
           </motion.p>
         </div>
       </section>
@@ -116,6 +146,8 @@ export default function DashboardPage() {
         )}
       </section>
 
+      <VideosWidget />
+
       {data && data.sectors.length > 0 && <SectorHeatmap sectors={data.sectors} />}
 
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -134,9 +166,9 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {data && data.activity.length > 0 && <ActivityChart days={data.activity} />}
-
       <NewsWidget />
+
+      {data && data.activity.length > 0 && <ActivityChart days={data.activity} />}
 
       <PremiumCTA />
     </div>

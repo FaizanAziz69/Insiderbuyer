@@ -32,6 +32,8 @@ type NavItem =
 const NAV: NavItem[] = [
   { type: "link", label: "Home", href: "/", icon: Home },
   { type: "link", label: "Watchlist", href: "/watchlist", icon: Eye },
+  { type: "link", label: "Stocks", href: "/companies", icon: TrendingUp },
+  { type: "link", label: "Videos", href: "/videos", icon: LineChart },
   {
     type: "group",
     key: "trades",
@@ -40,10 +42,9 @@ const NAV: NavItem[] = [
     items: [
       { label: "All trades", href: "/trades" },
       { label: "Screener", href: "/screener" },
-      { label: "By company", href: "/companies" },
       { label: "Top insiders", href: "/insiders" },
       { label: "By sector", href: "/sectors" },
-      { label: "Lists", href: "/lists" },
+      { label: "Ideas & lists", href: "/lists" },
       { label: "Top performers", href: "/top-performers" },
     ],
   },
