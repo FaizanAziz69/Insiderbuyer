@@ -2,6 +2,7 @@
 import useSWR from "swr";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { Activity, Newspaper } from "lucide-react";
 import { API_BASE, DashboardResponse, fetcher, formatCurrency } from "@/lib/api";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { SectorHeatmap } from "@/components/dashboard/SectorHeatmap";
@@ -9,89 +10,106 @@ import { TopTrades } from "@/components/dashboard/TopTrades";
 import { MarketSignals } from "@/components/dashboard/MarketSignals";
 import { ActivityChart } from "@/components/dashboard/ActivityChart";
 import { PremiumCTA } from "@/components/dashboard/PremiumCTA";
-import { NewsWidget } from "@/components/news/NewsWidget";
+import { NewsMagazine } from "@/components/home/NewsMagazine";
 
-const TAGLINES = [
-  "instantly",
-  "in real-time",
-  "in one feed",
-  "decoded",
-  "without the noise",
-];
+type Tab = "news" | "signals";
 
-export default function DashboardPage() {
+export default function HomePage() {
+  const [tab, setTab] = useState<Tab>("news");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("ib-home-tab") as Tab | null;
+      if (saved === "news" || saved === "signals") setTab(saved);
+    } catch {}
+  }, []);
+
+  function setTabPersist(t: Tab) {
+    setTab(t);
+    try {
+      localStorage.setItem("ib-home-tab", t);
+    } catch {}
+  }
+
+  return (
+    <div className="space-y-5 sm:space-y-6">
+      <TabToggle tab={tab} setTab={setTabPersist} />
+      <AnimatePresence mode="wait">
+        {tab === "news" ? (
+          <motion.div
+            key="news"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <NewsMagazine />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="signals"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <SignalsView />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function TabToggle({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div
+        className="inline-flex p-1 rounded-xl border"
+        style={{ background: "var(--bg-2)", borderColor: "var(--border)" }}
+      >
+        <button
+          onClick={() => setTab("news")}
+          className="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition"
+          style={{
+            background: tab === "news" ? "var(--accent)" : "transparent",
+            color: tab === "news" ? "white" : "var(--text-soft)",
+            boxShadow: tab === "news" ? "0 4px 12px rgba(0,102,255,0.25)" : "none",
+          }}
+        >
+          <Newspaper className="h-4 w-4" />
+          News
+        </button>
+        <button
+          onClick={() => setTab("signals")}
+          className="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition"
+          style={{
+            background: tab === "signals" ? "var(--accent)" : "transparent",
+            color: tab === "signals" ? "white" : "var(--text-soft)",
+            boxShadow: tab === "signals" ? "0 4px 12px rgba(0,102,255,0.25)" : "none",
+          }}
+        >
+          <Activity className="h-4 w-4" />
+          Signals
+        </button>
+      </div>
+      <div className="hidden sm:inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-mute">
+        <span className="live-dot live-dot-good" />
+        Live · SEC · Fed · Treasury · BoC · StatCan
+      </div>
+    </div>
+  );
+}
+
+function SignalsView() {
   const { data, isLoading } = useSWR<DashboardResponse>(
     `${API_BASE}/dashboard`,
     fetcher,
     { refreshInterval: 60000, revalidateOnFocus: false },
   );
-
   const m = data?.metrics;
-
-  const [taglineIdx, setTaglineIdx] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTaglineIdx((i) => (i + 1) % TAGLINES.length), 3200);
-    return () => clearInterval(id);
-  }, []);
-
   return (
-    <div className="max-w-7xl mx-auto space-y-7 sm:space-y-9">
-      <section className="relative overflow-hidden rounded-2xl">
-        <div className="hero-orb hero-orb-a" />
-        <div className="hero-orb hero-orb-b" />
-        <div className="hero-orb hero-orb-c" />
-        <div className="bg-grid-animated" />
-
-        <div className="relative py-2 sm:py-3">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.18em] mb-4"
-            style={{
-              background: "var(--accent-soft)",
-              color: "var(--accent)",
-            }}
-          >
-            <span className="live-dot live-dot-good" />
-            Live · SEC EDGAR feed
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
-            className="text-[30px] sm:text-[40px] lg:text-[44px] font-bold tracking-tight leading-tight"
-            style={{ letterSpacing: "-0.8px" }}
-          >
-            Insider intelligence,{" "}
-            <span className="relative inline-block">
-              <AnimatePresence mode="wait">
-                <motion.span
-                  key={taglineIdx}
-                  initial={{ opacity: 0, y: 18, filter: "blur(8px)" }}
-                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, y: -18, filter: "blur(8px)" }}
-                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                  className="gradient-text inline-block"
-                >
-                  {TAGLINES[taglineIdx]}
-                </motion.span>
-              </AnimatePresence>
-            </span>
-            .
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-3 text-soft text-base max-w-2xl"
-          >
-            Track insider buys, market news, and the conviction behind today's smart-money moves —
-            all sourced live from SEC filings.
-          </motion.p>
-        </div>
-      </section>
-
+    <div className="space-y-7 sm:space-y-9">
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {isLoading || !m ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -122,7 +140,7 @@ export default function DashboardPage() {
               value={formatCurrency(m.totalRecentValue)}
               animatedTo={m.totalRecentValue}
               format={(n) => formatCurrency(n, true)}
-              hint="Last 7 days"
+              hint="Last 30 days"
               accent="var(--good)"
             />
             <MetricCard
@@ -137,7 +155,9 @@ export default function DashboardPage() {
             <MetricCard
               index={3}
               label="Top sector"
-              value={m.topSector.name === "Other" ? "—" : truncate(m.topSector.name, 18)}
+              value={
+                m.topSector.name === "Other" ? "—" : truncate(m.topSector.name, 18)
+              }
               hint={`${formatCurrency(m.topSector.value)} traded`}
               accent="var(--warn)"
             />
@@ -149,7 +169,10 @@ export default function DashboardPage() {
 
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2">
-          <TopTrades trades={data?.topTrades || []} total={data?.topTrades.length || 0} />
+          <TopTrades
+            trades={data?.topTrades || []}
+            total={data?.topTrades.length || 0}
+          />
         </div>
         <div>
           {m && (
@@ -162,8 +185,6 @@ export default function DashboardPage() {
           )}
         </div>
       </section>
-
-      <NewsWidget />
 
       {data && data.activity.length > 0 && <ActivityChart days={data.activity} />}
 

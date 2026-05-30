@@ -135,6 +135,16 @@ export interface NewsResponse {
   items: NewsItem[];
 }
 
+export interface ExtractedArticle {
+  url: string;
+  source: string;
+  title: string;
+  byline: string | null;
+  publishedAt: string | null;
+  html: string;
+  textPreview: string;
+}
+
 export interface IdeaRow {
   companyId: string;
   ticker: string | null;

@@ -85,10 +85,8 @@ export function NewsWidget() {
           >
             {visible.map((n, i) => (
               <li key={n.id}>
-                <a
-                  href={n.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Link
+                  href={`/article?u=${encodeURIComponent(n.link)}&c=${encodeURIComponent(n.label || n.category)}`}
                   className="block px-5 py-3.5 hover:bg-[var(--accent-soft)] transition group"
                 >
                   <div className="flex items-center gap-2 text-[11px] text-mute mb-1">
@@ -100,7 +98,7 @@ export function NewsWidget() {
                   <div className="text-[13px] font-semibold leading-snug line-clamp-2 group-hover:text-accent transition">
                     {n.title}
                   </div>
-                </a>
+                </Link>
               </li>
             ))}
           </motion.ul>

@@ -2,35 +2,29 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import {
-  Activity,
-  Bell,
-  Flame,
-  Home,
-  LineChart,
-  LogIn,
-  Menu,
-  Newspaper,
-  Sparkles,
-  TrendingUp,
-  User,
-} from "lucide-react";
+import { Bell, LogIn, Menu, Sparkles, TrendingUp, User, X } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { LoginModal } from "./LoginModal";
 
-const NAV = [
-  { label: "Home", href: "/", icon: Home },
-  { label: "Markets", href: "/markets", icon: TrendingUp },
-  { label: "Stocks", href: "/companies", icon: Activity },
-  { label: "Funds", href: "/funds", icon: Sparkles },
-  { label: "Economy", href: "/economy", icon: LineChart },
-  { label: "News", href: "/news", icon: Newspaper },
-  { label: "Sectors", href: "/sectors", icon: Flame },
+const NAV: { label: string; href: string }[] = [
+  { label: "Home", href: "/" },
+  { label: "Markets", href: "/markets" },
+  { label: "Stocks", href: "/companies" },
+  { label: "Funds", href: "/funds" },
+  { label: "Economy", href: "/economy" },
+  { label: "News", href: "/news" },
+  { label: "Ideas", href: "/lists" },
 ];
 
-export function TopHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
+export function TopHeader() {
   const pathname = usePathname() || "/";
   const [loginOpen, setLoginOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  function isActive(href: string) {
+    if (href === "/") return pathname === "/";
+    return pathname === href || pathname.startsWith(href + "/");
+  }
 
   return (
     <>
@@ -38,44 +32,46 @@ export function TopHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
         className="h-16 border-b flex items-center justify-between px-3 sm:px-4 lg:px-6 gap-3"
         style={{ background: "var(--bg-2)", borderColor: "var(--border)" }}
       >
-        <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
+        <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
+          <div className="relative h-9 w-9 rounded-xl overflow-hidden flex items-center justify-center"
+               style={{ background: "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)" }}>
+            <TrendingUp className="h-5 w-5 text-white" strokeWidth={2.5} />
+          </div>
+          <div className="flex flex-col leading-tight">
+            <span className="text-[15px] font-bold tracking-tight">insiderbuying</span>
+            <span className="text-[9px] uppercase tracking-[0.18em] text-mute font-mono">
+              SEC Form 4 · IQS
+            </span>
+          </div>
+        </Link>
+
+        <nav className="hidden md:flex items-center gap-0.5">
+          {NAV.map((n) => (
+            <Link
+              key={n.href}
+              href={n.href}
+              className="px-3 py-1.5 rounded-md text-[13px] font-semibold transition whitespace-nowrap"
+              style={{
+                background: isActive(n.href) ? "var(--accent-soft)" : "transparent",
+                color: isActive(n.href) ? "var(--accent)" : "var(--text-soft)",
+              }}
+            >
+              {n.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           <button
-            onClick={onMenuOpen}
-            className="lg:hidden h-9 w-9 rounded-md hover:bg-[var(--bg-3)] flex items-center justify-center transition"
+            onClick={() => setMobileOpen(true)}
+            className="md:hidden h-9 w-9 rounded-md hover:bg-[var(--bg-3)] flex items-center justify-center"
             aria-label="Open menu"
           >
             <Menu className="h-5 w-5" />
           </button>
-        </div>
-
-        <nav className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-thin">
-          {NAV.map((n) => {
-            const Icon = n.icon;
-            const isActive =
-              n.href === "/"
-                ? pathname === "/"
-                : pathname === n.href || pathname.startsWith(n.href + "/");
-            return (
-              <Link
-                key={n.href}
-                href={n.href}
-                className="inline-flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-md text-[13px] font-semibold whitespace-nowrap transition"
-                style={{
-                  background: isActive ? "var(--accent-soft)" : "transparent",
-                  color: isActive ? "var(--accent)" : "var(--text-soft)",
-                }}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {n.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           <Link
             href="/alerts"
-            className="hidden sm:inline-flex h-9 w-9 rounded-md hover:bg-[var(--bg-3)] items-center justify-center relative transition"
+            className="hidden sm:inline-flex h-9 w-9 rounded-md hover:bg-[var(--bg-3)] items-center justify-center relative"
             aria-label="Alerts"
           >
             <Bell className="h-4 w-4 text-soft" />
@@ -86,7 +82,7 @@ export function TopHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
           </Link>
           <Link
             href="/premium"
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 h-9 rounded-md text-[13px] font-semibold text-white transition hover:opacity-90"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 h-9 rounded-md text-[13px] font-semibold text-white"
             style={{
               background: "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
               boxShadow: "0 4px 12px rgba(0,102,255,0.25)",
@@ -97,7 +93,7 @@ export function TopHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
           </Link>
           <button
             onClick={() => setLoginOpen(true)}
-            className="hidden md:inline-flex items-center gap-1.5 px-3 h-9 rounded-md text-[13px] font-semibold border transition hover:bg-[var(--bg-3)]"
+            className="hidden lg:inline-flex items-center gap-1.5 px-3 h-9 rounded-md text-[13px] font-semibold border"
             style={{
               borderColor: "var(--border-strong)",
               color: "var(--text-soft)",
@@ -110,7 +106,7 @@ export function TopHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
           <ThemeToggle />
           <button
             onClick={() => setLoginOpen(true)}
-            className="h-9 w-9 rounded-full border flex items-center justify-center transition hover:bg-[var(--bg-3)]"
+            className="h-9 w-9 rounded-full border flex items-center justify-center hover:bg-[var(--bg-3)]"
             style={{ borderColor: "var(--border-strong)", background: "var(--bg-2)" }}
             aria-label="Profile"
           >
@@ -118,6 +114,47 @@ export function TopHeader({ onMenuOpen }: { onMenuOpen: () => void }) {
           </button>
         </div>
       </header>
+
+      {/* Mobile menu */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMobileOpen(false)}
+          />
+          <div
+            className="absolute top-0 right-0 bottom-0 w-72 border-l p-5"
+            style={{ background: "var(--bg-2)", borderColor: "var(--border)" }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <span className="font-bold">Menu</span>
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="h-8 w-8 rounded-md hover:bg-[var(--bg-3)] flex items-center justify-center"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <nav className="flex flex-col">
+              {NAV.map((n) => (
+                <Link
+                  key={n.href}
+                  href={n.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="px-3 py-2.5 rounded-md text-sm font-semibold"
+                  style={{
+                    background: isActive(n.href) ? "var(--accent-soft)" : "transparent",
+                    color: isActive(n.href) ? "var(--accent)" : "var(--text-soft)",
+                  }}
+                >
+                  {n.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
+
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </>
   );

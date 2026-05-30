@@ -1,9 +1,13 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException } from '@nestjs/common';
 import { NewsCategory, NewsRegion, NewsService } from './news.service';
+import { ArticleService } from './article.service';
 
 @Controller('news')
 export class NewsController {
-  constructor(private readonly news: NewsService) {}
+  constructor(
+    private readonly news: NewsService,
+    private readonly article: ArticleService,
+  ) {}
 
   @Get()
   async list(
@@ -22,5 +26,32 @@ export class NewsController {
     if (opts.category || opts.region) items = this.news.filter(items, opts);
     const n = limit ? Math.min(120, Math.max(1, Number(limit))) : 24;
     return { total: items.length, items: items.slice(0, n) };
+  }
+
+  @Get('image')
+  async getImage(
+    @Query('u') url?: string,
+    @Query('category') category?: string,
+    @Query('seed') seed?: string,
+  ) {
+    if (!url) throw new BadRequestException('Missing url');
+    if (!this.article.isAllowed(url)) {
+      return { image: null };
+    }
+    const image = await this.article.getImage(url, { category, seed });
+    return { image };
+  }
+
+  @Get('article')
+  async getArticle(@Query('u') url?: string) {
+    if (!url) throw new BadRequestException('Missing url');
+    if (!this.article.isAllowed(url)) {
+      throw new BadRequestException('URL not allowed');
+    }
+    try {
+      return await this.article.fetch(url);
+    } catch (err: any) {
+      throw new BadRequestException(err?.message || 'Failed to fetch article');
+    }
   }
 }
