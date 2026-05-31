@@ -281,7 +281,7 @@ function Featured({ item }: { item: NewsItem }) {
         href={`/article?u=${encodeURIComponent(item.link)}&c=${encodeURIComponent(item.label)}`}
         className="block group"
       >
-        <div className="relative aspect-[4/3] rounded-md overflow-hidden bg-[var(--bg-3)] mb-3">
+        <div className="relative aspect-[16/9] rounded-md overflow-hidden bg-[var(--bg-3)] mb-3">
           <div className="absolute inset-0">
             <NewsImage category={item.category} seed={seed} />
           </div>

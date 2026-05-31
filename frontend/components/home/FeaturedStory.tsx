@@ -1,6 +1,7 @@
 "use client";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useState } from "react";
 import { ArrowRight, Mic } from "lucide-react";
 
 export const MATERIAL_MATTERS = {
@@ -12,11 +13,14 @@ export const MATERIAL_MATTERS = {
   description:
     "The work at the U.S. Securities and Exchange Commission impacts everyday investors, business owners, and even entire economies. Yet for many, the SEC remains something of a mystery. In the SEC's new podcast, Material Matters, Chairman Paul Atkins hosts conversations with leading experts, breaking down the complexities of financial regulation and advancing a free-market agenda.",
   image:
+    "https://www.sec.gov/files/styles/horizontal_card_/public/images/podcast-material-matters-cover.jpg?itok=DGYrbp--",
+  imageFallback:
     "https://images.unsplash.com/photo-1554260570-9140fd3b7614?w=1200&h=675&fit=crop&q=80",
 };
 
 export function FeaturedStory() {
   const s = MATERIAL_MATTERS;
+  const [src, setSrc] = useState(s.image);
   return (
     <motion.section
       initial={{ opacity: 0, y: 12 }}
@@ -27,10 +31,14 @@ export function FeaturedStory() {
       <Link href={s.href} className="block group">
         <div className="relative aspect-[16/9] rounded-md overflow-hidden bg-[var(--bg-3)] mb-3">
           <img
-            src={s.image}
+            src={src}
             alt=""
             loading="lazy"
             decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => {
+              if (src !== s.imageFallback) setSrc(s.imageFallback);
+            }}
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
           <div

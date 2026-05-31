@@ -2,7 +2,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Lock, Sparkles } from "lucide-react";
+import { ChevronRight, Lock, Sparkles } from "lucide-react";
 import { API_BASE, RankingsResponse, fetcher, formatCurrency } from "@/lib/api";
 
 function hashStr(s: string) {
@@ -112,7 +112,7 @@ export function MostActiveStocks() {
   );
   const rows = data?.rows || [];
   const blurredTop = rows.slice(0, 3);
-  const visibleRest = rows.slice(3, 20);
+  const visibleRest = rows.slice(3, 7);
 
   return (
     <aside>
@@ -188,13 +188,22 @@ export function MostActiveStocks() {
             </div>
           )}
 
-          {/* 6-20 — free */}
+          {/* 4-7 — free */}
           {visibleRest.length > 0 && (
-            <ul className="divide-y divide-[var(--border)]">
-              {visibleRest.map((r, i) => (
-                <Row key={r.companyId} r={r} rank={i + 6} blurred={false} idx={i} />
-              ))}
-            </ul>
+            <>
+              <ul className="divide-y divide-[var(--border)]">
+                {visibleRest.map((r, i) => (
+                  <Row key={r.companyId} r={r} rank={i + 4} blurred={false} idx={i} />
+                ))}
+              </ul>
+              <Link
+                href="/companies"
+                className="mt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-accent hover:underline"
+              >
+                See more
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Link>
+            </>
           )}
         </>
       )}

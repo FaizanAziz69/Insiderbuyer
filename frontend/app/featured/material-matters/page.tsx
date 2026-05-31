@@ -63,31 +63,20 @@ export default function MaterialMattersPage() {
           </h1>
 
           <div
-            className="relative mt-5 rounded-lg overflow-hidden bg-[var(--bg-3)]"
+            className="relative mt-5 rounded-lg overflow-hidden bg-black"
             style={{ aspectRatio: "16 / 9" }}
           >
-            <img
-              src={MATERIAL_MATTERS.image}
-              alt=""
-              loading="eager"
-              decoding="async"
-              className="absolute inset-0 w-full h-full object-cover"
+            <iframe
+              src="https://www.youtube.com/embed/0fAlJxYADh0?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1"
+              title="Material Matters With SEC Chairman Paul Atkins"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              className="absolute inset-0 w-full h-full border-0"
             />
-            <div
-              className="absolute inset-0"
-              style={{
-                background:
-                  "linear-gradient(180deg, rgba(0,0,0,0.0) 50%, rgba(0,0,0,0.45) 100%)",
-              }}
-            />
-            <div className="absolute bottom-3 left-3 right-3 text-white">
-              <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] uppercase tracking-wider font-bold"
-                style={{ background: "rgba(0,0,0,0.55)" }}
-              >
-                <Headphones className="h-3 w-3" />
-                SEC podcast series
-              </div>
-            </div>
+          </div>
+          <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-mute">
+            <Headphones className="h-3 w-3 text-accent" />
+            SEC podcast series
           </div>
 
           <div className="h-px my-6" style={{ background: "var(--border)" }} />
