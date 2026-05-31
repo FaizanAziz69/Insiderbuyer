@@ -3,8 +3,11 @@ import useSWR from "swr";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Flame } from "lucide-react";
-import { API_BASE, RankingsResponse, fetcher } from "@/lib/api";
+import Link from "next/link";
+import { API_BASE, RankingsResponse, fetcher, formatCurrency } from "@/lib/api";
 import { StockHeatmap } from "@/components/heatmap/StockHeatmap";
+import { PremiumGate } from "@/components/PremiumGate";
+import { TierBadge } from "@/components/TierBadge";
 
 type SortBy = "marketCap" | "iqs" | "totalPurchaseValue";
 
@@ -134,6 +137,45 @@ export default function MarketHeatmapPage() {
             </button>
           ))}
         </div>
+      )}
+
+      {/* Top 3 premium picks */}
+      {data && data.rows.length >= 3 && (
+        <PremiumGate label="picks" count={3}>
+          <div className="grid grid-cols-3 gap-3 p-3 bg-[var(--bg-2)] rounded-md">
+            {data.rows.slice(0, 3).map((r) => (
+              <Link
+                key={r.companyId}
+                href={r.ticker ? `/companies/${encodeURIComponent(r.ticker)}` : "#"}
+                className="card p-4"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-mono text-sm font-bold text-accent">
+                    {r.ticker || "—"}
+                  </span>
+                  <TierBadge iqs={r.iqs} size="sm" />
+                </div>
+                <div className="text-[12px] text-soft truncate mb-2" title={r.name}>
+                  {r.name}
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-mute">IQS</span>
+                  <span className="font-bold tabular">{r.iqs.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] mt-1">
+                  <span className="text-mute">Bought</span>
+                  <span className="font-semibold tabular text-good">
+                    {formatCurrency(r.totalPurchaseValue)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] mt-1">
+                  <span className="text-mute">Mkt cap</span>
+                  <span className="tabular text-mute">{formatCurrency(r.marketCap)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </PremiumGate>
       )}
 
       <div className="card p-4 sm:p-5">

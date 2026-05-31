@@ -2,13 +2,8 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Mail, Sparkles } from "lucide-react";
-import {
-  API_BASE,
-  RankingsResponse,
-  fetcher,
-  formatCurrency,
-} from "@/lib/api";
+import { Lock, Sparkles } from "lucide-react";
+import { API_BASE, RankingsResponse, fetcher, formatCurrency } from "@/lib/api";
 
 function hashStr(s: string) {
   let h = 0;
@@ -34,11 +29,7 @@ function Sparkline({ seed, positive }: { seed: number; positive: boolean }) {
   const area = `${path} L ${w} 100 L 0 100 Z`;
   return (
     <svg viewBox={`0 0 ${w} 100`} preserveAspectRatio="none" className="w-full h-9">
-      <path
-        d={area}
-        fill={positive ? "var(--good)" : "var(--bad)"}
-        opacity="0.12"
-      />
+      <path d={area} fill={positive ? "var(--good)" : "var(--bad)"} opacity="0.12" />
       <path
         d={path}
         fill="none"
@@ -52,173 +43,170 @@ function Sparkline({ seed, positive }: { seed: number; positive: boolean }) {
   );
 }
 
+function Row({
+  r,
+  rank,
+  blurred,
+  idx,
+}: {
+  r: import("@/lib/api").RankingRow;
+  rank: number;
+  blurred: boolean;
+  idx: number;
+}) {
+  const positive = r.iqs >= 1;
+  return (
+    <motion.li
+      initial={{ opacity: 0, x: 8 }}
+      whileInView={{ opacity: 1, x: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.3, delay: 0.025 * idx }}
+      className={blurred ? "select-none pointer-events-none" : ""}
+      style={blurred ? { filter: "blur(5px)" } : undefined}
+      aria-hidden={blurred}
+    >
+      <Link
+        href={blurred ? "#" : r.ticker ? `/companies/${encodeURIComponent(r.ticker)}` : "#"}
+        className="grid grid-cols-[24px_60px_1fr] gap-2 items-center py-2.5 hover:bg-[var(--accent-soft)] rounded-md px-2 -mx-2 transition"
+      >
+        <span className="text-[10px] font-mono font-bold text-faint tabular text-center">
+          {String(rank).padStart(2, "0")}
+        </span>
+        <div className="flex items-center justify-center h-10">
+          <Sparkline seed={hashStr(r.companyId)} positive={positive} />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-bold text-[12px] truncate" title={r.name}>
+              {r.name.length > 14 ? r.name.slice(0, 14) + "…" : r.name}
+            </span>
+            <span className="text-[11px] font-bold tabular text-soft">
+              {formatCurrency(r.totalPurchaseValue)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-0.5">
+            <span
+              className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded"
+              style={{ background: "var(--bg-3)", color: "var(--text-soft)" }}
+            >
+              {r.ticker || "—"}
+            </span>
+            <span
+              className="text-[10px] font-bold tabular"
+              style={{ color: positive ? "var(--good)" : "var(--bad)" }}
+            >
+              {positive ? "+" : ""}IQS {r.iqs.toFixed(2)}
+            </span>
+          </div>
+        </div>
+      </Link>
+    </motion.li>
+  );
+}
+
 export function MostActiveStocks() {
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=8`,
+    `${API_BASE}/rankings?limit=20`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
-
   const rows = data?.rows || [];
+  const blurredTop = rows.slice(0, 3);
+  const visibleRest = rows.slice(3, 20);
 
   return (
-    <aside className="space-y-5">
-      <div>
-        <div className="flex items-baseline justify-between mb-1">
-          <h3 className="text-[15px] font-bold tracking-tight">Most Active Stocks</h3>
-          <Link href="/companies" className="text-[12px] font-semibold text-accent hover:underline">
-            All
-          </Link>
-        </div>
-        <div className="text-[11px] text-mute mb-3">Ranked by Insider Buying Quality Score</div>
-
-        {isLoading ? (
-          <ul className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <li key={i} className="h-16 shimmer rounded" />
-            ))}
-          </ul>
-        ) : (
-          <ul className="divide-y divide-[var(--border)]">
-            {rows.map((r, i) => {
-              const positive = r.iqs >= 1;
-              return (
-                <motion.li
-                  key={r.companyId}
-                  initial={{ opacity: 0, x: 8 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.35, delay: 0.04 * i }}
-                >
-                  <Link
-                    href={r.ticker ? `/companies/${encodeURIComponent(r.ticker)}` : "#"}
-                    className="grid grid-cols-[64px_1fr] gap-3 items-center py-3 hover:bg-[var(--accent-soft)] rounded-md px-2 -mx-2 transition"
-                  >
-                    <div className="flex items-center justify-center h-10">
-                      <Sparkline seed={hashStr(r.companyId)} positive={positive} />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span
-                          className="font-bold text-[13px] truncate"
-                          title={r.name}
-                        >
-                          {r.name.length > 18 ? r.name.slice(0, 18) + "…" : r.name}
-                        </span>
-                        <span className="text-[12px] font-bold tabular text-soft">
-                          {formatCurrency(r.totalPurchaseValue)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 mt-0.5">
-                        <span
-                          className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
-                          style={{
-                            background: "var(--bg-3)",
-                            color: "var(--text-soft)",
-                          }}
-                        >
-                          {r.ticker || "—"}
-                        </span>
-                        <span
-                          className={`text-[11px] font-bold tabular`}
-                          style={{ color: positive ? "var(--good)" : "var(--bad)" }}
-                        >
-                          {positive ? "+" : ""}IQS {r.iqs.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                </motion.li>
-              );
-            })}
-          </ul>
-        )}
-        <div className="text-[10px] text-mute mt-3 font-mono">
-          {new Date().toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
-          {" · "}
-          {new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-        </div>
-      </div>
-
-      {/* Get insights box */}
-      <div
-        className="card p-5"
-        style={{
-          background:
-            "linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, var(--bg-2)) 0%, var(--bg-2) 100%)",
-          borderColor: "color-mix(in srgb, var(--accent) 18%, var(--border))",
-        }}
-      >
-        <div
-          className="inline-flex h-9 w-9 rounded-lg items-center justify-center mb-3"
-          style={{
-            background: "linear-gradient(135deg, var(--accent), var(--accent-2))",
-            boxShadow: "0 6px 18px rgba(0,102,255,0.25)",
-          }}
-        >
-          <Sparkles className="h-4 w-4 text-white" />
-        </div>
-        <h3 className="text-[16px] font-bold tracking-tight">Get insights you can act on</h3>
-        <p className="text-[12px] text-soft mt-1.5 leading-relaxed">
-          Free account: full rankings, screener, watchlists, weekly digest.
-        </p>
-        <Link
-          href="/premium"
-          className="btn-primary mt-4 w-full"
-          style={{ padding: "8px 14px", fontSize: 13 }}
-        >
-          Sign up
+    <aside>
+      <div className="flex items-baseline justify-between mb-1">
+        <h3 className="text-[14px] font-bold tracking-tight">Most Active Stocks</h3>
+        <Link href="/companies" className="text-[12px] font-semibold text-accent hover:underline">
+          All
         </Link>
-        <div className="text-[11px] text-mute mt-3 text-center">
-          Already have an account?{" "}
-          <a className="underline hover:text-accent">Sign in</a>
-        </div>
       </div>
+      <div className="text-[11px] text-mute mb-3">Ranked by IQS · descending</div>
 
-      {/* Newsletter box */}
-      <div
-        className="card p-5"
-        style={{
-          background: "var(--bg-3)",
-        }}
-      >
-        <div className="flex items-start gap-3">
-          <Mail className="h-5 w-5 text-accent mt-0.5 flex-shrink-0" />
-          <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wider text-mute font-mono font-semibold">
-              Email Newsletter
-            </div>
-            <h3 className="text-[15px] font-bold tracking-tight mt-0.5">
-              Make sense of the markets
-            </h3>
-            <p className="text-[12px] text-soft mt-1.5 leading-relaxed">
-              Weekly insights on insider buying opportunities, in your inbox.
-            </p>
-            <form
-              onSubmit={(e) => e.preventDefault()}
-              className="mt-3 flex flex-col gap-2"
+      {isLoading ? (
+        <ul className="space-y-3">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <li key={i} className="h-14 shimmer rounded" />
+          ))}
+        </ul>
+      ) : (
+        <>
+          {/* Top 5 — premium gated */}
+          {blurredTop.length > 0 && (
+            <div
+              className="relative rounded-lg p-2 mb-3"
+              style={{
+                background:
+                  "linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, var(--bg-2)) 0%, var(--bg-2) 100%)",
+                border: "1px solid color-mix(in srgb, var(--accent) 22%, var(--border))",
+              }}
             >
-              <input
-                type="email"
-                required
-                placeholder="you@email.com"
-                className="input-base"
-                style={{ fontSize: 13 }}
-              />
-              <button
-                type="submit"
-                className="btn-primary"
-                style={{ padding: "8px 14px", fontSize: 13 }}
+              <div className="flex items-center gap-1.5 mb-1 px-1">
+                <Lock className="h-3 w-3 text-accent" />
+                <span
+                  className="text-[10px] font-bold uppercase tracking-wider"
+                  style={{ color: "var(--accent)" }}
+                >
+                  Top 3 picks · Premium
+                </span>
+              </div>
+              <ul className="divide-y divide-[var(--border)]">
+                {blurredTop.map((r, i) => (
+                  <Row key={r.companyId} r={r} rank={i + 1} blurred idx={i} />
+                ))}
+              </ul>
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 rounded-lg"
+                style={{
+                  background:
+                    "linear-gradient(180deg, color-mix(in srgb, var(--bg-2) 60%, transparent) 0%, color-mix(in srgb, var(--bg-2) 92%, transparent) 100%)",
+                  backdropFilter: "blur(2px)",
+                }}
               >
-                Subscribe
-              </button>
-            </form>
-          </div>
-        </div>
+                <div
+                  className="inline-flex h-10 w-10 rounded-xl items-center justify-center mb-2"
+                  style={{
+                    background: "linear-gradient(135deg, var(--accent), var(--accent-2))",
+                    boxShadow: "0 6px 18px rgba(0,102,255,0.25)",
+                  }}
+                >
+                  <Sparkles className="h-4 w-4 text-white" />
+                </div>
+                <div className="text-[12px] font-bold mb-0.5">Top 3 are premium</div>
+                <div className="text-[11px] text-mute mb-3 max-w-[200px]">
+                  Unlock the highest-IQS signals first.
+                </div>
+                <Link
+                  href="/premium"
+                  className="btn-primary"
+                  style={{ padding: "6px 14px", fontSize: 12 }}
+                >
+                  Unlock top picks
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* 6-20 — free */}
+          {visibleRest.length > 0 && (
+            <ul className="divide-y divide-[var(--border)]">
+              {visibleRest.map((r, i) => (
+                <Row key={r.companyId} r={r} rank={i + 6} blurred={false} idx={i} />
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+
+      <div className="text-[10px] text-mute mt-3 font-mono">
+        {new Date().toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })}
+        {" · "}
+        {new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
       </div>
     </aside>
   );

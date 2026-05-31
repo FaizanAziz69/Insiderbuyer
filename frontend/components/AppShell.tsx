@@ -1,5 +1,6 @@
 "use client";
 import { TopHeader } from "./TopHeader";
+import { Footer } from "./Footer";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -10,6 +11,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-[1400px] mx-auto w-full">
         {children}
       </main>
+      <Footer />
     </div>
   );
 }

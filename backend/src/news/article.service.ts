@@ -24,6 +24,13 @@ const ALLOWED_HOSTS = new Set([
   'bankofcanada.ca',
   'www150.statcan.gc.ca',
   'statcan.gc.ca',
+  'www.bls.gov',
+  'bls.gov',
+  'www.fdic.gov',
+  'fdic.gov',
+  'www.newyorkfed.org',
+  'newyorkfed.org',
+  'libertystreeteconomics.newyorkfed.org',
 ]);
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -39,6 +46,13 @@ const SOURCE_LABELS: Record<string, string> = {
   'bankofcanada.ca': 'Bank of Canada',
   'www150.statcan.gc.ca': 'Statistics Canada',
   'statcan.gc.ca': 'Statistics Canada',
+  'www.bls.gov': 'Bureau of Labor Statistics',
+  'bls.gov': 'Bureau of Labor Statistics',
+  'www.fdic.gov': 'Federal Deposit Insurance Corporation',
+  'fdic.gov': 'Federal Deposit Insurance Corporation',
+  'www.newyorkfed.org': 'Federal Reserve Bank of New York',
+  'newyorkfed.org': 'Federal Reserve Bank of New York',
+  'libertystreeteconomics.newyorkfed.org': 'Federal Reserve Bank of New York',
 };
 
 const SOURCE_WIKI_QUERY: Record<string, string> = {
@@ -54,6 +68,13 @@ const SOURCE_WIKI_QUERY: Record<string, string> = {
   'bankofcanada.ca': 'Bank of Canada Ottawa',
   'www150.statcan.gc.ca': 'Statistics Canada',
   'statcan.gc.ca': 'Statistics Canada',
+  'www.bls.gov': 'Bureau of Labor Statistics employment',
+  'bls.gov': 'Bureau of Labor Statistics employment',
+  'www.fdic.gov': 'FDIC bank deposit insurance',
+  'fdic.gov': 'FDIC bank deposit insurance',
+  'www.newyorkfed.org': 'Federal Reserve Bank New York',
+  'newyorkfed.org': 'Federal Reserve Bank New York',
+  'libertystreeteconomics.newyorkfed.org': 'Federal Reserve Bank New York',
 };
 
 const UNSPLASH_BY_CATEGORY: Record<string, string[]> = {
@@ -128,7 +149,7 @@ export class ArticleService {
 
   async getImage(
     url: string,
-    ctx?: { category?: string; seed?: string },
+    ctx?: { category?: string; seed?: string; title?: string },
   ): Promise<string | null> {
     if (!this.isAllowed(url)) return null;
     const cacheKey = `${url}|${ctx?.category || ''}|${ctx?.seed || ''}`;
@@ -139,7 +160,7 @@ export class ArticleService {
 
     image = await this.fetchOgImage(url);
     if (!image) {
-      image = await this.searchWikimedia(url, ctx?.seed || url);
+      image = await this.searchWikimedia(url, ctx?.seed || url, ctx?.title, ctx?.category);
     }
     if (!image && ctx?.category) {
       image = this.pickUnsplash(ctx.category, ctx?.seed || url);
@@ -175,10 +196,10 @@ export class ArticleService {
     }
   }
 
-  private async getWikimediaCandidates(host: string): Promise<string[]> {
-    const cached = this.wikiCandidatesCache.get(host);
+  private async getWikimediaCandidatesFor(query: string): Promise<string[]> {
+    const cacheKey = `q:${query.toLowerCase()}`;
+    const cached = this.wikiCandidatesCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < this.IMG_CACHE_MS) return cached.hits;
-    const query = SOURCE_WIKI_QUERY[host] || 'finance markets';
     try {
       const { data } = await this.http.get(
         'https://commons.wikimedia.org/w/api.php',
@@ -197,29 +218,73 @@ export class ArticleService {
       );
       const hits: string[] = ((data?.query?.search || []) as any[])
         .map((h) => String(h.title || '').replace(/^File:/, ''))
-        .filter((f) => /\.(jpe?g|png|webp)$/i.test(f));
-      this.wikiCandidatesCache.set(host, { ts: Date.now(), hits });
+        .filter((f) => /\.(jpe?g|png|webp)$/i.test(f))
+        .filter((f) => !/(logo|seal|coat[\s_]of[\s_]arms|map\b|portrait[\s_]painting)/i.test(f));
+      this.wikiCandidatesCache.set(cacheKey, { ts: Date.now(), hits });
       return hits;
     } catch (err: any) {
-      this.logger.warn(`Wikimedia search failed for ${host}: ${err?.message || err}`);
-      this.wikiCandidatesCache.set(host, { ts: Date.now(), hits: [] });
+      this.logger.warn(`Wikimedia search failed for "${query}": ${err?.message || err}`);
+      this.wikiCandidatesCache.set(cacheKey, { ts: Date.now(), hits: [] });
       return [];
     }
   }
 
-  private async searchWikimedia(url: string, seed: string): Promise<string | null> {
+  private extractKeywords(title?: string): string[] {
+    if (!title) return [];
+    const STOP = new Set([
+      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of',
+      'with', 'by', 'from', 'as', 'is', 'are', 'was', 'were', 'be', 'been',
+      'has', 'have', 'had', 'will', 'would', 'should', 'could', 'may', 'might',
+      'can', 'this', 'that', 'these', 'those', 'about', 'after', 'before',
+      'over', 'under', 'into', 'sec', 'cftc', 'announces', 'statement', 'remarks',
+      'press', 'release', 'today', 'commissioner', 'chair', 'chairman',
+    ]);
+    return title
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 3 && !STOP.has(w.toLowerCase()))
+      .slice(0, 4);
+  }
+
+  private async searchWikimedia(
+    url: string,
+    seed: string,
+    title?: string,
+    category?: string,
+  ): Promise<string | null> {
     let host: string;
     try {
       host = new URL(url).hostname;
     } catch {
       return null;
     }
-    const candidates = await this.getWikimediaCandidates(host);
-    if (candidates.length === 0) return null;
-    const idx = hashSeed(seed) % candidates.length;
-    const filename = candidates[idx];
-    const encoded = encodeURIComponent(filename.replace(/ /g, '_'));
-    return `https://commons.wikimedia.org/wiki/Special:FilePath/${encoded}?width=800`;
+    const keywords = this.extractKeywords(title);
+    const sourceQuery = SOURCE_WIKI_QUERY[host] || '';
+    const categoryQuery =
+      category === 'Market'
+        ? 'stock market trading floor'
+        : category === 'Economy'
+        ? 'currency monetary policy'
+        : category === 'Funds'
+        ? 'investment portfolio finance'
+        : '';
+
+    const queries: string[] = [];
+    if (keywords.length >= 2) queries.push(keywords.join(' '));
+    if (sourceQuery) queries.push(sourceQuery);
+    if (categoryQuery) queries.push(categoryQuery);
+    if (queries.length === 0) queries.push('finance markets');
+
+    for (const q of queries) {
+      const candidates = await this.getWikimediaCandidatesFor(q);
+      if (candidates.length > 0) {
+        const idx = hashSeed(seed) % candidates.length;
+        const filename = candidates[idx];
+        const encoded = encodeURIComponent(filename.replace(/ /g, '_'));
+        return `https://commons.wikimedia.org/wiki/Special:FilePath/${encoded}?width=800`;
+      }
+    }
+    return null;
   }
 
   private pickUnsplash(category: string, seed: string): string | null {

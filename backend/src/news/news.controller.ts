@@ -33,12 +33,13 @@ export class NewsController {
     @Query('u') url?: string,
     @Query('category') category?: string,
     @Query('seed') seed?: string,
+    @Query('title') title?: string,
   ) {
     if (!url) throw new BadRequestException('Missing url');
     if (!this.article.isAllowed(url)) {
       return { image: null };
     }
-    const image = await this.article.getImage(url, { category, seed });
+    const image = await this.article.getImage(url, { category, seed, title });
     return { image };
   }
 

@@ -89,6 +89,34 @@ const FEEDS: FeedDef[] = [
     region: 'Canada',
     label: 'Economic indicators',
   },
+  {
+    url: 'https://www.bls.gov/feed/news_release/empsit.rss',
+    source: 'Bureau of Labor Statistics',
+    category: 'Economy',
+    region: 'US',
+    label: 'Employment situation',
+  },
+  {
+    url: 'https://www.bls.gov/feed/news_release/cpi.rss',
+    source: 'Bureau of Labor Statistics',
+    category: 'Economy',
+    region: 'US',
+    label: 'Consumer price index',
+  },
+  {
+    url: 'https://www.fdic.gov/news/press-releases/index.xml',
+    source: 'FDIC',
+    category: 'Regulatory',
+    region: 'US',
+    label: 'Press release',
+  },
+  {
+    url: 'https://www.newyorkfed.org/medialibrary/media/research/blog/feed.xml',
+    source: 'New York Fed',
+    category: 'Economy',
+    region: 'US',
+    label: 'Liberty Street research',
+  },
 ];
 
 const FUND_KEYWORDS = /(fund|ETF|mutual|investment\s+compan|advis|portfolio)/i;

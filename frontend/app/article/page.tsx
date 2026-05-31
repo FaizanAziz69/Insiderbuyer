@@ -5,7 +5,12 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, ExternalLink, FileText } from "lucide-react";
-import { API_BASE, ExtractedArticle, fetcher, formatDate } from "@/lib/api";
+import { API_BASE, ExtractedArticle, NewsResponse, fetcher, formatDate } from "@/lib/api";
+import { MostActiveStocks } from "@/components/home/MostActiveStocks";
+import { GetInsightsCard } from "@/components/home/GetInsightsCard";
+import { TrendingHeadlines } from "@/components/home/TrendingHeadlines";
+import { RightSidebar } from "@/components/home/RightSidebar";
+import { PopularTopics } from "@/components/home/PopularTopics";
 
 function ArticleReader() {
   const params = useSearchParams();
@@ -16,6 +21,27 @@ function ArticleReader() {
     u ? `${API_BASE}/news/article?u=${encodeURIComponent(u)}` : null,
     fetcher,
     { revalidateOnFocus: false },
+  );
+
+  const { data: newsList } = useSWR<NewsResponse>(
+    `${API_BASE}/news?limit=12`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60 * 1000 },
+  );
+  const headlines = (newsList?.items || []).filter((n) => n.link !== u).slice(0, 10);
+
+  const imgQs = u
+    ? new URLSearchParams({
+        u,
+        category: cat || "Regulatory",
+        seed: u,
+        title: data?.title?.slice(0, 120) || "",
+      }).toString()
+    : "";
+  const { data: img } = useSWR<{ image: string | null }>(
+    u && data ? `${API_BASE}/news/image?${imgQs}` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 24 * 60 * 60 * 1000 },
   );
 
   if (!u) {
@@ -31,8 +57,8 @@ function ArticleReader() {
     );
   }
 
-  return (
-    <div className="max-w-3xl mx-auto">
+  const articleBody = (
+    <>
       <Link
         href="/news"
         className="inline-flex items-center gap-1.5 text-xs text-mute hover:text-accent transition mb-5"
@@ -80,7 +106,7 @@ function ArticleReader() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="flex items-center gap-2 text-mute text-xs mb-3">
+          <div className="flex items-center gap-2 text-mute text-xs mb-3 flex-wrap">
             <span
               className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"
               style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
@@ -103,14 +129,24 @@ function ArticleReader() {
             {data.title}
           </h1>
 
-          {data.byline && (
-            <div className="text-sm text-mute mt-3">By {data.byline}</div>
+          {img?.image && (
+            <div
+              className="relative mt-5 rounded-lg overflow-hidden bg-[var(--bg-3)]"
+              style={{ aspectRatio: "16 / 9" }}
+            >
+              <img
+                src={img.image}
+                alt=""
+                loading="eager"
+                decoding="async"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            </div>
           )}
 
-          <div
-            className="h-px my-6"
-            style={{ background: "var(--border)" }}
-          />
+          {data.byline && <div className="text-sm text-mute mt-3">By {data.byline}</div>}
+
+          <div className="h-px my-6" style={{ background: "var(--border)" }} />
 
           <div
             className="article-body text-[15px] leading-relaxed text-soft"
@@ -137,6 +173,26 @@ function ArticleReader() {
           </div>
         </motion.article>
       )}
+    </>
+  );
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_280px] gap-6 lg:gap-8">
+      {/* LEFT sidebar */}
+      <aside className="order-2 lg:order-1 space-y-6">
+        <MostActiveStocks />
+        <GetInsightsCard />
+        <TrendingHeadlines items={headlines} />
+      </aside>
+
+      {/* CENTER article */}
+      <div className="order-1 lg:order-2 min-w-0">{articleBody}</div>
+
+      {/* RIGHT sidebar */}
+      <aside className="order-3 space-y-6">
+        <RightSidebar />
+        <PopularTopics />
+      </aside>
 
       <style jsx global>{`
         .article-body p {
@@ -175,9 +231,7 @@ function ArticleReader() {
 
 export default function ArticlePage() {
   return (
-    <Suspense
-      fallback={<div className="card p-10 max-w-3xl mx-auto shimmer h-64" />}
-    >
+    <Suspense fallback={<div className="card p-10 max-w-3xl mx-auto shimmer h-64" />}>
       <ArticleReader />
     </Suspense>
   );

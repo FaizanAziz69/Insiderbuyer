@@ -22,6 +22,7 @@ export function NewsCard({ item, index = 0 }: { item: NewsItem; index?: number }
     u: item.link,
     category: item.category,
     seed: item.id,
+    title: item.title.slice(0, 120),
   }).toString();
   const { data: img } = useSWR<{ image: string | null }>(
     `${API_BASE}/news/image?${imgQs}`,
