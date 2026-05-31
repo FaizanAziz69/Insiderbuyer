@@ -14,6 +14,7 @@ import { NewsImage } from "@/components/news/NewsImage";
 import { NewsCard } from "@/components/news/NewsCard";
 import { NewsCategorySection } from "@/components/news/NewsCategorySection";
 import { MostActiveStocks } from "./MostActiveStocks";
+import { AdSlot } from "./AdSlot";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
@@ -29,14 +30,15 @@ type Section = {
   title: string;
   href: string;
   filter: (n: NewsItem) => boolean;
+  fallback?: (n: NewsItem) => boolean;
 };
 
-const STOCK_RX = /(stock|equity|equit|share|nasdaq|nyse|exchange)/i;
-const ETF_RX = /(etf|exchange[-\s]?traded)/i;
-const FUND_RX = /(fund|mutual|adviser|advisor|investment\s+compan)/i;
-const BOND_RX = /(bond|treasury\s+yield|yield curve|fixed[-\s]?income|t-bill|debt market)/i;
-const PERSONAL_RX = /(retire|savings|consumer|household|personal|inflation)/i;
-const SUSTAIN_RX = /(sustainab|climate|esg|environmental|green\b|net zero)/i;
+const STOCK_RX = /(stock|equity|equit|share|nasdaq|nyse|exchange|company\s+earnings|listed)/i;
+const ETF_RX = /(etf|exchange[-\s]?traded|index\s+fund|passive\s+(fund|invest|strateg)|registered\s+investment)/i;
+const FUND_RX = /(fund|mutual|adviser|advisor|investment\s+compan|portfolio\s+manag)/i;
+const BOND_RX = /(bond|treasury\s+yield|yield\s+curve|fixed[-\s]?income|t-bill|debt\s+market|government\s+securit|treasury\s+secur|note\s+auction|coupon|sovereign|interest\s+rate)/i;
+const PERSONAL_RX = /(retire|savings|consumer|household|personal\s+(finance|invest)|inflation|wages|employment|jobs)/i;
+const SUSTAIN_RX = /(sustainab|climate|esg|environmental|green\b|net\s+zero|carbon|renewable)/i;
 
 const SECTIONS: Section[] = [
   {
@@ -44,6 +46,7 @@ const SECTIONS: Section[] = [
     title: "Stocks",
     href: "/companies",
     filter: (n) => STOCK_RX.test(n.title + " " + n.description),
+    fallback: (n) => n.category === "Market",
   },
   {
     key: "funds",
@@ -57,12 +60,15 @@ const SECTIONS: Section[] = [
     title: "ETFs",
     href: "/funds",
     filter: (n) => ETF_RX.test(n.title + " " + n.description),
+    fallback: (n) =>
+      n.category === "Funds" || FUND_RX.test(n.title + " " + n.description),
   },
   {
     key: "bonds",
     title: "Bonds",
     href: "/economy",
     filter: (n) => BOND_RX.test(n.title + " " + n.description),
+    fallback: (n) => n.category === "Economy",
   },
   {
     key: "markets",
@@ -81,12 +87,14 @@ const SECTIONS: Section[] = [
     title: "Personal Finance",
     href: "/news",
     filter: (n) => PERSONAL_RX.test(n.title + " " + n.description),
+    fallback: (n) => n.category === "Economy",
   },
   {
     key: "sustain",
     title: "Sustainable Investing",
     href: "/news",
     filter: (n) => SUSTAIN_RX.test(n.title + " " + n.description),
+    fallback: (n) => n.category === "Regulatory",
   },
 ];
 
@@ -110,17 +118,34 @@ export function NewsMagazine() {
       matched.forEach((m) => used.add(m.id));
       out[sec.key] = matched;
     }
+    for (const sec of SECTIONS) {
+      if (!sec.fallback) continue;
+      if (out[sec.key].length >= 3) continue;
+      const supplement = items
+        .filter((n) => sec.fallback!(n) && !used.has(n.id))
+        .slice(0, 4 - out[sec.key].length);
+      supplement.forEach((m) => used.add(m.id));
+      out[sec.key] = [...out[sec.key], ...supplement];
+    }
     return out;
   }, [items]);
 
   const featuredCandidate = items.find((n) => n.category === "Market") || items[0];
-  const insightItems = items.filter((n) => n.id !== featuredCandidate?.id).slice(0, 4);
+  const insightItems = items
+    .filter((n) => n.id !== featuredCandidate?.id)
+    .slice(0, 4);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
-      <div className="space-y-10 min-w-0">
+    <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_280px] gap-6 lg:gap-8">
+      {/* Left sidebar — Most Active Stocks */}
+      <div className="order-2 lg:order-1 lg:sticky lg:top-20 self-start">
+        <MostActiveStocks />
+      </div>
+
+      {/* Main column */}
+      <div className="order-1 lg:order-2 space-y-10 min-w-0">
         {/* Category grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-x-6 gap-y-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-8">
           {SECTIONS.map((sec, i) => (
             <NewsCategorySection
               key={sec.key}
@@ -166,8 +191,8 @@ export function NewsMagazine() {
                 All news <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {items.slice(30, 39).map((n, i) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {items.slice(30, 36).map((n, i) => (
                 <NewsCard key={n.id} item={n} index={i} />
               ))}
             </div>
@@ -175,9 +200,9 @@ export function NewsMagazine() {
         )}
       </div>
 
-      {/* Right sidebar */}
-      <div className="lg:sticky lg:top-20 self-start">
-        <MostActiveStocks />
+      {/* Right sidebar — Ad slots */}
+      <div className="order-3 lg:sticky lg:top-20 self-start">
+        <AdSlot />
       </div>
     </div>
   );

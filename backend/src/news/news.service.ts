@@ -134,7 +134,20 @@ export class NewsService {
       }
     }
     items.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-    const trimmed = items.slice(0, 150);
+
+    const seenLinks = new Set<string>();
+    const seenIds = new Set<string>();
+    const deduped: NewsItem[] = [];
+    for (const it of items) {
+      const linkKey = (it.link || '').split('#')[0].split('?')[0].toLowerCase();
+      if (linkKey && seenLinks.has(linkKey)) continue;
+      if (seenIds.has(it.id)) continue;
+      if (linkKey) seenLinks.add(linkKey);
+      seenIds.add(it.id);
+      deduped.push(it);
+    }
+
+    const trimmed = deduped.slice(0, 150);
     this.cache = { ts: Date.now(), items: trimmed };
     return trimmed;
   }
