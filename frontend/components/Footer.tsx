@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { Github, Mail, TrendingUp, Twitter } from "lucide-react";
+import { Github, Mail, Twitter } from "lucide-react";
+import { Logo } from "./Logo";
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -16,21 +17,8 @@ export function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
           {/* Brand block */}
           <div className="col-span-2">
-            <Link href="/" className="inline-flex items-center gap-2.5">
-              <div
-                className="h-9 w-9 rounded-xl flex items-center justify-center"
-                style={{
-                  background: "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
-                }}
-              >
-                <TrendingUp className="h-5 w-5 text-white" strokeWidth={2.5} />
-              </div>
-              <div className="leading-tight">
-                <div className="text-[15px] font-bold tracking-tight">insiderbuying</div>
-                <div className="text-[9px] uppercase tracking-[0.18em] text-mute font-mono">
-                  SEC Form 4 · IQS
-                </div>
-              </div>
+            <Link href="/" className="inline-flex items-center gap-3">
+              <Logo size="md" />
             </Link>
             <p className="text-[13px] text-soft mt-4 max-w-md leading-relaxed">
               Daily insider intelligence sourced from SEC Form 4 filings, the Federal Reserve, U.S.

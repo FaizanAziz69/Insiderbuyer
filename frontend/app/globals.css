@@ -70,6 +70,11 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Logo: swap PNG variant based on theme */
+.logo-wrap .logo-dark { display: none; }
+[data-theme="dark"] .logo-wrap .logo-light { display: none; }
+[data-theme="dark"] .logo-wrap .logo-dark { display: block; }
+
 html,
 body {
   background: var(--bg-1);

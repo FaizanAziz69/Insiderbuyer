@@ -2,9 +2,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Bell, LogIn, Menu, Sparkles, TrendingUp, User, X } from "lucide-react";
+import { Bell, LogIn, Menu, Sparkles, User, X } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { LoginModal } from "./LoginModal";
+import { Logo } from "./Logo";
 
 const NAV: { label: string; href: string }[] = [
   { label: "Home", href: "/" },
@@ -32,17 +33,8 @@ export function TopHeader() {
         className="h-16 border-b flex items-center justify-between px-3 sm:px-4 lg:px-6 gap-3"
         style={{ background: "var(--bg-2)", borderColor: "var(--border)" }}
       >
-        <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
-          <div className="relative h-9 w-9 rounded-xl overflow-hidden flex items-center justify-center"
-               style={{ background: "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)" }}>
-            <TrendingUp className="h-5 w-5 text-white" strokeWidth={2.5} />
-          </div>
-          <div className="flex flex-col leading-tight">
-            <span className="text-[15px] font-bold tracking-tight">insiderbuying</span>
-            <span className="text-[9px] uppercase tracking-[0.18em] text-mute font-mono">
-              SEC Form 4 · IQS
-            </span>
-          </div>
+        <Link href="/" className="flex items-center gap-3 flex-shrink-0">
+          <Logo size="md" />
         </Link>
 
         <nav className="hidden md:flex items-center gap-0.5">
