@@ -93,10 +93,6 @@ function TabToggle({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
           Signals
         </button>
       </div>
-      <div className="hidden sm:inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-mute">
-        <span className="live-dot live-dot-good" />
-        Live · SEC · Fed · Treasury · BoC · StatCan
-      </div>
     </div>
   );
 }

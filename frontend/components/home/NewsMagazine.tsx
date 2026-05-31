@@ -20,7 +20,7 @@ import { GetInsightsCard } from "./GetInsightsCard";
 import { TrendingHeadlines } from "./TrendingHeadlines";
 import { PopularTopics } from "./PopularTopics";
 import { IndexPulse } from "./IndexPulse";
-import { FeaturedVideo } from "./FeaturedVideo";
+import { FeaturedStory } from "./FeaturedStory";
 import { UpcomingEvents } from "./UpcomingEvents";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
@@ -166,9 +166,6 @@ export function NewsMagazine() {
       {/* Top Stories text strip */}
       {topStories.length > 0 && <TopStoriesStrip items={topStories} />}
 
-      {/* Featured SEC investor-education video with headlines above */}
-      <FeaturedVideo headlines={trendingHeadlines} />
-
       {/* Single 3-column layout for the rest */}
       <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_280px] gap-6 lg:gap-8">
         {/* LEFT: MostActive + GetInsights + Trending Headlines stacked */}
@@ -178,8 +175,11 @@ export function NewsMagazine() {
           <TrendingHeadlines items={trendingHeadlines} />
         </div>
 
-        {/* CENTER: Featured hero + Category grid + More news */}
+        {/* CENTER: Featured Material Matters + hero + Category grid + More news */}
         <div className="order-1 lg:order-2 min-w-0 space-y-10">
+          {/* Featured Material Matters podcast (internal link) */}
+          <FeaturedStory />
+
           {/* Featured + 2 secondary */}
           {!featuredCandidate ? (
             <div className="space-y-5">

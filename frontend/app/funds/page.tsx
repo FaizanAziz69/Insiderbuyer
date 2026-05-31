@@ -11,6 +11,7 @@ export default function FundsPage() {
       icon={<Sparkles className="h-4 w-4" />}
       defaultCategory="Funds"
       allowCategorySwitch={false}
+      allowRegionSwitch={false}
     />
   );
 }

@@ -19,6 +19,7 @@ interface Props {
   iconLabel: string;
   icon: React.ReactNode;
   allowCategorySwitch?: boolean;
+  allowRegionSwitch?: boolean;
 }
 
 const CATEGORY_TABS: { key: NewsCategory | "All"; label: string }[] = [
@@ -43,6 +44,7 @@ export function FilteredNewsPage({
   iconLabel,
   icon,
   allowCategorySwitch = true,
+  allowRegionSwitch = true,
 }: Props) {
   const [cat, setCat] = useState<NewsCategory | "All">(defaultCategory || "All");
   const [region, setRegion] = useState<NewsRegion | "All">(defaultRegion);
@@ -92,23 +94,25 @@ export function FilteredNewsPage({
             ))}
           </div>
         )}
-        <div className="flex flex-wrap gap-2">
-          {REGION_TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setRegion(t.key)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold transition"
-              style={{
-                background: region === t.key ? "var(--text-soft)" : "var(--bg-2)",
-                color: region === t.key ? "var(--bg-2)" : "var(--text-mute)",
-                border: `1px solid ${region === t.key ? "var(--text-soft)" : "var(--border)"}`,
-              }}
-            >
-              <span>{t.flag}</span>
-              {t.label}
-            </button>
-          ))}
-        </div>
+        {allowRegionSwitch && (
+          <div className="flex flex-wrap gap-2">
+            {REGION_TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setRegion(t.key)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold transition"
+                style={{
+                  background: region === t.key ? "var(--text-soft)" : "var(--bg-2)",
+                  color: region === t.key ? "var(--bg-2)" : "var(--text-mute)",
+                  border: `1px solid ${region === t.key ? "var(--text-soft)" : "var(--border)"}`,
+                }}
+              >
+                <span>{t.flag}</span>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {isLoading || !data ? (
