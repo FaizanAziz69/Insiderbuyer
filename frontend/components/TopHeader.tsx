@@ -1,66 +1,28 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Bell, LogIn, Menu, Sparkles, User, X } from "lucide-react";
+import { Bell, LogIn, Sparkles, User } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { LoginModal } from "./LoginModal";
 import { Logo } from "./Logo";
 
-const NAV: { label: string; href: string }[] = [
-  { label: "Home", href: "/" },
-  { label: "Markets", href: "/markets" },
-  { label: "Stocks", href: "/companies" },
-  { label: "Funds", href: "/funds" },
-  { label: "Economy", href: "/economy" },
-  { label: "News", href: "/news" },
-  { label: "Ideas", href: "/lists" },
-];
-
 export function TopHeader() {
-  const pathname = usePathname() || "/";
   const [loginOpen, setLoginOpen] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  function isActive(href: string) {
-    if (href === "/") return pathname === "/";
-    return pathname === href || pathname.startsWith(href + "/");
-  }
 
   return (
     <>
       <header
-        className="h-16 border-b flex items-center justify-between px-3 sm:px-4 lg:px-6 gap-3"
+        className="relative h-24 border-b flex items-center px-3 sm:px-4 lg:px-6"
         style={{ background: "var(--bg-2)", borderColor: "var(--border)" }}
       >
-        <Link href="/" className="flex items-center gap-3 flex-shrink-0">
+        <Link
+          href="/"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+        >
           <Logo size="md" />
         </Link>
 
-        <nav className="hidden md:flex items-center gap-0.5">
-          {NAV.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className="px-3 py-1.5 rounded-md text-[13px] font-semibold transition whitespace-nowrap"
-              style={{
-                background: isActive(n.href) ? "var(--accent-soft)" : "transparent",
-                color: isActive(n.href) ? "var(--accent)" : "var(--text-soft)",
-              }}
-            >
-              {n.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="md:hidden h-9 w-9 rounded-md hover:bg-[var(--bg-3)] flex items-center justify-center"
-            aria-label="Open menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           <Link
             href="/alerts"
             className="hidden sm:inline-flex h-9 w-9 rounded-md hover:bg-[var(--bg-3)] items-center justify-center relative"
@@ -81,7 +43,7 @@ export function TopHeader() {
             }}
           >
             <Sparkles className="h-3.5 w-3.5" />
-            Premium
+            Subscribe
           </Link>
           <button
             onClick={() => setLoginOpen(true)}
@@ -106,46 +68,6 @@ export function TopHeader() {
           </button>
         </div>
       </header>
-
-      {/* Mobile menu */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div
-            className="absolute top-0 right-0 bottom-0 w-72 border-l p-5"
-            style={{ background: "var(--bg-2)", borderColor: "var(--border)" }}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <span className="font-bold">Menu</span>
-              <button
-                onClick={() => setMobileOpen(false)}
-                className="h-8 w-8 rounded-md hover:bg-[var(--bg-3)] flex items-center justify-center"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <nav className="flex flex-col">
-              {NAV.map((n) => (
-                <Link
-                  key={n.href}
-                  href={n.href}
-                  onClick={() => setMobileOpen(false)}
-                  className="px-3 py-2.5 rounded-md text-sm font-semibold"
-                  style={{
-                    background: isActive(n.href) ? "var(--accent-soft)" : "transparent",
-                    color: isActive(n.href) ? "var(--accent)" : "var(--text-soft)",
-                  }}
-                >
-                  {n.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </div>
-      )}
 
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </>

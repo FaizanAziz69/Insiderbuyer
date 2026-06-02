@@ -139,11 +139,11 @@ export default function MarketHeatmapPage() {
         </div>
       )}
 
-      {/* Top 3 premium picks */}
-      {data && data.rows.length >= 3 && (
-        <PremiumGate label="picks" count={3}>
-          <div className="grid grid-cols-3 gap-3 p-3 bg-[var(--bg-2)] rounded-md">
-            {data.rows.slice(0, 3).map((r) => (
+      {/* Top 5 premium picks */}
+      {data && data.rows.length >= 5 && (
+        <PremiumGate label="picks" count={5}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-3 bg-[var(--bg-2)] rounded-md">
+            {data.rows.slice(0, 5).map((r) => (
               <Link
                 key={r.companyId}
                 href={r.ticker ? `/companies/${encodeURIComponent(r.ticker)}` : "#"}

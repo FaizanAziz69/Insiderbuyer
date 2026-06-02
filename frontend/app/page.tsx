@@ -2,7 +2,7 @@
 import useSWR from "swr";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { Activity, Newspaper } from "lucide-react";
+import { Flame, Newspaper } from "lucide-react";
 import { API_BASE, DashboardResponse, fetcher, formatCurrency } from "@/lib/api";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { SectorHeatmap } from "@/components/dashboard/SectorHeatmap";
@@ -11,6 +11,7 @@ import { MarketSignals } from "@/components/dashboard/MarketSignals";
 import { ActivityChart } from "@/components/dashboard/ActivityChart";
 import { PremiumCTA } from "@/components/dashboard/PremiumCTA";
 import { NewsMagazine } from "@/components/home/NewsMagazine";
+import { HomeHero } from "@/components/home/HomeHero";
 
 type Tab = "news" | "signals";
 
@@ -32,8 +33,51 @@ export default function HomePage() {
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6">
-      <TabToggle tab={tab} setTab={setTabPersist} />
+    <div className="space-y-8">
+      {/* Hero flush against the navbar */}
+      <HomeHero />
+
+      {/* News / Signals toggle directly under the hero, dead-center */}
+      <div className="w-full text-center">
+        <div
+          className="inline-flex p-1 rounded-full"
+          style={{
+            background: "var(--bg-2)",
+            border: "1px solid var(--border-strong)",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
+          }}
+        >
+          {(
+            [
+              { key: "news" as Tab, label: "News", Icon: Newspaper },
+              { key: "signals" as Tab, label: "Signals", Icon: Flame },
+            ]
+          ).map(({ key, label, Icon }) => {
+            const active = tab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setTabPersist(key)}
+                className="inline-flex items-center gap-2 px-7 py-2.5 rounded-full text-[14px] font-semibold transition"
+                style={
+                  active
+                    ? {
+                        background:
+                          "linear-gradient(135deg, var(--accent), var(--accent-2))",
+                        color: "white",
+                        boxShadow: "0 6px 18px rgba(0,102,255,0.28)",
+                      }
+                    : { color: "var(--text-mute)" }
+                }
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <AnimatePresence mode="wait">
         {tab === "news" ? (
           <motion.div
@@ -57,42 +101,6 @@ export default function HomePage() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
-  );
-}
-
-function TabToggle({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <div
-        className="inline-flex p-1 rounded-xl border"
-        style={{ background: "var(--bg-2)", borderColor: "var(--border)" }}
-      >
-        <button
-          onClick={() => setTab("news")}
-          className="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition"
-          style={{
-            background: tab === "news" ? "var(--accent)" : "transparent",
-            color: tab === "news" ? "white" : "var(--text-soft)",
-            boxShadow: tab === "news" ? "0 4px 12px rgba(0,102,255,0.25)" : "none",
-          }}
-        >
-          <Newspaper className="h-4 w-4" />
-          News
-        </button>
-        <button
-          onClick={() => setTab("signals")}
-          className="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition"
-          style={{
-            background: tab === "signals" ? "var(--accent)" : "transparent",
-            color: tab === "signals" ? "white" : "var(--text-soft)",
-            boxShadow: tab === "signals" ? "0 4px 12px rgba(0,102,255,0.25)" : "none",
-          }}
-        >
-          <Activity className="h-4 w-4" />
-          Signals
-        </button>
-      </div>
     </div>
   );
 }

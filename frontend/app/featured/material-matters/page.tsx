@@ -1,34 +1,36 @@
 "use client";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowLeft, Mic, Headphones } from "lucide-react";
-import useSWR from "swr";
-import { API_BASE, NewsResponse, fetcher } from "@/lib/api";
-import { MostActiveStocks } from "@/components/home/MostActiveStocks";
-import { GetInsightsCard } from "@/components/home/GetInsightsCard";
-import { TrendingHeadlines } from "@/components/home/TrendingHeadlines";
+import { ArrowLeft, Calendar, Mic, Headphones } from "lucide-react";
+import { MATERIAL_MATTERS } from "@/components/home/FeaturedStory";
 import { RightSidebar } from "@/components/home/RightSidebar";
 import { PopularTopics } from "@/components/home/PopularTopics";
-import { UpcomingEvents } from "@/components/home/UpcomingEvents";
-import { MATERIAL_MATTERS } from "@/components/home/FeaturedStory";
+import { KeyPoints } from "@/components/KeyPoints";
+import { IqsCommentary } from "@/components/IqsCommentary";
+
+const PODCAST_POINTS = [
+  {
+    title: "Chairman-hosted explainers",
+    body: "Each episode features SEC Chairman Paul Atkins in conversation with leading experts on a single regulatory topic.",
+  },
+  {
+    title: "Free-market regulatory lens",
+    body: "Conversations advance a free-market agenda — investor protection without unnecessary cost of capital.",
+  },
+  {
+    title: "Plain language, no jargon",
+    body: "Material Matters breaks down disclosure rules, market structure, and capital formation for everyday investors.",
+  },
+  {
+    title: "Released on a rolling cadence",
+    body: "New episodes drop regularly and are referenced in the Commission's public statements and committee work.",
+  },
+];
 
 export default function MaterialMattersPage() {
-  const { data: newsList } = useSWR<NewsResponse>(
-    `${API_BASE}/news?limit=12`,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 60 * 1000 },
-  );
-  const headlines = (newsList?.items || []).slice(0, 10);
-
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_280px] gap-6 lg:gap-8">
-      <aside className="order-2 lg:order-1 space-y-6">
-        <MostActiveStocks />
-        <GetInsightsCard />
-        <TrendingHeadlines items={headlines} />
-      </aside>
-
-      <div className="order-1 lg:order-2 min-w-0">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-6 lg:gap-10 lg:-ml-8 xl:-ml-20 2xl:-ml-40">
+      <article className="min-w-0 max-w-3xl pr-2 sm:pr-4">
         <Link
           href="/"
           className="inline-flex items-center gap-1.5 text-xs text-mute hover:text-accent transition mb-5"
@@ -56,8 +58,8 @@ export default function MaterialMattersPage() {
           </div>
 
           <h1
-            className="text-[26px] sm:text-[34px] font-bold tracking-tight leading-tight"
-            style={{ letterSpacing: "-0.4px" }}
+            className="text-[32px] sm:text-[44px] lg:text-[48px] font-black tracking-tight"
+            style={{ letterSpacing: "-0.8px", lineHeight: 1.08 }}
           >
             {MATERIAL_MATTERS.title}
           </h1>
@@ -79,9 +81,19 @@ export default function MaterialMattersPage() {
             SEC podcast series
           </div>
 
-          <div className="h-px my-6" style={{ background: "var(--border)" }} />
+          <div
+            className="mt-5 inline-flex items-center gap-2 text-[15px] sm:text-[17px] font-bold"
+            style={{ color: "var(--text)", letterSpacing: "-0.2px" }}
+          >
+            <Calendar className="h-4 w-4 sm:h-[18px] sm:w-[18px] text-accent" />
+            Published May 30, 2026
+          </div>
 
-          <div className="article-body text-[15px] leading-relaxed text-soft space-y-4">
+          <KeyPoints points={PODCAST_POINTS} heading="Key points" />
+
+          <div className="h-px my-2" style={{ background: "var(--border)" }} />
+
+          <div className="article-body">
             <p>
               The work at the U.S. Securities and Exchange Commission impacts
               everyday investors, business owners, and even entire economies.
@@ -129,20 +141,16 @@ export default function MaterialMattersPage() {
             <span className="font-semibold text-soft">SEC</span> · public
             release
           </div>
-        </motion.article>
-      </div>
 
-      <aside className="order-3 space-y-6">
+          <IqsCommentary />
+        </motion.article>
+      </article>
+
+      <aside className="space-y-6">
         <RightSidebar />
         <PopularTopics />
-        <UpcomingEvents />
       </aside>
 
-      <style jsx global>{`
-        .article-body p {
-          margin: 0 0 1.1em;
-        }
-      `}</style>
     </div>
   );
 }

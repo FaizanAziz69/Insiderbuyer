@@ -4,13 +4,12 @@ import useSWR from "swr";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, ExternalLink, FileText } from "lucide-react";
-import { API_BASE, ExtractedArticle, NewsResponse, fetcher, formatDate } from "@/lib/api";
-import { MostActiveStocks } from "@/components/home/MostActiveStocks";
-import { GetInsightsCard } from "@/components/home/GetInsightsCard";
-import { TrendingHeadlines } from "@/components/home/TrendingHeadlines";
+import { ArrowLeft, Calendar, ExternalLink, FileText } from "lucide-react";
+import { API_BASE, ExtractedArticle, fetcher, formatDate } from "@/lib/api";
 import { RightSidebar } from "@/components/home/RightSidebar";
 import { PopularTopics } from "@/components/home/PopularTopics";
+import { KeyPoints } from "@/components/KeyPoints";
+import { IqsCommentary } from "@/components/IqsCommentary";
 
 function ArticleReader() {
   const params = useSearchParams();
@@ -22,13 +21,6 @@ function ArticleReader() {
     fetcher,
     { revalidateOnFocus: false },
   );
-
-  const { data: newsList } = useSWR<NewsResponse>(
-    `${API_BASE}/news?limit=12`,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 60 * 1000 },
-  );
-  const headlines = (newsList?.items || []).filter((n) => n.link !== u).slice(0, 10);
 
   const imgQs = u
     ? new URLSearchParams({
@@ -114,17 +106,11 @@ function ArticleReader() {
               {cat}
             </span>
             <span className="font-semibold text-soft">{data.source}</span>
-            {data.publishedAt && (
-              <>
-                <span className="text-faint">·</span>
-                <span>{formatDate(data.publishedAt)}</span>
-              </>
-            )}
           </div>
 
           <h1
-            className="text-[26px] sm:text-[34px] font-bold tracking-tight leading-tight"
-            style={{ letterSpacing: "-0.4px" }}
+            className="text-[32px] sm:text-[44px] lg:text-[48px] font-black tracking-tight"
+            style={{ letterSpacing: "-0.8px", lineHeight: 1.08 }}
           >
             {data.title}
           </h1>
@@ -144,12 +130,27 @@ function ArticleReader() {
             </div>
           )}
 
-          {data.byline && <div className="text-sm text-mute mt-3">By {data.byline}</div>}
+          {/* Date below the thumbnail, prominently sized */}
+          {data.publishedAt && (
+            <div
+              className="mt-5 inline-flex items-center gap-2 text-[15px] sm:text-[17px] font-bold"
+              style={{ color: "var(--text)", letterSpacing: "-0.2px" }}
+            >
+              <Calendar className="h-4 w-4 sm:h-[18px] sm:w-[18px] text-accent" />
+              Published {formatDate(data.publishedAt)}
+            </div>
+          )}
 
-          <div className="h-px my-6" style={{ background: "var(--border)" }} />
+          {data.byline && (
+            <div className="text-[14px] text-mute mt-2 font-semibold">By {data.byline}</div>
+          )}
+
+          <KeyPoints />
+
+          <div className="h-px my-2" style={{ background: "var(--border)" }} />
 
           <div
-            className="article-body text-[15px] leading-relaxed text-soft"
+            className="article-body"
             dangerouslySetInnerHTML={{ __html: data.html }}
           />
 
@@ -171,60 +172,22 @@ function ArticleReader() {
               View original
             </a>
           </div>
+
+          <IqsCommentary />
         </motion.article>
       )}
     </>
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_280px] gap-6 lg:gap-8">
-      {/* LEFT sidebar */}
-      <aside className="order-2 lg:order-1 space-y-6">
-        <MostActiveStocks />
-        <GetInsightsCard />
-        <TrendingHeadlines items={headlines} />
-      </aside>
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-6 lg:gap-10 lg:-ml-8 xl:-ml-20 2xl:-ml-40">
+      <article className="min-w-0 max-w-3xl pr-2 sm:pr-4">{articleBody}</article>
 
-      {/* CENTER article */}
-      <div className="order-1 lg:order-2 min-w-0">{articleBody}</div>
-
-      {/* RIGHT sidebar */}
-      <aside className="order-3 space-y-6">
+      <aside className="space-y-6">
         <RightSidebar />
         <PopularTopics />
       </aside>
 
-      <style jsx global>{`
-        .article-body p {
-          margin: 0 0 1.1em;
-        }
-        .article-body h1,
-        .article-body h2,
-        .article-body h3 {
-          font-weight: 700;
-          color: var(--text);
-          letter-spacing: -0.2px;
-          margin: 1.6em 0 0.5em;
-        }
-        .article-body h2 {
-          font-size: 22px;
-        }
-        .article-body h3 {
-          font-size: 18px;
-        }
-        .article-body li {
-          margin: 0.4em 0 0.4em 1.4em;
-          list-style: disc;
-        }
-        .article-body blockquote {
-          margin: 1.2em 0;
-          padding: 0.6em 1em;
-          border-left: 3px solid var(--accent);
-          background: var(--accent-soft);
-          border-radius: 0 8px 8px 0;
-          color: var(--text);
-        }
-      `}</style>
     </div>
   );
 }

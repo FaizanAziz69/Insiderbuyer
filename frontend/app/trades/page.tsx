@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { Search, Download } from "lucide-react";
 import { API_BASE, TradesResponse, fetcher } from "@/lib/api";
 import { TradesTable } from "@/components/TradesTable";
-import { PremiumGate } from "@/components/PremiumGate";
 
 export default function TradesPage() {
   const [q, setQ] = useState("");
@@ -22,10 +21,6 @@ export default function TradesPage() {
     if (!data) return [];
     return [...data.rows].sort((a, b) => b.totalValue - a.totalValue);
   }, [data]);
-
-  const top3 = sortedByValue.slice(0, 3);
-  const restIds = new Set(top3.map((t) => t.id));
-  const rest = (data?.rows || []).filter((t) => !restIds.has(t.id));
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -56,19 +51,10 @@ export default function TradesPage() {
 
       {isLoading || !data ? (
         <div className="card p-12 text-center text-mute">Loading trades…</div>
-      ) : data.rows.length === 0 ? (
+      ) : sortedByValue.length === 0 ? (
         <div className="card p-12 text-center text-mute">No trades match your search.</div>
       ) : (
-        <>
-          {/* Premium-gated top 3 biggest trades */}
-          {top3.length > 0 && !q && (
-            <PremiumGate label="biggest trades" count={3}>
-              <TradesTable trades={top3} total={top3.length} />
-            </PremiumGate>
-          )}
-          {/* Free rest */}
-          <TradesTable trades={rest} total={rest.length} paywallAfter={45} />
-        </>
+        <TradesTable trades={sortedByValue} total={sortedByValue.length} />
       )}
     </div>
   );

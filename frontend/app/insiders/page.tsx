@@ -3,7 +3,6 @@ import useSWR from "swr";
 import Link from "next/link";
 import { Lock } from "lucide-react";
 import { API_BASE, InsiderRow, fetcher, formatCurrency } from "@/lib/api";
-import { PremiumGate } from "@/components/PremiumGate";
 
 export default function InsidersPage() {
   const { data, isLoading } = useSWR<InsiderRow[]>(
@@ -12,8 +11,7 @@ export default function InsidersPage() {
     { refreshInterval: 120000 },
   );
 
-  const top3 = (data || []).slice(0, 3);
-  const rest = (data || []).slice(3);
+  const rows = data || [];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -27,18 +25,6 @@ export default function InsidersPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
-          {/* Premium-gated top 3 */}
-          {top3.length > 0 && (
-            <PremiumGate label="insiders" count={3}>
-              <ul className="divide-y divide-[var(--border)] bg-[var(--bg-2)] rounded-md">
-                {top3.map((row, i) => (
-                  <InsiderItem key={`top-${i}`} row={row} rank={i + 1} />
-                ))}
-              </ul>
-            </PremiumGate>
-          )}
-
-          {/* Free rest */}
           <div className="card overflow-hidden">
             <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
               <div>
@@ -48,14 +34,14 @@ export default function InsidersPage() {
             </div>
             {isLoading || !data ? (
               <div className="px-5 py-10 text-center text-mute">Loading…</div>
-            ) : rest.length === 0 ? (
+            ) : rows.length === 0 ? (
               <div className="px-5 py-10 text-center text-mute">
-                No additional insiders ranked yet.
+                No insiders ranked yet.
               </div>
             ) : (
               <ul className="divide-y divide-[var(--border)]">
-                {rest.map((row, i) => (
-                  <InsiderItem key={`${row.name}-${row.ticker}-${i}`} row={row} rank={i + 4} />
+                {rows.map((row, i) => (
+                  <InsiderItem key={`${row.name}-${row.ticker}-${i}`} row={row} rank={i + 1} />
                 ))}
               </ul>
             )}

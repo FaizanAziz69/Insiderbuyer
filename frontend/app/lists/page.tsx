@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { API_BASE, IdeaRow, IdeasResponse, fetcher, formatCurrency } from "@/lib/api";
 import { TierBadge } from "@/components/TierBadge";
-import { PremiumGate } from "@/components/PremiumGate";
 
 function IdeaItem({ r, rank }: { r: IdeaRow; rank: number }) {
   return (
@@ -66,7 +65,7 @@ export default function ListsPage() {
         </h1>
         <p className="text-mute text-sm mt-1">
           Curated lists drawn from today's insider-buying activity, sorted descending. Updated every
-          few minutes. Top 3 of each list are premium.
+          few minutes.
         </p>
       </header>
 
@@ -78,58 +77,37 @@ export default function ListsPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {data.lists.map((list, li) => {
-            const top3 = list.rows.slice(0, 3);
-            const rest = list.rows.slice(3);
-            return (
-              <motion.section
-                key={list.slug}
-                initial={{ opacity: 0, y: 14 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.1 }}
-                transition={{ duration: 0.5, delay: li * 0.05, ease: [0.22, 1, 0.36, 1] }}
-                className="card overflow-hidden"
-              >
-                <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
-                  <div>
-                    <div className="text-[15px] font-semibold">{list.title}</div>
-                    <div className="text-xs text-mute mt-0.5">{list.subtitle}</div>
-                  </div>
-                  <span className="badge badge-neutral">{list.rows.length}</span>
+          {data.lists.map((list, li) => (
+            <motion.section
+              key={list.slug}
+              initial={{ opacity: 0, y: 14 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.1 }}
+              transition={{ duration: 0.5, delay: li * 0.05, ease: [0.22, 1, 0.36, 1] }}
+              className="card overflow-hidden"
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+                <div>
+                  <div className="text-[15px] font-semibold">{list.title}</div>
+                  <div className="text-xs text-mute mt-0.5">{list.subtitle}</div>
                 </div>
-                {list.rows.length === 0 ? (
-                  <div className="px-5 py-8 text-sm text-mute text-center">
-                    No matches right now. Trigger ingestion or check back later.
-                  </div>
-                ) : (
-                  <div className="space-y-0">
-                    {top3.length > 0 && (
-                      <div className="p-3">
-                        <PremiumGate label="picks" count={top3.length} compact>
-                          <ul className="divide-y divide-[var(--border)]">
-                            {top3.map((r, i) => (
-                              <li key={r.companyId}>
-                                <IdeaItem r={r} rank={i + 1} />
-                              </li>
-                            ))}
-                          </ul>
-                        </PremiumGate>
-                      </div>
-                    )}
-                    {rest.length > 0 && (
-                      <ul className="divide-y divide-[var(--border)]">
-                        {rest.map((r, i) => (
-                          <li key={r.companyId}>
-                            <IdeaItem r={r} rank={i + top3.length + 1} />
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </motion.section>
-            );
-          })}
+                <span className="badge badge-neutral">{list.rows.length}</span>
+              </div>
+              {list.rows.length === 0 ? (
+                <div className="px-5 py-8 text-sm text-mute text-center">
+                  No matches right now. Trigger ingestion or check back later.
+                </div>
+              ) : (
+                <ul className="divide-y divide-[var(--border)]">
+                  {list.rows.map((r, i) => (
+                    <li key={r.companyId}>
+                      <IdeaItem r={r} rank={i + 1} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </motion.section>
+          ))}
         </div>
       )}
     </div>

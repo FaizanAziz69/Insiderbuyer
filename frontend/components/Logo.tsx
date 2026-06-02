@@ -5,34 +5,28 @@ interface Props {
   className?: string;
 }
 
-const HEIGHTS = { sm: 28, md: 40, lg: 72 } as const;
+const SIZES = {
+  sm: { fs: 16, gap: 6 },
+  md: { fs: 28, gap: 10 },
+  lg: { fs: 48, gap: 16 },
+} as const;
 
 export function Logo({ size = "md", className = "" }: Props) {
-  const h = HEIGHTS[size];
-  const w = Math.round(h * 4.5);
+  const s = SIZES[size];
   return (
     <span
-      className={`logo-wrap relative inline-block ${className}`}
-      style={{ height: h, width: w }}
+      className={`inline-flex items-baseline select-none ${className}`}
+      style={{
+        color: "var(--text)",
+        gap: s.gap,
+        fontWeight: 900,
+        fontStretch: "75%",
+        letterSpacing: "-0.04em",
+      }}
       aria-label="Insider Buying"
     >
-      <img
-        src="/assets/insiderbuying_light.png"
-        alt="Insider Buying"
-        width={w}
-        height={h}
-        className="logo-light absolute inset-0 h-full w-full object-contain"
-        draggable={false}
-      />
-      <img
-        src="/assets/insiderbuying_dark.png"
-        alt=""
-        width={w}
-        height={h}
-        className="logo-dark absolute inset-0 h-full w-full object-contain"
-        draggable={false}
-        aria-hidden
-      />
+      <span style={{ fontSize: s.fs, lineHeight: 1 }}>INSIDER</span>
+      <span style={{ fontSize: s.fs, lineHeight: 1 }}>BUYING</span>
     </span>
   );
 }

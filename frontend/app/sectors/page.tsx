@@ -1,7 +1,6 @@
 "use client";
 import useSWR from "swr";
 import { API_BASE, DashboardResponse, fetcher, formatCurrency } from "@/lib/api";
-import { PremiumGate } from "@/components/PremiumGate";
 
 function colorFor(intensity: number) {
   if (intensity >= 0.66) return { bg: "var(--good)", fg: "#062f23" };
@@ -45,16 +44,13 @@ export default function SectorsPage() {
   const sectors = data?.sectors || [];
   const total = sectors.reduce((a, s) => a + s.value, 0) || 1;
   const max = sectors[0]?.value || 1;
-  const top3 = sectors.slice(0, 3);
-  const rest = sectors.slice(3);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <header>
         <h1 className="text-[24px] font-bold tracking-tight">Sector activity</h1>
         <p className="text-mute text-sm mt-1">
-          Insider purchase volume by SEC SIC classification, last 7 days, descending. Top 3 sectors
-          are premium.
+          Insider purchase volume by SEC SIC classification, last 7 days, descending.
         </p>
       </header>
 
@@ -63,24 +59,11 @@ export default function SectorsPage() {
       ) : sectors.length === 0 ? (
         <div className="card p-12 text-center text-mute">No sector activity yet.</div>
       ) : (
-        <>
-          {top3.length > 0 && (
-            <PremiumGate label="sectors" count={3}>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3">
-                {top3.map((s) => (
-                  <SectorTile key={s.name} s={s} total={total} max={max} />
-                ))}
-              </div>
-            </PremiumGate>
-          )}
-          {rest.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {rest.map((s) => (
-                <SectorTile key={s.name} s={s} total={total} max={max} />
-              ))}
-            </div>
-          )}
-        </>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {sectors.map((s) => (
+            <SectorTile key={s.name} s={s} total={total} max={max} />
+          ))}
+        </div>
       )}
     </div>
   );

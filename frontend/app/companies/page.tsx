@@ -12,45 +12,22 @@ export default function CompaniesPage() {
     fetcher,
   );
 
-  const top3 = data?.rows.slice(0, 3) || [];
-  const rest = data?.rows.slice(3) || [];
+  // Top-5 are premium-gated; rest are free.
+  // Display order counts DOWN: free rows N → 6 on top, blurred 5 → 1 at bottom.
+  const top5Desc = [...(data?.rows.slice(0, 5) || [])].reverse();
+  const restDesc = [...(data?.rows.slice(5) || [])].reverse();
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <header>
         <h1 className="text-[24px] font-bold tracking-tight">Companies by IQS</h1>
         <p className="text-mute text-sm mt-1">
-          U.S. public companies ranked by the Insider Buying Quality Score, descending.
+          U.S. public companies ranked by the Insider Buying Quality Score. Highest scores at the
+          bottom — top 5 are premium.
         </p>
       </header>
 
-      {/* Premium-gated top 3 */}
-      {top3.length > 0 && (
-        <PremiumGate label="picks" count={3}>
-          <div className="card overflow-hidden m-0" style={{ border: "none" }}>
-            <table className="table-base">
-              <thead>
-                <tr>
-                  <th className="w-12">#</th>
-                  <th>Ticker</th>
-                  <th>Tier</th>
-                  <th>Company</th>
-                  <th>Sector</th>
-                  <th className="text-right">IQS</th>
-                  <th className="text-right">Bought</th>
-                </tr>
-              </thead>
-              <tbody>
-                {top3.map((r) => (
-                  <Row key={r.companyId} r={r} compact />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </PremiumGate>
-      )}
-
-      {/* Free rows */}
+      {/* Free rows — highest rank at top, counts down to rank 6 */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto scrollbar-thin">
           <table className="table-base">
@@ -76,19 +53,45 @@ export default function CompaniesPage() {
                     Loading…
                   </td>
                 </tr>
-              ) : rest.length === 0 ? (
+              ) : restDesc.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="text-center text-mute py-10">
                     No more companies ranked yet.
                   </td>
                 </tr>
               ) : (
-                rest.map((r) => <Row key={r.companyId} r={r} />)
+                restDesc.map((r) => <Row key={r.companyId} r={r} />)
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Premium-gated top 5 — rendered last so it sits at the bottom of the page */}
+      {top5Desc.length > 0 && (
+        <PremiumGate label="picks" count={5}>
+          <div className="card overflow-hidden m-0" style={{ border: "none" }}>
+            <table className="table-base">
+              <thead>
+                <tr>
+                  <th className="w-12">#</th>
+                  <th>Ticker</th>
+                  <th>Tier</th>
+                  <th>Company</th>
+                  <th>Sector</th>
+                  <th className="text-right">IQS</th>
+                  <th className="text-right">Bought</th>
+                </tr>
+              </thead>
+              <tbody>
+                {top5Desc.map((r) => (
+                  <Row key={r.companyId} r={r} compact />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </PremiumGate>
+      )}
     </div>
   );
 }
