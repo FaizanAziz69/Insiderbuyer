@@ -99,19 +99,22 @@ function RegulatorySVG({ theme, gradId }: { theme: any; gradId: string }) {
 }
 
 function EconomySVG({ theme, gradId, seed }: { theme: any; gradId: string; seed: number }) {
-  // Generate a slightly varied ascending line based on seed
+  // Deterministic integer-based pseudorandom (no Math.sin → no SSR/CSR FP drift)
+  const rand = (n: number) => {
+    let s = ((seed | 0) + (n + 1) * 2654435761) | 0;
+    s = (s ^ (s >>> 13)) >>> 0;
+    s = Math.imul(s, 1597334677) >>> 0;
+    return ((s ^ (s >>> 16)) >>> 0) / 0xffffffff;
+  };
+  const round2 = (n: number) => Math.round(n * 100) / 100;
   const points: number[] = [];
   let y = 120;
-  const rand = (n: number) => {
-    const x = Math.sin(seed * 9.7 + n * 2.31) * 10000;
-    return x - Math.floor(x);
-  };
   for (let i = 0; i < 8; i++) {
-    points.push(y);
+    points.push(round2(y));
     y -= 8 + rand(i) * 10;
   }
-  const xStep = 240 / 7;
-  const pts = points.map((p, i) => [40 + i * xStep, p]);
+  const xStep = round2(240 / 7);
+  const pts = points.map((p, i) => [round2(40 + i * xStep), p]);
   const path = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p[0]} ${p[1]}`).join(" ");
   const area = `${path} L ${pts[pts.length - 1][0]} 140 L ${pts[0][0]} 140 Z`;
   return (
@@ -178,14 +181,18 @@ function EconomySVG({ theme, gradId, seed }: { theme: any; gradId: string; seed:
 }
 
 function FundsSVG({ theme, gradId, seed }: { theme: any; gradId: string; seed: number }) {
+  // Deterministic integer-based pseudorandom (no Math.sin → no SSR/CSR FP drift)
   const rand = (n: number) => {
-    const x = Math.sin(seed * 7.3 + n * 1.7) * 10000;
-    return x - Math.floor(x);
+    let s = ((seed | 0) + (n + 1) * 2246822519) | 0;
+    s = (s ^ (s >>> 13)) >>> 0;
+    s = Math.imul(s, 3266489917) >>> 0;
+    return ((s ^ (s >>> 16)) >>> 0) / 0xffffffff;
   };
+  const round2 = (n: number) => Math.round(n * 100) / 100;
   // Pie chart segments with deterministic angles
-  const raw = [40, 28, 20, 12].map((v) => v + rand(v) * 6);
+  const raw = [40, 28, 20, 12].map((v) => round2(v + rand(v) * 6));
   const total = raw.reduce((a, b) => a + b, 0);
-  const segs = raw.map((v) => (v / total) * 360);
+  const segs = raw.map((v) => round2((v / total) * 360));
   const cx = 110;
   const cy = 78;
   const r = 50;
@@ -195,10 +202,10 @@ function FundsSVG({ theme, gradId, seed }: { theme: any; gradId: string; seed: n
   const arcs = segs.map((sweep, i) => {
     const a1 = (start * Math.PI) / 180;
     const a2 = ((start + sweep) * Math.PI) / 180;
-    const x1 = cx + r * Math.cos(a1);
-    const y1 = cy + r * Math.sin(a1);
-    const x2 = cx + r * Math.cos(a2);
-    const y2 = cy + r * Math.sin(a2);
+    const x1 = round2(cx + r * Math.cos(a1));
+    const y1 = round2(cy + r * Math.sin(a1));
+    const x2 = round2(cx + r * Math.cos(a2));
+    const y2 = round2(cy + r * Math.sin(a2));
     const largeArc = sweep > 180 ? 1 : 0;
     const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
     start += sweep;
@@ -257,18 +264,22 @@ function FundsSVG({ theme, gradId, seed }: { theme: any; gradId: string; seed: n
 }
 
 function MarketSVG({ theme, gradId, seed }: { theme: any; gradId: string; seed: number }) {
+  // Deterministic integer-based pseudorandom (no Math.sin → no SSR/CSR FP drift)
   const rand = (n: number) => {
-    const x = Math.sin(seed * 5.7 + n * 2.13) * 10000;
-    return x - Math.floor(x);
+    let s = ((seed | 0) + (n + 1) * 374761393) | 0;
+    s = (s ^ (s >>> 13)) >>> 0;
+    s = Math.imul(s, 1274126177) >>> 0;
+    return ((s ^ (s >>> 16)) >>> 0) / 0xffffffff;
   };
+  const round2 = (n: number) => Math.round(n * 100) / 100;
   const candles = Array.from({ length: 16 }, (_, i) => {
-    const center = 80 + Math.sin(i / 3 + seed) * 25;
-    const range = 8 + rand(i) * 24;
-    const bodyH = 4 + rand(i + 5) * 18;
+    const center = round2(80 + (rand(i + 100) - 0.5) * 50);
+    const range = round2(8 + rand(i) * 24);
+    const bodyH = round2(4 + rand(i + 5) * 18);
     const up = rand(i + 10) > 0.4;
-    const top = center - range / 2;
-    const bot = center + range / 2;
-    const bodyTop = center - bodyH / 2;
+    const top = round2(center - range / 2);
+    const bot = round2(center + range / 2);
+    const bodyTop = round2(center - bodyH / 2);
     return { x: 30 + i * 16, top, bot, bodyTop, bodyH, up };
   });
   return (

@@ -5,6 +5,7 @@ import { Company } from '../entities/company.entity';
 import { InsiderTransaction } from '../entities/insider-transaction.entity';
 import { IqsScore } from '../entities/iqs-score.entity';
 import { roleMultiplier } from '../common/role.util';
+import { CongressionalService } from '../congressional/congressional.service';
 
 export interface RankingRow {
   rank: number;
@@ -30,6 +31,7 @@ export class IqsService {
     @InjectRepository(Company) private readonly companies: Repository<Company>,
     @InjectRepository(InsiderTransaction) private readonly txRepo: Repository<InsiderTransaction>,
     @InjectRepository(IqsScore) private readonly scores: Repository<IqsScore>,
+    private readonly congress: CongressionalService,
   ) {}
 
   async recalculateAll(windowDays = 90): Promise<number> {
@@ -107,6 +109,11 @@ export class IqsService {
   async getRankings(opts: {
     limit?: number;
     offset?: number;
+    sector?: string;
+    sectorMatch?: RegExp;
+    minMarketCap?: number;
+    maxMarketCap?: number;
+    country?: string;
   }): Promise<{ total: number; rows: RankingRow[] }> {
     const limit = Math.min(opts.limit ?? 50, 500);
     const offset = opts.offset ?? 0;
@@ -133,10 +140,27 @@ export class IqsService {
         's."totalPurchaseValue" as "totalPurchaseValue"',
       ]);
 
+    if (opts.sector) {
+      qb.andWhere('LOWER(c.sector) LIKE LOWER(:sec)', { sec: `%${opts.sector}%` });
+    }
+    if (typeof opts.minMarketCap === 'number') {
+      qb.andWhere('c."marketCap" >= :minMc', { minMc: opts.minMarketCap });
+    }
+    if (typeof opts.maxMarketCap === 'number') {
+      qb.andWhere('c."marketCap" <= :maxMc', { maxMc: opts.maxMarketCap });
+    }
+    // country is reserved for future non-US data; we only have US Form 4s today.
+
     const countRow = await qb.clone().select('COUNT(*)', 'count').getRawOne<{ count: string }>();
     const total = Number(countRow?.count || 0);
 
-    const raw = await qb.orderBy('s.iqs', 'DESC').limit(limit).offset(offset).getRawMany();
+    let raw = await qb.orderBy('s.iqs', 'DESC').limit(limit * 4).offset(offset).getRawMany();
+
+    if (opts.sectorMatch) {
+      const rx = opts.sectorMatch;
+      raw = raw.filter((r) => r.sector && rx.test(String(r.sector)));
+    }
+    raw = raw.slice(0, limit);
 
     const rows: RankingRow[] = raw.map((r: any, i: number) => ({
       rank: offset + i + 1,
@@ -206,7 +230,16 @@ export class IqsService {
       marketCap: company.marketCap === null ? null : Number(company.marketCap),
     };
 
-    return { company: companyOut, score, transactions };
+    let congressionalTrades: any[] = [];
+    if (company.ticker) {
+      try {
+        congressionalTrades = await this.congress.byTicker(company.ticker);
+      } catch {
+        congressionalTrades = [];
+      }
+    }
+
+    return { company: companyOut, score, transactions, congressionalTrades };
   }
 
   async getDashboard() {
@@ -487,5 +520,82 @@ export class IqsService {
     return Array.from(agg.values())
       .sort((a, b) => b.totalValue - a.totalValue)
       .slice(0, limit);
+  }
+
+  // ───────────────────────────────────────────────────────────────
+  // Monthly insider buy vs sell meter (resets each calendar month)
+  // ───────────────────────────────────────────────────────────────
+  async getMonthlyBuySellMeter() {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const rows = await this.txRepo
+      .createQueryBuilder('t')
+      .select('t."transactionCode"', 'code')
+      .addSelect('COALESCE(SUM(t."totalValue"), 0)', 'value')
+      .addSelect('COUNT(*)', 'count')
+      .where('t."transactionDate" >= :start', { start: monthStart.toISOString() })
+      .groupBy('t."transactionCode"')
+      .getRawMany<{ code: string; value: string; count: string }>();
+
+    let buyVolume = 0;
+    let sellVolume = 0;
+    let totalBuys = 0;
+    let totalSells = 0;
+    for (const r of rows) {
+      const v = Number(r.value || 0);
+      const c = Number(r.count || 0);
+      // P = purchase (buy on open market), S = sale, A/M = grant/award (skip)
+      if (r.code === 'P') {
+        buyVolume += v;
+        totalBuys += c;
+      } else if (r.code === 'S') {
+        sellVolume += v;
+        totalSells += c;
+      }
+    }
+    const denom = buyVolume + sellVolume;
+    const ratio = denom > 0 ? buyVolume / denom : 0.5;
+    return {
+      month: monthStart.toISOString().slice(0, 7),
+      year: now.getFullYear(),
+      monthLabel: now.toLocaleString('en-US', { month: 'long', year: 'numeric' }),
+      buyVolume,
+      sellVolume,
+      ratio,
+      totalBuys,
+      totalSells,
+    };
+  }
+
+  // ───────────────────────────────────────────────────────────────
+  // Prediction of the day — deterministic top-IQS company w/ blurb
+  // ───────────────────────────────────────────────────────────────
+  async getPredictionOfTheDay() {
+    const { rows } = await this.getRankings({ limit: 1, offset: 0 });
+    const pick = rows[0];
+    if (!pick) return null;
+    const reasons: string[] = [];
+    if (pick.distinctBuyers >= 2)
+      reasons.push(`${pick.distinctBuyers} insiders bought within days of each other`);
+    if (pick.roleWeightedVolume >= 0.005)
+      reasons.push('role-weighted size points to senior-officer conviction');
+    if (pick.purchaseVolumeFactor >= 0.001)
+      reasons.push('purchase size is large relative to float');
+    if (pick.holdingChangeFactor >= 50)
+      reasons.push("insiders meaningfully grew their personal stakes");
+    const why = reasons.length
+      ? reasons.join(' · ')
+      : 'top-ranked single signal in our daily IQS run';
+    return {
+      ticker: pick.ticker,
+      name: pick.name,
+      sector: pick.sector,
+      iqs: pick.iqs,
+      bought: pick.totalPurchaseValue,
+      buyers: pick.distinctBuyers,
+      why,
+      asOfDate: new Date().toISOString().slice(0, 10),
+    };
   }
 }

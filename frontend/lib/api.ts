@@ -128,6 +128,114 @@ export interface NewsItem {
   region: NewsRegion;
   label: string;
   pubDate: string;
+  tags?: string[];
+}
+
+export const TAG_LABELS: Record<string, string> = {
+  ai: "AI",
+  "analyst-ratings": "Analyst Ratings",
+  biotech: "Biotech",
+  dividends: "Dividends",
+  earnings: "Earnings",
+  ev: "Electric Vehicles",
+  etf: "ETFs",
+  "insider-trades": "Insider Trades",
+  ipo: "IPOs",
+  macro: "Macro",
+  markets: "Markets",
+  ma: "Mergers & Acquisitions",
+  "rare-earth": "Rare Earth Minerals",
+  semis: "Semiconductors",
+  "short-interest": "Short Interest",
+  space: "Space",
+};
+
+export interface IndexQuote {
+  symbol: string;
+  shortName: string;
+  value: number;
+  changePct: number;
+  changeAbs: number;
+}
+
+export interface IndicesResponse {
+  quotes: IndexQuote[];
+}
+
+export interface CongressionalTrade {
+  id: string;
+  politicianName: string;
+  chamber: "House" | "Senate";
+  party: string | null;
+  ticker: string;
+  companyName: string;
+  action: "Buy" | "Sell";
+  amountMin: number | null;
+  amountMax: number | null;
+  transactionDate: string;
+  reportedDate: string | null;
+  source: string | null;
+}
+
+export interface CongressionalResponse {
+  total: number;
+  rows: CongressionalTrade[];
+}
+
+export interface BuySellMeter {
+  month: string;
+  year: number;
+  monthLabel: string;
+  buyVolume: number;
+  sellVolume: number;
+  ratio: number;
+  totalBuys: number;
+  totalSells: number;
+}
+
+export interface PredictionToday {
+  ticker: string | null;
+  name: string;
+  sector: string | null;
+  iqs: number;
+  bought: number;
+  buyers: number;
+  why: string;
+  asOfDate: string;
+}
+
+export interface StockListIndexEntry {
+  slug: string;
+  title: string;
+  description: string;
+  count: number;
+  kind: "sector" | "persona" | "premium";
+}
+
+export interface StockListIndexResponse {
+  lists: StockListIndexEntry[];
+}
+
+export interface PersonaHolding {
+  ticker: string;
+  name: string;
+  sector: string;
+  sharesHeld: number;
+  dollarValue: number;
+  lastReported: string;
+  note?: string;
+  iqs?: number;
+}
+
+export type StockListRow = RankingRow | PersonaHolding;
+
+export interface StockListDetailResponse {
+  slug: string;
+  title: string;
+  description: string;
+  kind: "sector" | "persona" | "premium";
+  total: number;
+  rows: StockListRow[];
 }
 
 export interface NewsResponse {

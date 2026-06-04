@@ -6,11 +6,20 @@ import { Company } from './entities/company.entity';
 import { InsiderTransaction } from './entities/insider-transaction.entity';
 import { IqsScore } from './entities/iqs-score.entity';
 import { ProcessedFiling } from './entities/processed-filing.entity';
+import { CongressionalTransaction } from './entities/congressional-transaction.entity';
+import { Subscriber } from './entities/subscriber.entity';
 import { CompaniesModule } from './companies/companies.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { IqsModule } from './iqs/iqs.module';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { NewsModule } from './news/news.module';
+import { CongressionalModule } from './congressional/congressional.module';
+import { IndicesModule } from './indices/indices.module';
+import { StockListsModule } from './stock-lists/stock-lists.module';
+import { SubscribersModule } from './subscribers/subscribers.module';
+import { MarketStatsModule } from './market-stats/market-stats.module';
+import { EarningsModule } from './earnings/earnings.module';
+import { CtaModule } from './cta/cta.module';
 
 @Module({
   imports: [
@@ -34,16 +43,30 @@ import { NewsModule } from './news/news.module';
               database: process.env.DB_NAME || 'iqs_db',
             }),
         ssl: useSsl ? { rejectUnauthorized: false } : false,
-        entities: [Company, InsiderTransaction, IqsScore, ProcessedFiling],
+        entities: [
+          Company,
+          InsiderTransaction,
+          IqsScore,
+          ProcessedFiling,
+          CongressionalTransaction,
+          Subscriber,
+        ],
         synchronize: true,
         logging: false,
       });
     })(),
     CompaniesModule,
     TransactionsModule,
+    CongressionalModule,
     IqsModule,
     IngestionModule,
     NewsModule,
+    IndicesModule,
+    MarketStatsModule,
+    EarningsModule,
+    StockListsModule,
+    SubscribersModule,
+    CtaModule,
   ],
 })
 export class AppModule {}

@@ -1,41 +1,49 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: var(--font-sans), system-ui, sans-serif;
+  --font-display: var(--font-display), var(--font-sans), system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
+/* Light theme — publication-standard neutrals + our navy/gold accent */
 :root,
 :root[data-theme="light"] {
-  --bg-1: #f7f9fc;
+  --bg-1: #f6f8f7;
   --bg-2: #ffffff;
-  --bg-3: #eef2f8;
+  --bg-3: #eaedee;
   --bg-sidebar: #ffffff;
   --bg-elevated: #ffffff;
-  --border: #e4e9f0;
-  --border-strong: #cdd5e0;
-  --text: #0a1628;
-  --text-soft: #2b3a52;
-  --text-mute: #5a6a82;
-  --text-faint: #94a3b8;
-  --accent: #0066ff;
-  --accent-hover: #0052cc;
-  --accent-soft: rgba(0, 102, 255, 0.08);
-  --accent-2: #6e3bff;
-  --good: #00b86b;
-  --good-strong: #00873d;
-  --good-soft: rgba(0, 184, 107, 0.12);
-  --bad: #ff3b3b;
-  --bad-strong: #d12d36;
-  --bad-soft: rgba(255, 59, 59, 0.10);
-  --warn: #ff8a00;
-  --gold: #f59e0b;
-  --shadow-sm: 0 1px 2px rgba(10, 22, 40, 0.04), 0 0 0 1px rgba(10, 22, 40, 0.03);
-  --shadow-md: 0 4px 12px rgba(10, 22, 40, 0.06), 0 0 0 1px rgba(10, 22, 40, 0.04);
-  --shadow-lg: 0 12px 32px rgba(10, 22, 40, 0.08), 0 0 0 1px rgba(10, 22, 40, 0.04);
-  --shadow-glow: 0 0 24px rgba(0, 102, 255, 0.18);
+  --border: #dbdfe2;
+  --border-strong: #c2c9cf;
+  /* Standard publication text grays — heading-dark, body-medium, muted-mid */
+  --text: #1d1e1f;
+  --text-soft: #4b515a;
+  --text-mute: #6c7783;
+  --text-faint: #a5b0b7;
+  --accent: #005882;
+  --accent-hover: #003f5d;
+  --accent-soft: rgba(0, 88, 130, 0.08);
+  --accent-2: #0077b4;
+  /* Brand surface — header/footer chrome. Navy in light, dark in dark. */
+  --brand-surface: #005882;
+  --brand-surface-border: #003f5d;
+  --good: #11824d;
+  --good-strong: #0f5f44;
+  --good-soft: rgba(17, 130, 77, 0.12);
+  --bad: #d2333d;
+  --bad-strong: #a40a26;
+  --bad-soft: rgba(210, 51, 61, 0.10);
+  --warn: #f36d45;
+  --gold: #ffc700;
+  --gold-soft: rgba(255, 199, 0, 0.14);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.10), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  --shadow-glow: 0 0 20px rgba(0, 88, 130, 0.18);
 }
 
+/* Dark theme — same navy/gold relationship inverted */
 :root[data-theme="dark"] {
   --bg-1: #050a18;
   --bg-2: #0c1428;
@@ -48,26 +56,187 @@
   --text-soft: #c9d3e3;
   --text-mute: #8794ab;
   --text-faint: #5d6b85;
-  --accent: #4d8bff;
-  --accent-hover: #6b9fff;
-  --accent-soft: rgba(77, 139, 255, 0.14);
-  --accent-2: #9d6dff;
-  --good: #1aff8c;
-  --good-strong: #00d970;
-  --good-soft: rgba(26, 255, 140, 0.14);
-  --bad: #ff5470;
-  --bad-strong: #ff3050;
-  --bad-soft: rgba(255, 84, 112, 0.14);
-  --warn: #ffaa00;
-  --gold: #ffcc33;
+  --accent: #20d0ff;
+  --accent-hover: #6ddfff;
+  --accent-soft: rgba(32, 208, 255, 0.14);
+  --accent-2: #4d8bff;
+  /* Brand surface — header/footer chrome. Matches the dark page background. */
+  --brand-surface: #070d1f;
+  --brand-surface-border: #1f2c45;
+  --good: #1bb471;
+  --good-strong: #11824d;
+  --good-soft: rgba(27, 180, 113, 0.14);
+  --bad: #e84b56;
+  --bad-strong: #d2333d;
+  --bad-soft: rgba(232, 75, 86, 0.14);
+  --warn: #f36d45;
+  --gold: #ffc700;
+  --gold-soft: rgba(255, 199, 0, 0.18);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --shadow-glow: 0 0 32px rgba(77, 139, 255, 0.28);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-glow: 0 0 24px rgba(32, 208, 255, 0.28);
 }
 
 html {
   scroll-behavior: smooth;
+  font-size: 18px;
+}
+
+html,
+body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.2;
+  color: var(--text-soft);
+}
+
+/* Headings — publication weight: 600 (bold = 600), tight leading */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: normal;
+  color: var(--text);
+  margin: 0;
+}
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.65rem; }
+h3 { font-size: 1.35rem; }
+h4 { font-size: 1.15rem; }
+h5 { font-size: 1rem; }
+h6 { font-size: 0.88rem; }
+
+@media (max-width: 575.98px) {
+  h1 { font-size: 1.7rem; }
+  h2 { font-size: 1.35rem; }
+  h3 { font-size: 1.18rem; }
+}
+
+b, strong, .font-weight-bold {
+  font-weight: 600;
+}
+.font-weight-medium {
+  font-weight: 500;
+}
+
+/* Publication paragraph rhythm */
+p { line-height: 1.4; }
+
+/* Anchor styling — bold links with subtle hover (publication standard) */
+a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+a:hover, a:active, a:focus { color: var(--accent-hover); }
+
+/* Section heading pattern — used across home/listings. Slightly bigger than h3. */
+.section-h {
+  font-size: 1.35rem;
+  line-height: 1.15;
+  font-weight: 600;
+  padding: 6px 0 10px;
+  margin: 0 0 1em;
+  border-bottom: 1px solid var(--border-strong);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.25rem;
+  letter-spacing: normal;
+  color: var(--text);
+}
+.section-h .section-h-action {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-left: 1rem;
+  white-space: nowrap;
+}
+
+/* Larger section heading — for the marquee "Latest Financial News" / "Stock Ideas" rows */
+.large-section-h {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-strong);
+  font-size: 1.85rem;
+  line-height: 1.15;
+  padding: 6px 0 12px;
+  margin: 0 0 1em;
+  letter-spacing: -0.005em;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.5rem;
+  color: var(--text);
+}
+@media (max-width: 575.98px) {
+  .large-section-h { font-size: 1.45rem; }
+}
+.large-section-h .section-h-action {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-left: 1.25rem;
+  white-space: nowrap;
+}
+
+/* "Body copy" — long-form text rhythm, slightly larger and looser */
+.body-copy {
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+.body-copy p { line-height: 1.6; }
+
+/* Eyebrow label — uppercase, bold, clearly visible above sections / cards */
+.eyebrow,
+.upper-note {
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+  color: var(--accent);
+  display: inline-block;
+}
+
+/* Pill link — used for stock list / topic pill buttons in sidebars */
+.pill-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  transition: all 0.18s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.pill-link:hover,
+.pill-link:focus {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Tabular numerics for any numeric column */
+.tabular,
+table td,
+table th {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Logo: swap PNG variant based on theme */

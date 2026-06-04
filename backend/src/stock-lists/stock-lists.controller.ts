@@ -1,0 +1,34 @@
+import { Controller, Get, Param, Query } from '@nestjs/common';
+import { StockListsService } from './stock-lists.service';
+
+@Controller('stock-lists')
+export class StockListsController {
+  constructor(private readonly svc: StockListsService) {}
+
+  @Get()
+  async index() {
+    return { lists: await this.svc.getIndex() };
+  }
+
+  @Get(':slug')
+  async detail(
+    @Param('slug') slug: string,
+    @Query('country') country?: string,
+    @Query('sector') sector?: string,
+    @Query('minMarketCap') minMc?: string,
+    @Query('maxMarketCap') maxMc?: string,
+    @Query('sentiment') sentiment?: string,
+    @Query('analystConsensus') analystConsensus?: string,
+  ) {
+    const detail = await this.svc.getDetail(slug, {
+      country: country || undefined,
+      sector: sector || undefined,
+      minMarketCap: minMc ? Number(minMc) : undefined,
+      maxMarketCap: maxMc ? Number(maxMc) : undefined,
+      sentiment: sentiment || undefined,
+      analystConsensus: analystConsensus || undefined,
+    });
+    if (!detail) return { error: 'Unknown list' };
+    return detail;
+  }
+}

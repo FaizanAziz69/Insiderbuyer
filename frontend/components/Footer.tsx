@@ -7,18 +7,29 @@ export function Footer() {
   const year = new Date().getFullYear();
   return (
     <footer
-      className="mt-16 border-t"
-      style={{
-        background: "var(--bg-2)",
-        borderColor: "var(--border)",
-      }}
+      className="mt-16"
+      style={
+        {
+          background: "var(--brand-surface)",
+          color: "#ffffff",
+          // Scoped overrides so every Tailwind `text-soft`, `text-mute`,
+          // border-utility inside the footer reads in the navy/white palette.
+          "--text": "#ffffff",
+          "--text-soft": "rgba(255,255,255,0.88)",
+          "--text-mute": "rgba(255,255,255,0.7)",
+          "--text-faint": "rgba(255,255,255,0.5)",
+          "--border": "rgba(255,255,255,0.16)",
+          "--border-strong": "rgba(255,255,255,0.28)",
+          "--bg-3": "rgba(255,255,255,0.08)",
+        } as React.CSSProperties
+      }
     >
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-[1640px] mx-auto px-2 sm:px-3 lg:px-4 py-12">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
           {/* Brand block */}
           <div className="col-span-2">
-            <Link href="/" className="inline-flex items-center gap-3">
-              <Logo size="md" />
+            <Link href="/" className="inline-flex items-center gap-3" style={{ color: "#ffffff" }}>
+              <Logo size="md" tone="light" />
             </Link>
             <p className="text-[13px] text-soft mt-4 max-w-md leading-relaxed">
               Daily insider intelligence sourced from SEC Form 4 filings, the Federal Reserve, U.S.

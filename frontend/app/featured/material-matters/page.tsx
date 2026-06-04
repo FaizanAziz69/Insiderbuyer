@@ -58,7 +58,7 @@ export default function MaterialMattersPage() {
           </div>
 
           <h1
-            className="text-[32px] sm:text-[44px] lg:text-[48px] font-black tracking-tight"
+            className="text-[32px] sm:text-[44px] lg:text-[48px] font-semibold tracking-tight"
             style={{ letterSpacing: "-0.8px", lineHeight: 1.08 }}
           >
             {MATERIAL_MATTERS.title}

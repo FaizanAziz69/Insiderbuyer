@@ -1,0 +1,348 @@
+"use client";
+import useSWR from "swr";
+import Link from "next/link";
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Landmark } from "lucide-react";
+import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
+import { PoliticianAvatar } from "@/components/PoliticianAvatar";
+import { CompanyLogo } from "@/components/CompanyLogo";
+import { AdSlot } from "@/components/AdSlot";
+
+interface CongressTrade {
+  id: string;
+  politicianName: string;
+  chamber: "House" | "Senate";
+  party: string | null;
+  ticker: string;
+  companyName: string;
+  action: "Buy" | "Sell";
+  amountMin: number | null;
+  amountMax: number | null;
+  transactionDate: string;
+  reportedDate: string | null;
+  source: string | null;
+  photoUrl?: string | null;
+}
+
+function amountRange(min: number | null, max: number | null): string {
+  if (min == null && max == null) return "—";
+  if (min != null && max != null) {
+    return `${formatCurrency(min)} – ${formatCurrency(max)}`;
+  }
+  return formatCurrency(min ?? max ?? 0);
+}
+
+function formatDateShort(s: string | null): string {
+  if (!s) return "—";
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+export default function CongressionalPage() {
+  const [politician, setPolitician] = useState("");
+  const [ticker, setTicker] = useState("");
+  const [chamber, setChamber] = useState<"" | "House" | "Senate">("");
+  const [action, setAction] = useState<"" | "Buy" | "Sell">("");
+  const [days, setDays] = useState<number>(90);
+
+  const qs = new URLSearchParams();
+  if (politician) qs.set("politician", politician);
+  if (ticker) qs.set("ticker", ticker);
+  if (chamber) qs.set("chamber", chamber);
+  qs.set("days", String(days));
+  qs.set("limit", "200");
+
+  const { data, isLoading } = useSWR<{ rows: CongressTrade[] }>(
+    `${API_BASE}/congressional-trades?${qs.toString()}`,
+    fetcher,
+    { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
+  );
+
+  const rows = (data?.rows || []).filter((r) =>
+    action ? r.action === action : true,
+  );
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-6">
+      <header>
+        <div className="flex items-center gap-2 text-mute text-sm mb-1">
+          <Landmark className="h-4 w-4" />
+          <span className="font-mono uppercase tracking-wider text-[11px]">
+            Congressional Trading
+          </span>
+        </div>
+        <h1
+          className="text-[32px] sm:text-[40px] font-semibold tracking-tight"
+          style={{ letterSpacing: "-0.6px" }}
+        >
+          Congressional & Insider Trading
+        </h1>
+        <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
+          U.S. House and Senate members disclose their equity trades under the STOCK Act
+          within 45 days. Below is a live feed of those disclosures with the politician,
+          stock, action, and disclosed amount range. Photos are sourced from the public
+          Wikipedia API.
+        </p>
+      </header>
+
+      <AdSlot slot="leaderboard" seed="congressional-top" />
+
+      {/* Filters */}
+      <div
+        className="card p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3"
+        style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+      >
+        <FilterInput
+          label="Politician"
+          placeholder="e.g. Pelosi"
+          value={politician}
+          onChange={setPolitician}
+        />
+        <FilterInput
+          label="Ticker"
+          placeholder="e.g. NVDA"
+          value={ticker}
+          onChange={(v) => setTicker(v.toUpperCase())}
+        />
+        <FilterSelect
+          label="Chamber"
+          value={chamber}
+          options={[
+            { label: "All", value: "" },
+            { label: "House", value: "House" },
+            { label: "Senate", value: "Senate" },
+          ]}
+          onChange={(v) => setChamber(v as any)}
+        />
+        <FilterSelect
+          label="Action"
+          value={action}
+          options={[
+            { label: "All", value: "" },
+            { label: "Buy", value: "Buy" },
+            { label: "Sell", value: "Sell" },
+          ]}
+          onChange={(v) => setAction(v as any)}
+        />
+        <FilterSelect
+          label="Days back"
+          value={String(days)}
+          options={[
+            { label: "7 days", value: "7" },
+            { label: "30 days", value: "30" },
+            { label: "90 days", value: "90" },
+            { label: "365 days", value: "365" },
+          ]}
+          onChange={(v) => setDays(Number(v))}
+        />
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>Politician</th>
+                <th>Ticker</th>
+                <th>Company</th>
+                <th>Action</th>
+                <th className="text-right">Amount</th>
+                <th>Transaction Date</th>
+                <th>Reported</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="text-center text-mute py-10">
+                    Loading…
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center text-mute py-10">
+                    No congressional trades match these filters.
+                  </td>
+                </tr>
+              ) : (
+                rows.flatMap((r, i) => {
+                  const isBuy = r.action === "Buy";
+                  const row = (
+                    <motion.tr
+                      key={r.id}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.18, delay: Math.min(i, 12) * 0.02 }}
+                    >
+                      <td>
+                        <div className="flex items-center gap-3 min-w-[200px]">
+                          <PoliticianAvatar
+                            name={r.politicianName}
+                            photoUrl={r.photoUrl}
+                            party={r.party}
+                            size={36}
+                          />
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-bold truncate">
+                              {r.politicianName}
+                            </div>
+                            <div className="text-[10px] uppercase tracking-wider font-bold text-mute flex items-center gap-1">
+                              <span
+                                className="px-1.5 py-0.5 rounded"
+                                style={{
+                                  background:
+                                    r.party === "D"
+                                      ? "color-mix(in srgb, #1e40af 18%, transparent)"
+                                      : r.party === "R"
+                                      ? "color-mix(in srgb, #b91c1c 18%, transparent)"
+                                      : "var(--bg-3)",
+                                  color:
+                                    r.party === "D"
+                                      ? "#1e40af"
+                                      : r.party === "R"
+                                      ? "#b91c1c"
+                                      : "var(--text-mute)",
+                                }}
+                              >
+                                {r.party || "—"}
+                              </span>
+                              <span>{r.chamber}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <Link
+                          href={`/companies/${encodeURIComponent(r.ticker)}`}
+                          className="inline-flex items-center gap-2"
+                        >
+                          <CompanyLogo
+                            ticker={r.ticker}
+                            name={r.companyName}
+                            size={22}
+                          />
+                          <span className="font-mono text-[13px] font-bold text-accent hover:underline">
+                            {r.ticker}
+                          </span>
+                        </Link>
+                      </td>
+                      <td className="truncate max-w-[240px] text-[13px]">
+                        {r.companyName}
+                      </td>
+                      <td>
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
+                          style={{
+                            background: isBuy
+                              ? "color-mix(in srgb, var(--good) 18%, transparent)"
+                              : "color-mix(in srgb, var(--bad) 18%, transparent)",
+                            color: isBuy ? "var(--good)" : "var(--bad)",
+                          }}
+                        >
+                          {r.action}
+                        </span>
+                      </td>
+                      <td className="text-right tabular text-[13px] font-semibold">
+                        {amountRange(r.amountMin, r.amountMax)}
+                      </td>
+                      <td className="text-[12px] text-soft">
+                        {formatDateShort(r.transactionDate)}
+                      </td>
+                      <td className="text-[12px] text-mute">
+                        {formatDateShort(r.reportedDate)}
+                      </td>
+                    </motion.tr>
+                  );
+                  if (i === 7 && rows.length > 9) {
+                    return [
+                      row,
+                      <tr key="ad-inline">
+                        <td colSpan={7} className="p-0">
+                          <AdSlot slot="inline" seed="congressional-mid" />
+                        </td>
+                      </tr>,
+                    ];
+                  }
+                  return [row];
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FilterInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider font-bold text-mute mb-1">
+        {label}
+      </div>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 rounded-md text-[13px] font-medium"
+        style={{
+          background: "var(--bg-2)",
+          border: "1px solid var(--border-strong)",
+          color: "var(--text)",
+        }}
+      />
+    </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { label: string; value: string }[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider font-bold text-mute mb-1">
+        {label}
+      </div>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2 rounded-md text-[13px] font-semibold"
+        style={{
+          background: "var(--bg-2)",
+          border: "1px solid var(--border-strong)",
+          color: "var(--text)",
+        }}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}

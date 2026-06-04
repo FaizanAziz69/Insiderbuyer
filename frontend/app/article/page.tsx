@@ -6,10 +6,12 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, Calendar, ExternalLink, FileText } from "lucide-react";
 import { API_BASE, ExtractedArticle, fetcher, formatDate } from "@/lib/api";
-import { RightSidebar } from "@/components/home/RightSidebar";
-import { PopularTopics } from "@/components/home/PopularTopics";
 import { KeyPoints } from "@/components/KeyPoints";
 import { IqsCommentary } from "@/components/IqsCommentary";
+import { AdSlot } from "@/components/AdSlot";
+import { RightRailArticles } from "@/components/article/RightRailArticles";
+import { RightRailStockLists } from "@/components/article/RightRailStockLists";
+import { ProgrammaticCta } from "@/components/article/ProgrammaticCta";
 
 function ArticleReader() {
   const params = useSearchParams();
@@ -109,7 +111,7 @@ function ArticleReader() {
           </div>
 
           <h1
-            className="text-[32px] sm:text-[44px] lg:text-[48px] font-black tracking-tight"
+            className="text-[32px] sm:text-[44px] lg:text-[48px] font-semibold tracking-tight"
             style={{ letterSpacing: "-0.8px", lineHeight: 1.08 }}
           >
             {data.title}
@@ -154,6 +156,8 @@ function ArticleReader() {
             dangerouslySetInnerHTML={{ __html: data.html }}
           />
 
+          <ProgrammaticCta articleUrl={u} />
+
           <div
             className="mt-10 pt-6 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
             style={{ borderColor: "var(--border)" }}
@@ -180,12 +184,14 @@ function ArticleReader() {
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-6 lg:gap-10 lg:-ml-8 xl:-ml-20 2xl:-ml-40">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">
       <article className="min-w-0 max-w-3xl pr-2 sm:pr-4">{articleBody}</article>
 
-      <aside className="space-y-6">
-        <RightSidebar />
-        <PopularTopics />
+      <aside className="space-y-5">
+        <AdSlot slot="rail-top" seed={u} />
+        <RightRailArticles excludeLink={u} />
+        <RightRailStockLists />
+        <AdSlot slot="rail-bottom" seed={`${u}-bottom`} />
       </aside>
 
     </div>

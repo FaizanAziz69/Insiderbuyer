@@ -26,7 +26,10 @@ export function ThemeToggle() {
     <button
       onClick={toggle}
       aria-label="Toggle theme"
-      className="relative h-9 w-9 rounded-md flex items-center justify-center overflow-hidden hover:bg-[var(--bg-3)] transition"
+      className="relative h-9 w-9 rounded-md flex items-center justify-center overflow-hidden transition"
+      style={{ color: "#ffffff", background: "transparent" }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.12)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
     >
       <AnimatePresence mode="wait" initial={false}>
         {mounted && theme === "dark" ? (
@@ -38,7 +41,7 @@ export function ThemeToggle() {
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
             className="absolute inset-0 flex items-center justify-center"
           >
-            <Moon className="h-4 w-4 text-soft" strokeWidth={2} />
+            <Moon className="h-4 w-4" strokeWidth={2} style={{ color: "#ffffff" }} />
           </motion.span>
         ) : (
           <motion.span
@@ -49,7 +52,7 @@ export function ThemeToggle() {
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
             className="absolute inset-0 flex items-center justify-center"
           >
-            <Sun className="h-4 w-4 text-soft" strokeWidth={2} />
+            <Sun className="h-4 w-4" strokeWidth={2} style={{ color: "#ffffff" }} />
           </motion.span>
         )}
       </AnimatePresence>

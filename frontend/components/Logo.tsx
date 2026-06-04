@@ -3,21 +3,24 @@
 interface Props {
   size?: "sm" | "md" | "lg";
   className?: string;
+  /** `theme` follows var(--text), `light` forces white (for use on dark headers/footers) */
+  tone?: "theme" | "light";
 }
 
 const SIZES = {
-  sm: { fs: 16, gap: 6 },
-  md: { fs: 28, gap: 10 },
-  lg: { fs: 48, gap: 16 },
+  sm: { fs: 26, gap: 8 },
+  md: { fs: 40, gap: 14 },
+  lg: { fs: 64, gap: 20 },
 } as const;
 
-export function Logo({ size = "md", className = "" }: Props) {
+export function Logo({ size = "md", className = "", tone = "theme" }: Props) {
   const s = SIZES[size];
+  const color = tone === "light" ? "#ffffff" : "var(--text)";
   return (
     <span
       className={`inline-flex items-baseline select-none ${className}`}
       style={{
-        color: "var(--text)",
+        color,
         gap: s.gap,
         fontWeight: 900,
         fontStretch: "75%",

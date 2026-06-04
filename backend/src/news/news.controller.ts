@@ -14,16 +14,27 @@ export class NewsController {
     @Query('limit') limit?: string,
     @Query('category') category?: string,
     @Query('region') region?: string,
+    @Query('tag') tag?: string,
+    @Query('sort') sort?: string,
   ) {
     let items = await this.news.getLatest();
-    const opts: { category?: NewsCategory; region?: NewsRegion } = {};
+    const opts: {
+      category?: NewsCategory;
+      region?: NewsRegion;
+      tag?: string;
+      sort?: 'latest' | 'popular';
+    } = {};
     if (category && ['Market', 'Economy', 'Funds', 'Regulatory'].includes(category)) {
       opts.category = category as NewsCategory;
     }
     if (region && ['US', 'Canada'].includes(region)) {
       opts.region = region as NewsRegion;
     }
-    if (opts.category || opts.region) items = this.news.filter(items, opts);
+    if (tag) opts.tag = tag;
+    if (sort === 'popular' || sort === 'latest') opts.sort = sort;
+    if (opts.category || opts.region || opts.tag || opts.sort) {
+      items = this.news.filter(items, opts);
+    }
     const n = limit ? Math.min(120, Math.max(1, Number(limit))) : 24;
     return { total: items.length, items: items.slice(0, n) };
   }

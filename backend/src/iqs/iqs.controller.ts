@@ -20,11 +20,32 @@ export class IqsController {
   constructor(private readonly iqs: IqsService) {}
 
   @Get('rankings')
-  async rankings(@Query('limit') limit?: string, @Query('offset') offset?: string) {
+  async rankings(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('sector') sector?: string,
+    @Query('minMarketCap') minMc?: string,
+    @Query('maxMarketCap') maxMc?: string,
+    @Query('country') country?: string,
+  ) {
     return this.iqs.getRankings({
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
+      sector: sector || undefined,
+      minMarketCap: minMc ? Number(minMc) : undefined,
+      maxMarketCap: maxMc ? Number(maxMc) : undefined,
+      country: country || undefined,
     });
+  }
+
+  @Get('metrics/buy-sell')
+  async buySell() {
+    return this.iqs.getMonthlyBuySellMeter();
+  }
+
+  @Get('predictions/today')
+  async predictionToday() {
+    return this.iqs.getPredictionOfTheDay();
   }
 
   @Get('rankings.csv')
