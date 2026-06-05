@@ -59,35 +59,21 @@ export default function HomePage() {
 
   return (
     <div className="space-y-10">
-      {/* HERO — featured carousel on the LEFT + larger sector heatmap on the right */}
+      {/* HERO — featured carousel on the LEFT + two stacked smaller heatmaps on the right */}
       <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4">
         <FeaturedCarousel items={featuredImages} slides={3} itemsPerSlide={4} />
-        <aside
-          className="rounded-lg overflow-hidden"
-          style={{
-            background: "var(--bg-2)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <div
-            className="flex items-center justify-between px-5 py-3 border-b"
-            style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
-          >
-            <h3 className="text-[14px] font-bold uppercase tracking-wider">
-              Market Performance by Sector
-            </h3>
-            <span className="text-[11px] font-mono text-mute uppercase tracking-wider">
-              live
-            </span>
-          </div>
-          <div className="p-2">
-            {rankings?.rows && rankings.rows.length > 0 ? (
-              <StockHeatmap rows={rankings.rows.slice(0, 32)} height={560} />
-            ) : (
-              <div className="h-[560px] shimmer rounded" />
-            )}
-          </div>
-        </aside>
+        <div className="flex flex-col gap-4">
+          <HeroHeatmapPanel
+            title="Market Performance by Sector"
+            rows={rankings?.rows?.slice(0, 28) || []}
+            mode="sector"
+          />
+          <HeroHeatmapPanel
+            title="Performance by IQS"
+            rows={rankings?.rows?.slice(0, 24) || []}
+            mode="iqs"
+          />
+        </div>
       </section>
 
       {/* Free-trial + newsletter dual strip */}
@@ -147,5 +133,48 @@ export default function HomePage() {
       {/* All-Access CTA — the "Get 30 Days for Free" closer */}
       <AllAccessCta />
     </div>
+  );
+}
+
+function HeroHeatmapPanel({
+  title,
+  rows,
+  mode,
+}: {
+  title: string;
+  rows: import("@/lib/api").RankingRow[];
+  mode: "sector" | "iqs";
+}) {
+  const HEIGHT = 270;
+  return (
+    <aside
+      className="rounded-lg overflow-hidden"
+      style={{
+        background: "var(--bg-2)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <div
+        className="flex items-center justify-between px-4 py-2.5 border-b"
+        style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
+      >
+        <h3 className="text-[13px] font-bold uppercase tracking-wider truncate">
+          {title}
+        </h3>
+        <span className="text-[10px] font-mono text-mute uppercase tracking-wider">
+          live
+        </span>
+      </div>
+      <div className="p-2">
+        {rows.length > 0 ? (
+          <StockHeatmap rows={rows} height={HEIGHT} mode={mode} />
+        ) : (
+          <div
+            className="shimmer rounded"
+            style={{ height: HEIGHT }}
+          />
+        )}
+      </div>
+    </aside>
   );
 }

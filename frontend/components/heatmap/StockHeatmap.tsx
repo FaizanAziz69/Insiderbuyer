@@ -7,6 +7,7 @@ import { RankingRow, formatCurrency } from "@/lib/api";
 interface Props {
   rows: RankingRow[];
   height?: number;
+  mode?: "sector" | "iqs";
 }
 
 interface Rect {
@@ -125,6 +126,28 @@ function colorForChange(pct: number) {
     bg: "linear-gradient(135deg, #4b5563 0%, #6b7280 100%)",
     fg: "#f3f4f6",
   };
+}
+
+// IQS-band coloring — green tiers for high IQS, red for low, gray for ~0.
+function colorForIqs(iqs: number) {
+  if (iqs >= 4) {
+    return {
+      bg: "linear-gradient(135deg, #0a7a3e 0%, #16a34a 60%, #22c55e 100%)",
+    };
+  }
+  if (iqs >= 2.5) {
+    return { bg: "linear-gradient(135deg, #15803d 0%, #22c55e 100%)" };
+  }
+  if (iqs >= 1) {
+    return { bg: "linear-gradient(135deg, #166534 0%, #16a34a 100%)" };
+  }
+  if (iqs >= 0.5) {
+    return { bg: "linear-gradient(135deg, #7f1d1d 0%, #b91c1c 100%)" };
+  }
+  if (iqs > 0) {
+    return { bg: "linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)" };
+  }
+  return { bg: "linear-gradient(135deg, #4b5563 0%, #6b7280 100%)" };
 }
 
 interface SectorBlock {
@@ -343,7 +366,7 @@ function layoutWithSectors(
   });
 }
 
-export function StockHeatmap({ rows, height = 520 }: Props) {
+export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(800);
 
@@ -358,10 +381,18 @@ export function StockHeatmap({ rows, height = 520 }: Props) {
 
   const blocks = useMemo(() => {
     if (!rows.length) return [];
+    if (mode === "iqs") {
+      // Single flat treemap — no sector grouping. Tiles sized by market cap,
+      // colored by IQS band so the user reads it as "where is conviction".
+      const sorted = [...rows].sort((a, b) => tileValue(b) - tileValue(a));
+      const w = Math.max(320, width);
+      const tiles = sliceTreemap(sorted, 0, 0, w, height);
+      return [{ sector: "", x: 0, y: 0, w, h: height, tiles }];
+    }
     return layoutWithSectors(rows, Math.max(320, width), height);
-  }, [rows, width, height]);
+  }, [rows, width, height, mode]);
 
-  const HEADER_H = 24;
+  const HEADER_H = mode === "iqs" ? 0 : 24;
   const PAD = 2;
 
   return (
@@ -411,7 +442,8 @@ export function StockHeatmap({ rows, height = 520 }: Props) {
             )}
             {b.tiles.map((rect, i) => {
               const pct = fakeChangePct(rect.row);
-              const c = colorForChange(pct);
+              const iqs = rect.row.iqs;
+              const c = mode === "iqs" ? colorForIqs(iqs) : colorForChange(pct);
               const tileW = rect.w;
               const tileH = rect.h;
               const area = tileW * tileH;
@@ -430,6 +462,14 @@ export function StockHeatmap({ rows, height = 520 }: Props) {
                 Math.floor(((tileW - 8) / 5) * 1.4),
               );
               const sign = pct >= 0 ? "+" : "";
+              const subLabel =
+                mode === "iqs"
+                  ? `IQS ${iqs.toFixed(2)}`
+                  : `${sign}${pct.toFixed(2)}%`;
+              const tileTitle =
+                mode === "iqs"
+                  ? `${rect.row.ticker || rect.row.name} · IQS ${iqs.toFixed(2)} · ${formatCurrency(rect.row.marketCap)}`
+                  : `${rect.row.ticker || rect.row.name} · ${sign}${pct.toFixed(2)}% · ${formatCurrency(rect.row.marketCap)}`;
               const tileX = PAD + rect.x;
               const tileY = HEADER_H + rect.y;
               return (
@@ -456,7 +496,7 @@ export function StockHeatmap({ rows, height = 520 }: Props) {
                     href={rect.row.ticker ? `/companies/${encodeURIComponent(rect.row.ticker)}` : "#"}
                     className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden"
                     style={{ color: "#ffffff", padding: 2 }}
-                    title={`${rect.row.ticker || rect.row.name} · ${sign}${pct.toFixed(2)}% · ${formatCurrency(rect.row.marketCap)}`}
+                    title={tileTitle}
                   >
                     {!hideAll && (
                       <div
@@ -483,8 +523,7 @@ export function StockHeatmap({ rows, height = 520 }: Props) {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {sign}
-                        {pct.toFixed(2)}%
+                        {subLabel}
                       </div>
                     )}
                   </Link>

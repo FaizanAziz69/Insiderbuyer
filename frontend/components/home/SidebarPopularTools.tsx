@@ -1,6 +1,14 @@
 "use client";
 import Link from "next/link";
-import { ArrowUpRight, BarChart3, Calculator, LineChart } from "lucide-react";
+import {
+  ArrowUpRight,
+  BarChart3,
+  Bell,
+  Calculator,
+  Calendar,
+  Flame,
+  LineChart,
+} from "lucide-react";
 
 const TOOLS = [
   {
@@ -20,6 +28,24 @@ const TOOLS = [
     body: "Slice the universe by sector, market-cap band, IQS tier, and recent insider activity. Save the screens you keep running.",
     href: "/screener",
     icon: BarChart3,
+  },
+  {
+    title: "Insider Trade Alerts",
+    body: "Subscribe to email + SMS alerts the moment a tracked insider files a Form 4 — buy, sell, or 10b5-1 plan.",
+    href: "/alerts",
+    icon: Bell,
+  },
+  {
+    title: "Earnings Calendar",
+    body: "Upcoming earnings releases with EPS estimates, report time, and the IQS-flagged names reporting this week.",
+    href: "/earnings",
+    icon: Calendar,
+  },
+  {
+    title: "Top Movers",
+    body: "Today's biggest gainers, losers, and most-active tickers — cross-referenced with recent insider buys.",
+    href: "/movers",
+    icon: Flame,
   },
 ];
 

@@ -113,11 +113,11 @@ function SmallCard({ item, images }: { item: NewsItem; images: boolean }) {
   return (
     <Link
       href={`/article?u=${encodeURIComponent(item.link)}&c=${encodeURIComponent(item.label)}`}
-      className={`block group ${images ? "grid grid-cols-[100px_1fr] gap-3 items-start" : ""} py-3 border-b border-[var(--border)] last:border-b-0`}
+      className="block group h-full"
     >
       {images && (
         <div
-          className="relative aspect-[4/3] rounded-md overflow-hidden"
+          className="relative aspect-[16/9] rounded-lg overflow-hidden mb-3"
           style={{ background: "var(--bg-3)" }}
         >
           <div className="absolute inset-0">
@@ -131,7 +131,7 @@ function SmallCard({ item, images }: { item: NewsItem; images: boolean }) {
               decoding="async"
               onLoad={() => setLoaded(true)}
               onError={() => setFailed(true)}
-              className="absolute inset-0 w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
               style={{ opacity: loaded ? 1 : 0 }}
             />
           )}
@@ -144,7 +144,7 @@ function SmallCard({ item, images }: { item: NewsItem; images: boolean }) {
         <h4 className="text-[14px] sm:text-[15px] font-semibold leading-snug line-clamp-3 group-hover:text-accent transition">
           {item.title}
         </h4>
-        <div className="text-[11px] text-mute mt-1">
+        <div className="text-[11px] text-mute mt-1.5">
           {item.source} · {formatRelative(item.pubDate)}
         </div>
       </div>
@@ -189,14 +189,14 @@ export function BigPlusFour({
         >
           <BigCard item={big} images={images} />
         </motion.div>
-        <div className="flex flex-col">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
           {smalls.map((it, i) => (
             <motion.div
               key={it.id}
-              initial={{ opacity: 0, x: 6 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 6 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.1 }}
-              transition={{ duration: 0.25, delay: 0.04 * i }}
+              transition={{ duration: 0.3, delay: 0.05 * i }}
             >
               <SmallCard item={it} images={images} />
             </motion.div>

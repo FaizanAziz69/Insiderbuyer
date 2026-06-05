@@ -44,8 +44,10 @@ function HeroImage({
   const [failed, setFailed] = useState(false);
 
   const titleSize =
-    size === "big" ? "text-[18px] sm:text-[22px]" : "text-[12px] sm:text-[13px]";
-  const padding = size === "big" ? "p-4 sm:p-5" : "p-2.5 sm:p-3";
+    size === "big"
+      ? "text-[20px] sm:text-[26px]"
+      : "text-[12px] sm:text-[13px]";
+  const padding = size === "big" ? "p-5 sm:p-6" : "p-2.5 sm:p-3";
 
   return (
     <Link
@@ -98,57 +100,41 @@ interface Props {
 export function FeaturedImagesGrid({ items }: Props) {
   if (items.length === 0) return null;
   const big = items[0];
-  const smallTopLeft = items[1];
-  const smallTopRight = items[2];
-  const wideBottom = items[3];
+  const thumbs = items.slice(1, 5);
 
   return (
-    <section
-      className="grid grid-cols-1 lg:grid-cols-[1.35fr_1fr] gap-3 sm:gap-4"
-      style={{ minHeight: 600 }}
-    >
-      {/* Left — one big card */}
+    <section className="flex flex-col gap-3 sm:gap-4 w-full">
+      {/* Big hero card on top — full width of the column */}
       <motion.div
-        initial={{ opacity: 0, y: 6 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="h-full"
-        style={{ minHeight: 600 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full"
+        style={{ height: 420 }}
       >
         <HeroImage item={big} size="big" />
       </motion.div>
 
-      {/* Right — 2 small on top, 1 wide on bottom */}
-      <div className="grid grid-rows-[1fr_1fr] gap-3 sm:gap-4">
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
-          {smallTopLeft && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.05 }}
-            >
-              <HeroImage item={smallTopLeft} size="small" />
-            </motion.div>
-          )}
-          {smallTopRight && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-            >
-              <HeroImage item={smallTopRight} size="small" />
-            </motion.div>
-          )}
-        </div>
-        {wideBottom && (
+      {/* Horizontal row of smaller cards — flex with flex-1 on each so the
+          row always spans the full width of the big image, regardless of
+          whether there are 2, 3, or 4 thumbs in the slide. */}
+      <div className="flex gap-3 sm:gap-4 w-full">
+        {thumbs.map((it, i) => (
           <motion.div
-            initial={{ opacity: 0, y: 6 }}
+            key={it.id}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.15 }}
+            transition={{
+              duration: 0.35,
+              delay: 0.08 + i * 0.06,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            className="flex-1 min-w-0"
+            style={{ height: 150 }}
           >
-            <HeroImage item={wideBottom} size="wide" />
+            <HeroImage item={it} size="small" />
           </motion.div>
-        )}
+        ))}
       </div>
     </section>
   );
