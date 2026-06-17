@@ -117,7 +117,7 @@ function Row({ r, compact = false }: { r: RankingRow; compact?: boolean }) {
       </td>
       <td className="truncate max-w-[260px]">{r.name}</td>
       <td className="text-mute text-xs truncate max-w-[180px]">{r.sector || "—"}</td>
-      <td className="text-right tabular font-semibold">{r.iqs.toFixed(2)}</td>
+      <td className="text-right tabular font-semibold">{r.iqs.toFixed(1)}</td>
       {compact ? (
         <td className="text-right tabular text-accent font-semibold">
           {formatCurrency(r.totalPurchaseValue)}

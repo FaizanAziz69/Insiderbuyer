@@ -108,7 +108,11 @@ export class IngestionService implements OnModuleInit {
             const p = parsed.transactions[i];
             const role = normalizeRole(p.rawTitle, p.isDirector, p.isOfficer);
             const totalValue = p.sharesBought * p.pricePerShare;
-            const previousHoldings = Math.max(0, p.postHoldings - p.sharesBought);
+            // Buys reduce to post − shares; sells held MORE before disposing.
+            const previousHoldings =
+              p.transactionCode === 'S'
+                ? p.postHoldings + p.sharesBought
+                : Math.max(0, p.postHoldings - p.sharesBought);
             await this.txRepo.save(
               this.txRepo.create({
                 companyId: company.id,

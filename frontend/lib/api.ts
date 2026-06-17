@@ -8,14 +8,19 @@ export interface RankingRow {
   sector: string | null;
   marketCap: number | null;
   lastPrice: number | null;
-  iqs: number;
-  purchaseVolumeFactor: number;
-  clusterFactor: number;
-  roleWeightedVolume: number;
-  holdingChangeFactor: number;
+  iqs: number; // 0–100 composite Insider Quality Score
+  insiderWeight: number;
+  transactionWeight: number;
+  convictionWeight: number;
+  historicalSuccessWeight: number;
+  clusterWeight: number;
+  marketTimingWeight: number;
   distinctBuyers: number;
   transactionCount: number;
   totalPurchaseValue: number;
+  /** Real intraday change % — present when the API is queried with live=1. */
+  changePct?: number | null;
+  livePrice?: number | null;
 }
 
 export interface RankingsResponse {
@@ -34,16 +39,19 @@ export interface CompanyDetail {
     lastPrice: number | null;
   };
   score: {
-    iqs: number;
-    purchaseVolumeFactor: number;
-    clusterFactor: number;
-    roleWeightedVolume: number;
-    holdingChangeFactor: number;
+    iqs: number; // 0–100
+    insiderWeight: number;
+    transactionWeight: number;
+    convictionWeight: number;
+    historicalSuccessWeight: number;
+    clusterWeight: number;
+    marketTimingWeight: number;
     distinctBuyers: number;
     transactionCount: number;
     totalPurchaseValue: number;
     asOfDate: string;
   } | null;
+  scoreHistory?: Array<{ asOfDate: string; iqs: number }>;
   transactions: Array<{
     id: string;
     insiderName: string;
@@ -51,6 +59,7 @@ export interface CompanyDetail {
     rawTitle: string;
     transactionDate: string;
     transactionCode: string;
+    type?: "BUY" | "SELL";
     sharesBought: number;
     pricePerShare: number;
     totalValue: number;
@@ -283,6 +292,45 @@ export interface VolumeSeriesResponse {
   series: Array<{ date: string; count: number; value: number }>;
 }
 
+export type BlogKind =
+  | "daily-summary"
+  | "top-iqs"
+  | "ticker-deep-dive"
+  | "sector-roundup"
+  | "cluster-buy"
+  | "ceo-buying"
+  | "stock-idea"
+  | "weekly-report"
+  | "topic-roundup";
+
+export interface BlogPostListItem {
+  slug: string;
+  title: string;
+  kind: BlogKind;
+  ticker: string | null;
+  sector: string | null;
+  topic?: string | null;
+  summary: string;
+  eyebrow: string | null;
+  imageUrl: string | null;
+  tags: string[] | null;
+  /** 1-3 tickers rendered as brand-logo overlays on the cover. */
+  featuredTickers: string[] | null;
+  generatedAt: string;
+}
+
+export interface BlogPost extends BlogPostListItem {
+  body: string;
+  imagePrompt: string | null;
+  iqsAtGeneration: number | null;
+  inputSnapshot: Record<string, unknown> | null;
+  updatedAt: string;
+}
+
+export interface BlogListResponse {
+  items: BlogPostListItem[];
+}
+
 export async function fetcher<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
@@ -331,8 +379,8 @@ export function formatRelative(s: string | null | undefined): string {
 }
 
 export function scoreTier(iqs: number): { label: string; cls: string } {
-  if (iqs >= 4) return { label: "Elite", cls: "score-grad-1" };
-  if (iqs >= 2.5) return { label: "Strong", cls: "score-grad-2" };
-  if (iqs >= 1) return { label: "Notable", cls: "score-grad-3" };
+  if (iqs >= 70) return { label: "Elite", cls: "score-grad-1" };
+  if (iqs >= 55) return { label: "Strong", cls: "score-grad-2" };
+  if (iqs >= 40) return { label: "Notable", cls: "score-grad-3" };
   return { label: "Watch", cls: "score-grad-4" };
 }

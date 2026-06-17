@@ -174,9 +174,9 @@ function SignalRow({
         </div>
         <div
           className="text-[15px] font-bold tabular"
-          style={{ color: r.iqs >= 1 ? "var(--good)" : "var(--bad)" }}
+          style={{ color: r.iqs >= 50 ? "var(--good)" : "var(--bad)" }}
         >
-          {r.iqs.toFixed(2)}
+          {r.iqs.toFixed(1)}
         </div>
       </div>
       <div className="text-right hidden sm:block">

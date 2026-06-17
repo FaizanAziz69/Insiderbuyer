@@ -54,7 +54,7 @@ function Row({
   blurred: boolean;
   idx: number;
 }) {
-  const positive = r.iqs >= 1;
+  const positive = r.iqs >= 50;
   return (
     <motion.li
       initial={{ opacity: 0, x: 8 }}
@@ -95,7 +95,7 @@ function Row({
               className="text-[10px] font-bold tabular"
               style={{ color: positive ? "var(--good)" : "var(--bad)" }}
             >
-              {positive ? "+" : ""}IQS {r.iqs.toFixed(2)}
+              {positive ? "+" : ""}IQS {r.iqs.toFixed(1)}
             </span>
           </div>
         </div>

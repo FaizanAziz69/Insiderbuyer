@@ -1,19 +1,8 @@
 "use client";
 import useSWR from "swr";
-import { useMemo } from "react";
-import {
-  API_BASE,
-  NewsItem,
-  NewsResponse,
-  RankingsResponse,
-  fetcher,
-} from "@/lib/api";
+import { API_BASE, RankingsResponse, fetcher } from "@/lib/api";
 import { MonthlyBuySellMeter } from "@/components/home/MonthlyBuySellMeter";
 import { PredictionOfTheDay } from "@/components/home/PredictionOfTheDay";
-import { FeaturedCarousel } from "@/components/home/FeaturedCarousel";
-import { BigPlusFour } from "@/components/home/BigPlusFour";
-import { getSampleIdeas } from "@/content/stock-ideas";
-import { getSamplePopular } from "@/content/sample-popular";
 import { HomeDatasets } from "@/components/home/HomeDatasets";
 import { EarningsCalendar } from "@/components/home/EarningsCalendar";
 import { SidebarPopularTools } from "@/components/home/SidebarPopularTools";
@@ -22,46 +11,25 @@ import { AllAccessCta } from "@/components/home/AllAccessCta";
 import { TrialAndNewsletterStrip } from "@/components/home/TrialAndNewsletterStrip";
 import { StockHeatmap } from "@/components/heatmap/StockHeatmap";
 import { AdSlot } from "@/components/AdSlot";
+import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
+import { AiPopularArticlesSection } from "@/components/insights/AiPopularArticlesSection";
+import { AiLatestNewsSection } from "@/components/insights/AiLatestNewsSection";
+import { AiFeaturedHero } from "@/components/insights/AiFeaturedHero";
 
 export default function HomePage() {
-  // News pool
-  const { data: news } = useSWR<NewsResponse>(
-    `${API_BASE}/news?limit=60`,
-    fetcher,
-    { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
-  );
-  // Rankings (used by the hero sector heatmap + the bottom stock-heatmap section)
+  // Rankings drives both hero heatmaps (sector + IQS). live=1 merges real
+  // intraday change % from the quote feed for the sector-performance view.
   const { data: rankings } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=80`,
+    `${API_BASE}/rankings?limit=80&live=1`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
-
-  const items = useMemo<NewsItem[]>(() => {
-    const raw = news?.items || [];
-    const seen = new Set<string>();
-    const out: NewsItem[] = [];
-    for (const n of raw) {
-      const key = (n.link || "").split("#")[0].split("?")[0].toLowerCase();
-      if (seen.has(key) || seen.has(n.id)) continue;
-      seen.add(key);
-      seen.add(n.id);
-      out.push(n);
-    }
-    return out;
-  }, [news]);
-
-  // Slice news pool into the hero + Latest section.
-  // Hero carousel takes 12 (3 slides × 4); Latest takes the next 5.
-  // Popular Articles uses a curated sample set (see `sample-popular.ts`).
-  const featuredImages = items.slice(0, 12);
-  const latest = items.slice(12, 17);
-
   return (
     <div className="space-y-10">
-      {/* HERO — featured carousel on the LEFT + two stacked smaller heatmaps on the right */}
+      {/* HERO — AI editorial carousel (grid of images + news, refreshed daily)
+          + two stacked smaller heatmaps on the right */}
       <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4">
-        <FeaturedCarousel items={featuredImages} slides={3} itemsPerSlide={4} />
+        <AiFeaturedHero />
         <div className="flex flex-col gap-4">
           <HeroHeatmapPanel
             title="Market Performance by Sector"
@@ -79,42 +47,24 @@ export default function HomePage() {
       {/* Free-trial + newsletter dual strip */}
       <TrialAndNewsletterStrip />
 
-      {/* LATEST FINANCIAL NEWS + Popular Tools sidebar */}
+      {/* LATEST FINANCIAL NEWS — AI-refined editorial from SEC + IQS data */}
       <div className="grid grid-cols-1 xl:grid-cols-[2.5fr_1fr] gap-6 xl:gap-10">
-        <BigPlusFour
-          title="Latest Financial News"
-          href="/news?sort=latest"
-          items={latest}
-          images
-          large
-        />
+        <AiLatestNewsSection />
         <SidebarPopularTools />
       </div>
 
       {/* Banner ad between sections */}
       <AdSlot slot="leaderboard" seed="home-mid-1" />
 
-      {/* POPULAR ARTICLES + Stock List pills sidebar */}
+      {/* POPULAR ARTICLES — AI-generated editorial, refreshed daily */}
       <div className="grid grid-cols-1 xl:grid-cols-[2.5fr_1fr] gap-6 xl:gap-10">
-        <BigPlusFour
-          title="Popular Articles"
-          href="/news?sort=popular"
-          items={getSamplePopular()}
-          images
-          large
-        />
+        <AiPopularArticlesSection />
         <SidebarStockListsPills />
       </div>
 
-      {/* STOCK IDEAS — article-style cards (image + headline + summary) */}
+      {/* STOCK IDEAS — AI-generated trade-idea cards refreshed daily */}
       <div className="grid grid-cols-1 xl:grid-cols-[2.5fr_1fr] gap-6 xl:gap-10">
-        <BigPlusFour
-          title="Stock Ideas"
-          href="/lists"
-          items={getSampleIdeas()}
-          images
-          large
-        />
+        <AiStockIdeasSection />
         <aside className="space-y-4">
           <PredictionOfTheDay />
           <MonthlyBuySellMeter />

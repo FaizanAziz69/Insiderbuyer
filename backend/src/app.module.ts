@@ -8,6 +8,7 @@ import { IqsScore } from './entities/iqs-score.entity';
 import { ProcessedFiling } from './entities/processed-filing.entity';
 import { CongressionalTransaction } from './entities/congressional-transaction.entity';
 import { Subscriber } from './entities/subscriber.entity';
+import { BlogPost } from './entities/blog-post.entity';
 import { CompaniesModule } from './companies/companies.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { IqsModule } from './iqs/iqs.module';
@@ -19,7 +20,10 @@ import { StockListsModule } from './stock-lists/stock-lists.module';
 import { SubscribersModule } from './subscribers/subscribers.module';
 import { MarketStatsModule } from './market-stats/market-stats.module';
 import { EarningsModule } from './earnings/earnings.module';
+import { IpoModule } from './ipo/ipo.module';
 import { CtaModule } from './cta/cta.module';
+import { ChatModule } from './chat/chat.module';
+import { ContentModule } from './content/content.module';
 
 @Module({
   imports: [
@@ -50,6 +54,7 @@ import { CtaModule } from './cta/cta.module';
           ProcessedFiling,
           CongressionalTransaction,
           Subscriber,
+          BlogPost,
         ],
         synchronize: true,
         logging: false,
@@ -64,9 +69,12 @@ import { CtaModule } from './cta/cta.module';
     IndicesModule,
     MarketStatsModule,
     EarningsModule,
+    IpoModule,
     StockListsModule,
     SubscribersModule,
     CtaModule,
+    ChatModule,
+    ContentModule,
   ],
 })
 export class AppModule {}

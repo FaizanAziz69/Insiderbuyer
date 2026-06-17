@@ -22,4 +22,32 @@ export class MarketStatsController {
     const rows = await this.svc.getMostActive(limit ? Number(limit) : 20);
     return { rows };
   }
+
+  @Get('quotes')
+  async quotes(@Query('symbols') symbols?: string) {
+    const syms = (symbols || '')
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean)
+      .slice(0, 30);
+    const map = await this.svc.getQuoteBatch(syms);
+    // Preserve requested order.
+    const rows = syms.map((s) => map.get(s)).filter(Boolean);
+    return { rows };
+  }
+
+  @Get('analyst-ratings')
+  async analystRatings() {
+    return { rows: await this.svc.getAnalystRatings() };
+  }
+
+  @Get('dividends')
+  async dividends() {
+    return { rows: await this.svc.getDividends() };
+  }
+
+  @Get('short-interest')
+  async shortInterest() {
+    return { rows: await this.svc.getShortInterest() };
+  }
 }

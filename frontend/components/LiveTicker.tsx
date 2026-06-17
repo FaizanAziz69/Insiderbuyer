@@ -17,13 +17,13 @@ export function LiveTicker() {
     <div className="ticker-strip" aria-label="Live insider buying ticker">
       <div className="ticker-track">
         {items.map((r, i) => {
-          const direction = r.iqs >= 1 ? "up" : "down";
+          const direction = r.iqs >= 50 ? "up" : "down";
           return (
             <div key={`${r.companyId}-${i}`} className="ticker-item">
               <span className="ticker-sym">{r.ticker || "—"}</span>
               <span className="ticker-price">{formatCurrency(r.totalPurchaseValue)}</span>
               <span className={direction === "up" ? "ticker-up" : "ticker-down"}>
-                {direction === "up" ? "▲" : "▼"} IQS {r.iqs.toFixed(2)}
+                {direction === "up" ? "▲" : "▼"} IQS {r.iqs.toFixed(1)}
               </span>
               <span className="text-faint">·</span>
             </div>

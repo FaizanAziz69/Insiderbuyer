@@ -18,6 +18,8 @@ import { RightRailArticles } from "@/components/article/RightRailArticles";
 import { RightRailStockLists } from "@/components/article/RightRailStockLists";
 import { Indicators } from "@/components/Indicators";
 import { IqsTooltip } from "@/components/IqsTooltip";
+import { AiInsightsStrip } from "@/components/insights/AiInsightsStrip";
+import { IqsTrendChart } from "@/components/IqsTrendChart";
 
 interface CongressTrade {
   id: string;
@@ -118,7 +120,7 @@ export default function CompanyPage({
                         </span>
                       </IqsTooltip>{" "}
                       <span className="font-bold tabular text-accent">
-                        {Number(data.score.iqs).toFixed(2)}
+                        {Number(data.score.iqs).toFixed(1)}/100
                       </span>
                     </div>
                   </div>
@@ -243,6 +245,11 @@ export default function CompanyPage({
                 </table>
               </div>
             </div>
+
+            {/* IQS trend over time — one point per scoring run */}
+            {data.scoreHistory && data.scoreHistory.length > 1 && (
+              <IqsTrendChart history={data.scoreHistory} />
+            )}
 
             <AdSlot slot="leaderboard" seed={`stock-${ticker}`} />
 
@@ -437,11 +444,21 @@ export default function CompanyPage({
                       )
                     ? "sell"
                     : null,
-                  positiveNews: !!data.score && data.score.iqs >= 1,
+                  positiveNews: !!data.score && data.score.iqs >= 50,
                   analystUpgrade: false,
                   earningsDueSoon: false,
                 }}
                 size="md"
+              />
+            </section>
+
+            {/* AI-generated insider-buying coverage for this ticker */}
+            <section>
+              <AiInsightsStrip
+                title="AI Insights"
+                ticker={ticker}
+                limit={3}
+                hideIfEmpty
               />
             </section>
           </main>

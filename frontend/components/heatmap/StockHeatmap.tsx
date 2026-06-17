@@ -70,16 +70,18 @@ function hashUnit(s: string) {
 }
 
 /**
- * Derive a believable daily change % from the IQS score (we don't have live
- * intraday quotes for every ranked ticker, so this gives the heatmap the
- * green/red character the layout needs).
+ * Daily change % for a tile. Uses the REAL intraday change merged from the
+ * live quote feed (rankings?live=1). Only when no quote exists for a ticker
+ * do we fall back to an IQS-derived estimate so the tile still renders.
  */
-function fakeChangePct(row: RankingRow): number {
+function changePctFor(row: RankingRow): number {
+  if (typeof row.changePct === "number") return row.changePct;
   const noise = (hashUnit(row.companyId || row.ticker || row.name) - 0.5) * 1.2;
-  if (row.iqs >= 4) return 2.0 + noise;
-  if (row.iqs >= 2.5) return 1.0 + noise * 0.8;
-  if (row.iqs >= 1) return 0.3 + noise * 0.6;
-  if (row.iqs >= 0.5) return -0.4 + noise * 0.5;
+  // IQS bands on the 0–100 composite scale.
+  if (row.iqs >= 70) return 2.0 + noise;
+  if (row.iqs >= 55) return 1.0 + noise * 0.8;
+  if (row.iqs >= 40) return 0.3 + noise * 0.6;
+  if (row.iqs >= 25) return -0.4 + noise * 0.5;
   return -1.8 + noise;
 }
 
@@ -128,20 +130,21 @@ function colorForChange(pct: number) {
   };
 }
 
-// IQS-band coloring — green tiers for high IQS, red for low, gray for ~0.
+// IQS-band coloring on the 0–100 composite — green tiers for high IQS,
+// red for low, gray for missing.
 function colorForIqs(iqs: number) {
-  if (iqs >= 4) {
+  if (iqs >= 70) {
     return {
       bg: "linear-gradient(135deg, #0a7a3e 0%, #16a34a 60%, #22c55e 100%)",
     };
   }
-  if (iqs >= 2.5) {
+  if (iqs >= 55) {
     return { bg: "linear-gradient(135deg, #15803d 0%, #22c55e 100%)" };
   }
-  if (iqs >= 1) {
+  if (iqs >= 40) {
     return { bg: "linear-gradient(135deg, #166534 0%, #16a34a 100%)" };
   }
-  if (iqs >= 0.5) {
+  if (iqs >= 25) {
     return { bg: "linear-gradient(135deg, #7f1d1d 0%, #b91c1c 100%)" };
   }
   if (iqs > 0) {
@@ -334,10 +337,12 @@ function layoutWithSectors(
       marketCap: s.total * s.total,
       lastPrice: null,
       iqs: 0,
-      purchaseVolumeFactor: 0,
-      clusterFactor: 0,
-      roleWeightedVolume: 0,
-      holdingChangeFactor: 0,
+      insiderWeight: 0,
+      transactionWeight: 0,
+      convictionWeight: 0,
+      historicalSuccessWeight: 0,
+      clusterWeight: 0,
+      marketTimingWeight: 0,
       distinctBuyers: 0,
       transactionCount: 0,
       totalPurchaseValue: s.total * s.total,
@@ -441,7 +446,7 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
               </div>
             )}
             {b.tiles.map((rect, i) => {
-              const pct = fakeChangePct(rect.row);
+              const pct = changePctFor(rect.row);
               const iqs = rect.row.iqs;
               const c = mode === "iqs" ? colorForIqs(iqs) : colorForChange(pct);
               const tileW = rect.w;
@@ -464,11 +469,11 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
               const sign = pct >= 0 ? "+" : "";
               const subLabel =
                 mode === "iqs"
-                  ? `IQS ${iqs.toFixed(2)}`
+                  ? `IQS ${iqs.toFixed(1)}`
                   : `${sign}${pct.toFixed(2)}%`;
               const tileTitle =
                 mode === "iqs"
-                  ? `${rect.row.ticker || rect.row.name} · IQS ${iqs.toFixed(2)} · ${formatCurrency(rect.row.marketCap)}`
+                  ? `${rect.row.ticker || rect.row.name} · IQS ${iqs.toFixed(1)} · ${formatCurrency(rect.row.marketCap)}`
                   : `${rect.row.ticker || rect.row.name} · ${sign}${pct.toFixed(2)}% · ${formatCurrency(rect.row.marketCap)}`;
               const tileX = PAD + rect.x;
               const tileY = HEADER_H + rect.y;

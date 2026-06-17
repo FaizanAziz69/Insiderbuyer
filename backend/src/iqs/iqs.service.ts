@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
-import { InsiderTransaction } from '../entities/insider-transaction.entity';
+import { InsiderTransaction, InsiderRole } from '../entities/insider-transaction.entity';
 import { IqsScore } from '../entities/iqs-score.entity';
-import { roleMultiplier } from '../common/role.util';
 import { CongressionalService } from '../congressional/congressional.service';
+import { MarketStatsService } from '../market-stats/market-stats.service';
 
 export interface RankingRow {
   rank: number;
@@ -15,15 +15,32 @@ export interface RankingRow {
   sector: string | null;
   marketCap: number | null;
   lastPrice: number | null;
-  iqs: number;
-  purchaseVolumeFactor: number;
-  clusterFactor: number;
-  roleWeightedVolume: number;
-  holdingChangeFactor: number;
+  iqs: number; // 0–100
+  insiderWeight: number;
+  transactionWeight: number;
+  convictionWeight: number;
+  historicalSuccessWeight: number;
+  clusterWeight: number;
+  marketTimingWeight: number;
   distinctBuyers: number;
   transactionCount: number;
   totalPurchaseValue: number;
+  /** Real intraday change % — merged from the live quote feed when the
+   *  caller passes withLive (null when no quote is available). */
+  changePct?: number | null;
+  livePrice?: number | null;
 }
+
+/** Role significance for the Insider Weight component (0–100). */
+const ROLE_SCORE: Record<InsiderRole, number> = {
+  CEO: 100,
+  CFO: 95,
+  COO: 85,
+  Director: 70,
+  Other: 50,
+};
+
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
 @Injectable()
 export class IqsService {
@@ -32,19 +49,43 @@ export class IqsService {
     @InjectRepository(InsiderTransaction) private readonly txRepo: Repository<InsiderTransaction>,
     @InjectRepository(IqsScore) private readonly scores: Repository<IqsScore>,
     private readonly congress: CongressionalService,
+    private readonly marketStats: MarketStatsService,
   ) {}
 
+  /** IQS — Insider Quality Score, 0–100.
+   *
+   *  IQS = Insider Weight        × 0.25
+   *      + Transaction Weight    × 0.25
+   *      + Conviction Weight     × 0.20
+   *      + Historical Success    × 0.15
+   *      + Cluster Weight        × 0.10
+   *      + Market Timing Weight  × 0.05
+   *
+   *  Each component is 0–100; weights sum to 1, so the composite is 0–100.
+   *  Only open-market purchases (Form 4 code P) are scored — sells are
+   *  ingested and displayed but don't earn quality points. */
   async recalculateAll(windowDays = 90): Promise<number> {
     const since = new Date(Date.now() - windowDays * 86400000);
+    const seasonedCutoff = new Date(Date.now() - 14 * 86400000);
     const today = new Date().toISOString().slice(0, 10);
     const companies = await this.companies.find();
     let updated = 0;
+
+    // One quote batch for 52-week ranges — feeds the Market Timing Weight.
+    let quotes = new Map<string, any>();
+    try {
+      const tickers = companies.map((c) => c.ticker).filter(Boolean) as string[];
+      quotes = await this.marketStats.getQuoteBatch(tickers);
+    } catch {
+      quotes = new Map();
+    }
 
     for (const company of companies) {
       const txs = await this.txRepo
         .createQueryBuilder('t')
         .where('t.company_id = :id', { id: company.id })
         .andWhere('t.transactionDate >= :since', { since })
+        .andWhere(`t."transactionCode" = 'P'`)
         .getMany();
 
       if (!txs.length) {
@@ -52,16 +93,39 @@ export class IqsService {
         continue;
       }
 
-      const marketCap = company.marketCap ? Number(company.marketCap) : 0;
+      // Prefer the LIVE market quote for price + market cap; fall back to the
+      // SEC-derived values (shares outstanding × last Form 4 price) only when
+      // no live quote is available. This keeps market cap and the
+      // "currently in profit" check anchored to the real current price rather
+      // than the most-recent insider transaction price.
+      const liveQ = company.ticker ? quotes.get(company.ticker.toUpperCase()) : null;
+      const secPrice = company.lastPrice ? Number(company.lastPrice) : 0;
+      const secMarketCap = company.marketCap ? Number(company.marketCap) : 0;
+      const lastPrice = liveQ?.price && liveQ.price > 0 ? liveQ.price : secPrice;
+      const marketCap =
+        liveQ?.marketCap && liveQ.marketCap > 0 ? liveQ.marketCap : secMarketCap;
+
+      // Persist the live values back onto the company so the rest of the site
+      // (quote cards, rankings, stock lists) shows the real current price/cap.
+      if (liveQ && (liveQ.price > 0 || (liveQ.marketCap ?? 0) > 0)) {
+        const nextPrice = lastPrice;
+        const nextCap = marketCap ? String(Math.round(marketCap)) : company.marketCap;
+        if (Number(company.lastPrice) !== nextPrice || company.marketCap !== nextCap) {
+          company.lastPrice = nextPrice as unknown as number;
+          company.marketCap = nextCap as unknown as string;
+          await this.companies.save(company);
+        }
+      }
+
       let totalPurchaseValue = 0;
-      let roleWeightedValue = 0;
+      let roleScoreValueWeighted = 0;
       const buyers = new Set<string>();
       const holdingChanges: number[] = [];
 
       for (const t of txs) {
         const value = Number(t.sharesBought) * Number(t.pricePerShare);
         totalPurchaseValue += value;
-        roleWeightedValue += value * roleMultiplier(t.role);
+        roleScoreValueWeighted += value * (ROLE_SCORE[t.role] ?? 50);
         buyers.add(t.insiderName.toLowerCase());
         const prev = Number(t.previousHoldings) || 0;
         if (prev > 0) {
@@ -69,17 +133,71 @@ export class IqsService {
         }
       }
 
-      const purchaseVolumeFactor = marketCap > 0 ? totalPurchaseValue / marketCap : 0;
-      const clusterFactor = Math.log(1 + buyers.size);
-      const roleWeightedVolume = marketCap > 0 ? roleWeightedValue / marketCap : 0;
-      const holdingChangeFactor =
-        holdingChanges.length > 0
-          ? holdingChanges.reduce((a, b) => a + b, 0) / holdingChanges.length
-          : 0;
+      // 1. Insider Weight — who bought, value-weighted by role.
+      const insiderWeight =
+        totalPurchaseValue > 0 ? roleScoreValueWeighted / totalPurchaseValue : 0;
 
-      const composite =
-        purchaseVolumeFactor + clusterFactor + roleWeightedVolume + holdingChangeFactor;
-      const iqs = Math.log(1 + Math.max(0, composite));
+      // 2. Transaction Weight — how big. Best of absolute dollar size
+      //    ($10k → 0 … $10M+ → 100, log scale) and size relative to market
+      //    cap (2% of the company → 100).
+      const absScore =
+        clamp01((Math.log10(Math.max(1, totalPurchaseValue)) - 4) / 3) * 100;
+      const relScore =
+        marketCap > 0 ? clamp01(totalPurchaseValue / marketCap / 0.02) * 100 : 0;
+      const transactionWeight = Math.max(absScore, relScore);
+
+      // 3. Conviction Weight — stake growth (+50% holding → max) blended
+      //    with repeat buying (avg 3 buys per insider → max).
+      const avgHoldingChangePct = holdingChanges.length
+        ? holdingChanges.reduce((a, b) => a + b, 0) / holdingChanges.length
+        : 0;
+      const holdingScore = clamp01(avgHoldingChangePct / 50) * 100;
+      const repeatScore = clamp01((txs.length / buyers.size - 1) / 2) * 100;
+      const convictionWeight = holdingScore * 0.7 + repeatScore * 0.3;
+
+      // 4. Historical Success Weight — share of this company's past insider
+      //    buys (≥14 days old) currently in profit vs the latest price.
+      //    Neutral 50 until at least two seasoned samples exist.
+      let historicalSuccessWeight = 50;
+      if (lastPrice > 0) {
+        const seasoned = await this.txRepo
+          .createQueryBuilder('t')
+          .where('t.company_id = :id', { id: company.id })
+          .andWhere(`t."transactionCode" = 'P'`)
+          .andWhere('t.transactionDate < :cut', { cut: seasonedCutoff })
+          .getMany();
+        if (seasoned.length >= 2) {
+          const wins = seasoned.filter(
+            (t) => lastPrice > Number(t.pricePerShare),
+          ).length;
+          historicalSuccessWeight = (wins / seasoned.length) * 100;
+        }
+      }
+
+      // 5. Cluster Weight — distinct insiders buying in the window.
+      const clusterWeight =
+        buyers.size >= 4 ? 100 : [0, 20, 60, 85][buyers.size] ?? 0;
+
+      // 6. Market Timing Weight — where the stock trades in its 52-week
+      //    range. Buying after major price drops (near the low) scores
+      //    highest; neutral 50 when range data is unavailable.
+      let marketTimingWeight = 50;
+      const hi = Number(liveQ?.fiftyTwoWeekHigh ?? 0);
+      const lo = Number(liveQ?.fiftyTwoWeekLow ?? 0);
+      const px = Number(liveQ?.price ?? lastPrice);
+      if (hi > lo && px > 0) {
+        const pos = clamp01((px - lo) / (hi - lo));
+        marketTimingWeight = (1 - pos) * 100;
+      }
+
+      const iqs = +(
+        insiderWeight * 0.25 +
+        transactionWeight * 0.25 +
+        convictionWeight * 0.2 +
+        historicalSuccessWeight * 0.15 +
+        clusterWeight * 0.1 +
+        marketTimingWeight * 0.05
+      ).toFixed(2);
 
       const existing = await this.scores.findOne({
         where: { companyId: company.id, asOfDate: today },
@@ -87,10 +205,12 @@ export class IqsService {
       const payload: Partial<IqsScore> = {
         companyId: company.id,
         asOfDate: today,
-        purchaseVolumeFactor,
-        clusterFactor,
-        roleWeightedVolume,
-        holdingChangeFactor,
+        insiderWeight: +insiderWeight.toFixed(2),
+        transactionWeight: +transactionWeight.toFixed(2),
+        convictionWeight: +convictionWeight.toFixed(2),
+        historicalSuccessWeight: +historicalSuccessWeight.toFixed(2),
+        clusterWeight: +clusterWeight.toFixed(2),
+        marketTimingWeight: +marketTimingWeight.toFixed(2),
         iqs,
         distinctBuyers: buyers.size,
         transactionCount: txs.length,
@@ -114,6 +234,7 @@ export class IqsService {
     minMarketCap?: number;
     maxMarketCap?: number;
     country?: string;
+    withLive?: boolean;
   }): Promise<{ total: number; rows: RankingRow[] }> {
     const limit = Math.min(opts.limit ?? 50, 500);
     const offset = opts.offset ?? 0;
@@ -131,10 +252,12 @@ export class IqsService {
         'c."marketCap" as "marketCap"',
         'c."lastPrice" as "lastPrice"',
         's.iqs as iqs',
-        's."purchaseVolumeFactor" as "purchaseVolumeFactor"',
-        's."clusterFactor" as "clusterFactor"',
-        's."roleWeightedVolume" as "roleWeightedVolume"',
-        's."holdingChangeFactor" as "holdingChangeFactor"',
+        's."insiderWeight" as "insiderWeight"',
+        's."transactionWeight" as "transactionWeight"',
+        's."convictionWeight" as "convictionWeight"',
+        's."historicalSuccessWeight" as "historicalSuccessWeight"',
+        's."clusterWeight" as "clusterWeight"',
+        's."marketTimingWeight" as "marketTimingWeight"',
         's."distinctBuyers" as "distinctBuyers"',
         's."transactionCount" as "transactionCount"',
         's."totalPurchaseValue" as "totalPurchaseValue"',
@@ -171,14 +294,33 @@ export class IqsService {
       marketCap: r.marketCap ? Number(r.marketCap) : null,
       lastPrice: r.lastPrice !== null ? Number(r.lastPrice) : null,
       iqs: Number(r.iqs),
-      purchaseVolumeFactor: Number(r.purchaseVolumeFactor),
-      clusterFactor: Number(r.clusterFactor),
-      roleWeightedVolume: Number(r.roleWeightedVolume),
-      holdingChangeFactor: Number(r.holdingChangeFactor),
+      insiderWeight: Number(r.insiderWeight),
+      transactionWeight: Number(r.transactionWeight),
+      convictionWeight: Number(r.convictionWeight),
+      historicalSuccessWeight: Number(r.historicalSuccessWeight),
+      clusterWeight: Number(r.clusterWeight),
+      marketTimingWeight: Number(r.marketTimingWeight),
       distinctBuyers: Number(r.distinctBuyers),
       transactionCount: Number(r.transactionCount),
       totalPurchaseValue: Number(r.totalPurchaseValue),
     }));
+
+    // Merge real intraday change % from the live quote feed on request —
+    // powers the sector-performance heatmap with actual market moves.
+    if (opts.withLive && rows.length) {
+      try {
+        const quotes = await this.marketStats.getQuoteBatch(
+          rows.map((r) => r.ticker || '').filter(Boolean),
+        );
+        for (const row of rows) {
+          const q = row.ticker ? quotes.get(row.ticker.toUpperCase()) : null;
+          row.changePct = q ? q.changePct : null;
+          row.livePrice = q ? q.price : null;
+        }
+      } catch {
+        /* quotes unavailable — rows ship without live fields */
+      }
+    }
 
     return { total, rows };
   }
@@ -199,14 +341,27 @@ export class IqsService {
     const score = scoreRow
       ? {
           ...scoreRow,
-          purchaseVolumeFactor: Number(scoreRow.purchaseVolumeFactor),
-          clusterFactor: Number(scoreRow.clusterFactor),
-          roleWeightedVolume: Number(scoreRow.roleWeightedVolume),
-          holdingChangeFactor: Number(scoreRow.holdingChangeFactor),
+          insiderWeight: Number(scoreRow.insiderWeight),
+          transactionWeight: Number(scoreRow.transactionWeight),
+          convictionWeight: Number(scoreRow.convictionWeight),
+          historicalSuccessWeight: Number(scoreRow.historicalSuccessWeight),
+          clusterWeight: Number(scoreRow.clusterWeight),
+          marketTimingWeight: Number(scoreRow.marketTimingWeight),
           iqs: Number(scoreRow.iqs),
           totalPurchaseValue: Number(scoreRow.totalPurchaseValue),
         }
       : null;
+
+    // IQS trend over time — one point per scoring run.
+    const historyRows = await this.scores
+      .createQueryBuilder('s')
+      .where('s.company_id = :id', { id: company.id })
+      .orderBy('s."asOfDate"', 'ASC')
+      .getMany();
+    const scoreHistory = historyRows.map((s) => ({
+      asOfDate: s.asOfDate,
+      iqs: Number(s.iqs),
+    }));
 
     const txRows = await this.txRepo
       .createQueryBuilder('t')
@@ -217,6 +372,7 @@ export class IqsService {
 
     const transactions = txRows.map((t) => ({
       ...t,
+      type: t.transactionCode === 'S' ? 'SELL' : 'BUY',
       sharesBought: Number(t.sharesBought),
       pricePerShare: Number(t.pricePerShare),
       totalValue: Number(t.totalValue),
@@ -239,7 +395,7 @@ export class IqsService {
       }
     }
 
-    return { company: companyOut, score, transactions, congressionalTrades };
+    return { company: companyOut, score, scoreHistory, transactions, congressionalTrades };
   }
 
   async getDashboard() {
@@ -249,6 +405,7 @@ export class IqsService {
     const txRecent = await this.txRepo
       .createQueryBuilder('t')
       .where('t.transactionDate >= :since', { since: since30d })
+      .andWhere(`t."transactionCode" = 'P'`)
       .leftJoinAndSelect('t.company', 'c')
       .orderBy('t.transactionDate', 'DESC')
       .getMany();
@@ -357,6 +514,7 @@ export class IqsService {
         insiderName: t.insiderName,
         role: t.role,
         rawTitle: t.rawTitle,
+        type: t.transactionCode === 'S' ? 'SELL' : 'BUY',
         ticker: t.company?.ticker || null,
         companyName: t.company?.name || '',
         sector: t.company?.sector || null,
@@ -377,6 +535,7 @@ export class IqsService {
     const rows = await this.txRepo
       .createQueryBuilder('t')
       .where('t.transactionDate >= :since', { since })
+      .andWhere(`t."transactionCode" = 'P'`)
       .getMany();
 
     const totalCount = rows.length;
@@ -454,7 +613,7 @@ export class IqsService {
       .filter((r) => (r.marketCap || 0) >= 1e10)
       .sort((a, b) => b.iqs - a.iqs);
     const smallcap = rows
-      .filter((r) => r.marketCap !== null && r.marketCap < 5e8 && r.iqs >= 1.5)
+      .filter((r) => r.marketCap !== null && r.marketCap < 5e8 && r.iqs >= 50)
       .sort((a, b) => b.iqs - a.iqs);
     const byValue = [...rows].sort((a, b) => b.totalPurchaseValue - a.totalPurchaseValue);
 
@@ -497,6 +656,7 @@ export class IqsService {
   async getTopInsiders(limit = 20) {
     const rows = await this.txRepo
       .createQueryBuilder('t')
+      .where(`t."transactionCode" = 'P'`)
       .leftJoinAndSelect('t.company', 'c')
       .getMany();
     const agg = new Map<
@@ -520,6 +680,45 @@ export class IqsService {
     return Array.from(agg.values())
       .sort((a, b) => b.totalValue - a.totalValue)
       .slice(0, limit);
+  }
+
+  // ───────────────────────────────────────────────────────────────
+  // Insider buying vs selling by sector (last N days)
+  // ───────────────────────────────────────────────────────────────
+  async getSectorFlows(daysBack = 30) {
+    const since = new Date(Date.now() - daysBack * 86400000);
+    const txs = await this.txRepo
+      .createQueryBuilder('t')
+      .leftJoinAndSelect('t.company', 'c')
+      .where('t.transactionDate >= :since', { since })
+      .getMany();
+
+    const agg = new Map<
+      string,
+      { buyValue: number; sellValue: number; buyCount: number; sellCount: number }
+    >();
+    for (const t of txs) {
+      const sec = t.company?.sector || 'Other';
+      const cur =
+        agg.get(sec) || { buyValue: 0, sellValue: 0, buyCount: 0, sellCount: 0 };
+      const v = Number(t.totalValue);
+      if (t.transactionCode === 'S') {
+        cur.sellValue += v;
+        cur.sellCount += 1;
+      } else {
+        cur.buyValue += v;
+        cur.buyCount += 1;
+      }
+      agg.set(sec, cur);
+    }
+    const sectors = Array.from(agg.entries())
+      .map(([sector, v]) => ({
+        sector,
+        ...v,
+        netValue: v.buyValue - v.sellValue,
+      }))
+      .sort((a, b) => b.buyValue + b.sellValue - (a.buyValue + a.sellValue));
+    return { windowDays: daysBack, sectors };
   }
 
   // ───────────────────────────────────────────────────────────────
@@ -578,12 +777,14 @@ export class IqsService {
     const reasons: string[] = [];
     if (pick.distinctBuyers >= 2)
       reasons.push(`${pick.distinctBuyers} insiders bought within days of each other`);
-    if (pick.roleWeightedVolume >= 0.005)
-      reasons.push('role-weighted size points to senior-officer conviction');
-    if (pick.purchaseVolumeFactor >= 0.001)
-      reasons.push('purchase size is large relative to float');
-    if (pick.holdingChangeFactor >= 50)
-      reasons.push("insiders meaningfully grew their personal stakes");
+    if (pick.insiderWeight >= 85)
+      reasons.push('CEO/CFO-level buying — the highest-signal insider roles');
+    if (pick.transactionWeight >= 70)
+      reasons.push('purchase size is large for this company');
+    if (pick.convictionWeight >= 60)
+      reasons.push('insiders meaningfully grew their personal stakes');
+    if (pick.marketTimingWeight >= 70)
+      reasons.push('buying near the 52-week low — possible value conviction');
     const why = reasons.length
       ? reasons.join(' · ')
       : 'top-ranked single signal in our daily IQS run';

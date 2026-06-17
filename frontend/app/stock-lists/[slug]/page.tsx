@@ -212,7 +212,7 @@ export default function StockListDetailPage({
                             // Earnings/analyst/news flags would come from a future
                             // batched IndicatorService call; we surface insider trades
                             // here based on whether the row has any IQS-tracked buys.
-                            positiveNews: !!r.iqs && r.iqs > 1,
+                            positiveNews: !!r.iqs && r.iqs >= 50,
                           }}
                         />
                       </td>

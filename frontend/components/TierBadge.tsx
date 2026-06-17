@@ -3,10 +3,11 @@ import { Award, Medal, Shield } from "lucide-react";
 
 export type Tier = "Gold" | "Silver" | "Bronze" | "Watch";
 
+// IQS is a 0–100 composite (six weighted components).
 export function tierFor(iqs: number): Tier {
-  if (iqs >= 4) return "Gold";
-  if (iqs >= 2.5) return "Silver";
-  if (iqs >= 1) return "Bronze";
+  if (iqs >= 70) return "Gold";
+  if (iqs >= 55) return "Silver";
+  if (iqs >= 40) return "Bronze";
   return "Watch";
 }
 
@@ -52,7 +53,7 @@ export function TierBadge({
     <span
       className={`inline-flex items-center gap-1 ${dims} rounded-full font-semibold uppercase tracking-wide`}
       style={{ background: s.bg, color: s.fg }}
-      title={`${tier} tier · IQS ${iqs.toFixed(2)}`}
+      title={`${tier} tier · IQS ${iqs.toFixed(1)}/100`}
     >
       <Icon className={iconSize} />
       {showLabel && <span>{tier}</span>}

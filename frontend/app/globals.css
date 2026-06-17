@@ -232,6 +232,27 @@ a:hover, a:active, a:focus { color: var(--accent-hover); }
   box-shadow: 0 6px 14px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
+/* Filter dropdowns / inputs (topic & listing filter bars) */
+.filter-select {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  background: var(--bg-1);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.filter-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 /* Tabular numerics for any numeric column */
 .tabular,
 table td,

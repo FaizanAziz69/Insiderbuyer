@@ -37,7 +37,7 @@ export function PredictionOfTheDay() {
           <p className="text-[13px] text-soft leading-relaxed mt-1.5">{data.why}</p>
           <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-mute">
             <span>
-              IQS <span className="text-accent font-bold tabular">{data.iqs.toFixed(2)}</span>
+              IQS <span className="text-accent font-bold tabular">{data.iqs.toFixed(1)}</span>
             </span>
             <span>·</span>
             <span>

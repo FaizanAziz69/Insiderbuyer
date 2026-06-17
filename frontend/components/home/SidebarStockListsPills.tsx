@@ -20,13 +20,13 @@ const LIST_PILLS = [
 ];
 
 const TOOL_PILLS = [
-  { href: "/news?tag=analyst-ratings", label: "Analyst Ratings" },
-  { href: "/news?tag=dividends", label: "Dividends" },
+  { href: "/analyst-ratings", label: "Analyst Ratings" },
+  { href: "/dividends", label: "Dividends" },
   { href: "/congressional-trades", label: "Congressional Trading" },
-  { href: "/news?tag=earnings", label: "Earnings" },
+  { href: "/earnings", label: "Earnings" },
   { href: "/trades", label: "Insider Trades" },
-  { href: "/news?tag=ipo", label: "IPOs" },
-  { href: "/news?tag=short-interest", label: "Short Interest" },
+  { href: "/ipos", label: "IPOs" },
+  { href: "/short-interest", label: "Short Interest" },
   { href: "/heatmaps/market", label: "Stock Heatmap" },
 ];
 

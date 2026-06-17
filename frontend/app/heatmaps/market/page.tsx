@@ -13,7 +13,7 @@ type SortBy = "marketCap" | "iqs" | "totalPurchaseValue";
 
 export default function MarketHeatmapPage() {
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=200`,
+    `${API_BASE}/rankings?limit=200&live=1`,
     fetcher,
     { refreshInterval: 60000, revalidateOnFocus: false },
   );
@@ -160,7 +160,7 @@ export default function MarketHeatmapPage() {
                 </div>
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-mute">IQS</span>
-                  <span className="font-bold tabular">{r.iqs.toFixed(2)}</span>
+                  <span className="font-bold tabular">{r.iqs.toFixed(1)}</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] mt-1">
                   <span className="text-mute">Bought</span>

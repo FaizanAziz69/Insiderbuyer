@@ -184,8 +184,13 @@ export class SecClient {
       const post = Number(tx?.postTransactionAmounts?.sharesOwnedFollowingTransaction?.value || 0);
 
       if (!shares || !price) continue;
-      if (String(codeStr).toUpperCase() !== 'P') continue;
-      if (String(acqDisp).toUpperCase() !== 'A') continue;
+      // P/A = open-market purchase, S/D = open-market sale. Everything else
+      // (grants, awards, option exercises, gifts) is noise for our purposes.
+      const codeU = String(codeStr).toUpperCase();
+      const acqDispU = String(acqDisp).toUpperCase();
+      const isBuy = codeU === 'P' && acqDispU === 'A';
+      const isSell = codeU === 'S' && acqDispU === 'D';
+      if (!isBuy && !isSell) continue;
 
       results.push({
         insiderName,

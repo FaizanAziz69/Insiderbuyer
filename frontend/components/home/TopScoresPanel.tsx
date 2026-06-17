@@ -30,9 +30,9 @@ function Row({
       </div>
       <span
         className="text-[12px] font-bold tabular"
-        style={{ color: r.iqs >= 1 ? "var(--good)" : "var(--bad)" }}
+        style={{ color: r.iqs >= 50 ? "var(--good)" : "var(--bad)" }}
       >
-        {r.iqs.toFixed(2)}
+        {r.iqs.toFixed(1)}
       </span>
     </div>
   );

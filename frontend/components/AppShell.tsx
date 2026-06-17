@@ -2,6 +2,7 @@
 import { TopHeader } from "./TopHeader";
 import { Footer } from "./Footer";
 import { TopTickerBar } from "./TopTickerBar";
+import { ChatWidget } from "./chat/ChatWidget";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -14,6 +15,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <Footer />
+      <ChatWidget />
     </div>
   );
 }

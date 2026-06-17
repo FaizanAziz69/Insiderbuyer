@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Res } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { IqsService } from './iqs.service';
 
@@ -27,6 +27,7 @@ export class IqsController {
     @Query('minMarketCap') minMc?: string,
     @Query('maxMarketCap') maxMc?: string,
     @Query('country') country?: string,
+    @Query('live') live?: string,
   ) {
     return this.iqs.getRankings({
       limit: limit ? Number(limit) : undefined,
@@ -35,12 +36,27 @@ export class IqsController {
       minMarketCap: minMc ? Number(minMc) : undefined,
       maxMarketCap: maxMc ? Number(maxMc) : undefined,
       country: country || undefined,
+      withLive: live === '1' || live === 'true',
     });
+  }
+
+  /** Recompute every IQS score (pulls live prices/market caps/52-week ranges
+   *  for the formula). Lighter than a full SEC ingestion. */
+  @Post('recalculate')
+  async recalculate() {
+    const updated = await this.iqs.recalculateAll();
+    return { updated };
   }
 
   @Get('metrics/buy-sell')
   async buySell() {
     return this.iqs.getMonthlyBuySellMeter();
+  }
+
+  @Get('metrics/sector-flows')
+  async sectorFlows(@Query('days') days?: string) {
+    const n = Math.min(365, Math.max(7, Number(days) || 30));
+    return this.iqs.getSectorFlows(n);
   }
 
   @Get('predictions/today')

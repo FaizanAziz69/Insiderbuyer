@@ -32,33 +32,40 @@ export function MonthlyBuySellMeter() {
         </span>
       </div>
 
-      {/* Bar gauge */}
+      {/* Bar gauge — colored fills below, labels pinned to the bar's outer
+          edges so a narrow segment never clips its own label. */}
       <div
         className="relative h-9 rounded-md overflow-hidden flex"
         style={{ background: "var(--bg-3)" }}
       >
         <div
-          className="h-full flex items-center justify-end pr-3 text-[12px] font-bold text-white"
+          className="h-full"
           style={{
             width: `${buyPct}%`,
             background:
               "linear-gradient(90deg, color-mix(in srgb, var(--good) 70%, transparent), var(--good))",
           }}
-        >
-          <span className="whitespace-nowrap">
-            {buyPct}% buying
-          </span>
-        </div>
+        />
         <div
-          className="h-full flex items-center pl-3 text-[12px] font-bold text-white"
+          className="h-full"
           style={{
             width: `${sellPct}%`,
             background:
               "linear-gradient(90deg, var(--bad), color-mix(in srgb, var(--bad) 70%, transparent))",
           }}
+        />
+        <span
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] font-bold text-white whitespace-nowrap pointer-events-none"
+          style={{ textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
         >
-          <span className="whitespace-nowrap">{sellPct}% selling</span>
-        </div>
+          {buyPct}% buying
+        </span>
+        <span
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-bold text-white whitespace-nowrap pointer-events-none"
+          style={{ textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
+        >
+          {sellPct}% selling
+        </span>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mt-3 text-[12px]">
