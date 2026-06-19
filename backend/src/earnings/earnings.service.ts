@@ -124,4 +124,36 @@ export class EarningsService {
       return out2;
     }
   }
+
+  /** All companies that reported on a specific date (YYYY-MM-DD). Used by the
+   *  earnings-performance backtest to find historical report dates. Cached a
+   *  day (past dates never change). Returns [] on failure. */
+  private dayCache = new Map<string, { ts: number; rows: { symbol: string; name: string }[] }>();
+
+  async fetchDay(iso: string): Promise<{ symbol: string; name: string }[]> {
+    const cached = this.dayCache.get(iso);
+    if (cached && Date.now() - cached.ts < 24 * 60 * 60 * 1000) return cached.rows;
+    // Retry a couple times with backoff — Nasdaq throttles bursts, so a single
+    // failure shouldn't permanently blank out that day in the backtest.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { data } = await this.http.get(
+          `https://api.nasdaq.com/api/calendar/earnings?date=${iso}`,
+        );
+        const rows = (data?.data?.rows || [])
+          .map((r: any) => ({
+            symbol: String(r.symbol || '').toUpperCase(),
+            name: String(r.name || ''),
+          }))
+          .filter((r: { symbol: string }) => r.symbol);
+        // Only cache a real (non-empty) response; an empty result may be a
+        // throttle, which we don't want to remember for 24h.
+        if (rows.length) this.dayCache.set(iso, { ts: Date.now(), rows });
+        return rows;
+      } catch {
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+      }
+    }
+    return [];
+  }
 }

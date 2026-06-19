@@ -555,4 +555,42 @@ export class MarketStatsService {
     rows.sort((a, b) => (b.shortPctFloat ?? 0) - (a.shortPctFloat ?? 0));
     return rows;
   }
+
+  // ──────────────────────────────────────────────────────────────────
+  // Historical daily closes (Yahoo v8 chart) — powers the earnings
+  // performance backtest (price reaction around report dates).
+  // ──────────────────────────────────────────────────────────────────
+  private dailyClosesCache = new Map<string, { ts: number; data: { t: number; c: number }[] }>();
+
+  /** Daily closing prices for ~`days` back. Returns [{t: unixSeconds, c: close}]
+   *  ascending. Cached 6h. Empty on failure. */
+  async getDailyCloses(symbol: string, days = 400): Promise<{ t: number; c: number }[]> {
+    const sym = symbol.toUpperCase();
+    const cached = this.dailyClosesCache.get(sym);
+    if (cached && Date.now() - cached.ts < 6 * 60 * 60 * 1000) return cached.data;
+
+    const range =
+      days <= 35 ? '1mo' : days <= 95 ? '3mo' : days <= 185 ? '6mo' : days <= 370 ? '1y' : '2y';
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const host = sym.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
+        const { data } = await this.http.get(
+          `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=1d`,
+        );
+        const result = data?.chart?.result?.[0];
+        const ts: number[] = result?.timestamp || [];
+        const closes: (number | null)[] = result?.indicators?.quote?.[0]?.close || [];
+        const out: { t: number; c: number }[] = [];
+        for (let i = 0; i < ts.length; i++) {
+          const c = closes[i];
+          if (c != null && Number(c) > 0) out.push({ t: ts[i], c: Number(c) });
+        }
+        this.dailyClosesCache.set(sym, { ts: Date.now(), data: out });
+        return out;
+      } catch {
+        /* retry once */
+      }
+    }
+    return [];
+  }
 }

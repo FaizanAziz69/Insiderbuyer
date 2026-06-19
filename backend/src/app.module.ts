@@ -9,6 +9,7 @@ import { ProcessedFiling } from './entities/processed-filing.entity';
 import { CongressionalTransaction } from './entities/congressional-transaction.entity';
 import { Subscriber } from './entities/subscriber.entity';
 import { BlogPost } from './entities/blog-post.entity';
+import { EarningsEvent } from './entities/earnings-event.entity';
 import { CompaniesModule } from './companies/companies.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { IqsModule } from './iqs/iqs.module';
@@ -21,6 +22,7 @@ import { SubscribersModule } from './subscribers/subscribers.module';
 import { MarketStatsModule } from './market-stats/market-stats.module';
 import { EarningsModule } from './earnings/earnings.module';
 import { IpoModule } from './ipo/ipo.module';
+import { EarningsPerfModule } from './earnings-perf/earnings-perf.module';
 import { CtaModule } from './cta/cta.module';
 import { ChatModule } from './chat/chat.module';
 import { ContentModule } from './content/content.module';
@@ -55,6 +57,7 @@ import { ContentModule } from './content/content.module';
           CongressionalTransaction,
           Subscriber,
           BlogPost,
+          EarningsEvent,
         ],
         synchronize: true,
         logging: false,
@@ -70,6 +73,7 @@ import { ContentModule } from './content/content.module';
     MarketStatsModule,
     EarningsModule,
     IpoModule,
+    EarningsPerfModule,
     StockListsModule,
     SubscribersModule,
     CtaModule,
