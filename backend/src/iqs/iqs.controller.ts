@@ -102,8 +102,13 @@ export class IqsController {
   }
 
   @Get('insiders')
-  async insiders(@Query('limit') limit?: string) {
-    return this.iqs.getTopInsiders(limit ? Number(limit) : 20);
+  async insiders(@Query('limit') limit?: string, @Query('country') country?: string) {
+    return this.iqs.getTopInsiders(limit ? Number(limit) : 20, country || undefined);
+  }
+
+  @Get('insiders/countries')
+  async insiderCountries() {
+    return { countries: await this.iqs.getInsiderCountries() };
   }
 
   @Get('charts/volume')

@@ -653,15 +653,26 @@ export class IqsService {
     };
   }
 
-  async getTopInsiders(limit = 20) {
-    const rows = await this.txRepo
+  async getTopInsiders(limit = 20, country?: string) {
+    const qb = this.txRepo
       .createQueryBuilder('t')
       .where(`t."transactionCode" = 'P'`)
-      .leftJoinAndSelect('t.company', 'c')
-      .getMany();
+      .leftJoinAndSelect('t.company', 'c');
+    if (country) qb.andWhere('t."insiderCountry" = :country', { country });
+    const rows = await qb.getMany();
     const agg = new Map<
       string,
-      { name: string; role: string; ticker: string | null; company: string; totalValue: number; trades: number }
+      {
+        name: string;
+        role: string;
+        ticker: string | null;
+        company: string;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+        totalValue: number;
+        trades: number;
+      }
     >();
     for (const t of rows) {
       const key = `${t.insiderName.toLowerCase()}|${t.companyId}`;
@@ -670,9 +681,16 @@ export class IqsService {
         role: t.role,
         ticker: t.company?.ticker || null,
         company: t.company?.name || '',
+        city: t.insiderCity || null,
+        state: t.insiderState || null,
+        country: t.insiderCountry || null,
         totalValue: 0,
         trades: 0,
       };
+      // Fill location from whichever row has it.
+      if (!cur.city && t.insiderCity) cur.city = t.insiderCity;
+      if (!cur.state && t.insiderState) cur.state = t.insiderState;
+      if (!cur.country && t.insiderCountry) cur.country = t.insiderCountry;
       cur.totalValue += Number(t.totalValue);
       cur.trades += 1;
       agg.set(key, cur);
@@ -680,6 +698,21 @@ export class IqsService {
     return Array.from(agg.values())
       .sort((a, b) => b.totalValue - a.totalValue)
       .slice(0, limit);
+  }
+
+  /** Distinct insider countries present in the data, with counts — drives the
+   *  country filter UI (only shows countries we actually have). */
+  async getInsiderCountries(): Promise<Array<{ country: string; count: number }>> {
+    const rows = await this.txRepo
+      .createQueryBuilder('t')
+      .select('t."insiderCountry"', 'country')
+      .addSelect('COUNT(DISTINCT t.insiderName)', 'count')
+      .where(`t."transactionCode" = 'P'`)
+      .andWhere('t."insiderCountry" IS NOT NULL')
+      .groupBy('t."insiderCountry"')
+      .orderBy('count', 'DESC')
+      .getRawMany<{ country: string; count: string }>();
+    return rows.map((r) => ({ country: r.country, count: Number(r.count) }));
   }
 
   // ───────────────────────────────────────────────────────────────

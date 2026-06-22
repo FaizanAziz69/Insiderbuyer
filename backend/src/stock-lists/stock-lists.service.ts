@@ -3,6 +3,7 @@ import { IqsService, RankingRow } from '../iqs/iqs.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 import {
   BLUE_CHIP_MIN_MARKET_CAP,
+  COUNTRY_UNIVERSE,
   PERSONA_HOLDINGS,
   PersonaHolding,
   SECTOR_LIST_RULES,
@@ -24,14 +25,14 @@ export interface StockListIndexEntry {
   title: string;
   description: string;
   count: number;
-  kind: 'sector' | 'persona' | 'premium';
+  kind: 'sector' | 'persona' | 'premium' | 'country';
 }
 
 export interface StockListDetail {
   slug: string;
   title: string;
   description: string;
-  kind: 'sector' | 'persona' | 'premium';
+  kind: 'sector' | 'persona' | 'premium' | 'country';
   total: number;
   rows: Array<RankingRow | (PersonaHolding & { iqs?: number })>;
 }
@@ -139,6 +140,8 @@ export class StockListsService {
         count = rows.length;
       } else if (meta.kind === 'persona') {
         count = (PERSONA_HOLDINGS[slug] || []).length;
+      } else if (meta.kind === 'country') {
+        count = (COUNTRY_UNIVERSE[slug] || []).length;
       }
       out.push({ slug, ...meta, count });
     }
@@ -214,6 +217,18 @@ export class StockListsService {
       }));
       const annotated = this.enrichRows(withIqs, live) as any[];
       return { slug, ...meta, total: annotated.length, rows: annotated };
+    }
+
+    if (meta.kind === 'country') {
+      let rows = COUNTRY_UNIVERSE[slug] || [];
+      if (filters.sector) {
+        rows = rows.filter((r) =>
+          r.sector.toLowerCase().includes(filters.sector!.toLowerCase()),
+        );
+      }
+      const live = await this.fetchLiveQuotes(rows.map((r) => r.ticker));
+      const enriched = this.enrichRows(rows, live) as any[];
+      return { slug, ...meta, total: enriched.length, rows: enriched };
     }
     return null;
   }

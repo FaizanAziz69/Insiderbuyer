@@ -212,10 +212,80 @@ export const SECTOR_LIST_RULES: Record<string, RegExp> = {
 // blue-chip = market cap threshold instead of sector match
 export const BLUE_CHIP_MIN_MARKET_CAP = 50_000_000_000;
 
+// ── Multi-exchange country universes ──────────────────────────────────────
+// Major listed names per exchange. Live prices come from the quote feed
+// (Yahoo supports the .TO / .DE suffixes). These are stock-coverage lists —
+// insider data for these exchanges (SEDI/BaFin) is a separate feed, so they
+// carry live quotes but no IQS yet.
+export interface CountryStock {
+  ticker: string;
+  name: string;
+  sector: string;
+}
+
+export const COUNTRY_UNIVERSE: Record<string, CountryStock[]> = {
+  canada: [
+    { ticker: 'RY.TO', name: 'Royal Bank of Canada', sector: 'Financial Services' },
+    { ticker: 'TD.TO', name: 'Toronto-Dominion Bank', sector: 'Financial Services' },
+    { ticker: 'BNS.TO', name: 'Bank of Nova Scotia', sector: 'Financial Services' },
+    { ticker: 'BMO.TO', name: 'Bank of Montreal', sector: 'Financial Services' },
+    { ticker: 'CM.TO', name: 'CIBC', sector: 'Financial Services' },
+    { ticker: 'ENB.TO', name: 'Enbridge', sector: 'Energy' },
+    { ticker: 'TRP.TO', name: 'TC Energy', sector: 'Energy' },
+    { ticker: 'CNQ.TO', name: 'Canadian Natural Resources', sector: 'Energy' },
+    { ticker: 'SU.TO', name: 'Suncor Energy', sector: 'Energy' },
+    { ticker: 'CNR.TO', name: 'Canadian National Railway', sector: 'Industrials' },
+    { ticker: 'CP.TO', name: 'Canadian Pacific Kansas City', sector: 'Industrials' },
+    { ticker: 'SHOP.TO', name: 'Shopify', sector: 'Technology' },
+    { ticker: 'ATD.TO', name: 'Alimentation Couche-Tard', sector: 'Consumer Staples' },
+    { ticker: 'BCE.TO', name: 'BCE Inc.', sector: 'Communication Services' },
+    { ticker: 'T.TO', name: 'TELUS', sector: 'Communication Services' },
+    { ticker: 'NTR.TO', name: 'Nutrien', sector: 'Materials' },
+    { ticker: 'ABX.TO', name: 'Barrick Gold', sector: 'Materials — Gold' },
+    { ticker: 'AEM.TO', name: 'Agnico Eagle Mines', sector: 'Materials — Gold' },
+    { ticker: 'MFC.TO', name: 'Manulife Financial', sector: 'Financial Services' },
+    { ticker: 'BAM.TO', name: 'Brookfield Asset Management', sector: 'Financial Services' },
+  ],
+  germany: [
+    { ticker: 'SAP.DE', name: 'SAP SE', sector: 'Technology' },
+    { ticker: 'SIE.DE', name: 'Siemens AG', sector: 'Industrials' },
+    { ticker: 'ALV.DE', name: 'Allianz SE', sector: 'Financial Services' },
+    { ticker: 'DTE.DE', name: 'Deutsche Telekom', sector: 'Communication Services' },
+    { ticker: 'MBG.DE', name: 'Mercedes-Benz Group', sector: 'Consumer Discretionary' },
+    { ticker: 'BMW.DE', name: 'BMW AG', sector: 'Consumer Discretionary' },
+    { ticker: 'VOW3.DE', name: 'Volkswagen (pref)', sector: 'Consumer Discretionary' },
+    { ticker: 'BAS.DE', name: 'BASF SE', sector: 'Materials' },
+    { ticker: 'BAYN.DE', name: 'Bayer AG', sector: 'Healthcare' },
+    { ticker: 'DBK.DE', name: 'Deutsche Bank', sector: 'Financial Services' },
+    { ticker: 'IFX.DE', name: 'Infineon Technologies', sector: 'Technology' },
+    { ticker: 'ADS.DE', name: 'adidas AG', sector: 'Consumer Discretionary' },
+    { ticker: 'DHL.DE', name: 'DHL Group', sector: 'Industrials' },
+    { ticker: 'MUV2.DE', name: 'Munich Re', sector: 'Financial Services' },
+    { ticker: 'RWE.DE', name: 'RWE AG', sector: 'Utilities' },
+    { ticker: 'EOAN.DE', name: 'E.ON SE', sector: 'Utilities' },
+    { ticker: 'MRK.DE', name: 'Merck KGaA', sector: 'Healthcare' },
+    { ticker: 'DB1.DE', name: 'Deutsche Börse', sector: 'Financial Services' },
+    { ticker: 'AIR.DE', name: 'Airbus SE', sector: 'Industrials' },
+    { ticker: 'P911.DE', name: 'Porsche AG', sector: 'Consumer Discretionary' },
+  ],
+};
+
 export const STOCK_LIST_META: Record<
   string,
-  { title: string; description: string; kind: 'sector' | 'persona' | 'premium' }
+  { title: string; description: string; kind: 'sector' | 'persona' | 'premium' | 'country' }
 > = {
+  canada: {
+    title: 'Canadian Stocks (TSX)',
+    description:
+      'Major companies listed on the Toronto Stock Exchange — banks, energy, rails and materials — with live prices. Canadian insider (SEDI) coverage is being added.',
+    kind: 'country',
+  },
+  germany: {
+    title: 'German Stocks (Xetra / DAX)',
+    description:
+      'Leading German-listed companies on Xetra / the DAX — autos, industrials, software and chemicals — with live prices. German directors’-dealings (BaFin) coverage is being added.',
+    kind: 'country',
+  },
   'metals-and-mining': {
     title: 'Metals & Mining Stocks',
     description:

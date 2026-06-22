@@ -35,6 +35,18 @@ export class InsiderTransaction {
   @Column({ type: 'varchar', length: 255, nullable: true })
   rawTitle: string;
 
+  /** Reporting-owner filing location from the Form 4 (≈ company c/o address,
+   *  not the insider's home). Country is derived for the country filter. */
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  insiderCity: string | null;
+
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  insiderState: string | null;
+
+  @Index()
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  insiderCountry: string | null;
+
   @Column({ type: 'date' })
   transactionDate: Date;
 

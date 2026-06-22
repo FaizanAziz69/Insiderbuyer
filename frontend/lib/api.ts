@@ -120,6 +120,9 @@ export interface InsiderRow {
   role: string;
   ticker: string | null;
   company: string;
+  city: string | null;
+  state: string | null;
+  country: string | null;
   totalValue: number;
   trades: number;
 }

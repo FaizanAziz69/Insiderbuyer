@@ -28,6 +28,13 @@ export interface ParsedForm4 {
   issuerCik: string;
   issuerName: string;
   issuerTicker: string | null;
+  /** Reporting-owner filing address from the Form 4. Note: this is the
+   *  address on the filing (very often the issuer's c/o address), not
+   *  necessarily the insider's home. State is a US postal code for US filers;
+   *  foreign filers populate stateDescription with a country/region. */
+  ownerCity: string | null;
+  ownerState: string | null;
+  ownerStateDescription: string | null;
   transactions: ParsedTransaction[];
 }
 
@@ -166,6 +173,14 @@ export class SecClient {
     const isOfficer = String(relationship?.isOfficer || '').trim() === '1' || relationship?.isOfficer === true;
     const rawTitle = relationship?.officerTitle || (isDirector ? 'Director' : '');
 
+    // Reporting-owner filing address (city/state/country hints).
+    const addr = owner?.reportingOwnerAddress || {};
+    const ownerCity = addr?.rptOwnerCity ? String(addr.rptOwnerCity).trim() : null;
+    const ownerState = addr?.rptOwnerState ? String(addr.rptOwnerState).trim().toUpperCase() : null;
+    const ownerStateDescription = addr?.rptOwnerStateDescription
+      ? String(addr.rptOwnerStateDescription).trim()
+      : null;
+
     const txs: any[] = [];
     const ndt = doc.nonDerivativeTable?.nonDerivativeTransaction;
     if (ndt) {
@@ -208,6 +223,9 @@ export class SecClient {
       issuerCik,
       issuerName,
       issuerTicker,
+      ownerCity,
+      ownerState,
+      ownerStateDescription,
       transactions: results,
     };
   }

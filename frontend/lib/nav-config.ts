@@ -117,6 +117,14 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Politicians", href: "/stock-lists/politicians", icon: Landmark },
         ],
       },
+      {
+        title: "By Exchange",
+        links: [
+          { label: "US (Blue Chip)", href: "/stock-lists/blue-chip", description: "NYSE & NASDAQ leaders", icon: ShieldCheck },
+          { label: "Canada (TSX)", href: "/stock-lists/canada", description: "Toronto-listed majors, live prices", icon: Globe2 },
+          { label: "Germany (Xetra/DAX)", href: "/stock-lists/germany", description: "Frankfurt-listed majors, live prices", icon: Building2 },
+        ],
+      },
     ],
     callouts: [
       {

@@ -6,6 +6,7 @@ import { Company } from '../entities/company.entity';
 import { InsiderTransaction } from '../entities/insider-transaction.entity';
 import { ProcessedFiling } from '../entities/processed-filing.entity';
 import { normalizeRole } from '../common/role.util';
+import { deriveCountry, cleanCity } from '../common/country.util';
 import { SecClient } from './sec.client';
 import { QuoteClient } from './quote.client';
 import { IqsService } from '../iqs/iqs.service';
@@ -103,6 +104,10 @@ export class IngestionService implements OnModuleInit {
           seenCompanies.add(company.id);
           const filingUrl = this.sec.buildFilingIndexUrl(issuerCik, f.accessionNo);
 
+          const insiderCity = cleanCity(parsed.ownerCity);
+          const insiderState = parsed.ownerState;
+          const insiderCountry = deriveCountry(parsed.ownerState, parsed.ownerStateDescription);
+
           let qualifying = 0;
           for (let i = 0; i < parsed.transactions.length; i++) {
             const p = parsed.transactions[i];
@@ -119,6 +124,9 @@ export class IngestionService implements OnModuleInit {
                 insiderName: p.insiderName,
                 role,
                 rawTitle: p.rawTitle,
+                insiderCity,
+                insiderState,
+                insiderCountry,
                 transactionDate: new Date(p.transactionDate),
                 transactionCode: p.transactionCode,
                 sharesBought: p.sharesBought,
@@ -180,6 +188,48 @@ export class IngestionService implements OnModuleInit {
     } finally {
       this.running = false;
     }
+  }
+
+  /** One-time backfill of insider filing location (city/state/country) onto
+   *  transactions ingested before those columns existed. Re-fetches each
+   *  distinct Form 4 and updates all its rows. */
+  async backfillLocations(): Promise<{ filings: number; updated: number }> {
+    const rows = await this.txRepo
+      .createQueryBuilder('t')
+      .select('t."accessionNumber"', 'acc')
+      .addSelect('t.company_id', 'cid')
+      .where('t."insiderCountry" IS NULL')
+      .groupBy('t."accessionNumber"')
+      .addGroupBy('t.company_id')
+      .getRawMany<{ acc: string; cid: string }>();
+
+    let filings = 0;
+    let updated = 0;
+    for (const r of rows) {
+      const company = await this.companies.findOne({ where: { id: r.cid } });
+      if (!company) continue;
+      try {
+        const xml = await this.sec.fetchForm4Xml(company.cik, r.acc, '');
+        if (!xml) continue;
+        const parsed = this.sec.parseForm4(xml);
+        if (!parsed) continue;
+        filings++;
+        const res = await this.txRepo.update(
+          { accessionNumber: r.acc },
+          {
+            insiderCity: cleanCity(parsed.ownerCity),
+            insiderState: parsed.ownerState,
+            insiderCountry: deriveCountry(parsed.ownerState, parsed.ownerStateDescription),
+          },
+        );
+        updated += res.affected || 0;
+      } catch (err: any) {
+        this.logger.warn(`Backfill ${r.acc}: ${err?.message || err}`);
+      }
+      await this.delay(120);
+    }
+    this.logger.log(`Location backfill: ${updated} rows across ${filings} filings.`);
+    return { filings, updated };
   }
 
   private delay(ms: number) {

@@ -14,4 +14,10 @@ export class IngestionController {
   async cron() {
     return this.ingestion.runIngestion(2);
   }
+
+  /** Backfill insider filing location onto older transactions. */
+  @Post('backfill-locations')
+  async backfillLocations() {
+    return this.ingestion.backfillLocations();
+  }
 }
