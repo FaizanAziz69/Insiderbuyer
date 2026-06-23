@@ -2,6 +2,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
+import { DataTable, Column } from "@/components/DataTable";
 import {
   API_BASE,
   CompanyDetail,
@@ -15,6 +16,8 @@ interface Props {
   ticker: string;
   limit?: number;
 }
+
+type InsiderTx = CompanyDetail["transactions"][number];
 
 /** Inline article widget — the recent Form 4 insider transactions behind the
  *  story. Same role as MarketBeat's embedded comparative table. */
@@ -33,6 +36,84 @@ export function InsiderActivityTable({ ticker, limit = 6 }: Props) {
     .filter((t) => t.transactionCode === "P")
     .slice(0, limit);
   if (txs.length === 0) return null;
+
+  const columns: Column<InsiderTx>[] = [
+    {
+      key: "insiderName",
+      label: "Insider",
+      filterable: true,
+      sortValue: (t) => t.insiderName,
+      render: (t) => (
+        <span className="font-bold text-[15px] max-w-[200px] truncate inline-block align-bottom">
+          {t.insiderName}
+        </span>
+      ),
+    },
+    {
+      key: "role",
+      label: "Role",
+      filterable: true,
+      sortValue: (t) => t.role || "Insider",
+      render: (t) => (
+        <span
+          className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded"
+          style={{
+            background: "var(--accent-soft)",
+            color: "var(--accent)",
+          }}
+        >
+          {t.role || "Insider"}
+        </span>
+      ),
+    },
+    {
+      key: "sharesBought",
+      label: "Shares",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (t) => Number(t.sharesBought),
+      render: (t) => (
+        <span className="tabular text-[14px] font-bold">{formatNumber(Number(t.sharesBought))}</span>
+      ),
+    },
+    {
+      key: "pricePerShare",
+      label: "Price",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (t) => Number(t.pricePerShare),
+      render: (t) => (
+        <span className="tabular text-[14px] font-bold">${Number(t.pricePerShare).toFixed(2)}</span>
+      ),
+    },
+    {
+      key: "totalValue",
+      label: "Total Value",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (t) => Number(t.totalValue),
+      render: (t) => (
+        <span className="tabular text-[14px] font-bold text-good">
+          {formatCurrency(Number(t.totalValue))}
+        </span>
+      ),
+    },
+    {
+      key: "transactionDate",
+      label: "Date",
+      filterable: true,
+      align: "right",
+      sortValue: (t) => new Date(t.transactionDate).getTime(),
+      render: (t) => (
+        <span className="tabular text-[14px] font-bold text-mute whitespace-nowrap">
+          {formatDate(t.transactionDate)}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <section className="my-8">
@@ -54,52 +135,11 @@ export function InsiderActivityTable({ ticker, limit = 6 }: Props) {
         className="rounded-lg overflow-hidden"
         style={{ border: "1px solid var(--border)" }}
       >
-        <div className="overflow-x-auto">
-          <table className="table-base w-full">
-            <thead>
-              <tr>
-                <th>Insider</th>
-                <th>Role</th>
-                <th className="text-right">Shares</th>
-                <th className="text-right">Price</th>
-                <th className="text-right">Total Value</th>
-                <th className="text-right">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {txs.map((t) => (
-                <tr key={t.id}>
-                  <td className="font-semibold text-[13px] max-w-[200px] truncate">
-                    {t.insiderName}
-                  </td>
-                  <td>
-                    <span
-                      className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded"
-                      style={{
-                        background: "var(--accent-soft)",
-                        color: "var(--accent)",
-                      }}
-                    >
-                      {t.role || "Insider"}
-                    </span>
-                  </td>
-                  <td className="text-right tabular text-[13px]">
-                    {formatNumber(Number(t.sharesBought))}
-                  </td>
-                  <td className="text-right tabular text-[13px]">
-                    ${Number(t.pricePerShare).toFixed(2)}
-                  </td>
-                  <td className="text-right tabular text-[13px] font-bold text-good">
-                    {formatCurrency(Number(t.totalValue))}
-                  </td>
-                  <td className="text-right tabular text-[12px] text-mute whitespace-nowrap">
-                    {formatDate(t.transactionDate)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable<InsiderTx>
+          rows={txs}
+          rowKey={(t) => t.id}
+          columns={columns}
+        />
       </div>
       <p className="text-[11px] text-faint mt-2">
         Source: SEC EDGAR Form 4 filings. Open-market purchases only.

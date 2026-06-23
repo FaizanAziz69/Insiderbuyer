@@ -26,6 +26,7 @@ export class IqsController {
     @Query('sector') sector?: string,
     @Query('minMarketCap') minMc?: string,
     @Query('maxMarketCap') maxMc?: string,
+    @Query('minIqs') minIqs?: string,
     @Query('country') country?: string,
     @Query('live') live?: string,
   ) {
@@ -35,6 +36,7 @@ export class IqsController {
       sector: sector || undefined,
       minMarketCap: minMc ? Number(minMc) : undefined,
       maxMarketCap: maxMc ? Number(maxMc) : undefined,
+      minIqs: minIqs ? Number(minIqs) : undefined,
       country: country || undefined,
       withLive: live === '1' || live === 'true',
     });
@@ -109,6 +111,11 @@ export class IqsController {
   @Get('insiders/countries')
   async insiderCountries() {
     return { countries: await this.iqs.getInsiderCountries() };
+  }
+
+  @Get('insiders/track-record')
+  async insiderTrackRecord(@Query('limit') limit?: string) {
+    return { rows: await this.iqs.getInsiderTrackRecords(limit ? Number(limit) : 8) };
   }
 
   @Get('charts/volume')

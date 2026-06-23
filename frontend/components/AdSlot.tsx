@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { useMemo } from "react";
+import { AiCoverImage } from "@/components/insights/AiCoverImage";
 
 type Slot = "leaderboard" | "inline" | "rail-top" | "rail-bottom" | "rail";
 
@@ -12,6 +13,7 @@ const PROMOS = [
     body: "MarketBeat keeps track of Wall Street's top-rated analysts and the stocks they recommend. Get the report free today.",
     cta: "Download Now",
     href: "/reports/cta/NVDA",
+    sector: "technology",
   },
   {
     eyebrow: "Premium IQS list",
@@ -19,6 +21,7 @@ const PROMOS = [
     body: "Our analysts have just released their five highest-rated stocks for the month. None of the usual suspects, including Apple and Nvidia, made the cut.",
     cta: "See the 5 stocks",
     href: "/reports/cta/PLTR",
+    sector: "financial",
   },
   {
     eyebrow: "Insider-buying signal",
@@ -26,6 +29,7 @@ const PROMOS = [
     body: "Three companies with cluster insider buying across multiple senior executives in the last 30 days.",
     cta: "Reveal the names",
     href: "/advertorials/tech-insider",
+    sector: "financial",
   },
   {
     eyebrow: "Tech insider",
@@ -33,6 +37,7 @@ const PROMOS = [
     body: "Inside our analysis of the AI cycle, semiconductor cap-ex, and the names worth buying on dips.",
     cta: "Read the brief",
     href: "/advertorials/tech-insider",
+    sector: "technology",
   },
 ];
 
@@ -99,11 +104,18 @@ export function AdSlot({ slot = "leaderboard", seed }: Props) {
           borderColor: "var(--border)",
         }}
       >
-        <div className="grid grid-cols-[auto_1fr_auto] gap-4 px-5 py-4 items-center">
-          <div className="text-[10px] uppercase tracking-wider font-bold text-mute">
-            Ad
-          </div>
+        <div className="grid grid-cols-[110px_1fr_auto] gap-4 px-5 py-4 items-center">
+          <AiCoverImage
+            primary={null}
+            seed={promo.href + promo.title}
+            sector={promo.sector}
+            className="w-full rounded-md self-stretch"
+            style={{ aspectRatio: "16 / 9" }}
+          />
           <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider font-bold text-mute mb-0.5">
+              Ad · {promo.eyebrow}
+            </div>
             <div className="text-[13px] font-bold text-accent leading-tight">
               {promo.title}
             </div>
@@ -129,6 +141,13 @@ export function AdSlot({ slot = "leaderboard", seed }: Props) {
         borderColor: "var(--border)",
       }}
     >
+      <AiCoverImage
+        primary={null}
+        seed={promo.href + promo.title}
+        sector={promo.sector}
+        className="w-full"
+        style={{ aspectRatio: "16 / 9" }}
+      />
       <div className="p-4">
         <div className="text-[10px] uppercase tracking-wider font-bold text-mute mb-2">
           Advertisement

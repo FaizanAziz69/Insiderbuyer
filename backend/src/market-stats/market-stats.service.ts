@@ -42,6 +42,21 @@ export interface ShortInterestRow {
   marketCap: number | null;
 }
 
+/** Round to 2dp, or null if not a finite number. */
+function round2(x: any): number | null {
+  const n = Number(x);
+  return Number.isFinite(n) ? +n.toFixed(2) : null;
+}
+
+/** Multi-period % returns for one symbol (null when not derivable). */
+export interface PeriodReturns {
+  d1: number | null;
+  d7: number | null;
+  d30: number | null;
+  d180: number | null;
+  y1: number | null;
+}
+
 export interface MarketStatRow {
   symbol: string;
   name: string;
@@ -54,6 +69,38 @@ export interface MarketStatRow {
   sector: string | null;
   fiftyTwoWeekHigh?: number | null;
   fiftyTwoWeekLow?: number | null;
+}
+
+/** Full stockanalysis.com-style fundamentals for a single ticker. */
+export interface StockStats {
+  symbol: string;
+  name: string | null;
+  currency: string;
+  price: number | null;
+  change: number | null;
+  changePct: number | null;
+  marketCap: number | null;
+  revenue: number | null;
+  netIncome: number | null;
+  eps: number | null;
+  sharesOut: number | null;
+  peRatio: number | null;
+  forwardPE: number | null;
+  dividendRate: number | null;
+  dividendYield: number | null;
+  exDividendDate: string | null;
+  volume: number | null;
+  open: number | null;
+  previousClose: number | null;
+  dayLow: number | null;
+  dayHigh: number | null;
+  week52Low: number | null;
+  week52High: number | null;
+  beta: number | null;
+  analystRating: string | null;
+  priceTarget: number | null;
+  priceTargetUpsidePct: number | null;
+  earningsDate: string | null;
 }
 
 const FALLBACK_GAINERS: MarketStatRow[] = [
@@ -330,6 +377,78 @@ export class MarketStatsService {
   private readonly QUOTE_FAIL_TTL_MS = 3 * 60_000;
   private readonly QUOTE_CONCURRENCY = 5;
 
+  // ---- Multi-period returns (heatmap performance) -----------------------
+  // One v8 chart call per symbol (range=1y) yields every period we need, so we
+  // cache the derived returns per symbol for an hour.
+  private returnsCache = new Map<
+    string,
+    { ts: number; data: PeriodReturns | null }
+  >();
+  private readonly RETURNS_TTL_MS = 60 * 60_000;
+
+  /** Period % returns for a basket of symbols, derived from one 1-year daily
+   *  chart each (cached 1h, concurrency-limited). Missing periods come back
+   *  null. Used by the market heatmap's time-period toggle. */
+  async getReturns(symbols: string[]): Promise<Record<string, PeriodReturns>> {
+    const unique = Array.from(
+      new Set(symbols.filter(Boolean).map((s) => s.toUpperCase())),
+    ).slice(0, 150);
+    const out: Record<string, PeriodReturns> = {};
+    const now = Date.now();
+    const toFetch: string[] = [];
+    for (const sym of unique) {
+      const c = this.returnsCache.get(sym);
+      if (c && now - c.ts < this.RETURNS_TTL_MS) {
+        if (c.data) out[sym] = c.data;
+      } else {
+        toFetch.push(sym);
+      }
+    }
+    for (let i = 0; i < toFetch.length; i += this.QUOTE_CONCURRENCY) {
+      const chunk = toFetch.slice(i, i + this.QUOTE_CONCURRENCY);
+      const settled = await Promise.all(
+        chunk.map((s) => this.fetchReturns(s)),
+      );
+      chunk.forEach((sym, j) => {
+        const data = settled[j];
+        this.returnsCache.set(sym, { ts: Date.now(), data });
+        if (data) out[sym] = data;
+      });
+    }
+    return out;
+  }
+
+  private async fetchReturns(symbol: string): Promise<PeriodReturns | null> {
+    try {
+      const host = symbol.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
+      const { data } = await this.http.get(
+        `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1y&interval=1d`,
+      );
+      const result = data?.chart?.result?.[0];
+      const closesRaw: any[] = result?.indicators?.quote?.[0]?.close || [];
+      const closes = closesRaw
+        .map((c) => Number(c))
+        .filter((c) => Number.isFinite(c) && c > 0);
+      if (closes.length < 2) return null;
+      const last = closes[closes.length - 1];
+      // Trading-day offsets (approx): 1d=prior close, 1w≈5, 1m≈21, 6m≈126,
+      // 1y = first close in the window.
+      const at = (back: number) =>
+        closes[Math.max(0, closes.length - 1 - back)];
+      const pct = (from: number) =>
+        from > 0 ? +(((last - from) / from) * 100).toFixed(2) : null;
+      return {
+        d1: pct(at(1)),
+        d7: pct(at(5)),
+        d30: pct(at(21)),
+        d180: pct(at(126)),
+        y1: pct(closes[0]),
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async getQuoteBatch(symbols: string[]): Promise<Map<string, MarketStatRow>> {
     const map = new Map<string, MarketStatRow>();
     if (!symbols.length) return map;
@@ -449,6 +568,374 @@ export class MarketStatsService {
 
   private universe(): string[] {
     return MARKET_UNIVERSE;
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // Per-ticker full fundamentals (stockanalysis.com-style stats grid).
+  // ──────────────────────────────────────────────────────────────────
+  private statsCache = new Map<string, { ts: number; data: StockStats }>();
+  private readonly STATS_TTL_MS = 15 * 60_000;
+
+  /** Full fundamentals for one ticker: price, market cap, revenue, net income,
+   *  EPS, P/E, forward P/E, dividend, ex-div, volume, day/52-wk range, beta,
+   *  analyst rating, price target and next earnings date. Cached 15 min. */
+  async getStockStats(symbolRaw: string): Promise<StockStats> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    const cached = this.statsCache.get(symbol);
+    if (cached && Date.now() - cached.ts < this.STATS_TTL_MS) return cached.data;
+
+    const modules =
+      'price,summaryDetail,financialData,defaultKeyStatistics,calendarEvents';
+    let r: any = null;
+    let auth = await this.getAuth();
+    if (auth) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const { data } = await this.http.get(
+            `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}&crumb=${encodeURIComponent(auth.crumb)}`,
+            { headers: { Cookie: auth.cookie } },
+          );
+          r = data?.quoteSummary?.result?.[0] ?? null;
+          break;
+        } catch (err: any) {
+          if (err?.response?.status === 401 && attempt === 0) {
+            auth = await this.getAuth(true);
+            if (!auth) break;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
+    const num = (x: any): number | null =>
+      x && typeof x.raw === 'number' ? x.raw : null;
+    const price = r?.price;
+    const sd = r?.summaryDetail;
+    const fd = r?.financialData;
+    const ks = r?.defaultKeyStatistics;
+    const cal = r?.calendarEvents;
+    const ref = REFERENCE_QUOTES[symbol];
+
+    // quoteSummary is gated/empty for many micro-caps (and the v7 quote API now
+    // 401s). The v8 chart endpoint needs no crumb and always carries the price
+    // block — price, prev close, day/52-week range, volume, name — so we use it
+    // to backfill anything quoteSummary left null.
+    let cm: any = null;
+    if (!r || num(price?.regularMarketPrice) == null) {
+      try {
+        const host = symbol.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
+        const { data } = await this.http.get(
+          `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`,
+        );
+        cm = data?.chart?.result?.[0]?.meta ?? null;
+      } catch {
+        cm = null;
+      }
+    }
+    const cmNum = (k: string): number | null =>
+      cm && typeof cm[k] === 'number' ? cm[k] : null;
+
+    const priceVal =
+      num(price?.regularMarketPrice) ?? cmNum('regularMarketPrice') ?? ref?.price ?? null;
+    const prevClose =
+      num(price?.regularMarketPreviousClose) ??
+      num(sd?.previousClose) ??
+      cmNum('chartPreviousClose');
+    const change =
+      num(price?.regularMarketChange) ??
+      (priceVal != null && prevClose != null
+        ? +(priceVal - prevClose).toFixed(2)
+        : null);
+    const changePctRaw = num(price?.regularMarketChangePercent);
+    const changePct =
+      changePctRaw != null
+        ? +(changePctRaw * 100).toFixed(2)
+        : priceVal != null && prevClose
+          ? +(((priceVal - prevClose) / prevClose) * 100).toFixed(2)
+          : null;
+    const divYieldRaw = num(sd?.dividendYield);
+    const targetMean = num(fd?.targetMeanPrice);
+    const exTs = sd?.exDividendDate?.raw ?? null;
+    const earnTs = cal?.earnings?.earningsDate?.[0]?.raw ?? null;
+
+    const stats: StockStats = {
+      symbol,
+      name:
+        price?.shortName ||
+        price?.longName ||
+        cm?.shortName ||
+        cm?.longName ||
+        ref?.name ||
+        symbol,
+      currency: price?.currency || cm?.currency || 'USD',
+      price: priceVal,
+      change,
+      changePct,
+      marketCap: num(price?.marketCap) ?? num(sd?.marketCap) ?? ref?.marketCap ?? null,
+      revenue: num(fd?.totalRevenue),
+      netIncome: num(ks?.netIncomeToCommon),
+      eps: num(ks?.trailingEps),
+      sharesOut: num(ks?.sharesOutstanding),
+      peRatio: num(sd?.trailingPE),
+      forwardPE: num(sd?.forwardPE) ?? num(ks?.forwardPE),
+      dividendRate: num(sd?.dividendRate),
+      dividendYield: divYieldRaw != null ? +(divYieldRaw * 100).toFixed(2) : null,
+      exDividendDate: exTs ? new Date(exTs * 1000).toISOString().slice(0, 10) : null,
+      volume: num(price?.regularMarketVolume) ?? num(sd?.volume) ?? cmNum('regularMarketVolume'),
+      open: num(price?.regularMarketOpen) ?? num(sd?.open),
+      previousClose: prevClose,
+      dayLow: num(price?.regularMarketDayLow) ?? num(sd?.dayLow) ?? cmNum('regularMarketDayLow'),
+      dayHigh: num(price?.regularMarketDayHigh) ?? num(sd?.dayHigh) ?? cmNum('regularMarketDayHigh'),
+      week52Low: num(sd?.fiftyTwoWeekLow) ?? cmNum('fiftyTwoWeekLow'),
+      week52High: num(sd?.fiftyTwoWeekHigh) ?? cmNum('fiftyTwoWeekHigh'),
+      beta: num(sd?.beta) ?? num(ks?.beta),
+      analystRating: fd?.recommendationKey ?? null,
+      priceTarget: targetMean,
+      priceTargetUpsidePct:
+        targetMean && priceVal
+          ? +(((targetMean - priceVal) / priceVal) * 100).toFixed(2)
+          : null,
+      earningsDate: earnTs ? new Date(earnTs * 1000).toISOString().slice(0, 10) : null,
+    };
+    this.statsCache.set(symbol, { ts: Date.now(), data: stats });
+    return stats;
+  }
+
+  // ---- stockanalysis.com-style detail tabs ------------------------------
+  // Profile / Financials reuse the crumb-authed quoteSummary; History uses the
+  // public v8 chart. All cached 30 min per symbol.
+  private detailCache = new Map<string, { ts: number; data: any }>();
+  private readonly DETAIL_TTL_MS = 30 * 60_000;
+
+  private async fetchModules(symbol: string, modules: string): Promise<any | null> {
+    let auth = await this.getAuth();
+    if (!auth) return null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const { data } = await this.http.get(
+          `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${modules}&crumb=${encodeURIComponent(auth.crumb)}`,
+          { headers: { Cookie: auth.cookie } },
+        );
+        return data?.quoteSummary?.result?.[0] ?? null;
+      } catch (err: any) {
+        if (err?.response?.status === 401 && attempt === 0) {
+          auth = await this.getAuth(true);
+          if (!auth) break;
+        } else break;
+      }
+    }
+    return null;
+  }
+
+  /** Company profile — description, sector/industry, employees, HQ, officers. */
+  async getProfile(symbolRaw: string): Promise<any> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    const cacheKey = `profile:${symbol}`;
+    const c = this.detailCache.get(cacheKey);
+    if (c && Date.now() - c.ts < this.DETAIL_TTL_MS) return c.data;
+    const r = await this.fetchModules(symbol, 'assetProfile,price,summaryDetail');
+    const p = r?.assetProfile ?? {};
+    const price = r?.price ?? {};
+    const data = {
+      symbol,
+      name: price.longName || price.shortName || symbol,
+      exchange: price.exchangeName || null,
+      sector: p.sector || null,
+      industry: p.industry || null,
+      employees: typeof p.fullTimeEmployees === 'number' ? p.fullTimeEmployees : null,
+      website: p.website || null,
+      phone: p.phone || null,
+      description: p.longBusinessSummary || null,
+      address: [p.address1, p.city, p.state, p.zip, p.country].filter(Boolean).join(', ') || null,
+      country: p.country || null,
+      officers: (p.companyOfficers || [])
+        .slice(0, 6)
+        .map((o: any) => ({
+          name: o.name || null,
+          title: o.title || null,
+          pay: o.totalPay?.raw ?? null,
+        })),
+    };
+    this.detailCache.set(cacheKey, { ts: Date.now(), data });
+    return data;
+  }
+
+  /** Fetch Yahoo's fundamentals-timeseries (far richer than quoteSummary).
+   *  Returns { typeName: { 'YYYY-MM-DD': value } }. No crumb required. */
+  private async fetchTimeseries(
+    symbol: string,
+    types: string[],
+  ): Promise<Record<string, Record<string, number>>> {
+    const p2 = Math.floor(Date.now() / 1000);
+    const p1 = p2 - 220_000_000; // ~7 years back
+    const host = symbol.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
+    const url =
+      `https://${host}.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/${encodeURIComponent(symbol)}` +
+      `?symbol=${encodeURIComponent(symbol)}&type=${types.join(',')}&period1=${p1}&period2=${p2}`;
+    const out: Record<string, Record<string, number>> = {};
+    try {
+      const { data } = await this.http.get(url);
+      for (const r of data?.timeseries?.result || []) {
+        const t = r?.meta?.type?.[0];
+        if (!t || !Array.isArray(r[t])) continue;
+        const m: Record<string, number> = {};
+        for (const v of r[t]) {
+          const raw = v?.reportedValue?.raw;
+          if (v?.asOfDate && typeof raw === 'number') m[v.asOfDate] = raw;
+        }
+        out[t] = m;
+      }
+    } catch {
+      /* fall through to whatever we collected */
+    }
+    return out;
+  }
+
+  /** Annual financials — income statement, balance sheet, cash-flow — sourced
+   *  from the fundamentals-timeseries API so the tables are as deep as the ones
+   *  on stockanalysis.com (revenue → margins → EPS → debt → free cash flow). */
+  async getFinancials(symbolRaw: string): Promise<any> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    const cacheKey = `fin:${symbol}`;
+    const c = this.detailCache.get(cacheKey);
+    if (c && Date.now() - c.ts < this.DETAIL_TTL_MS) return c.data;
+
+    const incomeTypes = [
+      'annualTotalRevenue', 'annualCostOfRevenue', 'annualGrossProfit',
+      'annualOperatingExpense', 'annualOperatingIncome', 'annualEBITDA',
+      'annualPretaxIncome', 'annualTaxProvision', 'annualNetIncome',
+      'annualBasicEPS', 'annualDilutedEPS', 'annualResearchAndDevelopment',
+      'annualSellingGeneralAndAdministration', 'annualInterestExpense',
+      'annualDilutedAverageShares',
+    ];
+    const balanceTypes = [
+      'annualTotalAssets', 'annualCurrentAssets', 'annualCashAndCashEquivalents',
+      'annualTotalLiabilitiesNetMinorityInterest', 'annualCurrentLiabilities',
+      'annualTotalDebt', 'annualStockholdersEquity', 'annualRetainedEarnings',
+      'annualWorkingCapital',
+    ];
+    const cashflowTypes = [
+      'annualOperatingCashFlow', 'annualCapitalExpenditure', 'annualFreeCashFlow',
+      'annualInvestingCashFlow', 'annualFinancingCashFlow', 'annualEndCashPosition',
+      'annualRepurchaseOfCapitalStock',
+    ];
+
+    const [inc, bal, cf] = await Promise.all([
+      this.fetchTimeseries(symbol, incomeTypes),
+      this.fetchTimeseries(symbol, balanceTypes),
+      this.fetchTimeseries(symbol, cashflowTypes),
+    ]);
+
+    // Build the union of report dates for a statement, newest 5.
+    const datesFor = (map: Record<string, Record<string, number>>): string[] => {
+      const set = new Set<string>();
+      for (const t of Object.keys(map)) for (const d of Object.keys(map[t])) set.add(d);
+      return Array.from(set).sort().slice(-5);
+    };
+    const val = (map: Record<string, Record<string, number>>, type: string, date: string) =>
+      map[type]?.[date] ?? null;
+    const pct = (a: number | null, b: number | null) =>
+      a != null && b ? +((a / b) * 100).toFixed(2) : null;
+
+    const incomeRows = datesFor(inc).map((date) => {
+      const revenue = val(inc, 'annualTotalRevenue', date);
+      const grossProfit = val(inc, 'annualGrossProfit', date);
+      const operatingIncome = val(inc, 'annualOperatingIncome', date);
+      const netIncome = val(inc, 'annualNetIncome', date);
+      return {
+        date,
+        revenue,
+        costOfRevenue: val(inc, 'annualCostOfRevenue', date),
+        grossProfit,
+        grossMargin: pct(grossProfit, revenue),
+        sga: val(inc, 'annualSellingGeneralAndAdministration', date),
+        researchDevelopment: val(inc, 'annualResearchAndDevelopment', date),
+        operatingExpense: val(inc, 'annualOperatingExpense', date),
+        operatingIncome,
+        operatingMargin: pct(operatingIncome, revenue),
+        ebitda: val(inc, 'annualEBITDA', date),
+        interestExpense: val(inc, 'annualInterestExpense', date),
+        pretaxIncome: val(inc, 'annualPretaxIncome', date),
+        taxProvision: val(inc, 'annualTaxProvision', date),
+        netIncome,
+        profitMargin: pct(netIncome, revenue),
+        basicEPS: val(inc, 'annualBasicEPS', date),
+        dilutedEPS: val(inc, 'annualDilutedEPS', date),
+        dilutedShares: val(inc, 'annualDilutedAverageShares', date),
+      };
+    });
+
+    const balanceRows = datesFor(bal).map((date) => ({
+      date,
+      totalAssets: val(bal, 'annualTotalAssets', date),
+      currentAssets: val(bal, 'annualCurrentAssets', date),
+      cash: val(bal, 'annualCashAndCashEquivalents', date),
+      totalLiabilities: val(bal, 'annualTotalLiabilitiesNetMinorityInterest', date),
+      currentLiabilities: val(bal, 'annualCurrentLiabilities', date),
+      totalDebt: val(bal, 'annualTotalDebt', date),
+      totalEquity: val(bal, 'annualStockholdersEquity', date),
+      retainedEarnings: val(bal, 'annualRetainedEarnings', date),
+      workingCapital: val(bal, 'annualWorkingCapital', date),
+    }));
+
+    const cashflowRows = datesFor(cf).map((date) => ({
+      date,
+      operatingCashflow: val(cf, 'annualOperatingCashFlow', date),
+      capex: val(cf, 'annualCapitalExpenditure', date),
+      freeCashflow: val(cf, 'annualFreeCashFlow', date),
+      investingCashflow: val(cf, 'annualInvestingCashFlow', date),
+      financingCashflow: val(cf, 'annualFinancingCashFlow', date),
+      buyback: val(cf, 'annualRepurchaseOfCapitalStock', date),
+      endCashPosition: val(cf, 'annualEndCashPosition', date),
+    }));
+
+    const data = {
+      symbol,
+      income: incomeRows,
+      balance: balanceRows,
+      cashflow: cashflowRows,
+    };
+    this.detailCache.set(cacheKey, { ts: Date.now(), data });
+    return data;
+  }
+
+  /** Daily OHLCV history for the history tab + chart. */
+  async getPriceHistory(symbolRaw: string, range = '1y'): Promise<any> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    const safeRange = ['1mo', '3mo', '6mo', '1y', '2y', '5y'].includes(range) ? range : '1y';
+    const cacheKey = `hist:${symbol}:${safeRange}`;
+    const c = this.detailCache.get(cacheKey);
+    if (c && Date.now() - c.ts < this.DETAIL_TTL_MS) return c.data;
+    try {
+      const host = symbol.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
+      const { data } = await this.http.get(
+        `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${safeRange}&interval=1d`,
+      );
+      const res = data?.chart?.result?.[0];
+      const ts: number[] = res?.timestamp || [];
+      const q = res?.indicators?.quote?.[0] || {};
+      const bars: any[] = [];
+      for (let i = 0; i < ts.length; i++) {
+        const close = Number(q.close?.[i]);
+        if (!Number.isFinite(close) || close <= 0) continue;
+        const prev = bars.length ? bars[bars.length - 1].close : close;
+        bars.push({
+          date: new Date(ts[i] * 1000).toISOString().slice(0, 10),
+          open: round2(q.open?.[i]),
+          high: round2(q.high?.[i]),
+          low: round2(q.low?.[i]),
+          close: round2(close),
+          volume: Number(q.volume?.[i]) || 0,
+          changePct: prev ? +(((close - prev) / prev) * 100).toFixed(2) : 0,
+        });
+      }
+      const out = { symbol, range: safeRange, bars };
+      this.detailCache.set(cacheKey, { ts: Date.now(), data: out });
+      return out;
+    } catch {
+      return { symbol, range: safeRange, bars: [] };
+    }
   }
 
   /** Analyst Ratings — consensus recommendation + price targets across the

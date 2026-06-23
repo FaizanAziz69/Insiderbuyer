@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { ArrowRight, Lock, Sparkles } from "lucide-react";
+import { PREMIUM_UNLOCKED } from "@/lib/premium";
 
 interface Props {
   title: string;
@@ -9,7 +10,15 @@ interface Props {
   premium?: boolean;
 }
 
-export function ComingSoon({ title, description, features, premium }: Props) {
+export function ComingSoon({
+  title,
+  description,
+  features,
+  premium: premiumProp,
+}: Props) {
+  // In unlocked/testing mode, never show the "Premium feature · Subscribe to
+  // unlock" paywall framing — present these as upcoming features instead.
+  const premium = !PREMIUM_UNLOCKED && premiumProp;
   return (
     <div className="max-w-3xl mx-auto">
       <header className="mb-6">

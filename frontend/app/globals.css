@@ -9,9 +9,9 @@
 /* Light theme — publication-standard neutrals + our navy/gold accent */
 :root,
 :root[data-theme="light"] {
-  --bg-1: #f6f8f7;
+  --bg-1: #ffffff;
   --bg-2: #ffffff;
-  --bg-3: #eaedee;
+  --bg-3: #eef1f3;
   --bg-sidebar: #ffffff;
   --bg-elevated: #ffffff;
   --border: #dbdfe2;
@@ -90,6 +90,14 @@ body {
   font-size: 1rem;
   line-height: 1.2;
   color: var(--text-soft);
+}
+
+/* Site-wide readability zoom. Enlarges EVERYTHING proportionally — text
+   (including fixed-px Tailwind classes), spacing, logos, charts — so the whole
+   site reads bigger without touching hundreds of per-component sizes. Tune the
+   single value below (1.0 = original, 1.08 = 8% larger). */
+body {
+  zoom: 1.10;
 }
 
 /* Headings — publication weight: 600 (bold = 600), tight leading */
@@ -270,15 +278,15 @@ table th {
    Applies to /article and /featured/material-matters
    ──────────────────────────────────────────────────────────── */
 .article-body {
-  font-size: 17px;
-  line-height: 1.78;
+  font-size: 18px;
+  line-height: 1.7;
   color: var(--text);
   font-weight: 450;
 }
 @media (min-width: 640px) {
   .article-body {
-    font-size: 18px;
-    line-height: 1.8;
+    font-size: 19px;
+    line-height: 1.72;
   }
 }
 .article-body p {
@@ -310,13 +318,19 @@ table th {
   line-height: 1.18;
   margin: 1.7em 0 0.5em;
 }
+/* MarketBeat-style section heading: navy, medium weight, with a thin
+   underline rule and generous top margin. */
 .article-body h2 {
-  font-size: 30px;
-  font-weight: 900;
-  letter-spacing: -0.6px;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.35em;
+  margin: 1.6em 0 0.85em;
 }
 @media (min-width: 640px) {
-  .article-body h2 { font-size: 34px; }
+  .article-body h2 { font-size: 28px; }
 }
 .article-body h3 {
   font-size: 22px;
@@ -365,6 +379,13 @@ table th {
   font-size: 0.92em;
   font-family: var(--font-mono);
   font-weight: 500;
+}
+
+html {
+  /* Reserve the scrollbar gutter symmetrically so centered (mx-auto)
+     containers don't shift left when a vertical scrollbar appears — this is
+     what makes the left margin look bigger than the right. */
+  scrollbar-gutter: stable both-edges;
 }
 
 html,
@@ -506,12 +527,12 @@ body {
 
 .table-base {
   width: 100%;
-  font-size: 14px;
+  font-size: 15px;
   border-collapse: collapse;
 }
 .table-base thead th {
   background: var(--bg-1);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.6px;
   text-transform: uppercase;
@@ -521,6 +542,13 @@ body {
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
+/* Honor per-column alignment utilities on headers. The base rule above sets
+   text-align:left at a specificity that would otherwise beat the utility
+   classes, leaving numeric headers (Shares/Value/Date) left-aligned while
+   their cells are right-aligned. These higher-specificity rules keep every
+   header sitting directly above its column's values. */
+.table-base thead th.text-right { text-align: right; }
+.table-base thead th.text-center { text-align: center; }
 .table-base tbody td {
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
@@ -707,6 +735,17 @@ body {
   filter: blur(5px);
   pointer-events: none;
   user-select: none;
+}
+
+/* Unlocked / testing mode — reveal every paywalled section in full and hide
+   the upsell overlays. Toggled by the PREMIUM_UNLOCKED flag on AppShell. */
+.premium-unlocked .paywall-blur {
+  filter: none !important;
+  pointer-events: auto !important;
+  user-select: auto !important;
+}
+.premium-unlocked .paywall-overlay {
+  display: none !important;
 }
 .paywall-overlay {
   position: absolute;

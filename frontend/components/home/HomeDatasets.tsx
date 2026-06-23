@@ -18,10 +18,10 @@ function PanelTitle({ title, href }: { title: string; href: string }) {
       className="flex items-center justify-between px-4 py-2.5 border-b"
       style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
     >
-      <div className="text-[11px] font-bold uppercase tracking-wider">{title}</div>
+      <div className="text-[12px] font-bold uppercase tracking-wider">{title}</div>
       <Link
         href={href}
-        className="text-[11px] font-semibold text-accent hover:underline"
+        className="text-[12px] font-semibold text-accent hover:underline"
       >
         View all →
       </Link>
@@ -66,17 +66,17 @@ function InsiderSidePanel({
                 href={r.ticker ? `/companies/${encodeURIComponent(r.ticker)}` : "#"}
                 className="grid grid-cols-[22px_1fr_auto] gap-2 items-center px-4 py-2.5 hover:bg-[var(--accent-soft)] transition"
               >
-                <span className="text-[10px] font-mono font-bold text-faint tabular text-center">
+                <span className="text-[11px] font-mono font-bold text-faint tabular text-center">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div className="min-w-0">
-                  <div className="text-[13px] font-bold font-mono text-accent truncate">
+                  <div className="text-[15px] font-bold font-mono text-accent truncate">
                     {r.ticker || "—"}
                   </div>
-                  <div className="text-[11px] text-mute truncate">{r.name}</div>
+                  <div className="text-[12px] text-mute truncate">{r.name}</div>
                 </div>
                 <span
-                  className="text-[12px] font-bold tabular flex items-center gap-0.5"
+                  className="text-[14px] font-bold tabular flex items-center gap-0.5"
                   style={{ color: side === "buys" ? "var(--good)" : "var(--bad)" }}
                 >
                   {side === "buys" ? (
@@ -123,17 +123,17 @@ function GainerLoserPanel({ kind }: { kind: "gainers" | "losers" }) {
                   href={`/companies/${encodeURIComponent(r.symbol)}`}
                   className="grid grid-cols-[22px_1fr_auto] gap-2 items-center px-4 py-2.5 hover:bg-[var(--accent-soft)] transition"
                 >
-                  <span className="text-[10px] font-mono font-bold text-faint tabular text-center">
+                  <span className="text-[11px] font-mono font-bold text-faint tabular text-center">
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   <div className="min-w-0">
-                    <div className="text-[13px] font-bold font-mono text-accent truncate">
+                    <div className="text-[15px] font-bold font-mono text-accent truncate">
                       {r.symbol}
                     </div>
-                    <div className="text-[11px] text-mute truncate">{r.name}</div>
+                    <div className="text-[12px] text-mute truncate">{r.name}</div>
                   </div>
                   <span
-                    className="text-[12px] font-bold tabular flex items-center gap-0.5"
+                    className="text-[14px] font-bold tabular flex items-center gap-0.5"
                     style={{ color: up ? "var(--good)" : "var(--bad)" }}
                   >
                     {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}

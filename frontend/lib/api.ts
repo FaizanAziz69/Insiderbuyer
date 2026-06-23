@@ -99,6 +99,7 @@ export interface TradeRow {
   insiderName: string;
   role: string;
   rawTitle: string;
+  type?: "BUY" | "SELL";
   ticker: string | null;
   companyName: string;
   sector: string | null;

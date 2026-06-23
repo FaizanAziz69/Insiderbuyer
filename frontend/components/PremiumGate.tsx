@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { Lock, Sparkles } from "lucide-react";
+import { PREMIUM_UNLOCKED } from "@/lib/premium";
 
 interface Props {
   children: React.ReactNode;
@@ -17,6 +18,8 @@ export function PremiumGate({
   cta = "Unlock top picks",
   compact = false,
 }: Props) {
+  // Testing/unlocked mode — render the real content with no blur or overlay.
+  if (PREMIUM_UNLOCKED) return <>{children}</>;
   return (
     <div
       className="relative rounded-lg overflow-hidden"

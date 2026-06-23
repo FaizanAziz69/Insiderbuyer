@@ -1,5 +1,6 @@
 "use client";
 import { ArrowUpRight, ExternalLink } from "lucide-react";
+import { DataTable, Column } from "@/components/DataTable";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/api";
 
 interface Tx {
@@ -32,70 +33,111 @@ export function TransactionList({ transactions }: { transactions: Tx[] }) {
       </div>
     );
   }
+
+  const columns: Column<Tx>[] = [
+    {
+      key: "insiderName",
+      label: "Insider",
+      filterable: true,
+      sortValue: (t) => t.insiderName,
+      render: (t) => (
+        <>
+          <div className="font-bold text-[15px]">{t.insiderName}</div>
+          {t.rawTitle && (
+            <div className="text-[12px] text-mute truncate max-w-[220px]">
+              {t.rawTitle}
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      key: "role",
+      label: "Role",
+      filterable: true,
+      sortValue: (t) => t.role,
+      render: (t) => {
+        const shares = Number(t.sharesBought);
+        const prev = t.previousHoldings ? Number(t.previousHoldings) : 0;
+        const stakeChange = prev > 0 ? (shares / prev) * 100 : null;
+        const roleCls = ROLE_CLS[t.role] || ROLE_CLS.Other;
+        return (
+          <div className="flex items-center gap-2">
+            <span className={roleCls}>{t.role}</span>
+            {stakeChange !== null && (
+              <span className="inline-flex items-center text-[11px] text-good">
+                <ArrowUpRight className="h-3 w-3 mr-0.5" />
+                +{stakeChange.toFixed(1)}%
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "transactionDate",
+      label: "Date",
+      filterable: true,
+      sortValue: (t) => new Date(t.transactionDate).getTime(),
+      render: (t) => <span className="text-mute text-[14px] font-bold tabular">{formatDate(t.transactionDate)}</span>,
+    },
+    {
+      key: "sharesBought",
+      label: "Shares",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (t) => Number(t.sharesBought),
+      render: (t) => <span className="tabular text-[14px] font-bold">{formatNumber(Number(t.sharesBought))}</span>,
+    },
+    {
+      key: "pricePerShare",
+      label: "Price",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (t) => Number(t.pricePerShare),
+      render: (t) => (
+        <span className="tabular text-mute text-[14px] font-bold">${Number(t.pricePerShare).toFixed(2)}</span>
+      ),
+    },
+    {
+      key: "totalValue",
+      label: "Value",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (t) => Number(t.totalValue),
+      render: (t) => (
+        <span className="tabular font-bold text-[14px]">{formatCurrency(Number(t.totalValue))}</span>
+      ),
+    },
+    {
+      key: "filing",
+      label: "Filing",
+      sortable: false,
+      render: (t) => (
+        <a
+          href={t.filingUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-mute hover:text-accent"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+          SEC
+        </a>
+      ),
+    },
+  ];
+
   return (
     <div className="card overflow-hidden">
-      <div className="overflow-x-auto scrollbar-thin">
-        <table className="table-base">
-          <thead>
-            <tr>
-              <th>Insider</th>
-              <th>Role</th>
-              <th>Date</th>
-              <th className="text-right">Shares</th>
-              <th className="text-right">Price</th>
-              <th className="text-right">Value</th>
-              <th>Filing</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map((t) => {
-              const shares = Number(t.sharesBought);
-              const price = Number(t.pricePerShare);
-              const value = Number(t.totalValue);
-              const prev = t.previousHoldings ? Number(t.previousHoldings) : 0;
-              const stakeChange = prev > 0 ? (shares / prev) * 100 : null;
-              const roleCls = ROLE_CLS[t.role] || ROLE_CLS.Other;
-              return (
-                <tr key={t.id}>
-                  <td>
-                    <div className="font-semibold text-sm">{t.insiderName}</div>
-                    {t.rawTitle && (
-                      <div className="text-[11px] text-mute truncate max-w-[220px]">
-                        {t.rawTitle}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <span className={roleCls}>{t.role}</span>
-                      {stakeChange !== null && (
-                        <span className="inline-flex items-center text-[11px] text-good">
-                          <ArrowUpRight className="h-3 w-3 mr-0.5" />
-                          +{stakeChange.toFixed(1)}%
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="text-mute">{formatDate(t.transactionDate)}</td>
-                  <td className="text-right tabular">{formatNumber(shares)}</td>
-                  <td className="text-right tabular text-mute">${price.toFixed(2)}</td>
-                  <td className="text-right tabular font-semibold">{formatCurrency(value)}</td>
-                  <td>
-                    <a
-                      href={t.filingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-mute hover:text-accent"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      SEC
-                    </a>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="scrollbar-thin">
+        <DataTable<Tx>
+          rows={transactions}
+          rowKey={(t) => t.id}
+          columns={columns}
+        />
       </div>
     </div>
   );

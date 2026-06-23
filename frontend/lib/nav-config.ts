@@ -78,7 +78,6 @@ export const NAV_GROUPS: NavGroup[] = [
         links: [
           { label: "Market Heatmap", href: "/heatmaps/market", description: "Every ranked U.S. company", icon: Flame },
           { label: "Sector Heatmap", href: "/sectors", description: "Buying volume by sector", icon: Building2 },
-          { label: "Volume Charts", href: "/charts/volume", description: "Buys by role over time", icon: BarChart3 },
           { label: "Top Insiders", href: "/insiders", description: "Most-active executives", icon: Users },
         ],
       },
@@ -120,7 +119,7 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         title: "By Exchange",
         links: [
-          { label: "US (Blue Chip)", href: "/stock-lists/blue-chip", description: "NYSE & NASDAQ leaders", icon: ShieldCheck },
+          { label: "US (NYSE & NASDAQ) ", href: "/stock-lists/blue-chip", description: "NYSE & NASDAQ leaders", icon: ShieldCheck },
           { label: "Canada (TSX)", href: "/stock-lists/canada", description: "Toronto-listed majors, live prices", icon: Globe2 },
           { label: "Germany (Xetra/DAX)", href: "/stock-lists/germany", description: "Frankfurt-listed majors, live prices", icon: Building2 },
         ],
@@ -168,10 +167,9 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Sections",
         links: [
           { label: "AI Insights", href: "/insights", description: "AI-generated daily briefings — refreshed each morning", icon: Sparkles },
-          { label: "Latest Financial News", href: "/news?sort=latest", description: "Freshest stories across all topics", icon: Newspaper },
-          { label: "Popular Articles", href: "/news?sort=popular", description: "Most-read stories this week", icon: TrendingUp },
+          { label: "Latest Financial News", href: "/insights?sort=latest", description: "Freshest AI editorial across all topics", icon: Newspaper },
+          { label: "Popular Articles", href: "/insights?sort=popular", description: "Most-read AI stories this week", icon: TrendingUp },
           { label: "Stock Ideas", href: "/lists", description: "Curated trade-idea lists", icon: Sparkles },
-          { label: "Material Matters", href: "/featured/material-matters", description: "SEC Chairman podcast", icon: Activity },
         ],
       },
     ],

@@ -2,11 +2,11 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { ShieldCheck } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
+import { DataTable } from "@/components/DataTable";
 
 interface AnalystRow {
   symbol: string;
@@ -90,106 +90,139 @@ export default function AnalystRatingsPage() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th>Company</th>
-                <th>Consensus</th>
-                <th className="text-right">Price</th>
-                <th className="text-right">Avg Target</th>
-                <th className="text-right">Upside</th>
-                <th className="text-right">Range</th>
-                <th className="text-right">Analysts</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="text-center text-mute py-10">
-                    Loading live analyst data…
-                  </td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center text-mute py-10">
-                    No matches.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r, i) => {
+        {isLoading ? (
+          <div className="text-center text-mute py-10">Loading live analyst data…</div>
+        ) : (
+          <DataTable<AnalystRow>
+            rows={rows}
+            rowKey={(r) => r.symbol}
+            initialSort={{ key: "upsidePct", dir: "desc" }}
+            empty="No matches."
+            columns={[
+              {
+                key: "company",
+                label: "Company",
+                filterable: true,
+                sortValue: (r) => r.symbol,
+                render: (r) => (
+                  <Link
+                    href={`/companies/${encodeURIComponent(r.symbol)}`}
+                    className="flex items-center gap-2.5 min-w-[200px]"
+                  >
+                    <CompanyLogo ticker={r.symbol} name={r.name} size={28} />
+                    <div className="min-w-0">
+                      <div className="font-mono text-[15px] font-bold text-accent">
+                        {r.symbol}
+                      </div>
+                      <div className="text-[12px] text-mute truncate max-w-[200px]">
+                        {r.name}
+                      </div>
+                    </div>
+                  </Link>
+                ),
+              },
+              {
+                key: "consensus",
+                label: "Consensus",
+                filterable: true,
+                sortValue: (r) => r.recommendation ?? "",
+                render: (r) => {
                   const rec = r.recommendation
                     ? REC_LABEL[r.recommendation] || {
                         label: r.recommendation,
                         color: "var(--text-soft)",
                       }
                     : null;
+                  return rec ? (
+                    <span
+                      className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
+                      style={{
+                        background: `color-mix(in srgb, ${rec.color} 16%, transparent)`,
+                        color: rec.color,
+                      }}
+                    >
+                      {rec.label}
+                    </span>
+                  ) : (
+                    "—"
+                  );
+                },
+              },
+              {
+                key: "price",
+                label: "Price",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.price,
+                render: (r) => <span className="tabular text-[14px] font-bold">${r.price.toFixed(2)}</span>,
+              },
+              {
+                key: "targetMean",
+                label: "Avg Target",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.targetMean,
+                render: (r) => (
+                  <span className="tabular font-bold text-[14px]">
+                    {r.targetMean ? `$${r.targetMean.toFixed(2)}` : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "upsidePct",
+                label: "Upside",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.upsidePct,
+                render: (r) => {
                   const up = (r.upsidePct ?? 0) >= 0;
                   return (
-                    <motion.tr
-                      key={r.symbol}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.18, delay: Math.min(i, 12) * 0.02 }}
+                    <span
+                      className="tabular font-bold text-[14px]"
+                      style={{ color: up ? "var(--good)" : "var(--bad)" }}
                     >
-                      <td>
-                        <Link
-                          href={`/companies/${encodeURIComponent(r.symbol)}`}
-                          className="flex items-center gap-2.5 min-w-[200px]"
-                        >
-                          <CompanyLogo ticker={r.symbol} name={r.name} size={28} />
-                          <div className="min-w-0">
-                            <div className="font-mono text-[13px] font-bold text-accent">
-                              {r.symbol}
-                            </div>
-                            <div className="text-[11px] text-mute truncate max-w-[200px]">
-                              {r.name}
-                            </div>
-                          </div>
-                        </Link>
-                      </td>
-                      <td>
-                        {rec ? (
-                          <span
-                            className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
-                            style={{
-                              background: `color-mix(in srgb, ${rec.color} 16%, transparent)`,
-                              color: rec.color,
-                            }}
-                          >
-                            {rec.label}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="text-right tabular">${r.price.toFixed(2)}</td>
-                      <td className="text-right tabular font-semibold">
-                        {r.targetMean ? `$${r.targetMean.toFixed(2)}` : "—"}
-                      </td>
-                      <td
-                        className="text-right tabular font-bold"
-                        style={{ color: up ? "var(--good)" : "var(--bad)" }}
-                      >
-                        {r.upsidePct != null
-                          ? `${up ? "+" : ""}${r.upsidePct.toFixed(1)}%`
-                          : "—"}
-                      </td>
-                      <td className="text-right tabular text-[12px] text-mute whitespace-nowrap">
-                        {r.targetLow && r.targetHigh
-                          ? `$${r.targetLow.toFixed(0)}–$${r.targetHigh.toFixed(0)}`
-                          : "—"}
-                      </td>
-                      <td className="text-right tabular text-mute">
-                        {r.numAnalysts ?? "—"}
-                      </td>
-                    </motion.tr>
+                      {r.upsidePct != null
+                        ? `${up ? "+" : ""}${r.upsidePct.toFixed(1)}%`
+                        : "—"}
+                    </span>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                },
+              },
+              {
+                key: "range",
+                label: "Range",
+                filterable: true,
+                filterLabel: (r) =>
+                  r.targetLow && r.targetHigh
+                    ? `$${r.targetLow.toFixed(0)}–$${r.targetHigh.toFixed(0)}`
+                    : "",
+                align: "right",
+                sortValue: (r) => r.targetLow,
+                render: (r) => (
+                  <span className="tabular text-[14px] font-bold text-mute whitespace-nowrap">
+                    {r.targetLow && r.targetHigh
+                      ? `$${r.targetLow.toFixed(0)}–$${r.targetHigh.toFixed(0)}`
+                      : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "numAnalysts",
+                label: "Analysts",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.numAnalysts,
+                render: (r) => (
+                  <span className="tabular text-mute text-[14px] font-bold">{r.numAnalysts ?? "—"}</span>
+                ),
+              },
+            ]}
+          />
+        )}
       </div>
 
       <p className="text-[11px] text-faint">

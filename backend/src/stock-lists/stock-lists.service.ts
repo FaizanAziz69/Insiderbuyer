@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { IqsService, RankingRow } from '../iqs/iqs.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
+import { ThirteenFService } from './thirteenf.service';
 import {
   BLUE_CHIP_MIN_MARKET_CAP,
   COUNTRY_UNIVERSE,
@@ -42,6 +43,7 @@ export interface StockListFilters {
   sector?: string;
   minMarketCap?: number;
   maxMarketCap?: number;
+  minIqs?: number;           // IQS score band (now an open filter)
   sentiment?: string;        // pay-gated
   analystConsensus?: string; // pay-gated
 }
@@ -51,6 +53,7 @@ export class StockListsService {
   constructor(
     private readonly iqs: IqsService,
     private readonly marketStats: MarketStatsService,
+    private readonly thirteenF: ThirteenFService,
   ) {}
 
   /** Deterministic per-day jitter in [-1, 1] for synthesized quotes. */
@@ -168,6 +171,7 @@ export class StockListsService {
         sector: filters.sector,
         minMarketCap: filters.minMarketCap,
         maxMarketCap: filters.maxMarketCap,
+        minIqs: filters.minIqs,
       });
       // Drop rows whose SEC mapping yielded no usable ticker symbol.
       const rows = rawRows.filter(
@@ -201,7 +205,11 @@ export class StockListsService {
     }
 
     if (meta.kind === 'persona') {
-      let rows = PERSONA_HOLDINGS[slug] || [];
+      // Prefer the latest real 13F-HR from SEC EDGAR for institutional filers
+      // (Buffett/Dalio/Sprott); fall back to the curated list for individuals
+      // (Bezos/Trump) who don't file 13Fs, or if the live fetch fails.
+      const live13f = await this.thirteenF.getHoldings(slug);
+      let rows = live13f && live13f.length ? live13f : PERSONA_HOLDINGS[slug] || [];
       if (filters.sector) {
         rows = rows.filter((r) =>
           r.sector.toLowerCase().includes(filters.sector!.toLowerCase()),
@@ -244,6 +252,7 @@ export class StockListsService {
         sector: filters.sector,
         minMarketCap: Math.max(filters.minMarketCap ?? 0, BLUE_CHIP_MIN_MARKET_CAP),
         maxMarketCap: filters.maxMarketCap,
+        minIqs: filters.minIqs,
       });
     } else {
       const rx = SECTOR_LIST_RULES[slug];
@@ -254,9 +263,13 @@ export class StockListsService {
         sector: filters.sector,
         minMarketCap: filters.minMarketCap,
         maxMarketCap: filters.maxMarketCap,
+        minIqs: filters.minIqs,
       });
     }
-    const rows = this.topUpWithUniverse(slug, base.rows, filters);
+    // When an IQS band is selected, don't pad with the (unscored) universe.
+    const rows = filters.minIqs
+      ? base.rows
+      : this.topUpWithUniverse(slug, base.rows, filters);
     return { total: rows.length, rows };
   }
 

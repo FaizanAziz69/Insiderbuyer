@@ -1,6 +1,8 @@
 "use client";
+import { Suspense } from "react";
 import useSWR from "swr";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowRight, Calendar, FileText, User } from "lucide-react";
 import {
@@ -27,13 +29,66 @@ const KIND_LABELS: Record<BlogKind, string> = {
   "topic-roundup": "News Roundup",
 };
 
+// "Most-read"/popular ordering: high-signal editorial kinds float to the top.
+// We have no read-count metric, so this deterministic priority stands in for it.
+const POPULAR_WEIGHT: Partial<Record<BlogKind, number>> = {
+  "top-iqs": 6,
+  "cluster-buy": 5,
+  "ceo-buying": 4,
+  "ticker-deep-dive": 3,
+  "weekly-report": 2,
+  "sector-roundup": 1,
+};
+
+const SORT_COPY: Record<
+  string,
+  { eyebrow: string; title: string; blurb: string }
+> = {
+  latest: {
+    eyebrow: "LATEST",
+    title: "Latest Financial News",
+    blurb:
+      "The freshest editorial briefings, newest first — synthesised from today’s SEC Form 4 filings and our IQS scoring engine.",
+  },
+  popular: {
+    eyebrow: "POPULAR",
+    title: "Popular Articles",
+    blurb:
+      "The most-read insider-buying stories — top IQS picks, cluster buys and CEO purchases drawn from the live Form 4 feed.",
+  },
+};
+
 export default function InsightsIndexPage() {
+  return (
+    <Suspense fallback={<div className="h-screen" />}>
+      <InsightsIndexInner />
+    </Suspense>
+  );
+}
+
+function InsightsIndexInner() {
+  const sort = useSearchParams().get("sort") || "";
+  const copy = SORT_COPY[sort] ?? {
+    eyebrow: "INSIGHTS",
+    title: "Insider Buying Insights",
+    blurb:
+      "Editorial briefings synthesised from today’s SEC Form 4 filings and our proprietary IQS scoring engine. New posts published every morning from the live insider-buying feed.",
+  };
+
   const { data, isLoading } = useSWR<BlogListResponse>(
     `${API_BASE}/content/blogs?limit=40`,
     fetcher,
     { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
-  const items = data?.items || [];
+  const base = data?.items || [];
+  // "latest" = newest first (API default order); "popular" = high-signal kinds first.
+  const items =
+    sort === "popular"
+      ? [...base].sort(
+          (a, b) =>
+            (POPULAR_WEIGHT[b.kind] ?? 0) - (POPULAR_WEIGHT[a.kind] ?? 0),
+        )
+      : base;
   const featured = items[0];
   const rest = items.slice(1);
   const covers = assignUniquePhotos(
@@ -53,7 +108,7 @@ export default function InsightsIndexPage() {
           }}
         >
           <FileText className="inline-block h-3 w-3 mr-1.5 -mt-0.5" />
-        
+          {copy.eyebrow}
         </div>
         <h1
           className="font-bold tracking-tight"
@@ -63,15 +118,13 @@ export default function InsightsIndexPage() {
             lineHeight: 1.05,
           }}
         >
-          Insider Buying Insights
+          {copy.title}
         </h1>
         <p
           className="mt-4 max-w-3xl leading-relaxed"
           style={{ color: "var(--text-soft)", fontSize: 17 }}
         >
-          Editorial briefings synthesised from today&rsquo;s SEC Form 4 filings and
-          our proprietary IQS scoring engine. New posts published every morning
-          from the live insider-buying feed.
+          {copy.blurb}
         </p>
       </header>
 

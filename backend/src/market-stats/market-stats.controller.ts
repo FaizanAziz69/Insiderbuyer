@@ -36,6 +36,45 @@ export class MarketStatsController {
     return { rows };
   }
 
+  @Get('stats')
+  async stats(@Query('symbol') symbol?: string) {
+    if (!symbol) return { stats: null };
+    return { stats: await this.svc.getStockStats(symbol) };
+  }
+
+  /** Multi-period % returns for the heatmap time-period toggle. */
+  @Get('performance')
+  async performance(@Query('symbols') symbols?: string) {
+    const syms = (symbols || '')
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean)
+      .slice(0, 150);
+    return { returns: await this.svc.getReturns(syms) };
+  }
+
+  /** stockanalysis.com-style detail tabs. */
+  @Get('profile')
+  async profile(@Query('symbol') symbol?: string) {
+    if (!symbol) return { profile: null };
+    return { profile: await this.svc.getProfile(symbol) };
+  }
+
+  @Get('financials')
+  async financials(@Query('symbol') symbol?: string) {
+    if (!symbol) return { financials: null };
+    return { financials: await this.svc.getFinancials(symbol) };
+  }
+
+  @Get('history')
+  async history(
+    @Query('symbol') symbol?: string,
+    @Query('range') range?: string,
+  ) {
+    if (!symbol) return { history: null };
+    return { history: await this.svc.getPriceHistory(symbol, range || '1y') };
+  }
+
   @Get('analyst-ratings')
   async analystRatings() {
     return { rows: await this.svc.getAnalystRatings() };

@@ -8,8 +8,20 @@ import {
   BlogListResponse,
   BlogPostListItem,
   fetcher,
+  formatRelative,
 } from "@/lib/api";
+import { authorFor } from "@/lib/byline";
 import { AiCoverImage } from "./AiCoverImage";
+
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
 
 const SLIDES = 3;
 const PER_SLIDE = 4; // 1 big + 3 thumbs
@@ -84,7 +96,7 @@ export function AiFeaturedHero() {
   const thumbs = slide.slice(1);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="relative flex flex-col h-full">
       <div className="relative overflow-hidden flex-1 min-h-0">
         <AnimatePresence mode="wait">
           <motion.section
@@ -101,7 +113,7 @@ export function AiFeaturedHero() {
               <HeroCard item={big} size="big" eager />
             </div>
             {thumbs.length > 0 && (
-              <div className="flex gap-3 sm:gap-4 w-full flex-shrink-0" style={{ height: 150 }}>
+              <div className="flex gap-3 sm:gap-4 w-full flex-shrink-0" style={{ height: 168 }}>
                 {thumbs.map((it) => (
                   <div key={it.slug} className="flex-1 min-w-0 h-full">
                     <HeroCard item={it} size="small" />
@@ -113,9 +125,14 @@ export function AiFeaturedHero() {
         </AnimatePresence>
       </div>
 
-      {/* Dot navigation */}
+      {/* Dot navigation — floated just below the images (out of the column
+          flow) so the images fill the full height and line up with the
+          buy/sell bar, while the dots still sit underneath. */}
       {groups.length > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-4 flex-shrink-0">
+        <div
+          className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center gap-2"
+          style={{ bottom: -22 }}
+        >
           {groups.map((_, i) => (
             <button
               key={i}
@@ -148,10 +165,7 @@ function HeroCard({
   size: "big" | "small";
   eager?: boolean;
 }) {
-  const titleSize =
-    size === "big" ? "text-[20px] sm:text-[26px]" : "text-[12px] sm:text-[13px]";
-  const eyebrowSize = size === "big" ? "text-[11px]" : "text-[9px]";
-  const padding = size === "big" ? "p-5 sm:p-6" : "p-2.5 sm:p-3";
+  const author = authorFor(item.kind, item.slug);
 
   return (
     <Link
@@ -170,41 +184,81 @@ function HeroCard({
         style={{ width: "100%", height: "100%" }}
         className="transition-transform duration-500 group-hover:scale-105"
       />
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.78) 100%)",
-        }}
-      />
-      <div
-        className={`absolute bottom-0 left-0 right-0 ${padding}`}
-        style={{ color: "#ffffff" }}
-      >
+      {size === "big" ? (
+        /* Frosted translucent white caption — the image shows through a
+           semi-transparent white panel (backdrop blur), with dark text.
+           Matches MarketBeat's hero caption. */
         <div
-          className={`uppercase font-extrabold mb-1.5 ${eyebrowSize}`}
+          className="absolute left-4 right-4 bottom-4 sm:left-6 sm:right-6 sm:bottom-6 rounded-lg p-4 sm:p-5"
           style={{
-            color: "#ffd56a",
-            letterSpacing: "0.12em",
-            textShadow: "0 1px 2px rgba(0,0,0,0.6)",
+            background: "rgba(255,255,255,0.82)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            boxShadow: "0 12px 32px rgba(0,0,0,0.22)",
           }}
         >
-          {item.eyebrow || item.kind.replace(/-/g, " ").toUpperCase()}
-          {item.ticker && (
-            <span className="ml-2 font-mono opacity-90">· {item.ticker}</span>
-          )}
+          <div
+            className="uppercase font-extrabold mb-1.5 text-[11px]"
+            style={{ color: "#1565a0", letterSpacing: "0.12em" }}
+          >
+            {item.eyebrow || item.kind.replace(/-/g, " ").toUpperCase()}
+            {item.ticker && (
+              <span className="ml-2 font-mono">· {item.ticker}</span>
+            )}
+          </div>
+          <h3
+            className="font-bold leading-tight line-clamp-2 text-[20px] sm:text-[26px]"
+            style={{ color: "#0f1d33", letterSpacing: "-0.01em" }}
+          >
+            {item.title}
+          </h3>
+          <div className="flex items-center gap-2.5 mt-3">
+            <span
+              className="inline-flex items-center justify-center h-8 w-8 rounded-full text-[11px] font-bold text-white flex-shrink-0"
+              style={{ background: "linear-gradient(135deg, #1565a0, #0f1d33)" }}
+            >
+              {initials(author.name)}
+            </span>
+            <div className="leading-tight">
+              <div
+                className="uppercase font-bold text-[11px]"
+                style={{ color: "#243447", letterSpacing: "0.06em" }}
+              >
+                By {author.name}
+              </div>
+              <div
+                className="uppercase text-[10px]"
+                style={{ color: "#5b6b7a", letterSpacing: "0.06em" }}
+              >
+                {formatRelative(item.generatedAt)}
+              </div>
+            </div>
+          </div>
         </div>
-        <h3
-          className={`font-semibold leading-tight line-clamp-3 ${titleSize}`}
+      ) : (
+        /* Thumbs: compact frosted translucent white band with dark title. */
+        <div
+          className="absolute left-0 right-0 bottom-0 px-3 py-2.5"
           style={{
-            color: "#ffffff",
-            letterSpacing: "-0.01em",
-            textShadow: "0 2px 6px rgba(0,0,0,0.5), 0 0 12px rgba(0,0,0,0.3)",
+            background: "rgba(255,255,255,0.82)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
           }}
         >
-          {item.title}
-        </h3>
-      </div>
+          <div
+            className="uppercase font-extrabold mb-0.5 text-[9px]"
+            style={{ color: "#1565a0", letterSpacing: "0.1em" }}
+          >
+            {item.ticker || item.kind.replace(/-/g, " ").toUpperCase()}
+          </div>
+          <h3
+            className="font-bold leading-snug line-clamp-2 text-[12px] sm:text-[13px]"
+            style={{ color: "#0f1d33" }}
+          >
+            {item.title}
+          </h3>
+        </div>
+      )}
     </Link>
   );
 }

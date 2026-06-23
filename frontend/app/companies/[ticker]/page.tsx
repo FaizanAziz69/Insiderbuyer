@@ -13,6 +13,12 @@ import {
 } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
 import { CompanyLogo } from "@/components/CompanyLogo";
+import { StockStatsGrid } from "@/components/StockStatsGrid";
+import {
+  StockDetailTabBar,
+  StockDetailPanel,
+  DetailView,
+} from "@/components/stock/StockDetailTabs";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { RightRailArticles } from "@/components/article/RightRailArticles";
 import { RightRailStockLists } from "@/components/article/RightRailStockLists";
@@ -50,6 +56,7 @@ export default function CompanyPage({
     { revalidateOnFocus: false },
   );
   const [tab, setTab] = useState<Tab>("all");
+  const [view, setView] = useState<DetailView>("overview");
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -105,7 +112,7 @@ export default function CompanyPage({
                     </div>
                   </div>
                 </div>
-                {data.score && data.company.lastPrice !== null && (
+                {data.company.lastPrice !== null && (
                   <div className="sm:ml-auto text-right">
                     <div className="text-mute text-[11px] uppercase tracking-wider font-mono font-bold">
                       Last
@@ -113,20 +120,46 @@ export default function CompanyPage({
                     <div className="text-[26px] font-semibold tabular tracking-tight mt-1">
                       ${data.company.lastPrice.toFixed(2)}
                     </div>
-                    <div className="inline-flex items-center gap-1 text-[12px] mt-0.5">
-                      <IqsTooltip>
-                        <span className="font-mono font-bold text-accent underline decoration-dotted underline-offset-2">
-                          IQS
+                    {data.score && (
+                      <div className="inline-flex items-center gap-1 text-[12px] mt-0.5">
+                        <IqsTooltip>
+                          <span className="font-mono font-bold text-accent underline decoration-dotted underline-offset-2">
+                            IQS
+                          </span>
+                        </IqsTooltip>{" "}
+                        <span className="font-bold tabular text-accent">
+                          {Number(data.score.iqs).toFixed(1)}/100
                         </span>
-                      </IqsTooltip>{" "}
-                      <span className="font-bold tabular text-accent">
-                        {Number(data.score.iqs).toFixed(1)}/100
-                      </span>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </header>
+
+            {/* stockanalysis.com-style tab bar */}
+            <StockDetailTabBar active={view} onChange={setView} />
+
+            {/* Non-overview tabs render their own panel */}
+            {view !== "overview" && data.company.ticker && (
+              <StockDetailPanel
+                ticker={data.company.ticker}
+                view={view}
+                fallbackMarketCap={data.company.marketCap}
+                fallbackPrice={data.company.lastPrice}
+              />
+            )}
+
+            {view === "overview" && (
+              <>
+            {/* Full fundamentals grid (stockanalysis.com-style) */}
+            {data.company.ticker && (
+              <StockStatsGrid
+                ticker={data.company.ticker}
+                fallbackMarketCap={data.company.marketCap}
+                fallbackPrice={data.company.lastPrice}
+              />
+            )}
 
             {/* Section 1: Insider Trading Activity */}
             <section>
@@ -146,24 +179,7 @@ export default function CompanyPage({
               </p>
             </section>
 
-            {/* Filter bar (read-only / display) */}
-            <div
-              className="card p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-[12px]"
-              style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
-            >
-              <FilterDisplay label="Country" value="USA (NYSE & NASDAQ)" />
-              <FilterDisplay label="Sector" value={data.company.sector || "All"} />
-              <FilterDisplay label="Market Cap" value={data.company.marketCap ? formatCurrency(data.company.marketCap) : "—"} />
-              <FilterDisplay
-                label="IQS Score"
-                value="Premium"
-                premium
-              />
-              <FilterDisplay label="Transaction Size" value="$25,000+" />
-              <FilterDisplay label="Reporting Date" value="Last 90 days" />
-            </div>
-
-            {/* Insider trading table */}
+            {/* Insider trading table — sort/filter via the column headers */}
             <div className="card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="table-base">
@@ -196,8 +212,8 @@ export default function CompanyPage({
                             transition={{ duration: 0.18, delay: Math.min(i, 12) * 0.02 }}
                           >
                             <td>
-                              <div className="text-[13px] font-bold">{t.insiderName}</div>
-                              <div className="text-[11px] text-mute">{t.role || t.rawTitle}</div>
+                              <div className="text-[15px] font-bold">{t.insiderName}</div>
+                              <div className="text-[12px] text-mute">{t.role || t.rawTitle}</div>
                             </td>
                             <td>
                               <span
@@ -212,18 +228,18 @@ export default function CompanyPage({
                                 {isBuy ? "Buy" : t.transactionCode === "S" ? "Sell" : t.transactionCode}
                               </span>
                             </td>
-                            <td className="text-right tabular">
+                            <td className="text-right tabular text-[14px] font-bold">
                               {formatNumber(Number(t.sharesBought))}
                             </td>
-                            <td className="text-right tabular font-semibold">
+                            <td className="text-right tabular font-bold text-[14px]">
                               {formatCurrency(Number(t.totalValue))}
                             </td>
-                            <td className="text-right tabular text-mute">
+                            <td className="text-right tabular text-mute text-[14px] font-bold">
                               {t.postHoldings != null
                                 ? formatNumber(Number(t.postHoldings))
                                 : "—"}
                             </td>
-                            <td className="text-[12px] text-soft">
+                            <td className="text-[14px] font-bold tabular text-soft">
                               {formatShortDate(t.transactionDate)}
                             </td>
                             <td>
@@ -325,8 +341,8 @@ export default function CompanyPage({
                                 </span>
                               </td>
                               <td>
-                                <div className="text-[13px] font-bold">{t.insiderName}</div>
-                                <div className="text-[11px] text-mute">{t.role}</div>
+                                <div className="text-[15px] font-bold">{t.insiderName}</div>
+                                <div className="text-[12px] text-mute">{t.role}</div>
                               </td>
                               <td>
                                 <span
@@ -336,10 +352,10 @@ export default function CompanyPage({
                                   {isBuy ? "Buy" : t.transactionCode === "S" ? "Sell" : t.transactionCode}
                                 </span>
                               </td>
-                              <td className="text-right tabular font-semibold">
+                              <td className="text-right tabular font-bold text-[14px]">
                                 {formatCurrency(Number(t.totalValue))}
                               </td>
-                              <td className="text-[12px] text-soft">
+                              <td className="text-[14px] font-bold tabular text-soft">
                                 {formatShortDate(t.transactionDate)}
                               </td>
                             </tr>
@@ -371,7 +387,7 @@ export default function CompanyPage({
                                     size={28}
                                   />
                                   <div className="min-w-0">
-                                    <div className="text-[13px] font-bold truncate">
+                                    <div className="text-[15px] font-bold truncate">
                                       {c.politicianName}
                                     </div>
                                     <div className="text-[10px] uppercase tracking-wider font-bold text-mute">
@@ -388,12 +404,12 @@ export default function CompanyPage({
                                   {c.action}
                                 </span>
                               </td>
-                              <td className="text-right tabular text-[13px] font-semibold">
+                              <td className="text-right tabular text-[14px] font-bold">
                                 {c.amountMin != null && c.amountMax != null
                                   ? `${formatCurrency(c.amountMin)} – ${formatCurrency(c.amountMax)}`
                                   : "—"}
                               </td>
-                              <td className="text-[12px] text-soft">
+                              <td className="text-[14px] font-bold tabular text-soft">
                                 {formatShortDate(c.transactionDate)}
                               </td>
                             </tr>
@@ -461,6 +477,8 @@ export default function CompanyPage({
                 hideIfEmpty
               />
             </section>
+              </>
+            )}
           </main>
 
           {/* Right rail */}
@@ -472,34 +490,6 @@ export default function CompanyPage({
           </aside>
         </div>
       )}
-    </div>
-  );
-}
-
-function FilterDisplay({
-  label,
-  value,
-  premium,
-}: {
-  label: string;
-  value: string;
-  premium?: boolean;
-}) {
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wider font-bold text-mute mb-1">
-        {label}
-      </div>
-      <div
-        className="px-3 py-1.5 rounded-md text-[12px] font-semibold truncate"
-        style={{
-          background: premium ? "var(--bg-3)" : "var(--bg-2)",
-          border: `1px solid ${premium ? "color-mix(in srgb, var(--accent) 30%, var(--border))" : "var(--border-strong)"}`,
-          color: premium ? "var(--accent)" : "var(--text)",
-        }}
-      >
-        {value}
-      </div>
     </div>
   );
 }

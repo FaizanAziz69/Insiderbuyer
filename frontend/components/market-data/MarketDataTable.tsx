@@ -1,8 +1,8 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { Activity, ArrowDown, ArrowUp, BarChart3, Flame } from "lucide-react";
+import { ArrowDown, ArrowUp, Flame } from "lucide-react";
+import { DataTable, Column } from "@/components/DataTable";
 import {
   API_BASE,
   fetcher,
@@ -37,6 +37,125 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
   );
   const rows = data?.rows || [];
 
+  const columns: Column<MarketStatRow>[] = [
+    {
+      key: "rank",
+      label: "#",
+      sortable: false,
+      render: (_r, i) => (
+        <span className="text-faint text-[11px] tabular">{i + 1}</span>
+      ),
+    },
+    {
+      key: "symbol",
+      label: "Ticker",
+      filterable: true,
+      sortValue: (r) => r.symbol,
+      render: (r) => (
+        <Link
+          href={`/companies/${encodeURIComponent(r.symbol)}`}
+          className="font-mono text-[15px] font-bold text-accent hover:underline"
+        >
+          {r.symbol}
+        </Link>
+      ),
+    },
+    {
+      key: "name",
+      label: "Company",
+      filterable: true,
+      sortValue: (r) => r.name,
+      render: (r) => <span className="truncate max-w-[280px] text-[12px]">{r.name}</span>,
+    },
+    {
+      key: "price",
+      label: "Price",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (r) => r.price,
+      render: (r) => (
+        <span className="tabular font-bold text-[14px]">${r.price.toFixed(2)}</span>
+      ),
+    },
+    {
+      key: "changeAbs",
+      label: "Change",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (r) => r.changeAbs,
+      render: (r) => {
+        const up = r.changePct >= 0;
+        return (
+          <span
+            className="tabular font-bold text-[14px]"
+            style={{ color: up ? "var(--good)" : "var(--bad)" }}
+          >
+            {up ? "+" : ""}
+            {r.changeAbs.toFixed(2)}
+          </span>
+        );
+      },
+    },
+    {
+      key: "changePct",
+      label: "% Change",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (r) => r.changePct,
+      render: (r) => {
+        const up = r.changePct >= 0;
+        return (
+          <span
+            className="tabular font-bold text-[14px]"
+            style={{ color: up ? "var(--good)" : "var(--bad)" }}
+          >
+            <span className="inline-flex items-center gap-0.5">
+              {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+              {up ? "+" : ""}
+              {r.changePct.toFixed(2)}%
+            </span>
+          </span>
+        );
+      },
+    },
+    {
+      key: "volume",
+      label: "Volume",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (r) => r.volume,
+      render: (r) => <span className="tabular text-[14px] font-bold">{formatNumber(r.volume)}</span>,
+    },
+    {
+      key: "avgVolume",
+      label: "Avg Volume",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (r) => r.avgVolume,
+      render: (r) => (
+        <span className="tabular text-mute text-[14px] font-bold">{formatNumber(r.avgVolume)}</span>
+      ),
+    },
+    {
+      key: "marketCap",
+      label: "Market Cap",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (r) => r.marketCap,
+      render: (r) => (
+        <span className="tabular text-mute text-[14px] font-bold">
+          {r.marketCap ? formatCurrency(r.marketCap) : "—"}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <header>
@@ -54,88 +173,25 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
       </header>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Ticker</th>
-                <th>Company</th>
-                <th className="text-right">Price</th>
-                <th className="text-right">Change</th>
-                <th className="text-right">% Change</th>
-                <th className="text-right">Volume</th>
-                <th className="text-right">Avg Volume</th>
-                <th className="text-right">Market Cap</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
+        {isLoading ? (
+          <div className="overflow-x-auto">
+            <table className="table-base">
+              <tbody>
                 <tr>
-                  <td colSpan={9} className="text-center text-mute py-10">
-                    Loading…
-                  </td>
+                  <td className="text-center text-mute py-10">Loading…</td>
                 </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="text-center text-mute py-10">
-                    No rows.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r, i) => {
-                  const up = r.changePct >= 0;
-                  return (
-                    <motion.tr
-                      key={r.symbol}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.18, delay: Math.min(i, 12) * 0.02 }}
-                    >
-                      <td className="text-faint text-[12px] tabular">{i + 1}</td>
-                      <td>
-                        <Link
-                          href={`/companies/${encodeURIComponent(r.symbol)}`}
-                          className="font-mono text-sm font-bold text-accent hover:underline"
-                        >
-                          {r.symbol}
-                        </Link>
-                      </td>
-                      <td className="truncate max-w-[280px]">{r.name}</td>
-                      <td className="text-right tabular font-semibold">
-                        ${r.price.toFixed(2)}
-                      </td>
-                      <td
-                        className="text-right tabular font-semibold"
-                        style={{ color: up ? "var(--good)" : "var(--bad)" }}
-                      >
-                        {up ? "+" : ""}
-                        {r.changeAbs.toFixed(2)}
-                      </td>
-                      <td
-                        className="text-right tabular font-bold"
-                        style={{ color: up ? "var(--good)" : "var(--bad)" }}
-                      >
-                        <span className="inline-flex items-center gap-0.5">
-                          {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                          {up ? "+" : ""}
-                          {r.changePct.toFixed(2)}%
-                        </span>
-                      </td>
-                      <td className="text-right tabular">{formatNumber(r.volume)}</td>
-                      <td className="text-right tabular text-mute">
-                        {formatNumber(r.avgVolume)}
-                      </td>
-                      <td className="text-right tabular text-mute">
-                        {r.marketCap ? formatCurrency(r.marketCap) : "—"}
-                      </td>
-                    </motion.tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <DataTable<MarketStatRow>
+            rows={rows}
+            rowKey={(r) => r.symbol}
+            initialSort={{ key: "changePct", dir: "desc" }}
+            empty="No rows."
+            columns={columns}
+          />
+        )}
       </div>
     </div>
   );

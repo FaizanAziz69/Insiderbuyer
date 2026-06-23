@@ -63,3 +63,13 @@ export function bylineFor(
 ): string {
   return authorFor(kind, seed).name;
 }
+
+/** Editorial reviewers — the "Reviewed by {name}" credit, MarketBeat-style.
+ *  A small, separate desk so the reviewer never collides with the writer. */
+const REVIEWERS = ["Shannon Harms", "Chris Markoch", "Rebecca McClay", "Liz Manning"];
+
+/** Reviewer name for "Reviewed by {name}", stable per article via the slug. */
+export function reviewerFor(seed?: string | null): string {
+  const key = seed && seed.length ? seed : "editorial";
+  return REVIEWERS[hash(key + "rev") % REVIEWERS.length];
+}

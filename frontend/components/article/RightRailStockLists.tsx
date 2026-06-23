@@ -1,61 +1,136 @@
 "use client";
 import Link from "next/link";
-import { ChevronRight, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
 
-const POPULAR_LISTS = [
-  { slug: "tech", title: "Tech Stocks" },
-  { slug: "gold", title: "Gold Stocks" },
-  { slug: "blue-chip", title: "Blue Chip Stocks" },
-  { slug: "warren-buffett", title: "Warren Buffett Portfolio" },
-  { slug: "politicians", title: "Politicians (Congressional)" },
+/** A MarketBeat-style section heading: bold title on the left, an uppercase
+ *  "see all" link pushed to the right. */
+function SectionHeading({ title, link }: { title: string; link: { href: string; label: string } }) {
+  return (
+    <div
+      className="flex items-end justify-between mb-2.5 pb-1"
+      style={{ borderBottom: "2px solid var(--border-strong)" }}
+    >
+      <h2 className="font-bold tracking-tight" style={{ fontSize: 20 }}>
+        {title}
+      </h2>
+      <Link
+        href={link.href}
+        className="text-[11px] uppercase font-bold tracking-wider text-accent hover:underline whitespace-nowrap pb-0.5 inline-flex items-center gap-0.5"
+      >
+        {link.label}
+        <ChevronRight className="h-3 w-3" />
+      </Link>
+    </div>
+  );
+}
+
+/** Pill cloud — first pill rendered "filled" (active), the rest "outline",
+ *  exactly like MarketBeat's link-cloud. */
+function PillCloud({ pills }: { pills: { href: string; label: string }[] }) {
+  return (
+    <ul className="flex flex-wrap gap-2 list-none p-0 m-0">
+      {pills.map((p, i) => (
+        <li key={p.label} className="inline-block">
+          <Link
+            href={p.href}
+            className="inline-block text-[13px] font-semibold rounded-full px-3 py-1 transition"
+            style={
+              i === 0
+                ? { background: "var(--accent)", color: "#fff", border: "1px solid var(--accent)" }
+                : {
+                    background: "var(--bg-2)",
+                    color: "var(--accent)",
+                    border: "1px solid var(--border-strong)",
+                  }
+            }
+          >
+            {p.label}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const STOCK_LIST_PILLS = [
+  { href: "/stock-lists/tech", label: "Tech" },
+  { href: "/stock-lists/biotech", label: "Biotech" },
+  { href: "/stock-lists/blue-chip", label: "Blue Chip" },
+  { href: "/stock-lists/faang", label: "FAANG" },
+  { href: "/stock-lists/gold", label: "Gold" },
+  { href: "/stock-lists/large-cap", label: "Large Cap" },
+  { href: "/stock-lists/oil", label: "Oil" },
+  { href: "/stock-lists/reits", label: "REITs" },
+  { href: "/stock-lists/small-cap", label: "Small Cap" },
+  { href: "/stock-lists/warren-buffett", label: "Warren Buffett" },
+];
+
+const INVESTING_TOOL_PILLS = [
+  { href: "/analyst-ratings", label: "Analyst Ratings" },
+  { href: "/congressional-trades", label: "Congressional Trading" },
+  { href: "/dividends", label: "Dividends" },
+  { href: "/earnings", label: "Earnings" },
+  { href: "/trades", label: "Insider Trades" },
+  { href: "/movers", label: "Top Movers" },
+  { href: "/watchlist", label: "Portfolio Monitoring" },
+  { href: "/short-interest", label: "Short Interest" },
+  { href: "/sectors", label: "Sector Performance" },
+  { href: "/screener", label: "Stock Screener" },
 ];
 
 export function RightRailStockLists() {
+  const router = useRouter();
+  const [q, setQ] = useState("");
+
   return (
-    <aside
-      className="rounded-lg overflow-hidden"
-      style={{
-        background: "var(--bg-2)",
-        border: "1px solid var(--border)",
-      }}
-    >
-      <div
-        className="px-4 py-2.5 border-b text-[10px] uppercase tracking-[0.18em] font-bold text-mute font-mono"
-        style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
-      >
-        Stock Lists
-      </div>
-      <ul className="divide-y divide-[var(--border)]">
-        {POPULAR_LISTS.map((l) => (
-          <li key={l.slug}>
-            <Link
-              href={`/stock-lists/${l.slug}`}
-              className="flex items-center justify-between px-4 py-2.5 hover:bg-[var(--accent-soft)] transition group"
-            >
-              <span className="text-[13px] font-semibold text-soft group-hover:text-accent transition">
-                {l.title}
-              </span>
-              <ChevronRight className="h-3.5 w-3.5 text-faint group-hover:text-accent" />
-            </Link>
-          </li>
-        ))}
-        <li>
-          <Link
-            href="/stock-lists/iqs-top-picks"
-            className="flex items-center justify-between px-4 py-3"
-            style={{
-              background:
-                "linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, transparent), color-mix(in srgb, var(--accent-2) 12%, transparent))",
-            }}
+    <div className="space-y-6">
+      {/* Stock Lists */}
+      <section>
+        <SectionHeading title="Stock Lists" link={{ href: "/stock-lists", label: "All Stock Lists" }} />
+        <PillCloud pills={STOCK_LIST_PILLS} />
+      </section>
+
+      {/* Investing Tools */}
+      <section>
+        <SectionHeading title="Investing Tools" link={{ href: "/market-data", label: "Calendars and Tools" }} />
+        <PillCloud pills={INVESTING_TOOL_PILLS} />
+      </section>
+
+      {/* Search Headlines */}
+      <section>
+        <SectionHeading title="Search Headlines" link={{ href: "/insights", label: "All Headlines" }} />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            router.push(`/insights?q=${encodeURIComponent(q.trim())}`);
+          }}
+          className="flex gap-2"
+        >
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-faint pointer-events-none" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Find an Article"
+              className="w-full pl-9 pr-3 py-2 rounded-md text-[13px]"
+              style={{
+                background: "var(--bg-1)",
+                border: "1px solid var(--border-strong)",
+                color: "var(--text)",
+              }}
+            />
+          </div>
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-md text-[13px] font-bold whitespace-nowrap"
+            style={{ background: "var(--accent)", color: "#fff" }}
           >
-            <span className="inline-flex items-center gap-1.5 text-[13px] font-bold text-accent">
-              <Sparkles className="h-3.5 w-3.5" />
-              IQS Top Picks · Premium
-            </span>
-            <ChevronRight className="h-3.5 w-3.5 text-accent" />
-          </Link>
-        </li>
-      </ul>
-    </aside>
+            Search
+          </button>
+        </form>
+      </section>
+    </div>
   );
 }

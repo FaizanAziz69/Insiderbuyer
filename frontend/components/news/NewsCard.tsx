@@ -39,7 +39,7 @@ export function NewsCard({ item, index = 0 }: { item: NewsItem; index?: number }
       transition={{ duration: 0.45, delay: 0.04 * index, ease: [0.22, 1, 0.36, 1] }}
     >
       <Link href={href} className="card card-lift block group overflow-hidden">
-        <div className="relative h-40 overflow-hidden bg-[var(--bg-3)]">
+        <div className="relative aspect-[16/9] overflow-hidden bg-[var(--bg-3)]">
           <div className="absolute inset-0">
             <NewsImage category={item.category} seed={seed} />
           </div>

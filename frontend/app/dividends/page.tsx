@@ -2,11 +2,11 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { Coins } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency, formatDate } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
+import { DataTable } from "@/components/DataTable";
 
 interface DividendRow {
   symbol: string;
@@ -81,81 +81,118 @@ export default function DividendsPage() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th>Company</th>
-                <th className="text-right">Price</th>
-                <th className="text-right">Div Yield</th>
-                <th className="text-right">Annual Rate</th>
-                <th className="text-right">Payout Ratio</th>
-                <th className="text-right">Ex-Div Date</th>
-                <th className="text-right">Market Cap</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="text-center text-mute py-10">
-                    Loading live dividend data…
-                  </td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center text-mute py-10">
-                    No matches.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r, i) => (
-                  <motion.tr
-                    key={r.symbol}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.18, delay: Math.min(i, 12) * 0.02 }}
+        {isLoading ? (
+          <div className="text-center text-mute py-10">
+            Loading live dividend data…
+          </div>
+        ) : (
+          <DataTable<DividendRow>
+            rows={rows}
+            rowKey={(r) => r.symbol}
+            empty="No matches."
+            columns={[
+              {
+                key: "company",
+                label: "Company",
+                filterable: true,
+                sortable: true,
+                sortValue: (r) => r.symbol,
+                render: (r) => (
+                  <Link
+                    href={`/companies/${encodeURIComponent(r.symbol)}`}
+                    className="flex items-center gap-2.5 min-w-[200px]"
                   >
-                    <td>
-                      <Link
-                        href={`/companies/${encodeURIComponent(r.symbol)}`}
-                        className="flex items-center gap-2.5 min-w-[200px]"
-                      >
-                        <CompanyLogo ticker={r.symbol} name={r.name} size={28} />
-                        <div className="min-w-0">
-                          <div className="font-mono text-[13px] font-bold text-accent">
-                            {r.symbol}
-                          </div>
-                          <div className="text-[11px] text-mute truncate max-w-[200px]">
-                            {r.name}
-                          </div>
-                        </div>
-                      </Link>
-                    </td>
-                    <td className="text-right tabular">${r.price.toFixed(2)}</td>
-                    <td
-                      className="text-right tabular font-bold"
-                      style={{ color: "var(--good)" }}
-                    >
-                      {r.dividendYield != null ? `${r.dividendYield.toFixed(2)}%` : "—"}
-                    </td>
-                    <td className="text-right tabular">
-                      {r.dividendRate != null ? `$${r.dividendRate.toFixed(2)}` : "—"}
-                    </td>
-                    <td className="text-right tabular text-mute">
-                      {r.payoutRatio != null ? `${r.payoutRatio.toFixed(0)}%` : "—"}
-                    </td>
-                    <td className="text-right tabular text-[12px] text-soft whitespace-nowrap">
-                      {r.exDividendDate ? formatDate(r.exDividendDate) : "—"}
-                    </td>
-                    <td className="text-right tabular text-mute">
-                      {r.marketCap ? formatCurrency(r.marketCap) : "—"}
-                    </td>
-                  </motion.tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    <CompanyLogo ticker={r.symbol} name={r.name} size={28} />
+                    <div className="min-w-0">
+                      <div className="font-mono text-[15px] font-bold text-accent">
+                        {r.symbol}
+                      </div>
+                      <div className="text-[12px] text-mute truncate max-w-[200px]">
+                        {r.name}
+                      </div>
+                    </div>
+                  </Link>
+                ),
+              },
+              {
+                key: "price",
+                label: "Price",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.price,
+                render: (r) => (
+                  <span className="tabular text-[14px] font-bold">${r.price.toFixed(2)}</span>
+                ),
+              },
+              {
+                key: "divYield",
+                label: "Div Yield",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.dividendYield,
+                render: (r) => (
+                  <span className="tabular font-bold text-[14px]" style={{ color: "var(--good)" }}>
+                    {r.dividendYield != null ? `${r.dividendYield.toFixed(2)}%` : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "annualRate",
+                label: "Annual Rate",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.dividendRate,
+                render: (r) => (
+                  <span className="tabular text-[14px] font-bold">
+                    {r.dividendRate != null ? `$${r.dividendRate.toFixed(2)}` : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "payoutRatio",
+                label: "Payout Ratio",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.payoutRatio,
+                render: (r) => (
+                  <span className="tabular text-mute text-[14px] font-bold">
+                    {r.payoutRatio != null ? `${r.payoutRatio.toFixed(0)}%` : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "exDivDate",
+                label: "Ex-Div Date",
+                filterable: true,
+                align: "right",
+                sortValue: (r) =>
+                  r.exDividendDate ? new Date(r.exDividendDate).getTime() : null,
+                render: (r) => (
+                  <span className="tabular text-[14px] font-bold text-soft whitespace-nowrap">
+                    {r.exDividendDate ? formatDate(r.exDividendDate) : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "marketCap",
+                label: "Market Cap",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.marketCap,
+                render: (r) => (
+                  <span className="tabular text-mute text-[14px] font-bold">
+                    {r.marketCap ? formatCurrency(r.marketCap) : "—"}
+                  </span>
+                ),
+              },
+            ]}
+          />
+        )}
       </div>
 
       <p className="text-[11px] text-faint">

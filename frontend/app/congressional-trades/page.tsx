@@ -2,12 +2,12 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { Landmark } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
+import { DataTable } from "@/components/DataTable";
 
 interface CongressTrade {
   id: string;
@@ -144,138 +144,153 @@ export default function CongressionalPage() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th>Politician</th>
-                <th>Ticker</th>
-                <th>Company</th>
-                <th>Action</th>
-                <th className="text-right">Amount</th>
-                <th>Transaction Date</th>
-                <th>Reported</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="text-center text-mute py-10">
-                    Loading…
-                  </td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center text-mute py-10">
-                    No congressional trades match these filters.
-                  </td>
-                </tr>
-              ) : (
-                rows.flatMap((r, i) => {
-                  const isBuy = r.action === "Buy";
-                  const row = (
-                    <motion.tr
-                      key={r.id}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.18, delay: Math.min(i, 12) * 0.02 }}
-                    >
-                      <td>
-                        <div className="flex items-center gap-3 min-w-[200px]">
-                          <PoliticianAvatar
-                            name={r.politicianName}
-                            photoUrl={r.photoUrl}
-                            party={r.party}
-                            size={36}
-                          />
-                          <div className="min-w-0">
-                            <div className="text-[13px] font-bold truncate">
-                              {r.politicianName}
-                            </div>
-                            <div className="text-[10px] uppercase tracking-wider font-bold text-mute flex items-center gap-1">
-                              <span
-                                className="px-1.5 py-0.5 rounded"
-                                style={{
-                                  background:
-                                    r.party === "D"
-                                      ? "color-mix(in srgb, #1e40af 18%, transparent)"
-                                      : r.party === "R"
-                                      ? "color-mix(in srgb, #b91c1c 18%, transparent)"
-                                      : "var(--bg-3)",
-                                  color:
-                                    r.party === "D"
-                                      ? "#1e40af"
-                                      : r.party === "R"
-                                      ? "#b91c1c"
-                                      : "var(--text-mute)",
-                                }}
-                              >
-                                {r.party || "—"}
-                              </span>
-                              <span>{r.chamber}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <Link
-                          href={`/companies/${encodeURIComponent(r.ticker)}`}
-                          className="inline-flex items-center gap-2"
-                        >
-                          <CompanyLogo
-                            ticker={r.ticker}
-                            name={r.companyName}
-                            size={22}
-                          />
-                          <span className="font-mono text-[13px] font-bold text-accent hover:underline">
-                            {r.ticker}
-                          </span>
-                        </Link>
-                      </td>
-                      <td className="truncate max-w-[240px] text-[13px]">
-                        {r.companyName}
-                      </td>
-                      <td>
+        {isLoading ? (
+          <div className="text-center text-mute py-10">Loading…</div>
+        ) : (
+          <DataTable<CongressTrade>
+            rows={rows}
+            rowKey={(r) => r.id}
+            initialSort={{ key: "transactionDate", dir: "desc" }}
+            empty="No congressional trades match these filters."
+            columns={[
+              {
+                key: "politician",
+                label: "Politician",
+                filterable: true,
+                sortValue: (r) => r.politicianName,
+                render: (r) => (
+                  <div className="flex items-center gap-3 min-w-[200px]">
+                    <PoliticianAvatar
+                      name={r.politicianName}
+                      photoUrl={r.photoUrl}
+                      party={r.party}
+                      size={36}
+                    />
+                    <div className="min-w-0">
+                      <div className="text-[15px] font-bold truncate">
+                        {r.politicianName}
+                      </div>
+                      <div className="text-[10px] uppercase tracking-wider font-bold text-mute flex items-center gap-1">
                         <span
-                          className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
+                          className="px-1.5 py-0.5 rounded"
                           style={{
-                            background: isBuy
-                              ? "color-mix(in srgb, var(--good) 18%, transparent)"
-                              : "color-mix(in srgb, var(--bad) 18%, transparent)",
-                            color: isBuy ? "var(--good)" : "var(--bad)",
+                            background:
+                              r.party === "D"
+                                ? "color-mix(in srgb, #1e40af 18%, transparent)"
+                                : r.party === "R"
+                                ? "color-mix(in srgb, #b91c1c 18%, transparent)"
+                                : "var(--bg-3)",
+                            color:
+                              r.party === "D"
+                                ? "#1e40af"
+                                : r.party === "R"
+                                ? "#b91c1c"
+                                : "var(--text-mute)",
                           }}
                         >
-                          {r.action}
+                          {r.party || "—"}
                         </span>
-                      </td>
-                      <td className="text-right tabular text-[13px] font-semibold">
-                        {amountRange(r.amountMin, r.amountMax)}
-                      </td>
-                      <td className="text-[12px] text-soft">
-                        {formatDateShort(r.transactionDate)}
-                      </td>
-                      <td className="text-[12px] text-mute">
-                        {formatDateShort(r.reportedDate)}
-                      </td>
-                    </motion.tr>
+                        <span>{r.chamber}</span>
+                      </div>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                key: "ticker",
+                label: "Ticker",
+                filterable: true,
+                sortValue: (r) => r.ticker,
+                render: (r) => (
+                  <Link
+                    href={`/companies/${encodeURIComponent(r.ticker)}`}
+                    className="inline-flex items-center gap-2"
+                  >
+                    <CompanyLogo ticker={r.ticker} name={r.companyName} size={22} />
+                    <span className="font-mono text-[15px] font-bold text-accent hover:underline">
+                      {r.ticker}
+                    </span>
+                  </Link>
+                ),
+              },
+              {
+                key: "company",
+                label: "Company",
+                filterable: true,
+                sortValue: (r) => r.companyName,
+                render: (r) => (
+                  <span className="truncate max-w-[240px] text-[12px]">
+                    {r.companyName}
+                  </span>
+                ),
+              },
+              {
+                key: "action",
+                label: "Action",
+                filterable: true,
+                sortValue: (r) => r.action,
+                render: (r) => {
+                  const isBuy = r.action === "Buy";
+                  return (
+                    <span
+                      className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
+                      style={{
+                        background: isBuy
+                          ? "color-mix(in srgb, var(--good) 18%, transparent)"
+                          : "color-mix(in srgb, var(--bad) 18%, transparent)",
+                        color: isBuy ? "var(--good)" : "var(--bad)",
+                      }}
+                    >
+                      {r.action}
+                    </span>
                   );
-                  if (i === 7 && rows.length > 9) {
-                    return [
-                      row,
-                      <tr key="ad-inline">
-                        <td colSpan={7} className="p-0">
-                          <AdSlot slot="inline" seed="congressional-mid" />
-                        </td>
-                      </tr>,
-                    ];
-                  }
-                  return [row];
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                },
+              },
+              {
+                key: "amount",
+                label: "Amount",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.amountMax ?? r.amountMin ?? null,
+                render: (r) => (
+                  <span className="tabular text-[14px] font-bold">
+                    {amountRange(r.amountMin, r.amountMax)}
+                  </span>
+                ),
+              },
+              {
+                key: "transactionDate",
+                label: "Transaction Date",
+                filterable: true,
+                sortValue: (r) =>
+                  r.transactionDate ? new Date(r.transactionDate).getTime() : null,
+                render: (r) => (
+                  <span className="text-[14px] font-bold tabular text-soft">
+                    {formatDateShort(r.transactionDate)}
+                  </span>
+                ),
+              },
+              {
+                key: "reported",
+                label: "Reported",
+                filterable: true,
+                sortValue: (r) =>
+                  r.reportedDate ? new Date(r.reportedDate).getTime() : null,
+                render: (r) => (
+                  <span className="text-[14px] font-bold tabular text-mute">
+                    {formatDateShort(r.reportedDate)}
+                  </span>
+                ),
+              },
+            ]}
+          />
+        )}
       </div>
+
+      {!isLoading && rows.length > 9 && (
+        <AdSlot slot="inline" seed="congressional-mid" />
+      )}
     </div>
   );
 }

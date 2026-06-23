@@ -1,11 +1,11 @@
 "use client";
 import useSWR from "swr";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { Rocket } from "lucide-react";
 import { API_BASE, fetcher, formatDate } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
+import { DataTable } from "@/components/DataTable";
 
 interface IpoRow {
   symbol: string;
@@ -81,81 +81,114 @@ export default function IposPage() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th>Company</th>
-                <th>Status</th>
-                <th>Exchange</th>
-                <th className="text-right">Offer Price</th>
-                <th className="text-right">Shares</th>
-                <th className="text-right">Deal Size</th>
-                <th className="text-right">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="text-center text-mute py-10">
-                    Loading live IPO calendar…
-                  </td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center text-mute py-10">
-                    No IPOs match this filter.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r, i) => (
-                  <motion.tr
-                    key={`${r.symbol}-${r.date}-${i}`}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.18, delay: Math.min(i, 12) * 0.02 }}
-                  >
-                    <td>
-                      <div className="flex items-center gap-2.5 min-w-[220px]">
-                        <CompanyLogo ticker={r.symbol} name={r.name} size={28} />
-                        <div className="min-w-0">
-                          <div className="font-mono text-[13px] font-bold text-accent">
-                            {r.symbol || "—"}
-                          </div>
-                          <div className="text-[11px] text-mute truncate max-w-[220px]">
-                            {r.name}
-                          </div>
-                        </div>
+        {isLoading ? (
+          <div className="text-center text-mute py-10">Loading live IPO calendar…</div>
+        ) : (
+          <DataTable<IpoRow>
+            rows={rows}
+            rowKey={(r, i) => `${r.symbol}-${r.date}-${i}`}
+            empty="No IPOs match this filter."
+            columns={[
+              {
+                key: "company",
+                label: "Company",
+                filterable: true,
+                sortValue: (r) => r.symbol,
+                render: (r) => (
+                  <div className="flex items-center gap-2.5 min-w-[220px]">
+                    <CompanyLogo ticker={r.symbol} name={r.name} size={28} />
+                    <div className="min-w-0">
+                      <div className="font-mono text-[15px] font-bold text-accent">
+                        {r.symbol || "—"}
                       </div>
-                    </td>
-                    <td>
-                      <span
-                        className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
-                        style={{
-                          background: `color-mix(in srgb, ${
-                            STATUS_COLOR[r.status] || "var(--text-soft)"
-                          } 16%, transparent)`,
-                          color: STATUS_COLOR[r.status] || "var(--text-soft)",
-                        }}
-                      >
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="text-[12px] text-soft">{r.exchange || "—"}</td>
-                    <td className="text-right tabular">
-                      {r.price ? (r.price.startsWith("$") ? r.price : `$${r.price}`) : "—"}
-                    </td>
-                    <td className="text-right tabular text-mute">{r.shares || "—"}</td>
-                    <td className="text-right tabular">{r.dollarValue || "—"}</td>
-                    <td className="text-right tabular text-[12px] text-soft whitespace-nowrap">
-                      {r.date ? formatDate(r.date) : "—"}
-                    </td>
-                  </motion.tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                      <div className="text-[12px] text-mute truncate max-w-[220px]">
+                        {r.name}
+                      </div>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                key: "status",
+                label: "Status",
+                filterable: true,
+                sortValue: (r) => r.status,
+                render: (r) => (
+                  <span
+                    className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
+                    style={{
+                      background: `color-mix(in srgb, ${
+                        STATUS_COLOR[r.status] || "var(--text-soft)"
+                      } 16%, transparent)`,
+                      color: STATUS_COLOR[r.status] || "var(--text-soft)",
+                    }}
+                  >
+                    {r.status}
+                  </span>
+                ),
+              },
+              {
+                key: "exchange",
+                label: "Exchange",
+                filterable: true,
+                sortValue: (r) => r.exchange ?? "",
+                render: (r) => (
+                  <span className="text-[12px] text-soft">{r.exchange || "—"}</span>
+                ),
+              },
+              {
+                key: "price",
+                label: "Offer Price",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) =>
+                  r.price ? parseFloat(r.price.replace(/[^0-9.]/g, "")) || null : null,
+                render: (r) => (
+                  <span className="tabular text-[14px] font-bold">
+                    {r.price ? (r.price.startsWith("$") ? r.price : `$${r.price}`) : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "shares",
+                label: "Shares",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) =>
+                  r.shares ? parseFloat(r.shares.replace(/[^0-9.]/g, "")) || null : null,
+                render: (r) => (
+                  <span className="tabular text-mute text-[14px] font-bold">{r.shares || "—"}</span>
+                ),
+              },
+              {
+                key: "dollarValue",
+                label: "Deal Size",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) =>
+                  r.dollarValue
+                    ? parseFloat(r.dollarValue.replace(/[^0-9.]/g, "")) || null
+                    : null,
+                render: (r) => <span className="tabular text-[14px] font-bold">{r.dollarValue || "—"}</span>,
+              },
+              {
+                key: "date",
+                label: "Date",
+                filterable: true,
+                align: "right",
+                sortValue: (r) => (r.date ? new Date(r.date).getTime() : null),
+                render: (r) => (
+                  <span className="tabular text-[14px] font-bold text-soft whitespace-nowrap">
+                    {r.date ? formatDate(r.date) : "—"}
+                  </span>
+                ),
+              },
+            ]}
+          />
+        )}
       </div>
 
       <p className="text-[11px] text-faint">

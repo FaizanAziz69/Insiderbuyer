@@ -87,52 +87,53 @@ export default function MarketMoversPage() {
             {big.flatMap((r, i) => {
               const up = r.changePct >= 0;
               const card = (
-                <motion.article
+                <motion.div
                   key={r.symbol}
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }}
-                  className="rounded-lg p-5"
-                  style={{
-                    background: "var(--bg-2)",
-                    border: "1px solid var(--border)",
-                  }}
                 >
-                  <div className="flex items-start gap-4">
-                    <CompanyLogo ticker={r.symbol} name={r.name} size={40} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <Link
-                          href={`/companies/${encodeURIComponent(r.symbol)}`}
-                          className="font-mono text-[14px] font-bold text-accent hover:underline"
-                        >
-                          {r.symbol}
-                        </Link>
-                        <span
-                          className="inline-flex items-center gap-0.5 text-[12px] font-bold tabular"
-                          style={{ color: up ? "var(--good)" : "var(--bad)" }}
-                        >
-                          {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                          {up ? "+" : ""}
-                          {r.changePct.toFixed(2)}%
-                        </span>
-                        <span className="text-[11px] text-mute tabular">
-                          ${r.price.toFixed(2)}
-                        </span>
-                      </div>
-                      <h2 className="text-[16px] sm:text-[18px] font-bold leading-snug mb-1">
-                        {r.name} surges {Math.abs(r.changePct).toFixed(1)}% on outsized volume
-                      </h2>
-                      <p className="text-[13px] text-soft leading-relaxed">{why(r)}</p>
-                      <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-mute">
-                        <span>Volume {formatNumber(r.volume)}</span>
-                        <span>Avg {formatNumber(r.avgVolume)}</span>
-                        {r.marketCap && <span>Mkt cap {formatCurrency(r.marketCap)}</span>}
-                        {r.sector && <span>· {r.sector}</span>}
+                  <Link
+                    href={`/companies/${encodeURIComponent(r.symbol)}`}
+                    className="group block rounded-lg p-5 transition hover:border-[var(--accent)]"
+                    style={{
+                      background: "var(--bg-2)",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    <div className="flex items-start gap-4">
+                      <CompanyLogo ticker={r.symbol} name={r.name} size={40} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="font-mono text-[14px] font-bold text-accent group-hover:underline">
+                            {r.symbol}
+                          </span>
+                          <span
+                            className="inline-flex items-center gap-0.5 text-[12px] font-bold tabular"
+                            style={{ color: up ? "var(--good)" : "var(--bad)" }}
+                          >
+                            {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                            {up ? "+" : ""}
+                            {r.changePct.toFixed(2)}%
+                          </span>
+                          <span className="text-[11px] text-mute tabular">
+                            ${r.price.toFixed(2)}
+                          </span>
+                        </div>
+                        <h2 className="text-[16px] sm:text-[18px] font-bold leading-snug mb-1">
+                          {r.name} {up ? "surges" : "slides"} {Math.abs(r.changePct).toFixed(1)}% on outsized volume
+                        </h2>
+                        <p className="text-[13px] text-soft leading-relaxed">{why(r)}</p>
+                        <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-mute">
+                          <span>Volume {formatNumber(r.volume)}</span>
+                          <span>Avg {formatNumber(r.avgVolume)}</span>
+                          {r.marketCap && <span>Mkt cap {formatCurrency(r.marketCap)}</span>}
+                          {r.sector && <span>· {r.sector}</span>}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </motion.article>
+                  </Link>
+                </motion.div>
               );
               if (i === 3) {
                 return [

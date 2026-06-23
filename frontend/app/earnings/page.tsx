@@ -2,6 +2,7 @@
 import useSWR from "swr";
 import { Calendar } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
+import { DataTable } from "@/components/DataTable";
 
 interface EarningsRow {
   date: string;
@@ -19,6 +20,20 @@ function readableTime(t: string | null): string {
   if (t.includes("after-hours")) return "After hours";
   if (t.includes("not-supplied")) return "TBD";
   return t.replace(/-/g, " ");
+}
+
+/** Parse a numeric value out of a formatted string (e.g. "$1.2B", "0.45") for
+ *  sorting. Returns null when there's no parseable number. */
+function numericValue(s: string | null): number | null {
+  if (!s) return null;
+  const m = s.replace(/,/g, "").match(/-?\d+(\.\d+)?/);
+  if (!m) return null;
+  let n = parseFloat(m[0]);
+  if (/[tT]\b|[tT]$/.test(s)) n *= 1e12;
+  else if (/[bB]\b|[bB]$/.test(s)) n *= 1e9;
+  else if (/[mM]\b|[mM]$/.test(s)) n *= 1e6;
+  else if (/[kK]\b|[kK]$/.test(s)) n *= 1e3;
+  return n;
 }
 
 export default function EarningsPage() {
@@ -87,55 +102,91 @@ export default function EarningsPage() {
                       {label}
                     </div>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="table-base">
-                      <thead>
-                        <tr>
-                          <th>Ticker</th>
-                          <th>Company</th>
-                          <th>Time</th>
-                          <th className="text-right">EPS Forecast</th>
-                          <th className="text-right">Last EPS</th>
-                          <th className="text-right">Market Cap</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((r) => (
-                          <tr key={`${r.date}-${r.symbol}`}>
-                            <td>
-                              <a
-                                href={`/companies/${encodeURIComponent(r.symbol)}`}
-                                className="font-mono text-sm font-bold text-accent hover:underline"
-                              >
-                                {r.symbol}
-                              </a>
-                            </td>
-                            <td className="truncate max-w-[280px]">{r.name}</td>
-                            <td>
-                              <span
-                                className="text-[11px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded"
-                                style={{
-                                  background: "var(--bg-3)",
-                                  color: "var(--text-soft)",
-                                }}
-                              >
-                                {readableTime(r.time)}
-                              </span>
-                            </td>
-                            <td className="text-right tabular font-semibold">
-                              {r.estimate || "—"}
-                            </td>
-                            <td className="text-right tabular text-mute">
-                              {r.lastEpsForecast || "—"}
-                            </td>
-                            <td className="text-right tabular text-mute">
-                              {r.marketCap || "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <DataTable<EarningsRow>
+                    rows={rows}
+                    rowKey={(r) => `${r.date}-${r.symbol}`}
+                    columns={[
+                      {
+                        key: "symbol",
+                        label: "Ticker",
+                        filterable: true,
+                        sortValue: (r) => r.symbol,
+                        render: (r) => (
+                          <a
+                            href={`/companies/${encodeURIComponent(r.symbol)}`}
+                            className="font-mono text-[15px] font-bold text-accent hover:underline"
+                          >
+                            {r.symbol}
+                          </a>
+                        ),
+                      },
+                      {
+                        key: "name",
+                        label: "Company",
+                        filterable: true,
+                        sortValue: (r) => r.name,
+                        render: (r) => (
+                          <span className="truncate max-w-[280px] text-[12px]">{r.name}</span>
+                        ),
+                      },
+                      {
+                        key: "time",
+                        label: "Time",
+                        filterable: true,
+                        sortValue: (r) => readableTime(r.time),
+                        render: (r) => (
+                          <span
+                            className="text-[11px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded"
+                            style={{
+                              background: "var(--bg-3)",
+                              color: "var(--text-soft)",
+                            }}
+                          >
+                            {readableTime(r.time)}
+                          </span>
+                        ),
+                      },
+                      {
+                        key: "estimate",
+                        label: "EPS Forecast",
+                        filterable: true,
+                        filterType: "range",
+                        align: "right",
+                        sortValue: (r) => numericValue(r.estimate),
+                        render: (r) => (
+                          <span className="tabular font-bold text-[14px]">
+                            {r.estimate || "—"}
+                          </span>
+                        ),
+                      },
+                      {
+                        key: "lastEps",
+                        label: "Last EPS",
+                        filterable: true,
+                        filterType: "range",
+                        align: "right",
+                        sortValue: (r) => numericValue(r.lastEpsForecast),
+                        render: (r) => (
+                          <span className="tabular text-mute text-[14px] font-bold">
+                            {r.lastEpsForecast || "—"}
+                          </span>
+                        ),
+                      },
+                      {
+                        key: "marketCap",
+                        label: "Market Cap",
+                        filterable: true,
+                        filterType: "range",
+                        align: "right",
+                        sortValue: (r) => numericValue(r.marketCap),
+                        render: (r) => (
+                          <span className="tabular text-mute text-[14px] font-bold">
+                            {r.marketCap || "—"}
+                          </span>
+                        ),
+                      },
+                    ]}
+                  />
                 </section>
               );
             })}

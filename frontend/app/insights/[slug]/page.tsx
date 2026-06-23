@@ -20,7 +20,7 @@ import { ArticleShareRow } from "@/components/insights/ArticleShareRow";
 import { TickerSnapshotCard } from "@/components/insights/TickerSnapshotCard";
 import { IqsBreakdownCard } from "@/components/insights/IqsBreakdownCard";
 import { InsiderActivityTable } from "@/components/insights/InsiderActivityTable";
-import { bylineFor, authorFor } from "@/lib/byline";
+import { authorFor, reviewerFor } from "@/lib/byline";
 
 const KIND_LABELS: Record<string, string> = {
   "daily-summary": "Daily Briefing",
@@ -53,8 +53,8 @@ export default function InsightDetailPage({
     latest?.items.filter((it) => it.slug !== slug).slice(0, 5) || [];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10 max-w-7xl mx-auto">
-      <article className="min-w-0 max-w-3xl">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-6 lg:gap-10 max-w-[1400px] mx-auto">
+      <article className="min-w-0">
         <Link
           href="/insights"
           className="inline-flex items-center gap-1.5 text-xs text-mute hover:text-accent transition mb-5"
@@ -121,14 +121,20 @@ export default function InsightDetailPage({
                     <User className="h-4 w-4" />
                   </span>
                   <span>
-                    <span className="text-[11px] uppercase tracking-wider text-mute font-bold mr-1">
-                      Written by
-                    </span>
-                    <span className="text-accent font-bold">
-                      {authorFor(post.kind, post.slug).name}
-                    </span>
-                    <span className="text-mute font-semibold text-[12px]">
-                      {" "}· {authorFor(post.kind, post.slug).beat}
+                    <span className="text-[12px]">
+                      <span className="text-[11px] uppercase tracking-wider text-mute font-bold mr-1">
+                        Written by
+                      </span>
+                      <span className="text-accent font-bold">
+                        {authorFor(post.kind, post.slug).name}
+                      </span>
+                      <span className="text-mute mx-1.5">|</span>
+                      <span className="text-[11px] uppercase tracking-wider text-mute font-bold mr-1">
+                        Reviewed by
+                      </span>
+                      <span className="text-accent font-bold">
+                        {reviewerFor(post.slug)}
+                      </span>
                     </span>
                     <span
                       className="block text-[12px] font-semibold"
@@ -243,65 +249,77 @@ export default function InsightDetailPage({
             {/* Embedded Form 4 table — the data behind the story */}
             {post.ticker && <InsiderActivityTable ticker={post.ticker} />}
 
-            {/* Editorial footer — byline, source attribution, tag list */}
+            {/* Author bio box — MarketBeat-style: avatar, "About The Author",
+                name, beat, Learn More. */}
             <div
-              className="mt-10 pt-6"
-              style={{ borderTop: "1px solid var(--border)" }}
+              className="mt-10 flex flex-wrap gap-4 p-4 sm:p-5"
+              style={{
+                borderTop: "1px solid var(--border)",
+                borderBottom: "1px solid var(--border)",
+              }}
             >
-              <div className="flex items-start gap-3">
-                <span
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0"
+              <span
+                className="inline-flex items-center justify-center rounded-md flex-shrink-0 text-[26px] font-bold text-white"
+                style={{
+                  width: 120,
+                  height: 150,
+                  background: "linear-gradient(135deg, var(--accent), var(--accent-2))",
+                }}
+              >
+                {authorFor(post.kind, post.slug)
+                  .name.split(" ")
+                  .map((w) => w[0])
+                  .slice(0, 2)
+                  .join("")}
+              </span>
+              <div className="flex-1 min-w-[240px]">
+                <div
+                  className="text-[11px] uppercase font-bold tracking-wider pb-1 mb-1 inline-block"
                   style={{
-                    background: "var(--accent-soft)",
                     color: "var(--accent)",
+                    letterSpacing: "0.12em",
+                    borderBottom: "3px solid var(--accent)",
                   }}
                 >
-                  <User className="h-5 w-5" />
-                </span>
-                <div className="min-w-0">
-                  <div
-                    className="text-[11px] uppercase font-bold tracking-wider mb-0.5"
+                  About The Author
+                </div>
+                <h2 className="font-bold tracking-tight" style={{ fontSize: 22 }}>
+                  {authorFor(post.kind, post.slug).name}
+                </h2>
+                <div className="text-[14px] font-semibold text-soft mt-0.5">
+                  {authorFor(post.kind, post.slug).beat}
+                </div>
+                <p className="text-[13px] text-soft leading-relaxed mt-2 max-w-xl">
+                  Covers SEC Form 4 insider activity and the IQS engine, turning
+                  live filings into plain-English trade ideas. Figures reflect
+                  data at publication — not investment advice.
+                </p>
+                <Link
+                  href="/insights"
+                  className="inline-block mt-2 text-[13px] font-bold text-accent hover:underline"
+                >
+                  Learn More
+                </Link>
+              </div>
+            </div>
+
+            {post.tags && post.tags.length > 0 && (
+              <div className="mt-5 flex flex-wrap gap-2">
+                {post.tags.map((t) => (
+                  <span
+                    key={t}
+                    className="text-[10px] uppercase font-bold px-2 py-0.5 rounded"
                     style={{
+                      background: "var(--bg-3)",
                       color: "var(--text-mute)",
-                      letterSpacing: "0.12em",
+                      letterSpacing: "0.08em",
                     }}
                   >
-                    Written by
-                  </div>
-                  <div className="font-bold" style={{ fontSize: 15 }}>
-                    {bylineFor(post.kind, post.slug)}
-                  </div>
-                  <p className="text-[13px] text-soft leading-relaxed mt-2 max-w-xl">
-                    Sourced from SEC Form 4 filings and our proprietary IQS feed.
-                    Figures reflect data at time of publication —{" "}
-                    <Link
-                      href="/companies"
-                      className="text-accent font-semibold underline"
-                    >
-                      view live rankings
-                    </Link>{" "}
-                    for the most recent numbers. Not investment advice.
-                  </p>
-                </div>
+                    #{t}
+                  </span>
+                ))}
               </div>
-              {post.tags && post.tags.length > 0 && (
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {post.tags.map((t) => (
-                    <span
-                      key={t}
-                      className="text-[10px] uppercase font-bold px-2 py-0.5 rounded"
-                      style={{
-                        background: "var(--bg-3)",
-                        color: "var(--text-mute)",
-                        letterSpacing: "0.08em",
-                      }}
-                    >
-                      #{t}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Programmatic ticker CTA — reuses the article CTA component */}
             {post.ticker && (
@@ -327,7 +345,7 @@ export default function InsightDetailPage({
         {/* Side rail — more insights */}
         <div>
           <h3
-            className="text-[11px] uppercase font-bold tracking-wider mb-3"
+            className="text-[16px] uppercase font-bold tracking-wider mb-3"
             style={{ color: "var(--text-mute)", letterSpacing: "0.12em" }}
           >
             More insights
@@ -351,7 +369,7 @@ export default function InsightDetailPage({
                   sector={it.sector}
                   overlay="none"
                   className="flex-shrink-0 rounded-md transition-transform duration-500 group-hover:scale-110"
-                  style={{ width: 64, height: 64 }}
+                  style={{ width: 80, height: 64 }}
                 />
                 <div className="min-w-0 flex-1">
                   <div
@@ -369,6 +387,11 @@ export default function InsightDetailPage({
                   >
                     {it.title}
                   </h4>
+                  <div className="text-[11px] text-mute mt-1">
+                    By {authorFor(it.kind, it.slug).name}
+                    <span className="mx-1">·</span>
+                    {formatDate(it.generatedAt as unknown as string)}
+                  </div>
                 </div>
               </Link>
             ))}

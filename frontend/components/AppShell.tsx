@@ -3,10 +3,13 @@ import { TopHeader } from "./TopHeader";
 import { Footer } from "./Footer";
 import { TopTickerBar } from "./TopTickerBar";
 import { ChatWidget } from "./chat/ChatWidget";
+import { PREMIUM_UNLOCKED } from "@/lib/premium";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div
+      className={`min-h-screen flex flex-col${PREMIUM_UNLOCKED ? " premium-unlocked" : ""}`}
+    >
       <TopTickerBar />
       <div className="sticky top-0 z-20">
         <TopHeader />

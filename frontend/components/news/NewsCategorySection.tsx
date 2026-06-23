@@ -99,7 +99,7 @@ function LeadArticle({ item }: { item: NewsItem }) {
   const [failed, setFailed] = useState(false);
   return (
     <Link href={articleHref(item)} className="block group">
-      <div className="relative h-32 sm:h-36 rounded-md overflow-hidden bg-[var(--bg-3)] mb-3">
+      <div className="relative aspect-[16/9] rounded-md overflow-hidden bg-[var(--bg-3)] mb-3">
         <div className="absolute inset-0">
           <NewsImage category={item.category} seed={seed} />
         </div>

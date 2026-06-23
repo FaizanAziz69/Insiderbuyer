@@ -2,11 +2,11 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { CalendarClock, Target, TrendingUp, TrendingDown } from "lucide-react";
-import { API_BASE, fetcher, formatCurrency, formatDate } from "@/lib/api";
+import { API_BASE, fetcher, formatDate } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
+import { DataTable } from "@/components/DataTable";
 
 interface Track {
   ies: number;
@@ -123,90 +123,138 @@ export default function EarningsPerformancePage() {
             {withRecord} of {rows.length} have insider history
           </span>
         </div>
-        <div className="overflow-x-auto">
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th>Company</th>
-                <th>Report Date</th>
-                <th>Time</th>
-                <th className="text-right">EPS Est.</th>
-                <th className="text-right">Insider IES</th>
-                <th className="text-right">Hit Rate</th>
-                <th className="text-right">Avg Move</th>
-                <th className="text-right">Sample</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="text-center text-mute py-10">
-                    Loading earnings calendar… if this stays empty, run{" "}
-                    <code className="text-accent">POST /earnings-performance/rebuild</code>.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r, i) => (
-                  <motion.tr
-                    key={`${r.symbol}-${r.date}-${i}`}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.18, delay: Math.min(i, 12) * 0.02 }}
+        <DataTable<UpcomingRow>
+          rows={rows}
+          rowKey={(r, i) => `${r.symbol}-${r.date}-${i}`}
+          empty={
+            <>
+              Loading earnings calendar… if this stays empty, run{" "}
+              <code className="text-accent">POST /earnings-performance/rebuild</code>.
+            </>
+          }
+          columns={[
+            {
+              key: "company",
+              label: "Company",
+              filterable: true,
+              sortValue: (r) => r.symbol,
+              render: (r) => (
+                <Link
+                  href={`/companies/${encodeURIComponent(r.symbol)}`}
+                  className="flex items-center gap-2.5 min-w-[200px]"
+                >
+                  <CompanyLogo ticker={r.symbol} name={r.name} size={26} />
+                  <div className="min-w-0">
+                    <div className="font-mono text-[15px] font-bold text-accent">
+                      {r.symbol}
+                    </div>
+                    <div className="text-[12px] text-mute truncate max-w-[200px]">
+                      {r.name}
+                    </div>
+                  </div>
+                </Link>
+              ),
+            },
+            {
+              key: "date",
+              label: "Report Date",
+              filterable: true,
+              sortValue: (r) => (r.date ? new Date(r.date).getTime() : null),
+              render: (r) => (
+                <span className="text-[14px] font-bold tabular text-soft whitespace-nowrap">
+                  {formatDate(r.date)}
+                </span>
+              ),
+            },
+            {
+              key: "time",
+              label: "Time",
+              filterable: true,
+              sortValue: (r) => r.time ?? "",
+              render: (r) => (
+                <span className="text-[11px] uppercase text-mute">{r.time || "—"}</span>
+              ),
+            },
+            {
+              key: "estimate",
+              label: "EPS Est.",
+              filterable: true,
+              filterType: "range",
+              align: "right",
+              sortValue: (r) => (r.estimate ? parseFloat(r.estimate) : null),
+              render: (r) => (
+                <span className="tabular text-mute text-[14px] font-bold">{r.estimate || "—"}</span>
+              ),
+            },
+            {
+              key: "ies",
+              label: "Insider IES",
+              filterable: true,
+              filterType: "range",
+              align: "right",
+              sortValue: (r) => r.track?.ies ?? null,
+              render: (r) =>
+                r.track ? (
+                  <IesBadge ies={r.track.ies} />
+                ) : (
+                  <span className="text-faint">—</span>
+                ),
+            },
+            {
+              key: "hitRate",
+              label: "Hit Rate",
+              filterable: true,
+              filterType: "range",
+              align: "right",
+              sortValue: (r) => r.track?.hitRate ?? null,
+              render: (r) => (
+                <span className="tabular text-[14px] font-bold">
+                  {r.track ? `${r.track.hitRate}%` : "—"}
+                </span>
+              ),
+            },
+            {
+              key: "avgMove",
+              label: "Avg Move",
+              filterable: true,
+              filterType: "range",
+              align: "right",
+              sortValue: (r) => r.track?.avgReturn ?? null,
+              render: (r) =>
+                r.track ? (
+                  <span
+                    className="inline-flex items-center gap-0.5 font-bold tabular text-[14px]"
+                    style={{
+                      color: r.track.avgReturn >= 0 ? "var(--good)" : "var(--bad)",
+                    }}
                   >
-                    <td>
-                      <Link
-                        href={`/companies/${encodeURIComponent(r.symbol)}`}
-                        className="flex items-center gap-2.5 min-w-[200px]"
-                      >
-                        <CompanyLogo ticker={r.symbol} name={r.name} size={26} />
-                        <div className="min-w-0">
-                          <div className="font-mono text-[13px] font-bold text-accent">
-                            {r.symbol}
-                          </div>
-                          <div className="text-[11px] text-mute truncate max-w-[200px]">
-                            {r.name}
-                          </div>
-                        </div>
-                      </Link>
-                    </td>
-                    <td className="text-[12px] text-soft whitespace-nowrap">
-                      {formatDate(r.date)}
-                    </td>
-                    <td className="text-[11px] uppercase text-mute">{r.time || "—"}</td>
-                    <td className="text-right tabular text-mute">{r.estimate || "—"}</td>
-                    <td className="text-right">
-                      {r.track ? <IesBadge ies={r.track.ies} /> : <span className="text-faint">—</span>}
-                    </td>
-                    <td className="text-right tabular">
-                      {r.track ? `${r.track.hitRate}%` : "—"}
-                    </td>
-                    <td className="text-right tabular">
-                      {r.track ? (
-                        <span
-                          className="inline-flex items-center gap-0.5 font-semibold"
-                          style={{ color: r.track.avgReturn >= 0 ? "var(--good)" : "var(--bad)" }}
-                        >
-                          {r.track.avgReturn >= 0 ? (
-                            <TrendingUp className="h-3 w-3" />
-                          ) : (
-                            <TrendingDown className="h-3 w-3" />
-                          )}
-                          {r.track.avgReturn >= 0 ? "+" : ""}
-                          {r.track.avgReturn}%
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="text-right tabular text-mute">
-                      {r.track ? r.track.sample : "—"}
-                    </td>
-                  </motion.tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    {r.track.avgReturn >= 0 ? (
+                      <TrendingUp className="h-3 w-3" />
+                    ) : (
+                      <TrendingDown className="h-3 w-3" />
+                    )}
+                    {r.track.avgReturn >= 0 ? "+" : ""}
+                    {r.track.avgReturn}%
+                  </span>
+                ) : (
+                  <span className="tabular text-[14px] font-bold">—</span>
+                ),
+            },
+            {
+              key: "sample",
+              label: "Sample",
+              filterable: true,
+              filterType: "range",
+              align: "right",
+              sortValue: (r) => r.track?.sample ?? null,
+              render: (r) => (
+                <span className="tabular text-mute text-[14px] font-bold">
+                  {r.track ? r.track.sample : "—"}
+                </span>
+              ),
+            },
+          ]}
+        />
         <p className="text-[11px] text-faint px-4 py-2">
           IES = confidence-adjusted hit rate of insider buys made within ~60 days
           before earnings (needs ≥{up?.minSample ?? 3} past events to show a score).
@@ -241,80 +289,100 @@ export default function EarningsPerformancePage() {
             ))}
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>{lbType === "company" ? "Company" : "Insider"}</th>
-                <th className="text-right">IES</th>
-                <th className="text-right">Hit Rate</th>
-                <th className="text-right">Avg Move</th>
-                <th className="text-right">Sample</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!lb?.rows?.length ? (
-                <tr>
-                  <td colSpan={6} className="text-center text-mute py-10">
-                    No scored track records yet — run a rebuild to backtest insider
-                    buys against past earnings.
-                  </td>
-                </tr>
-              ) : (
-                lb.rows.map((r, i) => {
-                  const isCo = "ticker" in r;
-                  return (
-                    <tr key={i}>
-                      <td className="text-faint tabular text-[12px]">{i + 1}</td>
-                      <td>
-                        {isCo ? (
-                          <Link
-                            href={`/companies/${encodeURIComponent((r as LbCompany).ticker)}`}
-                            className="flex items-center gap-2.5"
-                          >
-                            <CompanyLogo
-                              ticker={(r as LbCompany).ticker}
-                              name={(r as LbCompany).name}
-                              size={24}
-                            />
-                            <span className="font-mono text-[13px] font-bold text-accent">
-                              {(r as LbCompany).ticker}
-                            </span>
-                            <span className="text-[11px] text-mute truncate max-w-[160px]">
-                              {(r as LbCompany).name}
-                            </span>
-                          </Link>
-                        ) : (
-                          <div>
-                            <div className="text-[13px] font-semibold">
-                              {(r as LbInsider).name}
-                            </div>
-                            <div className="text-[10px] text-mute font-mono">
-                              {(r as LbInsider).tickers.join(", ")}
-                            </div>
-                          </div>
-                        )}
-                      </td>
-                      <td className="text-right">
-                        <IesBadge ies={r.ies} />
-                      </td>
-                      <td className="text-right tabular">{r.hitRate}%</td>
-                      <td
-                        className="text-right tabular font-semibold"
-                        style={{ color: r.avgReturn >= 0 ? "var(--good)" : "var(--bad)" }}
-                      >
-                        {r.avgReturn >= 0 ? "+" : ""}
-                        {r.avgReturn}%
-                      </td>
-                      <td className="text-right tabular text-mute">{r.sample}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable<LbCompany | LbInsider>
+          rows={lb?.rows ?? []}
+          rowKey={(r, i) => `${i}`}
+          empty="No scored track records yet — run a rebuild to backtest insider buys against past earnings."
+          columns={[
+            {
+              key: "rank",
+              label: "#",
+              sortable: false,
+              className: "text-faint tabular text-[11px]",
+              render: (_r, i) => i + 1,
+            },
+            {
+              key: "entity",
+              label: lbType === "company" ? "Company" : "Insider",
+              filterable: true,
+              filterLabelText: "Name",
+              sortValue: (r) =>
+                "ticker" in r ? (r as LbCompany).ticker : (r as LbInsider).name,
+              render: (r) =>
+                "ticker" in r ? (
+                  <Link
+                    href={`/companies/${encodeURIComponent((r as LbCompany).ticker)}`}
+                    className="flex items-center gap-2.5"
+                  >
+                    <CompanyLogo
+                      ticker={(r as LbCompany).ticker}
+                      name={(r as LbCompany).name}
+                      size={24}
+                    />
+                    <span className="font-mono text-[15px] font-bold text-accent">
+                      {(r as LbCompany).ticker}
+                    </span>
+                    <span className="text-[12px] text-mute truncate max-w-[160px]">
+                      {(r as LbCompany).name}
+                    </span>
+                  </Link>
+                ) : (
+                  <div>
+                    <div className="text-[15px] font-bold">
+                      {(r as LbInsider).name}
+                    </div>
+                    <div className="text-[10px] text-mute font-mono">
+                      {(r as LbInsider).tickers.join(", ")}
+                    </div>
+                  </div>
+                ),
+            },
+            {
+              key: "ies",
+              label: "IES",
+              filterable: true,
+              filterType: "range",
+              align: "right",
+              sortValue: (r) => r.ies,
+              render: (r) => <IesBadge ies={r.ies} />,
+            },
+            {
+              key: "hitRate",
+              label: "Hit Rate",
+              filterable: true,
+              filterType: "range",
+              align: "right",
+              sortValue: (r) => r.hitRate,
+              render: (r) => <span className="tabular text-[14px] font-bold">{r.hitRate}%</span>,
+            },
+            {
+              key: "avgMove",
+              label: "Avg Move",
+              filterable: true,
+              filterType: "range",
+              align: "right",
+              sortValue: (r) => r.avgReturn,
+              render: (r) => (
+                <span
+                  className="tabular font-bold text-[14px]"
+                  style={{ color: r.avgReturn >= 0 ? "var(--good)" : "var(--bad)" }}
+                >
+                  {r.avgReturn >= 0 ? "+" : ""}
+                  {r.avgReturn}%
+                </span>
+              ),
+            },
+            {
+              key: "sample",
+              label: "Sample",
+              filterable: true,
+              filterType: "range",
+              align: "right",
+              sortValue: (r) => r.sample,
+              render: (r) => <span className="tabular text-mute text-[14px] font-bold">{r.sample}</span>,
+            },
+          ]}
+        />
       </section>
 
       <p className="text-[11px] text-faint">

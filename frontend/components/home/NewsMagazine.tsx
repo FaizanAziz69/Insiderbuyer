@@ -63,7 +63,7 @@ export function NewsMagazine() {
             <div className="space-y-4">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="grid grid-cols-[120px_1fr] gap-5 py-4">
-                  <div className="aspect-[4/3] shimmer rounded-md" />
+                  <div className="aspect-[16/9] shimmer rounded-md" />
                   <div className="space-y-2">
                     <div className="h-3 w-32 shimmer rounded" />
                     <div className="h-5 w-full shimmer rounded" />

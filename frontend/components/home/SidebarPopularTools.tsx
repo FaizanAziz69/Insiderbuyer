@@ -20,7 +20,7 @@ const TOOLS = [
   {
     title: "IQS Methodology",
     body: "Under the hood of our four-factor score — purchase volume, cluster effect, role weighting, and holding-change magnitude.",
-    href: "/premium",
+    href: "/methodology",
     icon: Calculator,
   },
   {

@@ -1,5 +1,7 @@
 "use client";
 import useSWR from "swr";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { API_BASE, RankingsResponse, fetcher } from "@/lib/api";
 import { MonthlyBuySellMeter } from "@/components/home/MonthlyBuySellMeter";
 import { PredictionOfTheDay } from "@/components/home/PredictionOfTheDay";
@@ -25,7 +27,7 @@ export default function HomePage() {
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
   return (
-    <div className="space-y-10">
+    <div className="space-y-10 px-2 sm:px-6 lg:px-12 xl:px-20">
       {/* HERO — AI editorial carousel (grid of images + news, refreshed daily)
           + two stacked smaller heatmaps on the right */}
       <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4">
@@ -36,11 +38,7 @@ export default function HomePage() {
             rows={rankings?.rows?.slice(0, 28) || []}
             mode="sector"
           />
-          <HeroHeatmapPanel
-            title="Performance by IQS"
-            rows={rankings?.rows?.slice(0, 24) || []}
-            mode="iqs"
-          />
+          <MonthlyBuySellMeter />
         </div>
       </section>
 
@@ -67,7 +65,6 @@ export default function HomePage() {
         <AiStockIdeasSection />
         <aside className="space-y-4">
           <PredictionOfTheDay />
-          <MonthlyBuySellMeter />
         </aside>
       </div>
 
@@ -95,7 +92,7 @@ function HeroHeatmapPanel({
   rows: import("@/lib/api").RankingRow[];
   mode: "sector" | "iqs";
 }) {
-  const HEIGHT = 270;
+  const HEIGHT = 360;
   return (
     <aside
       className="rounded-lg overflow-hidden"
@@ -104,17 +101,19 @@ function HeroHeatmapPanel({
         border: "1px solid var(--border)",
       }}
     >
-      <div
-        className="flex items-center justify-between px-4 py-2.5 border-b"
+      <Link
+        href="/heatmaps/market"
+        className="flex items-center justify-between px-4 py-2.5 border-b group hover:bg-[var(--accent-soft)] transition"
         style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
+        title="Open the full market heat map"
       >
-        <h3 className="text-[13px] font-bold uppercase tracking-wider truncate">
+        <h3 className="text-[13px] font-bold uppercase tracking-wider truncate group-hover:text-accent transition">
           {title}
         </h3>
-        <span className="text-[10px] font-mono text-mute uppercase tracking-wider">
-          live
+        <span className="text-[10px] font-mono text-accent uppercase tracking-wider inline-flex items-center gap-1">
+          Full map <ChevronRight className="h-3 w-3" />
         </span>
-      </div>
+      </Link>
       <div className="p-2">
         {rows.length > 0 ? (
           <StockHeatmap rows={rows} height={HEIGHT} mode={mode} />

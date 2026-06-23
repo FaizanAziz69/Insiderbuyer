@@ -127,8 +127,8 @@ export function IqsBreakdownCard({ ticker }: Props) {
         className="px-4 py-2.5 border-t text-[11px] text-mute"
         style={{ borderColor: "var(--border)" }}
       >
-        Six-factor 0–100 score computed from live SEC Form 4 filings.{" "}
-        <Link href="/premium" className="text-accent font-semibold hover:underline">
+        Four-factor 0–100 score computed from live SEC Form 4 filings.{" "}
+        <Link href="/methodology" className="text-accent font-semibold hover:underline">
           Methodology →
         </Link>
       </div>

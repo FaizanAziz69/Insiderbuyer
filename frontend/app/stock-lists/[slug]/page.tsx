@@ -1,9 +1,9 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { use, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { use, useMemo } from "react";
 import { ArrowDown, ArrowUp, ChevronRight, Sparkles } from "lucide-react";
+import { DataTable } from "@/components/DataTable";
 import {
   API_BASE,
   fetcher,
@@ -13,11 +13,6 @@ import {
 import { AdSlot } from "@/components/AdSlot";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { Indicators } from "@/components/Indicators";
-import {
-  FilteredListBar,
-  ListFilters,
-  mapMarketCapToBounds,
-} from "@/components/lists/FilteredListBar";
 
 interface RowLive {
   price: number;
@@ -53,26 +48,36 @@ export default function StockListDetailPage({
 }) {
   const { slug } = use(params);
 
-  const [filters, setFilters] = useState<ListFilters>({
-    country: "USA (NYSE & NASDAQ)",
-    sector: "All Sectors",
-    marketCap: "All MarketCaps",
-    iqs: "All Scores",
-  });
-
-  const qs = new URLSearchParams();
-  if (filters.sector && filters.sector !== "All Sectors") {
-    qs.set("sector", filters.sector);
-  }
-  const mc = mapMarketCapToBounds(filters.marketCap);
-  if (mc.min) qs.set("minMarketCap", String(mc.min));
-  if (mc.max) qs.set("maxMarketCap", String(mc.max));
-
   const { data, isLoading } = useSWR<DetailResponse>(
-    `${API_BASE}/stock-lists/${slug}?${qs.toString()}`,
+    `${API_BASE}/stock-lists/${slug}`,
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
+
+  // Real indicator data so every row's chips reflect live signals, not just a
+  // couple of heuristics: earnings-due-soon (next 7 days) and analyst coverage.
+  const { data: earningsData } = useSWR<{ rows: { symbol: string }[] }>(
+    `${API_BASE}/earnings/calendar?days=7`,
+    fetcher,
+    { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
+  );
+  const { data: analystData } = useSWR<{ rows: { symbol: string; recommendation: string | null }[] }>(
+    `${API_BASE}/market-stats/analyst-ratings`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
+
+  const earningsSoon = useMemo(
+    () => new Set((earningsData?.rows || []).map((r) => r.symbol.toUpperCase())),
+    [earningsData],
+  );
+  const analystBuys = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of analystData?.rows || []) {
+      if (r.recommendation && /buy/i.test(r.recommendation)) s.add(r.symbol.toUpperCase());
+    }
+    return s;
+  }, [analystData]);
 
   const rows = data?.rows || [];
 
@@ -117,125 +122,155 @@ export default function StockListDetailPage({
       {/* Top banner ad */}
       <AdSlot slot="leaderboard" seed={`${slug}-top`} />
 
-      {/* Filter bar */}
-      <FilteredListBar value={filters} onChange={setFilters} />
-
-      {/* Table */}
+      {/* Table — sort/filter via the column headers themselves */}
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th className="w-12">#</th>
-                <th>Ticker</th>
-                <th>Company</th>
-                <th className="text-right">Price</th>
-                <th className="text-right">Market Cap</th>
-                <th className="text-right">Volume</th>
-                <th className="text-right">Avg Volume</th>
-                <th>Indicators</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={8} className="text-center text-mute py-10">
-                    Loading…
-                  </td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="text-center text-mute py-10">
-                    No matches for these filters.
-                  </td>
-                </tr>
-              ) : (
-                rows.flatMap((r, i) => {
+        {isLoading ? (
+          <div className="text-center text-mute py-10">Loading…</div>
+        ) : (
+          <DataTable<DetailRow>
+            rows={rows}
+            rowKey={(r, i) => (r.ticker || r.symbol || r.name || "") + i}
+            empty="No stocks in this list yet."
+            rowClassName="hover:bg-[var(--accent-soft)]"
+            columns={[
+              {
+                key: "rank",
+                label: "#",
+                align: "left",
+                sortable: false,
+                className: "w-12",
+                render: (_r, i) => (
+                  <span className="text-faint text-[11px] tabular">{i + 1}</span>
+                ),
+              },
+              {
+                key: "ticker",
+                label: "Ticker",
+                filterable: true,
+                sortValue: (r) => r.ticker || r.symbol || "",
+                render: (r) => {
                   const ticker = r.ticker || r.symbol || "";
-                  const up = (r.live?.changePct ?? 0) >= 0;
-                  const tr = (
-                    <motion.tr
-                      key={ticker || r.name}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.18, delay: Math.min(i, 12) * 0.02 }}
+                  return (
+                    <Link
+                      href={ticker ? `/companies/${encodeURIComponent(ticker)}` : "#"}
+                      className="inline-flex items-center gap-2"
                     >
-                      <td className="text-faint text-[12px] tabular">{i + 1}</td>
-                      <td>
-                        <Link
-                          href={ticker ? `/companies/${encodeURIComponent(ticker)}` : "#"}
-                          className="inline-flex items-center gap-2"
-                        >
-                          <CompanyLogo ticker={ticker} name={r.name} size={24} />
-                          <span className="font-mono text-[13px] font-bold text-accent hover:underline">
-                            {ticker || "—"}
-                          </span>
-                        </Link>
-                      </td>
-                      <td className="truncate max-w-[260px]">{r.name}</td>
-                      <td className="text-right tabular font-semibold">
-                        {r.live?.price ? `$${r.live.price.toFixed(2)}` : "—"}
-                        {r.live && (
-                          <div
-                            className="text-[11px] tabular"
-                            style={{ color: up ? "var(--good)" : "var(--bad)" }}
-                          >
-                            <span className="inline-flex items-center gap-0.5">
-                              {up ? (
-                                <ArrowUp className="h-3 w-3" />
-                              ) : (
-                                <ArrowDown className="h-3 w-3" />
-                              )}
-                              {up ? "+" : ""}
-                              {r.live.changePct.toFixed(2)}%
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="text-right tabular text-mute">
-                        {r.live?.marketCap
-                          ? formatCurrency(r.live.marketCap)
-                          : r.marketCap
-                          ? formatCurrency(r.marketCap)
-                          : "—"}
-                      </td>
-                      <td className="text-right tabular">
-                        {r.live?.volume ? formatNumber(r.live.volume) : "—"}
-                      </td>
-                      <td className="text-right tabular text-mute">
-                        {r.live?.avgVolume ? formatNumber(r.live.avgVolume) : "—"}
-                      </td>
-                      <td>
-                        <Indicators
-                          flags={{
-                            insiderTrade: (r.totalPurchaseValue || 0) > 0 ? "buy" : null,
-                            // Earnings/analyst/news flags would come from a future
-                            // batched IndicatorService call; we surface insider trades
-                            // here based on whether the row has any IQS-tracked buys.
-                            positiveNews: !!r.iqs && r.iqs >= 50,
-                          }}
-                        />
-                      </td>
-                    </motion.tr>
+                      <CompanyLogo ticker={ticker} name={r.name} size={24} />
+                      <span className="font-mono text-[15px] font-bold text-accent hover:underline">
+                        {ticker || "—"}
+                      </span>
+                    </Link>
                   );
-                  // Insert an inline ad between rows 8 and 9 to mirror MarketBeat density.
-                  if (i === 7 && rows.length > 9) {
-                    return [
-                      tr,
-                      <tr key="ad-inline">
-                        <td colSpan={8} className="p-0">
-                          <AdSlot slot="inline" seed={`${slug}-mid`} />
-                        </td>
-                      </tr>,
-                    ];
-                  }
-                  return [tr];
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                },
+              },
+              {
+                key: "company",
+                label: "Company",
+                filterable: true,
+                sortValue: (r) => r.name,
+                render: (r) => (
+                  <span className="truncate max-w-[260px] inline-block align-middle text-[12px]">
+                    {r.name}
+                  </span>
+                ),
+              },
+              {
+                key: "price",
+                label: "Price",
+                filterable: true,
+                filterType: "range",
+                align: "center",
+                sortValue: (r) => r.live?.price ?? null,
+                render: (r) => {
+                  const up = (r.live?.changePct ?? 0) >= 0;
+                  return (
+                    <div className="tabular font-bold text-[14px]">
+                      {r.live?.price ? `$${r.live.price.toFixed(2)}` : "—"}
+                      {r.live && (
+                        <div
+                          className="text-[11px] tabular"
+                          style={{ color: up ? "var(--good)" : "var(--bad)" }}
+                        >
+                          <span className="inline-flex items-center gap-0.5">
+                            {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                            {up ? "+" : ""}
+                            {r.live.changePct.toFixed(2)}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                },
+              },
+              {
+                key: "marketCap",
+                label: "Market Cap",
+                filterable: true,
+                filterType: "range",
+                filterLabelText: "Market Cap ($)",
+                align: "center",
+                sortValue: (r) => r.live?.marketCap ?? r.marketCap ?? null,
+                render: (r) => (
+                  <span className="tabular text-mute text-[14px] font-bold">
+                    {r.live?.marketCap
+                      ? formatCurrency(r.live.marketCap)
+                      : r.marketCap
+                      ? formatCurrency(r.marketCap)
+                      : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "volume",
+                label: "Volume",
+                filterable: true,
+                filterType: "range",
+                align: "center",
+                sortValue: (r) => r.live?.volume ?? null,
+                render: (r) => (
+                  <span className="tabular text-[14px] font-bold">
+                    {r.live?.volume ? formatNumber(r.live.volume) : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "avgVolume",
+                label: "Avg Volume",
+                filterable: true,
+                filterType: "range",
+                align: "center",
+                sortValue: (r) => r.live?.avgVolume ?? null,
+                render: (r) => (
+                  <span className="tabular text-mute text-[14px] font-bold">
+                    {r.live?.avgVolume ? formatNumber(r.live.avgVolume) : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "indicators",
+                label: "Indicators",
+                sortable: false,
+                render: (r) => {
+                  const sym = (r.ticker || r.symbol || "").toUpperCase();
+                  return (
+                    <Indicators
+                      flags={{
+                        insiderTrade: (r.totalPurchaseValue || 0) > 0 ? "buy" : null,
+                        earningsDueSoon: sym ? earningsSoon.has(sym) : false,
+                        analystUpgrade: sym ? analystBuys.has(sym) : false,
+                        positiveNews: !!r.iqs && r.iqs >= 50,
+                      }}
+                    />
+                  );
+                },
+              },
+            ]}
+          />
+        )}
       </div>
+
+      {/* Inline ad (kept below the table now that rows are sortable) */}
+      {rows.length > 9 && <AdSlot slot="inline" seed={`${slug}-mid`} />}
 
       {/* Bottom copy block — MarketBeat-style editorial section */}
       {data?.title && (

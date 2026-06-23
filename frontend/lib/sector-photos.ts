@@ -24,11 +24,11 @@ const PHOTOS: Record<string, string[]> = {
     "photo-1614064641938-3bbee52942c7", // glowing server room
   ],
   health: [
-    "photo-1532187863486-abf9dbad1b69", // lab work scientist
-    "photo-1576091160550-2173dba999ef", // medical professional
     "photo-1582719188393-bb71ca45dbb9", // DNA / molecular biology
     "photo-1579154204601-01588f351e67", // lab pipettes / vials tray
-    "photo-1631815589968-fdb09a223b1e", // pharmaceutical research
+    "photo-1559757148-5c350d0d3c56", // pills / medication
+    "photo-1576086213369-97a306d36557", // lab vials / test tubes
+    "photo-1587854692152-cbe660dbde88", // medication / pharmacy shelves
     "photo-1559757175-5700dde675bc", // biotech lab glassware
   ],
   energy: [
@@ -53,7 +53,7 @@ const PHOTOS: Record<string, string[]> = {
     "photo-1545324418-cc1a3fa10c00", // luxury office lobby
     "photo-1486325212027-8081e485255e", // downtown highrises
     "photo-1554435493-93422e8220c8", // manhattan skyline
-    "photo-1582482-0e5e8cf9eef6", // modern building facade
+    "photo-1448630360428-65456885c650", // city skyline / glass towers
   ],
   consumer: [
     "photo-1481437156560-3205f6a55735", // shopping bags

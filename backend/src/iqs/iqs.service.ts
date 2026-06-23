@@ -32,13 +32,18 @@ export interface RankingRow {
 }
 
 /** Role significance for the Insider Weight component (0–100). */
-const ROLE_SCORE: Record<InsiderRole, number> = {
-  CEO: 100,
-  CFO: 95,
-  COO: 85,
-  Director: 70,
-  Other: 50,
+// Role multipliers for the Role-Weighted Purchase Volume factor (C).
+const ROLE_MULTIPLIER: Record<InsiderRole, number> = {
+  CEO: 3,
+  CFO: 3,
+  COO: 3,
+  Director: 2,
+  Other: 1,
 };
+
+/** Scales the raw log-IQS (= ln(1 + sum of the four factors)) onto a 0–100
+ *  composite. Tuning knob — raise to compress scores, lower to spread them. */
+const IQS_LOG_SCALE = 6.5;
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
@@ -117,43 +122,42 @@ export class IqsService {
         }
       }
 
-      let totalPurchaseValue = 0;
-      let roleScoreValueWeighted = 0;
+      let totalPurchaseValue = 0; // Σ shares × price
+      let roleWeightedValue = 0; //  Σ shares × price × role multiplier
       const buyers = new Set<string>();
       const holdingChanges: number[] = [];
 
       for (const t of txs) {
         const value = Number(t.sharesBought) * Number(t.pricePerShare);
         totalPurchaseValue += value;
-        roleScoreValueWeighted += value * (ROLE_SCORE[t.role] ?? 50);
+        roleWeightedValue += value * (ROLE_MULTIPLIER[t.role] ?? 1);
         buyers.add(t.insiderName.toLowerCase());
         const prev = Number(t.previousHoldings) || 0;
         if (prev > 0) {
+          // D component: Holding Change % = (Shares Bought / Previous Holdings) × 100
           holdingChanges.push((Number(t.sharesBought) / prev) * 100);
         }
       }
 
-      // 1. Insider Weight — who bought, value-weighted by role.
-      const insiderWeight =
-        totalPurchaseValue > 0 ? roleScoreValueWeighted / totalPurchaseValue : 0;
-
-      // 2. Transaction Weight — how big. Best of absolute dollar size
-      //    ($10k → 0 … $10M+ → 100, log scale) and size relative to market
-      //    cap (2% of the company → 100).
-      const absScore =
-        clamp01((Math.log10(Math.max(1, totalPurchaseValue)) - 4) / 3) * 100;
-      const relScore =
-        marketCap > 0 ? clamp01(totalPurchaseValue / marketCap / 0.02) * 100 : 0;
-      const transactionWeight = Math.max(absScore, relScore);
-
-      // 3. Conviction Weight — stake growth (+50% holding → max) blended
-      //    with repeat buying (avg 3 buys per insider → max).
-      const avgHoldingChangePct = holdingChanges.length
+      // ── The four IQS factors (client-specified formula) ───────────────
+      // A. Purchase Volume Factor = Σ(Shares × Price) / Market Cap
+      const purchaseVolumeFactor =
+        marketCap > 0 ? totalPurchaseValue / marketCap : 0;
+      // B. Cluster Factor = log(1 + number of distinct insider buyers)
+      const clusterFactor = Math.log(1 + buyers.size);
+      // C. Role-Weighted Purchase Volume = Σ(Shares × Price × Role Mult) / Market Cap
+      const roleWeightedFactor =
+        marketCap > 0 ? roleWeightedValue / marketCap : 0;
+      // D. Holding Change Factor = Σ(Holding Change %) / number of buying insiders
+      const holdingChangeFactor = holdingChanges.length
         ? holdingChanges.reduce((a, b) => a + b, 0) / holdingChanges.length
         : 0;
-      const holdingScore = clamp01(avgHoldingChangePct / 50) * 100;
-      const repeatScore = clamp01((txs.length / buyers.size - 1) / 2) * 100;
-      const convictionWeight = holdingScore * 0.7 + repeatScore * 0.3;
+
+      // Display-friendly 0–100 versions of each factor for the breakdown UI
+      // (the headline IQS below is computed straight from the raw factors).
+      const transactionWeight = clamp01(purchaseVolumeFactor / 0.02) * 100;
+      const insiderWeight = clamp01(roleWeightedFactor / 0.06) * 100;
+      const convictionWeight = clamp01(holdingChangeFactor / 100) * 100;
 
       // 4. Historical Success Weight — share of this company's past insider
       //    buys (≥14 days old) currently in profit vs the latest price.
@@ -174,9 +178,8 @@ export class IqsService {
         }
       }
 
-      // 5. Cluster Weight — distinct insiders buying in the window.
-      const clusterWeight =
-        buyers.size >= 4 ? 100 : [0, 20, 60, 85][buyers.size] ?? 0;
+      // Cluster Weight — distinct insiders buying, as a 0–100 display value.
+      const clusterWeight = clamp01(buyers.size / 4) * 100;
 
       // 6. Market Timing Weight — where the stock trades in its 52-week
       //    range. Buying after major price drops (near the low) scores
@@ -190,14 +193,17 @@ export class IqsService {
         marketTimingWeight = (1 - pos) * 100;
       }
 
-      const iqs = +(
-        insiderWeight * 0.25 +
-        transactionWeight * 0.25 +
-        convictionWeight * 0.2 +
-        historicalSuccessWeight * 0.15 +
-        clusterWeight * 0.1 +
-        marketTimingWeight * 0.05
-      ).toFixed(2);
+      // Final IQS = log(1 + (A + B + C + D)), per the client formula. The log
+      // transform keeps extreme values from distorting the rankings; we then
+      // scale onto a 0–100 composite for display.
+      const rawIqs = Math.log(
+        1 +
+          purchaseVolumeFactor +
+          clusterFactor +
+          roleWeightedFactor +
+          holdingChangeFactor,
+      );
+      const iqs = +Math.min(100, (rawIqs / IQS_LOG_SCALE) * 100).toFixed(2);
 
       const existing = await this.scores.findOne({
         where: { companyId: company.id, asOfDate: today },
@@ -233,6 +239,7 @@ export class IqsService {
     sectorMatch?: RegExp;
     minMarketCap?: number;
     maxMarketCap?: number;
+    minIqs?: number;
     country?: string;
     withLive?: boolean;
   }): Promise<{ total: number; rows: RankingRow[] }> {
@@ -271,6 +278,9 @@ export class IqsService {
     }
     if (typeof opts.maxMarketCap === 'number') {
       qb.andWhere('c."marketCap" <= :maxMc', { maxMc: opts.maxMarketCap });
+    }
+    if (typeof opts.minIqs === 'number') {
+      qb.andWhere('s.iqs >= :minIqs', { minIqs: opts.minIqs });
     }
     // country is reserved for future non-US data; we only have US Form 4s today.
 
@@ -330,7 +340,10 @@ export class IqsService {
       .createQueryBuilder('c')
       .where('LOWER(c.ticker) = :t', { t: ticker.toLowerCase() })
       .getOne();
-    if (!company) return null;
+    // Not in our insider DB (e.g. a top-gainer/loser or any ticker the user
+    // clicks): fall back to a live market quote so the page always has data
+    // rather than showing "Company not found".
+    if (!company) return this.getQuoteOnlyDetail(ticker);
 
     const scoreRow = await this.scores
       .createQueryBuilder('s')
@@ -396,6 +409,47 @@ export class IqsService {
     }
 
     return { company: companyOut, score, scoreHistory, transactions, congressionalTrades };
+  }
+
+  /** Build a company-detail payload from a live market quote for a ticker we
+   *  don't have insider data for. Score/transactions are empty, but the page
+   *  renders with a real name, price, market cap and sector — and still shows
+   *  any congressional trades we have for the ticker. */
+  private async getQuoteOnlyDetail(ticker: string) {
+    const sym = ticker.toUpperCase();
+    let quote: any = null;
+    try {
+      const batch = await this.marketStats.getQuoteBatch([sym]);
+      quote = batch.get(sym) || null;
+    } catch {
+      quote = null;
+    }
+
+    const company = {
+      id: `quote:${sym}`,
+      cik: '',
+      ticker: sym,
+      name: quote?.name || sym,
+      sector: quote?.sector ?? null,
+      marketCap: quote?.marketCap ?? null,
+      lastPrice: quote?.price ?? null,
+    };
+
+    let congressionalTrades: any[] = [];
+    try {
+      congressionalTrades = await this.congress.byTicker(sym);
+    } catch {
+      congressionalTrades = [];
+    }
+
+    return {
+      company,
+      score: null,
+      scoreHistory: [],
+      transactions: [],
+      congressionalTrades,
+      quoteOnly: true,
+    };
   }
 
   async getDashboard() {
@@ -697,6 +751,63 @@ export class IqsService {
     }
     return Array.from(agg.values())
       .sort((a, b) => b.totalValue - a.totalValue)
+      .slice(0, limit);
+  }
+
+  /** Per-insider track record: the share of an insider's open-market buys that
+   *  are currently trading ABOVE their purchase price (i.e. "in profit" vs the
+   *  live price). Accuracy = winning buys ÷ total buys. Only insiders with a
+   *  meaningful sample (≥2 buys priced against a live quote) are returned. */
+  async getInsiderTrackRecords(limit = 8) {
+    const rows = await this.txRepo
+      .createQueryBuilder('t')
+      .where(`t."transactionCode" = 'P'`)
+      .leftJoinAndSelect('t.company', 'c')
+      .getMany();
+
+    const agg = new Map<
+      string,
+      {
+        name: string;
+        role: string;
+        ticker: string | null;
+        wins: number;
+        total: number;
+        totalValue: number;
+      }
+    >();
+    for (const t of rows) {
+      const cur = t.company?.lastPrice ? Number(t.company.lastPrice) : 0;
+      const buyPx = Number(t.pricePerShare);
+      if (!buyPx || cur <= 0) continue; // need both a purchase price and a live price
+      const key = t.insiderName.toLowerCase();
+      const e =
+        agg.get(key) || {
+          name: t.insiderName,
+          role: t.role,
+          ticker: t.company?.ticker || null,
+          wins: 0,
+          total: 0,
+          totalValue: 0,
+        };
+      e.total += 1;
+      if (cur > buyPx) e.wins += 1;
+      e.totalValue += Number(t.totalValue);
+      agg.set(key, e);
+    }
+
+    return Array.from(agg.values())
+      .filter((e) => e.total >= 2)
+      .map((e) => ({
+        name: e.name,
+        role: e.role,
+        ticker: e.ticker,
+        trades: e.total,
+        wins: e.wins,
+        accuracy: Math.round((e.wins / e.total) * 100),
+        totalValue: e.totalValue,
+      }))
+      .sort((a, b) => b.accuracy - a.accuracy || b.trades - a.trades)
       .slice(0, limit);
   }
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Lock, Sparkles } from "lucide-react";
 import { useMemo } from "react";
+import { PREMIUM_UNLOCKED } from "@/lib/premium";
 
 interface PreviewProps {
   title: string;
@@ -202,73 +203,82 @@ export function PremiumChartPreview({
     b: "var(--good)",
     c: "var(--bad)",
   };
+  const locked = !PREMIUM_UNLOCKED;
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="badge badge-neutral">
-              <Lock className="h-3 w-3" />
-              Premium
-            </span>
-          </div>
+          {locked && (
+            <div className="flex items-center gap-2 mb-1">
+              <span className="badge badge-neutral">
+                <Lock className="h-3 w-3" />
+                Premium
+              </span>
+            </div>
+          )}
           <h1 className="text-[28px] font-bold tracking-tight" style={{ letterSpacing: "-0.4px" }}>
             {title}
           </h1>
           <p className="text-mute text-sm mt-1">{subtitle}</p>
         </div>
-        <Link href="/premium" className="btn-primary self-start sm:self-auto">
-          <Sparkles className="h-4 w-4" />
-          Unlock with Premium
-        </Link>
+        {locked && (
+          <Link href="/premium" className="btn-primary self-start sm:self-auto">
+            <Sparkles className="h-4 w-4" />
+            Unlock with Premium
+          </Link>
+        )}
       </header>
 
       <div className="card p-5 sm:p-6 relative overflow-hidden">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
             <div className="text-[15px] font-semibold">{title}</div>
-            <span className="badge badge-gold">
-              <Lock className="h-3 w-3" />
-              Locked
-            </span>
+            {locked && (
+              <span className="badge badge-gold">
+                <Lock className="h-3 w-3" />
+                Locked
+              </span>
+            )}
           </div>
         </div>
         <div className="relative">
-          <div className="h-80 w-full paywall-blur">
+          <div className={`h-80 w-full${locked ? " paywall-blur" : ""}`}>
             {variant === "line" && <LinePreview palette={palette} />}
             {variant === "candle" && <CandlePreview palette={palette} />}
             {variant === "sankey" && <SankeyPreview palette={palette} />}
           </div>
-          <div className="paywall-overlay">
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="max-w-md"
-            >
-              <div
-                className="inline-flex h-12 w-12 rounded-2xl items-center justify-center mb-3"
-                style={{
-                  background:
-                    "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
-                  boxShadow: "0 8px 24px rgba(0,102,255,0.3)",
-                }}
+          {locked && (
+            <div className="paywall-overlay">
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="max-w-md"
               >
-                <Lock className="h-5 w-5 text-white" />
-              </div>
-              <h2 className="text-xl font-bold tracking-tight mb-1.5">Premium feature</h2>
-              <p className="text-soft text-sm mb-4">{description}</p>
-              <Link href="/premium" className="btn-primary">
-                Get Premium
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </motion.div>
-          </div>
+                <div
+                  className="inline-flex h-12 w-12 rounded-2xl items-center justify-center mb-3"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
+                    boxShadow: "0 8px 24px rgba(0,102,255,0.3)",
+                  }}
+                >
+                  <Lock className="h-5 w-5 text-white" />
+                </div>
+                <h2 className="text-xl font-bold tracking-tight mb-1.5">Premium feature</h2>
+                <p className="text-soft text-sm mb-4">{description}</p>
+                <Link href="/premium" className="btn-primary">
+                  Get Premium
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </motion.div>
+            </div>
+          )}
         </div>
       </div>
 
       <section className="card p-5 sm:p-6">
-        <div className="label-mini mb-4">What's included on Premium</div>
+        <div className="label-mini mb-4">{locked ? "What's included on Premium" : "What's included"}</div>
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm text-soft">
           {features.map((f) => (
             <li key={f} className="flex items-start gap-2.5">

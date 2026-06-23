@@ -17,6 +17,7 @@ export class StockListsController {
     @Query('sector') sector?: string,
     @Query('minMarketCap') minMc?: string,
     @Query('maxMarketCap') maxMc?: string,
+    @Query('minIqs') minIqs?: string,
     @Query('sentiment') sentiment?: string,
     @Query('analystConsensus') analystConsensus?: string,
   ) {
@@ -25,6 +26,7 @@ export class StockListsController {
       sector: sector || undefined,
       minMarketCap: minMc ? Number(minMc) : undefined,
       maxMarketCap: maxMc ? Number(maxMc) : undefined,
+      minIqs: minIqs ? Number(minIqs) : undefined,
       sentiment: sentiment || undefined,
       analystConsensus: analystConsensus || undefined,
     });

@@ -166,7 +166,7 @@ interface SectorBlock {
 // "CRUDE PETROLEUM & NATURAL GAS") into the ~11 broad categories used by
 // finance-publication heatmaps. Keyword-based so unknown SIC variants still
 // roll up cleanly.
-function shortSector(s: string | null | undefined): string {
+export function shortSector(s: string | null | undefined): string {
   if (!s) return "Other";
   const u = s.toUpperCase();
 

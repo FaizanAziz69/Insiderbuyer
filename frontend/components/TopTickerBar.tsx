@@ -2,54 +2,59 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useMemo } from "react";
-import {
-  API_BASE,
-  IndicesResponse,
-  NewsResponse,
-  fetcher,
-} from "@/lib/api";
+import { API_BASE, BlogListResponse, fetcher } from "@/lib/api";
+
+interface MoverRow {
+  symbol: string;
+  name: string;
+  price: number;
+  changePct: number;
+}
 
 /**
  * Slim horizontal marquee bar pinned at the very top of the page.
- * Combines live news headlines with a single market quote, scrolls right→left
- * via a pure-CSS animation. Hover pauses the scroll.
+ * Shows OUR content only — AI articles & stock ideas (→ full article) plus live
+ * movers (→ that stock's page). No SEC press-release headlines. Scrolls
+ * right→left via a pure-CSS animation; hover pauses.
  */
 export function TopTickerBar() {
-  const { data: news } = useSWR<NewsResponse>(
-    `${API_BASE}/news?limit=20`,
+  const { data: blogs } = useSWR<BlogListResponse>(
+    `${API_BASE}/content/blogs?limit=20`,
     fetcher,
-    { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
+    { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
-  const { data: indices } = useSWR<IndicesResponse>(
-    `${API_BASE}/indices`,
+  const { data: movers } = useSWR<{ rows: MoverRow[] }>(
+    `${API_BASE}/market-stats/top-gainers?limit=12`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
 
   const items = useMemo(() => {
-    const headlines = (news?.items || []).slice(0, 14).map((n) => ({
-      kind: "news" as const,
+    const articles = (blogs?.items || []).slice(0, 14).map((n) => ({
+      kind: "article" as const,
       title: n.title,
-      href: `/article?u=${encodeURIComponent(n.link)}&c=${encodeURIComponent(n.label)}`,
+      ticker: n.ticker,
+      href: `/insights/${n.slug}`,
     }));
-    const quotes = (indices?.quotes || []).map((q) => ({
-      kind: "quote" as const,
-      symbol: q.shortName,
-      value: q.value,
+    const stocks = (movers?.rows || []).slice(0, 12).map((q) => ({
+      kind: "stock" as const,
+      symbol: q.symbol,
+      price: q.price,
       changePct: q.changePct,
+      href: `/companies/${encodeURIComponent(q.symbol)}`,
     }));
-    // Interleave: 3 headlines, 1 quote, 3 headlines, 1 quote, …
-    const out: Array<(typeof headlines)[number] | (typeof quotes)[number]> = [];
-    let qi = 0;
-    for (let i = 0; i < headlines.length; i++) {
-      out.push(headlines[i]);
-      if ((i + 1) % 3 === 0 && qi < quotes.length) {
-        out.push(quotes[qi++]);
+    // Interleave: 3 articles, 1 stock, 3 articles, 1 stock, …
+    const out: Array<(typeof articles)[number] | (typeof stocks)[number]> = [];
+    let si = 0;
+    for (let i = 0; i < articles.length; i++) {
+      out.push(articles[i]);
+      if ((i + 1) % 3 === 0 && si < stocks.length) {
+        out.push(stocks[si++]);
       }
     }
-    while (qi < quotes.length) out.push(quotes[qi++]);
+    while (si < stocks.length) out.push(stocks[si++]);
     return out;
-  }, [news, indices]);
+  }, [blogs, movers]);
 
   if (items.length === 0) return null;
 
@@ -67,10 +72,10 @@ export function TopTickerBar() {
     >
       <div className="ticker-track flex items-center gap-8 py-2 whitespace-nowrap text-[12px]">
         {doubled.map((it, i) => {
-          if (it.kind === "news") {
+          if (it.kind === "article") {
             return (
               <Link
-                key={`n-${i}`}
+                key={`a-${i}`}
                 href={it.href}
                 className="flex items-center gap-3 flex-shrink-0 hover:underline"
                 style={{ color: "rgba(255,255,255,0.95)" }}
@@ -79,15 +84,21 @@ export function TopTickerBar() {
                   className="inline-block h-1.5 w-1.5 rounded-full flex-shrink-0"
                   style={{ background: "var(--gold)" }}
                 />
+                {it.ticker && (
+                  <span className="font-mono font-bold text-[11px]" style={{ color: "var(--gold)" }}>
+                    {it.ticker}
+                  </span>
+                )}
                 <span className="font-medium">{it.title}</span>
               </Link>
             );
           }
           const up = it.changePct >= 0;
           return (
-            <span
-              key={`q-${i}`}
-              className="inline-flex items-center gap-1.5 flex-shrink-0 tabular"
+            <Link
+              key={`s-${i}`}
+              href={it.href}
+              className="inline-flex items-center gap-1.5 flex-shrink-0 tabular hover:opacity-90"
               style={{
                 color: "#fff",
                 padding: "2px 10px",
@@ -99,8 +110,8 @@ export function TopTickerBar() {
                 {it.symbol}
               </span>
               <span className="font-mono font-semibold text-[12px]">
-                {it.value.toLocaleString(undefined, {
-                  maximumFractionDigits: it.value < 100 ? 2 : 0,
+                {it.price.toLocaleString(undefined, {
+                  maximumFractionDigits: it.price < 100 ? 2 : 0,
                 })}
               </span>
               <span
@@ -110,7 +121,7 @@ export function TopTickerBar() {
                 {up ? "+" : ""}
                 {it.changePct.toFixed(2)}%
               </span>
-            </span>
+            </Link>
           );
         })}
       </div>

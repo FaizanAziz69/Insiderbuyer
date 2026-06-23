@@ -2,11 +2,11 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { TrendingDown, ArrowUp, ArrowDown } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency, formatNumber } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
+import { DataTable } from "@/components/DataTable";
 
 interface ShortRow {
   symbol: string;
@@ -81,96 +81,132 @@ export default function ShortInterestPage() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th>Company</th>
-                <th className="text-right">Price</th>
-                <th className="text-right">% of Float</th>
-                <th className="text-right">Shares Short</th>
-                <th className="text-right">Days to Cover</th>
-                <th className="text-right">MoM Change</th>
-                <th className="text-right">Market Cap</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="text-center text-mute py-10">
-                    Loading live short-interest data…
-                  </td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center text-mute py-10">
-                    No matches.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r, i) => {
+        {isLoading ? (
+          <div className="text-center text-mute py-10">
+            Loading live short-interest data…
+          </div>
+        ) : (
+          <DataTable<ShortRow>
+            rows={rows}
+            rowKey={(r) => r.symbol}
+            empty="No matches."
+            columns={[
+              {
+                key: "company",
+                label: "Company",
+                filterable: true,
+                sortable: true,
+                sortValue: (r) => r.symbol,
+                render: (r) => (
+                  <Link
+                    href={`/companies/${encodeURIComponent(r.symbol)}`}
+                    className="flex items-center gap-2.5 min-w-[200px]"
+                  >
+                    <CompanyLogo ticker={r.symbol} name={r.name} size={28} />
+                    <div className="min-w-0">
+                      <div className="font-mono text-[15px] font-bold text-accent">
+                        {r.symbol}
+                      </div>
+                      <div className="text-[12px] text-mute truncate max-w-[200px]">
+                        {r.name}
+                      </div>
+                    </div>
+                  </Link>
+                ),
+              },
+              {
+                key: "price",
+                label: "Price",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.price,
+                render: (r) => (
+                  <span className="tabular text-[14px] font-bold">${r.price.toFixed(2)}</span>
+                ),
+              },
+              {
+                key: "pctFloat",
+                label: "% of Float",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.shortPctFloat,
+                render: (r) => (
+                  <span className="tabular font-bold text-[14px]">
+                    {r.shortPctFloat != null ? `${r.shortPctFloat.toFixed(2)}%` : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "sharesShort",
+                label: "Shares Short",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.sharesShort,
+                render: (r) => (
+                  <span className="tabular text-mute text-[14px] font-bold">
+                    {r.sharesShort != null ? formatNumber(r.sharesShort) : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "daysToCover",
+                label: "Days to Cover",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.shortRatio,
+                render: (r) => (
+                  <span className="tabular text-[14px] font-bold">
+                    {r.shortRatio != null ? r.shortRatio.toFixed(1) : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "momChange",
+                label: "MoM Change",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.changePct,
+                render: (r) => {
                   const rising = (r.changePct ?? 0) >= 0;
-                  return (
-                    <motion.tr
-                      key={r.symbol}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.18, delay: Math.min(i, 12) * 0.02 }}
+                  return r.changePct != null ? (
+                    <span
+                      className="inline-flex items-center gap-0.5 font-bold text-[14px] tabular"
+                      style={{ color: rising ? "var(--bad)" : "var(--good)" }}
                     >
-                      <td>
-                        <Link
-                          href={`/companies/${encodeURIComponent(r.symbol)}`}
-                          className="flex items-center gap-2.5 min-w-[200px]"
-                        >
-                          <CompanyLogo ticker={r.symbol} name={r.name} size={28} />
-                          <div className="min-w-0">
-                            <div className="font-mono text-[13px] font-bold text-accent">
-                              {r.symbol}
-                            </div>
-                            <div className="text-[11px] text-mute truncate max-w-[200px]">
-                              {r.name}
-                            </div>
-                          </div>
-                        </Link>
-                      </td>
-                      <td className="text-right tabular">${r.price.toFixed(2)}</td>
-                      <td className="text-right tabular font-bold">
-                        {r.shortPctFloat != null ? `${r.shortPctFloat.toFixed(2)}%` : "—"}
-                      </td>
-                      <td className="text-right tabular text-mute">
-                        {r.sharesShort != null ? formatNumber(r.sharesShort) : "—"}
-                      </td>
-                      <td className="text-right tabular">
-                        {r.shortRatio != null ? r.shortRatio.toFixed(1) : "—"}
-                      </td>
-                      <td className="text-right tabular">
-                        {r.changePct != null ? (
-                          <span
-                            className="inline-flex items-center gap-0.5 font-semibold"
-                            style={{ color: rising ? "var(--bad)" : "var(--good)" }}
-                          >
-                            {rising ? (
-                              <ArrowUp className="h-3 w-3" />
-                            ) : (
-                              <ArrowDown className="h-3 w-3" />
-                            )}
-                            {rising ? "+" : ""}
-                            {r.changePct.toFixed(1)}%
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="text-right tabular text-mute">
-                        {r.marketCap ? formatCurrency(r.marketCap) : "—"}
-                      </td>
-                    </motion.tr>
+                      {rising ? (
+                        <ArrowUp className="h-3 w-3" />
+                      ) : (
+                        <ArrowDown className="h-3 w-3" />
+                      )}
+                      {rising ? "+" : ""}
+                      {r.changePct.toFixed(1)}%
+                    </span>
+                  ) : (
+                    "—"
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                },
+              },
+              {
+                key: "marketCap",
+                label: "Market Cap",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.marketCap,
+                render: (r) => (
+                  <span className="tabular text-mute text-[14px] font-bold">
+                    {r.marketCap ? formatCurrency(r.marketCap) : "—"}
+                  </span>
+                ),
+              },
+            ]}
+          />
+        )}
       </div>
 
       <p className="text-[11px] text-faint">

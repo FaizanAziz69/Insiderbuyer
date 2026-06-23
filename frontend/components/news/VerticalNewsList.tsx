@@ -84,7 +84,7 @@ function NewsListRow({ item, index }: { item: NewsItem; index: number }) {
       >
         <div
           className="relative rounded-md overflow-hidden bg-[var(--bg-3)]"
-          style={{ aspectRatio: "4 / 3" }}
+          style={{ aspectRatio: "16 / 9" }}
         >
           <div className="absolute inset-0">
             <NewsImage category={item.category as NewsCategory} seed={seed} />

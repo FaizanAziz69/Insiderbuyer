@@ -2,8 +2,18 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useState } from "react";
-import { Lock, MapPin } from "lucide-react";
+import { MapPin, Target } from "lucide-react";
 import { API_BASE, InsiderRow, fetcher, formatCurrency } from "@/lib/api";
+
+interface TrackRecord {
+  name: string;
+  role: string;
+  ticker: string | null;
+  trades: number;
+  wins: number;
+  accuracy: number;
+  totalValue: number;
+}
 
 export default function InsidersPage() {
   const [country, setCountry] = useState<string>("");
@@ -18,6 +28,12 @@ export default function InsidersPage() {
     fetcher,
     { revalidateOnFocus: false },
   );
+  const { data: trackData } = useSWR<{ rows: TrackRecord[] }>(
+    `${API_BASE}/insiders/track-record?limit=8`,
+    fetcher,
+    { revalidateOnFocus: false, refreshInterval: 5 * 60_000 },
+  );
+  const trackRows = trackData?.rows || [];
 
   const rows = data || [];
 
@@ -42,8 +58,8 @@ export default function InsidersPage() {
       <header>
         <h1 className="text-[24px] font-bold tracking-tight">Top insiders</h1>
         <p className="text-mute text-sm mt-1">
-          Insiders ranked by total recent purchase volume, descending. Track-record accuracy is a{" "}
-          <span className="text-accent">premium</span> feature.
+          Insiders ranked by total recent purchase volume, descending — with each
+          insider&rsquo;s live track-record accuracy.
         </p>
       </header>
 
@@ -123,35 +139,72 @@ export default function InsidersPage() {
           </div>
         </div>
 
-        {/* Track-record sidebar (still locked) */}
-        <div className="card p-5 relative overflow-hidden">
-          <div className="text-[15px] font-semibold">Performance vs benchmark</div>
-          <div className="text-xs text-mute mt-0.5">Track-record accuracy</div>
-          <div className="paywall-blur mt-5 space-y-3">
-            {[94, 88, 81, 76, 71].map((p) => (
-              <div key={p}>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-mute">Insider</span>
-                  <span className="font-semibold">{p}%</span>
-                </div>
-                <div className="h-1.5 rounded-full" style={{ background: "var(--bg-3)" }}>
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${p}%`, background: "var(--accent)" }}
-                  />
-                </div>
-              </div>
-            ))}
+        {/* Track-record accuracy — real, computed from buys vs the live price. */}
+        <div className="card p-5 h-fit">
+          <div className="flex items-center gap-1.5">
+            <Target className="h-4 w-4 text-accent" />
+            <div className="text-[15px] font-semibold">Track-Record Accuracy</div>
           </div>
-          <div className="paywall-overlay">
-            <Lock className="h-5 w-5 text-mute mb-2" />
-            <div className="text-sm text-soft font-semibold mb-1">Premium feature</div>
-            <div className="text-xs text-mute mb-3 max-w-xs">
-              Backtested track-record accuracy needs months of price history.
+          <div className="text-xs text-mute mt-0.5 leading-relaxed">
+            Share of each insider&rsquo;s open-market buys now trading{" "}
+            <span className="text-good font-semibold">above</span> their purchase
+            price (vs the live quote).
+          </div>
+
+          {trackRows.length === 0 ? (
+            <div className="mt-5 text-xs text-mute py-6 text-center">
+              Building track records as price history accrues…
             </div>
-            <Link href="/premium" className="btn-primary">
-              Unlock →
-            </Link>
+          ) : (
+            <div className="mt-5 space-y-3.5">
+              {trackRows.map((t) => {
+                const color =
+                  t.accuracy >= 70
+                    ? "var(--good)"
+                    : t.accuracy >= 45
+                    ? "var(--warn)"
+                    : "var(--bad)";
+                return (
+                  <div key={`${t.name}-${t.ticker}`}>
+                    <div className="flex items-center justify-between text-[12px] mb-1 gap-2">
+                      <span className="font-semibold truncate">
+                        {t.ticker ? (
+                          <Link
+                            href={`/companies/${encodeURIComponent(t.ticker)}`}
+                            className="hover:text-accent"
+                          >
+                            {t.name}
+                          </Link>
+                        ) : (
+                          t.name
+                        )}
+                        <span className="text-faint font-normal ml-1">· {t.role}</span>
+                      </span>
+                      <span className="font-bold tabular flex-shrink-0" style={{ color }}>
+                        {t.accuracy}%
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--bg-3)" }}>
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${t.accuracy}%`, background: color }}
+                      />
+                    </div>
+                    <div className="text-[10px] text-faint mt-0.5">
+                      {t.wins}/{t.trades} buys in profit
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div
+            className="mt-4 pt-3 text-[10px] text-faint leading-relaxed"
+            style={{ borderTop: "1px solid var(--border)" }}
+          >
+            Accuracy = winning buys ÷ total open-market buys, scored against the
+            current price. Needs ≥2 priced buys per insider. Not investment advice.
           </div>
         </div>
       </div>
@@ -197,10 +250,6 @@ function InsiderItem({ row, rank }: { row: InsiderRow; rank: number }) {
         <div className="text-[11px] text-mute">
           {row.trades} trade{row.trades === 1 ? "" : "s"}
         </div>
-      </div>
-      <div className="badge badge-gold hidden md:inline-flex">
-        <Lock className="h-3 w-3" />
-        Accuracy
       </div>
     </li>
   );

@@ -40,7 +40,7 @@ export function EarningsCalendar({ days = 7 }: { days?: number }) {
         className="flex items-center justify-between px-4 py-2.5 border-b"
         style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
       >
-        <div className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider">
+        <div className="inline-flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider">
           <Calendar className="h-3.5 w-3.5 text-accent" />
           Upcoming Earnings
         </div>
@@ -65,24 +65,24 @@ export function EarningsCalendar({ days = 7 }: { days?: number }) {
               <li key={`${r.date}-${r.symbol}`}>
                 <Link
                   href={`/companies/${encodeURIComponent(r.symbol)}`}
-                  className="grid grid-cols-[40px_1fr_auto] gap-3 items-center px-4 py-2.5 hover:bg-[var(--accent-soft)] transition"
+                  className="grid grid-cols-[44px_1fr_auto] gap-3 items-center px-4 py-2.5 hover:bg-[var(--accent-soft)] transition"
                 >
                   <div
-                    className="text-[10px] uppercase font-bold tracking-wider text-accent text-center leading-tight"
+                    className="text-[11px] uppercase font-bold tracking-wider text-accent text-center leading-tight"
                   >
                     {short}
                   </div>
                   <div className="min-w-0">
-                    <div className="font-mono text-[13px] font-bold text-accent truncate">
+                    <div className="font-mono text-[15px] font-bold text-accent truncate">
                       {r.symbol}
                     </div>
-                    <div className="text-[11px] text-mute truncate">{r.name}</div>
+                    <div className="text-[12px] text-mute truncate">{r.name}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[10px] uppercase tracking-wider text-mute font-bold">
+                    <div className="text-[11px] uppercase tracking-wider text-mute font-bold">
                       {readableTime(r.time)}
                     </div>
-                    <div className="text-[12px] font-bold tabular">
+                    <div className="text-[14px] font-bold tabular">
                       {r.estimate || "—"}
                     </div>
                   </div>

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { BrandLogoOverlay } from "./BrandLogoOverlay";
-import { pickSectorPhoto, coverImageUrl } from "@/lib/sector-photos";
+import { pickSectorPhoto } from "@/lib/sector-photos";
 
 interface Props {
   /** Pollinations AI URL stored on the post — used as a fallback only.
@@ -166,12 +166,15 @@ export function AiCoverImage({
   // Primary = the reliable curated Unsplash photo (always loads full). An
   // explicit deduped src (assignUniquePhotos) wins so lists never repeat.
   const curated = srcOverride || pickSectorPhoto(sector, key);
-  // Fallback = an on-topic LoremFlickr photo keyed to the slug if the curated
-  // CDN ever fails for this card.
-  const flickr = coverImageUrl(sector, key);
+  // Fallbacks stay INSIDE the curated library so a cover is ALWAYS a
+  // finance/business photo — never a random Flickr/Unsplash result that could
+  // be a person. Stage 1 = another photo from the same sector bucket; stage 2
+  // = the default finance bucket; stage 3 = on-brand SVG.
+  const curatedAlt = pickSectorPhoto(sector, `${key}~alt`);
+  const curatedDefault = pickSectorPhoto(null, `${key}~def`);
 
-  // Stages: 0 = curated Unsplash, 1 = LoremFlickr, 2 = Unsplash search,
-  // 3 = SVG. Almost always stays on stage 0.
+  // Stages: 0 = curated, 1 = alt curated, 2 = default-bucket curated, 3 = SVG.
+  // Almost always stays on stage 0.
   const [stage, setStage] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -191,20 +194,15 @@ export function AiCoverImage({
     }
   });
 
-  const query =
-    fallbackQuery ||
-    pickKeyword(tags, sector, ticker) ||
-    `${ticker || ""},stock-chart,investing`;
-
   let src: string;
   if (stage === 0) {
     src = curated;
   } else if (stage === 1) {
-    src = flickr;
-  } else if (stage <= 2) {
-    src = unsplashUrl(query);
+    src = curatedAlt;
+  } else if (stage === 2) {
+    src = curatedDefault;
   } else {
-    src = placeholderSvg(ticker || query);
+    src = placeholderSvg(ticker || key);
   }
 
   return (
