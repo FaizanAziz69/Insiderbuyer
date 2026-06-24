@@ -45,6 +45,17 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Mobile only: heatmap + buy/sell meter sit directly under the hero
+          (on desktop they live in the hero's right rail above). */}
+      <div className="flex xl:hidden flex-col gap-4">
+        <HeroHeatmapPanel
+          title="Market Performance by Sector"
+          rows={rankings?.rows?.slice(0, 28) || []}
+          mode="sector"
+        />
+        <MonthlyBuySellMeter />
+      </div>
+
       {/* Free-trial + newsletter dual strip */}
       <TrialAndNewsletterStrip />
 
@@ -69,17 +80,6 @@ export default function HomePage() {
         <aside className="space-y-4">
           <PredictionOfTheDay />
         </aside>
-      </div>
-
-      {/* Mobile only: the hero's heatmap + buy/sell meter, moved below the news
-          feed so articles lead the page (matches the desktop hero rail). */}
-      <div className="flex xl:hidden flex-col gap-4">
-        <HeroHeatmapPanel
-          title="Market Performance by Sector"
-          rows={rankings?.rows?.slice(0, 28) || []}
-          mode="sector"
-        />
-        <MonthlyBuySellMeter />
       </div>
 
       {/* Three datasets side-by-side */}

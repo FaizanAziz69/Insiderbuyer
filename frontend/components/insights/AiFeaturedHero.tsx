@@ -96,7 +96,9 @@ export function AiFeaturedHero() {
   const thumbs = slide.slice(1);
 
   return (
-    <div className="relative flex flex-col h-full">
+    // Mobile needs an explicit height (no desktop grid to stretch against),
+    // otherwise the absolutely-positioned carousel slides collapse to 0.
+    <div className="relative flex flex-col h-full min-h-[480px] xl:min-h-0">
       <div className="relative overflow-hidden flex-1 min-h-0">
         <AnimatePresence mode="wait">
           <motion.section
