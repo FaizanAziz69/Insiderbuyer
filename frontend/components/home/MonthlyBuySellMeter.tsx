@@ -1,9 +1,12 @@
 "use client";
 import useSWR from "swr";
-import { Activity } from "lucide-react";
+import Link from "next/link";
+import { Activity, ArrowRight } from "lucide-react";
 import { API_BASE, BuySellMeter, fetcher, formatCurrency } from "@/lib/api";
 
-export function MonthlyBuySellMeter() {
+/** When `linkable` (default), the whole card links to the full month's
+ *  buy/sell breakdown. Pass linkable={false} on the breakdown page itself. */
+export function MonthlyBuySellMeter({ linkable = true }: { linkable?: boolean }) {
   const { data } = useSWR<BuySellMeter>(`${API_BASE}/metrics/buy-sell`, fetcher, {
     refreshInterval: 5 * 60_000,
     revalidateOnFocus: false,
@@ -12,9 +15,15 @@ export function MonthlyBuySellMeter() {
   const buyPct = Math.round(ratio * 100);
   const sellPct = 100 - buyPct;
 
+  const Wrapper: any = linkable ? Link : "section";
+  const wrapperProps = linkable
+    ? { href: "/insiders/buy-sell", title: "View every insider buy & sell this month" }
+    : {};
+
   return (
-    <section
-      className="rounded-lg p-5"
+    <Wrapper
+      {...wrapperProps}
+      className={`block rounded-lg p-5 transition ${linkable ? "group hover:border-[var(--accent)]" : ""}`}
       style={{
         background: "var(--bg-2)",
         border: "1px solid var(--border)",
@@ -23,13 +32,19 @@ export function MonthlyBuySellMeter() {
       <div className="flex items-baseline justify-between mb-2 flex-wrap gap-2">
         <div className="inline-flex items-center gap-1.5">
           <Activity className="h-3.5 w-3.5 text-accent" />
-          <h3 className="text-[14px] font-bold tracking-tight">
+          <h3 className="text-[14px] font-bold tracking-tight group-hover:text-accent transition">
             Insider buying vs selling — {data?.monthLabel || "This Month"}
           </h3>
         </div>
-        <span className="text-[10px] uppercase tracking-wider font-bold text-mute">
-          General market · resets monthly
-        </span>
+        {linkable ? (
+          <span className="text-[10px] uppercase tracking-wider font-bold text-accent inline-flex items-center gap-1">
+            View all <ArrowRight className="h-3 w-3" />
+          </span>
+        ) : (
+          <span className="text-[10px] uppercase tracking-wider font-bold text-mute">
+            General market · resets monthly
+          </span>
+        )}
       </div>
 
       {/* Bar gauge — colored fills below, labels pinned to the bar's outer
@@ -88,6 +103,6 @@ export function MonthlyBuySellMeter() {
           </span>
         </div>
       </div>
-    </section>
+    </Wrapper>
   );
 }

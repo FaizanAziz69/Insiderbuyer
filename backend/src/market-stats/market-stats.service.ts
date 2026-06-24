@@ -449,6 +449,51 @@ export class MarketStatsService {
     }
   }
 
+  // ── 7-day sparklines for stock listings ───────────────────────────────
+  private sparkCache = new Map<string, { ts: number; data: number[] }>();
+  private readonly SPARK_TTL_MS = 30 * 60_000;
+
+  /** Last ~7 daily closes per symbol for an inline sparkline. Keyless v8 chart,
+   *  cached 30 min, concurrency-limited. */
+  async getSparklines(symbols: string[]): Promise<Record<string, number[]>> {
+    const unique = Array.from(
+      new Set(symbols.filter(Boolean).map((s) => s.toUpperCase())),
+    ).slice(0, 60);
+    const out: Record<string, number[]> = {};
+    const now = Date.now();
+    const toFetch: string[] = [];
+    for (const s of unique) {
+      const c = this.sparkCache.get(s);
+      if (c && now - c.ts < this.SPARK_TTL_MS) {
+        if (c.data.length) out[s] = c.data;
+      } else toFetch.push(s);
+    }
+    for (let i = 0; i < toFetch.length; i += this.QUOTE_CONCURRENCY) {
+      const chunk = toFetch.slice(i, i + this.QUOTE_CONCURRENCY);
+      const res = await Promise.all(chunk.map((s) => this.fetchSpark(s)));
+      chunk.forEach((s, j) => {
+        this.sparkCache.set(s, { ts: Date.now(), data: res[j] });
+        if (res[j].length) out[s] = res[j];
+      });
+    }
+    return out;
+  }
+
+  private async fetchSpark(symbol: string): Promise<number[]> {
+    try {
+      const host = symbol.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
+      const { data } = await this.http.get(
+        `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=7d&interval=1d`,
+      );
+      const closes: number[] = (data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close || [])
+        .map((c: any) => Number(c))
+        .filter((c: number) => Number.isFinite(c) && c > 0);
+      return closes.slice(-7);
+    } catch {
+      return [];
+    }
+  }
+
   async getQuoteBatch(symbols: string[]): Promise<Map<string, MarketStatRow>> {
     const map = new Map<string, MarketStatRow>();
     if (!symbols.length) return map;

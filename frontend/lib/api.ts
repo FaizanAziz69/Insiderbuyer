@@ -18,6 +18,10 @@ export interface RankingRow {
   distinctBuyers: number;
   transactionCount: number;
   totalPurchaseValue: number;
+  /** Volume-weighted average insider purchase price across Form 4 buys. */
+  avgCost?: number | null;
+  /** Most recent open-market insider purchase date (yyyy-mm-dd). */
+  lastBuyDate?: string | null;
   /** Real intraday change % — present when the API is queried with live=1. */
   changePct?: number | null;
   livePrice?: number | null;

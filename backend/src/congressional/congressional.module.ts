@@ -4,9 +4,10 @@ import { CongressionalTransaction } from '../entities/congressional-transaction.
 import { CongressionalController } from './congressional.controller';
 import { CongressionalService } from './congressional.service';
 import { PhotosService } from './photos.service';
+import { FmpModule } from '../fmp/fmp.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CongressionalTransaction])],
+  imports: [TypeOrmModule.forFeature([CongressionalTransaction]), FmpModule],
   controllers: [CongressionalController],
   providers: [CongressionalService, PhotosService],
   exports: [CongressionalService, PhotosService],

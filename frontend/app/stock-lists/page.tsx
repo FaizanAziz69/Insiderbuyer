@@ -16,7 +16,9 @@ export default function StockListsHubPage() {
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
   const lists = data?.lists || [];
-  const sectors = lists.filter((l) => l.kind === "sector");
+  const sectors = lists.filter(
+    (l) => l.kind === "sector" || l.kind === "universe" || l.kind === "country",
+  );
   const personas = lists.filter((l) => l.kind === "persona");
   const premium = lists.find((l) => l.kind === "premium");
 

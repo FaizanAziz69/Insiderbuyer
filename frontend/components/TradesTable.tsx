@@ -82,9 +82,19 @@ export function TradesTable({
       key: "action",
       label: "Action",
       filterable: true,
-      filterLabel: () => "BUY",
-      sortable: false,
-      render: () => <span className="badge badge-buy">BUY</span>,
+      filterLabel: (t) => (t.type === "SELL" ? "SELL" : "BUY"),
+      sortValue: (t) => (t.type === "SELL" ? "SELL" : "BUY"),
+      render: (t) =>
+        t.type === "SELL" ? (
+          <span
+            className="badge"
+            style={{ background: "color-mix(in srgb, var(--bad) 16%, transparent)", color: "var(--bad)" }}
+          >
+            SELL
+          </span>
+        ) : (
+          <span className="badge badge-buy">BUY</span>
+        ),
     },
     {
       key: "sharesBought",

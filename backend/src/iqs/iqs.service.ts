@@ -5,6 +5,7 @@ import { Company } from '../entities/company.entity';
 import { InsiderTransaction, InsiderRole } from '../entities/insider-transaction.entity';
 import { IqsScore } from '../entities/iqs-score.entity';
 import { CongressionalService } from '../congressional/congressional.service';
+import { FmpService } from '../fmp/fmp.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 
 export interface RankingRow {
@@ -25,6 +26,11 @@ export interface RankingRow {
   distinctBuyers: number;
   transactionCount: number;
   totalPurchaseValue: number;
+  /** Volume-weighted average insider purchase price (Σ shares×price / Σ shares)
+   *  across this company's open-market Form 4 buys. */
+  avgCost?: number | null;
+  /** Most recent open-market insider purchase date (yyyy-mm-dd). */
+  lastBuyDate?: string | null;
   /** Real intraday change % — merged from the live quote feed when the
    *  caller passes withLive (null when no quote is available). */
   changePct?: number | null;
@@ -55,6 +61,7 @@ export class IqsService {
     @InjectRepository(IqsScore) private readonly scores: Repository<IqsScore>,
     private readonly congress: CongressionalService,
     private readonly marketStats: MarketStatsService,
+    private readonly fmp: FmpService,
   ) {}
 
   /** IQS — Insider Quality Score, 0–100.
@@ -315,6 +322,31 @@ export class IqsService {
       totalPurchaseValue: Number(r.totalPurchaseValue),
     }));
 
+    // Average insider cost + last buy date per company — computed from the
+    // Form 4 open-market buys (one grouped query for the whole page).
+    if (rows.length) {
+      const ids = rows.map((r) => r.companyId);
+      const aggs = await this.txRepo
+        .createQueryBuilder('t')
+        .select('t.company_id', 'companyId')
+        .addSelect('SUM(t."sharesBought" * t."pricePerShare")', 'val')
+        .addSelect('SUM(t."sharesBought")', 'sh')
+        .addSelect('MAX(t."transactionDate")', 'lastBuy')
+        .where('t.company_id IN (:...ids)', { ids })
+        .andWhere(`t."transactionCode" = 'P'`)
+        .groupBy('t.company_id')
+        .getRawMany();
+      const aggMap = new Map(aggs.map((a: any) => [a.companyId, a]));
+      for (const r of rows) {
+        const a = aggMap.get(r.companyId);
+        const sh = a ? Number(a.sh) || 0 : 0;
+        r.avgCost = a && sh > 0 ? +(Number(a.val) / sh).toFixed(2) : null;
+        r.lastBuyDate = a?.lastBuy
+          ? new Date(a.lastBuy).toISOString().slice(0, 10)
+          : null;
+      }
+    }
+
     // Merge real intraday change % from the live quote feed on request —
     // powers the sector-performance heatmap with actual market moves.
     if (opts.withLive && rows.length) {
@@ -545,7 +577,13 @@ export class IqsService {
     };
   }
 
-  async getAllTrades(opts: { limit?: number; offset?: number; q?: string }) {
+  async getAllTrades(opts: {
+    limit?: number;
+    offset?: number;
+    q?: string;
+    side?: 'buy' | 'sell' | 'all';
+    month?: boolean;
+  }) {
     const limit = Math.min(opts.limit ?? 100, 500);
     const offset = opts.offset ?? 0;
     const qb = this.txRepo
@@ -558,6 +596,16 @@ export class IqsService {
         '(LOWER(c.ticker) LIKE :q OR LOWER(c.name) LIKE :q OR LOWER(t.insiderName) LIKE :q)',
         { q: `%${opts.q.toLowerCase()}%` },
       );
+    }
+    // Buy/Sell side filter (P = open-market purchase, S = sale).
+    if (opts.side === 'buy') qb.andWhere(`t."transactionCode" = 'P'`);
+    else if (opts.side === 'sell') qb.andWhere(`t."transactionCode" = 'S'`);
+    else if (opts.side === 'all') qb.andWhere(`t."transactionCode" IN ('P','S')`);
+    // Current-month-only window (resets on the 1st, like the buy/sell meter).
+    if (opts.month) {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      qb.andWhere('t."transactionDate" >= :ms', { ms: monthStart.toISOString() });
     }
     const total = await qb.getCount();
     const rows = await qb.limit(limit).offset(offset).getMany();
@@ -580,6 +628,52 @@ export class IqsService {
         filingUrl: t.filingUrl,
       })),
     };
+  }
+
+  /** Volume-weighted insider avg cost + last open-market buy date, keyed by
+   *  ticker — computed across ALL Form 4 'P' buys (not just the scored
+   *  rankings universe), so any stock with insider purchases populates. */
+  async getInsiderCostBasis(
+    tickers: string[],
+  ): Promise<Map<string, { avgCost: number | null; lastBuyDate: string | null }>> {
+    const map = new Map<string, { avgCost: number | null; lastBuyDate: string | null }>();
+    const ups = Array.from(
+      new Set(tickers.filter(Boolean).map((t) => t.toUpperCase())),
+    );
+    if (!ups.length) return map;
+    const rows = await this.txRepo
+      .createQueryBuilder('t')
+      .innerJoin('t.company', 'c')
+      .select('UPPER(c.ticker)', 'ticker')
+      .addSelect('SUM(t."sharesBought" * t."pricePerShare")', 'val')
+      .addSelect('SUM(t."sharesBought")', 'sh')
+      .addSelect('MAX(t."transactionDate")', 'lastBuy')
+      .where('UPPER(c.ticker) IN (:...ups)', { ups })
+      .andWhere(`t."transactionCode" = 'P'`)
+      .groupBy('UPPER(c.ticker)')
+      .getRawMany();
+    for (const r of rows) {
+      const sh = Number(r.sh) || 0;
+      map.set(String(r.ticker), {
+        avgCost: sh > 0 ? +(Number(r.val) / sh).toFixed(2) : null,
+        lastBuyDate: r.lastBuy
+          ? new Date(r.lastBuy).toISOString().slice(0, 10)
+          : null,
+      });
+    }
+    // Fill any requested tickers our SEC subset doesn't cover from FMP's
+    // market-wide insider feed (real, just a broader source).
+    if (this.fmp.enabled) {
+      const need = ups.filter((t) => !map.has(t));
+      if (need.length) {
+        const fmpMap = await this.fmp.getInsiderCostBasisMap();
+        for (const t of need) {
+          const f = fmpMap.get(t);
+          if (f && f.avgCost != null) map.set(t, f);
+        }
+      }
+    }
+    return map;
   }
 
   async getVolumeSeries(daysBack: number) {

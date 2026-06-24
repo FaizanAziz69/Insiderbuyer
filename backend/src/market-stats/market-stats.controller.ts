@@ -42,6 +42,17 @@ export class MarketStatsController {
     return { stats: await this.svc.getStockStats(symbol) };
   }
 
+  /** 7-day close sparklines for stock listings. */
+  @Get('spark')
+  async spark(@Query('symbols') symbols?: string) {
+    const syms = (symbols || '')
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean)
+      .slice(0, 60);
+    return { spark: await this.svc.getSparklines(syms) };
+  }
+
   /** Multi-period % returns for the heatmap time-period toggle. */
   @Get('performance')
   async performance(@Query('symbols') symbols?: string) {

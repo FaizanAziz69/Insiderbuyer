@@ -1,6 +1,8 @@
 "use client";
-import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUpDown } from "lucide-react";
+
+const PAGE_SIZE = 25;
 
 export type Align = "left" | "right" | "center";
 
@@ -18,8 +20,9 @@ export interface Column<T> {
   /** Show a filter control for this column above the table. */
   filterable?: boolean;
   /** Filter UI: "select" = dropdown of distinct values (default, for text);
-   *  "range" = Min/Max number inputs (for numeric columns). */
-  filterType?: "select" | "range";
+   *  "range" = Min/Max number inputs (for numeric columns);
+   *  "marketCapPreset" = preset cap-band dropdown (Mega/Large/Mid/Small/…). */
+  filterType?: "select" | "range" | "marketCapPreset";
   /** Display string for a row's value in a select dropdown. */
   filterLabel?: (row: T) => string;
   /** Value used for sorting AND filtering. */
@@ -31,6 +34,17 @@ export interface Column<T> {
 }
 
 type FilterVal = string | { min?: string; max?: string };
+
+/** Preset market-cap bands (same buckets stockanalysis.com / MarketBeat use). */
+export const CAP_PRESETS: { key: string; label: string; min: number; max: number }[] = [
+  { key: "mega", label: "Mega ( > $200B )", min: 200e9, max: Infinity },
+  { key: "large", label: "Large ( $10B – $200B )", min: 10e9, max: 200e9 },
+  { key: "mid", label: "Mid ( $2B – $10B )", min: 2e9, max: 10e9 },
+  { key: "small", label: "Small ( $300M – $2B )", min: 300e6, max: 2e9 },
+  { key: "micro", label: "Micro ( $50M – $300M )", min: 50e6, max: 300e6 },
+  { key: "nano", label: "Nano ( < $50M )", min: 0, max: 50e6 },
+];
+const CAP_BY_KEY = new Map(CAP_PRESETS.map((p) => [p.key, p]));
 
 interface Props<T> {
   columns: Column<T>[];
@@ -86,13 +100,14 @@ export function DataTable<T>({
     initialSort ?? null,
   );
   const [filters, setFilters] = useState<Record<string, FilterVal>>({});
+  const [page, setPage] = useState(0);
 
   const filterCols = columns.filter((c) => c.filterable);
 
   const optionsByCol = useMemo(() => {
     const m: Record<string, string[]> = {};
     for (const c of filterCols) {
-      if (c.filterType === "range") continue;
+      if (c.filterType === "range" || c.filterType === "marketCapPreset") continue;
       const set = new Set<string>();
       rows.forEach((r, i) => {
         const t = filterText(c, r, i);
@@ -113,6 +128,15 @@ export function DataTable<T>({
       active.every(([key, v]) => {
         const col = columns.find((c) => c.key === key);
         if (!col) return true;
+        // Market-cap preset → numeric band check.
+        if (col.filterType === "marketCapPreset" && typeof v === "string") {
+          const preset = CAP_BY_KEY.get(v);
+          if (!preset) return true;
+          const raw = cellValue(col, row, i);
+          const n = typeof raw === "number" ? raw : Number(raw);
+          if (raw == null || Number.isNaN(n)) return false;
+          return n >= preset.min && n < preset.max;
+        }
         if (typeof v === "string") return filterText(col, row, i) === v;
         const raw = cellValue(col, row, i);
         const n = typeof raw === "number" ? raw : Number(raw);
@@ -139,6 +163,15 @@ export function DataTable<T>({
       return String(va).localeCompare(String(vb)) * dir;
     });
   }, [filtered, sort, columns]);
+
+  // Pagination — 25 rows per page. Reset to the first page whenever the
+  // filtered/sorted set changes so we never land on an out-of-range page.
+  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  useEffect(() => {
+    setPage(0);
+  }, [filters, sort, rows.length]);
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = sorted.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
   function toggle(key: string, sortable: boolean) {
     if (sortable === false) return;
@@ -195,6 +228,28 @@ export function DataTable<T>({
                     />
                   </div>
                 </div>
+              );
+            }
+            if (c.filterType === "marketCapPreset") {
+              return (
+                <label key={c.key} className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-mute">
+                    {title}
+                  </span>
+                  <select
+                    value={(filters[c.key] as string) ?? ""}
+                    onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
+                    className="text-[13px] font-semibold rounded-md px-2.5 py-1.5 min-w-[170px]"
+                    style={numInput}
+                  >
+                    <option value="">All Market Caps</option>
+                    {CAP_PRESETS.map((p) => (
+                      <option key={p.key} value={p.key}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               );
             }
             return (
@@ -275,11 +330,11 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              sorted.map((row, i) => (
-                <tr key={rowKey(row, i)} className={rowClassName}>
+              pageRows.map((row, i) => (
+                <tr key={rowKey(row, safePage * PAGE_SIZE + i)} className={rowClassName}>
                   {columns.map((c) => (
                     <td key={c.key} className={`${alignClass[c.align ?? "left"]} ${c.className ?? ""}`}>
-                      {c.render(row, i)}
+                      {c.render(row, safePage * PAGE_SIZE + i)}
                     </td>
                   ))}
                 </tr>
@@ -288,6 +343,39 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination — 25 per page, buttons in the nav-bar color */}
+      {sorted.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between gap-3 mt-3 flex-wrap">
+          <span className="text-[12px] text-mute tabular">
+            {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, sorted.length)} of{" "}
+            {sorted.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={safePage <= 0}
+              className="inline-flex items-center gap-1 text-[13px] font-semibold px-3 py-1.5 rounded-md transition disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: "var(--brand-surface)", color: "#fff" }}
+            >
+              <ChevronLeft className="h-4 w-4" /> Previous
+            </button>
+            <span className="text-[12px] text-mute tabular px-1">
+              Page {safePage + 1} of {pageCount}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              disabled={safePage >= pageCount - 1}
+              className="inline-flex items-center gap-1 text-[13px] font-semibold px-3 py-1.5 rounded-md transition disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: "var(--brand-surface)", color: "#fff" }}
+            >
+              Next <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,11 +3,13 @@ import useSWR from "swr";
 import Link from "next/link";
 import { use, useMemo } from "react";
 import { ArrowDown, ArrowUp, ChevronRight, Sparkles } from "lucide-react";
-import { DataTable } from "@/components/DataTable";
+import { DataTable, Column } from "@/components/DataTable";
+import { Sparkline } from "@/components/Sparkline";
 import {
   API_BASE,
   fetcher,
   formatCurrency,
+  formatDate,
   formatNumber,
 } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
@@ -30,6 +32,8 @@ interface DetailRow {
   marketCap?: number | null;
   iqs?: number;
   totalPurchaseValue?: number;
+  avgCost?: number | null;
+  lastBuyDate?: string | null;
   live?: RowLive | null;
 }
 interface DetailResponse {
@@ -80,6 +84,25 @@ export default function StockListDetailPage({
   }, [analystData]);
 
   const rows = data?.rows || [];
+
+  // 7-day price sparklines for the listed tickers (keyless v8 chart, cached).
+  const tickerKey = rows
+    .map((r) => (r.ticker || r.symbol || "").toUpperCase())
+    .filter(Boolean)
+    .slice(0, 60)
+    .join(",");
+  const { data: sparkData } = useSWR<{ spark: Record<string, number[]> }>(
+    tickerKey ? `${API_BASE}/market-stats/spark?symbols=${tickerKey}` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
+  const sparkMap = sparkData?.spark || {};
+
+  // Avg Cost / Last Buy are insider/holder concepts — only meaningful on the
+  // insider-sourced sector lists and the famous-investor (13F) lists. Pure
+  // stock universes (Large Cap, FAANG, REITs, country lists) have no such
+  // figure, so we omit the columns there rather than show empty cells.
+  const showInsiderCols = data?.kind === "sector" || data?.kind === "persona";
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -203,11 +226,18 @@ export default function StockListDetailPage({
                 },
               },
               {
+                key: "spark7d",
+                label: "7D Price",
+                sortable: false,
+                align: "center",
+                render: (r) => <Sparkline data={sparkMap[(r.ticker || r.symbol || "").toUpperCase()]} />,
+              },
+              {
                 key: "marketCap",
                 label: "Market Cap",
                 filterable: true,
-                filterType: "range",
-                filterLabelText: "Market Cap ($)",
+                filterType: "marketCapPreset",
+                filterLabelText: "Market Cap",
                 align: "center",
                 sortValue: (r) => r.live?.marketCap ?? r.marketCap ?? null,
                 render: (r) => (
@@ -220,6 +250,32 @@ export default function StockListDetailPage({
                   </span>
                 ),
               },
+              ...(showInsiderCols
+                ? ([
+                    {
+                      key: "avgCost",
+                      label: "Avg Cost",
+                      align: "center",
+                      sortValue: (r) => r.avgCost ?? null,
+                      render: (r) => (
+                        <span className="tabular text-[14px] font-bold">
+                          {r.avgCost != null ? `$${r.avgCost.toFixed(2)}` : "—"}
+                        </span>
+                      ),
+                    },
+                    {
+                      key: "lastBuyDate",
+                      label: "Last Buy",
+                      align: "center",
+                      sortValue: (r) => r.lastBuyDate ?? null,
+                      render: (r) => (
+                        <span className="tabular text-[14px] text-soft whitespace-nowrap">
+                          {r.lastBuyDate ? formatDate(r.lastBuyDate) : "—"}
+                        </span>
+                      ),
+                    },
+                  ] as Column<DetailRow>[])
+                : []),
               {
                 key: "volume",
                 label: "Volume",

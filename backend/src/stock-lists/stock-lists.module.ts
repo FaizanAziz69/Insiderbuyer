@@ -4,9 +4,10 @@ import { MarketStatsModule } from '../market-stats/market-stats.module';
 import { StockListsController } from './stock-lists.controller';
 import { StockListsService } from './stock-lists.service';
 import { ThirteenFService } from './thirteenf.service';
+import { CongressionalModule } from '../congressional/congressional.module';
 
 @Module({
-  imports: [IqsModule, MarketStatsModule],
+  imports: [IqsModule, MarketStatsModule, CongressionalModule],
   controllers: [StockListsController],
   providers: [StockListsService, ThirteenFService],
   exports: [StockListsService],

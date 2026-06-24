@@ -95,11 +95,15 @@ export class IqsController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('q') q?: string,
+    @Query('side') side?: string,
+    @Query('month') month?: string,
   ) {
     return this.iqs.getAllTrades({
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
       q: q || undefined,
+      side: side === 'buy' || side === 'sell' || side === 'all' ? side : undefined,
+      month: month === '1' || month === 'true',
     });
   }
 

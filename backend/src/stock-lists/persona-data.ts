@@ -270,10 +270,134 @@ export const COUNTRY_UNIVERSE: Record<string, CountryStock[]> = {
   ],
 };
 
+// ── Market-cap & thematic universes ───────────────────────────────────────
+// Curated baskets of well-known U.S. names with LIVE prices/market cap. Unlike
+// the sector lists (which filter our insider-buy universe and therefore skew to
+// small/micro-caps), these always render real constituents. IQS is attached
+// where the name also appears in our Form 4 rankings.
+export const UNIVERSE_LISTS: Record<string, CountryStock[]> = {
+  'large-cap': [
+    { ticker: 'AAPL', name: 'Apple Inc.', sector: 'Technology' },
+    { ticker: 'MSFT', name: 'Microsoft Corp.', sector: 'Technology' },
+    { ticker: 'NVDA', name: 'NVIDIA Corp.', sector: 'Technology' },
+    { ticker: 'AMZN', name: 'Amazon.com', sector: 'Consumer Discretionary' },
+    { ticker: 'GOOGL', name: 'Alphabet (Class A)', sector: 'Communication Services' },
+    { ticker: 'META', name: 'Meta Platforms', sector: 'Communication Services' },
+    { ticker: 'BRK-B', name: 'Berkshire Hathaway', sector: 'Financial Services' },
+    { ticker: 'LLY', name: 'Eli Lilly', sector: 'Healthcare' },
+    { ticker: 'AVGO', name: 'Broadcom', sector: 'Technology' },
+    { ticker: 'TSLA', name: 'Tesla', sector: 'Consumer Discretionary' },
+    { ticker: 'JPM', name: 'JPMorgan Chase', sector: 'Financial Services' },
+    { ticker: 'V', name: 'Visa Inc.', sector: 'Financial Services' },
+    { ticker: 'WMT', name: 'Walmart', sector: 'Consumer Staples' },
+    { ticker: 'XOM', name: 'Exxon Mobil', sector: 'Energy' },
+    { ticker: 'UNH', name: 'UnitedHealth Group', sector: 'Healthcare' },
+    { ticker: 'MA', name: 'Mastercard', sector: 'Financial Services' },
+    { ticker: 'JNJ', name: 'Johnson & Johnson', sector: 'Healthcare' },
+    { ticker: 'PG', name: 'Procter & Gamble', sector: 'Consumer Staples' },
+    { ticker: 'HD', name: 'Home Depot', sector: 'Consumer Discretionary' },
+    { ticker: 'COST', name: 'Costco Wholesale', sector: 'Consumer Staples' },
+  ],
+  'blue-chip': [
+    { ticker: 'AAPL', name: 'Apple Inc.', sector: 'Technology' },
+    { ticker: 'MSFT', name: 'Microsoft Corp.', sector: 'Technology' },
+    { ticker: 'JPM', name: 'JPMorgan Chase', sector: 'Financial Services' },
+    { ticker: 'JNJ', name: 'Johnson & Johnson', sector: 'Healthcare' },
+    { ticker: 'PG', name: 'Procter & Gamble', sector: 'Consumer Staples' },
+    { ticker: 'KO', name: 'Coca-Cola', sector: 'Consumer Staples' },
+    { ticker: 'PEP', name: 'PepsiCo', sector: 'Consumer Staples' },
+    { ticker: 'WMT', name: 'Walmart', sector: 'Consumer Staples' },
+    { ticker: 'HD', name: 'Home Depot', sector: 'Consumer Discretionary' },
+    { ticker: 'V', name: 'Visa Inc.', sector: 'Financial Services' },
+    { ticker: 'MA', name: 'Mastercard', sector: 'Financial Services' },
+    { ticker: 'XOM', name: 'Exxon Mobil', sector: 'Energy' },
+    { ticker: 'CVX', name: 'Chevron', sector: 'Energy' },
+    { ticker: 'UNH', name: 'UnitedHealth Group', sector: 'Healthcare' },
+    { ticker: 'DIS', name: 'Walt Disney', sector: 'Communication Services' },
+    { ticker: 'MCD', name: "McDonald's", sector: 'Consumer Discretionary' },
+    { ticker: 'CAT', name: 'Caterpillar', sector: 'Industrials' },
+    { ticker: 'BA', name: 'Boeing', sector: 'Industrials' },
+    { ticker: 'IBM', name: 'IBM', sector: 'Technology' },
+    { ticker: 'GE', name: 'GE Aerospace', sector: 'Industrials' },
+  ],
+  faang: [
+    { ticker: 'META', name: 'Meta Platforms', sector: 'Communication Services' },
+    { ticker: 'AAPL', name: 'Apple Inc.', sector: 'Technology' },
+    { ticker: 'AMZN', name: 'Amazon.com', sector: 'Consumer Discretionary' },
+    { ticker: 'NFLX', name: 'Netflix', sector: 'Communication Services' },
+    { ticker: 'GOOGL', name: 'Alphabet (Class A)', sector: 'Communication Services' },
+    { ticker: 'MSFT', name: 'Microsoft Corp.', sector: 'Technology' },
+    { ticker: 'NVDA', name: 'NVIDIA Corp.', sector: 'Technology' },
+    { ticker: 'TSLA', name: 'Tesla', sector: 'Consumer Discretionary' },
+  ],
+  reits: [
+    { ticker: 'O', name: 'Realty Income', sector: 'Real Estate' },
+    { ticker: 'PLD', name: 'Prologis', sector: 'Real Estate' },
+    { ticker: 'AMT', name: 'American Tower', sector: 'Real Estate' },
+    { ticker: 'EQIX', name: 'Equinix', sector: 'Real Estate' },
+    { ticker: 'SPG', name: 'Simon Property Group', sector: 'Real Estate' },
+    { ticker: 'PSA', name: 'Public Storage', sector: 'Real Estate' },
+    { ticker: 'WELL', name: 'Welltower', sector: 'Real Estate' },
+    { ticker: 'DLR', name: 'Digital Realty Trust', sector: 'Real Estate' },
+    { ticker: 'VICI', name: 'VICI Properties', sector: 'Real Estate' },
+    { ticker: 'CCI', name: 'Crown Castle', sector: 'Real Estate' },
+    { ticker: 'EXR', name: 'Extra Space Storage', sector: 'Real Estate' },
+    { ticker: 'AVB', name: 'AvalonBay Communities', sector: 'Real Estate' },
+    { ticker: 'EQR', name: 'Equity Residential', sector: 'Real Estate' },
+    { ticker: 'SBAC', name: 'SBA Communications', sector: 'Real Estate' },
+    { ticker: 'ARE', name: 'Alexandria Real Estate', sector: 'Real Estate' },
+  ],
+  'small-cap': [
+    { ticker: 'ASTS', name: 'AST SpaceMobile', sector: 'Communication Services' },
+    { ticker: 'IONQ', name: 'IonQ', sector: 'Technology' },
+    { ticker: 'RKLB', name: 'Rocket Lab', sector: 'Industrials' },
+    { ticker: 'ACHR', name: 'Archer Aviation', sector: 'Industrials' },
+    { ticker: 'JOBY', name: 'Joby Aviation', sector: 'Industrials' },
+    { ticker: 'SOUN', name: 'SoundHound AI', sector: 'Technology' },
+    { ticker: 'BBAI', name: 'BigBear.ai', sector: 'Technology' },
+    { ticker: 'RXRX', name: 'Recursion Pharmaceuticals', sector: 'Healthcare' },
+    { ticker: 'LUNR', name: 'Intuitive Machines', sector: 'Industrials' },
+    { ticker: 'RGTI', name: 'Rigetti Computing', sector: 'Technology' },
+    { ticker: 'OKLO', name: 'Oklo Inc.', sector: 'Utilities' },
+    { ticker: 'SMR', name: 'NuScale Power', sector: 'Utilities' },
+    { ticker: 'DNA', name: 'Ginkgo Bioworks', sector: 'Healthcare' },
+    { ticker: 'CIFR', name: 'Cipher Mining', sector: 'Financial Services' },
+    { ticker: 'AUR', name: 'Aurora Innovation', sector: 'Technology' },
+  ],
+};
+
 export const STOCK_LIST_META: Record<
   string,
-  { title: string; description: string; kind: 'sector' | 'persona' | 'premium' | 'country' }
+  {
+    title: string;
+    description: string;
+    kind: 'sector' | 'persona' | 'premium' | 'country' | 'universe';
+  }
 > = {
+  'large-cap': {
+    title: 'Large Cap Stocks',
+    description:
+      'The biggest U.S. companies by market capitalisation — the mega-cap leaders that anchor the S&P 500 and drive index returns, with live prices and fundamentals.',
+    kind: 'universe',
+  },
+  'small-cap': {
+    title: 'Small Cap Stocks',
+    description:
+      'Smaller, faster-growing U.S. companies — higher risk and higher potential reward than the mega-caps. Live prices; insider buying often shows up here first.',
+    kind: 'universe',
+  },
+  faang: {
+    title: 'FAANG Stocks',
+    description:
+      'The mega-cap technology leaders — Meta, Apple, Amazon, Netflix and Alphabet, plus Microsoft, NVIDIA and Tesla — that dominate the growth narrative.',
+    kind: 'universe',
+  },
+  reits: {
+    title: 'REIT Stocks',
+    description:
+      'Real Estate Investment Trusts — landlords across data centers, towers, retail, storage, healthcare and residential. Watched for their yields and rate sensitivity.',
+    kind: 'universe',
+  },
   canada: {
     title: 'Canadian Stocks (TSX)',
     description:
@@ -313,8 +437,8 @@ export const STOCK_LIST_META: Record<
   'blue-chip': {
     title: 'Blue Chip Stocks',
     description:
-      'Established U.S. companies above $50B in market capitalisation — long histories of stable earnings, broad institutional ownership, and the backbone of most index portfolios.',
-    kind: 'sector',
+      'Established U.S. companies with long histories of stable earnings, broad institutional ownership, and the backbone of most index portfolios — with live prices.',
+    kind: 'universe',
   },
   oil: {
     title: 'Oil & Energy Stocks',

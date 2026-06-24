@@ -2,7 +2,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { API_BASE, RankingRow, RankingsResponse, fetcher, formatCurrency } from "@/lib/api";
+import { API_BASE, RankingRow, RankingsResponse, fetcher, formatCurrency, formatDate } from "@/lib/api";
 import { TierBadge } from "@/components/TierBadge";
 import { PremiumGate } from "@/components/PremiumGate";
 import { DataTable, Column } from "@/components/DataTable";
@@ -122,10 +122,33 @@ export default function CompaniesPage() {
     },
     boughtCol,
     {
+      key: "avgCost",
+      label: "Avg Cost",
+      align: "right",
+      sortValue: (r) => r.avgCost ?? null,
+      render: (r) => (
+        <span className="tabular text-[14px] font-bold">
+          {r.avgCost != null ? `$${r.avgCost.toFixed(2)}` : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "lastBuyDate",
+      label: "Last Buy",
+      align: "right",
+      sortValue: (r) => r.lastBuyDate ?? null,
+      render: (r) => (
+        <span className="tabular text-[14px] text-soft whitespace-nowrap">
+          {r.lastBuyDate ? formatDate(r.lastBuyDate) : "—"}
+        </span>
+      ),
+    },
+    {
       key: "mktcap",
       label: "Mkt cap",
       filterable: true,
-      filterType: "range",
+      filterType: "marketCapPreset",
+      filterLabelText: "Market Cap",
       align: "right",
       sortValue: (r) => r.marketCap,
       render: (r) => (

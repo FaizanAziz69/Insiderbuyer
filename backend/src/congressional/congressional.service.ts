@@ -4,6 +4,7 @@ import { IsNull, Repository } from 'typeorm';
 import { CongressionalTransaction } from '../entities/congressional-transaction.entity';
 import { CONGRESS_SEED } from './congressional-seed';
 import { PhotosService } from './photos.service';
+import { FmpService } from '../fmp/fmp.service';
 
 @Injectable()
 export class CongressionalService implements OnModuleInit {
@@ -13,35 +14,75 @@ export class CongressionalService implements OnModuleInit {
     @InjectRepository(CongressionalTransaction)
     private readonly repo: Repository<CongressionalTransaction>,
     private readonly photos: PhotosService,
+    private readonly fmp: FmpService,
   ) {}
 
   async onModuleInit() {
     try {
-      const count = await this.repo.count();
-      if (count === 0) {
-        this.logger.log(`Seeding ${CONGRESS_SEED.length} congressional disclosures…`);
-        await this.repo.save(
-          CONGRESS_SEED.map((r) => ({
-            politicianName: r.politicianName,
-            chamber: r.chamber === 'Senate' ? 'Senate' : 'House',
-            party: r.party,
-            ticker: r.ticker,
-            companyName: r.companyName,
-            action: r.action,
-            amountMin: r.amountMin,
-            amountMax: r.amountMax,
-            transactionDate: new Date(r.transactionDate),
-            reportedDate: new Date(r.reportedDate),
-            source: 'sample-seed',
-          })) as any,
-        );
-        this.logger.log('Congressional seed complete.');
+      // Prefer real Senate + House disclosures from FMP; fall back to the
+      // sample seed only when the key is missing / the fetch fails.
+      const ingested = await this.refreshFromFmp();
+      if (!ingested) {
+        const count = await this.repo.count();
+        if (count === 0) {
+          this.logger.log(`Seeding ${CONGRESS_SEED.length} congressional disclosures…`);
+          await this.repo.save(
+            CONGRESS_SEED.map((r) => ({
+              politicianName: r.politicianName,
+              chamber: r.chamber === 'Senate' ? 'Senate' : 'House',
+              party: r.party,
+              ticker: r.ticker,
+              companyName: r.companyName,
+              action: r.action,
+              amountMin: r.amountMin,
+              amountMax: r.amountMax,
+              transactionDate: new Date(r.transactionDate),
+              reportedDate: new Date(r.reportedDate),
+              source: 'sample-seed',
+            })) as any,
+          );
+          this.logger.log('Congressional seed complete.');
+        }
       }
       // Backfill photos for any rows missing them — async, swallow errors per-row.
       void this.backfillPhotos();
     } catch (err: any) {
       this.logger.warn(`Skipped seeding congressional trades: ${err?.message || err}`);
     }
+  }
+
+  /** Pull the latest real Senate + House disclosures from FMP and replace the
+   *  table with them. Returns false when FMP is unavailable / returns nothing
+   *  (so the caller can fall back to the seed). */
+  async refreshFromFmp(): Promise<boolean> {
+    if (!this.fmp.enabled) return false;
+    const trades = await this.fmp.getCongressional(2);
+    if (!trades.length) return false;
+    const seen = new Set<string>();
+    const rows = trades
+      .filter((t) => {
+        const k = `${t.politicianName}|${t.ticker}|${t.transactionDate}|${t.action}|${t.amountMin}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .map((t) => ({
+        politicianName: t.politicianName,
+        chamber: t.chamber,
+        party: t.party,
+        ticker: t.ticker,
+        companyName: t.companyName,
+        action: t.action,
+        amountMin: t.amountMin,
+        amountMax: t.amountMax,
+        transactionDate: new Date(t.transactionDate),
+        reportedDate: new Date(t.reportedDate),
+        source: 'fmp',
+      }));
+    await this.repo.clear();
+    await this.repo.save(rows as any);
+    this.logger.log(`Ingested ${rows.length} real congressional disclosures from FMP.`);
+    return true;
   }
 
   private async backfillPhotos() {

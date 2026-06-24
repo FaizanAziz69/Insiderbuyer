@@ -33,7 +33,7 @@ export function AiLatestNewsSection() {
   );
 
   return (
-    <section>
+    <section className="h-full flex flex-col">
       <div className="large-section-h" style={{ alignItems: "baseline" }}>
         <span>Latest Financial News</span>
         <Link
@@ -49,7 +49,7 @@ export function AiLatestNewsSection() {
       ) : items.length === 0 ? (
         <EmptyHint />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-6 lg:gap-8 flex-1">
           {big && <BigCard item={big} src={covers[big.slug]} />}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
             {small.map((it, i) => (
@@ -72,7 +72,7 @@ export function AiLatestNewsSection() {
 
 function BigCard({ item, src }: { item: BlogPostListItem; src?: string }) {
   return (
-    <Link href={`/insights/${item.slug}`} className="block group h-full">
+    <Link href={`/insights/${item.slug}`} className="flex flex-col group h-full">
       <AiCoverImage
         primary={item.imageUrl}
           src={src}
@@ -82,7 +82,7 @@ function BigCard({ item, src }: { item: BlogPostListItem; src?: string }) {
         sector={item.sector}
         loading="eager"
         className="w-full rounded-lg mb-4 transition-transform duration-500 group-hover:scale-[1.02]"
-        style={{ aspectRatio: "16 / 9" }}
+        style={{ flex: "1 1 auto", minHeight: 300 }}
       />
       <div className="text-[10px] uppercase tracking-wider font-bold text-accent mb-1.5">
         {item.eyebrow || item.kind.replace(/-/g, " ").toUpperCase()}

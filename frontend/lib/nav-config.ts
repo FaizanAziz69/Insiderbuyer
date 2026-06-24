@@ -70,6 +70,7 @@ export const NAV_GROUPS: NavGroup[] = [
         links: [
           { label: "Top Gainers", href: "/market-data/top-gainers", description: "Today's biggest percentage gains", icon: TrendingUp },
           { label: "Top Losers", href: "/market-data/top-losers", description: "Today's biggest percentage losses", icon: TrendingUp },
+          { label: "Short Squeeze List", href: "/short-squeeze", description: "Stocks ranked by squeeze potential", icon: Flame },
           { label: "Market Movers Articles", href: "/articles/market-movers", description: "Stocks up 10%+ — and why", icon: Flame },
         ],
       },
@@ -97,11 +98,15 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         title: "Stocks By Interest",
         links: [
-          { label: "Metals & Mining", href: "/stock-lists/metals-and-mining", icon: Wrench },
+          { label: "Large Cap", href: "/stock-lists/large-cap", icon: Building2 },
+          { label: "Small Cap", href: "/stock-lists/small-cap", icon: Rocket },
+          { label: "Blue Chip", href: "/stock-lists/blue-chip", icon: ShieldCheck },
+          { label: "FAANG", href: "/stock-lists/faang", icon: Cpu },
+          { label: "REITs", href: "/stock-lists/reits", icon: Landmark },
           { label: "Tech", href: "/stock-lists/tech", icon: Cpu },
+          { label: "Metals & Mining", href: "/stock-lists/metals-and-mining", icon: Wrench },
           { label: "Gold", href: "/stock-lists/gold", icon: Coins },
           { label: "Silver", href: "/stock-lists/silver", icon: Gem },
-          { label: "Blue Chip", href: "/stock-lists/blue-chip", icon: ShieldCheck },
           { label: "Oil", href: "/stock-lists/oil", icon: Flame },
         ],
       },
@@ -143,6 +148,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Analyst Ratings", href: "/analyst-ratings", description: "Consensus & price targets", icon: ShieldCheck },
           { label: "Dividends", href: "/dividends", description: "Yields, rates & ex-dates", icon: Coins },
           { label: "Short Interest", href: "/short-interest", description: "Shares short & days-to-cover", icon: TrendingUp },
+          { label: "Short Squeeze List", href: "/short-squeeze", description: "Stocks ranked by squeeze potential", icon: Flame },
           { label: "Earnings", href: "/earnings", description: "Live earnings calendar", icon: BarChart3 },
           { label: "IPOs", href: "/ipos", description: "Priced & upcoming offerings", icon: Rocket },
           { label: "Insider Trades", href: "/trades", description: "All Form 4 buys & sells", icon: Activity },

@@ -8,6 +8,7 @@ import {
   Calendar,
   Flame,
   LineChart,
+  TrendingDown,
 } from "lucide-react";
 
 const TOOLS = [
@@ -46,6 +47,12 @@ const TOOLS = [
     body: "Today's biggest gainers, losers, and most-active tickers — cross-referenced with recent insider buys.",
     href: "/movers",
     icon: Flame,
+  },
+  {
+    title: "Short Squeeze List",
+    body: "Stocks ranked by squeeze potential — short % of float, days-to-cover, and rising short interest combined into a single score.",
+    href: "/short-squeeze",
+    icon: TrendingDown,
   },
 ];
 

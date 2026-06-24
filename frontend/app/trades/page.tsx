@@ -8,7 +8,8 @@ import { TradesTable } from "@/components/TradesTable";
 export default function TradesPage() {
   const [q, setQ] = useState("");
   const params = new URLSearchParams();
-  params.set("limit", "100");
+  params.set("limit", "200");
+  params.set("side", "all"); // real buys (P) + sells (S) only — no option grants
   if (q) params.set("q", q);
 
   const { data, isLoading } = useSWR<TradesResponse>(
@@ -28,7 +29,8 @@ export default function TradesPage() {
         <div>
           <h1 className="text-[24px] font-bold tracking-tight">All insider trades</h1>
           <p className="text-mute text-sm mt-1">
-            Every open-market SEC Form 4 purchase we've parsed, ranked by dollar value (descending).
+            Every open-market SEC Form 4 transaction we&rsquo;ve parsed — both purchases (BUY)
+            and sales (SELL). Use the Action filter to show one side; sortable by any column.
           </p>
         </div>
         <a href={`${API_BASE}/rankings.csv`} className="btn-secondary self-start sm:self-auto">

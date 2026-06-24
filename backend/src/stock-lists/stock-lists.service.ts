@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { IqsService, RankingRow } from '../iqs/iqs.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 import { ThirteenFService } from './thirteenf.service';
+import { CongressionalService } from '../congressional/congressional.service';
 import {
   BLUE_CHIP_MIN_MARKET_CAP,
   COUNTRY_UNIVERSE,
@@ -10,6 +11,7 @@ import {
   SECTOR_LIST_RULES,
   SECTOR_UNIVERSE,
   STOCK_LIST_META,
+  UNIVERSE_LISTS,
 } from './persona-data';
 
 export interface LiveQuote {
@@ -26,14 +28,14 @@ export interface StockListIndexEntry {
   title: string;
   description: string;
   count: number;
-  kind: 'sector' | 'persona' | 'premium' | 'country';
+  kind: 'sector' | 'persona' | 'premium' | 'country' | 'universe';
 }
 
 export interface StockListDetail {
   slug: string;
   title: string;
   description: string;
-  kind: 'sector' | 'persona' | 'premium' | 'country';
+  kind: 'sector' | 'persona' | 'premium' | 'country' | 'universe';
   total: number;
   rows: Array<RankingRow | (PersonaHolding & { iqs?: number })>;
 }
@@ -54,7 +56,46 @@ export class StockListsService {
     private readonly iqs: IqsService,
     private readonly marketStats: MarketStatsService,
     private readonly thirteenF: ThirteenFService,
+    private readonly congress: CongressionalService,
   ) {}
+
+  /** Build the "Politicians" list from live congressional disclosures — group
+   *  trades by ticker, summing disclosed amount midpoints, newest date wins. */
+  private async buildPoliticianRows(): Promise<PersonaHolding[]> {
+    const trades: any[] = await this.congress.list({ limit: 500 });
+    const byTicker = new Map<
+      string,
+      { name: string; dollarValue: number; last: string; buys: number; sells: number }
+    >();
+    for (const t of trades) {
+      if (!t.ticker) continue;
+      const mid = ((Number(t.amountMin) || 0) + (Number(t.amountMax) || 0)) / 2;
+      const d = (
+        t.transactionDate instanceof Date
+          ? t.transactionDate.toISOString()
+          : String(t.transactionDate)
+      ).slice(0, 10);
+      const e =
+        byTicker.get(t.ticker) ||
+        { name: t.companyName || t.ticker, dollarValue: 0, last: '', buys: 0, sells: 0 };
+      e.dollarValue += mid;
+      if (t.action === 'Buy') e.buys++;
+      else e.sells++;
+      if (d > e.last) e.last = d;
+      byTicker.set(t.ticker, e);
+    }
+    return Array.from(byTicker.entries())
+      .sort((a, b) => b[1].dollarValue - a[1].dollarValue)
+      .map(([ticker, e]) => ({
+        ticker,
+        name: e.name,
+        sector: '',
+        sharesHeld: 0,
+        dollarValue: Math.round(e.dollarValue),
+        lastReported: e.last,
+        note: `${e.buys} buys / ${e.sells} sells`,
+      }));
+  }
 
   /** Deterministic per-day jitter in [-1, 1] for synthesized quotes. */
   private dailyJitter(symbol: string): number {
@@ -145,6 +186,8 @@ export class StockListsService {
         count = (PERSONA_HOLDINGS[slug] || []).length;
       } else if (meta.kind === 'country') {
         count = (COUNTRY_UNIVERSE[slug] || []).length;
+      } else if (meta.kind === 'universe') {
+        count = (UNIVERSE_LISTS[slug] || []).length;
       }
       out.push({ slug, ...meta, count });
     }
@@ -208,21 +251,41 @@ export class StockListsService {
       // Prefer the latest real 13F-HR from SEC EDGAR for institutional filers
       // (Buffett/Dalio/Sprott); fall back to the curated list for individuals
       // (Bezos/Trump) who don't file 13Fs, or if the live fetch fails.
-      const live13f = await this.thirteenF.getHoldings(slug);
-      let rows = live13f && live13f.length ? live13f : PERSONA_HOLDINGS[slug] || [];
+      let rows: PersonaHolding[];
+      if (slug === 'politicians') {
+        // Live congressional disclosures (FMP), aggregated by ticker.
+        rows = await this.buildPoliticianRows();
+      } else {
+        const live13f = await this.thirteenF.getHoldings(slug);
+        rows = live13f && live13f.length ? live13f : PERSONA_HOLDINGS[slug] || [];
+      }
       if (filters.sector) {
         rows = rows.filter((r) =>
           r.sector.toLowerCase().includes(filters.sector!.toLowerCase()),
         );
       }
-      // Cross-reference each persona holding against the live IQS table to attach an IQS score where present.
+      // Cross-reference each persona holding against the live IQS table to
+      // attach an IQS score — and, where the same name also has Form 4 buys, a
+      // real insider avg cost + last buy date.
       const { rows: rankRows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
-      const byTicker = new Map(rankRows.map((r) => [r.ticker, r.iqs]));
+      const byTicker = new Map(rankRows.map((r) => [r.ticker, r]));
       const live = await this.fetchLiveQuotes(rows.map((r) => r.ticker));
-      const withIqs = rows.map((h) => ({
-        ...h,
-        iqs: byTicker.get(h.ticker) ?? undefined,
-      }));
+      const withIqs = rows.map((h) => {
+        const rk = byTicker.get(h.ticker);
+        // 13F discloses no true cost basis, so we approximate avg cost as the
+        // reported position value per share (value ÷ shares from the filing).
+        // Real Form 4 insider avg cost wins when the name has one.
+        const reportedPerShare =
+          h.sharesHeld && h.dollarValue
+            ? +(h.dollarValue / h.sharesHeld).toFixed(2)
+            : null;
+        return {
+          ...h,
+          iqs: rk?.iqs ?? undefined,
+          lastBuyDate: rk?.lastBuyDate ?? h.lastReported ?? null,
+          avgCost: rk?.avgCost ?? reportedPerShare,
+        };
+      });
       const annotated = this.enrichRows(withIqs, live) as any[];
       return { slug, ...meta, total: annotated.length, rows: annotated };
     }
@@ -236,6 +299,36 @@ export class StockListsService {
       }
       const live = await this.fetchLiveQuotes(rows.map((r) => r.ticker));
       const enriched = this.enrichRows(rows, live) as any[];
+      return { slug, ...meta, total: enriched.length, rows: enriched };
+    }
+
+    if (meta.kind === 'universe') {
+      // Curated market-cap / thematic baskets — always populated with live
+      // quotes; IQS + avg cost + last buy attached where the name also has
+      // Form 4 insider buys in our rankings.
+      let rows = UNIVERSE_LISTS[slug] || [];
+      if (filters.sector) {
+        rows = rows.filter((r) =>
+          r.sector.toLowerCase().includes(filters.sector!.toLowerCase()),
+        );
+      }
+      const { rows: rankRows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
+      const iqsByTicker = new Map(rankRows.map((r) => [r.ticker, r.iqs]));
+      const tickers = rows.map((r) => r.ticker);
+      const [live, costBasis] = await Promise.all([
+        this.fetchLiveQuotes(tickers),
+        this.iqs.getInsiderCostBasis(tickers),
+      ]);
+      const withIqs = rows.map((h) => {
+        const cb = costBasis.get(h.ticker.toUpperCase());
+        return {
+          ...h,
+          iqs: iqsByTicker.get(h.ticker) ?? undefined,
+          avgCost: cb?.avgCost ?? null,
+          lastBuyDate: cb?.lastBuyDate ?? null,
+        };
+      });
+      const enriched = this.enrichRows(withIqs, live) as any[];
       return { slug, ...meta, total: enriched.length, rows: enriched };
     }
     return null;
