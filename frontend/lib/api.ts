@@ -226,7 +226,7 @@ export interface StockListIndexEntry {
   title: string;
   description: string;
   count: number;
-  kind: "sector" | "persona" | "premium";
+  kind: "sector" | "persona" | "premium" | "universe" | "country";
 }
 
 export interface StockListIndexResponse {
@@ -250,7 +250,7 @@ export interface StockListDetailResponse {
   slug: string;
   title: string;
   description: string;
-  kind: "sector" | "persona" | "premium";
+  kind: "sector" | "persona" | "premium" | "universe" | "country";
   total: number;
   rows: StockListRow[];
 }
