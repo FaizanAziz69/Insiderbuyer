@@ -9,7 +9,6 @@ const FACTORS = [
     title: "Purchase Volume (Relative to Market Cap)",
     measures:
       "How much insiders are investing compared to the size of the company. A $5M buy is huge for a $50M company but barely moves a $500B one.",
-    formula: "Purchase Volume Factor = Σ(Shares Bought × Price) ÷ Market Cap",
     why: [
       "Weights large purchases in smaller companies more heavily than the same dollar amount in giants.",
       "Surfaces small companies where insiders are making outsized moves — often the best opportunities.",
@@ -21,7 +20,6 @@ const FACTORS = [
     title: "Cluster Purchases (Are Multiple Insiders Buying?)",
     measures:
       "Whether several insiders are buying at once. A CEO buying alone is good; the CEO, CFO and multiple directors all buying within weeks is a much stronger signal.",
-    formula: "Cluster Factor = log(1 + Number of Distinct Insider Buyers)",
     why: [
       "Captures group confidence — the more insiders buying, the stronger the signal.",
       "The log keeps a single company with very many buyers from dominating the score unfairly.",
@@ -32,16 +30,7 @@ const FACTORS = [
     letter: "C",
     title: "Insider Role Weighting (Who Is Buying Matters)",
     measures:
-      "Not all insiders carry the same weight. A CEO or CFO buying is far more meaningful than a lower-level executive.",
-    formula:
-      "Role-Weighted Purchase Volume = Σ(Shares Bought × Price × Role Multiplier) ÷ Market Cap",
-    multipliers: [
-      ["CEO", "3.0"],
-      ["CFO", "3.0"],
-      ["COO", "3.0"],
-      ["Director", "2.0"],
-      ["Other Insiders", "1.0"],
-    ],
+      "Not all insiders carry the same weight. A CEO, CFO or COO buying is far more meaningful than a director, which in turn outweighs a lower-level insider.",
     why: [
       "Prioritises the most significant purchases over those from lower-level executives.",
       "Filters out transactions less likely to move future performance.",
@@ -53,8 +42,6 @@ const FACTORS = [
     title: "Holding Change (How Much Are Insiders Increasing Their Stake?)",
     measures:
       "How much bigger an insider's total holdings became after the purchase.",
-    formula:
-      "Holding Change % = (Shares Bought ÷ Previous Holdings) × 100   •   Factor = Σ(Holding Change %) ÷ Number of Insiders Who Bought",
     why: [
       "A CEO who owns 1M shares buying 10k more isn't a big deal.",
       "A CFO who owns 10k and buys 10k more just doubled their stake — a much stronger signal.",
@@ -117,25 +104,6 @@ export default function MethodologyPage() {
                 <strong className="text-[var(--text)]">What it measures: </strong>
                 {f.measures}
               </p>
-              <div
-                className="mt-3 rounded-md px-4 py-3 font-mono text-[13px] overflow-x-auto"
-                style={{ background: "var(--bg-3)", color: "var(--text)" }}
-              >
-                {f.formula}
-              </div>
-              {f.multipliers && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {f.multipliers.map(([role, mult]) => (
-                    <span
-                      key={role}
-                      className="text-[12px] font-semibold px-2.5 py-1 rounded-full"
-                      style={{ background: "var(--bg-3)", border: "1px solid var(--border-strong)" }}
-                    >
-                      {role} = <span className="text-accent">{mult}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
               <ul className="mt-3 space-y-1.5">
                 {f.why.map((w) => (
                   <li key={w} className="flex gap-2 text-[13px] text-soft leading-relaxed">
@@ -160,29 +128,31 @@ export default function MethodologyPage() {
         }}
       >
         <h2 className="font-bold tracking-tight mb-2" style={{ fontSize: 20 }}>
-          Final Calculation of IQS
+          How the Final Score Works
         </h2>
-        <div
-          className="rounded-md px-4 py-3 font-mono text-[14px] overflow-x-auto"
-          style={{ background: "var(--bg-3)", color: "var(--text)" }}
-        >
-          IQS = log(1 + (Purchase Volume Factor + Cluster Factor + Role-Weighted
-          Purchase Volume + Holding Change Factor))
-        </div>
+        <p className="text-[14px] text-soft leading-relaxed">
+          These four factors are combined and normalised into a single{" "}
+          <strong className="text-[var(--text)]">0–100 IQS</strong>. The exact
+          weighting and combination are part of our proprietary model, but the
+          intuition is simple: the more an insider purchase reflects real
+          conviction — large relative to the company, made by senior insiders,
+          alongside other buyers, meaningfully growing their stake — the higher
+          the score.
+        </p>
         <ul className="mt-3 space-y-1.5">
           <li className="flex gap-2 text-[13px] text-soft leading-relaxed">
             <span className="text-accent font-bold flex-shrink-0">•</span>
-            <span>The log transformation prevents extreme values from distorting the rankings.</span>
+            <span><strong>Higher IQS = stronger insider confidence.</strong></span>
           </li>
           <li className="flex gap-2 text-[13px] text-soft leading-relaxed">
             <span className="text-accent font-bold flex-shrink-0">•</span>
-            <span>The result is scaled onto a 0–100 composite. <strong>Higher IQS = stronger insider confidence.</strong></span>
+            <span>Scores update continuously as new SEC Form 4 filings come in.</span>
           </li>
         </ul>
         <p className="mt-3 text-[12px] text-mute leading-relaxed">
-          We continuously analyse real data and fine-tune this formula to keep it
-          as predictive and useful as possible. Informational only — not
-          investment advice.
+          We continuously analyse real data and refine the model to keep it as
+          predictive and useful as possible. Informational only — not investment
+          advice.
         </p>
       </section>
 

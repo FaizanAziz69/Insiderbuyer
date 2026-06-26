@@ -107,6 +107,7 @@ export interface TradeRow {
   ticker: string | null;
   companyName: string;
   sector: string | null;
+  marketCap?: number | null;
   sharesBought: number;
   pricePerShare: number;
   totalValue: number;

@@ -1,7 +1,7 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Activity } from "lucide-react";
 import {
   API_BASE,
@@ -27,6 +27,30 @@ export default function InsiderBuySellPage() {
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
   const rows = data?.rows || [];
+
+  // Back-fill market cap from the live quote feed for any ticker our DB doesn't
+  // already carry a cap for (same source the stock lists use).
+  const symbolsKey = useMemo(
+    () =>
+      Array.from(new Set(rows.map((r) => r.ticker).filter(Boolean)))
+        .slice(0, 200)
+        .join(","),
+    [rows],
+  );
+  const { data: capData } = useSWR<{ rows: { symbol: string; marketCap: number | null }[] }>(
+    symbolsKey ? `${API_BASE}/market-stats/quotes?symbols=${symbolsKey}` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
+  const capMap = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const q of capData?.rows || []) {
+      if (q.marketCap != null) m[q.symbol.toUpperCase()] = q.marketCap;
+    }
+    return m;
+  }, [capData]);
+  const capOf = (r: TradeRow): number | null =>
+    r.marketCap ?? (r.ticker ? capMap[r.ticker.toUpperCase()] ?? null : null);
 
   const columns: Column<TradeRow>[] = [
     {
@@ -119,6 +143,20 @@ export default function InsiderBuySellPage() {
           {formatCurrency(r.totalValue)}
         </span>
       ),
+    },
+    {
+      key: "marketCap",
+      label: "Market Cap",
+      align: "right",
+      sortValue: (r) => capOf(r),
+      render: (r) => {
+        const mc = capOf(r);
+        return (
+          <span className="tabular text-[14px] text-mute font-bold">
+            {mc != null ? formatCurrency(mc) : "—"}
+          </span>
+        );
+      },
     },
     {
       key: "date",

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
+import * as https from 'https';
 import { XMLParser } from 'fast-xml-parser';
 
 export interface SecFilingHit {
@@ -47,6 +48,9 @@ export class SecClient {
     const userAgent = process.env.SEC_USER_AGENT || 'IQS Dashboard contact@iqs.local';
     this.http = axios.create({
       timeout: 20000,
+      // Force IPv4 — Node intermittently resolves SEC hosts to IPv6 and fails
+      // (AggregateError/ETIMEDOUT) while IPv4 works.
+      httpsAgent: new https.Agent({ family: 4, keepAlive: true }),
       headers: {
         'User-Agent': userAgent,
         'Accept-Encoding': 'gzip, deflate',
@@ -239,5 +243,86 @@ export class SecClient {
       ticker: (data?.tickers && data.tickers[0]) || null,
       sic: data?.sic || null,
     };
+  }
+
+  // ── Per-ticker Form 4 lookup (live) ──────────────────────────────────
+  private tickerCik: Map<string, string> | null = null;
+
+  /** Resolve a ticker → 10-digit issuer CIK from SEC's ticker map (cached). */
+  private async loadTickerCik(): Promise<Map<string, string>> {
+    if (this.tickerCik) return this.tickerCik;
+    const m = new Map<string, string>();
+    try {
+      const { data } = await this.http.get('https://www.sec.gov/files/company_tickers.json');
+      for (const k of Object.keys(data || {})) {
+        const e = data[k];
+        if (e?.ticker && e?.cik_str != null) {
+          m.set(String(e.ticker).toUpperCase(), String(e.cik_str).padStart(10, '0'));
+        }
+      }
+    } catch {
+      /* leave empty — caller handles */
+    }
+    this.tickerCik = m;
+    return m;
+  }
+
+  /** Most recent open-market insider transactions (buys AND sells) for a
+   *  ticker, fetched live from SEC EDGAR. Parses up to `maxFilings` recent
+   *  Form 4s. Returns [] if the ticker can't be resolved. */
+  async getRecentForm4ByTicker(
+    ticker: string,
+    maxFilings = 14,
+  ): Promise<(ParsedTransaction & { filingUrl: string })[]> {
+    const cikMap = await this.loadTickerCik();
+    const cik10 = cikMap.get(ticker.toUpperCase());
+    if (!cik10) return [];
+    const cikNum = String(Number(cik10));
+    let recent: any;
+    try {
+      const { data } = await this.http.get(
+        `https://data.sec.gov/submissions/CIK${cik10}.json`,
+      );
+      recent = data?.filings?.recent;
+    } catch {
+      return [];
+    }
+    if (!recent?.form) return [];
+
+    // Collect the most recent Form 4 accessions.
+    const jobs: { acc: string; doc: string }[] = [];
+    for (let i = 0; i < recent.form.length && jobs.length < maxFilings; i++) {
+      if (recent.form[i] === '4') {
+        // primaryDocument is the XSL-rendered viewer (e.g. "xslF345X06/form4.xml")
+        // — strip the xsl folder to hit the raw, parseable XML.
+        const doc = String(recent.primaryDocument[i] || '').replace(/^xsl[^/]*\//i, '');
+        jobs.push({ acc: recent.accessionNumber[i], doc });
+      }
+    }
+
+    const out: (ParsedTransaction & { filingUrl: string })[] = [];
+    // Small concurrency to keep SEC happy.
+    for (let i = 0; i < jobs.length; i += 4) {
+      const chunk = jobs.slice(i, i + 4);
+      const parsedChunk = await Promise.all(
+        chunk.map(async ({ acc, doc }) => {
+          try {
+            const xml = await this.fetchForm4Xml(cikNum, acc, doc);
+            if (!xml) return null;
+            const parsed = this.parseForm4(xml);
+            if (!parsed) return null;
+            const accnd = acc.replace(/-/g, '');
+            const filingUrl = `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accnd}/`;
+            return parsed.transactions.map((t) => ({ ...t, filingUrl }));
+          } catch {
+            return null;
+          }
+        }),
+      );
+      for (const arr of parsedChunk) if (arr) out.push(...arr);
+    }
+    // Newest first.
+    out.sort((a, b) => (a.transactionDate < b.transactionDate ? 1 : -1));
+    return out;
   }
 }

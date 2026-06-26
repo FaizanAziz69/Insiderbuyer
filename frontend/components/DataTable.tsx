@@ -1,6 +1,14 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUpDown } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 
 const PAGE_SIZE = 25;
 
@@ -17,11 +25,10 @@ export interface Column<T> {
   align?: Align;
   /** Set false to disable click-to-sort on this column. */
   sortable?: boolean;
-  /** Show a filter control for this column above the table. */
+  /** Expose this column in the collapsible Filters panel. */
   filterable?: boolean;
-  /** Filter UI: "select" = dropdown of distinct values (default, for text);
-   *  "range" = Min/Max number inputs (for numeric columns);
-   *  "marketCapPreset" = preset cap-band dropdown (Mega/Large/Mid/Small/…). */
+  /** Filter UI: "select" = dropdown of distinct values; "range" = Min/Max;
+   *  "marketCapPreset" = preset cap-band dropdown. */
   filterType?: "select" | "range" | "marketCapPreset";
   /** Display string for a row's value in a select dropdown. */
   filterLabel?: (row: T) => string;
@@ -83,10 +90,10 @@ function isActive(v: FilterVal | undefined): boolean {
 }
 
 /**
- * Generic sortable table with an above-table filter bar.
- *  - `filterable` text columns get a dropdown of distinct values.
- *  - `filterable` + `filterType:"range"` numeric columns get Min/Max inputs.
- *  - Every column header is clickable to sort (asc → desc → off).
+ * Generic table — click-to-sort column headers (asc → desc → off), 25-row
+ * pagination, and an opt-in "Filters" panel hidden behind a button (the
+ * stockanalysis.com / TipRanks pattern: clean table by default, filters on
+ * demand with presets).
  */
 export function DataTable<T>({
   columns,
@@ -100,9 +107,11 @@ export function DataTable<T>({
     initialSort ?? null,
   );
   const [filters, setFilters] = useState<Record<string, FilterVal>>({});
+  const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(0);
 
   const filterCols = columns.filter((c) => c.filterable);
+  const activeCount = Object.values(filters).filter(isActive).length;
 
   const optionsByCol = useMemo(() => {
     const m: Record<string, string[]> = {};
@@ -128,7 +137,6 @@ export function DataTable<T>({
       active.every(([key, v]) => {
         const col = columns.find((c) => c.key === key);
         if (!col) return true;
-        // Market-cap preset → numeric band check.
         if (col.filterType === "marketCapPreset" && typeof v === "string") {
           const preset = CAP_BY_KEY.get(v);
           if (!preset) return true;
@@ -164,8 +172,6 @@ export function DataTable<T>({
     });
   }, [filtered, sort, columns]);
 
-  // Pagination — 25 rows per page. Reset to the first page whenever the
-  // filtered/sorted set changes so we never land on an out-of-range page.
   const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   useEffect(() => {
     setPage(0);
@@ -190,98 +196,118 @@ export function DataTable<T>({
 
   return (
     <div>
+      {/* Filters bar: a button (with active count) that reveals the panel */}
       {filterCols.length > 0 && (
-        <div
-          className="flex flex-wrap items-end gap-3 p-3 mb-3 rounded-lg"
-          style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
-        >
-          {filterCols.map((c) => {
-            const title = c.filterLabelText ?? (typeof c.label === "string" ? c.label : c.key);
-            if (c.filterType === "range") {
-              const fv = (filters[c.key] as { min?: string; max?: string }) || {};
-              return (
-                <div key={c.key} className="flex flex-col gap-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-mute">
-                    {title}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      value={fv.min ?? ""}
-                      onChange={(e) =>
-                        setFilters((f) => ({ ...f, [c.key]: { ...fv, min: e.target.value } }))
-                      }
-                      placeholder="Min"
-                      className="text-[13px] rounded-md px-2 py-1.5 w-24"
-                      style={numInput}
-                    />
-                    <span className="text-mute text-[12px]">–</span>
-                    <input
-                      type="number"
-                      value={fv.max ?? ""}
-                      onChange={(e) =>
-                        setFilters((f) => ({ ...f, [c.key]: { ...fv, max: e.target.value } }))
-                      }
-                      placeholder="Max"
-                      className="text-[13px] rounded-md px-2 py-1.5 w-24"
-                      style={numInput}
-                    />
-                  </div>
-                </div>
-              );
-            }
-            if (c.filterType === "marketCapPreset") {
-              return (
-                <label key={c.key} className="flex flex-col gap-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-mute">
-                    {title}
-                  </span>
-                  <select
-                    value={(filters[c.key] as string) ?? ""}
-                    onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
-                    className="text-[13px] font-semibold rounded-md px-2.5 py-1.5 min-w-[170px]"
-                    style={numInput}
-                  >
-                    <option value="">All Market Caps</option>
-                    {CAP_PRESETS.map((p) => (
-                      <option key={p.key} value={p.key}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              );
-            }
-            return (
-              <label key={c.key} className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-mute">
-                  {title}
-                </span>
-                <select
-                  value={(filters[c.key] as string) ?? ""}
-                  onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
-                  className="text-[13px] font-semibold rounded-md px-2.5 py-1.5 min-w-[140px]"
-                  style={numInput}
-                >
-                  <option value="">All {title}</option>
-                  {optionsByCol[c.key]?.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            );
-          })}
-          {Object.values(filters).some((v) => isActive(v)) && (
+        <div className="mb-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setFilters({})}
-              className="text-[12px] font-semibold px-3 py-1.5 rounded-md"
-              style={{ background: "var(--bg-3)", border: "1px solid var(--border-strong)", color: "var(--text-soft)" }}
+              onClick={() => setShowFilters((v) => !v)}
+              className="inline-flex items-center gap-1.5 text-[13px] font-semibold px-3 py-1.5 rounded-md transition"
+              style={{
+                background: showFilters || activeCount ? "var(--accent)" : "var(--bg-2)",
+                color: showFilters || activeCount ? "#fff" : "var(--text-soft)",
+                border: `1px solid ${showFilters || activeCount ? "var(--accent)" : "var(--border-strong)"}`,
+              }}
             >
-              Clear filters
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filters{activeCount ? ` (${activeCount})` : ""}
             </button>
+            {activeCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilters({})}
+                className="inline-flex items-center gap-1 text-[12px] font-semibold text-mute hover:text-[var(--bad)] transition"
+              >
+                <X className="h-3.5 w-3.5" /> Clear
+              </button>
+            )}
+          </div>
+
+          {showFilters && (
+            <div
+              className="flex flex-wrap items-end gap-3 p-3 mt-2 rounded-lg"
+              style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+            >
+              {filterCols.map((c) => {
+                const title = c.filterLabelText ?? (typeof c.label === "string" ? c.label : c.key);
+                if (c.filterType === "range") {
+                  const fv = (filters[c.key] as { min?: string; max?: string }) || {};
+                  return (
+                    <div key={c.key} className="flex flex-col gap-1">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-mute">
+                        {title}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={fv.min ?? ""}
+                          onChange={(e) =>
+                            setFilters((f) => ({ ...f, [c.key]: { ...fv, min: e.target.value } }))
+                          }
+                          placeholder="Min"
+                          className="text-[13px] rounded-md px-2 py-1.5 w-24"
+                          style={numInput}
+                        />
+                        <span className="text-mute text-[12px]">–</span>
+                        <input
+                          type="number"
+                          value={fv.max ?? ""}
+                          onChange={(e) =>
+                            setFilters((f) => ({ ...f, [c.key]: { ...fv, max: e.target.value } }))
+                          }
+                          placeholder="Max"
+                          className="text-[13px] rounded-md px-2 py-1.5 w-24"
+                          style={numInput}
+                        />
+                      </div>
+                    </div>
+                  );
+                }
+                if (c.filterType === "marketCapPreset") {
+                  return (
+                    <label key={c.key} className="flex flex-col gap-1">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-mute">
+                        {title}
+                      </span>
+                      <select
+                        value={(filters[c.key] as string) ?? ""}
+                        onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
+                        className="text-[13px] font-semibold rounded-md px-2.5 py-1.5 min-w-[170px]"
+                        style={numInput}
+                      >
+                        <option value="">All Market Caps</option>
+                        {CAP_PRESETS.map((p) => (
+                          <option key={p.key} value={p.key}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                }
+                return (
+                  <label key={c.key} className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-mute">
+                      {title}
+                    </span>
+                    <select
+                      value={(filters[c.key] as string) ?? ""}
+                      onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
+                      className="text-[13px] font-semibold rounded-md px-2.5 py-1.5 min-w-[140px]"
+                      style={numInput}
+                    >
+                      <option value="">All {title}</option>
+                      {optionsByCol[c.key]?.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                );
+              })}
+            </div>
           )}
         </div>
       )}

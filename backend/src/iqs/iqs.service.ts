@@ -6,6 +6,7 @@ import { InsiderTransaction, InsiderRole } from '../entities/insider-transaction
 import { IqsScore } from '../entities/iqs-score.entity';
 import { CongressionalService } from '../congressional/congressional.service';
 import { FmpService } from '../fmp/fmp.service';
+import { SecClient } from '../ingestion/sec.client';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 
 export interface RankingRow {
@@ -62,7 +63,50 @@ export class IqsService {
     private readonly congress: CongressionalService,
     private readonly marketStats: MarketStatsService,
     private readonly fmp: FmpService,
+    private readonly sec: SecClient,
   ) {}
+
+  // Live SEC Form 4 lookups for tickers not in our ingested set (cached 30m).
+  private liveTxCache = new Map<string, { ts: number; data: any[] }>();
+
+  /** Recent insider transactions (buys + sells) for a ticker, fetched live
+   *  from SEC EDGAR and shaped like our stored transactions. Used so any
+   *  company page shows real Form 4 activity, not just our ingested subset. */
+  private async getLiveInsiderTx(ticker: string): Promise<any[]> {
+    const sym = (ticker || '').toUpperCase();
+    if (!sym) return [];
+    const cached = this.liveTxCache.get(sym);
+    if (cached && Date.now() - cached.ts < 30 * 60_000) return cached.data;
+    let data: any[] = [];
+    try {
+      const raw = await this.sec.getRecentForm4ByTicker(sym, 14);
+      data = raw.map((t, i) => {
+        const shares = Number(t.sharesBought) || 0;
+        const price = Number(t.pricePerShare) || 0;
+        const isSell = t.transactionCode === 'S';
+        const role = t.rawTitle || (t.isDirector ? 'Director' : t.isOfficer ? 'Officer' : 'Insider');
+        return {
+          id: `sec-${sym}-${i}`,
+          insiderName: t.insiderName,
+          role,
+          rawTitle: t.rawTitle || '',
+          transactionCode: t.transactionCode,
+          type: isSell ? 'SELL' : 'BUY',
+          sharesBought: shares,
+          pricePerShare: price,
+          totalValue: +(shares * price).toFixed(2),
+          previousHoldings: null,
+          postHoldings: t.postHoldings ?? null,
+          transactionDate: t.transactionDate,
+          filingUrl: t.filingUrl,
+        };
+      });
+    } catch {
+      data = [];
+    }
+    this.liveTxCache.set(sym, { ts: Date.now(), data });
+    return data;
+  }
 
   /** IQS — Insider Quality Score, 0–100.
    *
@@ -415,7 +459,7 @@ export class IqsService {
       .limit(200)
       .getMany();
 
-    const transactions = txRows.map((t) => ({
+    let transactions: any[] = txRows.map((t) => ({
       ...t,
       type: t.transactionCode === 'S' ? 'SELL' : 'BUY',
       sharesBought: Number(t.sharesBought),
@@ -424,6 +468,11 @@ export class IqsService {
       previousHoldings: t.previousHoldings === null ? null : Number(t.previousHoldings),
       postHoldings: t.postHoldings === null ? null : Number(t.postHoldings),
     }));
+    // No stored Form 4s for this company → pull live from SEC EDGAR so the page
+    // still shows real insider activity (buys + sells).
+    if (transactions.length === 0 && company.ticker) {
+      transactions = await this.getLiveInsiderTx(company.ticker);
+    }
 
     const companyOut = {
       ...company,
@@ -474,11 +523,15 @@ export class IqsService {
       congressionalTrades = [];
     }
 
+    // Live SEC Form 4 activity so the page isn't empty for tickers we haven't
+    // ingested (e.g. mega-caps the user clicks into).
+    const transactions = await this.getLiveInsiderTx(sym);
+
     return {
       company,
       score: null,
       scoreHistory: [],
-      transactions: [],
+      transactions,
       congressionalTrades,
       quoteOnly: true,
     };
@@ -620,6 +673,7 @@ export class IqsService {
         ticker: t.company?.ticker || null,
         companyName: t.company?.name || '',
         sector: t.company?.sector || null,
+        marketCap: t.company?.marketCap != null ? Number(t.company.marketCap) : null,
         sharesBought: Number(t.sharesBought),
         pricePerShare: Number(t.pricePerShare),
         totalValue: Number(t.totalValue),

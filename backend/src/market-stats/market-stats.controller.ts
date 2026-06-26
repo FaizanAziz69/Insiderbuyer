@@ -29,7 +29,7 @@ export class MarketStatsController {
       .split(',')
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean)
-      .slice(0, 30);
+      .slice(0, 200);
     const map = await this.svc.getQuoteBatch(syms);
     // Preserve requested order.
     const rows = syms.map((s) => map.get(s)).filter(Boolean);
