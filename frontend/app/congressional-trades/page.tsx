@@ -219,7 +219,7 @@ export default function CongressionalPage() {
                 filterable: true,
                 sortValue: (r) => r.companyName,
                 render: (r) => (
-                  <span className="truncate max-w-[240px] text-[12px]">
+                  <span className="truncate max-w-[240px] text-[14px] font-medium" style={{ color: "var(--text)" }}>
                     {r.companyName}
                   </span>
                 ),

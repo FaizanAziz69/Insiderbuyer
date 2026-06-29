@@ -148,7 +148,7 @@ export default function EarningsPerformancePage() {
                     <div className="font-mono text-[15px] font-bold text-accent">
                       {r.symbol}
                     </div>
-                    <div className="text-[12px] text-mute truncate max-w-[200px]">
+                    <div className="text-[14px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
                       {r.name}
                     </div>
                   </div>
@@ -322,7 +322,7 @@ export default function EarningsPerformancePage() {
                     <span className="font-mono text-[15px] font-bold text-accent">
                       {(r as LbCompany).ticker}
                     </span>
-                    <span className="text-[12px] text-mute truncate max-w-[160px]">
+                    <span className="text-[14px] font-medium truncate max-w-[160px]" style={{ color: "var(--text)" }}>
                       {(r as LbCompany).name}
                     </span>
                   </Link>

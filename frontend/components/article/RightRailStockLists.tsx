@@ -38,7 +38,7 @@ function PillCloud({ pills }: { pills: { href: string; label: string }[] }) {
             className="inline-block text-[13px] font-semibold rounded-full px-3 py-1 transition"
             style={
               i === 0
-                ? { background: "var(--accent)", color: "#fff", border: "1px solid var(--accent)" }
+                ? { background: "var(--accent)", color: "var(--on-accent)", border: "1px solid var(--accent)" }
                 : {
                     background: "var(--bg-2)",
                     color: "var(--accent)",
@@ -125,7 +125,7 @@ export function RightRailStockLists() {
           <button
             type="submit"
             className="px-4 py-2 rounded-md text-[13px] font-bold whitespace-nowrap"
-            style={{ background: "var(--accent)", color: "#fff" }}
+            style={{ background: "var(--accent)", color: "var(--on-accent)" }}
           >
             Search
           </button>

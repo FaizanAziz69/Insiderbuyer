@@ -18,12 +18,12 @@ const TOOLS = [
     href: "/watchlist",
     icon: LineChart,
   },
-  {
-    title: "IQS Methodology",
-    body: "Under the hood of our four-factor score — purchase volume, cluster effect, role weighting, and holding-change magnitude.",
-    href: "/methodology",
-    icon: Calculator,
-  },
+  // {
+  //   title: "IQS Methodology",
+  //   body: "Under the hood of our four-factor score — purchase volume, cluster effect, role weighting, and holding-change magnitude.",
+  //   href: "/methodology",
+  //   icon: Calculator,
+  // },
   {
     title: "Stock Screener",
     body: "Slice the universe by sector, market-cap band, IQS tier, and recent insider activity. Save the screens you keep running.",

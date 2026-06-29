@@ -25,7 +25,7 @@ export function Footer() {
       }
     >
       <div className="max-w-[1640px] mx-auto px-2 sm:px-3 lg:px-4 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-8">
           {/* Brand block */}
           <div className="col-span-2">
             <Link href="/" className="inline-flex items-center gap-3" style={{ color: "#ffffff" }}>
@@ -54,7 +54,7 @@ export function Footer() {
                 <Github className="h-4 w-4 text-soft" />
               </a>
               <a
-                href="mailto:hello@example.com"
+                href="mailto:admin@insiderbuying.com"
                 aria-label="Email"
                 className="h-8 w-8 rounded-md flex items-center justify-center hover:bg-[var(--bg-3)] transition"
                 style={{ border: "1px solid var(--border)" }}
@@ -64,62 +64,41 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Company */}
+          {/* Market Data */}
           <div>
-            <div className="label-mini mb-3">Company</div>
+            <div className="label-mini mb-3">Market Data</div>
             <ul className="space-y-2 text-[13px]">
-              <li>
-                <Link href="/about" className="text-soft hover:text-accent transition">
-                  About Us
-                </Link>
-              </li>
-              <li>
-                <Link href="/contact" className="text-soft hover:text-accent transition">
-                  Contact
-                </Link>
-              </li>
-              <li>
-                <Link href="/help" className="text-soft hover:text-accent transition">
-                  Help
-                </Link>
-              </li>
-              <li>
-                <Link href="/premium" className="text-soft hover:text-accent transition">
-                  Premium
-                </Link>
-              </li>
+              <li><Link href="/trades" className="text-soft hover:text-accent transition">Insider Trades</Link></li>
+              <li><Link href="/insiders/hot" className="text-soft hover:text-accent transition">Insider Hot Stocks</Link></li>
+              <li><Link href="/market-data/top-gainers" className="text-soft hover:text-accent transition">Top Gainers</Link></li>
+              <li><Link href="/market-data/most-active" className="text-soft hover:text-accent transition">Most Active</Link></li>
+              <li><Link href="/congressional-trades" className="text-soft hover:text-accent transition">Congressional Trades</Link></li>
+              <li><Link href="/heatmaps/market" className="text-soft hover:text-accent transition">Stock Heatmap</Link></li>
             </ul>
           </div>
 
-          {/* Product */}
+          {/* Stock Lists */}
           <div>
-            <div className="label-mini mb-3">Product</div>
+            <div className="label-mini mb-3">Stock Lists</div>
             <ul className="space-y-2 text-[13px]">
-              <li>
-                <Link href="/markets" className="text-soft hover:text-accent transition">
-                  Markets
-                </Link>
-              </li>
-              <li>
-                <Link href="/companies" className="text-soft hover:text-accent transition">
-                  Stocks
-                </Link>
-              </li>
-              <li>
-                <Link href="/funds" className="text-soft hover:text-accent transition">
-                  Funds
-                </Link>
-              </li>
-              <li>
-                <Link href="/news" className="text-soft hover:text-accent transition">
-                  News
-                </Link>
-              </li>
-              <li>
-                <Link href="/lists" className="text-soft hover:text-accent transition">
-                  Ideas
-                </Link>
-              </li>
+              <li><Link href="/stock-lists/penny-stocks" className="text-soft hover:text-accent transition">Penny Stocks</Link></li>
+              <li><Link href="/stock-lists/large-cap" className="text-soft hover:text-accent transition">Large Cap</Link></li>
+              <li><Link href="/stock-lists/faang" className="text-soft hover:text-accent transition">FAANG</Link></li>
+              <li><Link href="/stock-lists/warren-buffett" className="text-soft hover:text-accent transition">Warren Buffett</Link></li>
+              <li><Link href="/companies" className="text-soft hover:text-accent transition">All Stocks</Link></li>
+            </ul>
+          </div>
+
+          {/* Research & Company */}
+          <div>
+            <div className="label-mini mb-3">Research</div>
+            <ul className="space-y-2 text-[13px]">
+              <li><Link href="/learn/insider-buying" className="text-soft hover:text-accent transition">Intro to Insider Buying</Link></li>
+              <li><Link href="/methodology" className="text-soft hover:text-accent transition">How the IQS Works</Link></li>
+              <li><Link href="/reports" className="text-soft hover:text-accent transition">Reports &amp; Features</Link></li>
+              <li><Link href="/premium" className="text-soft hover:text-accent transition">Premium</Link></li>
+              <li><Link href="/business" className="text-soft hover:text-accent transition">For Business / API</Link></li>
+              <li><a href="mailto:admin@insiderbuying.com" className="text-soft hover:text-accent transition">Contact</a></li>
             </ul>
           </div>
 

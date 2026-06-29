@@ -37,18 +37,26 @@ function Pill({
   const dim = size === "md" ? 26 : 22;
   const ic = size === "md" ? 14 : 12;
   return (
-    <span
-      title={title}
-      aria-label={title}
-      style={{
-        ...PILL_BASE,
-        width: dim,
-        height: dim,
-        background: bg,
-        color: fg,
-      }}
-    >
-      <Icon className="" style={{ width: ic, height: ic }} strokeWidth={2.5} />
+    <span className="group/ind relative inline-flex" aria-label={title}>
+      <span
+        style={{
+          ...PILL_BASE,
+          width: dim,
+          height: dim,
+          background: bg,
+          color: fg,
+        }}
+      >
+        <Icon className="" style={{ width: ic, height: ic }} strokeWidth={2.5} />
+      </span>
+      {/* Instant, clearly-visible hover tooltip (the native title= is slow). */}
+      <span
+        className="pointer-events-none absolute left-1/2 bottom-full z-30 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-semibold opacity-0 shadow-lg transition-opacity duration-150 group-hover/ind:opacity-100"
+        style={{ background: "var(--text)", color: "var(--bg-1)" }}
+        role="tooltip"
+      >
+        {title}
+      </span>
     </span>
   );
 }

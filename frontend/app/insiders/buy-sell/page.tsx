@@ -79,7 +79,7 @@ export default function InsiderBuySellPage() {
       filterable: true,
       sortValue: (r) => r.companyName,
       render: (r) => (
-        <span className="text-[12px] truncate max-w-[200px] inline-block align-middle">
+        <span className="text-[14px] font-medium truncate max-w-[200px] inline-block align-middle" style={{ color: "var(--text)" }}>
           {r.companyName}
         </span>
       ),

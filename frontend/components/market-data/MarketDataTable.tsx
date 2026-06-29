@@ -65,7 +65,7 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
       label: "Company",
       filterable: true,
       sortValue: (r) => r.name,
-      render: (r) => <span className="truncate max-w-[280px] text-[12px]">{r.name}</span>,
+      render: (r) => <span className="truncate max-w-[280px] text-[14px] font-medium" style={{ color: "var(--text)" }}>{r.name}</span>,
     },
     {
       key: "price",

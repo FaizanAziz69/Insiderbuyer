@@ -364,6 +364,26 @@ export const UNIVERSE_LISTS: Record<string, CountryStock[]> = {
     { ticker: 'CIFR', name: 'Cipher Mining', sector: 'Financial Services' },
     { ticker: 'AUR', name: 'Aurora Innovation', sector: 'Technology' },
   ],
+  'penny-stocks': [
+    { ticker: 'SNDL', name: 'SNDL Inc.', sector: 'Consumer Staples' },
+    { ticker: 'PLUG', name: 'Plug Power', sector: 'Industrials' },
+    { ticker: 'GSAT', name: 'Globalstar', sector: 'Communication Services' },
+    { ticker: 'FUBO', name: 'fuboTV', sector: 'Communication Services' },
+    { ticker: 'CHPT', name: 'ChargePoint', sector: 'Industrials' },
+    { ticker: 'RIG', name: 'Transocean', sector: 'Energy' },
+    { ticker: 'NIO', name: 'NIO Inc.', sector: 'Consumer Discretionary' },
+    { ticker: 'BBAI', name: 'BigBear.ai', sector: 'Technology' },
+    { ticker: 'WULF', name: 'TeraWulf', sector: 'Financial Services' },
+    { ticker: 'GERN', name: 'Geron Corp.', sector: 'Healthcare' },
+    { ticker: 'KOS', name: 'Kosmos Energy', sector: 'Energy' },
+    { ticker: 'AGEN', name: 'Agenus', sector: 'Healthcare' },
+    { ticker: 'CLNE', name: 'Clean Energy Fuels', sector: 'Energy' },
+    { ticker: 'DNN', name: 'Denison Mines', sector: 'Energy' },
+    { ticker: 'UUUU', name: 'Energy Fuels', sector: 'Energy' },
+    { ticker: 'NOK', name: 'Nokia', sector: 'Technology' },
+    { ticker: 'AMC', name: 'AMC Entertainment', sector: 'Communication Services' },
+    { ticker: 'VTGN', name: 'VistaGen Therapeutics', sector: 'Healthcare' },
+  ],
 };
 
 export const STOCK_LIST_META: Record<
@@ -384,6 +404,12 @@ export const STOCK_LIST_META: Record<
     title: 'Small Cap Stocks',
     description:
       'Smaller, faster-growing U.S. companies — higher risk and higher potential reward than the mega-caps. Live prices; insider buying often shows up here first.',
+    kind: 'universe',
+  },
+  'penny-stocks': {
+    title: 'Penny Stocks',
+    description:
+      'Low-priced, highly speculative U.S. stocks — big potential moves with outsized risk. Live prices and any insider-buying signal we detect. Trade with caution.',
     kind: 'universe',
   },
   faang: {

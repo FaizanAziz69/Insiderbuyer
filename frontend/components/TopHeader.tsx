@@ -24,7 +24,7 @@ export function TopHeader() {
       >
         {/* LEFT — logo */}
         <Link href="/" className="flex items-center flex-shrink-0" style={{ color: "#ffffff" }}>
-          <Logo size="sm" tone="light" />
+          <Logo size="md" tone="light" />
         </Link>
 
         {/* CENTER — mega-dropdown nav (desktop only) */}

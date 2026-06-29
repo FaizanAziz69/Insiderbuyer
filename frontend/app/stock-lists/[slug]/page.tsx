@@ -31,19 +31,35 @@ interface DetailRow {
   sector?: string | null;
   marketCap?: number | null;
   iqs?: number;
+  /** Insider-sourced (RankingRow) lists only. */
+  distinctBuyers?: number;
   totalPurchaseValue?: number;
   avgCost?: number | null;
   lastBuyDate?: string | null;
   live?: RowLive | null;
 }
+type ListKind = "sector" | "persona" | "premium" | "universe" | "country";
 interface DetailResponse {
   slug: string;
   title: string;
   description: string;
-  kind: "sector" | "persona" | "premium";
+  kind: ListKind;
   total: number;
   rows: DetailRow[];
 }
+
+const KIND_BLURB: Record<ListKind, string> = {
+  sector:
+    "A sector screen of U.S. names where corporate insiders have been buying. Rows are ranked by our Insider Buying Quality Score (IQS) and enriched with live price, volume, and the latest open-market Form 4 purchases.",
+  persona:
+    "The latest disclosed holdings for this investor or group — sourced from SEC 13F filings (or congressional disclosures where applicable) — paired with live quotes and, where the same name also has Form 4 activity, real insider cost basis.",
+  premium:
+    "Our premium ranking of the highest Insider Buying Quality Scores across the U.S. market. Every name is backed by real SEC Form 4 filings and recomputed daily.",
+  universe:
+    "A curated market-cap and thematic basket, refreshed with live quotes. Where a name also shows up in our Form 4 insider data, we attach its insider cost basis and most recent buy date.",
+  country:
+    "A universe of the most-traded names listed in this market, refreshed with live quotes and cross-referenced against U.S. insider buying activity where available.",
+};
 
 export default function StockListDetailPage({
   params,
@@ -98,11 +114,22 @@ export default function StockListDetailPage({
   );
   const sparkMap = sparkData?.spark || {};
 
-  // Avg Cost / Last Buy are insider/holder concepts — only meaningful on the
-  // insider-sourced sector lists and the famous-investor (13F) lists. Pure
-  // stock universes (Large Cap, FAANG, REITs, country lists) have no such
-  // figure, so we omit the columns there rather than show empty cells.
-  const showInsiderCols = data?.kind === "sector" || data?.kind === "persona";
+  // Avg Cost / Last Buy are insider/holder concepts that the backend attaches
+  // to sector, persona, universe and country lists (Form 4 cost basis or 13F
+  // reported value). Only render the columns when at least one row carries a
+  // real value, so pure quote-only lists don't show a column of dashes.
+  const showAvgCost = rows.some((r) => r.avgCost != null);
+  const showLastBuy = rows.some((r) => r.lastBuyDate != null);
+  // Buyers / $ Bought come from the IQS RankingRow shape (sector + premium +
+  // universe lists that were cross-referenced against Form 4 data).
+  const showBuyers = rows.some((r) => (r.distinctBuyers ?? 0) > 0);
+  const showBought = rows.some((r) => (r.totalPurchaseValue ?? 0) > 0);
+
+  // Sector select options derived from the rows actually present.
+  const hasSectors = rows.some((r) => r.sector && r.sector.trim());
+
+  // Last-updated stamp: newest live quote is intraday, so just stamp "today".
+  const updatedLabel = formatDate(new Date().toISOString());
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -132,14 +159,28 @@ export default function StockListDetailPage({
             {data.description}
           </p>
         )}
-        <p
-          className="mt-3 max-w-4xl leading-relaxed"
-          style={{ color: "var(--text-mute)", fontSize: 15 }}
-        >
-          The list below highlights names matching this list&rsquo;s definition. View each
-          stock&rsquo;s current price, market cap, volume, and recent indicators. Pair with
-          the IQS Score for premium signal strength.
-        </p>
+        {data?.kind && (
+          <p
+            className="mt-3 max-w-4xl leading-relaxed"
+            style={{ color: "var(--text-mute)", fontSize: 15 }}
+          >
+            {KIND_BLURB[data.kind]}
+          </p>
+        )}
+        {data && (
+          <div
+            className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]"
+            style={{ color: "var(--text-mute)" }}
+          >
+            <span className="tabular font-semibold" style={{ color: "var(--text-soft)" }}>
+              {rows.length} {rows.length === 1 ? "stock" : "stocks"}
+            </span>
+            <span aria-hidden>·</span>
+            <span>Live quotes, updated {updatedLabel}</span>
+            <span aria-hidden>·</span>
+            <span>Use the Filters button to screen by market cap, sector or move</span>
+          </div>
+        )}
       </header>
 
       {/* Top banner ad */}
@@ -189,39 +230,68 @@ export default function StockListDetailPage({
               {
                 key: "company",
                 label: "Company",
-                filterable: true,
                 sortValue: (r) => r.name,
                 render: (r) => (
-                  <span className="truncate max-w-[260px] inline-block align-middle text-[12px]">
+                  <span className="truncate max-w-[260px] inline-block align-middle text-[14px] font-medium" style={{ color: "var(--text)" }}>
                     {r.name}
                   </span>
                 ),
               },
+              ...(hasSectors
+                ? ([
+                    {
+                      key: "sector",
+                      label: "Sector",
+                      filterable: true,
+                      filterType: "select",
+                      filterLabelText: "Sector",
+                      sortValue: (r) => r.sector || "",
+                      filterLabel: (r) => r.sector || "",
+                      render: (r) => (
+                        <span className="text-[14px] truncate max-w-[150px] inline-block align-middle" style={{ color: "var(--text)" }}>
+                          {r.sector || "—"}
+                        </span>
+                      ),
+                    },
+                  ] as Column<DetailRow>[])
+                : []),
               {
                 key: "price",
                 label: "Price",
                 filterable: true,
                 filterType: "range",
+                filterLabelText: "Price ($)",
                 align: "center",
                 sortValue: (r) => r.live?.price ?? null,
+                render: (r) =>
+                  r.live?.price ? (
+                    <span className="tabular font-bold text-[14px]">
+                      ${r.live.price.toFixed(2)}
+                    </span>
+                  ) : (
+                    <span className="text-mute">—</span>
+                  ),
+              },
+              {
+                key: "changePct",
+                label: "Change %",
+                filterable: true,
+                filterType: "range",
+                filterLabelText: "Change %",
+                align: "center",
+                sortValue: (r) => r.live?.changePct ?? null,
                 render: (r) => {
-                  const up = (r.live?.changePct ?? 0) >= 0;
+                  if (!r.live) return <span className="text-mute">—</span>;
+                  const up = r.live.changePct >= 0;
                   return (
-                    <div className="tabular font-bold text-[14px]">
-                      {r.live?.price ? `$${r.live.price.toFixed(2)}` : "—"}
-                      {r.live && (
-                        <div
-                          className="text-[11px] tabular"
-                          style={{ color: up ? "var(--good)" : "var(--bad)" }}
-                        >
-                          <span className="inline-flex items-center gap-0.5">
-                            {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                            {up ? "+" : ""}
-                            {r.live.changePct.toFixed(2)}%
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                    <span
+                      className="tabular text-[13px] font-bold inline-flex items-center gap-0.5"
+                      style={{ color: up ? "var(--good)" : "var(--bad)" }}
+                    >
+                      {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                      {up ? "+" : ""}
+                      {r.live.changePct.toFixed(2)}%
+                    </span>
                   );
                 },
               },
@@ -250,7 +320,39 @@ export default function StockListDetailPage({
                   </span>
                 ),
               },
-              ...(showInsiderCols
+              ...(showBuyers
+                ? ([
+                    {
+                      key: "distinctBuyers",
+                      label: "Buyers",
+                      align: "center",
+                      sortValue: (r) => r.distinctBuyers ?? null,
+                      render: (r) => (
+                        <span className="tabular text-[14px] font-bold">
+                          {r.distinctBuyers ? formatNumber(r.distinctBuyers) : "—"}
+                        </span>
+                      ),
+                    },
+                  ] as Column<DetailRow>[])
+                : []),
+              ...(showBought
+                ? ([
+                    {
+                      key: "totalPurchaseValue",
+                      label: "$ Bought",
+                      align: "center",
+                      sortValue: (r) => r.totalPurchaseValue ?? null,
+                      render: (r) => (
+                        <span className="tabular text-[14px] font-bold" style={{ color: "var(--good)" }}>
+                          {r.totalPurchaseValue
+                            ? formatCurrency(r.totalPurchaseValue)
+                            : "—"}
+                        </span>
+                      ),
+                    },
+                  ] as Column<DetailRow>[])
+                : []),
+              ...(showAvgCost
                 ? ([
                     {
                       key: "avgCost",
@@ -263,6 +365,10 @@ export default function StockListDetailPage({
                         </span>
                       ),
                     },
+                  ] as Column<DetailRow>[])
+                : []),
+              ...(showLastBuy
+                ? ([
                     {
                       key: "lastBuyDate",
                       label: "Last Buy",
@@ -352,14 +458,23 @@ export default function StockListDetailPage({
               {data.description}
             </p>
           )}
-          <p className="text-[15px] text-soft leading-relaxed mb-5">
-            Every name on this list is sourced from real SEC Form 4 filings and
-            scored against our four-factor Insider Buying Quality Score (IQS):
-            purchase volume, cluster effect, role weighting, and holding-change
-            magnitude. The result is a ranked feed of where corporate insiders
-            are actually putting their own capital — not where Wall Street says
-            they should.
-          </p>
+          {showBought ? (
+            <p className="text-[15px] text-soft leading-relaxed mb-5">
+              Every name on this list is cross-referenced against real SEC Form
+              4 filings and scored with our four-factor Insider Buying Quality
+              Score (IQS): purchase volume, cluster effect, role weighting, and
+              holding-change magnitude. The result is a ranked feed of where
+              corporate insiders are actually putting their own capital — not
+              where Wall Street says they should.
+            </p>
+          ) : (
+            <p className="text-[15px] text-soft leading-relaxed mb-5">
+              Each name is shown with its live price, intraday move, market cap
+              and trading volume, and — where the same company also has
+              open-market insider buying in our SEC Form 4 data — its insider
+              cost basis and most recent buy date.
+            </p>
+          )}
 
           <h3
             className="font-bold tracking-tight mt-6 mb-3"
@@ -368,12 +483,11 @@ export default function StockListDetailPage({
             How to use this list
           </h3>
           <p className="text-[15px] text-soft leading-relaxed mb-4">
-            Sort the table above by Market Cap to focus on the size class that
-            fits your portfolio, by Volume to spot names with unusual activity,
-            or by Avg Volume to filter out illiquid tickers. Use the indicator
-            chips on the right of each row to see at a glance which stocks have
-            recent insider trades, earnings due soon, analyst upgrades, or
-            fresh news coverage.
+            Hit the <strong>Filters</strong> button above the table to screen by
+            market-cap band, sector, price, or daily move; or click any column
+            header to sort. Use the indicator chips on the right of each row to
+            see at a glance which stocks have recent insider trades, earnings due
+            soon, analyst upgrades, or fresh news coverage.
           </p>
           <p className="text-[15px] text-soft leading-relaxed mb-5">
             Pair this list with our live{" "}

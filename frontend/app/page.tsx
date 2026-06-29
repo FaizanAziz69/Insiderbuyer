@@ -1,6 +1,6 @@
 "use client";
-import useSWR from "swr";
 import Link from "next/link";
+import useSWR from "swr";
 import { ChevronRight } from "lucide-react";
 import { API_BASE, RankingsResponse, fetcher } from "@/lib/api";
 import { MonthlyBuySellMeter } from "@/components/home/MonthlyBuySellMeter";
@@ -19,13 +19,6 @@ import { AiLatestNewsSection } from "@/components/insights/AiLatestNewsSection";
 import { AiFeaturedHero } from "@/components/insights/AiFeaturedHero";
 
 export default function HomePage() {
-  // Rankings drives both hero heatmaps (sector + IQS). live=1 merges real
-  // intraday change % from the quote feed for the sector-performance view.
-  const { data: rankings } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=80&live=1`,
-    fetcher,
-    { refreshInterval: 60_000, revalidateOnFocus: false },
-  );
   return (
     <div className="space-y-10 px-2 sm:px-6 lg:px-12 xl:px-20">
       {/* HERO — AI editorial carousel (grid of images + news, refreshed daily)
@@ -36,11 +29,7 @@ export default function HomePage() {
             these move below the news articles (see the xl:hidden block lower
             down) so news leads, MarketBeat-style. */}
         <div className="hidden xl:flex flex-col gap-4">
-          <HeroHeatmapPanel
-            title="Market Performance by Sector"
-            rows={rankings?.rows?.slice(0, 28) || []}
-            mode="sector"
-          />
+          <HeroHeatmapPanel title="Market Performance by Sector" />
           <MonthlyBuySellMeter />
         </div>
       </section>
@@ -48,11 +37,7 @@ export default function HomePage() {
       {/* Mobile only: heatmap + buy/sell meter sit directly under the hero
           (on desktop they live in the hero's right rail above). */}
       <div className="flex xl:hidden flex-col gap-4">
-        <HeroHeatmapPanel
-          title="Market Performance by Sector"
-          rows={rankings?.rows?.slice(0, 28) || []}
-          mode="sector"
-        />
+        <HeroHeatmapPanel title="Market Performance by Sector" />
         <MonthlyBuySellMeter />
       </div>
 
@@ -97,16 +82,14 @@ export default function HomePage() {
   );
 }
 
-function HeroHeatmapPanel({
-  title,
-  rows,
-  mode,
-}: {
-  title: string;
-  rows: import("@/lib/api").RankingRow[];
-  mode: "sector" | "iqs";
-}) {
+function HeroHeatmapPanel({ title }: { title: string }) {
   const HEIGHT = 360;
+  const { data } = useSWR<RankingsResponse>(
+    `${API_BASE}/rankings?limit=120&live=1`,
+    fetcher,
+    { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
+  );
+  const rows = data?.rows ?? [];
   return (
     <aside
       className="rounded-lg overflow-hidden"
@@ -130,12 +113,9 @@ function HeroHeatmapPanel({
       </Link>
       <div className="p-2">
         {rows.length > 0 ? (
-          <StockHeatmap rows={rows} height={HEIGHT} mode={mode} />
+          <StockHeatmap rows={rows} height={HEIGHT} mode="sector" />
         ) : (
-          <div
-            className="shimmer rounded"
-            style={{ height: HEIGHT }}
-          />
+          <div className="shimmer rounded" style={{ height: HEIGHT }} />
         )}
       </div>
     </aside>

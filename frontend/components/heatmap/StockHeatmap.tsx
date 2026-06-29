@@ -25,41 +25,78 @@ function tileValue(r: RankingRow): number {
   return Math.sqrt(raw);
 }
 
-function sliceTreemap(items: RankingRow[], x: number, y: number, w: number, h: number): Rect[] {
-  if (items.length === 0) return [];
-  if (items.length === 1) {
-    return [{ x, y, w, h, row: items[0] }];
-  }
-  const value = (r: RankingRow) => tileValue(r);
-  const total = items.reduce((a, r) => a + value(r), 0);
-  let cum = 0;
-  let splitIdx = 1;
-  for (let i = 0; i < items.length; i++) {
-    cum += value(items[i]);
-    if (cum >= total / 2) {
-      splitIdx = i + 1;
-      break;
+/**
+ * Squarified treemap (Bruls/Huizing/van Wijk) — the algorithm TradingView's
+ * heatmap uses. Produces near-square tiles instead of the stripey rectangles
+ * a slice-and-dice layout gives, so the result reads exactly like TradingView.
+ * `items` should be pre-sorted descending by value for best aspect ratios.
+ */
+function squarifyTreemap(items: RankingRow[], X: number, Y: number, W: number, H: number): Rect[] {
+  if (items.length === 0 || W <= 0 || H <= 0) return [];
+  if (items.length === 1) return [{ x: X, y: Y, w: W, h: H, row: items[0] }];
+
+  const totalVal = items.reduce((s, r) => s + tileValue(r), 0) || 1;
+  const totalArea = W * H;
+  const scaled = items.map((r) => ({ row: r, area: (tileValue(r) / totalVal) * totalArea }));
+
+  const result: Rect[] = [];
+  let x = X, y = Y, w = W, h = H;
+
+  const worst = (rowAreas: number[], side: number): number => {
+    let max = -Infinity, min = Infinity, sum = 0;
+    for (const a of rowAreas) {
+      sum += a;
+      if (a > max) max = a;
+      if (a < min) min = a;
+    }
+    const s2 = sum * sum;
+    const side2 = side * side;
+    return Math.max((side2 * max) / s2, s2 / (side2 * min));
+  };
+
+  const placeRow = (rowItems: { row: RankingRow; area: number }[]) => {
+    const sum = rowItems.reduce((s, it) => s + it.area, 0);
+    if (w >= h) {
+      const colW = sum / h;
+      let yy = y;
+      for (const it of rowItems) {
+        const tileH = it.area / colW;
+        result.push({ x, y: yy, w: colW, h: tileH, row: it.row });
+        yy += tileH;
+      }
+      x += colW;
+      w -= colW;
+    } else {
+      const rowH = sum / w;
+      let xx = x;
+      for (const it of rowItems) {
+        const tileW = it.area / rowH;
+        result.push({ x: xx, y, w: tileW, h: rowH, row: it.row });
+        xx += tileW;
+      }
+      y += rowH;
+      h -= rowH;
+    }
+  };
+
+  let row: { row: RankingRow; area: number }[] = [];
+  for (const it of scaled) {
+    const side = Math.min(w, h);
+    if (row.length === 0) {
+      row.push(it);
+      continue;
+    }
+    const curWorst = worst(row.map((r) => r.area), side);
+    const nextWorst = worst([...row.map((r) => r.area), it.area], side);
+    if (nextWorst <= curWorst) {
+      row.push(it);
+    } else {
+      placeRow(row);
+      row = [it];
     }
   }
-  if (splitIdx >= items.length) splitIdx = items.length - 1;
-  if (splitIdx < 1) splitIdx = 1;
-
-  const a = items.slice(0, splitIdx);
-  const b = items.slice(splitIdx);
-  const aSum = a.reduce((s, r) => s + value(r), 0);
-  const ratio = aSum / total;
-
-  if (w >= h) {
-    return [
-      ...sliceTreemap(a, x, y, w * ratio, h),
-      ...sliceTreemap(b, x + w * ratio, y, w * (1 - ratio), h),
-    ];
-  } else {
-    return [
-      ...sliceTreemap(a, x, y, w, h * ratio),
-      ...sliceTreemap(b, x, y + h * ratio, w, h * (1 - ratio)),
-    ];
-  }
+  if (row.length) placeRow(row);
+  return result;
 }
 
 // Deterministic hash from string → 0..1
@@ -85,72 +122,33 @@ function changePctFor(row: RankingRow): number {
   return -1.8 + noise;
 }
 
-function colorForChange(pct: number) {
-  // Vivid green for positive, vivid red for negative, neutral gray near zero.
-  // Three intensity bands per side give the "well-defined" heatmap look.
-  if (pct >= 1.5) {
-    return {
-      bg: "linear-gradient(135deg, #0a7a3e 0%, #16a34a 60%, #22c55e 100%)",
-      fg: "#ecfdf5",
-    };
-  }
-  if (pct >= 0.5) {
-    return {
-      bg: "linear-gradient(135deg, #15803d 0%, #22c55e 100%)",
-      fg: "#f0fdf4",
-    };
-  }
-  if (pct >= 0.05) {
-    return {
-      bg: "linear-gradient(135deg, #166534 0%, #16a34a 100%)",
-      fg: "#f0fdf4",
-    };
-  }
-  if (pct <= -1.5) {
-    return {
-      bg: "linear-gradient(135deg, #991b1b 0%, #dc2626 60%, #ef4444 100%)",
-      fg: "#fef2f2",
-    };
-  }
-  if (pct <= -0.5) {
-    return {
-      bg: "linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)",
-      fg: "#fef2f2",
-    };
-  }
-  if (pct <= -0.05) {
-    return {
-      bg: "linear-gradient(135deg, #7f1d1d 0%, #b91c1c 100%)",
-      fg: "#fef2f2",
-    };
-  }
-  return {
-    bg: "linear-gradient(135deg, #4b5563 0%, #6b7280 100%)",
-    fg: "#f3f4f6",
-  };
+// TradingView-style diverging scale: a dark neutral center saturating to a
+// solid green for gains and solid red for losses. Bigger moves → more
+// saturated, exactly like the TradingView heatmap. Flat fills, no gradients.
+const NEUTRAL: [number, number, number] = [40, 44, 54]; // #282C36 dark neutral
+const GREEN: [number, number, number] = [22, 168, 95]; // #16A85F strong gain
+const RED: [number, number, number] = [221, 60, 58]; // #DD3C3A strong loss
+
+function mix(a: [number, number, number], b: [number, number, number], t: number): string {
+  const r = Math.round(a[0] + (b[0] - a[0]) * t);
+  const g = Math.round(a[1] + (b[1] - a[1]) * t);
+  const bl = Math.round(a[2] + (b[2] - a[2]) * t);
+  return `rgb(${r}, ${g}, ${bl})`;
 }
 
-// IQS-band coloring on the 0–100 composite — green tiers for high IQS,
-// red for low, gray for missing.
+function colorForChange(pct: number) {
+  // Clamp to ±3% — the band over which TradingView saturates the color.
+  const t = Math.max(-1, Math.min(1, pct / 3));
+  const bg = t >= 0 ? mix(NEUTRAL, GREEN, t) : mix(NEUTRAL, RED, -t);
+  return { bg };
+}
+
+// IQS-band coloring on the 0–100 composite, mapped onto the same diverging
+// scale (50 = neutral, 100 = strong green, 0 = strong red).
 function colorForIqs(iqs: number) {
-  if (iqs >= 70) {
-    return {
-      bg: "linear-gradient(135deg, #0a7a3e 0%, #16a34a 60%, #22c55e 100%)",
-    };
-  }
-  if (iqs >= 55) {
-    return { bg: "linear-gradient(135deg, #15803d 0%, #22c55e 100%)" };
-  }
-  if (iqs >= 40) {
-    return { bg: "linear-gradient(135deg, #166534 0%, #16a34a 100%)" };
-  }
-  if (iqs >= 25) {
-    return { bg: "linear-gradient(135deg, #7f1d1d 0%, #b91c1c 100%)" };
-  }
-  if (iqs > 0) {
-    return { bg: "linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)" };
-  }
-  return { bg: "linear-gradient(135deg, #4b5563 0%, #6b7280 100%)" };
+  const t = Math.max(-1, Math.min(1, (iqs - 50) / 50));
+  const bg = t >= 0 ? mix(NEUTRAL, GREEN, t) : mix(NEUTRAL, RED, -t);
+  return { bg };
 }
 
 interface SectorBlock {
@@ -347,11 +345,11 @@ function layoutWithSectors(
       transactionCount: 0,
       totalPurchaseValue: s.total * s.total,
     }));
-    return sliceTreemap(sectorAsRows, 0, 0, w, h);
+    return squarifyTreemap(sectorAsRows, 0, 0, w, h);
   })();
 
-  const HEADER_H = 24;
-  const PAD = 2;
+  const HEADER_H = 28;
+  const PAD = 1;
   return sectorRects.map((rect, i) => {
     const meta = sectors[i];
     const innerW = Math.max(0, rect.w - PAD * 2);
@@ -359,7 +357,7 @@ function layoutWithSectors(
     // Tiles are positioned RELATIVE to the sector block's content area,
     // not the heatmap root. Rendering wraps each block in an overflow:hidden
     // container so no tile can ever escape its sector boundary.
-    const tiles = innerH > 0 ? sliceTreemap(meta.items, 0, 0, innerW, innerH) : [];
+    const tiles = innerH > 0 ? squarifyTreemap(meta.items, 0, 0, innerW, innerH) : [];
     return {
       sector: meta.sector,
       x: rect.x,
@@ -391,20 +389,20 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
       // colored by IQS band so the user reads it as "where is conviction".
       const sorted = [...rows].sort((a, b) => tileValue(b) - tileValue(a));
       const w = Math.max(320, width);
-      const tiles = sliceTreemap(sorted, 0, 0, w, height);
+      const tiles = squarifyTreemap(sorted, 0, 0, w, height);
       return [{ sector: "", x: 0, y: 0, w, h: height, tiles }];
     }
     return layoutWithSectors(rows, Math.max(320, width), height);
   }, [rows, width, height, mode]);
 
-  const HEADER_H = mode === "iqs" ? 0 : 24;
-  const PAD = 2;
+  const HEADER_H = mode === "iqs" ? 0 : 28;
+  const PAD = 1;
 
   return (
     <div
       ref={ref}
       className="relative w-full overflow-hidden"
-      style={{ height }}
+      style={{ height, background: "#ffffff", borderRadius: 4 }}
     >
       {blocks.map((b, bi) => {
         const showLabel = b.w >= 80 && b.h >= 60;
@@ -427,19 +425,19 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                   left: PAD,
                   top: 2,
                   right: PAD,
-                  height: HEADER_H - 4,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "var(--accent)",
+                  height: HEADER_H - 2,
+                  fontSize: 15,
+                  fontWeight: 800,
+                  color: "#000000",
                   textTransform: "uppercase",
-                  letterSpacing: "0.08em",
+                  letterSpacing: "0.04em",
                   pointerEvents: "none",
                   zIndex: 4,
                   overflow: "hidden",
                   whiteSpace: "nowrap",
                   textOverflow: "ellipsis",
-                  lineHeight: `${HEADER_H - 4}px`,
-                  padding: "0 4px",
+                  lineHeight: `${HEADER_H - 2}px`,
+                  padding: "0 5px",
                 }}
               >
                 {b.sector}
@@ -480,9 +478,9 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
               return (
                 <motion.div
                   key={rect.row.companyId}
-                  initial={{ opacity: 0, scale: 0.92 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.4, delay: i * 0.015, ease: [0.22, 1, 0.36, 1] }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.2, delay: Math.min(i, 40) * 0.006 }}
                   style={{
                     position: "absolute",
                     left: tileX + 1,
@@ -491,11 +489,11 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                     height: Math.max(0, tileH - 2),
                     background: c.bg,
                     color: "#ffffff",
-                    borderRadius: 4,
+                    borderRadius: 1,
                     overflow: "hidden",
                     cursor: "pointer",
                   }}
-                  whileHover={{ scale: 1.025, zIndex: 5 }}
+                  whileHover={{ zIndex: 5, boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.85)" }}
                 >
                   <Link
                     href={rect.row.ticker ? `/companies/${encodeURIComponent(rect.row.ticker)}` : "#"}
@@ -505,12 +503,12 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                   >
                     {!hideAll && (
                       <div
-                        className="tracking-tight leading-none font-mono text-center"
+                        className="tracking-tight leading-none text-center"
                         style={{
                           color: "#ffffff",
                           fontSize: Math.max(9, tickerFs),
-                          fontWeight: 900,
-                          letterSpacing: "-0.02em",
+                          fontWeight: 800,
+                          letterSpacing: "-0.01em",
                           whiteSpace: "nowrap",
                         }}
                       >

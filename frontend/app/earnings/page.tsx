@@ -126,7 +126,7 @@ export default function EarningsPage() {
                         filterable: true,
                         sortValue: (r) => r.name,
                         render: (r) => (
-                          <span className="truncate max-w-[280px] text-[12px]">{r.name}</span>
+                          <span className="truncate max-w-[280px] text-[14px] font-medium" style={{ color: "var(--text)" }}>{r.name}</span>
                         ),
                       },
                       {

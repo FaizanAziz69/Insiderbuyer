@@ -449,7 +449,7 @@ export default function PremiumPage() {
               <li key={f} className="flex items-start gap-3 text-[14px]">
                 <span
                   className="h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: "var(--accent)", color: "#fff" }}
+                  style={{ background: "var(--accent)", color: "var(--on-accent)" }}
                 >
                   <Check className="h-3 w-3" strokeWidth={3} />
                 </span>

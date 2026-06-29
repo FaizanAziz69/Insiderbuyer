@@ -57,7 +57,7 @@ export default function WatchlistPage() {
         <button
           type="submit"
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-[13px] font-bold"
-          style={{ background: "var(--accent)", color: "#fff" }}
+          style={{ background: "var(--accent)", color: "var(--on-accent)" }}
         >
           <Plus className="h-4 w-4" /> Add
         </button>

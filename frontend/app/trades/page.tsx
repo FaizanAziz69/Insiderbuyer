@@ -46,7 +46,8 @@ export default function TradesPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search ticker, company, or insider name…"
-            className="input-base pl-10"
+            className="input-base"
+            style={{ paddingLeft: "2.5rem" }}
           />
         </div>
       </div>

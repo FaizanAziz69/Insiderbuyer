@@ -203,10 +203,10 @@ export function DataTable<T>({
             <button
               type="button"
               onClick={() => setShowFilters((v) => !v)}
-              className="inline-flex items-center gap-1.5 text-[13px] font-semibold px-3 py-1.5 rounded-md transition"
+              className="btn-hover inline-flex items-center gap-1.5 text-[13px] font-semibold px-3 py-1.5 rounded-md"
               style={{
                 background: showFilters || activeCount ? "var(--accent)" : "var(--bg-2)",
-                color: showFilters || activeCount ? "#fff" : "var(--text-soft)",
+                color: showFilters || activeCount ? "var(--on-accent)" : "var(--text-soft)",
                 border: `1px solid ${showFilters || activeCount ? "var(--accent)" : "var(--border-strong)"}`,
               }}
             >
@@ -382,7 +382,7 @@ export function DataTable<T>({
               type="button"
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={safePage <= 0}
-              className="inline-flex items-center gap-1 text-[13px] font-semibold px-3 py-1.5 rounded-md transition disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn-hover inline-flex items-center gap-1 text-[13px] font-semibold px-3 py-1.5 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: "var(--brand-surface)", color: "#fff" }}
             >
               <ChevronLeft className="h-4 w-4" /> Previous
@@ -394,7 +394,7 @@ export function DataTable<T>({
               type="button"
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={safePage >= pageCount - 1}
-              className="inline-flex items-center gap-1 text-[13px] font-semibold px-3 py-1.5 rounded-md transition disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn-hover inline-flex items-center gap-1 text-[13px] font-semibold px-3 py-1.5 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: "var(--brand-surface)", color: "#fff" }}
             >
               Next <ChevronRight className="h-4 w-4" />

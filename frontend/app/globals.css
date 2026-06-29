@@ -24,6 +24,8 @@
   --accent: #005882;
   --accent-hover: #003f5d;
   --accent-soft: rgba(0, 88, 130, 0.08);
+  /* Text/icon color that sits ON TOP of an accent-filled surface. */
+  --on-accent: #ffffff;
   --accent-2: #0077b4;
   /* Brand surface — header/footer chrome. Navy in light, dark in dark. */
   --brand-surface: #005882;
@@ -59,6 +61,8 @@
   --accent: #20d0ff;
   --accent-hover: #6ddfff;
   --accent-soft: rgba(32, 208, 255, 0.14);
+  /* Dark theme accent is a light cyan, so text on it must be dark to stay legible. */
+  --on-accent: #042033;
   --accent-2: #4d8bff;
   /* Brand surface — header/footer chrome. Matches the dark page background. */
   --brand-surface: #070d1f;
@@ -234,7 +238,7 @@ a:hover, a:active, a:focus { color: var(--accent-hover); }
 .pill-link:hover,
 .pill-link:focus {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--accent);
   transform: translateY(-1px);
   box-shadow: 0 6px 14px color-mix(in srgb, var(--accent) 30%, transparent);
@@ -406,7 +410,7 @@ body {
 
 ::selection {
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 
 .font-mono {
@@ -464,22 +468,55 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   font-weight: 600;
   font-size: 14px;
   padding: 9px 18px;
   border-radius: 8px;
-  transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 102, 255, 0.25);
+  /* Sheen lives in the BACKGROUND (a gradient layer over the accent color),
+     so the button text always paints above it and is never covered. The
+     sweep is animated via background-position on hover. */
+  background-color: var(--accent);
+  background-image: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0) 62%
+  );
+  background-repeat: no-repeat;
+  background-size: 220% 100%;
+  background-position: 135% 0;
+  transition: background-color 0.2s ease, background-position 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 88, 130, 0.25);
+}
+/* Keep the on-accent text color in EVERY state — beats the global
+   `a:hover/:focus { color: var(--accent-hover) }` rule (the CTA is a <Link>,
+   i.e. an <a>), which otherwise recolored the label into the button and
+   made it invisible on hover in both themes. */
+.btn-primary,
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active,
+.btn-primary:visited {
+  color: var(--on-accent);
 }
 .btn-primary:hover {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), 0 8px 20px rgba(0, 102, 255, 0.35);
+  background-color: var(--accent-hover);
+  background-position: -35% 0;
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.05), 0 12px 26px rgba(0, 88, 130, 0.42);
 }
 .btn-primary:active {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.99);
+  transition-duration: 0.05s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary,
+  .btn-primary:hover {
+    transform: none;
+    background-position: 135% 0;
+  }
 }
 
 .btn-secondary {
@@ -494,12 +531,31 @@ body {
   font-size: 14px;
   padding: 9px 18px;
   border-radius: 8px;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+    transform 0.15s ease, box-shadow 0.15s ease;
 }
 .btn-secondary:hover {
   background: var(--bg-3);
   border-color: var(--text-faint);
   color: var(--text);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Generic hover feedback for inline-styled buttons (table controls, chips,
+   pagination). Works on any background in both themes — a brightness shift
+   preserves text contrast, so labels never disappear on hover. */
+.btn-hover {
+  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-hover:hover:not(:disabled) {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+.btn-hover:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.97);
 }
 
 /* ============ INPUTS ============ */

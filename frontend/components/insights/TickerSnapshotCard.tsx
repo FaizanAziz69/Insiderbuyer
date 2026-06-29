@@ -83,7 +83,7 @@ export function TickerSnapshotCard({ ticker }: Props) {
         <Link
           href={`/companies/${encodeURIComponent(c.ticker || "")}`}
           className="flex-1 inline-flex items-center justify-center gap-1 py-2 rounded-md text-[12px] font-bold uppercase tracking-wider"
-          style={{ background: "var(--accent)", color: "#ffffff" }}
+          style={{ background: "var(--accent)", color: "var(--on-accent)" }}
         >
           Full profile <ArrowUpRight className="h-3.5 w-3.5" />
         </Link>

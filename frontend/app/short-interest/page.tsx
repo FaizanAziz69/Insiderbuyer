@@ -107,7 +107,7 @@ export default function ShortInterestPage() {
                       <div className="font-mono text-[15px] font-bold text-accent">
                         {r.symbol}
                       </div>
-                      <div className="text-[12px] text-mute truncate max-w-[200px]">
+                      <div className="text-[14px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
                         {r.name}
                       </div>
                     </div>

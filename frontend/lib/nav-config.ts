@@ -8,6 +8,7 @@ import {
   Coins,
   Crown,
   Cpu,
+  FileText,
   FlaskConical,
   Flame,
   Gem,
@@ -60,6 +61,7 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Trading Activity",
         links: [
           { label: "Insider Trades", href: "/trades", description: "All open-market Form 4 buys & sells", icon: Activity },
+          { label: "Insider Hot Stocks", href: "/insiders/hot", description: "Most insider buying right now, by IQS", icon: Flame },
           { label: "Insider Earnings Score", href: "/earnings-performance", description: "Insider track record into earnings", icon: Target },
           { label: "Upcoming Earnings", href: "/earnings", description: "Live earnings calendar, next 7 days", icon: Calendar },
           { label: "Most Active Stocks", href: "/market-data/most-active", description: "Highest dollar volume today", icon: BarChart3 },
@@ -100,6 +102,7 @@ export const NAV_GROUPS: NavGroup[] = [
         links: [
           { label: "Large Cap", href: "/stock-lists/large-cap", icon: Building2 },
           { label: "Small Cap", href: "/stock-lists/small-cap", icon: Rocket },
+          { label: "Penny Stocks", href: "/stock-lists/penny-stocks", icon: Coins },
           { label: "Blue Chip", href: "/stock-lists/blue-chip", icon: ShieldCheck },
           { label: "FAANG", href: "/stock-lists/faang", icon: Cpu },
           { label: "REITs", href: "/stock-lists/reits", icon: Landmark },
@@ -173,9 +176,12 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Sections",
         links: [
           { label: "AI Insights", href: "/insights", description: "AI-generated daily briefings — refreshed each morning", icon: Sparkles },
+          { label: "Intro to Insider Buying", href: "/learn/insider-buying", description: "New here? Start with the basics", icon: FileText },
           { label: "Latest Financial News", href: "/insights?sort=latest", description: "Freshest AI editorial across all topics", icon: Newspaper },
           { label: "Popular Articles", href: "/insights?sort=popular", description: "Most-read AI stories this week", icon: TrendingUp },
           { label: "Stock Ideas", href: "/lists", description: "Curated trade-idea lists", icon: Sparkles },
+          { label: "Reports & Advertorials", href: "/reports", description: "Long-form reports, monthly summaries & features", icon: FileText },
+          { label: "For Business / API", href: "/business", description: "License our insider data & widgets", icon: Briefcase },
         ],
       },
     ],

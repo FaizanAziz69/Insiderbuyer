@@ -77,7 +77,7 @@ export default function ShortSqueezePage() {
       label: "Company",
       filterable: true,
       sortValue: (r) => r.name,
-      render: (r) => <span className="text-[12px] truncate max-w-[200px] inline-block align-middle">{r.name}</span>,
+      render: (r) => <span className="text-[14px] font-medium truncate max-w-[200px] inline-block align-middle" style={{ color: "var(--text)" }}>{r.name}</span>,
     },
     {
       key: "squeeze",

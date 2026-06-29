@@ -47,7 +47,7 @@ const companyCol: Column<RankingRow> = {
   label: "Company",
   filterable: true,
   sortValue: (r) => r.name,
-  render: (r) => <span className="truncate max-w-[260px] text-[12px]">{r.name}</span>,
+  render: (r) => <span className="truncate max-w-[260px] text-[14px] font-medium" style={{ color: "var(--text)" }}>{r.name}</span>,
 };
 
 const sectorCol: Column<RankingRow> = {
@@ -56,7 +56,7 @@ const sectorCol: Column<RankingRow> = {
   filterable: true,
   sortValue: (r) => r.sector ?? "",
   render: (r) => (
-    <span className="text-mute text-[12px] truncate max-w-[180px]">{r.sector || "—"}</span>
+    <span className="text-[14px] truncate max-w-[180px]" style={{ color: "var(--text)" }}>{r.sector || "—"}</span>
   ),
 };
 

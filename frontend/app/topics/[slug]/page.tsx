@@ -156,7 +156,8 @@ export default function TopicPage({
               value={kw}
               onChange={(e) => setKw(e.target.value)}
               placeholder="Search articles"
-              className="filter-select w-full pl-8"
+              className="filter-select w-full"
+              style={{ paddingLeft: "2rem" }}
             />
           </div>
         </Field>
