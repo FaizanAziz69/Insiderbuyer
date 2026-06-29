@@ -161,10 +161,10 @@ function NewsletterCard() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-2.5 rounded-md font-bold uppercase tracking-wider text-[12px]"
+            className="btn-hover w-full py-2.5 rounded-md font-bold uppercase tracking-wider text-[12px]"
             style={{
               background: submitting ? "var(--bg-3)" : "var(--gold)",
-              color: "#1a1300",
+              color: submitting ? "var(--text-mute)" : "#1a1300",
             }}
           >
             {submitting ? "Submitting…" : "Subscribe — free"}

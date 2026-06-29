@@ -248,7 +248,7 @@ export default function PremiumPage() {
               executive conviction the moment it shows up in the filings — before the
               crowd does.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <div className="mt-8 flex flex-col items-center justify-center gap-3">
               <TrialCapture source="premium-hero" />
               <a
                 href="#why"

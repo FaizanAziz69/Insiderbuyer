@@ -65,7 +65,7 @@ function TrialCard() {
           </ul>
           <Link
             href="/premium"
-            className="inline-flex items-center justify-center mt-6 px-8 py-4 rounded-md uppercase"
+            className="btn-hover inline-flex items-center justify-center mt-6 px-8 py-4 rounded-md uppercase"
             style={{
               background: "var(--gold)",
               color: "#1a1300",
@@ -181,9 +181,10 @@ function NewsletterCard() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-4 rounded-md uppercase text-white"
+            className="btn-hover w-full py-4 rounded-md uppercase"
             style={{
               background: submitting ? "var(--bg-3)" : "var(--accent)",
+              color: submitting ? "var(--text-mute)" : "var(--on-accent)",
               fontSize: "0.95rem",
               fontWeight: 700,
               letterSpacing: "0.06em",

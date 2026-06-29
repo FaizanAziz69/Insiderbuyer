@@ -140,7 +140,7 @@ export function AiFeaturedHero() {
               key={i}
               onClick={() => setActive(i)}
               aria-label={`Slide ${i + 1}`}
-              className="transition-all rounded-full"
+              className="transition-all rounded-full hover:opacity-70"
               style={{
                 width: i === active ? 22 : 8,
                 height: 8,
