@@ -21,6 +21,10 @@ export function Footer() {
           "--border": "rgba(255,255,255,0.16)",
           "--border-strong": "rgba(255,255,255,0.28)",
           "--bg-3": "rgba(255,255,255,0.08)",
+          // Accent is dark navy in light theme — invisible on this navy footer.
+          // Scope it to a light sky-blue so hover:text-accent stays readable.
+          "--accent": "#8fd3ff",
+          "--accent-hover": "#bfe6ff",
         } as React.CSSProperties
       }
     >
