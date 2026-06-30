@@ -190,19 +190,22 @@ export default function TopGainersPage() {
       align: "center",
       render: (r) => (
         <span className="group/cat relative inline-flex items-center justify-center">
-          <span
-            className="inline-flex items-center justify-center h-7 w-7 rounded-full cursor-help"
+          {/* Button so it's tappable on mobile — focus reveals the tooltip
+              (touch devices have no hover). */}
+          <button
+            type="button"
+            className="inline-flex items-center justify-center h-7 w-7 rounded-full cursor-pointer focus:outline-none"
             style={{
               background: "color-mix(in srgb, var(--accent) 14%, transparent)",
               color: "var(--accent)",
             }}
-            aria-label="AI catalyst"
+            aria-label="Show AI catalyst"
           >
             <Sparkles className="h-4 w-4" />
-          </span>
-          {/* Hover tooltip — the AI catalyst note. */}
+          </button>
+          {/* Tooltip — shows on hover (desktop) and on tap/focus (mobile). */}
           <span
-            className="pointer-events-none absolute right-0 bottom-full z-30 mb-2 w-64 rounded-md px-3 py-2 text-[12px] font-medium leading-snug text-left opacity-0 shadow-lg transition-opacity duration-150 group-hover/cat:opacity-100"
+            className="pointer-events-none absolute right-0 bottom-full z-30 mb-2 w-64 rounded-md px-3 py-2 text-[12px] font-medium leading-snug text-left opacity-0 shadow-lg transition-opacity duration-150 group-hover/cat:opacity-100 group-focus-within/cat:opacity-100"
             style={{ background: "#ffffff", color: "#000000", border: "1px solid var(--border)" }}
             role="tooltip"
           >
