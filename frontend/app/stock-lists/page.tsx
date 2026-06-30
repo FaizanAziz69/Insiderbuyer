@@ -23,7 +23,7 @@ export default function StockListsHubPage() {
   const premium = lists.find((l) => l.kind === "premium");
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="w-full space-y-8">
       <header>
         <div
           className="mb-2 font-mono uppercase"

@@ -14,7 +14,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="sticky top-0 z-20">
         <TopHeader />
       </div>
-      <main className="flex-1 px-2 sm:px-3 lg:px-4 py-6 sm:py-8 max-w-[1640px] mx-auto w-full">
+      <main className="flex-1 px-6 sm:px-10 lg:px-16 xl:px-24 py-6 sm:py-8 max-w-[1640px] mx-auto w-full">
         {children}
       </main>
       <Footer />

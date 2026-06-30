@@ -83,7 +83,7 @@ export default function EarningsPerformancePage() {
   const withRecord = rows.filter((r) => r.track).length;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       <header>
         <div className="flex items-center gap-2 text-mute text-sm mb-1">
           <Target className="h-4 w-4" />
@@ -172,7 +172,7 @@ export default function EarningsPerformancePage() {
               filterable: true,
               sortValue: (r) => r.time ?? "",
               render: (r) => (
-                <span className="text-[11px] uppercase text-mute">{r.time || "—"}</span>
+                <span className="text-[11px] uppercase text-soft">{r.time || "—"}</span>
               ),
             },
             {
@@ -183,7 +183,7 @@ export default function EarningsPerformancePage() {
               align: "right",
               sortValue: (r) => (r.estimate ? parseFloat(r.estimate) : null),
               render: (r) => (
-                <span className="tabular text-mute text-[14px] font-bold">{r.estimate || "—"}</span>
+                <span className="tabular text-soft text-[14px] font-bold">{r.estimate || "—"}</span>
               ),
             },
             {
@@ -197,7 +197,7 @@ export default function EarningsPerformancePage() {
                 r.track ? (
                   <IesBadge ies={r.track.ies} />
                 ) : (
-                  <span className="text-faint">—</span>
+                  <span className="text-soft">—</span>
                 ),
             },
             {
@@ -248,14 +248,14 @@ export default function EarningsPerformancePage() {
               align: "right",
               sortValue: (r) => r.track?.sample ?? null,
               render: (r) => (
-                <span className="tabular text-mute text-[14px] font-bold">
+                <span className="tabular text-soft text-[14px] font-bold">
                   {r.track ? r.track.sample : "—"}
                 </span>
               ),
             },
           ]}
         />
-        <p className="text-[11px] text-faint px-4 py-2">
+        <p className="text-[12px] text-soft px-4 py-2">
           IES = confidence-adjusted hit rate of insider buys made within ~60 days
           before earnings (needs ≥{up?.minSample ?? 3} past events to show a score).
           &ldquo;Avg Move&rdquo; is the mean next-session price change after those
@@ -298,7 +298,7 @@ export default function EarningsPerformancePage() {
               key: "rank",
               label: "#",
               sortable: false,
-              className: "text-faint tabular text-[11px]",
+              className: "text-soft tabular text-[11px]",
               render: (_r, i) => i + 1,
             },
             {
@@ -331,7 +331,7 @@ export default function EarningsPerformancePage() {
                     <div className="text-[15px] font-bold">
                       {(r as LbInsider).name}
                     </div>
-                    <div className="text-[10px] text-mute font-mono">
+                    <div className="text-[10px] text-soft font-mono">
                       {(r as LbInsider).tickers.join(", ")}
                     </div>
                   </div>
@@ -379,13 +379,13 @@ export default function EarningsPerformancePage() {
               filterType: "range",
               align: "right",
               sortValue: (r) => r.sample,
-              render: (r) => <span className="tabular text-mute text-[14px] font-bold">{r.sample}</span>,
+              render: (r) => <span className="tabular text-soft text-[14px] font-bold">{r.sample}</span>,
             },
           ]}
         />
       </section>
 
-      <p className="text-[11px] text-faint">
+      <p className="text-[12px] text-soft">
         Source: SEC Form 4 open-market purchases scored against historical
         post-earnings price moves. Past performance does not guarantee future
         results — this is informational, not financial advice.

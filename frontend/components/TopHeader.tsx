@@ -15,16 +15,19 @@ export function TopHeader() {
   return (
     <>
       <header
-        className="h-20 flex items-center px-3 sm:px-4 lg:px-6 gap-4"
+        className="h-20"
         style={{
           background: "var(--brand-surface)",
           color: "#ffffff",
           borderBottom: "1px solid var(--brand-surface-border)",
         }}
       >
+        {/* Inner container aligned with the main content (same max-width +
+            gutters as <main>) so the logo lines up with where articles start. */}
+        <div className="h-full w-full max-w-[1640px] mx-auto flex items-center gap-4 px-6 sm:px-10 lg:px-16 xl:px-24">
         {/* LEFT — logo */}
         <Link href="/" className="flex items-center flex-shrink-0" style={{ color: "#ffffff" }}>
-          <Logo size="md" tone="light" />
+          <Logo size="sm" tone="light" />
         </Link>
 
         {/* CENTER — mega-dropdown nav (desktop only) */}
@@ -105,6 +108,7 @@ export function TopHeader() {
           >
             <User className="h-4 w-4" style={{ color: "#ffffff" }} />
           </button>
+        </div>
         </div>
       </header>
 

@@ -20,7 +20,7 @@ import { AiFeaturedHero } from "@/components/insights/AiFeaturedHero";
 
 export default function HomePage() {
   return (
-    <div className="space-y-10 px-2 sm:px-6 lg:px-12 xl:px-20">
+    <div className="space-y-10">
       {/* HERO — AI editorial carousel (grid of images + news, refreshed daily)
           + two stacked smaller heatmaps on the right */}
       <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4">

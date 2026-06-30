@@ -181,7 +181,7 @@ export default function CompanyPage({
   const [tab, setTab] = useState<Tab>("overview");
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="w-full">
       <Link
         href="/stock-lists"
         className="inline-flex items-center gap-1.5 text-xs text-mute hover:text-accent transition mb-5"

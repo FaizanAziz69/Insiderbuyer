@@ -34,23 +34,8 @@ export function TradesTable({
       render: (_t, i) => <span className="text-faint tabular text-[11px]">{i + 1}</span>,
     },
     {
-      key: "insiderName",
-      label: "Insider",
-      filterable: true,
-      sortValue: (t) => t.insiderName,
-      render: (t) => (
-        <>
-          <div className="font-bold text-[15px]">{t.insiderName}</div>
-          {t.rawTitle && (
-            <div className="text-[12px] text-mute truncate max-w-[200px]">{t.rawTitle}</div>
-          )}
-        </>
-      ),
-    },
-    {
       key: "ticker",
       label: "Company",
-      filterable: true,
       sortValue: (t) => t.ticker ?? "",
       render: (t) => (
         <>
@@ -64,8 +49,37 @@ export function TradesTable({
           ) : (
             <span className="text-faint">—</span>
           )}
-          <div className="text-[12px] text-mute truncate max-w-[180px]">{t.companyName}</div>
+          <div className="text-[14px] font-medium truncate max-w-[180px]" style={{ color: "var(--text)" }}>
+            {t.companyName}
+          </div>
         </>
+      ),
+    },
+    {
+      key: "insiderName",
+      label: "Insider",
+      sortValue: (t) => t.insiderName,
+      render: (t) => (
+        <>
+          <div className="font-bold text-[15px]">{t.insiderName}</div>
+          {t.rawTitle && (
+            <div className="text-[12px] text-mute truncate max-w-[200px]">{t.rawTitle}</div>
+          )}
+        </>
+      ),
+    },
+    {
+      key: "marketCap",
+      label: "Market Cap",
+      filterable: true,
+      filterType: "marketCapPreset",
+      filterLabelText: "Market Cap",
+      align: "right",
+      sortValue: (t) => t.marketCap ?? null,
+      render: (t) => (
+        <span className="tabular text-mute text-[14px] font-bold">
+          {t.marketCap ? formatCurrency(t.marketCap) : "—"}
+        </span>
       ),
     },
     {
@@ -205,10 +219,6 @@ function Row({ t, rank }: { t: TradeRow; rank: number }) {
     <>
       <td className="text-faint tabular text-[11px]">{rank}</td>
       <td>
-        <div className="font-bold text-[15px]">{t.insiderName}</div>
-        {t.rawTitle && <div className="text-[12px] text-mute truncate max-w-[200px]">{t.rawTitle}</div>}
-      </td>
-      <td>
         {t.ticker ? (
           <Link
             href={`/companies/${encodeURIComponent(t.ticker)}`}
@@ -219,7 +229,16 @@ function Row({ t, rank }: { t: TradeRow; rank: number }) {
         ) : (
           <span className="text-faint">—</span>
         )}
-        <div className="text-[12px] text-mute truncate max-w-[180px]">{t.companyName}</div>
+        <div className="text-[14px] font-medium truncate max-w-[180px]" style={{ color: "var(--text)" }}>
+          {t.companyName}
+        </div>
+      </td>
+      <td>
+        <div className="font-bold text-[15px]">{t.insiderName}</div>
+        {t.rawTitle && <div className="text-[12px] text-mute truncate max-w-[200px]">{t.rawTitle}</div>}
+      </td>
+      <td className="text-right tabular text-mute text-[14px] font-bold">
+        {t.marketCap ? formatCurrency(t.marketCap) : "—"}
       </td>
       <td>
         <span className={roleCls}>{t.role}</span>

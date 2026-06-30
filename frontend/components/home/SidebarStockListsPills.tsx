@@ -4,6 +4,10 @@ import { useState } from "react";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 
+// Shared client-side email check: require a local part, a domain, and a TLD.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
+
 const LIST_PILLS = [
   { slug: "metals-and-mining", label: "Metals & Mining" },
   { slug: "tech", label: "Tech" },
@@ -89,19 +93,33 @@ function NewsletterCard() {
   const [phone, setPhone] = useState("");
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  function validateEmail() {
+    if (!isValidEmail(email)) {
+      setEmailError("Please enter a valid email address.");
+      return false;
+    }
+    setEmailError(null);
+    return true;
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!validateEmail()) return;
     setSubmitting(true);
+    setError(null);
     try {
-      await fetch(`${API_BASE}/subscribers`, {
+      const res = await fetch(`${API_BASE}/subscribers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, phone: phone || undefined, source: "home-rail" }),
       });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
       setDone(true);
     } catch {
-      // swallow — user can retry
+      setError("Something went wrong — please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -132,20 +150,40 @@ function NewsletterCard() {
           You&rsquo;re on the list — check your inbox shortly.
         </div>
       ) : (
-        <form onSubmit={submit} className="space-y-2">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Your email address"
-            className="w-full px-3 py-2 rounded-md text-[13px]"
-            style={{
-              background: "var(--bg-1)",
-              border: "1px solid var(--border-strong)",
-              color: "var(--text)",
-            }}
-          />
+        <form onSubmit={submit} noValidate className="space-y-2">
+          <div>
+            <label
+              className="block text-[11px] font-semibold mb-1"
+              style={{ color: "var(--text-soft)" }}
+            >
+              Email address <span style={{ color: "var(--bad)" }}>*</span>
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={validateEmail}
+              placeholder="Your email address"
+              aria-invalid={!!emailError}
+              className="w-full px-3 py-2 rounded-md text-[13px]"
+              style={{
+                background: "var(--bg-1)",
+                border: emailError
+                  ? "1px solid var(--bad)"
+                  : "1px solid var(--border-strong)",
+                color: "var(--text)",
+              }}
+            />
+            {emailError && (
+              <p
+                className="mt-1.5 text-left text-[12px]"
+                style={{ color: "var(--bad)" }}
+              >
+                {emailError}
+              </p>
+            )}
+          </div>
           <input
             type="tel"
             value={phone}
@@ -169,6 +207,14 @@ function NewsletterCard() {
           >
             {submitting ? "Submitting…" : "Subscribe — free"}
           </button>
+          {error && (
+            <p
+              className="text-left text-[12px]"
+              style={{ color: "var(--bad)" }}
+            >
+              {error}
+            </p>
+          )}
         </form>
       )}
     </section>

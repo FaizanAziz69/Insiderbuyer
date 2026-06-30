@@ -52,7 +52,7 @@ export default function EarningsPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       <header>
         <div className="flex items-center gap-2 text-mute text-sm mb-1">
           <Calendar className="h-4 w-4" />

@@ -150,6 +150,8 @@ export class MarketStatsService {
   private readonly http: AxiosInstance;
   private cache: Partial<Record<ScrId, { ts: number; data: MarketStatRow[] }>> = {};
   private readonly CACHE_MS = 60_000;
+  private pennyCache: { ts: number; data: MarketStatRow[] } | null = null;
+  private readonly PENNY_CACHE_MS = 10 * 60_000;
 
   constructor() {
     this.http = axios.create({
@@ -214,6 +216,77 @@ export class MarketStatsService {
   }
   getMostActive(limit = 20) {
     return this.fetchScreener('most_actives', limit);
+  }
+
+  /**
+   * Live penny-stock screener — every U.S. equity trading under $5, sorted by
+   * dollar volume, via Yahoo's custom screener endpoint (paginated). Returns
+   * hundreds of names rather than a hand-picked basket. Cached 10 min; on
+   * failure returns whatever is cached (caller falls back to a static basket).
+   */
+  async getPennyStocks(limit = 250): Promise<MarketStatRow[]> {
+    if (this.pennyCache && Date.now() - this.pennyCache.ts < this.PENNY_CACHE_MS) {
+      return this.pennyCache.data.slice(0, limit);
+    }
+    try {
+      const auth = await this.getAuth();
+      if (!auth) throw new Error('No Yahoo auth (cookie/crumb)');
+      const PAGE = 250;
+      const out: MarketStatRow[] = [];
+      const seen = new Set<string>();
+      for (let offset = 0; offset < limit && offset < 1000; offset += PAGE) {
+        const size = Math.min(PAGE, limit - offset);
+        const body = {
+          size,
+          offset,
+          sortField: 'dayvolume',
+          sortType: 'DESC',
+          quoteType: 'EQUITY',
+          query: {
+            operator: 'AND',
+            operands: [
+              { operator: 'GT', operands: ['intradayprice', 0.05] },
+              { operator: 'LT', operands: ['intradayprice', 5] },
+              { operator: 'EQ', operands: ['region', 'us'] },
+            ],
+          },
+          userId: '',
+          userIdType: 'guid',
+        };
+        const { data } = await this.http.post(
+          `https://query1.finance.yahoo.com/v1/finance/screener?crumb=${encodeURIComponent(auth.crumb)}&lang=en-US&region=US`,
+          body,
+          { headers: { Cookie: auth.cookie, 'Content-Type': 'application/json' } },
+        );
+        const quotes: any[] = data?.finance?.result?.[0]?.quotes || [];
+        if (!quotes.length) break;
+        for (const q of quotes) {
+          const symbol = String(q.symbol || '');
+          if (!symbol || seen.has(symbol)) continue;
+          seen.add(symbol);
+          out.push({
+            symbol,
+            name: String(q.shortName || q.longName || symbol),
+            price: Number(q.regularMarketPrice ?? 0),
+            changeAbs: Number(q.regularMarketChange ?? 0),
+            changePct: Number(q.regularMarketChangePercent ?? 0),
+            volume: Number(q.regularMarketVolume ?? 0),
+            avgVolume: Number(
+              q.averageDailyVolume3Month ?? q.averageDailyVolume10Day ?? 0,
+            ),
+            marketCap: q.marketCap != null ? Number(q.marketCap) : null,
+            sector: q.sector ?? null,
+          });
+        }
+        if (quotes.length < size) break;
+      }
+      if (!out.length) throw new Error('Empty penny screener');
+      this.pennyCache = { ts: Date.now(), data: out };
+      return out.slice(0, limit);
+    } catch (err: any) {
+      this.logger.warn(`Yahoo penny screener failed: ${err?.message || err}.`);
+      return this.pennyCache?.data.slice(0, limit) ?? [];
+    }
   }
 
   /** Static reference metadata for a ticker (name / sector / market cap). */

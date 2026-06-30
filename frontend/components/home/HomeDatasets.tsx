@@ -10,6 +10,7 @@ interface MoverRow {
   price: number;
   changePct: number;
   volume: number;
+  marketCap: number | null;
 }
 
 function PanelTitle({ title, href }: { title: string; href: string }) {
@@ -74,6 +75,9 @@ function InsiderSidePanel({
                     {r.ticker || "—"}
                   </div>
                   <div className="text-[12px] text-mute truncate">{r.name}</div>
+                  <div className="text-[10px] text-faint tabular">
+                    Mkt cap {r.marketCap ? formatCurrency(r.marketCap) : "—"}
+                  </div>
                 </div>
                 <span
                   className="text-[14px] font-bold tabular flex items-center gap-0.5"
@@ -131,6 +135,9 @@ function GainerLoserPanel({ kind }: { kind: "gainers" | "losers" }) {
                       {r.symbol}
                     </div>
                     <div className="text-[12px] text-mute truncate">{r.name}</div>
+                    <div className="text-[10px] text-faint tabular">
+                      Mkt cap {r.marketCap ? formatCurrency(r.marketCap) : "—"}
+                    </div>
                   </div>
                   <span
                     className="text-[14px] font-bold tabular flex items-center gap-0.5"

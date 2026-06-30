@@ -15,6 +15,10 @@ import {
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 
+// Shared client-side email check: require a local part, a domain, and a TLD.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
+
 /* ────────────────────────────────────────────────────────────
    Subscribe/premium landing page.
    Section order mirrors newsfailures.com, content adapted to
@@ -38,9 +42,20 @@ function TrialCapture({
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  function validateEmail() {
+    if (!isValidEmail(email)) {
+      setEmailError("Please enter a valid email address.");
+      return false;
+    }
+    setEmailError(null);
+    return true;
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!validateEmail()) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -51,8 +66,8 @@ function TrialCapture({
       });
       if (!res.ok) throw new Error(`Status ${res.status}`);
       setDone(true);
-    } catch (err: any) {
-      setError(err?.message || "Submission failed");
+    } catch {
+      setError("Something went wrong — please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -74,35 +89,50 @@ function TrialCapture({
   return (
     <form
       onSubmit={submit}
-      className={`flex flex-col sm:flex-row gap-2.5 w-full max-w-md ${
+      noValidate
+      className={`flex flex-col gap-1.5 w-full max-w-md ${
         align === "center" ? "mx-auto" : ""
       }`}
     >
-      <input
-        type="email"
-        required
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Enter your email address"
-        className="flex-1 px-4 py-3 rounded-lg text-[14px]"
-        style={{
-          background: "var(--bg-1)",
-          border: "1px solid var(--border-strong)",
-          color: "var(--text)",
-        }}
-      />
-      <button
-        type="submit"
-        disabled={submitting}
-        className="btn-primary whitespace-nowrap"
-        style={{ padding: "12px 20px", fontSize: 14, fontWeight: 600 }}
+      <label
+        className={`text-[12px] font-semibold ${
+          align === "center" ? "text-center sm:text-left" : "text-left"
+        }`}
+        style={{ color: "var(--text-soft)" }}
       >
-        {submitting ? "Submitting…" : cta}
-      </button>
-      {error && (
-        <div className="text-[12px] text-[var(--bad)] w-full text-center sm:absolute">
-          {error}
-        </div>
+        Email address <span style={{ color: "var(--bad)" }}>*</span>
+      </label>
+      <div className="flex flex-col sm:flex-row gap-2.5">
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onBlur={validateEmail}
+          placeholder="Enter your email address"
+          aria-invalid={!!emailError}
+          className="flex-1 px-4 py-3 rounded-lg text-[14px]"
+          style={{
+            background: "var(--bg-1)",
+            border: emailError
+              ? "1px solid var(--bad)"
+              : "1px solid var(--border-strong)",
+            color: "var(--text)",
+          }}
+        />
+        <button
+          type="submit"
+          disabled={submitting}
+          className="btn-primary whitespace-nowrap"
+          style={{ padding: "12px 20px", fontSize: 14, fontWeight: 600 }}
+        >
+          {submitting ? "Submitting…" : cta}
+        </button>
+      </div>
+      {(emailError || error) && (
+        <p className="text-left text-[12px]" style={{ color: "var(--bad)" }}>
+          {emailError || error}
+        </p>
       )}
     </form>
   );

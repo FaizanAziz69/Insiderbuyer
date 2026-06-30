@@ -182,7 +182,7 @@ export default function CompaniesPage() {
   ];
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 w-full">
       <header>
         <h1 className="text-[24px] font-bold tracking-tight">Companies by IQS</h1>
         <p className="text-mute text-sm mt-1">

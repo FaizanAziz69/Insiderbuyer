@@ -56,7 +56,7 @@ export default function MarketMoversPage() {
   const big = [...gainers, ...(losers?.rows || []).filter((r) => r.changePct <= -5).slice(0, 4)];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10 max-w-7xl mx-auto">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10 w-full">
       <article className="min-w-0 max-w-3xl">
         <div className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-accent mb-3">
           <Flame className="h-3 w-3" />

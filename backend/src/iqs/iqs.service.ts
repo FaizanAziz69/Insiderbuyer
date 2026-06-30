@@ -294,7 +294,7 @@ export class IqsService {
     country?: string;
     withLive?: boolean;
   }): Promise<{ total: number; rows: RankingRow[] }> {
-    const limit = Math.min(opts.limit ?? 50, 500);
+    const limit = Math.min(opts.limit ?? 50, 5000);
     const offset = opts.offset ?? 0;
 
     const qb = this.scores

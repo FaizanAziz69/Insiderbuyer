@@ -4,6 +4,10 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 
+// Shared client-side email check: require a local part, a domain, and a TLD.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
+
 export default function CtaOptInPage({
   params,
 }: {
@@ -25,9 +29,20 @@ export default function CtaOptInPage({
     "idle",
   );
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  function validateEmail() {
+    if (!isValidEmail(email)) {
+      setEmailError("Please enter a valid email address.");
+      return false;
+    }
+    setEmailError(null);
+    return true;
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!validateEmail()) return;
     setState("submitting");
     setError(null);
     try {
@@ -42,9 +57,9 @@ export default function CtaOptInPage({
       });
       if (!res.ok) throw new Error(`Status ${res.status}`);
       setState("done");
-    } catch (err: any) {
+    } catch {
       setState("error");
-      setError(err?.message || "Submission failed");
+      setError("Something went wrong — please try again.");
     }
   }
 
@@ -124,20 +139,41 @@ export default function CtaOptInPage({
                 </p>
               </div>
 
-              <form onSubmit={submit} className="space-y-3">
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Your Email Address"
-                  className="w-full px-4 py-3 rounded-md text-[14px]"
-                  style={{
-                    background: "var(--bg-1)",
-                    border: "1px solid var(--border-strong)",
-                    color: "var(--text)",
-                  }}
-                />
+              <form onSubmit={submit} noValidate className="space-y-3">
+                <div>
+                  <label
+                    className="block text-[12px] font-semibold mb-1.5"
+                    style={{ color: "var(--text-soft)" }}
+                  >
+                    Email address{" "}
+                    <span style={{ color: "var(--bad)" }}>*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onBlur={validateEmail}
+                    placeholder="Your Email Address"
+                    aria-invalid={!!emailError}
+                    className="w-full px-4 py-3 rounded-md text-[14px]"
+                    style={{
+                      background: "var(--bg-1)",
+                      border: emailError
+                        ? "1px solid var(--bad)"
+                        : "1px solid var(--border-strong)",
+                      color: "var(--text)",
+                    }}
+                  />
+                  {emailError && (
+                    <p
+                      className="mt-1.5 text-left text-[12px]"
+                      style={{ color: "var(--bad)" }}
+                    >
+                      {emailError}
+                    </p>
+                  )}
+                </div>
                 <input
                   type="tel"
                   value={phone}
@@ -166,9 +202,12 @@ export default function CtaOptInPage({
               </form>
 
               {error && (
-                <div className="mt-3 text-[12px] text-[var(--bad)] text-center">
+                <p
+                  className="mt-3 text-left text-[12px]"
+                  style={{ color: "var(--bad)" }}
+                >
                   {error}
-                </div>
+                </p>
               )}
             </>
           )}

@@ -17,6 +17,10 @@ import { AdSlot } from "@/components/AdSlot";
 const BIG_BUY = 1_000_000; // $1M+ counts as a "big buy" alert
 type Filter = "all" | "exec" | "big";
 
+// Shared client-side email check: require a local part, a domain, and a TLD.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
+
 /** Classify a trade into the alert types that matter. Returns null if it's
  *  not alert-worthy (keeps the feed high-signal). */
 function alertTags(t: TradeRow): string[] {
@@ -56,7 +60,7 @@ export default function AlertsPage() {
   }, [data, filter]);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       <header>
         <div className="flex items-center gap-2 text-mute text-sm mb-1">
           <Bell className="h-4 w-4 text-accent" />
@@ -161,20 +165,33 @@ function AlertSignup() {
   const [email, setEmail] = useState("");
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  function validateEmail() {
+    if (!isValidEmail(email)) {
+      setEmailError("Please enter a valid email address.");
+      return false;
+    }
+    setEmailError(null);
+    return true;
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (!validateEmail()) return;
     setBusy(true);
+    setError(null);
     try {
-      await fetch(`${API_BASE}/subscribers`, {
+      const res = await fetch(`${API_BASE}/subscribers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, source: "alerts" }),
       });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
       setDone(true);
     } catch {
-      /* allow retry */
+      setError("Something went wrong — please try again.");
     } finally {
       setBusy(false);
     }
@@ -199,24 +216,40 @@ function AlertSignup() {
       {done ? (
         <div className="text-[13px] font-semibold text-good">You&rsquo;re subscribed ✓</div>
       ) : (
-        <form onSubmit={submit} className="flex gap-2">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@email.com"
-            className="px-3 py-2 rounded-md text-[13px] w-52"
-            style={{ background: "var(--bg-1)", border: "1px solid var(--border-strong)", color: "var(--text)" }}
-          />
-          <button
-            type="submit"
-            disabled={busy}
-            className="px-4 py-2 rounded-md text-[13px] font-bold whitespace-nowrap"
-            style={{ background: "var(--gold)", color: "#1a1300" }}
-          >
-            {busy ? "…" : "Subscribe"}
-          </button>
+        <form onSubmit={submit} noValidate className="flex flex-col gap-1">
+          <label className="text-[11px] font-semibold" style={{ color: "var(--text-soft)" }}>
+            Email address <span style={{ color: "var(--bad)" }}>*</span>
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={validateEmail}
+              placeholder="you@email.com"
+              aria-invalid={!!emailError}
+              className="px-3 py-2 rounded-md text-[13px] w-52"
+              style={{
+                background: "var(--bg-1)",
+                border: emailError ? "1px solid var(--bad)" : "1px solid var(--border-strong)",
+                color: "var(--text)",
+              }}
+            />
+            <button
+              type="submit"
+              disabled={busy}
+              className="px-4 py-2 rounded-md text-[13px] font-bold whitespace-nowrap"
+              style={{ background: "var(--gold)", color: "#1a1300" }}
+            >
+              {busy ? "…" : "Subscribe"}
+            </button>
+          </div>
+          {(emailError || error) && (
+            <p className="text-left text-[12px]" style={{ color: "var(--bad)" }}>
+              {emailError || error}
+            </p>
+          )}
         </form>
       )}
     </div>

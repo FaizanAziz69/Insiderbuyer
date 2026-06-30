@@ -2,16 +2,35 @@ import { Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { IqsService } from './iqs.service';
 
-function toCsv(rows: any[]): string {
-  if (!rows.length) return '';
-  const headers = Object.keys(rows[0]);
-  const escape = (v: any) => {
-    if (v === null || v === undefined) return '';
-    const s = String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const head = headers.join(',');
-  const body = rows.map((r) => headers.map((h) => escape(r[h])).join(',')).join('\n');
+function csvEscape(v: any): string {
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Builds the rankings CSV with explicit, human-readable columns. We map each
+ *  ranking row to named fields (ticker + company name, never the internal
+ *  companyId) rather than dumping Object.keys, which keeps the column order
+ *  stable and avoids leaking the company UUID. */
+function rankingsToCsv(rows: any[]): string {
+  const columns: { header: string; value: (r: any) => any }[] = [
+    { header: 'Rank', value: (r) => r.rank },
+    { header: 'Ticker', value: (r) => r.ticker },
+    { header: 'Company', value: (r) => r.name },
+    { header: 'Sector', value: (r) => r.sector },
+    { header: 'IQS', value: (r) => r.iqs },
+    { header: 'Buyers', value: (r) => r.distinctBuyers },
+    { header: 'Transactions', value: (r) => r.transactionCount },
+    { header: '$ Bought', value: (r) => r.totalPurchaseValue },
+    { header: 'Market Cap', value: (r) => r.marketCap },
+    { header: 'Last Price', value: (r) => r.lastPrice },
+    { header: 'Avg Insider Cost', value: (r) => r.avgCost ?? '' },
+    { header: 'Last Buy Date', value: (r) => r.lastBuyDate ?? '' },
+  ];
+  const head = columns.map((c) => csvEscape(c.header)).join(',');
+  const body = rows
+    .map((r) => columns.map((c) => csvEscape(c.value(r))).join(','))
+    .join('\n');
   return head + '\n' + body;
 }
 
@@ -68,8 +87,15 @@ export class IqsController {
 
   @Get('rankings.csv')
   async rankingsCsv(@Res() res: Response) {
-    const { rows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
-    const csv = toCsv(rows);
+    // Export the FULL ranking set, not a tiny default page. First read the
+    // total, then request that many rows (capped by the service) so the CSV
+    // matches what the rankings/trades pages list.
+    const probe = await this.iqs.getRankings({ limit: 1, offset: 0 });
+    const { rows } = await this.iqs.getRankings({
+      limit: Math.max(probe.total, 1),
+      offset: 0,
+    });
+    const csv = rankingsToCsv(rows);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',

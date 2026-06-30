@@ -33,7 +33,7 @@ export default function MonthlyReportPage({
   const direction = ratio >= 50 ? "up" : "down";
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10 max-w-7xl mx-auto">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10 w-full">
       <article className="min-w-0 max-w-3xl">
         <Link
           href="/reports"

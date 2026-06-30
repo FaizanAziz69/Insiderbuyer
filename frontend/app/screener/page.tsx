@@ -39,7 +39,7 @@ export default function ScreenerPage() {
   }, [data, role, value, days]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 w-full">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-[24px] font-bold tracking-tight">Screener</h1>

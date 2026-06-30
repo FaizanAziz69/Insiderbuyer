@@ -107,7 +107,7 @@ export default function TopicPage({
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       <header>
         <h1
           className="font-bold tracking-tight"

@@ -187,7 +187,11 @@ export class StockListsService {
       } else if (meta.kind === 'country') {
         count = (COUNTRY_UNIVERSE[slug] || []).length;
       } else if (meta.kind === 'universe') {
-        count = (UNIVERSE_LISTS[slug] || []).length;
+        // Penny stocks is a live screener (hundreds of names), not the basket.
+        count =
+          slug === 'penny-stocks'
+            ? (await this.marketStats.getPennyStocks(1000)).length
+            : (UNIVERSE_LISTS[slug] || []).length;
       }
       out.push({ slug, ...meta, count });
     }
@@ -303,6 +307,47 @@ export class StockListsService {
     }
 
     if (meta.kind === 'universe') {
+      // Penny stocks: a LIVE screener of every U.S. equity under $5 (hundreds
+      // of names), not a hand-picked basket. Falls through to the static
+      // basket only if the screener is unavailable.
+      if (slug === 'penny-stocks') {
+        const penny = await this.marketStats.getPennyStocks(1000);
+        if (penny.length) {
+          let pennyRows = penny.map((q) => ({
+            ticker: q.symbol,
+            name: q.name,
+            sector: q.sector,
+            marketCap: q.marketCap,
+            live: {
+              price: q.price,
+              changeAbs: q.changeAbs,
+              changePct: q.changePct,
+              volume: q.volume,
+              avgVolume: q.avgVolume,
+              marketCap: q.marketCap,
+            },
+          }));
+          if (filters.sector) {
+            const s = filters.sector.toLowerCase();
+            pennyRows = pennyRows.filter((r) =>
+              (r.sector || '').toLowerCase().includes(s),
+            );
+          }
+          if (filters.minMarketCap != null) {
+            pennyRows = pennyRows.filter(
+              (r) => (r.marketCap ?? 0) >= filters.minMarketCap!,
+            );
+          }
+          if (filters.maxMarketCap != null) {
+            pennyRows = pennyRows.filter(
+              (r) => (r.marketCap ?? Infinity) <= filters.maxMarketCap!,
+            );
+          }
+          return { slug, ...meta, total: pennyRows.length, rows: pennyRows as any[] };
+        }
+        // else: screener empty/unavailable — fall through to static basket.
+      }
+
       // Curated market-cap / thematic baskets — always populated with live
       // quotes; IQS + avg cost + last buy attached where the name also has
       // Form 4 insider buys in our rankings.

@@ -22,7 +22,7 @@ const CTA_REPORTS = [
 
 export default function ReportsIndexPage() {
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="w-full space-y-8">
       <header>
         <div className="text-mute text-sm mb-1 font-mono uppercase tracking-wider text-[11px]">
           Reports & Analysis

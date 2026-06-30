@@ -2,7 +2,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { use, useMemo } from "react";
-import { ArrowDown, ArrowUp, ChevronRight, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Sparkles } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
 import { Sparkline } from "@/components/Sparkline";
 import {
@@ -132,12 +132,13 @@ export default function StockListDetailPage({
   const updatedLabel = formatDate(new Date().toISOString());
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       <Link
         href="/stock-lists"
         className="inline-flex items-center gap-1.5 text-xs text-mute hover:text-accent transition"
       >
-        ← All stock lists
+        <ArrowLeft className="h-3.5 w-3.5" />
+        <span>All stock lists</span>
       </Link>
 
       <header>
@@ -169,15 +170,15 @@ export default function StockListDetailPage({
         )}
         {data && (
           <div
-            className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]"
-            style={{ color: "var(--text-mute)" }}
+            className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px]"
+            style={{ color: "var(--text-soft)" }}
           >
-            <span className="tabular font-semibold" style={{ color: "var(--text-soft)" }}>
-              {rows.length} {rows.length === 1 ? "stock" : "stocks"}
+            <span className="tabular font-semibold" style={{ color: "var(--text)" }}>
+              {data.rows.length} {data.rows.length === 1 ? "stock" : "stocks"}
             </span>
-            <span aria-hidden>·</span>
+            <span aria-hidden style={{ color: "var(--text-mute)" }}>·</span>
             <span>Live quotes, updated {updatedLabel}</span>
-            <span aria-hidden>·</span>
+            <span aria-hidden style={{ color: "var(--text-mute)" }}>·</span>
             <span>Use the Filters button to screen by market cap, sector or move</span>
           </div>
         )}

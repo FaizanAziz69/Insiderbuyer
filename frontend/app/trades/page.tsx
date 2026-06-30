@@ -24,7 +24,7 @@ export default function TradesPage() {
   }, [data]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 w-full">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-[24px] font-bold tracking-tight">All insider trades</h1>

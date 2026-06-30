@@ -1,8 +1,20 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { CheckCircle2 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
+
+// Shared entrance animation for the two cards.
+const cardIn = {
+  initial: { opacity: 0, y: 18 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, amount: 0.2 },
+} as const;
+
+// Shared client-side email check: require a local part, a domain, and a TLD.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
 
 const TRIAL_BULLETS = [
   "Automated portfolio monitoring with IQS alerts",
@@ -21,11 +33,15 @@ export function TrialAndNewsletterStrip() {
 
 function TrialCard() {
   return (
-    <div
-      className="rounded-lg p-6 sm:p-8"
+    <motion.div
+      {...cardIn}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ y: -3 }}
+      className="rounded-2xl p-6 sm:p-8"
       style={{
         background: "var(--bg-2)",
         border: "1px solid var(--border)",
+        boxShadow: "0 10px 34px rgba(0,0,0,0.07)",
       }}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
@@ -82,7 +98,7 @@ function TrialCard() {
           <TrialIllustration />
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -92,9 +108,20 @@ function NewsletterCard() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  function validateEmail() {
+    if (!isValidEmail(email)) {
+      setEmailError("Please enter a valid email address.");
+      return false;
+    }
+    setEmailError(null);
+    return true;
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!validateEmail()) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -109,19 +136,23 @@ function NewsletterCard() {
       });
       if (!res.ok) throw new Error(`Status ${res.status}`);
       setDone(true);
-    } catch (err: any) {
-      setError(err?.message || "Submission failed");
+    } catch {
+      setError("Something went wrong — please try again.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div
-      className="rounded-lg p-6 sm:p-8"
+    <motion.div
+      {...cardIn}
+      transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ y: -3 }}
+      className="rounded-2xl p-6 sm:p-8"
       style={{
         background: "var(--bg-2)",
         border: "1px solid var(--border)",
+        boxShadow: "0 10px 34px rgba(0,0,0,0.07)",
       }}
     >
       <div
@@ -152,20 +183,40 @@ function NewsletterCard() {
           You&rsquo;re subscribed — check your inbox.
         </div>
       ) : (
-        <form onSubmit={submit} className="mt-6 space-y-3">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email address here"
-            className="w-full px-4 py-3 rounded-md text-[14px]"
-            style={{
-              background: "var(--bg-1)",
-              border: "1px solid var(--border-strong)",
-              color: "var(--text)",
-            }}
-          />
+        <form onSubmit={submit} noValidate className="mt-6 space-y-3">
+          <div>
+            <label
+              className="block text-[12px] font-semibold mb-1.5"
+              style={{ color: "var(--text-soft)" }}
+            >
+              Email address <span style={{ color: "var(--bad)" }}>*</span>
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={validateEmail}
+              placeholder="Enter your email address here"
+              aria-invalid={!!emailError}
+              className="w-full px-4 py-3 rounded-md text-[14px]"
+              style={{
+                background: "var(--bg-1)",
+                border: emailError
+                  ? "1px solid var(--bad)"
+                  : "1px solid var(--border-strong)",
+                color: "var(--text)",
+              }}
+            />
+            {emailError && (
+              <p
+                className="mt-1.5 text-left text-[12px]"
+                style={{ color: "var(--bad)" }}
+              >
+                {emailError}
+              </p>
+            )}
+          </div>
           <input
             type="tel"
             value={phone}
@@ -194,16 +245,19 @@ function NewsletterCard() {
             {submitting ? "Submitting…" : "Subscribe Now"}
           </button>
           {error && (
-            <div className="text-[12px] text-[var(--bad)] text-center">
+            <p
+              className="text-left text-[12px]"
+              style={{ color: "var(--bad)" }}
+            >
               {error}
-            </div>
+            </p>
           )}
           <div className="text-[11px] text-mute text-center uppercase tracking-wider font-semibold">
             View SMS Terms
           </div>
         </form>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -229,18 +283,20 @@ function TrialIllustration() {
       />
       <rect x="32" y="42" width="100" height="6" rx="2" fill="var(--bg-3)" />
       <rect x="32" y="54" width="60" height="4" rx="2" fill="var(--bg-3)" />
-      {/* Chart bars */}
+      {/* Chart bars — grow up on scroll-in */}
       {Array.from({ length: 10 }).map((_, i) => {
         const h = 12 + ((i * 13) % 56);
         return (
-          <rect
+          <motion.rect
             key={i}
             x={36 + i * 13}
-            y={150 - h}
             width="9"
-            height={h}
             rx="2"
             fill={i % 3 === 0 ? "var(--gold)" : "url(#bar1)"}
+            initial={{ height: 0, y: 150 }}
+            whileInView={{ height: h, y: 150 - h }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.15 + i * 0.05, ease: [0.22, 1, 0.36, 1] }}
           />
         );
       })}
@@ -294,20 +350,30 @@ function TrialIllustration() {
         y="138"
         fontFamily="var(--font-sans)"
         fontSize="14"
-        fontWeight="700"
+        fontWeight="800"
         fill="var(--accent)"
       >
-        4.86
+        78
       </text>
       <text
-        x="186"
+        x="166"
         y="138"
         fontFamily="var(--font-sans)"
         fontSize="9"
         fontWeight="600"
+        fill="var(--text-mute)"
+      >
+        /100
+      </text>
+      <text
+        x="190"
+        y="138"
+        fontFamily="var(--font-sans)"
+        fontSize="9"
+        fontWeight="700"
         fill="var(--good)"
       >
-        +1.07%
+        Gold
       </text>
     </svg>
   );

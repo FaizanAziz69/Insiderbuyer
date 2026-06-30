@@ -13,7 +13,7 @@ import { AdSlot } from "@/components/AdSlot";
  */
 export default function NewsPage() {
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
+    <div className="w-full space-y-8">
       <header>
         <div className="flex items-center gap-2 text-mute text-sm mb-1">
           <Newspaper className="h-4 w-4" />

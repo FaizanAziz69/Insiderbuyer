@@ -107,6 +107,9 @@ export function InsiderActivityTable({ ticker, limit = 6 }: Props) {
       filterable: true,
       align: "right",
       sortValue: (t) => new Date(t.transactionDate).getTime(),
+      // Without this the select dropdown falls back to sortValue (a raw unix
+      // timestamp); show formatted dates instead.
+      filterLabel: (t) => formatDate(t.transactionDate),
       render: (t) => (
         <span className="tabular text-[14px] font-bold text-mute whitespace-nowrap">
           {formatDate(t.transactionDate)}
