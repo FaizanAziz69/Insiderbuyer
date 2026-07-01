@@ -67,6 +67,7 @@ export interface MarketStatRow {
   avgVolume: number;
   marketCap: number | null;
   sector: string | null;
+  exchange?: string | null; // Yahoo short exchange code (NMS, NYQ, PNK, …)
   fiftyTwoWeekHigh?: number | null;
   fiftyTwoWeekLow?: number | null;
   peRatio?: number | null;
@@ -157,6 +158,26 @@ export class MarketStatsService {
   private screenCache = new Map<string, { ts: number; data: MarketStatRow[] }>();
   private readonly SCREEN_CACHE_MS = 60_000;
 
+  // Only surface names on the two major US exchanges (NASDAQ tiers + NYSE).
+  // This excludes OTC / pink-sheet listings (exchange codes PNK, OTC, OQB,
+  // OQX, etc.) where a few hundred shares can manufacture a fake "top gainer".
+  private readonly MAJOR_EXCHANGES = new Set(['NMS', 'NGM', 'NCM', 'NYQ']);
+  private readonly MAJOR_EXCHANGE_OPERAND = {
+    operator: 'OR',
+    operands: [
+      { operator: 'EQ', operands: ['exchange', 'NMS'] }, // Nasdaq Global Select
+      { operator: 'EQ', operands: ['exchange', 'NGM'] }, // Nasdaq Global Market
+      { operator: 'EQ', operands: ['exchange', 'NCM'] }, // Nasdaq Capital Market
+      { operator: 'EQ', operands: ['exchange', 'NYQ'] }, // NYSE
+    ],
+  };
+
+  /** Belt-and-suspenders: drop anything not on a major exchange, in case the
+   *  screener's exchange filter is ever ignored or a fallback path is used. */
+  private onlyMajorExchanges(rows: MarketStatRow[]): MarketStatRow[] {
+    return rows.filter((r) => !r.exchange || this.MAJOR_EXCHANGES.has(r.exchange));
+  }
+
   constructor() {
     this.http = axios.create({
       timeout: 10_000,
@@ -199,6 +220,7 @@ export class MarketStatsService {
         avgVolume: Number(q.averageDailyVolume3Month ?? q.averageDailyVolume10Day ?? 0),
         marketCap: q.marketCap != null ? Number(q.marketCap) : null,
         sector: q.sector ?? null,
+        exchange: q.exchange ?? null,
         peRatio: q.trailingPE != null ? Number(q.trailingPE) : null,
         dividendYield:
           q.dividendYield != null
@@ -275,6 +297,7 @@ export class MarketStatsService {
             avgVolume: Number(q.averageDailyVolume3Month ?? q.averageDailyVolume10Day ?? 0),
             marketCap: q.marketCap != null ? Number(q.marketCap) : null,
             sector: q.sector ?? null,
+            exchange: q.exchange ?? null,
             peRatio: q.trailingPE != null ? Number(q.trailingPE) : null,
             dividendYield:
               q.dividendYield != null
@@ -304,10 +327,12 @@ export class MarketStatsService {
         { operator: 'GT', operands: ['intradayprice', 1] },
         { operator: 'GT', operands: ['dayvolume', 20000] },
         { operator: 'EQ', operands: ['region', 'us'] },
+        this.MAJOR_EXCHANGE_OPERAND,
       ],
       limit,
     });
-    return rows.length ? rows : this.fetchScreener('day_gainers', limit);
+    const base = rows.length ? rows : await this.fetchScreener('day_gainers', limit);
+    return this.onlyMajorExchanges(base).slice(0, limit);
   }
   async getTopLosers(limit = 100) {
     // Yahoo's screener 500s on an ASC percentchange sort, so pull a large pool
@@ -321,11 +346,15 @@ export class MarketStatsService {
         { operator: 'GT', operands: ['intradayprice', 1] },
         { operator: 'GT', operands: ['dayvolume', 20000] },
         { operator: 'EQ', operands: ['region', 'us'] },
+        this.MAJOR_EXCHANGE_OPERAND,
       ],
       limit: Math.max(limit, 500),
     });
-    if (!pool.length) return this.fetchScreener('day_losers', limit);
-    return [...pool].sort((a, b) => a.changePct - b.changePct).slice(0, limit);
+    const base = pool.length ? pool : await this.fetchScreener('day_losers', limit);
+    return this.onlyMajorExchanges([...base].sort((a, b) => a.changePct - b.changePct)).slice(
+      0,
+      limit,
+    );
   }
   async getMostActive(limit = 100) {
     const rows = await this.screenYahoo({
@@ -335,10 +364,12 @@ export class MarketStatsService {
       operands: [
         { operator: 'GT', operands: ['intradayprice', 1] },
         { operator: 'EQ', operands: ['region', 'us'] },
+        this.MAJOR_EXCHANGE_OPERAND,
       ],
       limit,
     });
-    return rows.length ? rows : this.fetchScreener('most_actives', limit);
+    const base = rows.length ? rows : await this.fetchScreener('most_actives', limit);
+    return this.onlyMajorExchanges(base).slice(0, limit);
   }
 
   /**
@@ -399,6 +430,7 @@ export class MarketStatsService {
             ),
             marketCap: q.marketCap != null ? Number(q.marketCap) : null,
             sector: q.sector ?? null,
+            exchange: q.exchange ?? null,
             peRatio: q.trailingPE != null ? Number(q.trailingPE) : null,
             dividendYield:
               q.dividendYield != null
