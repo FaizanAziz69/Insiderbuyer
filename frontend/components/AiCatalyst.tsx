@@ -51,9 +51,9 @@ export function AiCatalyst({
     if (!r) return;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    // Responsive width: full 360 on desktop, but never wider than the viewport
-    // (minus 8px gutters) on mobile.
-    const W = Math.min(360, vw - 16);
+    // Width: a wide, readable banner on desktop (so the AI text doesn't wrap
+    // into a tall narrow column), narrowing to fit the viewport on mobile.
+    const W = vw >= 700 ? 460 : Math.min(360, vw - 16);
     // Anchor the right edge under the icon, then clamp inside the viewport.
     const left = Math.min(Math.max(8, r.right - W), vw - W - 8);
     // Open on whichever side has more room, and cap the height to that room so
