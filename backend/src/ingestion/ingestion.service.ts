@@ -35,6 +35,33 @@ export class IngestionService implements OnModuleInit {
     await this.runIngestion(3);
   }
 
+  /** One-time backfill: rewrite legacy folder-index filing URLs to the exact
+   *  XSL-rendered Form 4 document URL, so the table's filing link opens the
+   *  actual Form 4. Deduped by accession; rate-limited for SEC. */
+  async backfillFilingUrls(batch = 120): Promise<{ scanned: number; updated: number }> {
+    const filings = await this.txRepo
+      .createQueryBuilder('t')
+      .select('t.accessionNumber', 'acc')
+      .addSelect('MIN(t.filingUrl)', 'url')
+      .where("t.filingUrl LIKE '%/'")
+      .groupBy('t.accessionNumber')
+      .limit(batch)
+      .getRawMany<{ acc: string; url: string }>();
+    let updated = 0;
+    for (const f of filings) {
+      const m = (f.url || '').match(/\/data\/(\d+)\//);
+      if (!m || !f.acc) continue;
+      const doc = await this.sec.resolveForm4DocUrl(m[1], f.acc);
+      if (doc) {
+        await this.txRepo.update({ accessionNumber: f.acc }, { filingUrl: doc });
+        updated++;
+      }
+      await new Promise((res) => setTimeout(res, 120)); // ~8 req/s, SEC-friendly
+    }
+    this.logger.log(`Filing-URL backfill: ${updated}/${filings.length} filings updated`);
+    return { scanned: filings.length, updated };
+  }
+
   async runIngestion(daysBack = 7): Promise<{ filings: number; transactions: number; companies: number }> {
     if (this.running) return { filings: 0, transactions: 0, companies: 0 };
     this.running = true;
@@ -42,7 +69,7 @@ export class IngestionService implements OnModuleInit {
     const summary = { filings: 0, transactions: 0, companies: 0 };
     try {
       this.logger.log(`Fetching SEC Form 4 filings (${daysBack}d back)...`);
-      const filings = await this.sec.searchRecentForm4(daysBack, 4000);
+      const filings = await this.sec.searchRecentForm4(daysBack, 8000);
       summary.filings = filings.length;
       this.logger.log(`Found ${filings.length} Form 4 filings`);
 
@@ -102,7 +129,16 @@ export class IngestionService implements OnModuleInit {
           }
 
           seenCompanies.add(company.id);
-          const filingUrl = this.sec.buildFilingIndexUrl(issuerCik, f.accessionNo);
+          // Link to the XSL-RENDERED Form 4 (human-readable HTML), not the raw
+          // XML doc or the folder index. SEC renders via the xslF345X05/ path.
+          const primaryDoc = f.primaryDoc
+            ? f.primaryDoc.startsWith('xsl')
+              ? f.primaryDoc
+              : `xslF345X05/${f.primaryDoc}`
+            : null;
+          const filingUrl = primaryDoc
+            ? this.sec.buildFilingDocUrl(issuerCik, f.accessionNo, primaryDoc)
+            : this.sec.buildFilingIndexUrl(issuerCik, f.accessionNo);
 
           const insiderCity = cleanCity(parsed.ownerCity);
           const insiderState = parsed.ownerState;

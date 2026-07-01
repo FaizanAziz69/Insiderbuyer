@@ -1,11 +1,14 @@
 "use client";
-import useSWR from "swr";
+import { useEffect } from "react";
+import useSWR, { preload } from "swr";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Sparkles, TrendingUp } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
 import { Sparkline } from "@/components/Sparkline";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
+import { AiCatalyst } from "@/components/AiCatalyst";
+import { WatchlistButton } from "@/components/WatchlistButton";
 import { API_BASE, fetcher, formatCurrency, formatNumber } from "@/lib/api";
 
 interface MoverRow {
@@ -18,38 +21,32 @@ interface MoverRow {
   avgVolume: number;
   marketCap: number | null;
   sector: string | null;
+  peRatio?: number | null;
+  dividendYield?: number | null;
 }
 
-/**
- * One-line AI catalyst / "why" note — surfaces the single most-likely driver
- * of the move: an outsized percentage swing, unusually heavy volume vs. its
- * own average, or a sector-wide reaction. Shown on hover behind the catalyst
- * icon to keep the table clean.
- */
-function why(r: MoverRow): string {
-  const dir = r.changePct >= 0 ? "rallying" : "selling off";
-  const hints: string[] = [];
-  if (Math.abs(r.changePct) > 10)
-    hints.push(`an outsized ${r.changePct >= 0 ? "+" : ""}${r.changePct.toFixed(1)}% move`);
-  if (r.avgVolume > 0 && r.volume > r.avgVolume * 1.5)
-    hints.push(`heavy volume (${formatNumber(r.volume)} vs ${formatNumber(r.avgVolume)} avg)`);
-  if (r.sector === "Technology") hints.push("a broader tech-sector reaction");
-  else if (r.sector === "Energy") hints.push("a move across the energy complex");
-  else if (r.sector === "Healthcare")
-    hints.push("a likely healthcare catalyst (FDA / data readout)");
-  else if (r.sector === "Financial Services" || r.sector === "Financials")
-    hints.push("a financials-sector reaction");
-  if (!hints.length) hints.push("one of the largest intraday moves in our universe");
-  return `${dir.charAt(0).toUpperCase()}${dir.slice(1)} on ${hints.slice(0, 2).join(" and ")}.`;
-}
 
 export default function TopGainersPage() {
   const { data, isLoading } = useSWR<{ rows: MoverRow[] }>(
-    `${API_BASE}/market-stats/top-gainers?limit=100`,
+    `${API_BASE}/market-stats/top-gainers?limit=500`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
   const rows = data?.rows || [];
+
+  // Pre-warm the AI "Movement Explainer" for the first page of rows so hovering
+  // the ✨ icon is instant (SWR + server cache are populated in the background).
+  useEffect(() => {
+    rows.slice(0, 15).forEach((r) => {
+      preload(
+        `${API_BASE}/content/explain?symbol=${encodeURIComponent(r.symbol)}&name=${encodeURIComponent(
+          r.name,
+        )}&change=${r.changePct}`,
+        fetcher,
+      );
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows.length]);
 
   // 7-day price sparklines for the listed tickers (cached, keyless until ready).
   const tickerKey = rows
@@ -75,32 +72,28 @@ export default function TopGainersPage() {
     },
     {
       key: "symbol",
-      label: "Ticker",
-      filterable: true,
+      label: "Company",
       sortValue: (r) => r.symbol,
       render: (r) => (
-        <Link
-          href={`/companies/${encodeURIComponent(r.symbol)}`}
-          className="inline-flex items-center gap-2"
-        >
-          <CompanyLogo ticker={r.symbol} name={r.name} size={24} />
-          <span className="font-mono text-[15px] font-bold text-accent hover:underline">
-            {r.symbol}
-          </span>
-        </Link>
-      ),
-    },
-    {
-      key: "name",
-      label: "Company",
-      filterable: true,
-      sortValue: (r) => r.name,
-      render: (r) => (
-        <span
-          className="truncate max-w-[240px] inline-block align-middle text-[14px] font-medium"
-          style={{ color: "var(--text)" }}
-        >
-          {r.name}
+        <span className="inline-flex items-center gap-2">
+          <WatchlistButton ticker={r.symbol} variant="icon" size="sm" />
+          <Link
+            href={`/companies/${encodeURIComponent(r.symbol)}`}
+            className="flex items-center gap-2"
+          >
+            <CompanyLogo ticker={r.symbol} name={r.name} size={24} />
+            <div className="min-w-0">
+              <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+                {r.symbol}
+              </div>
+              <div
+                className="truncate max-w-[240px] text-[13px] font-medium"
+                style={{ color: "var(--text)" }}
+              >
+                {r.name}
+              </div>
+            </div>
+          </Link>
         </span>
       ),
     },
@@ -139,6 +132,42 @@ export default function TopGainersPage() {
       },
     },
     {
+      key: "marketCap",
+      label: "Market Cap",
+      filterable: true,
+      filterType: "marketCapPreset",
+      filterLabelText: "Market Cap",
+      align: "right",
+      sortValue: (r) => r.marketCap,
+      render: (r) => (
+        <span className="tabular text-mute text-[14px] font-bold">
+          {r.marketCap ? formatCurrency(r.marketCap) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "peRatio",
+      label: "P/E",
+      align: "right",
+      sortValue: (r) => r.peRatio ?? null,
+      render: (r) => (
+        <span className="tabular text-mute text-[13px] font-bold">
+          {r.peRatio != null ? r.peRatio.toFixed(1) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "dividendYield",
+      label: "Div Yield",
+      align: "right",
+      sortValue: (r) => r.dividendYield ?? null,
+      render: (r) => (
+        <span className="tabular text-mute text-[13px] font-bold">
+          {r.dividendYield != null ? r.dividendYield.toFixed(2) + "%" : "—"}
+        </span>
+      ),
+    },
+    {
       key: "spark7d",
       label: "7D",
       sortable: false,
@@ -170,48 +199,12 @@ export default function TopGainersPage() {
       ),
     },
     {
-      key: "marketCap",
-      label: "Market Cap",
-      filterable: true,
-      filterType: "marketCapPreset",
-      filterLabelText: "Market Cap",
-      align: "right",
-      sortValue: (r) => r.marketCap,
-      render: (r) => (
-        <span className="tabular text-mute text-[14px] font-bold">
-          {r.marketCap ? formatCurrency(r.marketCap) : "—"}
-        </span>
-      ),
-    },
-    {
       key: "catalyst",
       label: "AI Catalyst",
       sortable: false,
       align: "center",
       render: (r) => (
-        <span className="group/cat relative inline-flex items-center justify-center">
-          {/* Button so it's tappable on mobile — focus reveals the tooltip
-              (touch devices have no hover). */}
-          <button
-            type="button"
-            className="inline-flex items-center justify-center h-7 w-7 rounded-full cursor-pointer focus:outline-none"
-            style={{
-              background: "color-mix(in srgb, var(--accent) 14%, transparent)",
-              color: "var(--accent)",
-            }}
-            aria-label="Show AI catalyst"
-          >
-            <Sparkles className="h-4 w-4" />
-          </button>
-          {/* Tooltip — shows on hover (desktop) and on tap/focus (mobile). */}
-          <span
-            className="pointer-events-none absolute right-0 bottom-full z-30 mb-2 w-64 rounded-md px-3 py-2 text-[12px] font-medium leading-snug text-left opacity-0 shadow-lg transition-opacity duration-150 group-hover/cat:opacity-100 group-focus-within/cat:opacity-100"
-            style={{ background: "#ffffff", color: "#000000", border: "1px solid var(--border)" }}
-            role="tooltip"
-          >
-            {why(r)}
-          </span>
-        </span>
+        <AiCatalyst ticker={r.symbol} name={r.name} changePct={r.changePct} />
       ),
     },
   ];

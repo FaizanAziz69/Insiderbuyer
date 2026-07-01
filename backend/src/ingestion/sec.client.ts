@@ -83,7 +83,7 @@ export class SecClient {
       const dateFrom = fmt(startDate);
       const dateTo = fmt(endDate);
 
-      for (let from = 0; from < 400; from += pageSize) {
+      for (let from = 0; from < 2000; from += pageSize) {
         const params = {
           q: '',
           dateRange: 'custom',
@@ -139,6 +139,19 @@ export class SecClient {
   buildFilingIndexUrl(cik: string, accessionNo: string): string {
     const accClean = accessionNo.replace(/-/g, '');
     return `https://www.sec.gov/Archives/edgar/data/${cik}/${accClean}/`;
+  }
+
+  async resolveForm4DocUrl(cik: string, accessionNo: string): Promise<string | null> {
+    try {
+      const indexUrl = this.buildFilingIndexUrl(cik, accessionNo) + 'index.json';
+      const { data } = await this.http.get(indexUrl);
+      const items: any[] = data?.directory?.item || [];
+      const xmlItem = items.find((i) => /\.xml$/i.test(i.name) && !/index/i.test(i.name));
+      if (!xmlItem) return null;
+      return this.buildFilingDocUrl(cik, accessionNo, `xslF345X05/${xmlItem.name}`);
+    } catch {
+      return null;
+    }
   }
 
   async fetchForm4Xml(cik: string, accessionNo: string, primaryDoc: string): Promise<string | null> {
@@ -312,7 +325,9 @@ export class SecClient {
             const parsed = this.parseForm4(xml);
             if (!parsed) return null;
             const accnd = acc.replace(/-/g, '');
-            const filingUrl = `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accnd}/`;
+            // SEC filing detail page so the link opens the Form 4 itself,
+            // not the bare archive folder listing.
+            const filingUrl = `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accnd}/${acc}-index.htm`;
             return parsed.transactions.map((t) => ({ ...t, filingUrl }));
           } catch {
             return null;

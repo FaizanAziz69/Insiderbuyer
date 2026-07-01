@@ -35,6 +35,7 @@ import { RightRailStockLists } from "@/components/article/RightRailStockLists";
 import { Indicators } from "@/components/Indicators";
 import { IqsTooltip } from "@/components/IqsTooltip";
 import { TierBadge, tierFor } from "@/components/TierBadge";
+import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsTrendChart } from "@/components/IqsTrendChart";
 
 // ── Local types for endpoints not modelled in lib/api.ts ──────────────────
@@ -631,6 +632,11 @@ function CompanyHeader({
                 </Chip>
               )}
             </div>
+            {company.ticker && (
+              <div className="mt-3">
+                <WatchlistButton ticker={company.ticker} variant="button" />
+              </div>
+            )}
           </div>
         </div>
 

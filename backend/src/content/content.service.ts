@@ -68,6 +68,53 @@ export class ContentService {
     });
   }
 
+  /** On-demand AI movement explainer, cached per ticker. Grounded in recent
+   *  headlines that mention the company when available. */
+  private explainerCache = new Map<
+    string,
+    { ts: number; data: { title: string; explainer: string } }
+  >();
+  private readonly EXPLAINER_TTL = 6 * 60 * 60_000;
+
+  async getMovementExplainer(
+    symbol: string,
+    name: string,
+    changePct: number,
+  ): Promise<{ title: string; explainer: string }> {
+    const key = symbol.toUpperCase();
+    const cached = this.explainerCache.get(key);
+    if (cached && Date.now() - cached.ts < this.EXPLAINER_TTL) return cached.data;
+
+    // First, prefer an existing AI article for this ticker (already grounded).
+    let headlines: string[] = [];
+    try {
+      const news = await this.news.getLatest();
+      const sym = key.toLowerCase();
+      const firstWord = (name || '').toLowerCase().split(/[\s,]+/)[0];
+      headlines = news
+        .filter((n) => {
+          const t = (n.title || '').toLowerCase();
+          return (
+            t.includes(sym) ||
+            (firstWord.length > 2 && t.includes(firstWord))
+          );
+        })
+        .map((n) => n.title)
+        .slice(0, 6);
+    } catch {
+      /* news optional */
+    }
+
+    const data = await this.generator.generateMovementExplainer({
+      symbol: key,
+      name,
+      changePct,
+      headlines,
+    });
+    if (data.explainer) this.explainerCache.set(key, { ts: Date.now(), data });
+    return data;
+  }
+
   /** Run the full daily refresh. Concurrency-locked so a manual trigger and
    *  the boot/cron refresh can't run at once and race on duplicate slugs. */
   async runDailyRefresh(): Promise<{ generated: number; skipped: number; errors: string[] }> {

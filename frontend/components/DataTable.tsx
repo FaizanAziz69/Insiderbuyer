@@ -107,7 +107,6 @@ export function DataTable<T>({
     initialSort ?? null,
   );
   const [filters, setFilters] = useState<Record<string, FilterVal>>({});
-  const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(0);
 
   const filterCols = columns.filter((c) => c.filterable);
@@ -196,40 +195,28 @@ export function DataTable<T>({
 
   return (
     <div>
-      {/* Filters bar: a button (with active count) that reveals the panel */}
+      {/* Filters — always visible above the table (no toggle button). */}
       {filterCols.length > 0 && (
-        <div className="mb-3">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowFilters((v) => !v)}
-              className="btn-hover inline-flex items-center gap-1.5 text-[13px] font-semibold px-3 py-1.5 rounded-md"
-              style={{
-                background: showFilters || activeCount ? "var(--accent)" : "var(--bg-2)",
-                color: showFilters || activeCount ? "var(--on-accent)" : "var(--text-soft)",
-                border: `1px solid ${showFilters || activeCount ? "var(--accent)" : "var(--border-strong)"}`,
-              }}
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              Filters{activeCount ? ` (${activeCount})` : ""}
-            </button>
+        <div
+          className="mb-3 p-3 rounded-lg"
+          style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+        >
+          <div className="flex items-center justify-between mb-2.5">
+            <span className="inline-flex items-center gap-1.5 text-[11px] uppercase font-bold tracking-wider text-mute">
+              <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
+            </span>
             {activeCount > 0 && (
               <button
                 type="button"
                 onClick={() => setFilters({})}
                 className="inline-flex items-center gap-1 text-[12px] font-semibold text-mute hover:text-[var(--bad)] transition"
               >
-                <X className="h-3.5 w-3.5" /> Clear
+                <X className="h-3.5 w-3.5" /> Clear ({activeCount})
               </button>
             )}
           </div>
-
-          {showFilters && (
-            <div
-              className="flex flex-wrap items-end gap-3 p-3 mt-2 rounded-lg"
-              style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
-            >
-              {filterCols.map((c) => {
+          <div className="flex flex-wrap items-end gap-3">
+            {filterCols.map((c) => {
                 const title = c.filterLabelText ?? (typeof c.label === "string" ? c.label : c.key);
                 if (c.filterType === "range") {
                   const fv = (filters[c.key] as { min?: string; max?: string }) || {};
@@ -308,7 +295,6 @@ export function DataTable<T>({
                 );
               })}
             </div>
-          )}
         </div>
       )}
 

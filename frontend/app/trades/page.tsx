@@ -8,7 +8,7 @@ import { TradesTable } from "@/components/TradesTable";
 export default function TradesPage() {
   const [q, setQ] = useState("");
   const params = new URLSearchParams();
-  params.set("limit", "200");
+  params.set("limit", "1000");
   params.set("side", "all"); // real buys (P) + sells (S) only — no option grants
   if (q) params.set("q", q);
 

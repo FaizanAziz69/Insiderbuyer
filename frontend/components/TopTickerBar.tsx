@@ -10,37 +10,49 @@ interface MoverRow {
   changePct: number;
 }
 
+// Markets to float across the top: major indices, commodities, then famous
+// large-cap stocks. `label` is what shows; `href` (stocks only) links to the
+// company page. Order is preserved.
+const ITEMS: { symbol: string; label: string; href?: string }[] = [
+  { symbol: "^GSPC", label: "S&P 500" },
+  { symbol: "^DJI", label: "Dow" },
+  { symbol: "^IXIC", label: "Nasdaq" },
+  { symbol: "GC=F", label: "Gold" },
+  { symbol: "SI=F", label: "Silver" },
+  { symbol: "CL=F", label: "Oil" },
+  { symbol: "BTC-USD", label: "Bitcoin" },
+  ...[
+    "NVDA", "AAPL", "AMZN", "META", "TSLA", "MSFT", "GOOGL", "AMD", "NFLX", "AVGO",
+    "JPM", "V", "WMT", "COST", "DIS", "KO", "MCD", "BA", "PLTR", "COIN",
+  ].map((s) => ({ symbol: s, label: s, href: `/companies/${s}` })),
+];
+
+const SYMBOLS = ITEMS.map((i) => i.symbol);
+
 /**
- * Slim horizontal market-data marquee pinned at the very top of the page.
- * Shows LIVE stock quotes only (no news headlines) — each → that stock's page.
- * Scrolls right→left via a pure-CSS animation; hover pauses.
+ * Slim horizontal market-data marquee pinned at the top of the page. Shows LIVE
+ * quotes for the major indices, commodities, and famous stocks. Scrolls
+ * right→left via a pure-CSS animation; hover pauses.
  */
 export function TopTickerBar() {
-  // Pull a wide set of live movers so the tape stays full of stock data.
-  const { data: gainers } = useSWR<{ rows: MoverRow[] }>(
-    `${API_BASE}/market-stats/top-gainers?limit=40`,
-    fetcher,
-    { refreshInterval: 60_000, revalidateOnFocus: false },
-  );
-  const { data: active } = useSWR<{ rows: MoverRow[] }>(
-    `${API_BASE}/market-stats/most-active?limit=20`,
+  const { data } = useSWR<{ rows: MoverRow[] }>(
+    `${API_BASE}/market-stats/quotes?symbols=${encodeURIComponent(SYMBOLS.join(","))}`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
 
-  // Merge gainers + most-active, de-dupe by symbol, keep only real quotes.
   const bySymbol = new Map<string, MoverRow>();
-  for (const r of [...(gainers?.rows || []), ...(active?.rows || [])]) {
-    if (r?.symbol && typeof r.price === "number" && !bySymbol.has(r.symbol)) {
-      bySymbol.set(r.symbol, r);
-    }
+  for (const r of data?.rows || []) {
+    if (r?.symbol && typeof r.price === "number") bySymbol.set(r.symbol, r);
   }
-  const stocks = Array.from(bySymbol.values());
+  // Preserve curated order, keep only items with a real quote.
+  const items = ITEMS.map((it) => ({ ...it, q: bySymbol.get(it.symbol) })).filter(
+    (it): it is typeof it & { q: MoverRow } => !!it.q,
+  );
 
-  if (stocks.length === 0) return null;
+  if (items.length === 0) return null;
 
-  // Duplicate the sequence so the marquee loop is seamless.
-  const doubled = [...stocks, ...stocks];
+  const doubled = [...items, ...items];
 
   return (
     <div
@@ -53,25 +65,15 @@ export function TopTickerBar() {
     >
       <div className="ticker-track flex items-center gap-7 py-3 whitespace-nowrap">
         {doubled.map((it, i) => {
-          const up = it.changePct >= 0;
-          return (
-            <Link
-              key={`s-${i}`}
-              href={`/companies/${encodeURIComponent(it.symbol)}`}
-              className="inline-flex items-center gap-2 flex-shrink-0 tabular hover:opacity-90"
-              style={{
-                color: "#fff",
-                padding: "4px 12px",
-                borderRadius: 6,
-                background: "rgba(0,0,0,0.15)",
-              }}
-            >
+          const up = it.q.changePct >= 0;
+          const inner = (
+            <>
               <span className="font-bold uppercase tracking-wider text-[14px]">
-                {it.symbol}
+                {it.label}
               </span>
               <span className="font-mono font-semibold text-[15px]">
-                {it.price.toLocaleString(undefined, {
-                  maximumFractionDigits: it.price < 100 ? 2 : 0,
+                {it.q.price.toLocaleString(undefined, {
+                  maximumFractionDigits: it.q.price < 100 ? 2 : 0,
                 })}
               </span>
               <span
@@ -79,15 +81,32 @@ export function TopTickerBar() {
                 style={{ color: up ? "#1bff8b" : "#ff6b8a" }}
               >
                 {up ? "+" : ""}
-                {it.changePct.toFixed(2)}%
+                {it.q.changePct.toFixed(2)}%
               </span>
+            </>
+          );
+          const cls =
+            "inline-flex items-center gap-2 flex-shrink-0 tabular hover:opacity-90";
+          const style = {
+            color: "#fff",
+            padding: "4px 12px",
+            borderRadius: 6,
+            background: "rgba(0,0,0,0.15)",
+          } as const;
+          return it.href ? (
+            <Link key={`t-${i}`} href={it.href} className={cls} style={style}>
+              {inner}
             </Link>
+          ) : (
+            <span key={`t-${i}`} className={cls} style={style}>
+              {inner}
+            </span>
           );
         })}
       </div>
       <style jsx>{`
         .ticker-track {
-          animation: ticker-scroll 150s linear infinite;
+          animation: ticker-scroll 240s linear infinite;
           width: max-content;
         }
         .ticker-track:hover {

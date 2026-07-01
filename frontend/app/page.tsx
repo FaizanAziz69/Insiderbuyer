@@ -17,6 +17,7 @@ import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
 import { AiPopularArticlesSection } from "@/components/insights/AiPopularArticlesSection";
 import { AiLatestNewsSection } from "@/components/insights/AiLatestNewsSection";
 import { AiFeaturedHero } from "@/components/insights/AiFeaturedHero";
+import { AiCatalyst } from "@/components/AiCatalyst";
 
 export default function HomePage() {
   return (
@@ -121,23 +122,27 @@ function TopGainersPanel() {
       </Link>
       {/* Column header */}
       <div
-        className="grid grid-cols-[18px_1fr_80px_auto] gap-2 px-4 py-1.5 text-[10px] uppercase tracking-wider font-bold border-b"
+        className="grid grid-cols-[16px_1fr_60px_auto_26px] gap-2 px-4 py-1.5 text-[10px] uppercase tracking-wider font-bold border-b"
         style={{ color: "var(--text-mute)", borderColor: "var(--border)" }}
       >
         <span>#</span>
         <span>Company</span>
         <span className="text-center">Price</span>
         <span className="text-right">Chg / Cap</span>
+        <span className="text-center">AI</span>
       </div>
       <ul className="divide-y divide-[var(--border)]">
         {gainers.length === 0 ? (
           <li className="px-4 py-6 text-center text-mute text-[12px]">Loading…</li>
         ) : (
           gainers.map((g, i) => (
-            <li key={g.symbol}>
+            <li
+              key={g.symbol}
+              className="grid grid-cols-[16px_1fr_60px_auto_26px] gap-2 items-center px-4 py-2 hover:bg-[var(--accent-soft)] transition"
+            >
               <Link
                 href={`/companies/${encodeURIComponent(g.symbol)}`}
-                className="grid grid-cols-[18px_1fr_80px_auto] gap-2 items-center px-4 py-2 hover:bg-[var(--accent-soft)] transition"
+                className="contents"
               >
                 <span className="text-[11px] font-mono font-bold text-faint text-center">
                   {i + 1}
@@ -162,6 +167,9 @@ function TopGainersPanel() {
                   </span>
                 </span>
               </Link>
+              <span className="flex justify-center">
+                <AiCatalyst ticker={g.symbol} name={g.name} changePct={g.changePct} />
+              </span>
             </li>
           ))
         )}

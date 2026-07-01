@@ -54,6 +54,17 @@ export class ContentController {
     return { items: await this.content.byTicker(ticker, n) };
   }
 
+  /** On-demand AI "movement explainer" for any ticker (cached server-side). */
+  @Get('explain')
+  async explain(
+    @Query('symbol') symbol: string,
+    @Query('name') name = '',
+    @Query('change') change = '0',
+  ) {
+    if (!symbol) return { title: '', explainer: '' };
+    return this.content.getMovementExplainer(symbol, name, Number(change) || 0);
+  }
+
   /** Manual trigger for the daily refresh. Same path used by the cron. */
   @Post('refresh')
   async refresh() {

@@ -21,6 +21,8 @@ export interface LiveQuote {
   volume: number;
   avgVolume: number;
   marketCap: number | null;
+  peRatio?: number | null;
+  dividendYield?: number | null;
 }
 
 export interface StockListIndexEntry {
@@ -170,6 +172,8 @@ export class StockListsService {
         volume: q.volume,
         avgVolume: q.avgVolume,
         marketCap: q.marketCap,
+        peRatio: q.peRatio ?? null,
+        dividendYield: q.dividendYield ?? null,
       });
     }
     return live;
@@ -325,6 +329,8 @@ export class StockListsService {
               volume: q.volume,
               avgVolume: q.avgVolume,
               marketCap: q.marketCap,
+              peRatio: q.peRatio ?? null,
+              dividendYield: q.dividendYield ?? null,
             },
           }));
           if (filters.sector) {

@@ -410,6 +410,59 @@ tags: include "${opts.ticker}" and the topic.`;
     return this.callTool(prompt);
   }
 
+  /**
+   * Short, on-demand "movement explainer" for a single ticker — a factual,
+   * cautious 2-4 sentence explanation of why a stock is moving, grounded in
+   * recent headlines when available. Plain text (no article tool).
+   */
+  async generateMovementExplainer(opts: {
+    symbol: string;
+    name: string;
+    changePct: number;
+    headlines: string[];
+  }): Promise<{ title: string; explainer: string }> {
+    const dir = opts.changePct >= 0 ? 'up' : 'down';
+    const pct = Math.abs(opts.changePct).toFixed(2);
+    if (!this.client) {
+      return {
+        title: `Why ${opts.symbol} is ${dir} ${pct}% today`,
+        explainer: 'AI explainer is not configured.',
+      };
+    }
+    const news = opts.headlines.length
+      ? `Recent headlines mentioning the company:\n- ${opts.headlines.slice(0, 6).join('\n- ')}`
+      : 'No recent company-specific headlines are available.';
+    const prompt = `In 2-4 sentences, explain why ${opts.name || opts.symbol} (${opts.symbol}) stock is ${dir} ${pct}% today, written for a retail investor.
+- Be specific and factual; use the headlines below if they explain the move.
+- If there is no clear company-specific catalyst, say the move appears driven by broader market/sector rotation, momentum, or unusual volume.
+- Use cautious, non-advisory language. Never give buy/sell advice.
+
+${news}`;
+    try {
+      const response = await this.client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 320,
+        system:
+          'You are a concise, factual financial-news analyst. You explain why a stock is moving in plain language, cautiously, with no investment advice.',
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const explainer = response.content
+        .filter((b): b is Anthropic.Messages.TextBlock => b.type === 'text')
+        .map((b) => b.text)
+        .join(' ')
+        .trim();
+      return {
+        title: `Why ${opts.symbol} is ${dir} ${pct}% today`,
+        explainer: explainer || 'No explanation available right now.',
+      };
+    } catch (err: any) {
+      this.logger.warn(
+        `Movement explainer failed for ${opts.symbol}: ${err?.message || err}`,
+      );
+      return { title: `Why ${opts.symbol} is ${dir} ${pct}% today`, explainer: '' };
+    }
+  }
+
   private async callTool(userPrompt: string): Promise<GeneratedArticle> {
     if (!this.client) {
       throw new Error('Content generator not configured — ANTHROPIC_API_KEY missing.');

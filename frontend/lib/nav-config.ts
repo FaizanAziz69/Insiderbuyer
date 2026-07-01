@@ -73,7 +73,6 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Top Gainers", href: "/market-data/top-gainers", description: "Today's biggest percentage gains", icon: TrendingUp },
           { label: "Top Losers", href: "/market-data/top-losers", description: "Today's biggest percentage losses", icon: TrendingUp },
           { label: "Short Squeeze List", href: "/short-squeeze", description: "Stocks ranked by squeeze potential", icon: Flame },
-          { label: "Market Movers Articles", href: "/articles/market-movers", description: "Stocks up 10%+ — and why", icon: Flame },
         ],
       },
       {
@@ -179,6 +178,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Intro to Insider Buying", href: "/learn/insider-buying", description: "New here? Start with the basics", icon: FileText },
           { label: "Latest Financial News", href: "/insights?sort=latest", description: "Freshest AI editorial across all topics", icon: Newspaper },
           { label: "Popular Articles", href: "/insights?sort=popular", description: "Most-read AI stories this week", icon: TrendingUp },
+          { label: "Market Movers", href: "/articles/market-movers", description: "Stocks up 10%+ — and why", icon: Flame },
           { label: "Stock Ideas", href: "/lists", description: "Curated trade-idea lists", icon: Sparkles },
           { label: "Reports & Advertorials", href: "/reports", description: "Long-form reports, monthly summaries & features", icon: FileText },
           { label: "For Business / API", href: "/business", description: "License our insider data & widgets", icon: Briefcase },

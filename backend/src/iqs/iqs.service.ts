@@ -98,7 +98,7 @@ export class IqsService {
           previousHoldings: null,
           postHoldings: t.postHoldings ?? null,
           transactionDate: t.transactionDate,
-          filingUrl: t.filingUrl,
+          filingUrl: this.form4Link(t.filingUrl, (t as any).accessionNumber ?? null),
         };
       });
     } catch {
@@ -637,7 +637,7 @@ export class IqsService {
     side?: 'buy' | 'sell' | 'all';
     month?: boolean;
   }) {
-    const limit = Math.min(opts.limit ?? 100, 500);
+    const limit = Math.min(opts.limit ?? 100, 2000);
     const offset = opts.offset ?? 0;
     const qb = this.txRepo
       .createQueryBuilder('t')
@@ -679,9 +679,28 @@ export class IqsService {
         totalValue: Number(t.totalValue),
         previousHoldings: t.previousHoldings === null ? null : Number(t.previousHoldings),
         transactionDate: t.transactionDate,
-        filingUrl: t.filingUrl,
+        filingUrl: this.form4Link(t.filingUrl, t.accessionNumber),
       })),
     };
+  }
+
+  /** Normalize a stored filing URL so clicking it opens the human-readable
+   *  Form 4, not raw XML or a folder listing:
+   *   - a raw `.../{acc}/{doc}.xml` (no XSL) → the XSL-rendered viewer path
+   *     `.../{acc}/xslF345X05/{doc}` (SEC applies the stylesheet server-side),
+   *   - a bare folder index (ends with "/") → the SEC filing detail page. */
+  private form4Link(
+    filingUrl: string | null | undefined,
+    accession: string | null | undefined,
+  ): string {
+    const url = filingUrl || '';
+    if (!url) return url;
+    const raw = url.match(
+      /^(https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/\d+\/\d+\/)([^/]+\.xml)$/i,
+    );
+    if (raw && !/\/xsl/i.test(url)) return `${raw[1]}xslF345X05/${raw[2]}`;
+    if (url.endsWith('/') && accession) return `${url}${accession}-index.htm`;
+    return url;
   }
 
   /** Volume-weighted insider avg cost + last open-market buy date, keyed by

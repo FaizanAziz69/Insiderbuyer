@@ -20,4 +20,10 @@ export class IngestionController {
   async backfillLocations() {
     return this.ingestion.backfillLocations();
   }
+
+  /** Backfill exact Form 4 document URLs onto older transactions. */
+  @Post('backfill-filing-urls')
+  async backfillFilingUrls() {
+    return this.ingestion.backfillFilingUrls();
+  }
 }

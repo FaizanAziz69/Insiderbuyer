@@ -3,6 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Flame } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
+import { WatchlistButton } from "@/components/WatchlistButton";
 import {
   API_BASE,
   fetcher,
@@ -20,6 +21,8 @@ export interface MarketStatRow {
   avgVolume: number;
   marketCap: number | null;
   sector: string | null;
+  peRatio?: number | null;
+  dividendYield?: number | null;
 }
 
 interface Props {
@@ -31,7 +34,7 @@ interface Props {
 
 export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props) {
   const { data, isLoading } = useSWR<{ rows: MarketStatRow[] }>(
-    `${API_BASE}/market-stats/${endpoint}`,
+    `${API_BASE}/market-stats/${endpoint}?limit=500`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
@@ -48,24 +51,22 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
     },
     {
       key: "symbol",
-      label: "Ticker",
-      filterable: true,
+      label: "Company",
       sortValue: (r) => r.symbol,
       render: (r) => (
-        <Link
-          href={`/companies/${encodeURIComponent(r.symbol)}`}
-          className="font-mono text-[15px] font-bold text-accent hover:underline"
-        >
-          {r.symbol}
-        </Link>
+        <span className="inline-flex items-center gap-2">
+          <WatchlistButton ticker={r.symbol} variant="icon" size="sm" />
+          <Link
+            href={`/companies/${encodeURIComponent(r.symbol)}`}
+            className="block"
+          >
+            <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+              {r.symbol}
+            </div>
+            <div className="truncate max-w-[280px] text-[13px] font-medium" style={{ color: "var(--text)" }}>{r.name}</div>
+          </Link>
+        </span>
       ),
-    },
-    {
-      key: "name",
-      label: "Company",
-      filterable: true,
-      sortValue: (r) => r.name,
-      render: (r) => <span className="truncate max-w-[280px] text-[14px] font-medium" style={{ color: "var(--text)" }}>{r.name}</span>,
     },
     {
       key: "price",
@@ -77,26 +78,6 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
       render: (r) => (
         <span className="tabular font-bold text-[14px]">${r.price.toFixed(2)}</span>
       ),
-    },
-    {
-      key: "changeAbs",
-      label: "Change",
-      filterable: true,
-      filterType: "range",
-      align: "right",
-      sortValue: (r) => r.changeAbs,
-      render: (r) => {
-        const up = r.changePct >= 0;
-        return (
-          <span
-            className="tabular font-bold text-[14px]"
-            style={{ color: up ? "var(--good)" : "var(--bad)" }}
-          >
-            {up ? "+" : ""}
-            {r.changeAbs.toFixed(2)}
-          </span>
-        );
-      },
     },
     {
       key: "changePct",
@@ -122,6 +103,61 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
       },
     },
     {
+      key: "marketCap",
+      label: "Market Cap",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (r) => r.marketCap,
+      render: (r) => (
+        <span className="tabular text-mute text-[14px] font-bold">
+          {r.marketCap ? formatCurrency(r.marketCap) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "peRatio",
+      label: "P/E",
+      align: "right",
+      sortValue: (r) => r.peRatio ?? null,
+      render: (r) => (
+        <span className="tabular text-mute text-[13px] font-bold">
+          {r.peRatio != null ? r.peRatio.toFixed(1) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "dividendYield",
+      label: "Div Yield",
+      align: "right",
+      sortValue: (r) => r.dividendYield ?? null,
+      render: (r) => (
+        <span className="tabular text-mute text-[13px] font-bold">
+          {r.dividendYield != null ? r.dividendYield.toFixed(2) + "%" : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "changeAbs",
+      label: "Change",
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (r) => r.changeAbs,
+      render: (r) => {
+        const up = r.changePct >= 0;
+        return (
+          <span
+            className="tabular font-bold text-[14px]"
+            style={{ color: up ? "var(--good)" : "var(--bad)" }}
+          >
+            {up ? "+" : ""}
+            {r.changeAbs.toFixed(2)}
+          </span>
+        );
+      },
+    },
+    {
       key: "volume",
       label: "Volume",
       filterable: true,
@@ -139,19 +175,6 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
       sortValue: (r) => r.avgVolume,
       render: (r) => (
         <span className="tabular text-mute text-[14px] font-bold">{formatNumber(r.avgVolume)}</span>
-      ),
-    },
-    {
-      key: "marketCap",
-      label: "Market Cap",
-      filterable: true,
-      filterType: "range",
-      align: "right",
-      sortValue: (r) => r.marketCap,
-      render: (r) => (
-        <span className="tabular text-mute text-[14px] font-bold">
-          {r.marketCap ? formatCurrency(r.marketCap) : "—"}
-        </span>
       ),
     },
   ];

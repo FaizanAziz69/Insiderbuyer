@@ -92,7 +92,6 @@ export default function IposPage() {
               {
                 key: "company",
                 label: "Company",
-                filterable: true,
                 sortValue: (r) => r.symbol,
                 render: (r) => (
                   <div className="flex items-center gap-2.5 min-w-[220px]">

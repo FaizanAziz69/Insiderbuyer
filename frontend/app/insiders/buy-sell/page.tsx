@@ -55,34 +55,32 @@ export default function InsiderBuySellPage() {
   const columns: Column<TradeRow>[] = [
     {
       key: "ticker",
-      label: "Ticker",
-      filterable: true,
+      label: "Company",
       sortValue: (r) => r.ticker || "",
       render: (r) =>
         r.ticker ? (
           <Link
             href={`/companies/${encodeURIComponent(r.ticker)}`}
-            className="inline-flex items-center gap-2"
+            className="flex items-center gap-2"
           >
             <CompanyLogo ticker={r.ticker} name={r.companyName} size={22} />
-            <span className="font-mono text-[15px] font-bold text-accent hover:underline">
-              {r.ticker}
-            </span>
+            <div className="min-w-0">
+              <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+                {r.ticker}
+              </div>
+              <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
+                {r.companyName}
+              </div>
+            </div>
           </Link>
         ) : (
-          <span className="text-faint">—</span>
+          <div>
+            <span className="text-faint">—</span>
+            <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
+              {r.companyName}
+            </div>
+          </div>
         ),
-    },
-    {
-      key: "company",
-      label: "Company",
-      filterable: true,
-      sortValue: (r) => r.companyName,
-      render: (r) => (
-        <span className="text-[14px] font-medium truncate max-w-[200px] inline-block align-middle" style={{ color: "var(--text)" }}>
-          {r.companyName}
-        </span>
-      ),
     },
     {
       key: "insider",

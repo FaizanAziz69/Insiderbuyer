@@ -12,9 +12,10 @@ import {
 } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
-import { TierBadge } from "@/components/TierBadge";
 import { Sparkline } from "@/components/Sparkline";
 import { DataTable, Column } from "@/components/DataTable";
+import { WatchlistButton } from "@/components/WatchlistButton";
+import { InsiderSignalHover } from "@/components/InsiderSignalHover";
 
 /**
  * Insider strategy signal — how strong/clustered the recent insider buying is,
@@ -36,7 +37,7 @@ function insiderSignal(r: RankingRow): { label: string; color: string; strength:
 
 export default function InsiderHotStocksPage() {
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=100&live=1`,
+    `${API_BASE}/rankings?limit=1000&live=1`,
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
@@ -68,41 +69,48 @@ export default function InsiderHotStocksPage() {
     },
     {
       key: "ticker",
-      label: "Ticker",
-      filterable: true,
+      label: "Company",
       sortValue: (r) => r.ticker || "",
       render: (r) => {
         const ticker = r.ticker || "";
         return (
-          <Link
-            href={ticker ? `/companies/${encodeURIComponent(ticker)}` : "#"}
-            className="inline-flex items-center gap-2"
-          >
-            <CompanyLogo ticker={ticker} name={r.name} size={22} />
-            <span className="font-mono text-[15px] font-bold text-accent hover:underline">
-              {ticker || "—"}
-            </span>
-          </Link>
+          <span className="inline-flex items-center gap-2">
+            {ticker && (
+              <WatchlistButton ticker={ticker} variant="icon" size="sm" />
+            )}
+            <Link
+              href={ticker ? `/companies/${encodeURIComponent(ticker)}` : "#"}
+              className="flex items-center gap-2"
+            >
+              <CompanyLogo ticker={ticker} name={r.name} size={22} />
+              <div className="min-w-0">
+                <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+                  {ticker || "—"}
+                </div>
+                <div className="text-[13px] font-medium truncate max-w-[220px]" style={{ color: "var(--text)" }}>
+                  {r.name}
+                </div>
+              </div>
+            </Link>
+          </span>
         );
       },
     },
     {
-      key: "company",
-      label: "Company",
+      key: "price",
+      label: "Price",
+      align: "right",
       filterable: true,
-      sortValue: (r) => r.name,
-      render: (r) => (
-        <span className="text-[14px] font-medium truncate max-w-[220px] inline-block align-middle" style={{ color: "var(--text)" }}>
-          {r.name}
-        </span>
-      ),
-    },
-    {
-      key: "iqs",
-      label: "IQS",
-      align: "center",
-      sortValue: (r) => r.iqs,
-      render: (r) => <TierBadge iqs={r.iqs} size="sm" />,
+      filterType: "range",
+      sortValue: (r) => r.livePrice ?? r.lastPrice ?? null,
+      render: (r) => {
+        const p = r.livePrice ?? r.lastPrice;
+        return (
+          <span className="tabular font-bold text-[14px]">
+            {p != null ? `$${p.toFixed(2)}` : "—"}
+          </span>
+        );
+      },
     },
     {
       key: "changePct",
@@ -127,6 +135,20 @@ export default function InsiderHotStocksPage() {
       },
     },
     {
+      key: "marketCap",
+      label: "Market Cap",
+      align: "right",
+      filterable: true,
+      filterType: "marketCapPreset",
+      filterLabelText: "Market Cap",
+      sortValue: (r) => r.marketCap ?? null,
+      render: (r) => (
+        <span className="tabular text-[14px] text-mute font-bold">
+          {formatCurrency(r.marketCap)}
+        </span>
+      ),
+    },
+    {
       key: "signal",
       label: "Insider Signal",
       align: "center",
@@ -134,23 +156,32 @@ export default function InsiderHotStocksPage() {
       render: (r) => {
         const s = insiderSignal(r);
         return (
-          <div className="inline-flex flex-col items-stretch gap-1 min-w-[110px] align-middle">
-            <div
-              className="w-full h-2 rounded-full overflow-hidden"
-              style={{ background: "var(--bg-3)" }}
-            >
+          <InsiderSignalHover
+            ticker={r.ticker || ""}
+            signalLabel={s.label}
+            distinctBuyers={r.distinctBuyers}
+            totalPurchaseValue={r.totalPurchaseValue}
+            avgCost={r.avgCost ?? null}
+            lastBuyDate={r.lastBuyDate ?? null}
+          >
+            <div className="inline-flex flex-col items-stretch gap-1 min-w-[110px] align-middle cursor-help">
               <div
-                className="h-full rounded-full"
-                style={{ width: `${s.strength}%`, background: s.color }}
-              />
+                className="w-full h-2 rounded-full overflow-hidden"
+                style={{ background: "var(--bg-3)" }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${s.strength}%`, background: s.color }}
+                />
+              </div>
+              <span
+                className="text-[11px] font-bold whitespace-nowrap text-center"
+                style={{ color: s.color }}
+              >
+                {s.label}
+              </span>
             </div>
-            <span
-              className="text-[11px] font-bold whitespace-nowrap text-center"
-              style={{ color: s.color }}
-            >
-              {s.label}
-            </span>
-          </div>
+          </InsiderSignalHover>
         );
       },
     },
@@ -206,20 +237,6 @@ export default function InsiderHotStocksPage() {
         </span>
       ),
     },
-    {
-      key: "marketCap",
-      label: "Market Cap",
-      align: "right",
-      filterable: true,
-      filterType: "marketCapPreset",
-      filterLabelText: "Market Cap",
-      sortValue: (r) => r.marketCap ?? null,
-      render: (r) => (
-        <span className="tabular text-[14px] text-mute font-bold">
-          {formatCurrency(r.marketCap)}
-        </span>
-      ),
-    },
   ];
 
   return (
@@ -258,7 +275,7 @@ export default function InsiderHotStocksPage() {
           <DataTable<RankingRow>
             rows={rows}
             rowKey={(r, i) => (r.ticker || r.companyId || r.name || "") + i}
-            initialSort={{ key: "iqs", dir: "desc" }}
+            initialSort={{ key: "bought", dir: "desc" }}
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={columns}
           />

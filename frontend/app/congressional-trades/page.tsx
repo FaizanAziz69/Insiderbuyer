@@ -68,6 +68,20 @@ export default function CongressionalPage() {
     action ? r.action === action : true,
   );
 
+  // Live quotes for the tickers shown in the table.
+  const tickerKey = rows
+    .map((r) => (r.ticker || "").toUpperCase())
+    .filter(Boolean)
+    .slice(0, 250)
+    .join(",");
+  const { data: quoteData } = useSWR<{ rows: { symbol: string; price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null }[] }>(
+    tickerKey ? `${API_BASE}/market-stats/quotes?symbols=${encodeURIComponent(tickerKey)}` : null,
+    fetcher,
+    { refreshInterval: 60_000, revalidateOnFocus: false },
+  );
+  const quoteBySym = new Map<string, { price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null }>();
+  (quoteData?.rows || []).forEach((q) => quoteBySym.set(q.symbol.toUpperCase(), q));
+
   return (
     <div className="w-full space-y-6">
       <header>
@@ -198,31 +212,66 @@ export default function CongressionalPage() {
               },
               {
                 key: "ticker",
-                label: "Ticker",
-                filterable: true,
+                label: "Company",
                 sortValue: (r) => r.ticker,
                 render: (r) => (
                   <Link
                     href={`/companies/${encodeURIComponent(r.ticker)}`}
-                    className="inline-flex items-center gap-2"
+                    className="flex items-center gap-2"
                   >
                     <CompanyLogo ticker={r.ticker} name={r.companyName} size={22} />
-                    <span className="font-mono text-[15px] font-bold text-accent hover:underline">
-                      {r.ticker}
-                    </span>
+                    <div className="min-w-0">
+                      <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+                        {r.ticker}
+                      </div>
+                      <div className="truncate max-w-[240px] text-[13px] font-medium" style={{ color: "var(--text)" }}>
+                        {r.companyName}
+                      </div>
+                    </div>
                   </Link>
                 ),
               },
               {
-                key: "company",
-                label: "Company",
-                filterable: true,
-                sortValue: (r) => r.companyName,
-                render: (r) => (
-                  <span className="truncate max-w-[240px] text-[14px] font-medium" style={{ color: "var(--text)" }}>
-                    {r.companyName}
-                  </span>
-                ),
+                key: "price",
+                label: "Price",
+                align: "right",
+                sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.price ?? null,
+                render: (r) => {
+                  const q = quoteBySym.get((r.ticker || "").toUpperCase());
+                  return <span className="tabular font-bold text-[14px]">{q ? `$${q.price.toFixed(2)}` : "—"}</span>;
+                },
+              },
+              {
+                key: "changePct",
+                label: "Change %",
+                align: "right",
+                sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.changePct ?? null,
+                render: (r) => {
+                  const q = quoteBySym.get((r.ticker || "").toUpperCase());
+                  if (!q || q.changePct == null) return <span className="text-faint text-[13px]">—</span>;
+                  const up = q.changePct >= 0;
+                  return <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>{up ? "+" : ""}{q.changePct.toFixed(2)}%</span>;
+                },
+              },
+              {
+                key: "peRatio",
+                label: "P/E",
+                align: "right",
+                sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.peRatio ?? null,
+                render: (r) => {
+                  const pe = quoteBySym.get((r.ticker || "").toUpperCase())?.peRatio;
+                  return <span className="tabular text-mute text-[13px] font-bold">{pe != null ? pe.toFixed(1) : "—"}</span>;
+                },
+              },
+              {
+                key: "dividendYield",
+                label: "Div Yield",
+                align: "right",
+                sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.dividendYield ?? null,
+                render: (r) => {
+                  const dy = quoteBySym.get((r.ticker || "").toUpperCase())?.dividendYield;
+                  return <span className="tabular text-mute text-[13px] font-bold">{dy != null ? dy.toFixed(2) + "%" : "—"}</span>;
+                },
               },
               {
                 key: "action",

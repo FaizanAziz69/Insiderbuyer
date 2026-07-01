@@ -13,8 +13,8 @@ import {
 
 const TOOLS = [
   {
-    title: "Portfolio Monitoring",
-    body: "Track tickers you follow, watch IQS scores update through the day, and get push alerts when a new Form 4 lands on any of them.",
+    title: "Watchlist",
+    body: "Track any stocks you follow with live prices and daily change. Add with the ☆ star on any company page — saved on your device.",
     href: "/watchlist",
     icon: LineChart,
   },

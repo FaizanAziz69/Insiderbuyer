@@ -69,6 +69,8 @@ export interface MarketStatRow {
   sector: string | null;
   fiftyTwoWeekHigh?: number | null;
   fiftyTwoWeekLow?: number | null;
+  peRatio?: number | null;
+  dividendYield?: number | null; // percent
 }
 
 /** Full stockanalysis.com-style fundamentals for a single ticker. */
@@ -152,6 +154,8 @@ export class MarketStatsService {
   private readonly CACHE_MS = 60_000;
   private pennyCache: { ts: number; data: MarketStatRow[] } | null = null;
   private readonly PENNY_CACHE_MS = 10 * 60_000;
+  private screenCache = new Map<string, { ts: number; data: MarketStatRow[] }>();
+  private readonly SCREEN_CACHE_MS = 60_000;
 
   constructor() {
     this.http = axios.create({
@@ -195,6 +199,13 @@ export class MarketStatsService {
         avgVolume: Number(q.averageDailyVolume3Month ?? q.averageDailyVolume10Day ?? 0),
         marketCap: q.marketCap != null ? Number(q.marketCap) : null,
         sector: q.sector ?? null,
+        peRatio: q.trailingPE != null ? Number(q.trailingPE) : null,
+        dividendYield:
+          q.dividendYield != null
+            ? Number(q.dividendYield)
+            : q.trailingAnnualDividendYield != null
+              ? +(Number(q.trailingAnnualDividendYield) * 100).toFixed(2)
+              : null,
       }));
       this.cache[scrId] = { ts: Date.now(), data: out };
       return out;
@@ -208,14 +219,126 @@ export class MarketStatsService {
     }
   }
 
-  getTopGainers(limit = 20) {
-    return this.fetchScreener('day_gainers', limit);
+  /**
+   * Generalized Yahoo custom screener (paginated to ~1000) — used for the
+   * movers tables so they return hundreds of rows instead of the ~10-25 the
+   * predefined screener caps at. Cached 60s per key; falls back to the
+   * cached set on failure.
+   */
+  private async screenYahoo(opts: {
+    key: string;
+    sortField: string;
+    sortType: 'ASC' | 'DESC';
+    operands: any[];
+    limit: number;
+  }): Promise<MarketStatRow[]> {
+    const cached = this.screenCache.get(opts.key);
+    if (cached && Date.now() - cached.ts < this.SCREEN_CACHE_MS) {
+      return cached.data.slice(0, opts.limit);
+    }
+    try {
+      const auth = await this.getAuth();
+      if (!auth) throw new Error('No Yahoo auth (cookie/crumb)');
+      const PAGE = 250;
+      const out: MarketStatRow[] = [];
+      const seen = new Set<string>();
+      for (let offset = 0; offset < opts.limit && offset < 1000; offset += PAGE) {
+        const size = Math.min(PAGE, opts.limit - offset);
+        const body = {
+          size,
+          offset,
+          sortField: opts.sortField,
+          sortType: opts.sortType,
+          quoteType: 'EQUITY',
+          query: { operator: 'AND', operands: opts.operands },
+          userId: '',
+          userIdType: 'guid',
+        };
+        const { data } = await this.http.post(
+          `https://query1.finance.yahoo.com/v1/finance/screener?crumb=${encodeURIComponent(auth.crumb)}&lang=en-US&region=US`,
+          body,
+          { headers: { Cookie: auth.cookie, 'Content-Type': 'application/json' } },
+        );
+        const quotes: any[] = data?.finance?.result?.[0]?.quotes || [];
+        if (!quotes.length) break;
+        for (const q of quotes) {
+          const symbol = String(q.symbol || '');
+          if (!symbol || seen.has(symbol)) continue;
+          seen.add(symbol);
+          out.push({
+            symbol,
+            name: String(q.shortName || q.longName || symbol),
+            price: Number(q.regularMarketPrice ?? 0),
+            changeAbs: Number(q.regularMarketChange ?? 0),
+            changePct: Number(q.regularMarketChangePercent ?? 0),
+            volume: Number(q.regularMarketVolume ?? 0),
+            avgVolume: Number(q.averageDailyVolume3Month ?? q.averageDailyVolume10Day ?? 0),
+            marketCap: q.marketCap != null ? Number(q.marketCap) : null,
+            sector: q.sector ?? null,
+            peRatio: q.trailingPE != null ? Number(q.trailingPE) : null,
+            dividendYield:
+              q.dividendYield != null
+                ? Number(q.dividendYield)
+                : q.trailingAnnualDividendYield != null
+                  ? +(Number(q.trailingAnnualDividendYield) * 100).toFixed(2)
+                  : null,
+          });
+        }
+        if (quotes.length < size) break;
+      }
+      if (!out.length) throw new Error('Empty screen');
+      this.screenCache.set(opts.key, { ts: Date.now(), data: out });
+      return out.slice(0, opts.limit);
+    } catch (err: any) {
+      this.logger.warn(`Yahoo screen ${opts.key} failed: ${err?.message || err}.`);
+      return this.screenCache.get(opts.key)?.data.slice(0, opts.limit) ?? [];
+    }
   }
-  getTopLosers(limit = 20) {
-    return this.fetchScreener('day_losers', limit);
+
+  async getTopGainers(limit = 100) {
+    const rows = await this.screenYahoo({
+      key: 'gainers',
+      sortField: 'percentchange',
+      sortType: 'DESC',
+      operands: [
+        { operator: 'GT', operands: ['intradayprice', 1] },
+        { operator: 'GT', operands: ['dayvolume', 20000] },
+        { operator: 'EQ', operands: ['region', 'us'] },
+      ],
+      limit,
+    });
+    return rows.length ? rows : this.fetchScreener('day_gainers', limit);
   }
-  getMostActive(limit = 20) {
-    return this.fetchScreener('most_actives', limit);
+  async getTopLosers(limit = 100) {
+    // Yahoo's screener 500s on an ASC percentchange sort, so pull a large pool
+    // of decliners ordered by volume (works) and sort biggest-loss-first here.
+    const pool = await this.screenYahoo({
+      key: 'losers',
+      sortField: 'dayvolume',
+      sortType: 'DESC',
+      operands: [
+        { operator: 'LT', operands: ['percentchange', 0] },
+        { operator: 'GT', operands: ['intradayprice', 1] },
+        { operator: 'GT', operands: ['dayvolume', 20000] },
+        { operator: 'EQ', operands: ['region', 'us'] },
+      ],
+      limit: Math.max(limit, 500),
+    });
+    if (!pool.length) return this.fetchScreener('day_losers', limit);
+    return [...pool].sort((a, b) => a.changePct - b.changePct).slice(0, limit);
+  }
+  async getMostActive(limit = 100) {
+    const rows = await this.screenYahoo({
+      key: 'most_active',
+      sortField: 'dayvolume',
+      sortType: 'DESC',
+      operands: [
+        { operator: 'GT', operands: ['intradayprice', 1] },
+        { operator: 'EQ', operands: ['region', 'us'] },
+      ],
+      limit,
+    });
+    return rows.length ? rows : this.fetchScreener('most_actives', limit);
   }
 
   /**
@@ -276,6 +399,13 @@ export class MarketStatsService {
             ),
             marketCap: q.marketCap != null ? Number(q.marketCap) : null,
             sector: q.sector ?? null,
+            peRatio: q.trailingPE != null ? Number(q.trailingPE) : null,
+            dividendYield:
+              q.dividendYield != null
+                ? Number(q.dividendYield)
+                : q.trailingAnnualDividendYield != null
+                  ? +(Number(q.trailingAnnualDividendYield) * 100).toFixed(2)
+                  : null,
           });
         }
         if (quotes.length < size) break;
@@ -384,6 +514,13 @@ export class MarketStatsService {
               sector: q.sector ?? ref?.sector ?? null,
               fiftyTwoWeekHigh: q.fiftyTwoWeekHigh != null ? Number(q.fiftyTwoWeekHigh) : null,
               fiftyTwoWeekLow: q.fiftyTwoWeekLow != null ? Number(q.fiftyTwoWeekLow) : null,
+              peRatio: q.trailingPE != null ? Number(q.trailingPE) : null,
+              dividendYield:
+                q.dividendYield != null
+                  ? Number(q.dividendYield)
+                  : q.trailingAnnualDividendYield != null
+                    ? +(Number(q.trailingAnnualDividendYield) * 100).toFixed(2)
+                    : null,
             });
           }
           break;

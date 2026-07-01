@@ -3,9 +3,9 @@ import useSWR from "swr";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { API_BASE, RankingRow, RankingsResponse, fetcher, formatCurrency, formatDate } from "@/lib/api";
-import { TierBadge } from "@/components/TierBadge";
 import { PremiumGate } from "@/components/PremiumGate";
 import { DataTable, Column } from "@/components/DataTable";
+import { WatchlistButton } from "@/components/WatchlistButton";
 
 // Shared column definitions — reused by both the free and paywall tables.
 const rankCol: Column<RankingRow> = {
@@ -18,36 +18,32 @@ const rankCol: Column<RankingRow> = {
 
 const tickerCol: Column<RankingRow> = {
   key: "ticker",
-  label: "Ticker",
-  filterable: true,
+  label: "Company",
   sortValue: (r) => r.ticker ?? "",
   render: (r) =>
     r.ticker ? (
-      <Link
-        href={`/companies/${encodeURIComponent(r.ticker)}`}
-        className="font-bold text-accent hover:underline font-mono text-[15px]"
-      >
-        {r.ticker}
-      </Link>
+      <span className="inline-flex items-center gap-2">
+        <WatchlistButton ticker={r.ticker} variant="icon" size="sm" />
+        <Link
+          href={`/companies/${encodeURIComponent(r.ticker)}`}
+          className="block"
+        >
+          <div className="font-bold text-accent hover:underline font-mono text-[15px]">
+            {r.ticker}
+          </div>
+          <div className="truncate max-w-[260px] text-[13px] font-medium" style={{ color: "var(--text)" }}>
+            {r.name}
+          </div>
+        </Link>
+      </span>
     ) : (
-      "—"
+      <div>
+        <div>—</div>
+        <div className="truncate max-w-[260px] text-[13px] font-medium" style={{ color: "var(--text)" }}>
+          {r.name}
+        </div>
+      </div>
     ),
-};
-
-const tierCol: Column<RankingRow> = {
-  key: "tier",
-  label: "Tier",
-  filterable: true,
-  sortValue: (r) => r.iqs,
-  render: (r) => <TierBadge iqs={r.iqs} size="sm" />,
-};
-
-const companyCol: Column<RankingRow> = {
-  key: "company",
-  label: "Company",
-  filterable: true,
-  sortValue: (r) => r.name,
-  render: (r) => <span className="truncate max-w-[260px] text-[14px] font-medium" style={{ color: "var(--text)" }}>{r.name}</span>,
 };
 
 const sectorCol: Column<RankingRow> = {
@@ -58,16 +54,6 @@ const sectorCol: Column<RankingRow> = {
   render: (r) => (
     <span className="text-[14px] truncate max-w-[180px]" style={{ color: "var(--text)" }}>{r.sector || "—"}</span>
   ),
-};
-
-const iqsCol: Column<RankingRow> = {
-  key: "iqs",
-  label: "IQS",
-  filterable: true,
-  filterType: "range",
-  align: "right",
-  sortValue: (r) => r.iqs,
-  render: (r) => <span className="tabular font-bold text-[14px]">{r.iqs.toFixed(1)}</span>,
 };
 
 const boughtCol: Column<RankingRow> = {
@@ -90,6 +76,20 @@ export default function CompaniesPage() {
     fetcher,
   );
 
+  // Live quotes for the tickers shown in the table.
+  const tickerKey = (data?.rows || [])
+    .map((r) => (r.ticker || "").toUpperCase())
+    .filter(Boolean)
+    .slice(0, 250)
+    .join(",");
+  const { data: quoteData } = useSWR<{ rows: { symbol: string; price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null }[] }>(
+    tickerKey ? `${API_BASE}/market-stats/quotes?symbols=${encodeURIComponent(tickerKey)}` : null,
+    fetcher,
+    { refreshInterval: 60_000, revalidateOnFocus: false },
+  );
+  const quoteBySym = new Map<string, { price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null }>();
+  (quoteData?.rows || []).forEach((q) => quoteBySym.set(q.symbol.toUpperCase(), q));
+
   // Top-5 are premium-gated; rest are free.
   // Display order counts DOWN: free rows N → 6 on top, blurred 5 → 1 at bottom.
   const top5Desc = [...(data?.rows.slice(0, 5) || [])].reverse();
@@ -98,10 +98,62 @@ export default function CompaniesPage() {
   const freeColumns: Column<RankingRow>[] = [
     rankCol,
     tickerCol,
-    tierCol,
-    companyCol,
+    {
+      key: "price",
+      label: "Price",
+      align: "right",
+      sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.price ?? null,
+      render: (r) => {
+        const q = quoteBySym.get((r.ticker || "").toUpperCase());
+        return <span className="tabular font-bold text-[14px]">{q ? `$${q.price.toFixed(2)}` : "—"}</span>;
+      },
+    },
+    {
+      key: "changePct",
+      label: "Change %",
+      align: "right",
+      sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.changePct ?? null,
+      render: (r) => {
+        const q = quoteBySym.get((r.ticker || "").toUpperCase());
+        if (!q || q.changePct == null) return <span className="text-faint text-[13px]">—</span>;
+        const up = q.changePct >= 0;
+        return <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>{up ? "+" : ""}{q.changePct.toFixed(2)}%</span>;
+      },
+    },
+    {
+      key: "mktcap",
+      label: "Mkt cap",
+      filterable: true,
+      filterType: "marketCapPreset",
+      filterLabelText: "Market Cap",
+      align: "right",
+      sortValue: (r) => r.marketCap,
+      render: (r) => (
+        <span className="tabular text-mute text-[14px] font-bold">{formatCurrency(r.marketCap)}</span>
+      ),
+    },
+    {
+      key: "peRatio",
+      label: "P/E",
+      align: "right",
+      sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.peRatio ?? null,
+      render: (r) => {
+        const pe = quoteBySym.get((r.ticker || "").toUpperCase())?.peRatio;
+        return <span className="tabular text-mute text-[13px] font-bold">{pe != null ? pe.toFixed(1) : "—"}</span>;
+      },
+    },
+    {
+      key: "dividendYield",
+      label: "Div Yield",
+      align: "right",
+      sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.dividendYield ?? null,
+      render: (r) => {
+        const dy = quoteBySym.get((r.ticker || "").toUpperCase())?.dividendYield;
+        return <span className="tabular text-mute text-[13px] font-bold">{dy != null ? dy.toFixed(2) + "%" : "—"}</span>;
+      },
+    },
     sectorCol,
-    iqsCol,
+    boughtCol,
     {
       key: "buyers",
       label: "Buyers",
@@ -120,7 +172,6 @@ export default function CompaniesPage() {
       sortValue: (r) => r.transactionCount,
       render: (r) => <span className="tabular text-mute text-[14px] font-bold">{r.transactionCount}</span>,
     },
-    boughtCol,
     {
       key: "avgCost",
       label: "Avg Cost",
@@ -144,18 +195,6 @@ export default function CompaniesPage() {
       ),
     },
     {
-      key: "mktcap",
-      label: "Mkt cap",
-      filterable: true,
-      filterType: "marketCapPreset",
-      filterLabelText: "Market Cap",
-      align: "right",
-      sortValue: (r) => r.marketCap,
-      render: (r) => (
-        <span className="tabular text-mute text-[14px] font-bold">{formatCurrency(r.marketCap)}</span>
-      ),
-    },
-    {
       key: "action",
       label: "",
       sortable: false,
@@ -174,10 +213,19 @@ export default function CompaniesPage() {
   const compactColumns: Column<RankingRow>[] = [
     rankCol,
     tickerCol,
-    tierCol,
-    companyCol,
+    {
+      key: "mktcap",
+      label: "Mkt cap",
+      filterable: true,
+      filterType: "marketCapPreset",
+      filterLabelText: "Market Cap",
+      align: "right",
+      sortValue: (r) => r.marketCap,
+      render: (r) => (
+        <span className="tabular text-mute text-[14px] font-bold">{formatCurrency(r.marketCap)}</span>
+      ),
+    },
     sectorCol,
-    iqsCol,
     boughtCol,
   ];
 

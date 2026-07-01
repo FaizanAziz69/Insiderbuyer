@@ -136,7 +136,6 @@ export default function EarningsPerformancePage() {
             {
               key: "company",
               label: "Company",
-              filterable: true,
               sortValue: (r) => r.symbol,
               render: (r) => (
                 <Link
@@ -304,8 +303,6 @@ export default function EarningsPerformancePage() {
             {
               key: "entity",
               label: lbType === "company" ? "Company" : "Insider",
-              filterable: true,
-              filterLabelText: "Name",
               sortValue: (r) =>
                 "ticker" in r ? (r as LbCompany).ticker : (r as LbInsider).name,
               render: (r) =>

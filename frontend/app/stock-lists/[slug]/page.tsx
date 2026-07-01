@@ -15,6 +15,7 @@ import {
 import { AdSlot } from "@/components/AdSlot";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { Indicators } from "@/components/Indicators";
+import { WatchlistButton } from "@/components/WatchlistButton";
 
 interface RowLive {
   price: number;
@@ -23,6 +24,8 @@ interface RowLive {
   volume: number;
   avgVolume: number;
   marketCap: number | null;
+  peRatio?: number | null;
+  dividendYield?: number | null;
 }
 interface DetailRow {
   ticker?: string | null;
@@ -209,53 +212,34 @@ export default function StockListDetailPage({
                 ),
               },
               {
-                key: "ticker",
-                label: "Ticker",
-                filterable: true,
+                key: "company",
+                label: "Company",
                 sortValue: (r) => r.ticker || r.symbol || "",
                 render: (r) => {
                   const ticker = r.ticker || r.symbol || "";
                   return (
-                    <Link
-                      href={ticker ? `/companies/${encodeURIComponent(ticker)}` : "#"}
-                      className="inline-flex items-center gap-2"
-                    >
-                      <CompanyLogo ticker={ticker} name={r.name} size={24} />
-                      <span className="font-mono text-[15px] font-bold text-accent hover:underline">
-                        {ticker || "—"}
-                      </span>
-                    </Link>
+                    <span className="inline-flex items-center gap-2">
+                      {ticker && (
+                        <WatchlistButton ticker={ticker} variant="icon" size="sm" />
+                      )}
+                      <Link
+                        href={ticker ? `/companies/${encodeURIComponent(ticker)}` : "#"}
+                        className="flex items-center gap-2"
+                      >
+                        <CompanyLogo ticker={ticker} name={r.name} size={24} />
+                        <div className="min-w-0">
+                          <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+                            {ticker || "—"}
+                          </div>
+                          <div className="truncate max-w-[260px] text-[13px] font-medium" style={{ color: "var(--text)" }}>
+                            {r.name}
+                          </div>
+                        </div>
+                      </Link>
+                    </span>
                   );
                 },
               },
-              {
-                key: "company",
-                label: "Company",
-                sortValue: (r) => r.name,
-                render: (r) => (
-                  <span className="truncate max-w-[260px] inline-block align-middle text-[14px] font-medium" style={{ color: "var(--text)" }}>
-                    {r.name}
-                  </span>
-                ),
-              },
-              ...(hasSectors
-                ? ([
-                    {
-                      key: "sector",
-                      label: "Sector",
-                      filterable: true,
-                      filterType: "select",
-                      filterLabelText: "Sector",
-                      sortValue: (r) => r.sector || "",
-                      filterLabel: (r) => r.sector || "",
-                      render: (r) => (
-                        <span className="text-[14px] truncate max-w-[150px] inline-block align-middle" style={{ color: "var(--text)" }}>
-                          {r.sector || "—"}
-                        </span>
-                      ),
-                    },
-                  ] as Column<DetailRow>[])
-                : []),
               {
                 key: "price",
                 label: "Price",
@@ -297,13 +281,6 @@ export default function StockListDetailPage({
                 },
               },
               {
-                key: "spark7d",
-                label: "7D Price",
-                sortable: false,
-                align: "center",
-                render: (r) => <Sparkline data={sparkMap[(r.ticker || r.symbol || "").toUpperCase()]} />,
-              },
-              {
                 key: "marketCap",
                 label: "Market Cap",
                 filterable: true,
@@ -318,6 +295,81 @@ export default function StockListDetailPage({
                       : r.marketCap
                       ? formatCurrency(r.marketCap)
                       : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "peRatio",
+                label: "P/E",
+                align: "right",
+                sortValue: (r) => r.live?.peRatio ?? null,
+                render: (r) => (
+                  <span className="tabular text-mute text-[13px] font-bold">
+                    {r.live?.peRatio != null ? r.live.peRatio.toFixed(1) : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "dividendYield",
+                label: "Div Yield",
+                align: "right",
+                sortValue: (r) => r.live?.dividendYield ?? null,
+                render: (r) => (
+                  <span className="tabular text-mute text-[13px] font-bold">
+                    {r.live?.dividendYield != null
+                      ? r.live.dividendYield.toFixed(2) + "%"
+                      : "—"}
+                  </span>
+                ),
+              },
+              ...(hasSectors
+                ? ([
+                    {
+                      key: "sector",
+                      label: "Sector",
+                      filterable: true,
+                      filterType: "select",
+                      filterLabelText: "Sector",
+                      sortValue: (r) => r.sector || "",
+                      filterLabel: (r) => r.sector || "",
+                      render: (r) => (
+                        <span className="text-[14px] truncate max-w-[150px] inline-block align-middle" style={{ color: "var(--text)" }}>
+                          {r.sector || "—"}
+                        </span>
+                      ),
+                    },
+                  ] as Column<DetailRow>[])
+                : []),
+              {
+                key: "spark7d",
+                label: "7D Price",
+                sortable: false,
+                align: "center",
+                render: (r) => <Sparkline data={sparkMap[(r.ticker || r.symbol || "").toUpperCase()]} />,
+              },
+              {
+                key: "volume",
+                label: "Volume",
+                filterable: true,
+                filterType: "range",
+                align: "center",
+                sortValue: (r) => r.live?.volume ?? null,
+                render: (r) => (
+                  <span className="tabular text-[14px] font-bold">
+                    {r.live?.volume ? formatNumber(r.live.volume) : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "avgVolume",
+                label: "Avg Volume",
+                filterable: true,
+                filterType: "range",
+                align: "center",
+                sortValue: (r) => r.live?.avgVolume ?? null,
+                render: (r) => (
+                  <span className="tabular text-mute text-[14px] font-bold">
+                    {r.live?.avgVolume ? formatNumber(r.live.avgVolume) : "—"}
                   </span>
                 ),
               },
@@ -383,32 +435,6 @@ export default function StockListDetailPage({
                     },
                   ] as Column<DetailRow>[])
                 : []),
-              {
-                key: "volume",
-                label: "Volume",
-                filterable: true,
-                filterType: "range",
-                align: "center",
-                sortValue: (r) => r.live?.volume ?? null,
-                render: (r) => (
-                  <span className="tabular text-[14px] font-bold">
-                    {r.live?.volume ? formatNumber(r.live.volume) : "—"}
-                  </span>
-                ),
-              },
-              {
-                key: "avgVolume",
-                label: "Avg Volume",
-                filterable: true,
-                filterType: "range",
-                align: "center",
-                sortValue: (r) => r.live?.avgVolume ?? null,
-                render: (r) => (
-                  <span className="tabular text-mute text-[14px] font-bold">
-                    {r.live?.avgVolume ? formatNumber(r.live.avgVolume) : "—"}
-                  </span>
-                ),
-              },
               {
                 key: "indicators",
                 label: "Indicators",
