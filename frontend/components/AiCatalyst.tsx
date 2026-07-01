@@ -25,7 +25,13 @@ export function AiCatalyst({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [open, setOpen] = useState(false);
   const [armed, setArmed] = useState(false);
-  const [pos, setPos] = useState<{ left: number; bottom?: number; top?: number } | null>(null);
+  const [pos, setPos] = useState<{
+    left: number;
+    bottom?: number;
+    top?: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
@@ -43,15 +49,27 @@ export function AiCatalyst({
   function place() {
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
-    const W = 360;
     const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // Responsive width: full 360 on desktop, but never wider than the viewport
+    // (minus 8px gutters) on mobile.
+    const W = Math.min(360, vw - 16);
+    // Anchor the right edge under the icon, then clamp inside the viewport.
     const left = Math.min(Math.max(8, r.right - W), vw - W - 8);
-    const openAbove = r.top > 260;
-    setPos(
-      openAbove
-        ? { left, bottom: window.innerHeight - r.top + 8 }
-        : { left, top: r.bottom + 8 },
-    );
+    // Open on whichever side has more room, and cap the height to that room so
+    // tall AI text scrolls inside the popover instead of overflowing off-screen.
+    const spaceBelow = vh - r.bottom - 8;
+    const spaceAbove = r.top - 8;
+    if (spaceBelow >= spaceAbove) {
+      setPos({ left, top: r.bottom + 8, width: W, maxHeight: Math.max(160, spaceBelow) });
+    } else {
+      setPos({
+        left,
+        bottom: vh - r.top + 8,
+        width: W,
+        maxHeight: Math.max(160, spaceAbove),
+      });
+    }
   }
 
   function show() {
@@ -98,13 +116,14 @@ export function AiCatalyst({
         pos &&
         createPortal(
           <div
-            className="pointer-events-none rounded-lg overflow-hidden text-left"
+            className="pointer-events-none rounded-lg overflow-y-auto text-left"
             style={{
               position: "fixed",
               left: pos.left,
               top: pos.top,
               bottom: pos.bottom,
-              width: 360,
+              width: pos.width,
+              maxHeight: pos.maxHeight,
               zIndex: 60,
               border: "1px solid var(--border)",
               boxShadow: "0 18px 44px rgba(0,0,0,0.30)",

@@ -127,12 +127,13 @@ export function AiFeaturedHero() {
         </AnimatePresence>
       </div>
 
-      {/* Dot navigation — floated just below the images (out of the column
-          flow) so the images fill the full height and line up with the
-          buy/sell bar, while the dots still sit underneath. */}
+      {/* Dot navigation. On mobile it sits IN FLOW below the images (its own
+          row with top margin) so it can never overlap the next section. On
+          desktop (xl) it floats just below the images (out of the column flow)
+          so the images fill the full height and line up with the buy/sell bar. */}
       {groups.length > 1 && (
         <div
-          className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center gap-2"
+          className="mt-3 flex items-center justify-center gap-2 xl:absolute xl:left-1/2 xl:-translate-x-1/2 xl:mt-0"
           style={{ bottom: -22 }}
         >
           {groups.map((_, i) => (

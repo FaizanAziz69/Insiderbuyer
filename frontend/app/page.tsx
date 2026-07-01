@@ -17,7 +17,6 @@ import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
 import { AiPopularArticlesSection } from "@/components/insights/AiPopularArticlesSection";
 import { AiLatestNewsSection } from "@/components/insights/AiLatestNewsSection";
 import { AiFeaturedHero } from "@/components/insights/AiFeaturedHero";
-import { AiCatalyst } from "@/components/AiCatalyst";
 
 export default function HomePage() {
   return (
@@ -26,7 +25,7 @@ export default function HomePage() {
           same proportions as before. */}
       <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4 items-stretch xl:min-h-[540px]">
         <AiFeaturedHero />
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 h-full">
           <TopGainersPanel />
           <MonthlyBuySellMeter />
         </div>
@@ -104,12 +103,12 @@ function TopGainersPanel() {
 
   return (
     <aside
-      className="rounded-lg overflow-hidden"
+      className="rounded-lg overflow-hidden flex flex-col flex-1 min-h-0"
       style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
     >
       <Link
         href="/market-data/top-gainers"
-        className="flex items-center justify-between px-4 py-2.5 border-b group hover:bg-[var(--accent-soft)] transition"
+        className="flex items-center justify-between px-4 py-2.5 border-b group hover:bg-[var(--accent-soft)] transition flex-shrink-0"
         style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
         title="See all top gainers"
       >
@@ -122,27 +121,23 @@ function TopGainersPanel() {
       </Link>
       {/* Column header */}
       <div
-        className="grid grid-cols-[16px_1fr_60px_auto_26px] gap-2 px-4 py-1.5 text-[10px] uppercase tracking-wider font-bold border-b"
+        className="grid grid-cols-[18px_1fr_60px_auto] gap-2 px-4 py-1.5 text-[10px] uppercase tracking-wider font-bold border-b flex-shrink-0"
         style={{ color: "var(--text-mute)", borderColor: "var(--border)" }}
       >
         <span>#</span>
         <span>Company</span>
         <span className="text-center">Price</span>
         <span className="text-right">Chg / Cap</span>
-        <span className="text-center">AI</span>
       </div>
-      <ul className="divide-y divide-[var(--border)]">
+      <ul className="divide-y divide-[var(--border)] flex flex-col flex-1 min-h-0">
         {gainers.length === 0 ? (
           <li className="px-4 py-6 text-center text-mute text-[12px]">Loading…</li>
         ) : (
           gainers.map((g, i) => (
-            <li
-              key={g.symbol}
-              className="grid grid-cols-[16px_1fr_60px_auto_26px] gap-2 items-center px-4 py-2 hover:bg-[var(--accent-soft)] transition"
-            >
+            <li key={g.symbol} className="flex-1">
               <Link
                 href={`/companies/${encodeURIComponent(g.symbol)}`}
-                className="contents"
+                className="grid grid-cols-[18px_1fr_60px_auto] gap-2 items-center px-4 py-2 h-full hover:bg-[var(--accent-soft)] transition"
               >
                 <span className="text-[11px] font-mono font-bold text-faint text-center">
                   {i + 1}
@@ -167,9 +162,6 @@ function TopGainersPanel() {
                   </span>
                 </span>
               </Link>
-              <span className="flex justify-center">
-                <AiCatalyst ticker={g.symbol} name={g.name} changePct={g.changePct} />
-              </span>
             </li>
           ))
         )}
