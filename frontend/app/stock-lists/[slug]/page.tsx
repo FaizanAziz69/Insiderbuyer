@@ -127,6 +127,9 @@ export default function StockListDetailPage({
   // universe lists that were cross-referenced against Form 4 data).
   const showBuyers = rows.some((r) => (r.distinctBuyers ?? 0) > 0);
   const showBought = rows.some((r) => (r.totalPurchaseValue ?? 0) > 0);
+  // IQS is the headline metric of the premium "IQS Top Picks" list — show it
+  // there (it was intentionally removed from the other lists per client req).
+  const showIqs = data?.kind === "premium" && rows.some((r) => typeof r.iqs === "number");
 
   // Sector select options derived from the rows actually present.
   const hasSectors = rows.some((r) => r.sector && r.sector.trim());
@@ -298,6 +301,24 @@ export default function StockListDetailPage({
                   </span>
                 ),
               },
+              ...(showIqs
+                ? ([
+                    {
+                      key: "iqs",
+                      label: "IQS",
+                      align: "center",
+                      sortValue: (r) => r.iqs ?? null,
+                      render: (r) =>
+                        typeof r.iqs === "number" ? (
+                          <span className="tabular text-[14px] font-bold text-accent">
+                            {r.iqs.toFixed(1)}
+                          </span>
+                        ) : (
+                          <span className="text-mute">—</span>
+                        ),
+                    },
+                  ] as Column<DetailRow>[])
+                : []),
               {
                 key: "peRatio",
                 label: "P/E",
