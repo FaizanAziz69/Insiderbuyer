@@ -1070,93 +1070,126 @@ function AnalystRatingsPanel({
     );
   }
 
-  const facts: [string, React.ReactNode][] = [
-    [
-      "Consensus Rating",
-      rating ? (
-        <span className="font-bold text-good">
-          {RATING_LABEL[rating] || rating}
-        </span>
-      ) : (
-        "—"
-      ),
-    ],
-    ["Analysts Covering", numAnalysts != null ? formatNumber(numAnalysts) : "—"],
-    ["Current Price", price != null ? `$${price.toFixed(2)}` : "—"],
-    ["Average Target", target != null ? `$${target.toFixed(2)}` : "—"],
-    [
-      "Implied Upside",
-      upside != null ? (
-        <span
-          className="font-bold tabular"
-          style={{ color: upside >= 0 ? "var(--good)" : "var(--bad)" }}
-        >
-          {upside >= 0 ? "+" : ""}
-          {upside.toFixed(2)}%
-        </span>
-      ) : (
-        "—"
-      ),
-    ],
-    ["High Target", high != null ? `$${high.toFixed(2)}` : "—"],
-    ["Low Target", low != null ? `$${low.toFixed(2)}` : "—"],
-  ];
-
   return (
     <div className="card p-5">
       <h2 className="text-[16px] font-semibold mb-1">Analyst Ratings &amp; Price Targets</h2>
       <p className="text-[12px] text-mute mb-4">
-        Wall Street consensus for {ticker}.
+        Wall Street consensus for {ticker} — based on analyst 12-month price targets.
       </p>
-      {/* Price-target bar */}
-      {price != null && target != null && low != null && high != null && high > low && (
-        <PriceTargetBar price={price} target={target} low={low} high={high} />
-      )}
-      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 mt-4">
-        {facts.map(([label, value]) => (
-          <div
-            key={label}
-            className="flex items-center justify-between py-2 text-[14px]"
-            style={{ borderBottom: "1px solid var(--border)" }}
-          >
-            <dt className="text-mute">{label}</dt>
-            <dd className="font-semibold tabular text-right">{value}</dd>
-          </div>
-        ))}
-      </dl>
+      <PriceTargetBar
+        price={price}
+        avg={target}
+        low={low}
+        high={high}
+        rating={rating}
+        numAnalysts={numAnalysts}
+        upside={upside}
+      />
     </div>
   );
 }
 
+function ratingColor(rating: string | null): string {
+  if (!rating) return "var(--text)";
+  const r = rating.toLowerCase();
+  if (r.includes("strong_buy") || r === "buy" || r.includes("outperform")) return "var(--good)";
+  if (r.includes("sell") || r.includes("underperform")) return "var(--bad)";
+  return "var(--warn)"; // hold / neutral
+}
+
+/**
+ * TipRanks-style analyst forecast: consensus rating on the left, average price
+ * target + implied upside on the right, and a Low — Average — High bar with the
+ * current price marked. Degrades gracefully when only a rating is available.
+ */
 function PriceTargetBar({
   price,
-  target,
+  avg,
   low,
   high,
+  rating,
+  numAnalysts,
+  upside,
 }: {
-  price: number;
-  target: number;
-  low: number;
-  high: number;
+  price: number | null;
+  avg: number | null;
+  low: number | null;
+  high: number | null;
+  rating: string | null;
+  numAnalysts: number | null;
+  upside: number | null;
 }) {
-  const span = high - low || 1;
-  const pos = (v: number) => Math.min(100, Math.max(0, ((v - low) / span) * 100));
+  const up = upside != null && upside >= 0;
+  const hasBar =
+    price != null && avg != null && low != null && high != null && high > low;
+  // Ensure the current price fits on the track even if it's beyond low/high.
+  const lo = hasBar ? Math.min(low!, price!) : 0;
+  const hi = hasBar ? Math.max(high!, price!) : 1;
+  const span = hi - lo || 1;
+  const pos = (v: number) => Math.min(100, Math.max(0, ((v - lo) / span) * 100));
+
   return (
-    <div className="mt-2 mb-2">
-      <div
-        className="relative h-2 rounded-full"
-        style={{
-          background:
-            "linear-gradient(90deg, var(--bad), var(--bg-3), var(--good))",
-        }}
-      >
-        <Marker pos={pos(price)} color="var(--text)" label="Now" />
-        <Marker pos={pos(target)} color="var(--accent)" label="Target" />
+    <div>
+      {/* Header: rating (left) + average target & implied upside (right) */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-mute font-bold">
+            Consensus
+          </div>
+          <div className="text-[20px] font-bold" style={{ color: ratingColor(rating) }}>
+            {rating ? RATING_LABEL[rating] || rating : "—"}
+          </div>
+          {numAnalysts != null && (
+            <div className="text-[12px] text-mute">
+              Based on {numAnalysts} analyst rating{numAnalysts === 1 ? "" : "s"}
+            </div>
+          )}
+        </div>
+        {avg != null && (
+          <div className="text-right">
+            <div className="text-[11px] uppercase tracking-wider text-mute font-bold">
+              Average Price Target
+            </div>
+            <div className="text-[22px] font-bold tabular">${avg.toFixed(2)}</div>
+            {upside != null && (
+              <div
+                className="text-[13px] font-bold tabular"
+                style={{ color: up ? "var(--good)" : "var(--bad)" }}
+              >
+                {up ? "▲ +" : "▼ "}
+                {upside.toFixed(2)}% {up ? "upside" : "downside"}
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      <div className="flex justify-between text-[11px] text-mute tabular mt-3">
-        <span>Low ${low.toFixed(2)}</span>
-        <span>High ${high.toFixed(2)}</span>
-      </div>
+
+      {/* Low — Average — High bar with current-price marker */}
+      {hasBar && (
+        <>
+          <div
+            className="relative mt-8 h-2 rounded-full"
+            style={{ background: "linear-gradient(90deg, var(--bad), var(--bg-3), var(--good))" }}
+          >
+            <Marker pos={pos(avg!)} color="var(--accent)" label="Avg" placement="above" />
+            <Marker pos={pos(price!)} color="var(--text)" label="Now" placement="below" />
+          </div>
+          <div className="mt-6 grid grid-cols-3 text-[12px]">
+            <div>
+              <div className="text-mute uppercase text-[10px] font-bold tracking-wider">Low</div>
+              <div className="font-bold tabular">${low!.toFixed(2)}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-mute uppercase text-[10px] font-bold tracking-wider">Average</div>
+              <div className="font-bold tabular" style={{ color: "var(--accent)" }}>${avg!.toFixed(2)}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-mute uppercase text-[10px] font-bold tracking-wider">High</div>
+              <div className="font-bold tabular">${high!.toFixed(2)}</div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1165,23 +1198,33 @@ function Marker({
   pos,
   color,
   label,
+  placement = "below",
 }: {
   pos: number;
   color: string;
   label: string;
+  placement?: "above" | "below";
 }) {
   return (
     <div
-      className="absolute -top-1 flex flex-col items-center"
-      style={{ left: `${pos}%`, transform: "translateX(-50%)" }}
+      className="absolute flex flex-col items-center"
+      style={{
+        left: `${pos}%`,
+        transform: "translateX(-50%)",
+        top: placement === "above" ? -22 : 6,
+      }}
     >
-      <div
-        className="h-4 w-4 rounded-full border-2"
-        style={{ background: color, borderColor: "var(--bg-2)" }}
-      />
-      <span className="text-[10px] font-bold mt-0.5" style={{ color }}>
-        {label}
-      </span>
+      {placement === "above" && (
+        <span className="text-[10px] font-bold mb-0.5" style={{ color }}>
+          {label}
+        </span>
+      )}
+      <div className="h-4 w-4 rounded-full border-2" style={{ background: color, borderColor: "var(--bg-2)" }} />
+      {placement === "below" && (
+        <span className="text-[10px] font-bold mt-0.5" style={{ color }}>
+          {label}
+        </span>
+      )}
     </div>
   );
 }
