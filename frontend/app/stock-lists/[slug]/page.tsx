@@ -16,6 +16,7 @@ import { AdSlot } from "@/components/AdSlot";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { Indicators } from "@/components/Indicators";
 import { WatchlistButton } from "@/components/WatchlistButton";
+import { IqsScoreCell } from "@/components/IqsScoreCell";
 
 interface RowLive {
   price: number;
@@ -127,9 +128,12 @@ export default function StockListDetailPage({
   // universe lists that were cross-referenced against Form 4 data).
   const showBuyers = rows.some((r) => (r.distinctBuyers ?? 0) > 0);
   const showBought = rows.some((r) => (r.totalPurchaseValue ?? 0) > 0);
-  // IQS is the headline metric of the premium "IQS Top Picks" list — show it
-  // there (it was intentionally removed from the other lists per client req).
-  const showIqs = data?.kind === "premium" && rows.some((r) => typeof r.iqs === "number");
+  // IQS is only meaningful on insider-scored lists (premium IQS Top Picks +
+  // the Form 4-cross-referenced sector lists) — not the quote-only universe /
+  // country / persona lists.
+  const showIqs =
+    (data?.kind === "premium" || data?.kind === "sector") &&
+    rows.some((r) => typeof r.iqs === "number");
 
   // Sector select options derived from the rows actually present.
   const hasSectors = rows.some((r) => r.sector && r.sector.trim());
@@ -308,14 +312,7 @@ export default function StockListDetailPage({
                       label: "IQS",
                       align: "center",
                       sortValue: (r) => r.iqs ?? null,
-                      render: (r) =>
-                        typeof r.iqs === "number" ? (
-                          <span className="tabular text-[14px] font-bold text-accent">
-                            {r.iqs.toFixed(1)}
-                          </span>
-                        ) : (
-                          <span className="text-mute">—</span>
-                        ),
+                      render: (r) => <IqsScoreCell iqs={r.iqs} />,
                     },
                   ] as Column<DetailRow>[])
                 : []),

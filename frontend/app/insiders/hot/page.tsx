@@ -14,6 +14,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
 import { Sparkline } from "@/components/Sparkline";
 import { DataTable, Column } from "@/components/DataTable";
+import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { InsiderSignalHover } from "@/components/InsiderSignalHover";
 
@@ -147,6 +148,13 @@ export default function InsiderHotStocksPage() {
           {formatCurrency(r.marketCap)}
         </span>
       ),
+    },
+    {
+      key: "iqs",
+      label: "IQS",
+      align: "center",
+      sortValue: (r) => r.iqs ?? null,
+      render: (r) => <IqsScoreCell iqs={r.iqs} />,
     },
     {
       key: "signal",

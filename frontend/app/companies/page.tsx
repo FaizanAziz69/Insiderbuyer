@@ -6,6 +6,7 @@ import { API_BASE, RankingRow, RankingsResponse, fetcher, formatCurrency, format
 import { PremiumGate } from "@/components/PremiumGate";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
+import { IqsScoreCell } from "@/components/IqsScoreCell";
 
 // Shared column definitions — reused by both the free and paywall tables.
 const rankCol: Column<RankingRow> = {
@@ -70,6 +71,14 @@ const boughtCol: Column<RankingRow> = {
   ),
 };
 
+const iqsCol: Column<RankingRow> = {
+  key: "iqs",
+  label: "IQS",
+  align: "center",
+  sortValue: (r) => r.iqs ?? null,
+  render: (r) => <IqsScoreCell iqs={r.iqs} />,
+};
+
 export default function CompaniesPage() {
   const { data, isLoading } = useSWR<RankingsResponse>(
     `${API_BASE}/rankings?limit=200`,
@@ -132,6 +141,7 @@ export default function CompaniesPage() {
         <span className="tabular text-mute text-[14px] font-bold">{formatCurrency(r.marketCap)}</span>
       ),
     },
+    iqsCol,
     {
       key: "peRatio",
       label: "P/E",
@@ -225,6 +235,7 @@ export default function CompaniesPage() {
         <span className="tabular text-mute text-[14px] font-bold">{formatCurrency(r.marketCap)}</span>
       ),
     },
+    iqsCol,
     sectorCol,
     boughtCol,
   ];
