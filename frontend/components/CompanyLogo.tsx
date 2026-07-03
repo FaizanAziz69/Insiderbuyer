@@ -133,7 +133,7 @@ export function CompanyLogo({ ticker, name, size = 28, className = "" }: Props) 
   }
   return (
     <img
-      src={`https://logo.clearbit.com/${domain}`}
+      src={`https://logo.clearbit.com/${domain}?size=${Math.max(64, Math.round(size * 2))}&format=png`}
       alt={ticker || name || ""}
       width={size}
       height={size}

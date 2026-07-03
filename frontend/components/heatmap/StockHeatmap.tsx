@@ -417,8 +417,6 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
     >
       {blocks.map((b, bi) => {
         const showLabel = b.w >= 80 && b.h >= 60;
-        const isLit = !!hover && hover.sector === b.sector;
-        const isDimmed = !!hover && hover.sector !== b.sector && mode === "sector";
         return (
           <div
             key={`block-${b.sector}-${bi}`}
@@ -429,25 +427,8 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
               width: b.w,
               height: b.h,
               overflow: "visible",
-              opacity: isDimmed ? 0.35 : 1,
-              transition: "opacity 0.16s ease",
-              zIndex: isLit ? 3 : 1,
             }}
           >
-            {/* Lit-sector wash + outline */}
-            {isLit && mode === "sector" && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  boxShadow: "inset 0 0 0 2px rgba(37,99,235,0.9)",
-                  background: "rgba(37,99,235,0.06)",
-                  borderRadius: 4,
-                  pointerEvents: "none",
-                  zIndex: 6,
-                }}
-              />
-            )}
             {showLabel && (
               <div
                 style={{
@@ -456,19 +437,18 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                   top: 2,
                   right: PAD,
                   height: HEADER_H - 2,
-                  fontSize: isLit ? 17 : 15,
+                  fontSize: 15,
                   fontWeight: 800,
-                  color: isLit ? "#1d4ed8" : "#000000",
+                  color: "#000000",
                   textTransform: "uppercase",
                   letterSpacing: "0.04em",
                   pointerEvents: "none",
-                  zIndex: 7,
+                  zIndex: 4,
                   overflow: "hidden",
                   whiteSpace: "nowrap",
                   textOverflow: "ellipsis",
                   lineHeight: `${HEADER_H - 2}px`,
                   padding: "0 5px",
-                  transition: "font-size 0.14s ease, color 0.14s ease",
                 }}
               >
                 {b.sector}
@@ -499,12 +479,12 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
               // smaller tile edge, so big-caps get big logos.
               const sym = rect.row.ticker || rect.row.companyId;
               const isHovered = hover?.sym === sym;
-              const showLogo = !hideAll && tileW >= 46 && tileH >= 42;
+              const showLogo = !hideAll && tileW >= 30 && tileH >= 28;
               const showName = !hideAll && !tickerOnly && !tiny && !small && tileW >= 120;
               const baseLogo = Math.round(Math.min(tileW, tileH) * 0.34);
               const logoSize = Math.max(18, Math.min(96, baseLogo));
               const drawLogoSize = isHovered
-                ? Math.min(110, Math.round(logoSize * 1.14))
+                ? Math.min(110, Math.round(logoSize * 1.08))
                 : logoSize;
               const sign = pct >= 0 ? "+" : "";
               const subLabel =
@@ -541,11 +521,11 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                     overflow: "hidden",
                     cursor: "pointer",
                     zIndex: isHovered ? 20 : 1,
-                    filter: isHovered ? "brightness(1.2)" : undefined,
+                    filter: isHovered ? "brightness(1.1)" : undefined,
                     boxShadow: isHovered
-                      ? "inset 0 0 0 2px #ffffff, 0 0 16px rgba(255,255,255,0.45), 0 6px 18px rgba(0,0,0,0.35)"
+                      ? "inset 0 0 0 2px rgba(255,255,255,0.95)"
                       : undefined,
-                    transition: "filter 0.14s ease, box-shadow 0.14s ease",
+                    transition: "filter 0.12s ease, box-shadow 0.12s ease",
                   }}
                 >
                   <Link
