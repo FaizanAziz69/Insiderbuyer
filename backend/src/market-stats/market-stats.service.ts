@@ -1347,6 +1347,22 @@ export class MarketStatsService {
     return rows;
   }
 
+  /** Market heat-map feed — the biggest U.S. companies (by market cap) with
+   *  live intraday change and sector, for the market heatmap. Sourced from the
+   *  v7 batch quote (reliable on the server), largest first. */
+  async getMarketHeatmap(): Promise<MarketStatRow[]> {
+    return this.cachedTool(
+      "heatmap",
+      async () => {
+        const quotes = await this.getQuoteBatch(this.universe());
+        return Array.from(quotes.values())
+          .filter((r) => (r.marketCap ?? 0) > 0 && r.price > 0)
+          .sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0));
+      },
+      20,
+    );
+  }
+
   /** Dividends — yield, rate, payout and ex-date for every dividend payer in
    *  the universe, highest yield first. */
   async getDividends(): Promise<DividendRow[]> {

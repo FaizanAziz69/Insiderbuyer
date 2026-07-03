@@ -86,6 +86,11 @@ export class MarketStatsController {
     return { history: await this.svc.getPriceHistory(symbol, range || '1y') };
   }
 
+  @Get('heatmap')
+  async heatmap() {
+    return { rows: await this.svc.getMarketHeatmap() };
+  }
+
   @Get('analyst-ratings')
   async analystRatings() {
     return { rows: await this.svc.getAnalystRatings() };

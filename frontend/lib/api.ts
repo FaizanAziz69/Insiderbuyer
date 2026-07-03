@@ -27,6 +27,41 @@ export interface RankingRow {
   livePrice?: number | null;
 }
 
+/** Row from /market-stats/heatmap (biggest U.S. companies by market cap). */
+export interface HeatQuote {
+  symbol: string;
+  name: string;
+  marketCap: number | null;
+  changePct: number;
+  sector: string | null;
+  price: number;
+}
+
+/** Adapt a heatmap quote to the RankingRow shape the StockHeatmap expects. */
+export function heatToRanking(r: HeatQuote, i: number): RankingRow {
+  return {
+    rank: i + 1,
+    companyId: r.symbol,
+    ticker: r.symbol,
+    name: r.name,
+    sector: r.sector,
+    marketCap: r.marketCap,
+    lastPrice: r.price,
+    iqs: 0,
+    insiderWeight: 0,
+    transactionWeight: 0,
+    convictionWeight: 0,
+    historicalSuccessWeight: 0,
+    clusterWeight: 0,
+    marketTimingWeight: 0,
+    distinctBuyers: 0,
+    transactionCount: 0,
+    totalPurchaseValue: 0,
+    changePct: r.changePct,
+    livePrice: r.price,
+  };
+}
+
 export interface RankingsResponse {
   total: number;
   rows: RankingRow[];

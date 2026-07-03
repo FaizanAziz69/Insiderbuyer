@@ -3,7 +3,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { motion } from "framer-motion";
 import { Flame } from "lucide-react";
-import { API_BASE, RankingsResponse, fetcher } from "@/lib/api";
+import { API_BASE, HeatQuote, heatToRanking, fetcher } from "@/lib/api";
 import { StockHeatmap } from "@/components/heatmap/StockHeatmap";
 
 const FAQS = [
@@ -22,12 +22,12 @@ const FAQS = [
 ];
 
 export default function MarketHeatmapPage() {
-  const { data } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=500&live=1`,
+  const { data } = useSWR<{ rows: HeatQuote[] }>(
+    `${API_BASE}/market-stats/heatmap`,
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
-  const rows = data?.rows ?? [];
+  const rows = (data?.rows ?? []).map(heatToRanking);
   return (
     <div className="w-full space-y-6">
       <motion.header

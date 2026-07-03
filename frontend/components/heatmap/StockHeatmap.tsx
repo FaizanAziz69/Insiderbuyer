@@ -3,6 +3,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { useMemo, useRef, useState, useEffect } from "react";
 import { RankingRow, formatCurrency } from "@/lib/api";
+import { CompanyLogo } from "@/components/CompanyLogo";
 
 interface Props {
   rows: RankingRow[];
@@ -464,6 +465,10 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                 small ? 11 : medium ? 13 : 16,
                 Math.floor(((tileW - 8) / 5) * 1.4),
               );
+              // Logos on comfortably-sized tiles; company name on the larger ones.
+              const showLogo = !hideAll && !tickerOnly && tileW >= 66 && tileH >= 60;
+              const showName = !hideAll && !tickerOnly && !tiny && !small && tileW >= 110;
+              const logoSize = Math.max(16, Math.min(34, Math.floor(tileH * 0.32)));
               const sign = pct >= 0 ? "+" : "";
               const subLabel =
                 mode === "iqs"
@@ -489,18 +494,34 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                     height: Math.max(0, tileH - 2),
                     background: c.bg,
                     color: "#ffffff",
-                    borderRadius: 1,
+                    borderRadius: 2,
                     overflow: "hidden",
                     cursor: "pointer",
                   }}
-                  whileHover={{ zIndex: 5, boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.85)" }}
+                  whileHover={{
+                    zIndex: 5,
+                    filter: "brightness(1.18)",
+                    boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.95)",
+                  }}
                 >
                   <Link
                     href={rect.row.ticker ? `/companies/${encodeURIComponent(rect.row.ticker)}` : "#"}
                     className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden"
-                    style={{ color: "#ffffff", padding: 2 }}
+                    style={{ color: "#ffffff", padding: 2, gap: 2 }}
                     title={tileTitle}
                   >
+                    {showLogo && (
+                      <span
+                        className="rounded-md overflow-hidden bg-white/90 flex items-center justify-center flex-shrink-0"
+                        style={{ width: logoSize, height: logoSize, padding: 1 }}
+                      >
+                        <CompanyLogo
+                          ticker={rect.row.ticker || ""}
+                          name={rect.row.name}
+                          size={logoSize - 2}
+                        />
+                      </span>
+                    )}
                     {!hideAll && (
                       <div
                         className="tracking-tight leading-none text-center"
@@ -515,6 +536,22 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                         {rect.row.ticker || "—"}
                       </div>
                     )}
+                    {showName && (
+                      <div
+                        className="leading-tight text-center px-1"
+                        style={{
+                          color: "rgba(255,255,255,0.92)",
+                          fontSize: Math.max(9, Math.min(13, Math.floor(tileW / 12))),
+                          fontWeight: 600,
+                          maxWidth: "100%",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {rect.row.name}
+                      </div>
+                    )}
                     {!hideAll && !tickerOnly && !tiny && (
                       <div
                         className="leading-none tabular text-center"
@@ -522,7 +559,7 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                           color: "#ffffff",
                           fontSize: Math.max(9, pctFs),
                           fontWeight: 800,
-                          marginTop: 3,
+                          marginTop: 1,
                           whiteSpace: "nowrap",
                         }}
                       >

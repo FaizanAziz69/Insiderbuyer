@@ -2,7 +2,7 @@
 import Link from "next/link";
 import useSWR from "swr";
 import { ChevronRight } from "lucide-react";
-import { API_BASE, RankingsResponse, fetcher } from "@/lib/api";
+import { API_BASE, HeatQuote, heatToRanking, fetcher } from "@/lib/api";
 import { MonthlyBuySellMeter } from "@/components/home/MonthlyBuySellMeter";
 import { PredictionOfTheDay } from "@/components/home/PredictionOfTheDay";
 import { HomeDatasets } from "@/components/home/HomeDatasets";
@@ -173,12 +173,12 @@ function TopGainersPanel() {
 /** Full-width horizontal market heat map. */
 function MarketHeatmapPanel() {
   const HEIGHT = 380;
-  const { data } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=500&live=1`,
+  const { data } = useSWR<{ rows: HeatQuote[] }>(
+    `${API_BASE}/market-stats/heatmap`,
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
-  const rows = data?.rows ?? [];
+  const rows = (data?.rows ?? []).map(heatToRanking);
 
   return (
     <aside
