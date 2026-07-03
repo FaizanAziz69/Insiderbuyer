@@ -18,7 +18,7 @@ import { AdSlot } from "@/components/AdSlot";
 
 export default function MoversPage() {
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=40&live=1`,
+    `${API_BASE}/rankings?limit=200&live=1`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );

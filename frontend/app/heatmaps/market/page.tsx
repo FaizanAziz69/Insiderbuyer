@@ -23,7 +23,7 @@ const FAQS = [
 
 export default function MarketHeatmapPage() {
   const { data } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=300&live=1`,
+    `${API_BASE}/rankings?limit=500&live=1`,
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );

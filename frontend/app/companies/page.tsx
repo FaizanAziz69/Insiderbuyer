@@ -70,7 +70,7 @@ const iqsCol: Column<RankingRow> = {
 
 export default function CompaniesPage() {
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=200`,
+    `${API_BASE}/rankings?limit=500`,
     fetcher,
   );
 

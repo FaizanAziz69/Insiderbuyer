@@ -158,6 +158,28 @@ export class MarketStatsService {
   private screenCache = new Map<string, { ts: number; data: MarketStatRow[] }>();
   private readonly SCREEN_CACHE_MS = 60_000;
 
+  // Result cache for the summary-heavy tool tables (analyst/dividends/short
+  // interest). These scan the whole universe with per-symbol summary calls, so
+  // caching keeps them fast and — crucially — complete: a warm cache serves the
+  // full set even if a later refresh partially fails on a cold serverless start.
+  private toolCache = new Map<string, { ts: number; data: any }>();
+  private readonly TOOL_CACHE_MS = 15 * 60_000;
+
+  private async cachedTool<T>(key: string, build: () => Promise<T[]>): Promise<T[]> {
+    const hit = this.toolCache.get(key);
+    if (hit && Date.now() - hit.ts < this.TOOL_CACHE_MS) return hit.data as T[];
+    try {
+      const data = await build();
+      // Only overwrite a previous good result if the new one isn't emptier
+      // (guards against a partial-failure refresh wiping a full cached set).
+      if (data.length || !hit) this.toolCache.set(key, { ts: Date.now(), data });
+      return (this.toolCache.get(key)!.data as T[]);
+    } catch {
+      if (hit) return hit.data as T[];
+      throw new Error(`tool ${key} failed and no cache`);
+    }
+  }
+
   // Only surface names on the two major US exchanges (NASDAQ tiers + NYSE).
   // This excludes OTC / pink-sheet listings (exchange codes PNK, OTC, OQB,
   // OQX, etc.) where a few hundred shares can manufacture a fake "top gainer".
@@ -1228,6 +1250,9 @@ export class MarketStatsService {
   /** Analyst Ratings — consensus recommendation + price targets across the
    *  market universe, sorted by analyst-implied upside. */
   async getAnalystRatings(): Promise<AnalystRow[]> {
+    return this.cachedTool("analyst", () => this.buildAnalystRatings());
+  }
+  private async buildAnalystRatings(): Promise<AnalystRow[]> {
     const syms = this.universe();
     const [quotes, summaries] = await Promise.all([
       this.getQuoteBatch(syms),
@@ -1263,6 +1288,9 @@ export class MarketStatsService {
   /** Dividends — yield, rate, payout and ex-date for every dividend payer in
    *  the universe, highest yield first. */
   async getDividends(): Promise<DividendRow[]> {
+    return this.cachedTool("dividends", () => this.buildDividends());
+  }
+  private async buildDividends(): Promise<DividendRow[]> {
     const syms = this.universe();
     const [quotes, summaries] = await Promise.all([
       this.getQuoteBatch(syms),
@@ -1297,6 +1325,9 @@ export class MarketStatsService {
   /** Short Interest — shares short, % of float, days-to-cover and the
    *  month-over-month change, most-shorted first. */
   async getShortInterest(): Promise<ShortInterestRow[]> {
+    return this.cachedTool("short-interest", () => this.buildShortInterest());
+  }
+  private async buildShortInterest(): Promise<ShortInterestRow[]> {
     const syms = this.universe();
     const [quotes, summaries] = await Promise.all([
       this.getQuoteBatch(syms),

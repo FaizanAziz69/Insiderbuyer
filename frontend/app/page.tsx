@@ -174,7 +174,7 @@ function TopGainersPanel() {
 function MarketHeatmapPanel() {
   const HEIGHT = 380;
   const { data } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=120&live=1`,
+    `${API_BASE}/rankings?limit=500&live=1`,
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );

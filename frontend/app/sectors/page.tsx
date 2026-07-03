@@ -115,7 +115,7 @@ const FAQS = [
 
 export default function SectorsPage() {
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=300&live=1`,
+    `${API_BASE}/rankings?limit=500&live=1`,
     fetcher,
     { refreshInterval: 60000, revalidateOnFocus: false },
   );
