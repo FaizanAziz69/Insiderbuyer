@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ExternalLink, Lock } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
 import { rankColumn } from "@/components/tableColumns";
+import { CompanyLogo } from "@/components/CompanyLogo";
+import { WatchlistButton } from "@/components/WatchlistButton";
 import { TradeRow, formatCurrency, formatDate, formatNumber } from "@/lib/api";
 
 const ROLE_CLS: Record<string, string> = {
@@ -32,23 +34,28 @@ export function TradesTable({
       key: "ticker",
       label: "Company",
       sortValue: (t) => t.ticker ?? "",
-      render: (t) => (
-        <>
-          {t.ticker ? (
+      render: (t) => {
+        const ticker = t.ticker || "";
+        return (
+          <span className="inline-flex items-center gap-2">
+            {ticker && <WatchlistButton ticker={ticker} variant="icon" size="sm" />}
             <Link
-              href={`/companies/${encodeURIComponent(t.ticker)}`}
-              className="font-bold text-accent hover:underline font-mono text-[15px]"
+              href={ticker ? `/companies/${encodeURIComponent(ticker)}` : "#"}
+              className="flex items-center gap-2"
             >
-              {t.ticker}
+              <CompanyLogo ticker={ticker} name={t.companyName} size={22} />
+              <div className="min-w-0">
+                <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+                  {ticker || "—"}
+                </div>
+                <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
+                  {t.companyName}
+                </div>
+              </div>
             </Link>
-          ) : (
-            <span className="text-faint">—</span>
-          )}
-          <div className="text-[14px] font-medium truncate max-w-[180px]" style={{ color: "var(--text)" }}>
-            {t.companyName}
-          </div>
-        </>
-      ),
+          </span>
+        );
+      },
     },
     {
       key: "insiderName",
@@ -214,19 +221,23 @@ function Row({ t, rank }: { t: TradeRow; rank: number }) {
     <>
       <td className="tabular text-[15px] font-bold" style={{ color: "var(--text)" }}>{rank}</td>
       <td>
-        {t.ticker ? (
+        <span className="inline-flex items-center gap-2">
+          {t.ticker && <WatchlistButton ticker={t.ticker} variant="icon" size="sm" />}
           <Link
-            href={`/companies/${encodeURIComponent(t.ticker)}`}
-            className="font-bold text-accent hover:underline font-mono text-[15px]"
+            href={t.ticker ? `/companies/${encodeURIComponent(t.ticker)}` : "#"}
+            className="flex items-center gap-2"
           >
-            {t.ticker}
+            <CompanyLogo ticker={t.ticker || ""} name={t.companyName} size={22} />
+            <div className="min-w-0">
+              <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+                {t.ticker || "—"}
+              </div>
+              <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
+                {t.companyName}
+              </div>
+            </div>
           </Link>
-        ) : (
-          <span className="text-faint">—</span>
-        )}
-        <div className="text-[14px] font-medium truncate max-w-[180px]" style={{ color: "var(--text)" }}>
-          {t.companyName}
-        </div>
+        </span>
       </td>
       <td>
         <div className="font-bold text-[15px]">{t.insiderName}</div>
