@@ -19,7 +19,8 @@ const ITEMS: {
   symbol: string;
   label: string;
   href?: string;
-  privateNote?: string;
+  privateNote?: string; // marks a private company (no live quote)
+  valuation?: string; // static private-market valuation to display
 }[] = [
   { symbol: "^GSPC", label: "S&P 500" },
   { symbol: "^DJI", label: "Dow" },
@@ -29,7 +30,8 @@ const ITEMS: {
   { symbol: "CL=F", label: "Oil" },
   { symbol: "BTC-USD", label: "Bitcoin" },
   { symbol: "NVDA", label: "Nvidia", href: "/companies/NVDA" },
-  { symbol: "SPACEX", label: "SpaceX", privateNote: "Private" },
+  // Private company — approximate private-market valuation (edit as needed).
+  { symbol: "SPACEX", label: "SpaceX", privateNote: "Private", valuation: "~$400B" },
 ];
 
 // Only real, quotable symbols are fetched (SpaceX is private → static).
@@ -79,9 +81,14 @@ export function TopTickerBar() {
               <span className="font-bold uppercase tracking-wider text-[14px]">
                 {it.label}
               </span>
+              {it.valuation && (
+                <span className="font-mono font-semibold text-[15px]">
+                  {it.valuation}
+                </span>
+              )}
               <span
-                className="font-mono font-semibold text-[13px] uppercase tracking-wide"
-                style={{ color: "rgba(255,255,255,0.65)" }}
+                className="font-mono font-semibold text-[11px] uppercase tracking-wide"
+                style={{ color: "rgba(255,255,255,0.6)" }}
               >
                 {it.privateNote}
               </span>
