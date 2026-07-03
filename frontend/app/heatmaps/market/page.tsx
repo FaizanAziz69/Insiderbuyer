@@ -5,7 +5,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Flame, Search, ChevronDown, Check } from "lucide-react";
 import { API_BASE, HeatQuote, heatToRanking, fetcher } from "@/lib/api";
-import { StockHeatmap, HeatmapLegend } from "@/components/heatmap/StockHeatmap";
+import { StockHeatmap, HeatmapLegend, ColorBy } from "@/components/heatmap/StockHeatmap";
 
 // USA sources shown in the Source menu (TradingView parity). Only S&P 500 is
 // backed by our current data; the rest are listed but disabled until we have
@@ -48,7 +48,7 @@ export default function MarketHeatmapPage() {
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
   const [groupBy, setGroupBy] = useState<"sector" | "none">("sector");
-  const [colorBy, setColorBy] = useState<"change" | "relvol">("change");
+  const [colorBy, setColorBy] = useState<ColorBy>("change");
   const [sizeBy, setSizeBy] = useState<"marketCap" | "volume" | "turnover" | "mono">(
     "marketCap",
   );
@@ -169,10 +169,14 @@ export default function MarketHeatmapPage() {
           <ControlSelect
             label="Color by"
             value={colorBy}
-            onChange={(v) => setColorBy(v as "change" | "relvol")}
+            onChange={(v) => setColorBy(v as ColorBy)}
             options={[
-              { value: "change", label: "Change %" },
-              { value: "relvol", label: "Rel. volume" },
+              { value: "change", label: "Change 1D, %" },
+              { value: "perfYear", label: "Performance 1Y, %" },
+              { value: "perf50d", label: "vs 50-Day Avg, %" },
+              { value: "perf200d", label: "vs 200-Day Avg, %" },
+              { value: "postmarket", label: "Post-market, %" },
+              { value: "relvol", label: "Relative Volume" },
             ]}
           />
           <ControlSelect

@@ -27,6 +27,10 @@ export interface RankingRow {
   livePrice?: number | null;
   volume?: number | null;
   avgVolume?: number | null;
+  perfYear?: number | null;
+  perf50d?: number | null;
+  perf200d?: number | null;
+  postMarketPct?: number | null;
 }
 
 /** Row from /market-stats/heatmap (biggest U.S. companies by market cap). */
@@ -39,6 +43,10 @@ export interface HeatQuote {
   price: number;
   volume?: number | null;
   avgVolume?: number | null;
+  perfYear?: number | null;
+  perf50d?: number | null;
+  perf200d?: number | null;
+  postMarketPct?: number | null;
 }
 
 /** Adapt a heatmap quote to the RankingRow shape the StockHeatmap expects. */
@@ -65,6 +73,10 @@ export function heatToRanking(r: HeatQuote, i: number): RankingRow {
     livePrice: r.price,
     volume: r.volume ?? null,
     avgVolume: r.avgVolume ?? null,
+    perfYear: r.perfYear ?? null,
+    perf50d: r.perf50d ?? null,
+    perf200d: r.perf200d ?? null,
+    postMarketPct: r.postMarketPct ?? null,
   };
 }
 

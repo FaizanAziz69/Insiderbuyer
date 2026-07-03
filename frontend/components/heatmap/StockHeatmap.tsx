@@ -5,6 +5,35 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { RankingRow, formatCurrency, formatNumber } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 
+export type ColorBy =
+  | "change"
+  | "relvol"
+  | "perfYear"
+  | "perf50d"
+  | "perf200d"
+  | "postmarket";
+
+// Per-mode saturation clamp (%) for the diverging color scale. Larger windows
+// (yearly performance) need a wider clamp than a single day's change.
+const COLOR_CLAMP: Record<ColorBy, number> = {
+  change: 8,
+  postmarket: 8,
+  perf50d: 20,
+  perf200d: 30,
+  perfYear: 60,
+  relvol: 0,
+};
+
+function colorMetric(r: RankingRow, cb: ColorBy): number {
+  switch (cb) {
+    case "perfYear": return r.perfYear ?? 0;
+    case "perf50d": return r.perf50d ?? 0;
+    case "perf200d": return r.perf200d ?? 0;
+    case "postmarket": return r.postMarketPct ?? 0;
+    default: return typeof r.changePct === "number" ? r.changePct : 0;
+  }
+}
+
 interface Props {
   rows: RankingRow[];
   height?: number;
@@ -12,7 +41,7 @@ interface Props {
   /** What the tile AREA represents. */
   sizeBy?: "marketCap" | "volume" | "turnover" | "mono";
   /** What the tile COLOR represents. */
-  colorBy?: "change" | "relvol";
+  colorBy?: ColorBy;
   /** Group by the row's sector verbatim (already-clean TRBC sectors from the
    *  market-heatmap feed) instead of running it through shortSector(). */
   rawSectors?: boolean;
@@ -170,9 +199,8 @@ function mix(a: [number, number, number], b: [number, number, number], t: number
   return `rgb(${r}, ${g}, ${bl})`;
 }
 
-function colorForChange(pct: number) {
-  // Clamp to ±5% — matches the −8…+8 legend where deep shades kick in ~±5%.
-  const t = Math.max(-1, Math.min(1, pct / 5));
+function colorForChange(pct: number, clamp = 5) {
+  const t = Math.max(-1, Math.min(1, pct / clamp));
   const bg = t >= 0 ? mix(NEUTRAL, GREEN, t) : mix(NEUTRAL, RED, -t);
   return { bg };
 }
@@ -514,12 +542,13 @@ export function StockHeatmap({
               const pct = changePctFor(rect.row);
               const iqs = rect.row.iqs;
               const rv = relVol(rect.row);
+              const metric = colorMetric(rect.row, colorBy);
               const c =
                 colorBy === "relvol"
                   ? colorForRelVol(rv)
                   : mode === "iqs"
                     ? colorForIqs(iqs)
-                    : colorForChange(pct);
+                    : colorForChange(metric, COLOR_CLAMP[colorBy]);
               const tileW = rect.w;
               const tileH = rect.h;
               const area = tileW * tileH;
@@ -554,7 +583,9 @@ export function StockHeatmap({
                   ? `${rv.toFixed(1)}×`
                   : mode === "iqs"
                     ? `IQS ${iqs.toFixed(1)}`
-                    : `${sign}${pct.toFixed(2)}%`;
+                    : colorBy === "change"
+                      ? `${sign}${pct.toFixed(2)}%`
+                      : `${metric >= 0 ? "+" : ""}${metric.toFixed(2)}%`;
               const tileTitle =
                 mode === "iqs"
                   ? `${rect.row.ticker || rect.row.name} · IQS ${iqs.toFixed(1)} · ${formatCurrency(rect.row.marketCap)}`
@@ -742,25 +773,25 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
 }
 
 /** TradingView-style legend — discrete swatches, switches with Color-By. */
-export function HeatmapLegend({ colorBy = "change" }: { colorBy?: "change" | "relvol" }) {
-  const swatches =
-    colorBy === "relvol"
-      ? [
-          { label: "0.5×", c: "#7f8c8d" },
-          { label: "1×", c: "#a9752b" },
-          { label: "1.5×", c: "#c99a2e" },
-          { label: "2×", c: "#d97706" },
-          { label: "3×+", c: "#b91c1c" },
-        ]
-      : [
-          { label: "-8%", c: "#7f1d1d" },
-          { label: "-5%", c: "#c0392b" },
-          { label: "-2%", c: "#e57373" },
-          { label: "0%", c: "#9aa0a6" },
-          { label: "+2%", c: "#5cb884" },
-          { label: "+5%", c: "#2e9e5b" },
-          { label: "+8%", c: "#14532d" },
-        ];
+export function HeatmapLegend({ colorBy = "change" }: { colorBy?: ColorBy }) {
+  const DIVERGE = ["#7f1d1d", "#c0392b", "#e57373", "#9aa0a6", "#5cb884", "#2e9e5b", "#14532d"];
+  let swatches: { label: string; c: string }[];
+  if (colorBy === "relvol") {
+    swatches = [
+      { label: "0.5×", c: "#7f8c8d" },
+      { label: "1×", c: "#a9752b" },
+      { label: "1.5×", c: "#c99a2e" },
+      { label: "2×", c: "#d97706" },
+      { label: "3×+", c: "#b91c1c" },
+    ];
+  } else {
+    const clamp = COLOR_CLAMP[colorBy] || 8;
+    const stops = [-1, -0.6, -0.25, 0, 0.25, 0.6, 1];
+    swatches = stops.map((s, i) => {
+      const v = Math.round(s * clamp);
+      return { label: `${v > 0 ? "+" : ""}${v}%`, c: DIVERGE[i] };
+    });
+  }
   return (
     <div className="flex flex-wrap items-end gap-x-1 gap-y-1">
       {swatches.map((s) => (

@@ -76,6 +76,11 @@ export interface MarketStatRow {
   dividendRate?: number | null; // annual $ per share
   analystRating?: number | null; // Yahoo mean rating 1 (strong buy) – 5 (strong sell)
   analystLabel?: string | null; // e.g. "Buy", "Hold", "Sell"
+  // Performance metrics for heatmap "color by" (all in percent).
+  perfYear?: number | null; // 52-week change %
+  perf50d?: number | null; // % vs 50-day average
+  perf200d?: number | null; // % vs 200-day average
+  postMarketPct?: number | null; // post-market change %
 }
 
 /** Full stockanalysis.com-style fundamentals for a single ticker. */
@@ -606,6 +611,17 @@ export class MarketStatsService {
                   analystLabel: m ? m[2].trim() : null,
                 };
               })(),
+              // Performance metrics (Yahoo mixes percent vs fraction fields:
+              // fiftyTwoWeekChangePercent is already a percent; the *Average*
+              // ones and postMarket are fractions → ×100).
+              perfYear:
+                q.fiftyTwoWeekChangePercent != null ? +Number(q.fiftyTwoWeekChangePercent).toFixed(2) : null,
+              perf50d:
+                q.fiftyDayAverageChangePercent != null ? +(Number(q.fiftyDayAverageChangePercent) * 100).toFixed(2) : null,
+              perf200d:
+                q.twoHundredDayAverageChangePercent != null ? +(Number(q.twoHundredDayAverageChangePercent) * 100).toFixed(2) : null,
+              postMarketPct:
+                q.postMarketChangePercent != null ? +(Number(q.postMarketChangePercent) * 100).toFixed(2) : null,
             });
           }
           break;
