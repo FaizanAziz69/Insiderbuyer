@@ -11,7 +11,7 @@ import { SidebarPopularTools } from "@/components/home/SidebarPopularTools";
 import { SidebarStockListsPills } from "@/components/home/SidebarStockListsPills";
 import { AllAccessCta } from "@/components/home/AllAccessCta";
 import { TrialAndNewsletterStrip } from "@/components/home/TrialAndNewsletterStrip";
-import { StockHeatmap } from "@/components/heatmap/StockHeatmap";
+import { StockHeatmap, HeatmapLegend } from "@/components/heatmap/StockHeatmap";
 import { AdSlot } from "@/components/AdSlot";
 import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
 import { AiPopularArticlesSection } from "@/components/insights/AiPopularArticlesSection";
@@ -204,6 +204,10 @@ function MarketHeatmapPanel() {
         ) : (
           <div className="shimmer rounded" style={{ height: HEIGHT }} />
         )}
+        {/* Color legend — same bar as the full heat map page */}
+        <div className="px-1 pt-3">
+          <HeatmapLegend colorBy="change" />
+        </div>
       </div>
     </aside>
   );
