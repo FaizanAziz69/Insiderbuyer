@@ -70,7 +70,7 @@ const BY_SECTOR: Record<string, string[]> = {
   ],
   Communications: ["T", "VZ", "TMUS"],
   "Commercial Services": ["OMC", "WM", "RSG"],
-  "Distribution Services": ["FAST", "GWW"],
+  "Distribution Services": ["FAST", "GWW", "SYY"],
 };
 
 export const SECTOR_BY_TICKER: Record<string, string> = {};
