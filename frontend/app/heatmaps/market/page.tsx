@@ -5,26 +5,51 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Flame, Search, ChevronDown, Check } from "lucide-react";
 import { API_BASE, HeatQuote, heatToRanking, fetcher } from "@/lib/api";
-import { StockHeatmap, HeatmapLegend, ColorBy } from "@/components/heatmap/StockHeatmap";
+import { StockHeatmap, HeatmapLegend, ColorBy, SizeBy } from "@/components/heatmap/StockHeatmap";
 
-// USA sources shown in the Source menu (TradingView parity). Only S&P 500 is
-// backed by our current data; the rest are listed but disabled until we have
-// their constituents.
-const SOURCES = [
-  "Nasdaq 100 Index",
-  "Nasdaq Composite Index",
-  "Dow Jones Composite Average Index",
-  "Dow Jones Industrial Average Index",
-  "Dow Jones Transportation Average Index",
-  "Dow Jones Utility Average Index",
-  "KBW NASDAQ Bank Index",
-  "Russell 1000 Index",
-  "Russell 2000 Index",
-  "Russell 3000 Index",
-  "S&P 500 Index",
-  "All US Companies",
+// Dow Jones Industrial Average — 30 components (2025).
+const DOW_30 = new Set([
+  "AAPL", "AMGN", "AMZN", "AXP", "BA", "CAT", "CRM", "CSCO", "CVX", "DIS",
+  "GS", "HD", "HON", "IBM", "JNJ", "JPM", "KO", "MCD", "MMM", "MRK",
+  "MSFT", "NKE", "NVDA", "PG", "SHW", "TRV", "UNH", "V", "VZ", "WMT",
+]);
+
+// Nasdaq 100 — components (2025). We filter our universe down to these.
+const NDX_100 = new Set([
+  "AAPL", "ABNB", "ADBE", "ADI", "ADP", "ADSK", "AEP", "AMAT", "AMD", "AMGN",
+  "AMZN", "ANSS", "APP", "ARM", "ASML", "AVGO", "AZN", "BIIB", "BKNG", "BKR",
+  "CCEP", "CDNS", "CDW", "CEG", "CHTR", "CMCSA", "COST", "CPRT", "CRWD", "CSCO",
+  "CSGP", "CSX", "CTAS", "CTSH", "DASH", "DDOG", "DXCM", "EA", "EXC", "FANG",
+  "FAST", "FTNT", "GEHC", "GFS", "GILD", "GOOG", "GOOGL", "HON", "IDXX", "INTC",
+  "INTU", "ISRG", "KDP", "KHC", "KLAC", "LIN", "LRCX", "LULU", "MAR", "MCHP",
+  "MDLZ", "MELI", "META", "MNST", "MRVL", "MSFT", "MU", "NFLX", "NVDA", "NXPI",
+  "ODFL", "ON", "ORLY", "PANW", "PAYX", "PCAR", "PDD", "PEP", "PLTR", "PYPL",
+  "QCOM", "REGN", "ROP", "ROST", "SBUX", "SNPS", "TEAM", "TMUS", "TSLA", "TTD",
+  "TTWO", "TXN", "VRSK", "VRTX", "WBD", "WDAY", "XEL", "ZS",
+]);
+
+// USA sources shown in the Source menu (TradingView parity). The three indices
+// whose components live inside our universe are enabled and filter the map; the
+// Russell / composite indices need constituent lists we don't yet ingest.
+const SOURCES: { label: string; members?: Set<string> }[] = [
+  { label: "S&P 500 Index" }, // our full universe
+  { label: "Nasdaq 100 Index", members: NDX_100 },
+  { label: "Dow Jones Industrial Average Index", members: DOW_30 },
+  { label: "Nasdaq Composite Index" },
+  { label: "Dow Jones Composite Average Index" },
+  { label: "Dow Jones Transportation Average Index" },
+  { label: "Dow Jones Utility Average Index" },
+  { label: "KBW NASDAQ Bank Index" },
+  { label: "Russell 1000 Index" },
+  { label: "Russell 2000 Index" },
+  { label: "Russell 3000 Index" },
 ];
-const ENABLED_SOURCES = new Set(["S&P 500 Index"]);
+const SOURCE_BY_LABEL = new Map(SOURCES.map((s) => [s.label, s]));
+const ENABLED_SOURCES = new Set([
+  "S&P 500 Index",
+  "Nasdaq 100 Index",
+  "Dow Jones Industrial Average Index",
+]);
 
 const FAQS = [
   {
@@ -49,22 +74,24 @@ export default function MarketHeatmapPage() {
   );
   const [groupBy, setGroupBy] = useState<"sector" | "none">("sector");
   const [colorBy, setColorBy] = useState<ColorBy>("change");
-  const [sizeBy, setSizeBy] = useState<"marketCap" | "volume" | "turnover" | "mono">(
-    "marketCap",
-  );
+  const [sizeBy, setSizeBy] = useState<SizeBy>("marketCap");
   const [query, setQuery] = useState("");
   const [source, setSource] = useState("S&P 500 Index");
   const [sourceOpen, setSourceOpen] = useState(false);
 
   const all = (data?.rows ?? []).map(heatToRanking);
+  const members = SOURCE_BY_LABEL.get(source)?.members;
+  const sourced = members
+    ? all.filter((r) => r.ticker && members.has(r.ticker.toUpperCase()))
+    : all;
   const q = query.trim().toUpperCase();
   const rows = q
-    ? all.filter(
+    ? sourced.filter(
         (r) =>
           (r.ticker || "").toUpperCase().includes(q) ||
           r.name.toUpperCase().includes(q),
       )
-    : all;
+    : sourced;
 
   return (
     <div className="w-full space-y-6">
@@ -113,16 +140,16 @@ export default function MarketHeatmapPage() {
                   <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-mute">
                     USA
                   </div>
-                  {SOURCES.map((s) => {
-                    const enabled = ENABLED_SOURCES.has(s);
-                    const active = s === source;
+                  {SOURCES.map(({ label }) => {
+                    const enabled = ENABLED_SOURCES.has(label);
+                    const active = label === source;
                     return (
                       <button
-                        key={s}
+                        key={label}
                         disabled={!enabled}
                         onClick={() => {
                           if (!enabled) return;
-                          setSource(s);
+                          setSource(label);
                           setSourceOpen(false);
                         }}
                         className="flex w-full items-center justify-between px-3 py-1.5 text-left text-[13px] transition"
@@ -132,7 +159,7 @@ export default function MarketHeatmapPage() {
                           background: active ? "var(--accent-soft)" : "transparent",
                         }}
                       >
-                        <span>{s}</span>
+                        <span>{label}</span>
                         {active && <Check className="h-3.5 w-3.5 text-accent" />}
                       </button>
                     );
@@ -182,11 +209,15 @@ export default function MarketHeatmapPage() {
           <ControlSelect
             label="Size by"
             value={sizeBy}
-            onChange={(v) => setSizeBy(v as "marketCap" | "volume" | "turnover" | "mono")}
+            onChange={(v) => setSizeBy(v as SizeBy)}
             options={[
               { value: "marketCap", label: "Market cap" },
-              { value: "volume", label: "Volume" },
-              { value: "turnover", label: "Turnover (Price × Vol)" },
+              { value: "vol1d", label: "Volume 1D" },
+              { value: "vol1w", label: "Volume 1W" },
+              { value: "vol1m", label: "Volume 1M" },
+              { value: "turn1d", label: "Price × Volume (Turnover) 1D" },
+              { value: "turn1w", label: "Price × Volume (Turnover) 1W" },
+              { value: "turn1m", label: "Price × Volume (Turnover) 1M" },
               { value: "mono", label: "Mono size" },
             ]}
           />

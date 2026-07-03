@@ -13,11 +13,24 @@ export type ColorBy =
   | "perf200d"
   | "postmarket";
 
+// Tile-area basis (TradingView parity). The 1W/1M volume/turnover variants use
+// Yahoo's 10-day and 3-month average daily volume as free proxies — relative
+// tile sizes are preserved, which is all sizing needs.
+export type SizeBy =
+  | "marketCap"
+  | "vol1d"
+  | "vol1w"
+  | "vol1m"
+  | "turn1d"
+  | "turn1w"
+  | "turn1m"
+  | "mono";
+
 // Per-mode saturation clamp (%) for the diverging color scale. Larger windows
 // (yearly performance) need a wider clamp than a single day's change.
 const COLOR_CLAMP: Record<ColorBy, number> = {
-  change: 8,
-  postmarket: 8,
+  change: 5.5,
+  postmarket: 5.5,
   perf50d: 20,
   perf200d: 30,
   perfYear: 60,
@@ -39,7 +52,7 @@ interface Props {
   height?: number;
   mode?: "sector" | "iqs" | "flat";
   /** What the tile AREA represents. */
-  sizeBy?: "marketCap" | "volume" | "turnover" | "mono";
+  sizeBy?: SizeBy;
   /** What the tile COLOR represents. */
   colorBy?: ColorBy;
   /** Group by the row's sector verbatim (already-clean TRBC sectors from the
@@ -49,7 +62,7 @@ interface Props {
 
 // Module-scoped because the layout helpers are module-level; set synchronously
 // before each layout pass (safe in render).
-let CURRENT_SIZE_BY: "marketCap" | "volume" | "turnover" | "mono" = "marketCap";
+let CURRENT_SIZE_BY: SizeBy = "marketCap";
 let USE_RAW_SECTORS = false;
 
 interface Rect {
@@ -63,12 +76,22 @@ interface Rect {
 // LINEAR value — tile area is proportional to market cap (or volume), exactly
 // like TradingView's heatmap, so mega-caps (AAPL/NVDA/MSFT/AMZN) dominate.
 function tileValue(r: RankingRow): number {
-  if (CURRENT_SIZE_BY === "mono") return 1; // equal-size tiles
+  const sb = CURRENT_SIZE_BY;
+  if (sb === "mono") return 1; // equal-size tiles
+  const price = r.livePrice || r.lastPrice || 0;
+  const vol1d = r.volume || 0;
+  const vol1w = r.avgVol10d || 0; // 10-day avg daily volume ≈ weekly proxy
+  const vol1m = r.avgVolume || 0; // 3-month avg daily volume ≈ monthly proxy
   let metric: number;
-  if (CURRENT_SIZE_BY === "volume") metric = r.volume || 0;
-  else if (CURRENT_SIZE_BY === "turnover")
-    metric = (r.livePrice || r.lastPrice || 0) * (r.volume || 0);
-  else metric = r.marketCap || r.totalPurchaseValue || 0;
+  switch (sb) {
+    case "vol1d": metric = vol1d; break;
+    case "vol1w": metric = vol1w; break;
+    case "vol1m": metric = vol1m; break;
+    case "turn1d": metric = price * vol1d; break;
+    case "turn1w": metric = price * vol1w; break;
+    case "turn1m": metric = price * vol1m; break;
+    default: metric = r.marketCap || r.totalPurchaseValue || 0;
+  }
   return Math.max(1, metric);
 }
 
@@ -188,9 +211,9 @@ function changePctFor(row: RankingRow): number {
 // TradingView-style diverging scale: a dark neutral center saturating to a
 // solid green for gains and solid red for losses. Bigger moves → more
 // saturated, exactly like the TradingView heatmap. Flat fills, no gradients.
-const NEUTRAL: [number, number, number] = [40, 44, 54]; // #282C36 dark neutral
-const GREEN: [number, number, number] = [22, 168, 95]; // #16A85F strong gain
-const RED: [number, number, number] = [221, 60, 58]; // #DD3C3A strong loss
+const NEUTRAL: [number, number, number] = [65, 69, 81]; // #414551 medium gray (TradingView neutral)
+const GREEN: [number, number, number] = [30, 174, 96]; // #1EAE60 strong gain
+const RED: [number, number, number] = [228, 63, 61]; // #E43F3D strong loss
 
 function mix(a: [number, number, number], b: [number, number, number], t: number): string {
   const r = Math.round(a[0] + (b[0] - a[0]) * t);
@@ -774,7 +797,6 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
 
 /** TradingView-style legend — discrete swatches, switches with Color-By. */
 export function HeatmapLegend({ colorBy = "change" }: { colorBy?: ColorBy }) {
-  const DIVERGE = ["#7f1d1d", "#c0392b", "#e57373", "#9aa0a6", "#5cb884", "#2e9e5b", "#14532d"];
   let swatches: { label: string; c: string }[];
   if (colorBy === "relvol") {
     swatches = [
@@ -786,10 +808,18 @@ export function HeatmapLegend({ colorBy = "change" }: { colorBy?: ColorBy }) {
     ];
   } else {
     const clamp = COLOR_CLAMP[colorBy] || 8;
-    const stops = [-1, -0.6, -0.25, 0, 0.25, 0.6, 1];
-    swatches = stops.map((s, i) => {
-      const v = Math.round(s * clamp);
-      return { label: `${v > 0 ? "+" : ""}${v}%`, c: DIVERGE[i] };
+    // Change & post-market use TradingView's exact tick labels; the wider
+    // performance windows scale their labels off the clamp.
+    const isChange = colorBy === "change" || colorBy === "postmarket";
+    const stops = isChange
+      ? [-5.5, -3.5, -1.5, 0, 1.5, 3.5, 5.5]
+      : [-1, -0.6, -0.25, 0, 0.25, 0.6, 1].map((s) => Math.round(s * clamp));
+    // Swatch colors are generated from the SAME diverging mix the tiles use,
+    // so the legend matches the map exactly.
+    swatches = stops.map((v) => {
+      const t = Math.max(-1, Math.min(1, v / clamp));
+      const c = t >= 0 ? mix(NEUTRAL, GREEN, t) : mix(NEUTRAL, RED, -t);
+      return { label: `${v > 0 ? "+" : ""}${v}%`, c };
     });
   }
   return (

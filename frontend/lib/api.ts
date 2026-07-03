@@ -27,6 +27,7 @@ export interface RankingRow {
   livePrice?: number | null;
   volume?: number | null;
   avgVolume?: number | null;
+  avgVol10d?: number | null;
   perfYear?: number | null;
   perf50d?: number | null;
   perf200d?: number | null;
@@ -43,6 +44,7 @@ export interface HeatQuote {
   price: number;
   volume?: number | null;
   avgVolume?: number | null;
+  avgVol10d?: number | null;
   perfYear?: number | null;
   perf50d?: number | null;
   perf200d?: number | null;
@@ -73,6 +75,7 @@ export function heatToRanking(r: HeatQuote, i: number): RankingRow {
     livePrice: r.price,
     volume: r.volume ?? null,
     avgVolume: r.avgVolume ?? null,
+    avgVol10d: r.avgVol10d ?? null,
     perfYear: r.perfYear ?? null,
     perf50d: r.perf50d ?? null,
     perf200d: r.perf200d ?? null,

@@ -65,7 +65,8 @@ export interface MarketStatRow {
   changeAbs: number;
   changePct: number;
   volume: number;
-  avgVolume: number;
+  avgVolume: number; // 3-month average daily volume
+  avgVol10d?: number | null; // 10-day average daily volume (≈ weekly)
   marketCap: number | null;
   sector: string | null;
   exchange?: string | null; // Yahoo short exchange code (NMS, NYQ, PNK, …)
@@ -583,6 +584,9 @@ export class MarketStatsService {
               volume: Number(q.regularMarketVolume ?? 0),
               avgVolume: Number(
                 q.averageDailyVolume3Month ?? q.averageDailyVolume10Day ?? 0,
+              ),
+              avgVol10d: Number(
+                q.averageDailyVolume10Day ?? q.averageDailyVolume3Month ?? 0,
               ),
               marketCap: q.marketCap != null ? Number(q.marketCap) : ref?.marketCap ?? null,
               sector: q.sector ?? ref?.sector ?? null,
