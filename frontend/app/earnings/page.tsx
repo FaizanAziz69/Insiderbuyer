@@ -89,7 +89,7 @@ export default function EarningsPage() {
           <DataTable<EarningsRow>
             rows={rows}
             rowKey={(r) => `${r.date}-${r.symbol}`}
-            initialSort={{ key: "date", dir: "asc" }}
+            initialSort={{ key: "marketCap", dir: "desc" }}
             columns={[
               rankColumn<EarningsRow>(),
               {

@@ -165,7 +165,7 @@ export default function CongressionalPage() {
           <DataTable<CongressTrade>
             rows={rows}
             rowKey={(r) => r.id}
-            initialSort={{ key: "transactionDate", dir: "desc" }}
+            initialSort={{ key: "marketCap", dir: "desc" }}
             empty="No congressional trades match these filters."
             columns={[
               rankColumn<CongressTrade>(),

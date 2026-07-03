@@ -50,7 +50,7 @@ export default function MoversPage() {
           <DataTable<RankingRow>
             rows={rows}
             rowKey={(r) => r.ticker || r.companyId}
-            initialSort={{ key: "bought", dir: "desc" }}
+            initialSort={{ key: "marketCap", dir: "desc" }}
             empty="No insider activity yet."
             columns={[
               rankColumn<RankingRow>(),

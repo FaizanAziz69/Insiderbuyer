@@ -249,7 +249,7 @@ export default function ShortSqueezePage() {
           <DataTable<SqueezeRow>
             rows={rows}
             rowKey={(r) => r.symbol}
-            initialSort={{ key: "squeeze", dir: "desc" }}
+            initialSort={{ key: "marketCap", dir: "desc" }}
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={columns}
           />

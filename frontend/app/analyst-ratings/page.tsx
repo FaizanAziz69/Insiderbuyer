@@ -112,7 +112,7 @@ export default function AnalystRatingsPage() {
           <DataTable<AnalystRow>
             rows={rows}
             rowKey={(r) => r.symbol}
-            initialSort={{ key: "upsidePct", dir: "desc" }}
+            initialSort={{ key: "marketCap", dir: "desc" }}
             empty="No matches."
             columns={[
               rankColumn<AnalystRow>(),

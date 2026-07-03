@@ -234,7 +234,7 @@ export default function TopGainersPage() {
           <DataTable<MoverRow>
             rows={rows}
             rowKey={(r) => r.symbol}
-            initialSort={{ key: "changePct", dir: "desc" }}
+            initialSort={{ key: "marketCap", dir: "desc" }}
             empty="No gainers right now."
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={columns}

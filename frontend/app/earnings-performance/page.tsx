@@ -127,6 +127,7 @@ export default function EarningsPerformancePage() {
         <DataTable<UpcomingRow>
           rows={rows}
           rowKey={(r, i) => `${r.symbol}-${r.date}-${i}`}
+          initialSort={{ key: "marketCap", dir: "desc" }}
           empty={
             <>
               Loading earnings calendar… if this stays empty, run{" "}

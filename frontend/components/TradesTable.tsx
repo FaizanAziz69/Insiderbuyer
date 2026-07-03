@@ -160,7 +160,7 @@ export function TradesTable({
         <DataTable<TradeRow>
           rows={visibleRows}
           rowKey={(t) => t.id}
-          initialSort={{ key: "transactionDate", dir: "desc" }}
+          initialSort={{ key: "marketCap", dir: "desc" }}
           columns={columns}
         />
       </div>

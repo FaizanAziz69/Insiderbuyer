@@ -204,7 +204,7 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
           <DataTable<MarketStatRow>
             rows={rows}
             rowKey={(r) => r.symbol}
-            initialSort={{ key: "changePct", dir: "desc" }}
+            initialSort={{ key: "marketCap", dir: "desc" }}
             empty="No rows."
             columns={columns}
           />
