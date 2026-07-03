@@ -141,23 +141,6 @@ export default function AnalystRatingsPage() {
                 ),
               },
               {
-                key: "marketCap",
-                label: "Market Cap",
-                filterable: true,
-                filterType: "marketCapPreset",
-                filterLabelText: "Market Cap",
-                align: "right",
-                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null,
-                render: (r) => {
-                  const mc = quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null;
-                  return (
-                    <span className="tabular text-mute text-[14px] font-bold">
-                      {mc ? formatCurrency(mc) : "—"}
-                    </span>
-                  );
-                },
-              },
-              {
                 key: "consensus",
                 label: "Consensus",
                 filterable: true,
@@ -203,6 +186,23 @@ export default function AnalystRatingsPage() {
                   if (!q || q.changePct == null) return <span className="text-faint text-[13px]">—</span>;
                   const up = q.changePct >= 0;
                   return <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>{up ? "+" : ""}{q.changePct.toFixed(2)}%</span>;
+                },
+              },
+              {
+                key: "marketCap",
+                label: "Market Cap",
+                filterable: true,
+                filterType: "marketCapPreset",
+                filterLabelText: "Market Cap",
+                align: "right",
+                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null,
+                render: (r) => {
+                  const mc = quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null;
+                  return (
+                    <span className="tabular text-mute text-[14px] font-bold">
+                      {mc ? formatCurrency(mc) : "—"}
+                    </span>
+                  );
                 },
               },
               {

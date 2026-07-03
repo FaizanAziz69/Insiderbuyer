@@ -3,6 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Flame } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
 import {
@@ -49,15 +50,20 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
       sortValue: (r) => r.symbol,
       render: (r) => (
         <span className="inline-flex items-center gap-2">
-          <WatchlistButton ticker={r.symbol} variant="icon" size="sm" />
+          {r.symbol && <WatchlistButton ticker={r.symbol} variant="icon" size="sm" />}
           <Link
-            href={`/companies/${encodeURIComponent(r.symbol)}`}
-            className="block"
+            href={r.symbol ? `/companies/${encodeURIComponent(r.symbol)}` : "#"}
+            className="flex items-center gap-2"
           >
-            <div className="font-mono text-[15px] font-bold text-accent hover:underline">
-              {r.symbol}
+            <CompanyLogo ticker={r.symbol || ""} name={r.name} size={22} />
+            <div className="min-w-0">
+              <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+                {r.symbol || "—"}
+              </div>
+              <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
+                {r.name}
+              </div>
             </div>
-            <div className="truncate max-w-[280px] text-[13px] font-medium" style={{ color: "var(--text)" }}>{r.name}</div>
           </Link>
         </span>
       ),

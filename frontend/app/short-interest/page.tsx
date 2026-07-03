@@ -158,6 +158,19 @@ export default function ShortInterestPage() {
                 },
               },
               {
+                key: "marketCap",
+                label: "Market Cap",
+                filterable: true,
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.marketCap,
+                render: (r) => (
+                  <span className="tabular text-mute text-[14px] font-bold">
+                    {r.marketCap ? formatCurrency(r.marketCap) : "—"}
+                  </span>
+                ),
+              },
+              {
                 key: "pctFloat",
                 label: "% of Float",
                 filterable: true,
@@ -222,19 +235,6 @@ export default function ShortInterestPage() {
                     "—"
                   );
                 },
-              },
-              {
-                key: "marketCap",
-                label: "Market Cap",
-                filterable: true,
-                filterType: "range",
-                align: "right",
-                sortValue: (r) => r.marketCap,
-                render: (r) => (
-                  <span className="tabular text-mute text-[14px] font-bold">
-                    {r.marketCap ? formatCurrency(r.marketCap) : "—"}
-                  </span>
-                ),
               },
               {
                 key: "peRatio",

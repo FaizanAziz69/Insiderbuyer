@@ -12,6 +12,7 @@ import {
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { TierBadge } from "@/components/TierBadge";
 import { DataTable } from "@/components/DataTable";
+import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
 import { AdSlot } from "@/components/AdSlot";
 
@@ -59,20 +60,23 @@ export default function MoversPage() {
                 label: "Company",
                 sortValue: (r) => r.ticker || r.name,
                 render: (r) => (
-                  <Link
-                    href={r.ticker ? `/companies/${encodeURIComponent(r.ticker)}` : "#"}
-                    className="flex items-center gap-2.5 min-w-[200px]"
-                  >
-                    <CompanyLogo ticker={r.ticker || ""} name={r.name} size={26} />
-                    <div className="min-w-0">
-                      <div className="font-mono text-[15px] font-bold text-accent">
-                        {r.ticker || "—"}
+                  <span className="inline-flex items-center gap-2">
+                    {r.ticker && <WatchlistButton ticker={r.ticker} variant="icon" size="sm" />}
+                    <Link
+                      href={r.ticker ? `/companies/${encodeURIComponent(r.ticker)}` : "#"}
+                      className="flex items-center gap-2"
+                    >
+                      <CompanyLogo ticker={r.ticker || ""} name={r.name} size={22} />
+                      <div className="min-w-0">
+                        <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+                          {r.ticker || "—"}
+                        </div>
+                        <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
+                          {r.name}
+                        </div>
                       </div>
-                      <div className="text-[14px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
-                        {r.name}
-                      </div>
-                    </div>
-                  </Link>
+                    </Link>
+                  </span>
                 ),
               },
               {

@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, Plus, Star, X } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
+import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
 import { useWatchlist } from "@/lib/watchlist";
 
@@ -97,23 +98,23 @@ export default function WatchlistPage() {
       label: "Company",
       sortValue: (r) => r.symbol,
       render: (r) => (
-        <Link
-          href={`/companies/${encodeURIComponent(r.symbol)}`}
-          className="inline-flex items-center gap-2.5 group"
-        >
-          <CompanyLogo ticker={r.symbol} name={r.name} size={26} />
-          <span className="min-w-0">
-            <span className="block font-mono text-[14px] font-bold text-accent group-hover:underline leading-tight">
-              {r.symbol}
-            </span>
-            <span
-              className="block truncate max-w-[220px] text-[13px] font-medium leading-tight"
-              style={{ color: "var(--text)" }}
-            >
-              {r.name}
-            </span>
-          </span>
-        </Link>
+        <span className="inline-flex items-center gap-2">
+          {r.symbol && <WatchlistButton ticker={r.symbol} variant="icon" size="sm" />}
+          <Link
+            href={r.symbol ? `/companies/${encodeURIComponent(r.symbol)}` : "#"}
+            className="flex items-center gap-2"
+          >
+            <CompanyLogo ticker={r.symbol || ""} name={r.name} size={22} />
+            <div className="min-w-0">
+              <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+                {r.symbol || "—"}
+              </div>
+              <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
+                {r.name}
+              </div>
+            </div>
+          </Link>
+        </span>
       ),
     },
     {

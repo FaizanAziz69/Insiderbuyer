@@ -8,6 +8,7 @@ import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
 import { DataTable } from "@/components/DataTable";
+import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
 
 interface CongressTrade {
@@ -217,38 +218,24 @@ export default function CongressionalPage() {
                 label: "Company",
                 sortValue: (r) => r.ticker,
                 render: (r) => (
-                  <Link
-                    href={`/companies/${encodeURIComponent(r.ticker)}`}
-                    className="flex items-center gap-2"
-                  >
-                    <CompanyLogo ticker={r.ticker} name={r.companyName} size={22} />
-                    <div className="min-w-0">
-                      <div className="font-mono text-[15px] font-bold text-accent hover:underline">
-                        {r.ticker}
+                  <span className="inline-flex items-center gap-2">
+                    {r.ticker && <WatchlistButton ticker={r.ticker} variant="icon" size="sm" />}
+                    <Link
+                      href={r.ticker ? `/companies/${encodeURIComponent(r.ticker)}` : "#"}
+                      className="flex items-center gap-2"
+                    >
+                      <CompanyLogo ticker={r.ticker || ""} name={r.companyName || r.ticker} size={22} />
+                      <div className="min-w-0">
+                        <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+                          {r.ticker || "—"}
+                        </div>
+                        <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
+                          {r.companyName || r.ticker}
+                        </div>
                       </div>
-                      <div className="truncate max-w-[240px] text-[13px] font-medium" style={{ color: "var(--text)" }}>
-                        {r.companyName}
-                      </div>
-                    </div>
-                  </Link>
+                    </Link>
+                  </span>
                 ),
-              },
-              {
-                key: "marketCap",
-                label: "Market Cap",
-                filterable: true,
-                filterType: "marketCapPreset",
-                filterLabelText: "Market Cap",
-                align: "right",
-                sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.marketCap ?? null,
-                render: (r) => {
-                  const mc = quoteBySym.get((r.ticker || "").toUpperCase())?.marketCap ?? null;
-                  return (
-                    <span className="tabular text-mute text-[14px] font-bold">
-                      {mc ? formatCurrency(mc) : "—"}
-                    </span>
-                  );
-                },
               },
               {
                 key: "price",
@@ -270,6 +257,23 @@ export default function CongressionalPage() {
                   if (!q || q.changePct == null) return <span className="text-faint text-[13px]">—</span>;
                   const up = q.changePct >= 0;
                   return <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>{up ? "+" : ""}{q.changePct.toFixed(2)}%</span>;
+                },
+              },
+              {
+                key: "marketCap",
+                label: "Market Cap",
+                filterable: true,
+                filterType: "marketCapPreset",
+                filterLabelText: "Market Cap",
+                align: "right",
+                sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.marketCap ?? null,
+                render: (r) => {
+                  const mc = quoteBySym.get((r.ticker || "").toUpperCase())?.marketCap ?? null;
+                  return (
+                    <span className="tabular text-mute text-[14px] font-bold">
+                      {mc ? formatCurrency(mc) : "—"}
+                    </span>
+                  );
                 },
               },
               {

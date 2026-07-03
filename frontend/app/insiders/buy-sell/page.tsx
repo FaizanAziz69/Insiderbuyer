@@ -15,6 +15,7 @@ import {
 import { MonthlyBuySellMeter } from "@/components/home/MonthlyBuySellMeter";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
+import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
 
 type Side = "all" | "buy" | "sell";
@@ -59,30 +60,25 @@ export default function InsiderBuySellPage() {
       key: "ticker",
       label: "Company",
       sortValue: (r) => r.ticker || "",
-      render: (r) =>
-        r.ticker ? (
+      render: (r) => (
+        <span className="inline-flex items-center gap-2">
+          {r.ticker && <WatchlistButton ticker={r.ticker} variant="icon" size="sm" />}
           <Link
-            href={`/companies/${encodeURIComponent(r.ticker)}`}
+            href={r.ticker ? `/companies/${encodeURIComponent(r.ticker)}` : "#"}
             className="flex items-center gap-2"
           >
-            <CompanyLogo ticker={r.ticker} name={r.companyName} size={22} />
+            <CompanyLogo ticker={r.ticker || ""} name={r.companyName} size={22} />
             <div className="min-w-0">
               <div className="font-mono text-[15px] font-bold text-accent hover:underline">
-                {r.ticker}
+                {r.ticker || "—"}
               </div>
               <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
                 {r.companyName}
               </div>
             </div>
           </Link>
-        ) : (
-          <div>
-            <span className="text-faint">—</span>
-            <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
-              {r.companyName}
-            </div>
-          </div>
-        ),
+        </span>
+      ),
     },
     {
       key: "insider",
@@ -129,6 +125,20 @@ export default function InsiderBuySellPage() {
       render: (r) => <span className="tabular text-[14px] font-bold">${r.pricePerShare.toFixed(2)}</span>,
     },
     {
+      key: "marketCap",
+      label: "Market Cap",
+      align: "right",
+      sortValue: (r) => capOf(r),
+      render: (r) => {
+        const mc = capOf(r);
+        return (
+          <span className="tabular text-[14px] text-mute font-bold">
+            {mc != null ? formatCurrency(mc) : "—"}
+          </span>
+        );
+      },
+    },
+    {
       key: "total",
       label: "Total Value",
       align: "right",
@@ -143,20 +153,6 @@ export default function InsiderBuySellPage() {
           {formatCurrency(r.totalValue)}
         </span>
       ),
-    },
-    {
-      key: "marketCap",
-      label: "Market Cap",
-      align: "right",
-      sortValue: (r) => capOf(r),
-      render: (r) => {
-        const mc = capOf(r);
-        return (
-          <span className="tabular text-[14px] text-mute font-bold">
-            {mc != null ? formatCurrency(mc) : "—"}
-          </span>
-        );
-      },
     },
     {
       key: "date",

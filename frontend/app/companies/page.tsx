@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { API_BASE, RankingRow, RankingsResponse, fetcher, formatCurrency, formatDate } from "@/lib/api";
 import { PremiumGate } from "@/components/PremiumGate";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
@@ -14,30 +15,25 @@ const tickerCol: Column<RankingRow> = {
   key: "ticker",
   label: "Company",
   sortValue: (r) => r.ticker ?? "",
-  render: (r) =>
-    r.ticker ? (
-      <span className="inline-flex items-center gap-2">
-        <WatchlistButton ticker={r.ticker} variant="icon" size="sm" />
-        <Link
-          href={`/companies/${encodeURIComponent(r.ticker)}`}
-          className="block"
-        >
-          <div className="font-bold text-accent hover:underline font-mono text-[15px]">
-            {r.ticker}
+  render: (r) => (
+    <span className="inline-flex items-center gap-2">
+      {r.ticker && <WatchlistButton ticker={r.ticker} variant="icon" size="sm" />}
+      <Link
+        href={r.ticker ? `/companies/${encodeURIComponent(r.ticker)}` : "#"}
+        className="flex items-center gap-2"
+      >
+        <CompanyLogo ticker={r.ticker || ""} name={r.name} size={22} />
+        <div className="min-w-0">
+          <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+            {r.ticker || "—"}
           </div>
-          <div className="truncate max-w-[260px] text-[13px] font-medium" style={{ color: "var(--text)" }}>
+          <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
             {r.name}
           </div>
-        </Link>
-      </span>
-    ) : (
-      <div>
-        <div>—</div>
-        <div className="truncate max-w-[260px] text-[13px] font-medium" style={{ color: "var(--text)" }}>
-          {r.name}
         </div>
-      </div>
-    ),
+      </Link>
+    </span>
+  ),
 };
 
 const sectorCol: Column<RankingRow> = {

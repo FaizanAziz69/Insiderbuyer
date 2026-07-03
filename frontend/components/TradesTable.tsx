@@ -58,19 +58,6 @@ export function TradesTable({
       },
     },
     {
-      key: "insiderName",
-      label: "Insider",
-      sortValue: (t) => t.insiderName,
-      render: (t) => (
-        <>
-          <div className="font-bold text-[15px]">{t.insiderName}</div>
-          {t.rawTitle && (
-            <div className="text-[12px] text-mute truncate max-w-[200px]">{t.rawTitle}</div>
-          )}
-        </>
-      ),
-    },
-    {
       key: "marketCap",
       label: "Market Cap",
       filterable: true,
@@ -82,6 +69,19 @@ export function TradesTable({
         <span className="tabular text-mute text-[14px] font-bold">
           {t.marketCap ? formatCurrency(t.marketCap) : "—"}
         </span>
+      ),
+    },
+    {
+      key: "insiderName",
+      label: "Insider",
+      sortValue: (t) => t.insiderName,
+      render: (t) => (
+        <>
+          <div className="font-bold text-[15px]">{t.insiderName}</div>
+          {t.rawTitle && (
+            <div className="text-[12px] text-mute truncate max-w-[200px]">{t.rawTitle}</div>
+          )}
+        </>
       ),
     },
     {
@@ -239,12 +239,12 @@ function Row({ t, rank }: { t: TradeRow; rank: number }) {
           </Link>
         </span>
       </td>
+      <td className="text-right tabular text-mute text-[14px] font-bold">
+        {t.marketCap ? formatCurrency(t.marketCap) : "—"}
+      </td>
       <td>
         <div className="font-bold text-[15px]">{t.insiderName}</div>
         {t.rawTitle && <div className="text-[12px] text-mute truncate max-w-[200px]">{t.rawTitle}</div>}
-      </td>
-      <td className="text-right tabular text-mute text-[14px] font-bold">
-        {t.marketCap ? formatCurrency(t.marketCap) : "—"}
       </td>
       <td>
         <span className={roleCls}>{t.role}</span>
