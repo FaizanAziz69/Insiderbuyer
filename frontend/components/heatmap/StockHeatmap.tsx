@@ -31,14 +31,14 @@ interface Rect {
   row: RankingRow;
 }
 
-// Compressed value — sqrt narrows the dynamic range so a single mega-cap
-// doesn't crush every smaller tile into illegible slivers.
+// LINEAR value — tile area is proportional to market cap (or volume), exactly
+// like TradingView's heatmap, so mega-caps (AAPL/NVDA/MSFT/AMZN) dominate.
 function tileValue(r: RankingRow): number {
   const metric =
     CURRENT_SIZE_BY === "volume"
       ? r.volume || 0
       : r.marketCap || r.totalPurchaseValue || 0;
-  return Math.sqrt(Math.max(1, metric));
+  return Math.max(1, metric);
 }
 
 // Relative volume (today vs 3-month average) → 1 = normal, >1 = unusually active.
@@ -354,7 +354,7 @@ function layoutWithSectors(
     })
     .sort((a, b) => b.total - a.total);
 
-  // First-level slice: allocate space per sector by total (compressed) value.
+  // First-level slice: allocate space per sector by total market cap (linear).
   const sectorRects = (() => {
     const sectorAsRows: RankingRow[] = sectors.map((s) => ({
       rank: 0,
@@ -362,9 +362,7 @@ function layoutWithSectors(
       ticker: s.sector,
       name: s.sector,
       sector: s.sector,
-      // Square the total so first-level slice sees raw value (sliceTreemap
-      // will sqrt it back via tileValue).
-      marketCap: s.total * s.total,
+      marketCap: s.total, // tileValue is linear now → area ∝ summed market cap
       lastPrice: null,
       iqs: 0,
       insiderWeight: 0,
@@ -375,12 +373,12 @@ function layoutWithSectors(
       marketTimingWeight: 0,
       distinctBuyers: 0,
       transactionCount: 0,
-      totalPurchaseValue: s.total * s.total,
+      totalPurchaseValue: s.total,
     }));
     return squarifyTreemap(sectorAsRows, 0, 0, w, h);
   })();
 
-  const HEADER_H = 28;
+  const HEADER_H = 18;
   const PAD = 1;
   return sectorRects.map((rect, i) => {
     const meta = sectors[i];
@@ -444,7 +442,7 @@ export function StockHeatmap({
     return layoutWithSectors(rows, Math.max(320, width), height);
   }, [rows, width, height, mode, sizeBy, rawSectors]);
 
-  const HEADER_H = mode === "sector" ? 28 : 0;
+  const HEADER_H = mode === "sector" ? 18 : 0;
   const PAD = 1;
 
   return (
@@ -493,11 +491,10 @@ export function StockHeatmap({
                   top: 2,
                   right: PAD,
                   height: HEADER_H - 2,
-                  fontSize: isLit ? 16 : 15,
-                  fontWeight: 800,
-                  color: isLit ? "#1d4ed8" : "#000000",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
+                  fontSize: isLit ? 12 : 11,
+                  fontWeight: 600,
+                  color: isLit ? "#1d4ed8" : "var(--text-mute)",
+                  letterSpacing: "0.01em",
                   pointerEvents: "none",
                   zIndex: 7,
                   overflow: "hidden",
