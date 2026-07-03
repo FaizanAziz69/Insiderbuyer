@@ -73,7 +73,7 @@ export default function ShortSqueezePage() {
       label: "#",
       sortable: false,
       className: "w-10",
-      render: (_r, i) => <span className="text-faint text-[12px] tabular">{i + 1}</span>,
+      render: (_r, i) => <span className="text-[13px] font-bold tabular">{i + 1}</span>,
     },
     {
       key: "symbol",

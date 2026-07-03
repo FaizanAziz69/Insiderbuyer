@@ -105,6 +105,7 @@ export default function ShortInterestPage() {
             rows={rows}
             rowKey={(r) => r.symbol}
             empty="No matches."
+            initialSort={{ key: "marketCap", dir: "desc" }}
             columns={[
               {
                 key: "company",

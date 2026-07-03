@@ -65,7 +65,7 @@ export default function InsiderHotStocksPage() {
       sortable: false,
       className: "w-10",
       render: (_r, i) => (
-        <span className="text-faint text-[12px] tabular">{i + 1}</span>
+        <span className="text-[13px] font-bold tabular">{i + 1}</span>
       ),
     },
     {
@@ -283,7 +283,7 @@ export default function InsiderHotStocksPage() {
           <DataTable<RankingRow>
             rows={rows}
             rowKey={(r, i) => (r.ticker || r.companyId || r.name || "") + i}
-            initialSort={{ key: "bought", dir: "desc" }}
+            initialSort={{ key: "marketCap", dir: "desc" }}
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={columns}
           />

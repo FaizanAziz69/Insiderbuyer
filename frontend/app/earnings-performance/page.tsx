@@ -297,8 +297,8 @@ export default function EarningsPerformancePage() {
               key: "rank",
               label: "#",
               sortable: false,
-              className: "text-soft tabular text-[11px]",
-              render: (_r, i) => i + 1,
+              className: "tabular text-[13px]",
+              render: (_r, i) => <span className="font-bold">{i + 1}</span>,
             },
             {
               key: "entity",

@@ -206,6 +206,7 @@ export default function StockListDetailPage({
             rows={rows}
             rowKey={(r, i) => (r.ticker || r.symbol || r.name || "") + i}
             empty="No stocks in this list yet."
+            initialSort={{ key: "marketCap", dir: "desc" }}
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={[
               {
@@ -215,7 +216,7 @@ export default function StockListDetailPage({
                 sortable: false,
                 className: "w-12",
                 render: (_r, i) => (
-                  <span className="text-faint text-[11px] tabular">{i + 1}</span>
+                  <span className="text-[13px] font-bold tabular">{i + 1}</span>
                 ),
               },
               {

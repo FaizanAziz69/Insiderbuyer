@@ -14,7 +14,7 @@ const rankCol: Column<RankingRow> = {
   label: "#",
   sortable: false,
   className: "w-12",
-  render: (r) => <span className="text-faint tabular text-[11px]">{r.rank}</span>,
+  render: (_r, i) => <span className="tabular text-[13px] font-bold">{i + 1}</span>,
 };
 
 const tickerCol: Column<RankingRow> = {
@@ -260,6 +260,7 @@ export default function CompaniesPage() {
             rowKey={(r) => r.companyId}
             empty="No more companies ranked yet."
             columns={freeColumns}
+            initialSort={{ key: "mktcap", dir: "desc" }}
           />
         )}
       </div>

@@ -257,7 +257,7 @@ export default function WatchlistPage() {
           <DataTable<WRow>
             rows={rows}
             rowKey={(r) => r.symbol}
-            initialSort={{ key: "changePct", dir: "desc" }}
+            initialSort={{ key: "marketCap", dir: "desc" }}
             columns={columns}
           />
         </div>

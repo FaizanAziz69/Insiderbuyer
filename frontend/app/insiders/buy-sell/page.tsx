@@ -223,7 +223,7 @@ export default function InsiderBuySellPage() {
           <DataTable<TradeRow>
             rows={rows}
             rowKey={(r) => r.id}
-            initialSort={{ key: "total", dir: "desc" }}
+            initialSort={{ key: "marketCap", dir: "desc" }}
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={columns}
           />

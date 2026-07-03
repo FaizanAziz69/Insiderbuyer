@@ -68,7 +68,7 @@ export default function TopGainersPage() {
       align: "left",
       sortable: false,
       className: "w-12",
-      render: (_r, i) => <span className="text-faint text-[11px] tabular">{i + 1}</span>,
+      render: (_r, i) => <span className="text-[13px] font-bold tabular">{i + 1}</span>,
     },
     {
       key: "symbol",
