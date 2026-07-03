@@ -249,8 +249,33 @@ export default function InsightDetailPage({
             {/* Embedded Form 4 table — the data behind the story */}
             {post.ticker && <InsiderActivityTable ticker={post.ticker} />}
 
-            {/* Author bio box — MarketBeat-style: avatar, "About The Author",
-                name, beat, Learn More. */}
+            {post.tags && post.tags.length > 0 && (
+              <div className="mt-5 flex flex-wrap gap-2">
+                {post.tags.map((t) => (
+                  <span
+                    key={t}
+                    className="text-[10px] uppercase font-bold px-2 py-0.5 rounded"
+                    style={{
+                      background: "var(--bg-3)",
+                      color: "var(--text-mute)",
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    #{t}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Programmatic ticker CTA — reuses the article CTA component */}
+            {post.ticker && (
+              <ProgrammaticCta
+                articleUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/insights/${post.slug}`}
+              />
+            )}
+
+            {/* Author bio box — placed BELOW the CTA (MarketBeat order) so it
+                never interrupts the call-to-action. */}
             <div
               className="mt-10 flex flex-wrap gap-4 p-4 sm:p-5"
               style={{
@@ -302,31 +327,6 @@ export default function InsightDetailPage({
                 </Link>
               </div>
             </div>
-
-            {post.tags && post.tags.length > 0 && (
-              <div className="mt-5 flex flex-wrap gap-2">
-                {post.tags.map((t) => (
-                  <span
-                    key={t}
-                    className="text-[10px] uppercase font-bold px-2 py-0.5 rounded"
-                    style={{
-                      background: "var(--bg-3)",
-                      color: "var(--text-mute)",
-                      letterSpacing: "0.08em",
-                    }}
-                  >
-                    #{t}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Programmatic ticker CTA — reuses the article CTA component */}
-            {post.ticker && (
-              <ProgrammaticCta
-                articleUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/insights/${post.slug}`}
-              />
-            )}
           </motion.div>
         )}
       </article>
