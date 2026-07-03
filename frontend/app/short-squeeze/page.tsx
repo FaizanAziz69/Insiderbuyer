@@ -7,6 +7,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
+import { rankColumn } from "@/components/tableColumns";
 
 interface ShortRow {
   symbol: string;
@@ -68,13 +69,7 @@ export default function ShortSqueezePage() {
   (quoteData?.rows || []).forEach((q) => quoteBySym.set(q.symbol.toUpperCase(), q));
 
   const columns: Column<SqueezeRow>[] = [
-    {
-      key: "rank",
-      label: "#",
-      sortable: false,
-      className: "w-10",
-      render: (_r, i) => <span className="text-[13px] font-bold tabular">{i + 1}</span>,
-    },
+    rankColumn<SqueezeRow>(),
     {
       key: "symbol",
       label: "Company",

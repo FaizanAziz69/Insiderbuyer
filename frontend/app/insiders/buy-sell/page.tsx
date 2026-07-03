@@ -15,6 +15,7 @@ import {
 import { MonthlyBuySellMeter } from "@/components/home/MonthlyBuySellMeter";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
+import { rankColumn } from "@/components/tableColumns";
 
 type Side = "all" | "buy" | "sell";
 
@@ -53,6 +54,7 @@ export default function InsiderBuySellPage() {
     r.marketCap ?? (r.ticker ? capMap[r.ticker.toUpperCase()] ?? null : null);
 
   const columns: Column<TradeRow>[] = [
+    rankColumn<TradeRow>(),
     {
       key: "ticker",
       label: "Company",

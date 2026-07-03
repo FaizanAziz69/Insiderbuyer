@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { ExternalLink, Lock } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
+import { rankColumn } from "@/components/tableColumns";
 import { TradeRow, formatCurrency, formatDate, formatNumber } from "@/lib/api";
 
 const ROLE_CLS: Record<string, string> = {
@@ -26,13 +27,7 @@ export function TradesTable({
   const blurredRows = showPaywall ? trades.slice(paywallAfter!, paywallAfter! + 5) : [];
 
   const columns: Column<TradeRow>[] = [
-    {
-      key: "rank",
-      label: "#",
-      className: "w-12",
-      sortable: false,
-      render: (_t, i) => <span className="text-faint tabular text-[11px]">{i + 1}</span>,
-    },
+    rankColumn<TradeRow>(),
     {
       key: "ticker",
       label: "Company",

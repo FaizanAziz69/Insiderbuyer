@@ -8,6 +8,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
 import { DataTable } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
+import { rankColumn } from "@/components/tableColumns";
 
 interface ShortRow {
   symbol: string;
@@ -107,6 +108,7 @@ export default function ShortInterestPage() {
             empty="No matches."
             initialSort={{ key: "marketCap", dir: "desc" }}
             columns={[
+              rankColumn<ShortRow>(),
               {
                 key: "company",
                 label: "Company",

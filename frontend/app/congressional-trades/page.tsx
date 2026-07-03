@@ -8,6 +8,7 @@ import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
 import { DataTable } from "@/components/DataTable";
+import { rankColumn } from "@/components/tableColumns";
 
 interface CongressTrade {
   id: string;
@@ -74,12 +75,12 @@ export default function CongressionalPage() {
     .filter(Boolean)
     .slice(0, 250)
     .join(",");
-  const { data: quoteData } = useSWR<{ rows: { symbol: string; price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null }[] }>(
+  const { data: quoteData } = useSWR<{ rows: { symbol: string; price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null; marketCap?: number | null }[] }>(
     tickerKey ? `${API_BASE}/market-stats/quotes?symbols=${encodeURIComponent(tickerKey)}` : null,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
-  const quoteBySym = new Map<string, { price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null }>();
+  const quoteBySym = new Map<string, { price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null; marketCap?: number | null }>();
   (quoteData?.rows || []).forEach((q) => quoteBySym.set(q.symbol.toUpperCase(), q));
 
   return (
@@ -167,6 +168,7 @@ export default function CongressionalPage() {
             initialSort={{ key: "transactionDate", dir: "desc" }}
             empty="No congressional trades match these filters."
             columns={[
+              rankColumn<CongressTrade>(),
               {
                 key: "politician",
                 label: "Politician",
@@ -230,6 +232,23 @@ export default function CongressionalPage() {
                     </div>
                   </Link>
                 ),
+              },
+              {
+                key: "marketCap",
+                label: "Market Cap",
+                filterable: true,
+                filterType: "marketCapPreset",
+                filterLabelText: "Market Cap",
+                align: "right",
+                sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.marketCap ?? null,
+                render: (r) => {
+                  const mc = quoteBySym.get((r.ticker || "").toUpperCase())?.marketCap ?? null;
+                  return (
+                    <span className="tabular text-mute text-[14px] font-bold">
+                      {mc ? formatCurrency(mc) : "—"}
+                    </span>
+                  );
+                },
               },
               {
                 key: "price",

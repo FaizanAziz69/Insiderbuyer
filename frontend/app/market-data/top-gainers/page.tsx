@@ -9,6 +9,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
 import { AiCatalyst } from "@/components/AiCatalyst";
 import { WatchlistButton } from "@/components/WatchlistButton";
+import { rankColumn } from "@/components/tableColumns";
 import { API_BASE, fetcher, formatCurrency, formatNumber } from "@/lib/api";
 
 interface MoverRow {
@@ -62,14 +63,7 @@ export default function TopGainersPage() {
   const sparkMap = sparkData?.spark || {};
 
   const columns: Column<MoverRow>[] = [
-    {
-      key: "rank",
-      label: "#",
-      align: "left",
-      sortable: false,
-      className: "w-12",
-      render: (_r, i) => <span className="text-[13px] font-bold tabular">{i + 1}</span>,
-    },
+    rankColumn<MoverRow>(),
     {
       key: "symbol",
       label: "Company",

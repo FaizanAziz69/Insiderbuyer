@@ -12,6 +12,7 @@ import {
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { TierBadge } from "@/components/TierBadge";
 import { DataTable } from "@/components/DataTable";
+import { rankColumn } from "@/components/tableColumns";
 import { AdSlot } from "@/components/AdSlot";
 
 export default function MoversPage() {
@@ -52,6 +53,7 @@ export default function MoversPage() {
             initialSort={{ key: "bought", dir: "desc" }}
             empty="No insider activity yet."
             columns={[
+              rankColumn<RankingRow>(),
               {
                 key: "company",
                 label: "Company",
@@ -100,6 +102,20 @@ export default function MoversPage() {
                     </div>
                   );
                 },
+              },
+              {
+                key: "marketCap",
+                label: "Market Cap",
+                filterable: true,
+                filterType: "marketCapPreset",
+                filterLabelText: "Market Cap",
+                align: "right",
+                sortValue: (r) => r.marketCap,
+                render: (r) => (
+                  <span className="tabular text-mute text-[14px] font-bold">
+                    {r.marketCap ? formatCurrency(r.marketCap) : "—"}
+                  </span>
+                ),
               },
               {
                 key: "bought",

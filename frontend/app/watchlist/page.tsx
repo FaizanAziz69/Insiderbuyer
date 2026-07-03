@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, Plus, Star, X } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
+import { rankColumn } from "@/components/tableColumns";
 import { useWatchlist } from "@/lib/watchlist";
 
 interface Quote {
@@ -90,6 +91,7 @@ export default function WatchlistPage() {
   }
 
   const columns: Column<WRow>[] = [
+    rankColumn<WRow>(),
     {
       key: "symbol",
       label: "Company",

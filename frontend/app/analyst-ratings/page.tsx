@@ -3,11 +3,12 @@ import useSWR from "swr";
 import Link from "next/link";
 import { useState } from "react";
 import { ShieldCheck } from "lucide-react";
-import { API_BASE, fetcher } from "@/lib/api";
+import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
 import { DataTable } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
+import { rankColumn } from "@/components/tableColumns";
 
 interface AnalystRow {
   symbol: string;
@@ -50,12 +51,12 @@ export default function AnalystRatingsPage() {
     .filter(Boolean)
     .slice(0, 250)
     .join(",");
-  const { data: quoteData } = useSWR<{ rows: { symbol: string; price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null }[] }>(
+  const { data: quoteData } = useSWR<{ rows: { symbol: string; price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null; marketCap?: number | null }[] }>(
     tickerKey ? `${API_BASE}/market-stats/quotes?symbols=${encodeURIComponent(tickerKey)}` : null,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
-  const quoteBySym = new Map<string, { price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null }>();
+  const quoteBySym = new Map<string, { price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null; marketCap?: number | null }>();
   (quoteData?.rows || []).forEach((q) => quoteBySym.set(q.symbol.toUpperCase(), q));
 
   return (
@@ -114,6 +115,7 @@ export default function AnalystRatingsPage() {
             initialSort={{ key: "upsidePct", dir: "desc" }}
             empty="No matches."
             columns={[
+              rankColumn<AnalystRow>(),
               {
                 key: "company",
                 label: "Company",
@@ -137,6 +139,23 @@ export default function AnalystRatingsPage() {
                     </Link>
                   </span>
                 ),
+              },
+              {
+                key: "marketCap",
+                label: "Market Cap",
+                filterable: true,
+                filterType: "marketCapPreset",
+                filterLabelText: "Market Cap",
+                align: "right",
+                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null,
+                render: (r) => {
+                  const mc = quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null;
+                  return (
+                    <span className="tabular text-mute text-[14px] font-bold">
+                      {mc ? formatCurrency(mc) : "—"}
+                    </span>
+                  );
+                },
               },
               {
                 key: "consensus",

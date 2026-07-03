@@ -17,6 +17,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { Indicators } from "@/components/Indicators";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { rankColumn } from "@/components/tableColumns";
 
 interface RowLive {
   price: number;
@@ -209,16 +210,7 @@ export default function StockListDetailPage({
             initialSort={{ key: "marketCap", dir: "desc" }}
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={[
-              {
-                key: "rank",
-                label: "#",
-                align: "left",
-                sortable: false,
-                className: "w-12",
-                render: (_r, i) => (
-                  <span className="text-[13px] font-bold tabular">{i + 1}</span>
-                ),
-              },
+              rankColumn<DetailRow>(),
               {
                 key: "company",
                 label: "Company",

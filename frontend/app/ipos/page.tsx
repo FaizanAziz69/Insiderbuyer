@@ -6,6 +6,7 @@ import { API_BASE, fetcher, formatDate } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
 import { DataTable } from "@/components/DataTable";
+import { rankColumn } from "@/components/tableColumns";
 
 interface IpoRow {
   symbol: string;
@@ -89,6 +90,7 @@ export default function IposPage() {
             rowKey={(r, i) => `${r.symbol}-${r.date}-${i}`}
             empty="No IPOs match this filter."
             columns={[
+              rankColumn<IpoRow>(),
               {
                 key: "company",
                 label: "Company",

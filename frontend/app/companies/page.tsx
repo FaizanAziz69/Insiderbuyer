@@ -7,16 +7,9 @@ import { PremiumGate } from "@/components/PremiumGate";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { rankColumn } from "@/components/tableColumns";
 
 // Shared column definitions — reused by both the free and paywall tables.
-const rankCol: Column<RankingRow> = {
-  key: "rank",
-  label: "#",
-  sortable: false,
-  className: "w-12",
-  render: (_r, i) => <span className="tabular text-[13px] font-bold">{i + 1}</span>,
-};
-
 const tickerCol: Column<RankingRow> = {
   key: "ticker",
   label: "Company",
@@ -105,7 +98,7 @@ export default function CompaniesPage() {
   const restDesc = [...(data?.rows.slice(5) || [])].reverse();
 
   const freeColumns: Column<RankingRow>[] = [
-    rankCol,
+    rankColumn<RankingRow>(),
     tickerCol,
     {
       key: "price",
@@ -221,7 +214,7 @@ export default function CompaniesPage() {
   ];
 
   const compactColumns: Column<RankingRow>[] = [
-    rankCol,
+    rankColumn<RankingRow>(),
     tickerCol,
     {
       key: "mktcap",

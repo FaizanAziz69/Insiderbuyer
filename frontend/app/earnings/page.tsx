@@ -3,6 +3,7 @@ import useSWR from "swr";
 import { Calendar } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
 import { DataTable } from "@/components/DataTable";
+import { rankColumn } from "@/components/tableColumns";
 
 interface EarningsRow {
   date: string;
@@ -90,6 +91,7 @@ export default function EarningsPage() {
             rowKey={(r) => `${r.date}-${r.symbol}`}
             initialSort={{ key: "date", dir: "asc" }}
             columns={[
+              rankColumn<EarningsRow>(),
               {
                 key: "symbol",
                 label: "Company",

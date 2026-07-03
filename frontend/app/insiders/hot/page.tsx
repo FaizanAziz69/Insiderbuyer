@@ -17,6 +17,7 @@ import { DataTable, Column } from "@/components/DataTable";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { InsiderSignalHover } from "@/components/InsiderSignalHover";
+import { rankColumn } from "@/components/tableColumns";
 
 /**
  * Insider strategy signal — how strong/clustered the recent insider buying is,
@@ -59,15 +60,7 @@ export default function InsiderHotStocksPage() {
   const sparkMap = sparkData?.spark || {};
 
   const columns: Column<RankingRow>[] = [
-    {
-      key: "rank",
-      label: "#",
-      sortable: false,
-      className: "w-10",
-      render: (_r, i) => (
-        <span className="text-[13px] font-bold tabular">{i + 1}</span>
-      ),
-    },
+    rankColumn<RankingRow>(),
     {
       key: "ticker",
       label: "Company",

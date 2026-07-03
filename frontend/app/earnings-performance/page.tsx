@@ -3,10 +3,11 @@ import useSWR from "swr";
 import Link from "next/link";
 import { useState } from "react";
 import { CalendarClock, Target, TrendingUp, TrendingDown } from "lucide-react";
-import { API_BASE, fetcher, formatDate } from "@/lib/api";
+import { API_BASE, fetcher, formatCurrency, formatDate } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
 import { DataTable } from "@/components/DataTable";
+import { rankColumn } from "@/components/tableColumns";
 
 interface Track {
   ies: number;
@@ -133,6 +134,7 @@ export default function EarningsPerformancePage() {
             </>
           }
           columns={[
+            rankColumn<UpcomingRow>(),
             {
               key: "company",
               label: "Company",
@@ -153,6 +155,23 @@ export default function EarningsPerformancePage() {
                   </div>
                 </Link>
               ),
+            },
+            {
+              key: "marketCap",
+              label: "Market Cap",
+              filterable: true,
+              filterType: "marketCapPreset",
+              filterLabelText: "Market Cap",
+              align: "right",
+              sortValue: (r) => (r.marketCap == null ? null : Number(r.marketCap)),
+              render: (r) => {
+                const c = r.marketCap == null ? null : Number(r.marketCap);
+                return (
+                  <span className="tabular text-mute text-[14px] font-bold">
+                    {c ? formatCurrency(c) : "—"}
+                  </span>
+                );
+              },
             },
             {
               key: "date",
@@ -293,13 +312,7 @@ export default function EarningsPerformancePage() {
           rowKey={(r, i) => `${i}`}
           empty="No scored track records yet — run a rebuild to backtest insider buys against past earnings."
           columns={[
-            {
-              key: "rank",
-              label: "#",
-              sortable: false,
-              className: "tabular text-[13px]",
-              render: (_r, i) => <span className="font-bold">{i + 1}</span>,
-            },
+            rankColumn<LbCompany | LbInsider>(),
             {
               key: "entity",
               label: lbType === "company" ? "Company" : "Insider",

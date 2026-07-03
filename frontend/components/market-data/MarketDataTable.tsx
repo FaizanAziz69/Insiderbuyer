@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowDown, ArrowUp, Flame } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
+import { rankColumn } from "@/components/tableColumns";
 import {
   API_BASE,
   fetcher,
@@ -41,14 +42,7 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
   const rows = data?.rows || [];
 
   const columns: Column<MarketStatRow>[] = [
-    {
-      key: "rank",
-      label: "#",
-      sortable: false,
-      render: (_r, i) => (
-        <span className="text-faint text-[11px] tabular">{i + 1}</span>
-      ),
-    },
+    rankColumn<MarketStatRow>(),
     {
       key: "symbol",
       label: "Company",

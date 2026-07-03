@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { shortSector } from "@/components/heatmap/StockHeatmap";
 import { DataTable, Column } from "@/components/DataTable";
+import { rankColumn } from "@/components/tableColumns";
 
 type PeriodKey = "sinceClose" | "1d" | "7d" | "30d" | "180d" | "1y";
 
@@ -188,6 +189,7 @@ export default function SectorsPage() {
   }, [aggs]);
 
   const columns: Column<SectorAgg>[] = [
+    rankColumn<SectorAgg>(),
     {
       key: "sector",
       label: "Sector",
