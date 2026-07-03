@@ -124,7 +124,6 @@ export default function MarketHeatmapPage() {
                 { href: "/sectors", label: "Sector Heatmap", desc: "Insider buying volume by sector" },
                 { href: "/market-data/top-gainers", label: "Top Gainers", desc: "Biggest gains today" },
                 { href: "/market-data/top-losers", label: "Top Losers", desc: "Biggest losses today" },
-                { href: "/market-data/most-active", label: "Most Active", desc: "Highest dollar volume" },
               ].map((l) => (
                 <li key={l.href}>
                   <Link

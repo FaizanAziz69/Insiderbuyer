@@ -1302,33 +1302,19 @@ export class MarketStatsService {
   }
   private async buildDividends(): Promise<DividendRow[]> {
     const syms = this.universe();
-    // Primary source is the v7 batch quote (works reliably on the server).
-    // The per-symbol summary adds payout ratio + ex-date where reachable, but
-    // it is best-effort — never required, so the table stays complete even when
-    // Yahoo blocks the summary endpoint (as it does from datacenter IPs).
+    // Built entirely from the v7 batch quote (reliable on the server). We do
+    // NOT call the per-symbol summary here — Yahoo blocks it from datacenter
+    // IPs, and 250 slow/failing summary calls would blow the request budget
+    // and starve the table. Payout ratio / ex-date are omitted as a result.
     const quotes = await this.getQuoteBatch(syms);
-    let summaries = new Map<string, any>();
-    try {
-      summaries = await this.summaryBatch(syms);
-    } catch {
-      /* summary unavailable — batch quote alone is enough */
-    }
     const rows: DividendRow[] = [];
     for (const sym of syms) {
       const q = quotes.get(sym);
-      const sd = summaries.get(sym)?.summaryDetail;
       const ref = REFERENCE_QUOTES[sym];
       const price = q?.price ?? ref?.price ?? 0;
-      // Prefer live-quote dividend fields (server-reliable); fall back to summary.
-      const rate = q?.dividendRate ?? sd?.dividendRate?.raw ?? null;
-      const yieldPct =
-        q?.dividendYield != null
-          ? q.dividendYield
-          : sd?.dividendYield?.raw != null
-            ? +(sd.dividendYield.raw * 100).toFixed(2)
-            : null;
+      const rate = q?.dividendRate ?? null;
+      const yieldPct = q?.dividendYield ?? null;
       if (!price || !rate || !yieldPct) continue; // dividend payers only
-      const exTs = sd?.exDividendDate?.raw ?? null;
       rows.push({
         symbol: sym,
         name: q?.name ?? ref?.name ?? sym,
@@ -1336,8 +1322,8 @@ export class MarketStatsService {
         price,
         dividendYield: yieldPct,
         dividendRate: rate,
-        payoutRatio: sd?.payoutRatio?.raw != null ? +(sd.payoutRatio.raw * 100).toFixed(1) : null,
-        exDividendDate: exTs ? new Date(exTs * 1000).toISOString().slice(0, 10) : null,
+        payoutRatio: null,
+        exDividendDate: null,
         marketCap: q?.marketCap ?? ref?.marketCap ?? null,
       });
     }

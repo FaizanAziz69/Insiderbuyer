@@ -75,7 +75,6 @@ export function Footer() {
               <li><Link href="/trades" className="text-soft hover:text-accent transition">Insider Trades</Link></li>
               <li><Link href="/insiders/hot" className="text-soft hover:text-accent transition">Insider Hot Stocks</Link></li>
               <li><Link href="/market-data/top-gainers" className="text-soft hover:text-accent transition">Top Gainers</Link></li>
-              <li><Link href="/market-data/most-active" className="text-soft hover:text-accent transition">Most Active</Link></li>
               <li><Link href="/congressional-trades" className="text-soft hover:text-accent transition">Congressional Trades</Link></li>
               <li><Link href="/heatmaps/market" className="text-soft hover:text-accent transition">Stock Heatmap</Link></li>
             </ul>

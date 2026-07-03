@@ -464,7 +464,6 @@ export default function SectorsPage() {
                 { href: "/heatmaps/market", label: "Stock Heat Map", desc: "Every company by sector" },
                 { href: "/market-data/top-gainers", label: "Top Gainers", desc: "Biggest gains today" },
                 { href: "/market-data/top-losers", label: "Top Losers", desc: "Biggest losses today" },
-                { href: "/market-data/most-active", label: "Most Active", desc: "Highest dollar volume" },
               ].map((l) => (
                 <li key={l.href}>
                   <Link href={l.href} className="block px-4 py-3 hover:bg-[var(--accent-soft)] transition group">

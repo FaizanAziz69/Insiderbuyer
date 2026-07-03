@@ -14,7 +14,6 @@ interface MoverRow {
 const ENDPOINTS = [
   { key: "top-gainers", title: "Top Gainers", href: "/market-data/top-gainers" },
   { key: "top-losers", title: "Top Losers", href: "/market-data/top-losers" },
-  { key: "most-active", title: "Most Active", href: "/market-data/most-active" },
 ] as const;
 
 function MoverList({

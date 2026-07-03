@@ -21,7 +21,6 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
-  Target,
   TrendingUp,
   Users,
   Wrench,
@@ -62,9 +61,7 @@ export const NAV_GROUPS: NavGroup[] = [
         links: [
           { label: "Insider Trades", href: "/trades", description: "All open-market Form 4 buys & sells", icon: Activity },
           { label: "Insider Hot Stocks", href: "/insiders/hot", description: "Most insider buying right now, by IQS", icon: Flame },
-          { label: "Insider Earnings Score", href: "/earnings-performance", description: "Insider track record into earnings", icon: Target },
           { label: "Upcoming Earnings", href: "/earnings", description: "Live earnings calendar, next 7 days", icon: Calendar },
-          { label: "Most Active Stocks", href: "/market-data/most-active", description: "Highest dollar volume today", icon: BarChart3 },
         ],
       },
       {
