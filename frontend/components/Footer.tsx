@@ -101,7 +101,8 @@ export function Footer() {
               <li><Link href="/reports" className="text-soft hover:text-accent transition">Reports &amp; Features</Link></li>
               <li><Link href="/premium" className="text-soft hover:text-accent transition">Premium</Link></li>
               <li><Link href="/business" className="text-soft hover:text-accent transition">For Business / API</Link></li>
-              <li><a href="mailto:admin@insiderbuying.com" className="text-soft hover:text-accent transition">Contact</a></li>
+              <li><Link href="/about" className="text-soft hover:text-accent transition">About Us</Link></li>
+              <li><Link href="/contact" className="text-soft hover:text-accent transition">Contact Us</Link></li>
             </ul>
           </div>
 
@@ -173,6 +174,9 @@ export function Footer() {
             </Link>
             <Link href="/disclosures" className="text-mute hover:text-accent transition">
               Disclosures
+            </Link>
+            <Link href="/disclaimer" className="text-mute hover:text-accent transition">
+              Disclaimer
             </Link>
             <Link href="/corrections" className="text-mute hover:text-accent transition">
               Corrections
