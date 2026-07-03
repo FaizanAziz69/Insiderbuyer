@@ -73,6 +73,8 @@ export interface MarketStatRow {
   peRatio?: number | null;
   dividendYield?: number | null; // percent
   dividendRate?: number | null; // annual $ per share
+  analystRating?: number | null; // Yahoo mean rating 1 (strong buy) – 5 (strong sell)
+  analystLabel?: string | null; // e.g. "Buy", "Hold", "Sell"
 }
 
 /** Full stockanalysis.com-style fundamentals for a single ticker. */
@@ -585,6 +587,16 @@ export class MarketStatsService {
                   : q.trailingAnnualDividendRate != null
                     ? Number(q.trailingAnnualDividendRate)
                     : null,
+              // v7 quote carries the analyst mean rating as e.g. "2.0 - Buy"
+              // (works on the server, unlike the blocked summary endpoint).
+              ...(() => {
+                const s = String(q.averageAnalystRating ?? '');
+                const m = s.match(/^([\d.]+)\s*-\s*(.+)$/);
+                return {
+                  analystRating: m ? Number(m[1]) : null,
+                  analystLabel: m ? m[2].trim() : null,
+                };
+              })(),
             });
           }
           break;
@@ -1264,18 +1276,42 @@ export class MarketStatsService {
   }
   private async buildAnalystRatings(): Promise<AnalystRow[]> {
     const syms = this.universe();
-    const [quotes, summaries] = await Promise.all([
-      this.getQuoteBatch(syms),
-      this.summaryBatch(syms),
-    ]);
+    // Consensus comes from the v7 batch quote (averageAnalystRating), which is
+    // reliable on the server. Price targets need the per-symbol summary, which
+    // Yahoo blocks from datacenter IPs — so we fetch it only as a time-boxed
+    // best-effort and never let it starve the table.
+    const quotes = await this.getQuoteBatch(syms);
+    let summaries = new Map<string, any>();
+    try {
+      summaries = await Promise.race([
+        this.summaryBatch(syms),
+        new Promise<Map<string, any>>((res) => setTimeout(() => res(new Map()), 20000)),
+      ]);
+    } catch {
+      /* targets unavailable — consensus from the quote is enough */
+    }
+    const RECO: Record<string, string> = {
+      "strong buy": "strong_buy",
+      buy: "buy",
+      outperform: "buy",
+      hold: "hold",
+      neutral: "hold",
+      underperform: "underperform",
+      sell: "sell",
+      "strong sell": "strong_sell",
+    };
     const rows: AnalystRow[] = [];
     for (const sym of syms) {
       const q = quotes.get(sym);
       const fd = summaries.get(sym)?.financialData;
       const ref = REFERENCE_QUOTES[sym];
       const price = q?.price ?? ref?.price ?? 0;
+      const label = q?.analystLabel ?? null;
+      const recommendation =
+        fd?.recommendationKey ??
+        (label ? RECO[label.toLowerCase()] ?? label.toLowerCase().replace(/\s+/g, "_") : null);
+      if (!price || !recommendation) continue; // only covered names
       const targetMean = fd?.targetMeanPrice?.raw ?? null;
-      if (!price || !fd) continue;
       const upsidePct =
         targetMean && price ? +(((targetMean - price) / price) * 100).toFixed(2) : null;
       rows.push({
@@ -1283,15 +1319,23 @@ export class MarketStatsService {
         name: q?.name ?? ref?.name ?? sym,
         sector: q?.sector ?? ref?.sector ?? null,
         price,
-        targetMean: targetMean ?? null,
+        targetMean,
         targetHigh: fd?.targetHighPrice?.raw ?? null,
         targetLow: fd?.targetLowPrice?.raw ?? null,
         upsidePct,
-        recommendation: fd?.recommendationKey ?? null,
+        recommendation,
         numAnalysts: fd?.numberOfAnalystOpinions?.raw ?? null,
       });
     }
-    rows.sort((a, b) => (b.upsidePct ?? -999) - (a.upsidePct ?? -999));
+    // Strongest consensus first (falls back to this when no upside is known).
+    const strength: Record<string, number> = {
+      strong_buy: 5, buy: 4, hold: 3, underperform: 2, sell: 2, strong_sell: 1,
+    };
+    rows.sort(
+      (a, b) =>
+        (b.upsidePct ?? -999) - (a.upsidePct ?? -999) ||
+        (strength[b.recommendation ?? ""] ?? 0) - (strength[a.recommendation ?? ""] ?? 0),
+    );
     return rows;
   }
 
