@@ -103,12 +103,12 @@ function relVol(r: RankingRow): number {
 }
 
 // Color ramp for "Relative volume": calm gray at ~1x, warming to hot red at 3x+.
-function colorForRelVol(ratio: number): { bg: string } {
+function colorForRelVol(ratio: number): { bg: string; fg: string } {
   const t = Math.max(0, Math.min(1, (ratio - 0.5) / 2.5)); // 0.5x→0 , 3x→1
-  if (t < 0.15) return { bg: "#7f8c8d" };
-  if (t < 0.4) return { bg: "#c99a2e" };
-  if (t < 0.7) return { bg: "#d97706" };
-  return { bg: "#b91c1c" };
+  if (t < 0.15) return { bg: "#c8ccd2", fg: "#1a1d26" };
+  if (t < 0.4) return { bg: "#e0b94a", fg: "#1a1d26" };
+  if (t < 0.7) return { bg: "#d97706", fg: "#ffffff" };
+  return { bg: "#b91c1c", fg: "#ffffff" };
 }
 
 /**
@@ -208,32 +208,50 @@ function changePctFor(row: RankingRow): number {
   return -1.8 + noise;
 }
 
-// TradingView-style diverging scale: a dark neutral center saturating to a
-// solid green for gains and solid red for losses. Bigger moves → more
-// saturated, exactly like the TradingView heatmap. Flat fills, no gradients.
-const NEUTRAL: [number, number, number] = [65, 69, 81]; // #414551 medium gray (TradingView neutral)
-const GREEN: [number, number, number] = [30, 174, 96]; // #1EAE60 strong gain
-const RED: [number, number, number] = [228, 63, 61]; // #E43F3D strong loss
+// TradingView-style LIGHT diverging scale: a light-gray neutral center, with
+// small moves as pale pink/green and big moves saturating to dark red/green.
+// A 3-stop ramp (gray → mid → dark) per side so mids stay vivid while extremes
+// go dark — exactly like TradingView's heatmap.
+type RGB = [number, number, number];
+const NEUTRAL: RGB = [209, 212, 220]; // #D1D4DC light gray (0%)
+const GREEN_MID: RGB = [76, 174, 100]; // #4CAE64
+const GREEN_DARK: RGB = [22, 107, 55]; // #166B37
+const RED_MID: RGB = [224, 102, 102]; // #E06666
+const RED_DARK: RGB = [147, 38, 44]; // #93262C
 
-function mix(a: [number, number, number], b: [number, number, number], t: number): string {
-  const r = Math.round(a[0] + (b[0] - a[0]) * t);
-  const g = Math.round(a[1] + (b[1] - a[1]) * t);
-  const bl = Math.round(a[2] + (b[2] - a[2]) * t);
-  return `rgb(${r}, ${g}, ${bl})`;
+function mix(a: RGB, b: RGB, t: number): RGB {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t),
+  ];
+}
+
+// Two-segment ramp: neutral → mid at t=0.5, mid → dark at t=1.
+function ramp(neutral: RGB, mid: RGB, dark: RGB, t: number): RGB {
+  return t <= 0.5 ? mix(neutral, mid, t * 2) : mix(mid, dark, (t - 0.5) * 2);
+}
+
+const rgb = (c: RGB) => `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+
+// Perceived luminance → dark text on light tiles, white on dark tiles (like TV).
+function textFor(c: RGB): string {
+  const l = (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+  return l > 0.62 ? "#1a1d26" : "#ffffff";
 }
 
 function colorForChange(pct: number, clamp = 5) {
   const t = Math.max(-1, Math.min(1, pct / clamp));
-  const bg = t >= 0 ? mix(NEUTRAL, GREEN, t) : mix(NEUTRAL, RED, -t);
-  return { bg };
+  const c = t >= 0 ? ramp(NEUTRAL, GREEN_MID, GREEN_DARK, t) : ramp(NEUTRAL, RED_MID, RED_DARK, -t);
+  return { bg: rgb(c), fg: textFor(c) };
 }
 
 // IQS-band coloring on the 0–100 composite, mapped onto the same diverging
 // scale (50 = neutral, 100 = strong green, 0 = strong red).
 function colorForIqs(iqs: number) {
   const t = Math.max(-1, Math.min(1, (iqs - 50) / 50));
-  const bg = t >= 0 ? mix(NEUTRAL, GREEN, t) : mix(NEUTRAL, RED, -t);
-  return { bg };
+  const c = t >= 0 ? ramp(NEUTRAL, GREEN_MID, GREEN_DARK, t) : ramp(NEUTRAL, RED_MID, RED_DARK, -t);
+  return { bg: rgb(c), fg: textFor(c) };
 }
 
 interface SectorBlock {
@@ -546,7 +564,8 @@ export function StockHeatmap({
                   height: HEADER_H - 2,
                   fontSize: isLit ? 12 : 11,
                   fontWeight: 600,
-                  color: isLit ? "#1d4ed8" : "var(--text-mute)",
+                  // Heatmap root is always white → fixed dark header (theme-independent).
+                  color: isLit ? "#1d4ed8" : "#5c606b",
                   letterSpacing: "0.01em",
                   pointerEvents: "none",
                   zIndex: 7,
@@ -634,14 +653,14 @@ export function StockHeatmap({
                     width: Math.max(0, tileW - 2),
                     height: Math.max(0, tileH - 2),
                     background: c.bg,
-                    color: "#ffffff",
+                    color: c.fg,
                     borderRadius: 4,
                     overflow: "hidden",
                     cursor: "pointer",
                     zIndex: isHovered ? 20 : 1,
-                    filter: isHovered ? "brightness(1.1)" : undefined,
+                    filter: isHovered ? "brightness(1.06)" : undefined,
                     boxShadow: isHovered
-                      ? "inset 0 0 0 2px rgba(255,255,255,0.95)"
+                      ? "inset 0 0 0 2px rgba(20,22,30,0.65), 0 2px 8px rgba(0,0,0,0.25)"
                       : undefined,
                     transition: "filter 0.12s ease, box-shadow 0.12s ease",
                   }}
@@ -649,7 +668,7 @@ export function StockHeatmap({
                   <Link
                     href={rect.row.ticker ? `/companies/${encodeURIComponent(rect.row.ticker)}` : "#"}
                     className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden"
-                    style={{ color: "#ffffff", padding: 2, gap: 2 }}
+                    style={{ color: c.fg, padding: 2, gap: 2 }}
                     title={tileTitle}
                   >
                     {showLogo && (
@@ -674,7 +693,7 @@ export function StockHeatmap({
                       <div
                         className="tracking-tight leading-none text-center"
                         style={{
-                          color: "#ffffff",
+                          color: c.fg,
                           fontSize: Math.max(9, tickerFs),
                           fontWeight: 800,
                           letterSpacing: "-0.01em",
@@ -688,7 +707,8 @@ export function StockHeatmap({
                       <div
                         className="leading-tight text-center px-1"
                         style={{
-                          color: "rgba(255,255,255,0.92)",
+                          color: c.fg,
+                          opacity: 0.9,
                           fontSize: Math.max(9, Math.min(13, Math.floor(tileW / 12))),
                           fontWeight: 600,
                           maxWidth: "100%",
@@ -704,7 +724,7 @@ export function StockHeatmap({
                       <div
                         className="leading-none tabular text-center"
                         style={{
-                          color: "#ffffff",
+                          color: c.fg,
                           fontSize: Math.max(9, pctFs),
                           fontWeight: 800,
                           marginTop: 1,
@@ -800,9 +820,9 @@ export function HeatmapLegend({ colorBy = "change" }: { colorBy?: ColorBy }) {
   let swatches: { label: string; c: string }[];
   if (colorBy === "relvol") {
     swatches = [
-      { label: "0.5×", c: "#7f8c8d" },
-      { label: "1×", c: "#a9752b" },
-      { label: "1.5×", c: "#c99a2e" },
+      { label: "0.5×", c: "#c8ccd2" },
+      { label: "1×", c: "#e0b94a" },
+      { label: "1.5×", c: "#d99a2e" },
       { label: "2×", c: "#d97706" },
       { label: "3×+", c: "#b91c1c" },
     ];
@@ -814,12 +834,12 @@ export function HeatmapLegend({ colorBy = "change" }: { colorBy?: ColorBy }) {
     const stops = isChange
       ? [-5.5, -3.5, -1.5, 0, 1.5, 3.5, 5.5]
       : [-1, -0.6, -0.25, 0, 0.25, 0.6, 1].map((s) => Math.round(s * clamp));
-    // Swatch colors are generated from the SAME diverging mix the tiles use,
+    // Swatch colors are generated from the SAME diverging ramp the tiles use,
     // so the legend matches the map exactly.
     swatches = stops.map((v) => {
       const t = Math.max(-1, Math.min(1, v / clamp));
-      const c = t >= 0 ? mix(NEUTRAL, GREEN, t) : mix(NEUTRAL, RED, -t);
-      return { label: `${v > 0 ? "+" : ""}${v}%`, c };
+      const c = t >= 0 ? ramp(NEUTRAL, GREEN_MID, GREEN_DARK, t) : ramp(NEUTRAL, RED_MID, RED_DARK, -t);
+      return { label: `${v > 0 ? "+" : ""}${v}%`, c: rgb(c) };
     });
   }
   return (
