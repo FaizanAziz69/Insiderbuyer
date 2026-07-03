@@ -45,10 +45,10 @@ export function TradesTable({
             >
               <CompanyLogo ticker={ticker} name={t.companyName} size={22} />
               <div className="min-w-0">
-                <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+                <div className="font-mono text-[14px] font-bold text-accent hover:underline">
                   {ticker || "—"}
                 </div>
-                <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
+                <div className="text-[12px] font-medium truncate max-w-[150px]" style={{ color: "var(--text)" }}>
                   {t.companyName}
                 </div>
               </div>
@@ -58,45 +58,30 @@ export function TradesTable({
       },
     },
     {
-      key: "marketCap",
-      label: "Market Cap",
-      filterable: true,
-      filterType: "marketCapPreset",
-      filterLabelText: "Market Cap",
-      align: "right",
-      sortValue: (t) => t.marketCap ?? null,
-      render: (t) => (
-        <span className="tabular text-mute text-[14px] font-bold">
-          {t.marketCap ? formatCurrency(t.marketCap) : "—"}
-        </span>
-      ),
-    },
-    {
-      key: "insiderName",
+      // Insider name + a single normalized role badge (CEO/CFO/COO/Director/
+      // Other) shown on EVERY row, so the role is consistent and the filter is
+      // by role — not by raw titles like "Chief Accounting Officer".
+      key: "insider",
       label: "Insider",
+      filterable: true,
+      filterLabel: (t) => t.role,
+      filterLabelText: "Role",
       sortValue: (t) => t.insiderName,
       render: (t) => (
-        <>
-          <div className="font-bold text-[15px]">{t.insiderName}</div>
-          {t.rawTitle && (
-            <div className="text-[12px] text-mute truncate max-w-[200px]">{t.rawTitle}</div>
-          )}
-        </>
+        <div className="min-w-0" title={t.rawTitle || t.role}>
+          <div className="font-semibold text-[14px] truncate max-w-[190px]">{t.insiderName}</div>
+          <span
+            className={`${ROLE_CLS[t.role] || ROLE_CLS.Other} mt-0.5 inline-block`}
+            style={{ fontSize: 10 }}
+          >
+            {t.role}
+          </span>
+        </div>
       ),
-    },
-    {
-      key: "role",
-      label: "Role",
-      filterable: true,
-      sortValue: (t) => t.role,
-      render: (t) => {
-        const roleCls = ROLE_CLS[t.role] || ROLE_CLS.Other;
-        return <span className={roleCls}>{t.role}</span>;
-      },
     },
     {
       key: "action",
-      label: "Action",
+      label: "Type",
       filterable: true,
       filterLabel: (t) => (t.type === "SELL" ? "SELL" : "BUY"),
       sortValue: (t) => (t.type === "SELL" ? "SELL" : "BUY"),
@@ -119,7 +104,7 @@ export function TradesTable({
       filterType: "range",
       align: "right",
       sortValue: (t) => t.sharesBought,
-      render: (t) => <span className="tabular text-[14px] font-bold">{formatNumber(t.sharesBought)}</span>,
+      render: (t) => <span className="tabular text-[13px] font-bold">{formatNumber(t.sharesBought)}</span>,
     },
     {
       key: "totalValue",
@@ -129,33 +114,32 @@ export function TradesTable({
       align: "right",
       sortValue: (t) => t.totalValue,
       render: (t) => (
-        <span className="tabular text-[14px] font-bold">{formatCurrency(t.totalValue)}</span>
+        <span className="tabular text-[13px] font-bold">{formatCurrency(t.totalValue)}</span>
       ),
     },
     {
       key: "transactionDate",
       label: "Date",
-      filterable: true,
-      filterLabel: (t) => formatDate(t.transactionDate),
       align: "right",
       sortValue: (t) => new Date(t.transactionDate).getTime(),
       render: (t) => (
-        <span className="text-mute text-[14px] font-bold tabular">{formatDate(t.transactionDate)}</span>
+        <span className="text-mute text-[13px] font-bold tabular whitespace-nowrap">{formatDate(t.transactionDate)}</span>
       ),
     },
     {
       key: "filing",
-      label: "Filing",
+      label: "SEC",
+      align: "center",
       sortable: false,
       render: (t) => (
         <a
           href={t.filingUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-mute hover:text-accent"
+          className="inline-flex items-center justify-center text-mute hover:text-accent"
+          title="View Form 4 on SEC.gov"
         >
-          <ExternalLink className="h-3.5 w-3.5" />
-          SEC
+          <ExternalLink className="h-4 w-4" />
         </a>
       ),
     },
@@ -167,7 +151,7 @@ export function TradesTable({
         <DataTable<TradeRow>
           rows={visibleRows}
           rowKey={(t) => t.id}
-          initialSort={{ key: "marketCap", dir: "desc" }}
+          initialSort={{ key: "totalValue", dir: "desc" }}
           columns={columns}
         />
       </div>
@@ -229,41 +213,34 @@ function Row({ t, rank }: { t: TradeRow; rank: number }) {
           >
             <CompanyLogo ticker={t.ticker || ""} name={t.companyName} size={22} />
             <div className="min-w-0">
-              <div className="font-mono text-[15px] font-bold text-accent hover:underline">
+              <div className="font-mono text-[14px] font-bold text-accent hover:underline">
                 {t.ticker || "—"}
               </div>
-              <div className="text-[13px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
+              <div className="text-[12px] font-medium truncate max-w-[150px]" style={{ color: "var(--text)" }}>
                 {t.companyName}
               </div>
             </div>
           </Link>
         </span>
       </td>
-      <td className="text-right tabular text-mute text-[14px] font-bold">
-        {t.marketCap ? formatCurrency(t.marketCap) : "—"}
-      </td>
       <td>
-        <div className="font-bold text-[15px]">{t.insiderName}</div>
-        {t.rawTitle && <div className="text-[12px] text-mute truncate max-w-[200px]">{t.rawTitle}</div>}
-      </td>
-      <td>
-        <span className={roleCls}>{t.role}</span>
+        <div className="font-semibold text-[14px] truncate max-w-[190px]">{t.insiderName}</div>
+        <span className={`${roleCls} mt-0.5 inline-block`} style={{ fontSize: 10 }}>{t.role}</span>
       </td>
       <td>
         <span className="badge badge-buy">BUY</span>
       </td>
-      <td className="text-right tabular text-[14px] font-bold">{formatNumber(t.sharesBought)}</td>
-      <td className="text-right tabular text-[14px] font-bold">{formatCurrency(t.totalValue)}</td>
-      <td className="text-right text-mute text-[14px] font-bold tabular">{formatDate(t.transactionDate)}</td>
-      <td>
+      <td className="text-right tabular text-[13px] font-bold">{formatNumber(t.sharesBought)}</td>
+      <td className="text-right tabular text-[13px] font-bold">{formatCurrency(t.totalValue)}</td>
+      <td className="text-right text-mute text-[13px] font-bold tabular whitespace-nowrap">{formatDate(t.transactionDate)}</td>
+      <td className="text-center">
         <a
           href={t.filingUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-mute hover:text-accent"
+          className="inline-flex items-center justify-center text-mute hover:text-accent"
         >
-          <ExternalLink className="h-3.5 w-3.5" />
-          SEC
+          <ExternalLink className="h-4 w-4" />
         </a>
       </td>
     </>
