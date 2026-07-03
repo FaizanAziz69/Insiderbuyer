@@ -3,6 +3,7 @@ import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
 import { REFERENCE_QUOTES, ReferenceQuote } from './reference-quotes';
 import { MARKET_UNIVERSE } from './market-universe';
+import { SECTOR_BY_TICKER } from './market-sectors';
 
 export interface AnalystRow {
   symbol: string;
@@ -1357,6 +1358,9 @@ export class MarketStatsService {
         const quotes = await this.getQuoteBatch(this.universe());
         return Array.from(quotes.values())
           .filter((r) => (r.marketCap ?? 0) > 0 && r.price > 0)
+          // Authoritative sector (Yahoo omits it on the fast quote path) so the
+          // heatmap groups cleanly with no "Other" bucket.
+          .map((r) => ({ ...r, sector: SECTOR_BY_TICKER[r.symbol] ?? r.sector ?? "Other" }))
           .sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0));
       },
       20,
