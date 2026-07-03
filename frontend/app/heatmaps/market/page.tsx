@@ -49,7 +49,9 @@ export default function MarketHeatmapPage() {
   );
   const [groupBy, setGroupBy] = useState<"sector" | "none">("sector");
   const [colorBy, setColorBy] = useState<"change" | "relvol">("change");
-  const [sizeBy, setSizeBy] = useState<"marketCap" | "volume">("marketCap");
+  const [sizeBy, setSizeBy] = useState<"marketCap" | "volume" | "turnover" | "mono">(
+    "marketCap",
+  );
   const [query, setQuery] = useState("");
   const [source, setSource] = useState("S&P 500 Index");
   const [sourceOpen, setSourceOpen] = useState(false);
@@ -176,10 +178,12 @@ export default function MarketHeatmapPage() {
           <ControlSelect
             label="Size by"
             value={sizeBy}
-            onChange={(v) => setSizeBy(v as "marketCap" | "volume")}
+            onChange={(v) => setSizeBy(v as "marketCap" | "volume" | "turnover" | "mono")}
             options={[
               { value: "marketCap", label: "Market cap" },
               { value: "volume", label: "Volume" },
+              { value: "turnover", label: "Turnover (Price × Vol)" },
+              { value: "mono", label: "Mono size" },
             ]}
           />
         </div>

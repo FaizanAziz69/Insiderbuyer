@@ -10,7 +10,7 @@ interface Props {
   height?: number;
   mode?: "sector" | "iqs" | "flat";
   /** What the tile AREA represents. */
-  sizeBy?: "marketCap" | "volume";
+  sizeBy?: "marketCap" | "volume" | "turnover" | "mono";
   /** What the tile COLOR represents. */
   colorBy?: "change" | "relvol";
   /** Group by the row's sector verbatim (already-clean TRBC sectors from the
@@ -20,7 +20,7 @@ interface Props {
 
 // Module-scoped because the layout helpers are module-level; set synchronously
 // before each layout pass (safe in render).
-let CURRENT_SIZE_BY: "marketCap" | "volume" = "marketCap";
+let CURRENT_SIZE_BY: "marketCap" | "volume" | "turnover" | "mono" = "marketCap";
 let USE_RAW_SECTORS = false;
 
 interface Rect {
@@ -34,10 +34,12 @@ interface Rect {
 // LINEAR value — tile area is proportional to market cap (or volume), exactly
 // like TradingView's heatmap, so mega-caps (AAPL/NVDA/MSFT/AMZN) dominate.
 function tileValue(r: RankingRow): number {
-  const metric =
-    CURRENT_SIZE_BY === "volume"
-      ? r.volume || 0
-      : r.marketCap || r.totalPurchaseValue || 0;
+  if (CURRENT_SIZE_BY === "mono") return 1; // equal-size tiles
+  let metric: number;
+  if (CURRENT_SIZE_BY === "volume") metric = r.volume || 0;
+  else if (CURRENT_SIZE_BY === "turnover")
+    metric = (r.livePrice || r.lastPrice || 0) * (r.volume || 0);
+  else metric = r.marketCap || r.totalPurchaseValue || 0;
   return Math.max(1, metric);
 }
 
@@ -169,8 +171,8 @@ function mix(a: [number, number, number], b: [number, number, number], t: number
 }
 
 function colorForChange(pct: number) {
-  // Clamp to ±3% — the band over which TradingView saturates the color.
-  const t = Math.max(-1, Math.min(1, pct / 3));
+  // Clamp to ±5% — matches the −8…+8 legend where deep shades kick in ~±5%.
+  const t = Math.max(-1, Math.min(1, pct / 5));
   const bg = t >= 0 ? mix(NEUTRAL, GREEN, t) : mix(NEUTRAL, RED, -t);
   return { bg };
 }
@@ -739,25 +741,36 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
   );
 }
 
-/** TradingView-style legend — switches with the active Color-By metric. */
+/** TradingView-style legend — discrete swatches, switches with Color-By. */
 export function HeatmapLegend({ colorBy = "change" }: { colorBy?: "change" | "relvol" }) {
-  const isRel = colorBy === "relvol";
-  const ticks = isRel
-    ? ["0.5×", "1×", "1.5×", "2×", "3×+"]
-    : ["-5.5%", "-3.5%", "-1.5%", "0%", "+1.5%", "+3.5%", "+5.5%"];
-  const gradient = isRel
-    ? "linear-gradient(to right, #7f8c8d, #c99a2e, #d97706, #b91c1c)"
-    : "linear-gradient(to right, #7f1d1d, #b91c1c, #ef5350, #9aa0a6 46% 54%, #26a69a, #16a34a, #14532d)";
+  const swatches =
+    colorBy === "relvol"
+      ? [
+          { label: "0.5×", c: "#7f8c8d" },
+          { label: "1×", c: "#a9752b" },
+          { label: "1.5×", c: "#c99a2e" },
+          { label: "2×", c: "#d97706" },
+          { label: "3×+", c: "#b91c1c" },
+        ]
+      : [
+          { label: "-8%", c: "#7f1d1d" },
+          { label: "-5%", c: "#c0392b" },
+          { label: "-2%", c: "#e57373" },
+          { label: "0%", c: "#9aa0a6" },
+          { label: "+2%", c: "#5cb884" },
+          { label: "+5%", c: "#2e9e5b" },
+          { label: "+8%", c: "#14532d" },
+        ];
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex-1" style={{ maxWidth: 420 }}>
-        <div style={{ height: 12, borderRadius: 2, background: gradient }} />
-        <div className="mt-1 flex justify-between text-[10px] tabular" style={{ color: "var(--text-mute)" }}>
-          {ticks.map((t) => (
-            <span key={t}>{t}</span>
-          ))}
+    <div className="flex flex-wrap items-end gap-x-1 gap-y-1">
+      {swatches.map((s) => (
+        <div key={s.label} className="flex flex-col items-center" style={{ width: 56 }}>
+          <div style={{ height: 8, width: "100%", borderRadius: 2, background: s.c }} />
+          <span className="mt-1 text-[11px] tabular" style={{ color: "var(--text-mute)" }}>
+            {s.label}
+          </span>
         </div>
-      </div>
+      ))}
     </div>
   );
 }
