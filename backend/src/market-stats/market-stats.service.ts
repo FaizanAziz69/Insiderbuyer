@@ -168,18 +168,26 @@ export class MarketStatsService {
   private toolCache = new Map<string, { ts: number; data: any }>();
   private readonly TOOL_CACHE_MS = 15 * 60_000;
 
-  private async cachedTool<T>(key: string, build: () => Promise<T[]>): Promise<T[]> {
+  private async cachedTool<T>(
+    key: string,
+    build: () => Promise<T[]>,
+    minHealthy = 1,
+  ): Promise<T[]> {
     const hit = this.toolCache.get(key);
     if (hit && Date.now() - hit.ts < this.TOOL_CACHE_MS) return hit.data as T[];
     try {
       const data = await build();
-      // Don't let a partial-failure refresh (e.g. Yahoo blocking a summary
-      // endpoint → a handful of rows) overwrite a much fuller cached set.
       const prevLen = hit?.data?.length ?? 0;
-      if (!hit || data.length >= prevLen * 0.6) {
-        this.toolCache.set(key, { ts: Date.now(), data });
+      // Only persist a "healthy" result. A cold-start auth race or a blocked
+      // Yahoo endpoint can yield a near-empty build; caching that would pin the
+      // table to garbage for the whole TTL. Instead we return it but skip the
+      // cache so the very next request rebuilds (auth is warm by then).
+      const healthy = data.length >= minHealthy && data.length >= prevLen * 0.6;
+      if (healthy || !hit) {
+        if (healthy) this.toolCache.set(key, { ts: Date.now(), data });
+        return data;
       }
-      return (this.toolCache.get(key)!.data as T[]);
+      return hit.data as T[]; // keep the fuller previous set
     } catch {
       if (hit) return hit.data as T[];
       throw new Error(`tool ${key} failed and no cache`);
@@ -1272,7 +1280,7 @@ export class MarketStatsService {
   /** Analyst Ratings — consensus recommendation + price targets across the
    *  market universe, sorted by analyst-implied upside. */
   async getAnalystRatings(): Promise<AnalystRow[]> {
-    return this.cachedTool("analyst", () => this.buildAnalystRatings());
+    return this.cachedTool("analyst", () => this.buildAnalystRatings(), 20);
   }
   private async buildAnalystRatings(): Promise<AnalystRow[]> {
     const syms = this.universe();
@@ -1342,7 +1350,7 @@ export class MarketStatsService {
   /** Dividends — yield, rate, payout and ex-date for every dividend payer in
    *  the universe, highest yield first. */
   async getDividends(): Promise<DividendRow[]> {
-    return this.cachedTool("dividends", () => this.buildDividends());
+    return this.cachedTool("dividends", () => this.buildDividends(), 15);
   }
   private async buildDividends(): Promise<DividendRow[]> {
     const syms = this.universe();
