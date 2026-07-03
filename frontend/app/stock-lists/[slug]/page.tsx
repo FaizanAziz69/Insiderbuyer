@@ -66,12 +66,24 @@ const KIND_BLURB: Record<ListKind, string> = {
     "A universe of the most-traded names listed in this market, refreshed with live quotes and cross-referenced against U.S. insider buying activity where available.",
 };
 
+// Cap-focused lists open pre-filtered to their band so the list reads true to
+// its name (Penny/Small → small caps, Large → large caps, etc.). Users can
+// clear or change the filter from the bar.
+const DEFAULT_CAP_BY_SLUG: Record<string, string> = {
+  "large-cap": "large",
+  "mid-cap": "mid",
+  "small-cap": "small",
+  "penny-stocks": "small",
+  "blue-chip": "large",
+};
+
 export default function StockListDetailPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
+  const capDefault = DEFAULT_CAP_BY_SLUG[slug];
 
   const { data, isLoading } = useSWR<DetailResponse>(
     `${API_BASE}/stock-lists/${slug}`,
@@ -208,6 +220,7 @@ export default function StockListDetailPage({
             rowKey={(r, i) => (r.ticker || r.symbol || r.name || "") + i}
             empty="No stocks in this list yet."
             initialSort={{ key: "marketCap", dir: "desc" }}
+            initialFilters={capDefault ? { marketCap: capDefault } : undefined}
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={[
               rankColumn<DetailRow>(),

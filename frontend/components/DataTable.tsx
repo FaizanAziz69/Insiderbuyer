@@ -58,6 +58,8 @@ interface Props<T> {
   rows: T[];
   rowKey: (row: T, index: number) => string;
   initialSort?: { key: string; dir: "asc" | "desc" };
+  /** Default active filter values, keyed by column key (e.g. { marketCap: "large" }). */
+  initialFilters?: Record<string, FilterVal>;
   empty?: React.ReactNode;
   rowClassName?: string;
 }
@@ -100,16 +102,34 @@ export function DataTable<T>({
   rows,
   rowKey,
   initialSort,
+  initialFilters,
   empty = "No data.",
   rowClassName = "",
 }: Props<T>) {
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(
     initialSort ?? null,
   );
-  const [filters, setFilters] = useState<Record<string, FilterVal>>({});
+  const [filters, setFilters] = useState<Record<string, FilterVal>>(
+    initialFilters ?? {},
+  );
   const [page, setPage] = useState(0);
 
-  const filterCols = columns.filter((c) => c.filterable);
+  // A column's filter is only useful if the rows actually carry data for it —
+  // otherwise the control would do nothing, so we hide it entirely.
+  const hasNumericData = (c: Column<T>) =>
+    rows.some((r, i) => {
+      const raw = cellValue(c, r, i);
+      const n = typeof raw === "number" ? raw : Number(raw);
+      return raw != null && !Number.isNaN(n);
+    });
+  const filterCols = columns.filter((c) => {
+    if (!c.filterable) return false;
+    if (c.filterType === "range" || c.filterType === "marketCapPreset") {
+      return hasNumericData(c);
+    }
+    // select (default): needs at least one distinct value
+    return rows.some((r, i) => !!filterText(c, r, i));
+  });
   const activeCount = Object.values(filters).filter(isActive).length;
 
   const optionsByCol = useMemo(() => {
