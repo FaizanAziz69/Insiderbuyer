@@ -191,6 +191,7 @@ export default function MarketHeatmapPage() {
             mode={groupBy === "sector" ? "sector" : "flat"}
             sizeBy={sizeBy}
             colorBy={colorBy}
+            rawSectors
           />
         ) : (
           <div className="shimmer rounded" style={{ height: 620 }} />

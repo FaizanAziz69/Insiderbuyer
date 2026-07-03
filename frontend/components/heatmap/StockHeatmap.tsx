@@ -13,11 +13,15 @@ interface Props {
   sizeBy?: "marketCap" | "volume";
   /** What the tile COLOR represents. */
   colorBy?: "change" | "relvol";
+  /** Group by the row's sector verbatim (already-clean TRBC sectors from the
+   *  market-heatmap feed) instead of running it through shortSector(). */
+  rawSectors?: boolean;
 }
 
-// Size metric for the treemap layout. Module-scoped because the layout helpers
-// are module-level; set synchronously before each layout pass (safe in render).
+// Module-scoped because the layout helpers are module-level; set synchronously
+// before each layout pass (safe in render).
 let CURRENT_SIZE_BY: "marketCap" | "volume" = "marketCap";
+let USE_RAW_SECTORS = false;
 
 interface Rect {
   x: number;
@@ -337,7 +341,7 @@ function layoutWithSectors(
 ): SectorBlock[] {
   const grouped = new Map<string, RankingRow[]>();
   for (const r of rows) {
-    const key = shortSector(r.sector);
+    const key = USE_RAW_SECTORS ? r.sector || "Other" : shortSector(r.sector);
     const list = grouped.get(key) || [];
     list.push(r);
     grouped.set(key, list);
@@ -403,8 +407,10 @@ export function StockHeatmap({
   mode = "sector",
   sizeBy = "marketCap",
   colorBy = "change",
+  rawSectors = false,
 }: Props) {
   CURRENT_SIZE_BY = sizeBy;
+  USE_RAW_SECTORS = rawSectors;
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(800);
   // Hover state drives the TradingView-style interaction: the hovered tile
@@ -436,7 +442,7 @@ export function StockHeatmap({
       return [{ sector: "", x: 0, y: 0, w, h: height, tiles }];
     }
     return layoutWithSectors(rows, Math.max(320, width), height);
-  }, [rows, width, height, mode, sizeBy]);
+  }, [rows, width, height, mode, sizeBy, rawSectors]);
 
   const HEADER_H = mode === "sector" ? 28 : 0;
   const PAD = 1;

@@ -200,7 +200,7 @@ function MarketHeatmapPanel() {
       </Link>
       <div className="p-2">
         {rows.length > 0 ? (
-          <StockHeatmap rows={rows} height={HEIGHT} mode="sector" />
+          <StockHeatmap rows={rows} height={HEIGHT} mode="sector" rawSectors />
         ) : (
           <div className="shimmer rounded" style={{ height: HEIGHT }} />
         )}
