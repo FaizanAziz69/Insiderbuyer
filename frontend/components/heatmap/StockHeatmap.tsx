@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useMemo, useRef, useState, useEffect } from "react";
-import { RankingRow, formatCurrency } from "@/lib/api";
+import { RankingRow, formatCurrency, formatNumber } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 
 interface Props {
@@ -373,6 +373,15 @@ function layoutWithSectors(
 export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(800);
+  // Hover state drives the TradingView-style interaction: the hovered tile
+  // pops, its sector stays lit while the others dim, and a tooltip follows.
+  const [hover, setHover] = useState<{
+    sym: string;
+    sector: string;
+    row: RankingRow;
+    x: number;
+    y: number;
+  } | null>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -404,9 +413,12 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
       ref={ref}
       className="relative w-full overflow-hidden"
       style={{ height, background: "#ffffff", borderRadius: 4 }}
+      onMouseLeave={() => setHover(null)}
     >
       {blocks.map((b, bi) => {
         const showLabel = b.w >= 80 && b.h >= 60;
+        const isLit = !!hover && hover.sector === b.sector;
+        const isDimmed = !!hover && hover.sector !== b.sector && mode === "sector";
         return (
           <div
             key={`block-${b.sector}-${bi}`}
@@ -416,9 +428,26 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
               top: b.y,
               width: b.w,
               height: b.h,
-              overflow: "hidden",
+              overflow: "visible",
+              opacity: isDimmed ? 0.35 : 1,
+              transition: "opacity 0.16s ease",
+              zIndex: isLit ? 3 : 1,
             }}
           >
+            {/* Lit-sector wash + outline */}
+            {isLit && mode === "sector" && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  boxShadow: "inset 0 0 0 2px rgba(37,99,235,0.9)",
+                  background: "rgba(37,99,235,0.06)",
+                  borderRadius: 4,
+                  pointerEvents: "none",
+                  zIndex: 6,
+                }}
+              />
+            )}
             {showLabel && (
               <div
                 style={{
@@ -427,18 +456,19 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                   top: 2,
                   right: PAD,
                   height: HEADER_H - 2,
-                  fontSize: 15,
+                  fontSize: isLit ? 17 : 15,
                   fontWeight: 800,
-                  color: "#000000",
+                  color: isLit ? "#1d4ed8" : "#000000",
                   textTransform: "uppercase",
                   letterSpacing: "0.04em",
                   pointerEvents: "none",
-                  zIndex: 4,
+                  zIndex: 7,
                   overflow: "hidden",
                   whiteSpace: "nowrap",
                   textOverflow: "ellipsis",
                   lineHeight: `${HEADER_H - 2}px`,
                   padding: "0 5px",
+                  transition: "font-size 0.14s ease, color 0.14s ease",
                 }}
               >
                 {b.sector}
@@ -465,10 +495,17 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                 small ? 11 : medium ? 13 : 16,
                 Math.floor(((tileW - 8) / 5) * 1.4),
               );
-              // Logos on comfortably-sized tiles; company name on the larger ones.
-              const showLogo = !hideAll && !tickerOnly && tileW >= 66 && tileH >= 60;
-              const showName = !hideAll && !tickerOnly && !tiny && !small && tileW >= 110;
-              const logoSize = Math.max(16, Math.min(34, Math.floor(tileH * 0.32)));
+              // Prominent, tile-scaled logos (TradingView-plus): ~34% of the
+              // smaller tile edge, so big-caps get big logos.
+              const sym = rect.row.ticker || rect.row.companyId;
+              const isHovered = hover?.sym === sym;
+              const showLogo = !hideAll && tileW >= 46 && tileH >= 42;
+              const showName = !hideAll && !tickerOnly && !tiny && !small && tileW >= 120;
+              const baseLogo = Math.round(Math.min(tileW, tileH) * 0.34);
+              const logoSize = Math.max(18, Math.min(96, baseLogo));
+              const drawLogoSize = isHovered
+                ? Math.min(110, Math.round(logoSize * 1.14))
+                : logoSize;
               const sign = pct >= 0 ? "+" : "";
               const subLabel =
                 mode === "iqs"
@@ -486,6 +523,12 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.2, delay: Math.min(i, 40) * 0.006 }}
+                  onMouseEnter={(e) =>
+                    setHover({ sym, sector: b.sector, row: rect.row, x: e.clientX, y: e.clientY })
+                  }
+                  onMouseMove={(e) =>
+                    setHover((h) => (h && h.sym === sym ? { ...h, x: e.clientX, y: e.clientY } : h))
+                  }
                   style={{
                     position: "absolute",
                     left: tileX + 1,
@@ -494,14 +537,15 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                     height: Math.max(0, tileH - 2),
                     background: c.bg,
                     color: "#ffffff",
-                    borderRadius: 2,
+                    borderRadius: 4,
                     overflow: "hidden",
                     cursor: "pointer",
-                  }}
-                  whileHover={{
-                    zIndex: 5,
-                    filter: "brightness(1.18)",
-                    boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.95)",
+                    zIndex: isHovered ? 20 : 1,
+                    filter: isHovered ? "brightness(1.2)" : undefined,
+                    boxShadow: isHovered
+                      ? "inset 0 0 0 2px #ffffff, 0 0 16px rgba(255,255,255,0.45), 0 6px 18px rgba(0,0,0,0.35)"
+                      : undefined,
+                    transition: "filter 0.14s ease, box-shadow 0.14s ease",
                   }}
                 >
                   <Link
@@ -512,13 +556,19 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                   >
                     {showLogo && (
                       <span
-                        className="rounded-md overflow-hidden bg-white/90 flex items-center justify-center flex-shrink-0"
-                        style={{ width: logoSize, height: logoSize, padding: 1 }}
+                        className="rounded-lg overflow-hidden bg-white flex items-center justify-center flex-shrink-0"
+                        style={{
+                          width: drawLogoSize,
+                          height: drawLogoSize,
+                          padding: 2,
+                          transition: "width 0.14s ease, height 0.14s ease",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+                        }}
                       >
                         <CompanyLogo
                           ticker={rect.row.ticker || ""}
                           name={rect.row.name}
-                          size={logoSize - 2}
+                          size={drawLogoSize - 4}
                         />
                       </span>
                     )}
@@ -573,6 +623,76 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
           </div>
         );
       })}
+
+      {hover && <HeatmapTooltip hover={hover} />}
+    </div>
+  );
+}
+
+/** Floating TradingView-style tooltip: name, ticker, price, change, cap, volume. */
+function HeatmapTooltip({
+  hover,
+}: {
+  hover: { sym: string; sector: string; row: RankingRow; x: number; y: number };
+}) {
+  const r = hover.row;
+  const chg = changePctFor(r);
+  const up = chg >= 0;
+  const price = r.livePrice ?? r.lastPrice ?? null;
+  const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+  const W = 232;
+  const left = Math.min(hover.x + 16, vw - W - 12);
+  const top = Math.min(hover.y + 16, vh - 150);
+  return (
+    <div
+      style={{
+        position: "fixed",
+        left,
+        top,
+        width: W,
+        zIndex: 100,
+        pointerEvents: "none",
+        borderRadius: 10,
+        background: "rgba(12,17,28,0.97)",
+        color: "#fff",
+        border: "1px solid rgba(255,255,255,0.14)",
+        boxShadow: "0 16px 40px rgba(0,0,0,0.5)",
+        padding: 12,
+      }}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className="rounded-md overflow-hidden bg-white flex items-center justify-center flex-shrink-0" style={{ width: 30, height: 30, padding: 2 }}>
+          <CompanyLogo ticker={r.ticker || ""} name={r.name} size={26} />
+        </span>
+        <div className="min-w-0">
+          <div className="text-[13px] font-bold leading-tight truncate">{r.name}</div>
+          <div className="text-[11px] leading-tight" style={{ color: "rgba(255,255,255,0.6)" }}>
+            {r.ticker} · {hover.sector || "—"}
+          </div>
+        </div>
+      </div>
+      <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11.5px]">
+        <Stat label="Price" value={price != null ? `$${price.toFixed(2)}` : "—"} />
+        <Stat
+          label="Change"
+          value={`${up ? "+" : ""}${chg.toFixed(2)}%`}
+          color={up ? "#22c55e" : "#ef4444"}
+        />
+        <Stat label="Mkt Cap" value={r.marketCap ? formatCurrency(r.marketCap) : "—"} />
+        <Stat label="Volume" value={r.volume ? formatNumber(r.volume) : "—"} />
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div>
+      <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+        {label}
+      </div>
+      <div style={{ fontWeight: 700, color: color || "#fff" }}>{value}</div>
     </div>
   );
 }
