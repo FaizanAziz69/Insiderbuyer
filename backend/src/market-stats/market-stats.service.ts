@@ -1243,14 +1243,29 @@ export class MarketStatsService {
   /** Daily OHLCV history for the history tab + chart. */
   async getPriceHistory(symbolRaw: string, range = '1y'): Promise<any> {
     const symbol = (symbolRaw || '').toUpperCase();
-    const safeRange = ['1mo', '3mo', '6mo', '1y', '2y', '5y'].includes(range) ? range : '1y';
+    // Range → Yahoo interval, so 1D/5D show intraday and long ranges stay light.
+    const INTERVAL: Record<string, string> = {
+      '1d': '5m',
+      '5d': '30m',
+      '1mo': '1d',
+      '3mo': '1d',
+      '6mo': '1d',
+      '1y': '1d',
+      '2y': '1wk',
+      '5y': '1wk',
+    };
+    const safeRange = INTERVAL[range] ? range : '1y';
+    const interval = INTERVAL[safeRange];
+    const intraday = safeRange === '1d' || safeRange === '5d';
     const cacheKey = `hist:${symbol}:${safeRange}`;
     const c = this.detailCache.get(cacheKey);
-    if (c && Date.now() - c.ts < this.DETAIL_TTL_MS) return c.data;
+    // Intraday data goes stale fast — cache it for only 1 minute.
+    const ttl = intraday ? 60_000 : this.DETAIL_TTL_MS;
+    if (c && Date.now() - c.ts < ttl) return c.data;
     try {
       const host = symbol.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
       const { data } = await this.http.get(
-        `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${safeRange}&interval=1d`,
+        `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${safeRange}&interval=${interval}&includePrePost=false`,
       );
       const res = data?.chart?.result?.[0];
       const ts: number[] = res?.timestamp || [];
@@ -1260,8 +1275,10 @@ export class MarketStatsService {
         const close = Number(q.close?.[i]);
         if (!Number.isFinite(close) || close <= 0) continue;
         const prev = bars.length ? bars[bars.length - 1].close : close;
+        const iso = new Date(ts[i] * 1000).toISOString();
         bars.push({
-          date: new Date(ts[i] * 1000).toISOString().slice(0, 10),
+          t: ts[i] * 1000, // ms epoch — lets the chart format date vs time
+          date: intraday ? iso : iso.slice(0, 10),
           open: round2(q.open?.[i]),
           high: round2(q.high?.[i]),
           low: round2(q.low?.[i]),
@@ -1270,7 +1287,7 @@ export class MarketStatsService {
           changePct: prev ? +(((close - prev) / prev) * 100).toFixed(2) : 0,
         });
       }
-      const out = { symbol, range: safeRange, bars };
+      const out = { symbol, range: safeRange, interval, intraday, bars };
       this.detailCache.set(cacheKey, { ts: Date.now(), data: out });
       return out;
     } catch {
