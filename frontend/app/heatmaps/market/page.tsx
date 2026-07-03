@@ -1,10 +1,30 @@
 "use client";
 import Link from "next/link";
 import useSWR from "swr";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Flame } from "lucide-react";
+import { Flame, Search, ChevronDown, Check } from "lucide-react";
 import { API_BASE, HeatQuote, heatToRanking, fetcher } from "@/lib/api";
-import { StockHeatmap } from "@/components/heatmap/StockHeatmap";
+import { StockHeatmap, HeatmapLegend } from "@/components/heatmap/StockHeatmap";
+
+// USA sources shown in the Source menu (TradingView parity). Only S&P 500 is
+// backed by our current data; the rest are listed but disabled until we have
+// their constituents.
+const SOURCES = [
+  "Nasdaq 100 Index",
+  "Nasdaq Composite Index",
+  "Dow Jones Composite Average Index",
+  "Dow Jones Industrial Average Index",
+  "Dow Jones Transportation Average Index",
+  "Dow Jones Utility Average Index",
+  "KBW NASDAQ Bank Index",
+  "Russell 1000 Index",
+  "Russell 2000 Index",
+  "Russell 3000 Index",
+  "S&P 500 Index",
+  "All US Companies",
+];
+const ENABLED_SOURCES = new Set(["S&P 500 Index"]);
 
 const FAQS = [
   {
@@ -27,7 +47,21 @@ export default function MarketHeatmapPage() {
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
-  const rows = (data?.rows ?? []).map(heatToRanking);
+  const [groupBy, setGroupBy] = useState<"sector" | "none">("sector");
+  const [query, setQuery] = useState("");
+  const [source, setSource] = useState("S&P 500 Index");
+  const [sourceOpen, setSourceOpen] = useState(false);
+
+  const all = (data?.rows ?? []).map(heatToRanking);
+  const q = query.trim().toUpperCase();
+  const rows = q
+    ? all.filter(
+        (r) =>
+          (r.ticker || "").toUpperCase().includes(q) ||
+          r.name.toUpperCase().includes(q),
+      )
+    : all;
+
   return (
     <div className="w-full space-y-6">
       <motion.header
@@ -50,13 +84,98 @@ export default function MarketHeatmapPage() {
         </p>
       </motion.header>
 
-      {/* In-house stock heat map */}
+      {/* In-house stock heat map (TradingView-style controls + legend) */}
       <div className="card p-2 sm:p-3">
+        {/* Control bar */}
+        <div className="flex flex-wrap items-center gap-2 px-1 pb-2">
+          {/* Source */}
+          <div className="relative">
+            <button
+              onClick={() => setSourceOpen((o) => !o)}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold transition"
+              style={{ background: "var(--bg-1)", border: "1px solid var(--border-strong)" }}
+            >
+              <span>🇺🇸</span>
+              {source}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            {sourceOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setSourceOpen(false)} />
+                <div
+                  className="absolute left-0 z-50 mt-1 w-[280px] rounded-lg py-1 shadow-xl"
+                  style={{ background: "var(--bg-2)", border: "1px solid var(--border-strong)" }}
+                >
+                  <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-mute">
+                    USA
+                  </div>
+                  {SOURCES.map((s) => {
+                    const enabled = ENABLED_SOURCES.has(s);
+                    const active = s === source;
+                    return (
+                      <button
+                        key={s}
+                        disabled={!enabled}
+                        onClick={() => {
+                          if (!enabled) return;
+                          setSource(s);
+                          setSourceOpen(false);
+                        }}
+                        className="flex w-full items-center justify-between px-3 py-1.5 text-left text-[13px] transition"
+                        style={{
+                          color: enabled ? "var(--text)" : "var(--text-faint)",
+                          cursor: enabled ? "pointer" : "not-allowed",
+                          background: active ? "var(--accent-soft)" : "transparent",
+                        }}
+                      >
+                        <span>{s}</span>
+                        {active && <Check className="h-3.5 w-3.5 text-accent" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Search */}
+          <div
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2"
+            style={{ background: "var(--bg-1)", border: "1px solid var(--border-strong)" }}
+          >
+            <Search className="h-3.5 w-3.5 text-mute" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search"
+              className="bg-transparent text-[13px] outline-none w-28"
+              style={{ color: "var(--text)" }}
+            />
+          </div>
+
+          <ControlSelect
+            label="Group by"
+            value={groupBy}
+            onChange={(v) => setGroupBy(v as "sector" | "none")}
+            options={[
+              { value: "sector", label: "Sector" },
+              { value: "none", label: "No group" },
+            ]}
+          />
+          <ControlSelect label="Color by" value="change" options={[{ value: "change", label: "Change %" }]} />
+          <ControlSelect label="Size by" value="mktcap" options={[{ value: "mktcap", label: "Market cap" }]} />
+        </div>
+
         {rows.length > 0 ? (
-          <StockHeatmap rows={rows} height={620} mode="sector" />
+          <StockHeatmap rows={rows} height={620} mode={groupBy === "sector" ? "sector" : "flat"} />
         ) : (
           <div className="shimmer rounded" style={{ height: 620 }} />
         )}
+
+        {/* Legend */}
+        <div className="px-1 pt-3">
+          <HeatmapLegend />
+        </div>
       </div>
 
       {/* Explainer + FAQ */}
@@ -140,5 +259,39 @@ export default function MarketHeatmapPage() {
         </aside>
       </section>
     </div>
+  );
+}
+
+function ControlSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange?: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <label
+      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5"
+      style={{ background: "var(--bg-1)", border: "1px solid var(--border-strong)" }}
+    >
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-mute">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
+        disabled={!onChange || options.length < 2}
+        className="bg-transparent text-[13px] font-semibold outline-none"
+        style={{ color: "var(--text)", cursor: onChange && options.length > 1 ? "pointer" : "default" }}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

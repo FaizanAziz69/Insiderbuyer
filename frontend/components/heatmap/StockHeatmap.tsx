@@ -8,7 +8,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 interface Props {
   rows: RankingRow[];
   height?: number;
-  mode?: "sector" | "iqs";
+  mode?: "sector" | "iqs" | "flat";
 }
 
 interface Rect {
@@ -394,9 +394,8 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
 
   const blocks = useMemo(() => {
     if (!rows.length) return [];
-    if (mode === "iqs") {
-      // Single flat treemap — no sector grouping. Tiles sized by market cap,
-      // colored by IQS band so the user reads it as "where is conviction".
+    if (mode === "iqs" || mode === "flat") {
+      // Single flat treemap — no sector grouping. Tiles sized by market cap.
       const sorted = [...rows].sort((a, b) => tileValue(b) - tileValue(a));
       const w = Math.max(320, width);
       const tiles = squarifyTreemap(sorted, 0, 0, w, height);
@@ -405,7 +404,7 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
     return layoutWithSectors(rows, Math.max(320, width), height);
   }, [rows, width, height, mode]);
 
-  const HEADER_H = mode === "iqs" ? 0 : 28;
+  const HEADER_H = mode === "sector" ? 28 : 0;
   const PAD = 1;
 
   return (
@@ -417,6 +416,9 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
     >
       {blocks.map((b, bi) => {
         const showLabel = b.w >= 80 && b.h >= 60;
+        // Sector-level hover highlight: the hovered stock's sector gets an
+        // outline + subtle wash + bolder title. Other sectors are NOT dimmed.
+        const isLit = !!hover && mode === "sector" && hover.sector === b.sector;
         return (
           <div
             key={`block-${b.sector}-${bi}`}
@@ -427,8 +429,22 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
               width: b.w,
               height: b.h,
               overflow: "visible",
+              zIndex: isLit ? 3 : 1,
             }}
           >
+            {isLit && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  boxShadow: "inset 0 0 0 2px rgba(41,98,255,0.9)",
+                  background: "rgba(41,98,255,0.05)",
+                  borderRadius: 4,
+                  pointerEvents: "none",
+                  zIndex: 6,
+                }}
+              />
+            )}
             {showLabel && (
               <div
                 style={{
@@ -437,18 +453,19 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                   top: 2,
                   right: PAD,
                   height: HEADER_H - 2,
-                  fontSize: 15,
+                  fontSize: isLit ? 16 : 15,
                   fontWeight: 800,
-                  color: "#000000",
+                  color: isLit ? "#1d4ed8" : "#000000",
                   textTransform: "uppercase",
                   letterSpacing: "0.04em",
                   pointerEvents: "none",
-                  zIndex: 4,
+                  zIndex: 7,
                   overflow: "hidden",
                   whiteSpace: "nowrap",
                   textOverflow: "ellipsis",
                   lineHeight: `${HEADER_H - 2}px`,
                   padding: "0 5px",
+                  transition: "color 0.12s ease, font-size 0.12s ease",
                 }}
               >
                 {b.sector}
@@ -673,6 +690,30 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
         {label}
       </div>
       <div style={{ fontWeight: 700, color: color || "#fff" }}>{value}</div>
+    </div>
+  );
+}
+
+/** TradingView-style performance legend: red → gray → green bar with % ticks. */
+export function HeatmapLegend() {
+  const ticks = ["-5.5%", "-3.5%", "-1.5%", "0%", "+1.5%", "+3.5%", "+5.5%"];
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex-1" style={{ maxWidth: 420 }}>
+        <div
+          style={{
+            height: 12,
+            borderRadius: 2,
+            background:
+              "linear-gradient(to right, #7f1d1d, #b91c1c, #ef5350, #9aa0a6 46% 54%, #26a69a, #16a34a, #14532d)",
+          }}
+        />
+        <div className="mt-1 flex justify-between text-[10px] tabular" style={{ color: "var(--text-mute)" }}>
+          {ticks.map((t) => (
+            <span key={t}>{t}</span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
