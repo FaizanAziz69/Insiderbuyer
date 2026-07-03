@@ -599,23 +599,31 @@ export function StockHeatmap({
               const tiny = area < 4500;
               const small = area < 10000;
               const medium = area < 18000;
+              // Show the full company name on big tiles (enough room for a
+              // readable extra line under the ticker).
+              const showName =
+                !hideAll && !tickerOnly && !tiny && !small && tileW >= 120 && tileH >= 96;
               const tickerLen = Math.max(2, (rect.row.ticker || "").length);
+              // When a name line is present, cap the ticker smaller so the logo,
+              // ticker, name and % all fit without clipping.
               const tickerFs = Math.min(
-                tickerOnly ? 12 : tiny ? 15 : small ? 19 : medium ? 26 : 36,
+                tickerOnly ? 12 : tiny ? 15 : small ? 19 : medium ? 26 : showName ? 30 : 36,
                 Math.floor(((tileW - 8) / tickerLen) * 1.6),
               );
               const pctFs = Math.min(
                 small ? 11 : medium ? 13 : 16,
                 Math.floor(((tileW - 8) / 5) * 1.4),
               );
+              // Full-name font — scales with tile width so bigger tiles get a
+              // clearly readable company name (not a tiny caption).
+              const nameFs = Math.max(11, Math.min(18, Math.floor(tileW / 15)));
               // Prominent, tile-scaled logos (TradingView-plus): ~34% of the
-              // smaller tile edge, so big-caps get big logos.
+              // smaller tile edge, shrunk a touch when a name line is shown.
               const sym = rect.row.ticker || rect.row.companyId;
               const isHovered = hover?.sym === sym;
               const showLogo = !hideAll && tileW >= 30 && tileH >= 28;
-              const showName = !hideAll && !tickerOnly && !tiny && !small && tileW >= 120;
-              const baseLogo = Math.round(Math.min(tileW, tileH) * 0.34);
-              const logoSize = Math.max(18, Math.min(96, baseLogo));
+              const baseLogo = Math.round(Math.min(tileW, tileH) * (showName ? 0.28 : 0.34));
+              const logoSize = Math.max(18, Math.min(88, baseLogo));
               const drawLogoSize = isHovered
                 ? Math.min(110, Math.round(logoSize * 1.08))
                 : logoSize;
@@ -709,7 +717,7 @@ export function StockHeatmap({
                         style={{
                           color: c.fg,
                           opacity: 0.9,
-                          fontSize: Math.max(9, Math.min(13, Math.floor(tileW / 12))),
+                          fontSize: nameFs,
                           fontWeight: 600,
                           maxWidth: "100%",
                           overflow: "hidden",
