@@ -3,6 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
+import { rankColumn } from "@/components/tableColumns";
 import {
   API_BASE,
   CompanyDetail,
@@ -38,6 +39,7 @@ export function InsiderActivityTable({ ticker, limit = 6 }: Props) {
   if (txs.length === 0) return null;
 
   const columns: Column<InsiderTx>[] = [
+    rankColumn<InsiderTx>(),
     {
       key: "insiderName",
       label: "Insider",

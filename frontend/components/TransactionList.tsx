@@ -1,6 +1,7 @@
 "use client";
 import { ArrowUpRight, ExternalLink } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
+import { rankColumn } from "@/components/tableColumns";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/api";
 
 interface Tx {
@@ -35,6 +36,7 @@ export function TransactionList({ transactions }: { transactions: Tx[] }) {
   }
 
   const columns: Column<Tx>[] = [
+    rankColumn<Tx>(),
     {
       key: "insiderName",
       label: "Insider",

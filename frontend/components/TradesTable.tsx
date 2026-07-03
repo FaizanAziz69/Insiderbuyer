@@ -212,7 +212,7 @@ function Row({ t, rank }: { t: TradeRow; rank: number }) {
   const roleCls = ROLE_CLS[t.role] || ROLE_CLS.Other;
   return (
     <>
-      <td className="text-faint tabular text-[11px]">{rank}</td>
+      <td className="tabular text-[15px] font-bold" style={{ color: "var(--text)" }}>{rank}</td>
       <td>
         {t.ticker ? (
           <Link
