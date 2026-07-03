@@ -13,7 +13,14 @@ interface MoverRow {
 // Markets to float across the top: major indices, commodities, then famous
 // large-cap stocks. `label` is what shows; `href` (stocks only) links to the
 // company page. Order is preserved.
-const ITEMS: { symbol: string; label: string; href?: string }[] = [
+// Exactly the requested markets, in order: indices, commodities, Bitcoin,
+// Nvidia, and SpaceX. `privateNote` marks a private company (no live quote).
+const ITEMS: {
+  symbol: string;
+  label: string;
+  href?: string;
+  privateNote?: string;
+}[] = [
   { symbol: "^GSPC", label: "S&P 500" },
   { symbol: "^DJI", label: "Dow" },
   { symbol: "^IXIC", label: "Nasdaq" },
@@ -21,13 +28,12 @@ const ITEMS: { symbol: string; label: string; href?: string }[] = [
   { symbol: "SI=F", label: "Silver" },
   { symbol: "CL=F", label: "Oil" },
   { symbol: "BTC-USD", label: "Bitcoin" },
-  ...[
-    "NVDA", "AAPL", "AMZN", "META", "TSLA", "MSFT", "GOOGL", "AMD", "NFLX", "AVGO",
-    "JPM", "V", "WMT", "COST", "DIS", "KO", "MCD", "BA", "PLTR", "COIN",
-  ].map((s) => ({ symbol: s, label: s, href: `/companies/${s}` })),
+  { symbol: "NVDA", label: "Nvidia", href: "/companies/NVDA" },
+  { symbol: "SPACEX", label: "SpaceX", privateNote: "Private" },
 ];
 
-const SYMBOLS = ITEMS.map((i) => i.symbol);
+// Only real, quotable symbols are fetched (SpaceX is private → static).
+const SYMBOLS = ITEMS.filter((i) => !i.privateNote).map((i) => i.symbol);
 
 /**
  * Slim horizontal market-data marquee pinned at the top of the page. Shows LIVE
@@ -45,9 +51,10 @@ export function TopTickerBar() {
   for (const r of data?.rows || []) {
     if (r?.symbol && typeof r.price === "number") bySymbol.set(r.symbol, r);
   }
-  // Preserve curated order, keep only items with a real quote.
+  // Preserve curated order: private entries (SpaceX) always show; the rest
+  // only when a real live quote is available.
   const items = ITEMS.map((it) => ({ ...it, q: bySymbol.get(it.symbol) })).filter(
-    (it): it is typeof it & { q: MoverRow } => !!it.q,
+    (it) => it.privateNote || it.q,
   );
 
   if (items.length === 0) return null;
@@ -65,15 +72,28 @@ export function TopTickerBar() {
     >
       <div className="ticker-track flex items-center gap-7 py-3 whitespace-nowrap">
         {doubled.map((it, i) => {
-          const up = it.q.changePct >= 0;
-          const inner = (
+          const q = it.q;
+          const up = q ? q.changePct >= 0 : true;
+          const inner = it.privateNote ? (
+            <>
+              <span className="font-bold uppercase tracking-wider text-[14px]">
+                {it.label}
+              </span>
+              <span
+                className="font-mono font-semibold text-[13px] uppercase tracking-wide"
+                style={{ color: "rgba(255,255,255,0.65)" }}
+              >
+                {it.privateNote}
+              </span>
+            </>
+          ) : q ? (
             <>
               <span className="font-bold uppercase tracking-wider text-[14px]">
                 {it.label}
               </span>
               <span className="font-mono font-semibold text-[15px]">
-                {it.q.price.toLocaleString(undefined, {
-                  maximumFractionDigits: it.q.price < 100 ? 2 : 0,
+                {q.price.toLocaleString(undefined, {
+                  maximumFractionDigits: q.price < 100 ? 2 : 0,
                 })}
               </span>
               <span
@@ -81,10 +101,10 @@ export function TopTickerBar() {
                 style={{ color: up ? "#1bff8b" : "#ff6b8a" }}
               >
                 {up ? "+" : ""}
-                {it.q.changePct.toFixed(2)}%
+                {q.changePct.toFixed(2)}%
               </span>
             </>
-          );
+          ) : null;
           const cls =
             "inline-flex items-center gap-2 flex-shrink-0 tabular hover:opacity-90";
           const style = {
