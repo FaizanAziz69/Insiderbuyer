@@ -621,7 +621,7 @@ export class MarketStatsService {
               perf200d:
                 q.twoHundredDayAverageChangePercent != null ? +(Number(q.twoHundredDayAverageChangePercent) * 100).toFixed(2) : null,
               postMarketPct:
-                q.postMarketChangePercent != null ? +(Number(q.postMarketChangePercent) * 100).toFixed(2) : null,
+                q.postMarketChangePercent != null ? +Number(q.postMarketChangePercent).toFixed(2) : null,
             });
           }
           break;
