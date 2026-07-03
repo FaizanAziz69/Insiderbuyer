@@ -9,7 +9,15 @@ interface Props {
   rows: RankingRow[];
   height?: number;
   mode?: "sector" | "iqs" | "flat";
+  /** What the tile AREA represents. */
+  sizeBy?: "marketCap" | "volume";
+  /** What the tile COLOR represents. */
+  colorBy?: "change" | "relvol";
 }
+
+// Size metric for the treemap layout. Module-scoped because the layout helpers
+// are module-level; set synchronously before each layout pass (safe in render).
+let CURRENT_SIZE_BY: "marketCap" | "volume" = "marketCap";
 
 interface Rect {
   x: number;
@@ -22,8 +30,27 @@ interface Rect {
 // Compressed value — sqrt narrows the dynamic range so a single mega-cap
 // doesn't crush every smaller tile into illegible slivers.
 function tileValue(r: RankingRow): number {
-  const raw = Math.max(1, r.marketCap || r.totalPurchaseValue || 1);
-  return Math.sqrt(raw);
+  const metric =
+    CURRENT_SIZE_BY === "volume"
+      ? r.volume || 0
+      : r.marketCap || r.totalPurchaseValue || 0;
+  return Math.sqrt(Math.max(1, metric));
+}
+
+// Relative volume (today vs 3-month average) → 1 = normal, >1 = unusually active.
+function relVol(r: RankingRow): number {
+  const v = r.volume || 0;
+  const a = r.avgVolume || 0;
+  return a > 0 ? v / a : 1;
+}
+
+// Color ramp for "Relative volume": calm gray at ~1x, warming to hot red at 3x+.
+function colorForRelVol(ratio: number): { bg: string } {
+  const t = Math.max(0, Math.min(1, (ratio - 0.5) / 2.5)); // 0.5x→0 , 3x→1
+  if (t < 0.15) return { bg: "#7f8c8d" };
+  if (t < 0.4) return { bg: "#c99a2e" };
+  if (t < 0.7) return { bg: "#d97706" };
+  return { bg: "#b91c1c" };
 }
 
 /**
@@ -370,7 +397,14 @@ function layoutWithSectors(
   });
 }
 
-export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
+export function StockHeatmap({
+  rows,
+  height = 520,
+  mode = "sector",
+  sizeBy = "marketCap",
+  colorBy = "change",
+}: Props) {
+  CURRENT_SIZE_BY = sizeBy;
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(800);
   // Hover state drives the TradingView-style interaction: the hovered tile
@@ -402,7 +436,7 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
       return [{ sector: "", x: 0, y: 0, w, h: height, tiles }];
     }
     return layoutWithSectors(rows, Math.max(320, width), height);
-  }, [rows, width, height, mode]);
+  }, [rows, width, height, mode, sizeBy]);
 
   const HEADER_H = mode === "sector" ? 28 : 0;
   const PAD = 1;
@@ -474,7 +508,13 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
             {b.tiles.map((rect, i) => {
               const pct = changePctFor(rect.row);
               const iqs = rect.row.iqs;
-              const c = mode === "iqs" ? colorForIqs(iqs) : colorForChange(pct);
+              const rv = relVol(rect.row);
+              const c =
+                colorBy === "relvol"
+                  ? colorForRelVol(rv)
+                  : mode === "iqs"
+                    ? colorForIqs(iqs)
+                    : colorForChange(pct);
               const tileW = rect.w;
               const tileH = rect.h;
               const area = tileW * tileH;
@@ -505,9 +545,11 @@ export function StockHeatmap({ rows, height = 520, mode = "sector" }: Props) {
                 : logoSize;
               const sign = pct >= 0 ? "+" : "";
               const subLabel =
-                mode === "iqs"
-                  ? `IQS ${iqs.toFixed(1)}`
-                  : `${sign}${pct.toFixed(2)}%`;
+                colorBy === "relvol"
+                  ? `${rv.toFixed(1)}×`
+                  : mode === "iqs"
+                    ? `IQS ${iqs.toFixed(1)}`
+                    : `${sign}${pct.toFixed(2)}%`;
               const tileTitle =
                 mode === "iqs"
                   ? `${rect.row.ticker || rect.row.name} · IQS ${iqs.toFixed(1)} · ${formatCurrency(rect.row.marketCap)}`
@@ -694,20 +736,19 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
   );
 }
 
-/** TradingView-style performance legend: red → gray → green bar with % ticks. */
-export function HeatmapLegend() {
-  const ticks = ["-5.5%", "-3.5%", "-1.5%", "0%", "+1.5%", "+3.5%", "+5.5%"];
+/** TradingView-style legend — switches with the active Color-By metric. */
+export function HeatmapLegend({ colorBy = "change" }: { colorBy?: "change" | "relvol" }) {
+  const isRel = colorBy === "relvol";
+  const ticks = isRel
+    ? ["0.5×", "1×", "1.5×", "2×", "3×+"]
+    : ["-5.5%", "-3.5%", "-1.5%", "0%", "+1.5%", "+3.5%", "+5.5%"];
+  const gradient = isRel
+    ? "linear-gradient(to right, #7f8c8d, #c99a2e, #d97706, #b91c1c)"
+    : "linear-gradient(to right, #7f1d1d, #b91c1c, #ef5350, #9aa0a6 46% 54%, #26a69a, #16a34a, #14532d)";
   return (
     <div className="flex items-center gap-3">
       <div className="flex-1" style={{ maxWidth: 420 }}>
-        <div
-          style={{
-            height: 12,
-            borderRadius: 2,
-            background:
-              "linear-gradient(to right, #7f1d1d, #b91c1c, #ef5350, #9aa0a6 46% 54%, #26a69a, #16a34a, #14532d)",
-          }}
-        />
+        <div style={{ height: 12, borderRadius: 2, background: gradient }} />
         <div className="mt-1 flex justify-between text-[10px] tabular" style={{ color: "var(--text-mute)" }}>
           {ticks.map((t) => (
             <span key={t}>{t}</span>

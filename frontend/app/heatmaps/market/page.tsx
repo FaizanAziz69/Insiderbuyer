@@ -48,6 +48,8 @@ export default function MarketHeatmapPage() {
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
   const [groupBy, setGroupBy] = useState<"sector" | "none">("sector");
+  const [colorBy, setColorBy] = useState<"change" | "relvol">("change");
+  const [sizeBy, setSizeBy] = useState<"marketCap" | "volume">("marketCap");
   const [query, setQuery] = useState("");
   const [source, setSource] = useState("S&P 500 Index");
   const [sourceOpen, setSourceOpen] = useState(false);
@@ -162,19 +164,41 @@ export default function MarketHeatmapPage() {
               { value: "none", label: "No group" },
             ]}
           />
-          <ControlSelect label="Color by" value="change" options={[{ value: "change", label: "Change %" }]} />
-          <ControlSelect label="Size by" value="mktcap" options={[{ value: "mktcap", label: "Market cap" }]} />
+          <ControlSelect
+            label="Color by"
+            value={colorBy}
+            onChange={(v) => setColorBy(v as "change" | "relvol")}
+            options={[
+              { value: "change", label: "Change %" },
+              { value: "relvol", label: "Rel. volume" },
+            ]}
+          />
+          <ControlSelect
+            label="Size by"
+            value={sizeBy}
+            onChange={(v) => setSizeBy(v as "marketCap" | "volume")}
+            options={[
+              { value: "marketCap", label: "Market cap" },
+              { value: "volume", label: "Volume" },
+            ]}
+          />
         </div>
 
         {rows.length > 0 ? (
-          <StockHeatmap rows={rows} height={620} mode={groupBy === "sector" ? "sector" : "flat"} />
+          <StockHeatmap
+            rows={rows}
+            height={620}
+            mode={groupBy === "sector" ? "sector" : "flat"}
+            sizeBy={sizeBy}
+            colorBy={colorBy}
+          />
         ) : (
           <div className="shimmer rounded" style={{ height: 620 }} />
         )}
 
         {/* Legend */}
         <div className="px-1 pt-3">
-          <HeatmapLegend />
+          <HeatmapLegend colorBy={colorBy} />
         </div>
       </div>
 
