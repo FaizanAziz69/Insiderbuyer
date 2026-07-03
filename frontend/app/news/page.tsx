@@ -4,6 +4,7 @@ import { IndicesStrip } from "@/components/home/IndicesStrip";
 import { AiLatestNewsSection } from "@/components/insights/AiLatestNewsSection";
 import { AiPopularArticlesSection } from "@/components/insights/AiPopularArticlesSection";
 import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
+import { RealTimeNewsFeed } from "@/components/news/RealTimeNewsFeed";
 import { AdSlot } from "@/components/AdSlot";
 
 /**
@@ -36,6 +37,12 @@ export default function NewsPage() {
       <IndicesStrip />
 
       <AdSlot slot="leaderboard" seed="news-top" />
+
+      {/* Real-time market feed — insider trades, congress, earnings, headlines */}
+      <section>
+        <h2 className="text-[20px] font-bold tracking-tight mb-3">Real-Time Market Feed</h2>
+        <RealTimeNewsFeed />
+      </section>
 
       {/* AI editorial — same card layout as Stock Ideas, no SEC feed */}
       <AiLatestNewsSection />
