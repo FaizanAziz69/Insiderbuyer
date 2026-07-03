@@ -4,17 +4,15 @@ import useSWR from "swr";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Flame, Search, ChevronDown, Check } from "lucide-react";
-import { API_BASE, HeatQuote, heatToRanking, fetcher } from "@/lib/api";
+import { API_BASE, HeatQuote, RankingRow, heatToRanking, fetcher } from "@/lib/api";
 import { StockHeatmap, HeatmapLegend, ColorBy, SizeBy } from "@/components/heatmap/StockHeatmap";
 
-// Dow Jones Industrial Average — 30 components (2025).
+// Index constituent sets — we filter our universe down to each index's members.
 const DOW_30 = new Set([
   "AAPL", "AMGN", "AMZN", "AXP", "BA", "CAT", "CRM", "CSCO", "CVX", "DIS",
   "GS", "HD", "HON", "IBM", "JNJ", "JPM", "KO", "MCD", "MMM", "MRK",
   "MSFT", "NKE", "NVDA", "PG", "SHW", "TRV", "UNH", "V", "VZ", "WMT",
 ]);
-
-// Nasdaq 100 — components (2025). We filter our universe down to these.
 const NDX_100 = new Set([
   "AAPL", "ABNB", "ADBE", "ADI", "ADP", "ADSK", "AEP", "AMAT", "AMD", "AMGN",
   "AMZN", "ANSS", "APP", "ARM", "ASML", "AVGO", "AZN", "BIIB", "BKNG", "BKR",
@@ -27,29 +25,47 @@ const NDX_100 = new Set([
   "QCOM", "REGN", "ROP", "ROST", "SBUX", "SNPS", "TEAM", "TMUS", "TSLA", "TTD",
   "TTWO", "TXN", "VRSK", "VRTX", "WBD", "WDAY", "XEL", "ZS",
 ]);
+// Dow Jones Transportation Average (20).
+const DOW_TRANSPORT = new Set([
+  "ALK", "AAL", "CAR", "CHRW", "CSX", "DAL", "EXPD", "FDX", "JBHT", "KEX",
+  "LSTR", "MATX", "NSC", "ODFL", "R", "UAL", "UNP", "UPS", "LUV", "XPO",
+]);
+// Dow Jones Utility Average (15).
+const DOW_UTILITY = new Set([
+  "AEP", "AES", "ATO", "CNP", "D", "DUK", "ED", "EIX", "EXC", "FE",
+  "NEE", "PEG", "PPL", "SRE", "XEL",
+]);
+// KBW Nasdaq Bank Index — the big-bank components we track.
+const KBW_BANK = new Set([
+  "JPM", "BAC", "WFC", "C", "USB", "PNC", "TFC", "BK", "STT", "COF",
+  "MTB", "FITB", "KEY", "RF", "HBAN", "CFG", "CMA", "ZION", "NTRS",
+]);
+// Dow Jones Composite = Industrial + Transportation + Utility (65).
+const DOW_COMPOSITE = new Set([...DOW_30, ...DOW_TRANSPORT, ...DOW_UTILITY]);
+// Yahoo short exchange codes for the Nasdaq tiers.
+const NASDAQ_EXCH = new Set(["NMS", "NGM", "NCM"]);
 
-// USA sources shown in the Source menu (TradingView parity). The three indices
-// whose components live inside our universe are enabled and filter the map; the
-// Russell / composite indices need constituent lists we don't yet ingest.
-const SOURCES: { label: string; members?: Set<string> }[] = [
-  { label: "S&P 500 Index" }, // our full universe
-  { label: "Nasdaq 100 Index", members: NDX_100 },
-  { label: "Dow Jones Industrial Average Index", members: DOW_30 },
-  { label: "Nasdaq Composite Index" },
-  { label: "Dow Jones Composite Average Index" },
-  { label: "Dow Jones Transportation Average Index" },
-  { label: "Dow Jones Utility Average Index" },
-  { label: "KBW NASDAQ Bank Index" },
+const has = (s: Set<string>) => (r: RankingRow) =>
+  !!r.ticker && s.has(r.ticker.toUpperCase());
+
+// USA sources shown in the Source menu (TradingView parity). Each has an
+// optional filter over our universe. Russell 1000/3000 contain every large-cap
+// we track, so they show the full universe; Russell 2000 is small-caps we don't
+// ingest, so it stays disabled.
+const SOURCES: { label: string; filter?: (r: RankingRow) => boolean; disabled?: boolean }[] = [
+  { label: "S&P 500 Index" },
+  { label: "Nasdaq 100 Index", filter: has(NDX_100) },
+  { label: "Dow Jones Industrial Average Index", filter: has(DOW_30) },
+  { label: "Nasdaq Composite Index", filter: (r) => !!r.exchange && NASDAQ_EXCH.has(r.exchange) },
+  { label: "Dow Jones Composite Average Index", filter: has(DOW_COMPOSITE) },
+  { label: "Dow Jones Transportation Average Index", filter: has(DOW_TRANSPORT) },
+  { label: "Dow Jones Utility Average Index", filter: has(DOW_UTILITY) },
+  { label: "KBW NASDAQ Bank Index", filter: has(KBW_BANK) },
   { label: "Russell 1000 Index" },
-  { label: "Russell 2000 Index" },
+  { label: "Russell 2000 Index", disabled: true },
   { label: "Russell 3000 Index" },
 ];
 const SOURCE_BY_LABEL = new Map(SOURCES.map((s) => [s.label, s]));
-const ENABLED_SOURCES = new Set([
-  "S&P 500 Index",
-  "Nasdaq 100 Index",
-  "Dow Jones Industrial Average Index",
-]);
 
 const FAQS = [
   {
@@ -80,10 +96,8 @@ export default function MarketHeatmapPage() {
   const [sourceOpen, setSourceOpen] = useState(false);
 
   const all = (data?.rows ?? []).map(heatToRanking);
-  const members = SOURCE_BY_LABEL.get(source)?.members;
-  const sourced = members
-    ? all.filter((r) => r.ticker && members.has(r.ticker.toUpperCase()))
-    : all;
+  const srcFilter = SOURCE_BY_LABEL.get(source)?.filter;
+  const sourced = srcFilter ? all.filter(srcFilter) : all;
   const q = query.trim().toUpperCase();
   const rows = q
     ? sourced.filter(
@@ -140,8 +154,8 @@ export default function MarketHeatmapPage() {
                   <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-mute">
                     USA
                   </div>
-                  {SOURCES.map(({ label }) => {
-                    const enabled = ENABLED_SOURCES.has(label);
+                  {SOURCES.map(({ label, disabled }) => {
+                    const enabled = !disabled;
                     const active = label === source;
                     return (
                       <button

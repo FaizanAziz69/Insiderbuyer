@@ -588,6 +588,7 @@ export class MarketStatsService {
               avgVol10d: Number(
                 q.averageDailyVolume10Day ?? q.averageDailyVolume3Month ?? 0,
               ),
+              exchange: q.exchange ?? null,
               marketCap: q.marketCap != null ? Number(q.marketCap) : ref?.marketCap ?? null,
               sector: q.sector ?? ref?.sector ?? null,
               fiftyTwoWeekHigh: q.fiftyTwoWeekHigh != null ? Number(q.fiftyTwoWeekHigh) : null,

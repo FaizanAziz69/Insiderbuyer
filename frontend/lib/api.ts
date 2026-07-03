@@ -32,6 +32,7 @@ export interface RankingRow {
   perf50d?: number | null;
   perf200d?: number | null;
   postMarketPct?: number | null;
+  exchange?: string | null;
 }
 
 /** Row from /market-stats/heatmap (biggest U.S. companies by market cap). */
@@ -49,6 +50,7 @@ export interface HeatQuote {
   perf50d?: number | null;
   perf200d?: number | null;
   postMarketPct?: number | null;
+  exchange?: string | null;
 }
 
 /** Adapt a heatmap quote to the RankingRow shape the StockHeatmap expects. */
@@ -80,6 +82,7 @@ export function heatToRanking(r: HeatQuote, i: number): RankingRow {
     perf50d: r.perf50d ?? null,
     perf200d: r.perf200d ?? null,
     postMarketPct: r.postMarketPct ?? null,
+    exchange: r.exchange ?? null,
   };
 }
 
