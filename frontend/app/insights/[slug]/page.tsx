@@ -274,59 +274,6 @@ export default function InsightDetailPage({
               />
             )}
 
-            {/* Author bio box — placed BELOW the CTA (MarketBeat order) so it
-                never interrupts the call-to-action. */}
-            <div
-              className="mt-10 flex flex-wrap gap-4 p-4 sm:p-5"
-              style={{
-                borderTop: "1px solid var(--border)",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              <span
-                className="inline-flex items-center justify-center rounded-md flex-shrink-0 text-[26px] font-bold text-white"
-                style={{
-                  width: 120,
-                  height: 150,
-                  background: "linear-gradient(135deg, var(--accent), var(--accent-2))",
-                }}
-              >
-                {authorFor(post.kind, post.slug)
-                  .name.split(" ")
-                  .map((w) => w[0])
-                  .slice(0, 2)
-                  .join("")}
-              </span>
-              <div className="flex-1 min-w-[240px]">
-                <div
-                  className="text-[11px] uppercase font-bold tracking-wider pb-1 mb-1 inline-block"
-                  style={{
-                    color: "var(--accent)",
-                    letterSpacing: "0.12em",
-                    borderBottom: "3px solid var(--accent)",
-                  }}
-                >
-                  About The Author
-                </div>
-                <h2 className="font-bold tracking-tight" style={{ fontSize: 22 }}>
-                  {authorFor(post.kind, post.slug).name}
-                </h2>
-                <div className="text-[14px] font-semibold text-soft mt-0.5">
-                  {authorFor(post.kind, post.slug).beat}
-                </div>
-                <p className="text-[13px] text-soft leading-relaxed mt-2 max-w-xl">
-                  Covers SEC Form 4 insider activity and the IQS engine, turning
-                  live filings into plain-English trade ideas. Figures reflect
-                  data at publication — not investment advice.
-                </p>
-                <Link
-                  href="/insights"
-                  className="inline-block mt-2 text-[13px] font-bold text-accent hover:underline"
-                >
-                  Learn More
-                </Link>
-              </div>
-            </div>
           </motion.div>
         )}
       </article>
