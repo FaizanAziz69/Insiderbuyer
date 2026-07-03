@@ -72,6 +72,7 @@ export interface MarketStatRow {
   fiftyTwoWeekLow?: number | null;
   peRatio?: number | null;
   dividendYield?: number | null; // percent
+  dividendRate?: number | null; // annual $ per share
 }
 
 /** Full stockanalysis.com-style fundamentals for a single ticker. */
@@ -170,9 +171,12 @@ export class MarketStatsService {
     if (hit && Date.now() - hit.ts < this.TOOL_CACHE_MS) return hit.data as T[];
     try {
       const data = await build();
-      // Only overwrite a previous good result if the new one isn't emptier
-      // (guards against a partial-failure refresh wiping a full cached set).
-      if (data.length || !hit) this.toolCache.set(key, { ts: Date.now(), data });
+      // Don't let a partial-failure refresh (e.g. Yahoo blocking a summary
+      // endpoint → a handful of rows) overwrite a much fuller cached set.
+      const prevLen = hit?.data?.length ?? 0;
+      if (!hit || data.length >= prevLen * 0.6) {
+        this.toolCache.set(key, { ts: Date.now(), data });
+      }
       return (this.toolCache.get(key)!.data as T[]);
     } catch {
       if (hit) return hit.data as T[];
@@ -574,6 +578,12 @@ export class MarketStatsService {
                   ? Number(q.dividendYield)
                   : q.trailingAnnualDividendYield != null
                     ? +(Number(q.trailingAnnualDividendYield) * 100).toFixed(2)
+                    : null,
+              dividendRate:
+                q.dividendRate != null
+                  ? Number(q.dividendRate)
+                  : q.trailingAnnualDividendRate != null
+                    ? Number(q.trailingAnnualDividendRate)
                     : null,
             });
           }
@@ -1292,26 +1302,39 @@ export class MarketStatsService {
   }
   private async buildDividends(): Promise<DividendRow[]> {
     const syms = this.universe();
-    const [quotes, summaries] = await Promise.all([
-      this.getQuoteBatch(syms),
-      this.summaryBatch(syms),
-    ]);
+    // Primary source is the v7 batch quote (works reliably on the server).
+    // The per-symbol summary adds payout ratio + ex-date where reachable, but
+    // it is best-effort — never required, so the table stays complete even when
+    // Yahoo blocks the summary endpoint (as it does from datacenter IPs).
+    const quotes = await this.getQuoteBatch(syms);
+    let summaries = new Map<string, any>();
+    try {
+      summaries = await this.summaryBatch(syms);
+    } catch {
+      /* summary unavailable — batch quote alone is enough */
+    }
     const rows: DividendRow[] = [];
     for (const sym of syms) {
       const q = quotes.get(sym);
       const sd = summaries.get(sym)?.summaryDetail;
       const ref = REFERENCE_QUOTES[sym];
       const price = q?.price ?? ref?.price ?? 0;
-      const rate = sd?.dividendRate?.raw ?? null;
-      const yieldRaw = sd?.dividendYield?.raw ?? null;
-      if (!price || !rate || !yieldRaw) continue; // dividend payers only
+      // Prefer live-quote dividend fields (server-reliable); fall back to summary.
+      const rate = q?.dividendRate ?? sd?.dividendRate?.raw ?? null;
+      const yieldPct =
+        q?.dividendYield != null
+          ? q.dividendYield
+          : sd?.dividendYield?.raw != null
+            ? +(sd.dividendYield.raw * 100).toFixed(2)
+            : null;
+      if (!price || !rate || !yieldPct) continue; // dividend payers only
       const exTs = sd?.exDividendDate?.raw ?? null;
       rows.push({
         symbol: sym,
         name: q?.name ?? ref?.name ?? sym,
         sector: q?.sector ?? ref?.sector ?? null,
         price,
-        dividendYield: +(yieldRaw * 100).toFixed(2),
+        dividendYield: yieldPct,
         dividendRate: rate,
         payoutRatio: sd?.payoutRatio?.raw != null ? +(sd.payoutRatio.raw * 100).toFixed(1) : null,
         exDividendDate: exTs ? new Date(exTs * 1000).toISOString().slice(0, 10) : null,
