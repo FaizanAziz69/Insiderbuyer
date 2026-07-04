@@ -239,6 +239,9 @@ function fmtFin(v: number, fmt: FinFmt): string {
   return formatCurrency(v);
 }
 
+// Rows shown before the "See more" toggle kicks in.
+const FIN_COLLAPSED_ROWS = 5;
+
 function FinTable({
   title,
   rows,
@@ -248,7 +251,10 @@ function FinTable({
   rows: FinRow[];
   lines: [string, string, FinFmt?][];
 }) {
+  const [expanded, setExpanded] = useState(false);
   if (!rows.length) return null;
+  const canCollapse = lines.length > FIN_COLLAPSED_ROWS;
+  const visibleLines = expanded || !canCollapse ? lines : lines.slice(0, FIN_COLLAPSED_ROWS);
   return (
     <div className="card overflow-hidden">
       <div className="px-5 py-3 border-b text-[15px] font-semibold" style={{ borderColor: "var(--border)" }}>
@@ -267,7 +273,7 @@ function FinTable({
             </tr>
           </thead>
           <tbody>
-            {lines.map(([label, key, fmt]) => (
+            {visibleLines.map(([label, key, fmt]) => (
               <tr key={key}>
                 <td className="font-semibold text-[14px]">{label}</td>
                 {rows.map((r) => {
@@ -283,6 +289,15 @@ function FinTable({
           </tbody>
         </table>
       </div>
+      {canCollapse && (
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          className="w-full py-2.5 border-t text-[13px] font-semibold text-accent hover:bg-[var(--accent-soft)] transition"
+          style={{ borderColor: "var(--border)" }}
+        >
+          {expanded ? "See less" : `See more (${lines.length - FIN_COLLAPSED_ROWS} more rows)`}
+        </button>
+      )}
     </div>
   );
 }
