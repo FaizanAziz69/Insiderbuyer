@@ -604,19 +604,20 @@ export function StockHeatmap({
               const showName =
                 !hideAll && !tickerOnly && !tiny && !small && tileW >= 120 && tileH >= 96;
               const tickerLen = Math.max(2, (rect.row.ticker || "").length);
-              // When a name line is present, cap the ticker smaller so the logo,
-              // ticker, name and % all fit without clipping.
+              // Ticker sizing tuned to TradingView proportions (smaller, cleaner
+              // text). When a name line is present, cap smaller so logo, ticker,
+              // name and % all fit without clipping.
               const tickerFs = Math.min(
-                tickerOnly ? 12 : tiny ? 15 : small ? 19 : medium ? 26 : showName ? 30 : 36,
-                Math.floor(((tileW - 8) / tickerLen) * 1.6),
+                tickerOnly ? 11 : tiny ? 13 : small ? 16 : medium ? 20 : showName ? 24 : 28,
+                Math.floor(((tileW - 8) / tickerLen) * 1.35),
               );
               const pctFs = Math.min(
-                small ? 11 : medium ? 13 : 16,
-                Math.floor(((tileW - 8) / 5) * 1.4),
+                small ? 10 : medium ? 12 : 14,
+                Math.floor(((tileW - 8) / 5) * 1.2),
               );
               // Full-name font — scales with tile width so bigger tiles get a
               // clearly readable company name (not a tiny caption).
-              const nameFs = Math.max(11, Math.min(18, Math.floor(tileW / 15)));
+              const nameFs = Math.max(10, Math.min(15, Math.floor(tileW / 18)));
               // Prominent, tile-scaled logos (TradingView-plus): ~34% of the
               // smaller tile edge, shrunk a touch when a name line is shown.
               const sym = rect.row.ticker || rect.row.companyId;
