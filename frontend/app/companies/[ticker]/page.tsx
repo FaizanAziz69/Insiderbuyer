@@ -193,6 +193,9 @@ export default function CompanyPage({
               earningsDate={earningsDate}
             />
 
+            {/* Price performance row — 1D / 5D / 1M / 6M / 1Y (TradingView-style) */}
+            <PricePerformanceRow ticker={sym} />
+
             {/* Live price chart */}
             <PriceChart ticker={sym} />
 
@@ -639,6 +642,54 @@ function CompanyHeader({
         </div>
       </div>
     </header>
+  );
+}
+
+// ── Price performance row (TradingView-style: 1D / 5D / 1M / 6M / 1Y) ─────────
+interface PeriodReturns {
+  d1: number | null;
+  d7: number | null;
+  d30: number | null;
+  d180: number | null;
+  y1: number | null;
+}
+const PERF_PERIODS: [string, keyof PeriodReturns][] = [
+  ["1 Day", "d1"],
+  ["5 Days", "d7"],
+  ["1 Month", "d30"],
+  ["6 Months", "d180"],
+  ["1 Year", "y1"],
+];
+function PricePerformanceRow({ ticker }: { ticker: string }) {
+  const { data } = useSWR<{ returns: Record<string, PeriodReturns> }>(
+    `${API_BASE}/market-stats/performance?symbols=${encodeURIComponent(ticker)}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 5 * 60_000 },
+  );
+  const r = data?.returns?.[ticker.toUpperCase()];
+  if (!r) return <div className="card p-4 h-[68px] shimmer rounded-lg" />;
+  return (
+    <div className="card px-5 py-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-y-3 gap-x-4 divide-x divide-[var(--border)]">
+        {PERF_PERIODS.map(([label, key], i) => {
+          const v = r[key];
+          const up = (v ?? 0) >= 0;
+          return (
+            <div key={key} className={i === 0 ? "pl-0 text-center sm:text-left sm:pl-0" : "text-center"}>
+              <div className="text-[11px] uppercase tracking-wider text-mute font-bold">
+                {label}
+              </div>
+              <div
+                className="text-[16px] font-bold tabular mt-0.5"
+                style={{ color: v == null ? "var(--text-mute)" : up ? "var(--good)" : "var(--bad)" }}
+              >
+                {v == null ? "—" : `${up ? "+" : ""}${v.toFixed(2)}%`}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
