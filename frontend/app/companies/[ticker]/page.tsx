@@ -1,5 +1,5 @@
 "use client";
-import { use, useMemo, useState, useRef } from "react";
+import { use, useMemo, useState, useRef, useEffect } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -38,6 +38,7 @@ import { IqsTooltip } from "@/components/IqsTooltip";
 import { TierBadge, tierFor } from "@/components/TierBadge";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsTrendChart } from "@/components/IqsTrendChart";
+import { track } from "@/lib/analytics";
 
 // ── Local types for endpoints not modelled in lib/api.ts ──────────────────
 interface CongressTrade {
@@ -161,6 +162,11 @@ export default function CompanyPage({
   const profile = profileData?.profile ?? null;
   const earningsDate = stats?.earningsDate ?? null;
 
+  // §6.5 — company page view
+  useEffect(() => {
+    track("web_company_view", { ticker: sym });
+  }, [sym]);
+
   return (
     <div className="w-full">
       <Link
@@ -196,6 +202,7 @@ export default function CompanyPage({
                 financials | other data — same layout for every stock. */}
             <StockOverviewGrid
               stats={stats}
+              profile={profile}
               fallbackMarketCap={data.company.marketCap}
               fallbackPrice={data.company.lastPrice}
               earningsDate={earningsDate}
@@ -391,6 +398,7 @@ export default function CompanyPage({
                                     href={t.filingUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    onClick={() => track("web_form4_filing_click", { ticker: sym })}
                                     className="inline-flex items-center text-mute hover:text-accent"
                                     aria-label="Open Form 4 filing"
                                   >
@@ -799,6 +807,7 @@ function PriceChart({ ticker }: { ticker: string }) {
                 onClick={() => {
                   setRange(r.key);
                   setHover(null);
+                  track("web_chart_timeframe_change", { ticker, range: r.key });
                 }}
                 className="px-2.5 py-1 rounded-md text-[12px] font-bold transition"
                 style={{
@@ -906,11 +915,13 @@ function PriceChart({ ticker }: { ticker: string }) {
 // industry-standard stock-profile summary (StockAnalysis / TipRanks).
 function StockOverviewGrid({
   stats,
+  profile,
   fallbackMarketCap,
   fallbackPrice,
   earningsDate,
 }: {
   stats: StockStats | null;
+  profile: Profile | null;
   fallbackMarketCap: number | null;
   fallbackPrice: number | null;
   earningsDate: string | null;
@@ -954,6 +965,8 @@ function StockOverviewGrid({
       "Analyst Rating",
       stats?.analystRating ? RATING_LABEL[stats.analystRating] || stats.analystRating : "—",
     ],
+    ["Industry", profile?.industry || "—"],
+    ["Employees", profile?.employees != null ? num(profile.employees) : "—"],
   ];
 
   const Col = ({ title, rows }: { title: string; rows: [string, string][] }) => (
@@ -972,7 +985,7 @@ function StockOverviewGrid({
             style={{ borderBottom: "1px solid var(--border)" }}
           >
             <dt className="text-mute">{l}</dt>
-            <dd className="font-semibold tabular text-right">{v}</dd>
+            <dd className="font-bold tabular text-right">{v}</dd>
           </div>
         ))}
       </dl>
@@ -1200,21 +1213,30 @@ function RecentNews({
           <Link
             key={it.slug}
             href={`/insights/${it.slug}`}
-            className="block p-4 hover:bg-[var(--bg-3)] transition"
+            className="flex gap-3 p-4 hover:bg-[var(--bg-3)] transition"
             style={{ borderColor: "var(--border)" }}
           >
-            {it.eyebrow && (
-              <div className="text-[10px] uppercase tracking-wider font-bold text-accent mb-1">
-                {it.eyebrow}
-              </div>
-            )}
-            <div className="text-[15px] font-semibold leading-snug">{it.title}</div>
-            {it.summary && (
-              <p className="text-[13px] text-mute mt-1 line-clamp-2">{it.summary}</p>
-            )}
-            <div className="text-[11px] text-faint mt-1.5 tabular">
-              {formatDate(it.generatedAt)}
-            </div>
+            {/* Small thumbnail on the left (company logo) */}
+            <span
+              className="flex-shrink-0 rounded-md overflow-hidden bg-white flex items-center justify-center"
+              style={{ width: 52, height: 52, padding: 4, border: "1px solid var(--border)" }}
+            >
+              <CompanyLogo ticker={ticker} name={ticker} size={44} />
+            </span>
+            <span className="min-w-0 flex-1">
+              {it.eyebrow && (
+                <span className="block text-[10px] uppercase tracking-wider font-bold text-accent mb-1">
+                  {it.eyebrow}
+                </span>
+              )}
+              <span className="block text-[15px] font-semibold leading-snug">{it.title}</span>
+              {it.summary && (
+                <span className="block text-[13px] text-mute mt-1 line-clamp-2">{it.summary}</span>
+              )}
+              <span className="block text-[11px] text-faint mt-1.5 tabular">
+                {formatDate(it.generatedAt)}
+              </span>
+            </span>
           </Link>
         ))}
       </div>

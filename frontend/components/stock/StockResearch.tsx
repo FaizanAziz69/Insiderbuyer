@@ -907,7 +907,7 @@ export function StockFAQSection({
 
   return (
     <Card title="Frequently Asked Questions">
-      <div className="space-y-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-start">
         {qas.map((qa) => (
           <FaqItem key={qa.q} q={qa.q} a={qa.a} />
         ))}

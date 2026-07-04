@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useMemo, useRef, useState, useEffect } from "react";
 import { RankingRow, formatCurrency, formatNumber } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
+import { track } from "@/lib/analytics";
 
 export type ColorBy =
   | "change"
@@ -676,6 +677,7 @@ export function StockHeatmap({
                 >
                   <Link
                     href={rect.row.ticker ? `/companies/${encodeURIComponent(rect.row.ticker)}` : "#"}
+                    onClick={() => track("web_heatmap_tile_click", { entity: rect.row.ticker || rect.row.companyId })}
                     className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden"
                     style={{ color: c.fg, padding: 2, gap: 2 }}
                     title={tileTitle}

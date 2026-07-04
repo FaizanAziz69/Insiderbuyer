@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Barlow, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
+import { PostHogProvider } from "@/components/PostHogProvider";
 
 const barlow = Barlow({
   subsets: ["latin"],
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="antialiased">
+        <PostHogProvider />
         <AppShell>{children}</AppShell>
       </body>
     </html>
