@@ -66,11 +66,13 @@ const KIND_BLURB: Record<ListKind, string> = {
     "A universe of the most-traded names listed in this market, refreshed with live quotes and cross-referenced against U.S. insider buying activity where available.",
 };
 
-// Lists are already curated to their theme, so we do NOT auto-apply a cap-band
-// filter (it was hiding valid rows — e.g. the Large-Cap list is all mega-caps
-// > $200B, which the "Large" band excluded). Users can still screen from the
-// Filters bar. Keeping every list at max rows by default.
-const DEFAULT_CAP_BY_SLUG: Record<string, string> = {};
+// Default cap-band selection per list so each opens true to its name. Large-Cap
+// opens on Mega (its constituents are all > $200B) and Penny Stocks on Small.
+// Other lists open unfiltered (max rows). Users can clear/change from the bar.
+const DEFAULT_CAP_BY_SLUG: Record<string, string> = {
+  "large-cap": "mega",
+  "penny-stocks": "small",
+};
 
 export default function StockListDetailPage({
   params,
