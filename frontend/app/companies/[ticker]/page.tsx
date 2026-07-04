@@ -201,6 +201,7 @@ export default function CompanyPage({
             {/* Standard 3-column overview: trading ranges | market cap &
                 financials | other data — same layout for every stock. */}
             <StockOverviewGrid
+              ticker={sym}
               stats={stats}
               profile={profile}
               fallbackMarketCap={data.company.marketCap}
@@ -241,13 +242,15 @@ export default function CompanyPage({
                       {profile.description}
                     </p>
                     {(profile.industry || profile.employees != null) && (
-                      <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-[12px] text-mute">
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-[13px] text-mute">
                         {profile.industry && (
-                          <span>Industry: {profile.industry}</span>
+                          <span>
+                            Industry: <span className="font-bold text-[var(--text)]">{profile.industry}</span>
+                          </span>
                         )}
                         {profile.employees != null && (
                           <span>
-                            Employees: {formatNumber(profile.employees)}
+                            Employees: <span className="font-bold text-[var(--text)]">{formatNumber(profile.employees)}</span>
                           </span>
                         )}
                         {profile.website && (
@@ -913,19 +916,34 @@ function PriceChart({ ticker }: { ticker: string }) {
 // ── Standard 3-column overview (trading | financials | other) ────────────────
 // Same layout for every stock (missing values show "—"), matching the
 // industry-standard stock-profile summary (StockAnalysis / TipRanks).
+interface FinStatement {
+  income: Record<string, number | string | null>[];
+  balance: Record<string, number | string | null>[];
+  cashflow: Record<string, number | string | null>[];
+}
 function StockOverviewGrid({
+  ticker,
   stats,
   profile,
   fallbackMarketCap,
   fallbackPrice,
   earningsDate,
 }: {
+  ticker: string;
   stats: StockStats | null;
   profile: Profile | null;
   fallbackMarketCap: number | null;
   fallbackPrice: number | null;
   earningsDate: string | null;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  // Shared with FinancialsSection — SWR dedupes the identical key so this is free.
+  const { data: finData } = useSWR<{ financials: FinStatement }>(
+    `${API_BASE}/market-stats/financials?symbol=${encodeURIComponent(ticker)}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
+
   const dec = (n: number | null | undefined, dp = 2) =>
     n === null || n === undefined || Number.isNaN(n) ? "—" : Number(n).toFixed(dp);
   const usd = (n: number | null | undefined) =>
@@ -934,10 +952,31 @@ function StockOverviewGrid({
     n === null || n === undefined ? "—" : formatCurrency(n);
   const num = (n: number | null | undefined) =>
     n === null || n === undefined ? "—" : formatNumber(n);
+  const pct = (n: number | null | undefined) =>
+    n === null || n === undefined || Number.isNaN(n) ? "—" : `${Number(n).toFixed(2)}%`;
   const range = (a: number | null | undefined, b: number | null | undefined) =>
     a == null || b == null ? "—" : `${dec(a)} – ${dec(b)}`;
 
   const marketCap = stats?.marketCap ?? fallbackMarketCap;
+
+  // Latest annual statement values for derived ratios.
+  const fin = finData?.financials;
+  const last = <T,>(arr: T[] | undefined): T | undefined => (arr && arr.length ? arr[arr.length - 1] : undefined);
+  const inc = last(fin?.income);
+  const bal = last(fin?.balance);
+  const cf = last(fin?.cashflow);
+  const n = (r: Record<string, number | string | null> | undefined, k: string): number | null =>
+    r && typeof r[k] === "number" ? (r[k] as number) : null;
+
+  const revenue = stats?.revenue ?? n(inc, "revenue");
+  const netIncome = stats?.netIncome ?? n(inc, "netIncome");
+  const equity = n(bal, "totalEquity");
+  const assets = n(bal, "totalAssets");
+  const cash = n(bal, "cash");
+  const debt = n(bal, "totalDebt");
+  const ebitda = n(inc, "ebitda");
+  const ev = marketCap != null && debt != null && cash != null ? marketCap + debt - cash : null;
+  const ratio = (a: number | null, b: number | null | undefined) => (a != null && b ? a / b : null);
 
   const trading: [string, string][] = [
     ["Price", usd(stats?.price ?? fallbackPrice)],
@@ -952,7 +991,7 @@ function StockOverviewGrid({
     ["P/E Ratio", dec(stats?.peRatio)],
     ["Forward P/E", dec(stats?.forwardPE)],
     ["EPS (ttm)", dec(stats?.eps)],
-    ["Revenue (ttm)", cur(stats?.revenue)],
+    ["Revenue (ttm)", cur(revenue)],
     ["Shares Out", num(stats?.sharesOut)],
   ];
   const other: [string, string][] = [
@@ -967,6 +1006,32 @@ function StockOverviewGrid({
     ],
     ["Industry", profile?.industry || "—"],
     ["Employees", profile?.employees != null ? num(profile.employees) : "—"],
+  ];
+
+  // Extra "See more" statistics — valuation, margins, returns, balance sheet.
+  const valuation: [string, string][] = [
+    ["Enterprise Value", cur(ev)],
+    ["Price / Sales", dec(ratio(marketCap, revenue))],
+    ["Price / Book", dec(ratio(marketCap, equity))],
+    ["EV / EBITDA", dec(ratio(ev, ebitda))],
+    ["EV / Revenue", dec(ratio(ev, revenue))],
+    ["Net Income (ttm)", cur(netIncome)],
+  ];
+  const margins: [string, string][] = [
+    ["Gross Margin", pct(n(inc, "grossMargin"))],
+    ["Operating Margin", pct(n(inc, "operatingMargin"))],
+    ["Profit Margin", pct(n(inc, "profitMargin") ?? (netIncome != null && revenue ? (netIncome / revenue) * 100 : null))],
+    ["Return on Equity", pct(netIncome != null && equity ? (netIncome / equity) * 100 : null)],
+    ["Return on Assets", pct(netIncome != null && assets ? (netIncome / assets) * 100 : null)],
+    ["EBITDA", cur(ebitda)],
+  ];
+  const balanceSheet: [string, string][] = [
+    ["Total Cash", cur(cash)],
+    ["Total Debt", cur(debt)],
+    ["Total Assets", cur(assets)],
+    ["Total Equity", cur(equity)],
+    ["Operating Cash Flow", cur(n(cf, "operatingCashflow"))],
+    ["Free Cash Flow", cur(n(cf, "freeCashflow"))],
   ];
 
   const Col = ({ title, rows }: { title: string; rows: [string, string][] }) => (
@@ -999,6 +1064,25 @@ function StockOverviewGrid({
         <Col title="Market Cap & Financials" rows={financials} />
         <Col title="Other Data" rows={other} />
       </div>
+
+      {expanded && (
+        <div
+          className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-5 mt-5 pt-5"
+          style={{ borderTop: "1px solid var(--border)" }}
+        >
+          <Col title="Valuation" rows={valuation} />
+          <Col title="Margins & Returns" rows={margins} />
+          <Col title="Balance Sheet" rows={balanceSheet} />
+        </div>
+      )}
+
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full mt-4 py-2 rounded-md text-[13px] font-semibold text-accent hover:bg-[var(--accent-soft)] transition"
+        style={{ border: "1px solid var(--border)" }}
+      >
+        {expanded ? "See less" : "See more statistics"}
+      </button>
     </div>
   );
 }
