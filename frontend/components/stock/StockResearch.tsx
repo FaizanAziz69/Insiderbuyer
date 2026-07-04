@@ -52,31 +52,36 @@ function BarChart({
   const pts = data.filter((d) => d.value != null) as { label: string; value: number }[];
   if (pts.length === 0) return <NoData />;
   const W = Math.max(220, pts.length * 70);
-  const H = 150;
-  const pad = { t: 18, b: 20 };
+  const H = 172;
+  // Extra top room for positive value labels; extra bottom room so a negative
+  // bar's value label and the year label never collide.
+  const pad = { t: 22, b: 46 };
+  const plotH = H - pad.t - pad.b;
   const vals = pts.map((p) => p.value);
   const max = Math.max(0, ...vals);
   const min = Math.min(0, ...vals);
   const span = max - min || 1;
-  const zeroY = pad.t + ((max - 0) / span) * (H - pad.t - pad.b);
+  const zeroY = pad.t + ((max - 0) / span) * plotH;
   const bw = (W / pts.length) * 0.56;
   const fmt = (v: number) =>
     unit === "pct" ? `${v.toFixed(1)}%` : unit === "eps" ? `$${v.toFixed(2)}` : compact(v);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 150 }} preserveAspectRatio="none">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H }} preserveAspectRatio="none">
       {pts.map((p, i) => {
         const cx = (i + 0.5) * (W / pts.length);
-        const y = pad.t + ((max - p.value) / span) * (H - pad.t - pad.b);
+        const y = pad.t + ((max - p.value) / span) * plotH;
         const top = Math.min(y, zeroY);
         const h = Math.abs(y - zeroY);
         const pos = p.value >= 0;
         return (
           <g key={i}>
             <rect x={cx - bw / 2} y={top} width={bw} height={Math.max(1, h)} rx={2} fill={pos ? GOOD : BAD} opacity={0.85} />
-            <text x={cx} y={pos ? top - 4 : top + h + 12} textAnchor="middle" fontSize="9" fill="var(--text-mute)" fontWeight="700">
+            {/* value label: above the bar for gains, below the bar end for losses */}
+            <text x={cx} y={pos ? top - 6 : top + h + 14} textAnchor="middle" fontSize="10" fill="var(--text)" fontWeight="700">
               {fmt(p.value)}
             </text>
-            <text x={cx} y={H - 6} textAnchor="middle" fontSize="9" fill="var(--text-faint)">
+            {/* year always pinned to the very bottom, clear of the value labels */}
+            <text x={cx} y={H - 6} textAnchor="middle" fontSize="9.5" fill="var(--text-faint)">
               {shortYear(p.label)}
             </text>
           </g>
