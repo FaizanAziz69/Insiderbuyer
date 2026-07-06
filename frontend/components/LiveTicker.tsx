@@ -23,7 +23,7 @@ export function LiveTicker() {
               <span className="ticker-sym">{r.ticker || "—"}</span>
               <span className="ticker-price">{formatCurrency(r.totalPurchaseValue)}</span>
               <span className={direction === "up" ? "ticker-up" : "ticker-down"}>
-                {direction === "up" ? "▲" : "▼"} IQS {r.iqs.toFixed(1)}
+                {direction === "up" ? "▲" : "▼"} Insider Score {r.iqs.toFixed(1)}
               </span>
               <span className="text-faint">·</span>
             </div>

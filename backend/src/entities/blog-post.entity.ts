@@ -69,7 +69,7 @@ export class BlogPost {
 
   /** Tickers we surface as a brand-logo overlay band on the cover image —
    *  MarketBeat-style. Single-ticker posts get [ticker]; multi-ticker posts
-   *  (top-iqs, daily-summary, sector-roundup) get the top 2-3 by IQS. */
+   *  (top-iqs, daily-summary, sector-roundup) get the top 2-3 by Insider Score. */
   @Column({ type: 'jsonb', nullable: true })
   featuredTickers: string[] | null;
 

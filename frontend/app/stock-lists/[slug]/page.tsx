@@ -55,11 +55,11 @@ interface DetailResponse {
 
 const KIND_BLURB: Record<ListKind, string> = {
   sector:
-    "A sector screen of U.S. names where corporate insiders have been buying. Rows are ranked by our Insider Buying Quality Score (IQS) and enriched with live price, volume, and the latest open-market Form 4 purchases.",
+    "A sector screen of U.S. names where corporate insiders have been buying. Rows are ranked by our Insider Score and enriched with live price, volume, and the latest open-market Form 4 purchases.",
   persona:
     "The latest disclosed holdings for this investor or group — sourced from SEC 13F filings (or congressional disclosures where applicable) — paired with live quotes and, where the same name also has Form 4 activity, real insider cost basis.",
   premium:
-    "Our premium ranking of the highest Insider Buying Quality Scores across the U.S. market. Every name is backed by real SEC Form 4 filings and recomputed daily.",
+    "Our premium ranking of the highest Insider Scores across the U.S. market. Every name is backed by real SEC Form 4 filings and recomputed daily.",
   universe:
     "A curated market-cap and thematic basket, refreshed with live quotes. Where a name also shows up in our Form 4 insider data, we attach its insider cost basis and most recent buy date.",
   country:
@@ -134,11 +134,11 @@ export default function StockListDetailPage({
   // real value, so pure quote-only lists don't show a column of dashes.
   const showAvgCost = rows.some((r) => r.avgCost != null);
   const showLastBuy = rows.some((r) => r.lastBuyDate != null);
-  // Buyers / $ Bought come from the IQS RankingRow shape (sector + premium +
+  // Buyers / $ Bought come from the Insider Score RankingRow shape (sector + premium +
   // universe lists that were cross-referenced against Form 4 data).
   const showBuyers = rows.some((r) => (r.distinctBuyers ?? 0) > 0);
   const showBought = rows.some((r) => (r.totalPurchaseValue ?? 0) > 0);
-  // IQS is only meaningful on insider-scored lists (premium IQS Top Picks +
+  // Insider Score is only meaningful on insider-scored lists (premium Insider Score Top Picks +
   // the Form 4-cross-referenced sector lists) — not the quote-only universe /
   // country / persona lists.
   const showIqs =
@@ -312,7 +312,7 @@ export default function StockListDetailPage({
                 ? ([
                     {
                       key: "iqs",
-                      label: "IQS",
+                      label: "Insider Score",
                       align: "center",
                       sortValue: (r) => r.iqs ?? null,
                       render: (r) => <IqsScoreCell iqs={r.iqs} />,
@@ -509,8 +509,7 @@ export default function StockListDetailPage({
           {showBought ? (
             <p className="text-[15px] text-soft leading-relaxed mb-5">
               Every name on this list is cross-referenced against real SEC Form
-              4 filings and scored with our four-factor Insider Buying Quality
-              Score (IQS): purchase volume, cluster effect, role weighting, and
+              4 filings and scored with our four-factor Insider Score: purchase volume, cluster effect, role weighting, and
               holding-change magnitude. The result is a ranked feed of where
               corporate insiders are actually putting their own capital — not
               where Wall Street says they should.
@@ -544,7 +543,7 @@ export default function StockListDetailPage({
               className="font-semibold underline"
               style={{ color: "var(--accent)" }}
             >
-              IQS rankings
+              Insider Score rankings
             </Link>{" "}
             and the{" "}
             <Link
@@ -568,7 +567,7 @@ export default function StockListDetailPage({
             All transactions are pulled directly from SEC EDGAR Form 4 filings
             and refreshed multiple times per day. Live price, volume, and
             average volume are sourced from real-time market quote feeds. The
-            IQS score is recomputed on every new filing — so the ordering you
+            Insider Score is recomputed on every new filing — so the ordering you
             see reflects the current state of insider conviction across the
             list.
           </p>
@@ -586,7 +585,7 @@ export default function StockListDetailPage({
               boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
             }}
           >
-            View the Top 5 IQS Picks
+            View the Top 5 Insider Score Picks
             <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
           </Link>
         </section>
@@ -615,10 +614,10 @@ export default function StockListDetailPage({
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[10px] uppercase tracking-wider font-bold text-accent mb-0.5">
-                Premium · IQS Top Picks
+                Premium · Insider Score Top Picks
               </div>
               <div className="text-[15px] font-bold leading-snug">
-                See the top-5 highest-IQS picks in {data?.title || "this list"}
+                See the top-5 highest Insider Score picks in {data?.title || "this list"}
               </div>
             </div>
             <ChevronRight className="h-5 w-5 text-accent group-hover:translate-x-0.5 transition" />

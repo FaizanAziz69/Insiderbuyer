@@ -283,7 +283,7 @@ export default function MarketHeatmapPage() {
               Money rotates between sectors. When you can see which groups are catching a bid and
               which are being sold, you can line up that rotation against where corporate insiders
               are actually buying — the intersection of sector strength and insider conviction is
-              where our IQS signal is most useful.
+              where our Insider Score signal is most useful.
             </p>
           </div>
 

@@ -10,6 +10,8 @@ import { CongressionalTransaction } from './entities/congressional-transaction.e
 import { Subscriber } from './entities/subscriber.entity';
 import { BlogPost } from './entities/blog-post.entity';
 import { EarningsEvent } from './entities/earnings-event.entity';
+import { User } from './entities/user.entity';
+import { AuthModule } from './auth/auth.module';
 import { CompaniesModule } from './companies/companies.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { IqsModule } from './iqs/iqs.module';
@@ -58,6 +60,7 @@ import { ContentModule } from './content/content.module';
           Subscriber,
           BlogPost,
           EarningsEvent,
+          User,
         ],
         synchronize: true,
         logging: false,
@@ -79,6 +82,7 @@ import { ContentModule } from './content/content.module';
     CtaModule,
     ChatModule,
     ContentModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

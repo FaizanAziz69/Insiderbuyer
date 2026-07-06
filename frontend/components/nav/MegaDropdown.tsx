@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Lock } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NavGroup } from "@/lib/nav-config";
 
@@ -34,6 +34,77 @@ export function MegaDropdown({ group }: Props) {
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
+
+  // Callout cards (e.g. premium upsell). Rendered at the top or bottom of the
+  // panel depending on the group's calloutPosition.
+  function renderCallouts(g: NavGroup, position: "top" | "bottom") {
+    if (!g.callouts || g.callouts.length === 0) return null;
+    return (
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 ${
+          position === "top" ? "border-b" : "border-t"
+        }`}
+        style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
+      >
+        {g.callouts.map((c) => {
+          const Icon = c.icon;
+          return (
+            <Link
+              key={c.href + c.title}
+              href={c.href}
+              onClick={() => setOpen(false)}
+              className="flex items-start gap-3 p-3 rounded-lg transition"
+              style={
+                c.premium
+                  ? {
+                      background:
+                        "color-mix(in srgb, var(--gold) 12%, var(--bg-2))",
+                      border:
+                        "1px solid color-mix(in srgb, var(--gold) 55%, var(--border))",
+                    }
+                  : {
+                      background:
+                        "color-mix(in srgb, var(--accent) 8%, var(--bg-2))",
+                      border:
+                        "1px solid color-mix(in srgb, var(--accent) 22%, var(--border))",
+                    }
+              }
+            >
+              <div
+                className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{
+                  background: c.premium
+                    ? "linear-gradient(135deg, var(--gold), #f59e0b)"
+                    : "linear-gradient(135deg, var(--accent), var(--accent-2))",
+                }}
+              >
+                <Icon
+                  className="h-4 w-4"
+                  style={{ color: c.premium ? "#3b2300" : "#fff" }}
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[13px] font-bold leading-tight flex items-center gap-1.5" style={{ color: "var(--accent)" }}>
+                  {c.title}
+                  {c.premium && (
+                    <span
+                      className="inline-flex items-center gap-0.5 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                      style={{ background: "var(--gold)", color: "#3b2300" }}
+                    >
+                      <Lock className="h-2.5 w-2.5" /> Premium
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-mute leading-snug mt-0.5">
+                  {c.description}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -81,12 +152,16 @@ export function MegaDropdown({ group }: Props) {
                 "0 16px 40px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.06)",
             }}
           >
+            {group.calloutPosition === "top" && renderCallouts(group, "top")}
+
             <div className="grid grid-cols-3 gap-6 p-5">
-              {group.columns.map((col) => (
-                <div key={col.title} className="min-w-0">
-                  <div className="text-[10px] uppercase tracking-[0.18em] font-bold text-accent mb-3">
-                    {col.title}
-                  </div>
+              {group.columns.map((col, ci) => (
+                <div key={col.title ?? `col-${ci}`} className="min-w-0">
+                  {col.title && (
+                    <div className="text-[10px] uppercase tracking-[0.18em] font-bold text-accent mb-3">
+                      {col.title}
+                    </div>
+                  )}
                   <ul className="space-y-1">
                     {col.links.map((link) => {
                       const Icon = link.icon;
@@ -108,13 +183,13 @@ export function MegaDropdown({ group }: Props) {
                                 {link.label}
                                 {link.badge === "premium" && (
                                   <span
-                                    className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                                    className="inline-flex items-center gap-0.5 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
                                     style={{
-                                      background: "var(--accent-soft)",
-                                      color: "var(--accent)",
+                                      background: "var(--gold)",
+                                      color: "#3b2300",
                                     }}
                                   >
-                                    Premium
+                                    <Lock className="h-2.5 w-2.5" /> Premium
                                   </span>
                                 )}
                                 {link.badge === "new" && (
@@ -126,6 +201,18 @@ export function MegaDropdown({ group }: Props) {
                                     }}
                                   >
                                     New
+                                  </span>
+                                )}
+                                {link.badge === "popular" && (
+                                  <span
+                                    className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                                    style={{
+                                      background:
+                                        "color-mix(in srgb, var(--warn) 18%, transparent)",
+                                      color: "var(--warn)",
+                                    }}
+                                  >
+                                    Popular
                                   </span>
                                 )}
                               </div>
@@ -144,48 +231,7 @@ export function MegaDropdown({ group }: Props) {
               ))}
             </div>
 
-            {group.callouts && group.callouts.length > 0 && (
-              <div
-                className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 border-t"
-                style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
-              >
-                {group.callouts.map((c) => {
-                  const Icon = c.icon;
-                  return (
-                    <Link
-                      key={c.href + c.title}
-                      href={c.href}
-                      onClick={() => setOpen(false)}
-                      className="flex items-start gap-3 p-3 rounded-lg hover:bg-[var(--bg-2)] transition"
-                      style={{
-                        background:
-                          "color-mix(in srgb, var(--accent) 8%, var(--bg-2))",
-                        border:
-                          "1px solid color-mix(in srgb, var(--accent) 22%, var(--border))",
-                      }}
-                    >
-                      <div
-                        className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, var(--accent), var(--accent-2))",
-                        }}
-                      >
-                        <Icon className="h-4 w-4 text-white" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[13px] font-bold text-accent leading-tight">
-                          {c.title}
-                        </div>
-                        <div className="text-[11px] text-mute leading-snug mt-0.5">
-                          {c.description}
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
+            {group.calloutPosition !== "top" && renderCallouts(group, "bottom")}
           </div>
         </div>
       )}

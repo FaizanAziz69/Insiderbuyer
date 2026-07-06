@@ -77,7 +77,7 @@ export default function AnalystRatingsPage() {
         <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
           Live consensus recommendations and 12-month price targets across the
           most widely-covered U.S. stocks, ranked by analyst-implied upside.
-          Pair the Street&rsquo;s view with each name&rsquo;s insider-buying IQS
+          Pair the Street&rsquo;s view with each name&rsquo;s insider-buying Insider Score
           to see where conviction lines up. Data refreshed throughout the trading
           day.
         </p>

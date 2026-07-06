@@ -27,7 +27,7 @@ export function MarketSignals({
         <div className="text-[15px] font-semibold">Market signals</div>
         <span className="live-dot live-dot-good text-faint">live</span>
       </div>
-      <div className="text-xs text-mute mb-6">Derived from IQS aggregates</div>
+      <div className="text-xs text-mute mb-6">Derived from Insider Score aggregates</div>
 
       <div className="mb-5">
         <div className="flex items-baseline justify-between mb-2">

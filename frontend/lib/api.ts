@@ -8,7 +8,7 @@ export interface RankingRow {
   sector: string | null;
   marketCap: number | null;
   lastPrice: number | null;
-  iqs: number; // 0–100 composite Insider Quality Score
+  iqs: number; // 0–100 composite Insider Score
   insiderWeight: number;
   transactionWeight: number;
   convictionWeight: number;
@@ -18,6 +18,10 @@ export interface RankingRow {
   distinctBuyers: number;
   transactionCount: number;
   totalPurchaseValue: number;
+  /** Insider-type category flags — true when a buyer of that kind is present. */
+  hasCeoBuyer?: boolean;
+  hasCfoBuyer?: boolean;
+  hasFundBuyer?: boolean;
   /** Volume-weighted average insider purchase price across Form 4 buys. */
   avgCost?: number | null;
   /** Most recent open-market insider purchase date (yyyy-mm-dd). */

@@ -51,11 +51,11 @@ export default function StockListsHubPage() {
           style={{ color: "var(--text-soft)", fontSize: 17 }}
         >
           Curated lists organised by sector and by famous investor portfolios. Click into
-          any list to filter and sort by sector, market cap, and our premium IQS Score.
+          any list to filter and sort by sector, market cap, and our premium Insider Score.
         </p>
       </header>
 
-      {/* Premium IQS list — highlighted callout */}
+      {/* Premium Insider Score list — highlighted callout */}
       {premium && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}

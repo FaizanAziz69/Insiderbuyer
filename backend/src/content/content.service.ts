@@ -130,7 +130,7 @@ export class ContentService {
     }
   }
 
-  /** Wipes aged posts, then regenerates the full batch (daily summary, top-IQS,
+  /** Wipes aged posts, then regenerates the full batch (daily summary, top Insider Score,
    *  ticker deep dives, stock ideas, sector roundup, weekly/cluster/CEO, and
    *  the per-topic news roundups + per-stock topic articles). */
   private async runDailyRefreshInner(): Promise<{ generated: number; skipped: number; errors: string[] }> {
@@ -157,7 +157,7 @@ export class ContentService {
       )
       .execute();
 
-    // Pull the top of the IQS leaderboard once and reuse across all jobs.
+    // Pull the top of the Insider Score leaderboard once and reuse across all jobs.
     const rankings = await this.iqs.getRankings({ limit: 30, offset: 0 });
     const rows: RankingLite[] = (rankings.rows || []).map((r) => ({
       ticker: r.ticker || '',
@@ -170,7 +170,7 @@ export class ContentService {
     })).filter((r) => r.ticker);
 
     if (rows.length === 0) {
-      errors.push('No IQS rankings available to generate content from.');
+      errors.push('No Insider Score rankings available to generate content from.');
       return { generated, skipped, errors };
     }
 
@@ -203,7 +203,7 @@ export class ContentService {
       skipped++;
     }
 
-    // Top IQS weekly-style article (rebuilt daily — overwritten by slug).
+    // Top Insider Score weekly-style article (rebuilt daily — overwritten by slug).
     if (!(await this.repo.findOne({ where: { slug: `top-iqs-picks-${dayKey}` } }))) {
       try {
         const article = await this.generator.generateTopIqsArticle(rows.slice(0, 5));
@@ -414,7 +414,7 @@ export class ContentService {
     let skipped = 0;
     const errors: string[] = [];
 
-    // Pull all source news once and the IQS table once, reuse across topics.
+    // Pull all source news once and the Insider Score table once, reuse across topics.
     let allNews: Awaited<ReturnType<NewsService['getLatest']>> = [];
     try {
       allNews = await this.news.getLatest();

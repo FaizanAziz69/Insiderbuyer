@@ -10,7 +10,7 @@ export default function AiInsightsPage() {
         "Daily AI-written market briefs",
         "Anomaly detection on insider clusters",
         "Cross-references with earnings calendar",
-        "Plain-English explanations of IQS spikes",
+        "Plain-English explanations of Insider Score spikes",
       ]}
     />
   );

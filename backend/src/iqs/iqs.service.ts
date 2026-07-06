@@ -27,6 +27,13 @@ export interface RankingRow {
   distinctBuyers: number;
   transactionCount: number;
   totalPurchaseValue: number;
+  /** Category flags for the insider-type filter — true when at least one
+   *  open-market ('P') buyer of this company matches the category. */
+  hasCeoBuyer?: boolean;
+  hasCfoBuyer?: boolean;
+  /** A fund / institutional filer (name looks like an entity, e.g. Capital,
+   *  Partners, LP, Management) is among the buyers — used for "Hedge Funds". */
+  hasFundBuyer?: boolean;
   /** Volume-weighted average insider purchase price (Σ shares×price / Σ shares)
    *  across this company's open-market Form 4 buys. */
   avgCost?: number | null;
@@ -388,6 +395,40 @@ export class IqsService {
         r.lastBuyDate = a?.lastBuy
           ? new Date(a.lastBuy).toISOString().slice(0, 10)
           : null;
+      }
+
+      // Insider-type category flags — which roles / filer types bought each
+      // company (open-market 'P' only). Powers the "Cluster / CEO / CFO /
+      // Hedge Funds" preset filter on the rankings table. Cluster is derived
+      // client-side from distinctBuyers ≥ 2.
+      const roleRows = await this.txRepo
+        .createQueryBuilder('t')
+        .select('t.company_id', 'companyId')
+        .addSelect('t.role', 'role')
+        .addSelect('t."insiderName"', 'insiderName')
+        .where('t.company_id IN (:...ids)', { ids })
+        .andWhere(`t."transactionCode" = 'P'`)
+        .getRawMany();
+      const catByCompany = new Map<
+        string,
+        { ceo: boolean; cfo: boolean; fund: boolean }
+      >();
+      // Entity-style names (funds / institutional 10% owners) vs. individuals.
+      const FUND_RE =
+        /\b(L\.?P\.?|L\.?L\.?C\.?|Capital|Partners?|Management|Advisor|Adviser|Fund|Holdings?|Ventures?|Asset|Investments?|Group|Trust|Securities)\b/i;
+      for (const rr of roleRows) {
+        const cur =
+          catByCompany.get(rr.companyId) || { ceo: false, cfo: false, fund: false };
+        if (rr.role === 'CEO') cur.ceo = true;
+        if (rr.role === 'CFO') cur.cfo = true;
+        if (FUND_RE.test(String(rr.insiderName || ''))) cur.fund = true;
+        catByCompany.set(rr.companyId, cur);
+      }
+      for (const r of rows) {
+        const c = catByCompany.get(r.companyId);
+        r.hasCeoBuyer = !!c?.ceo;
+        r.hasCfoBuyer = !!c?.cfo;
+        r.hasFundBuyer = !!c?.fund;
       }
     }
 
@@ -843,7 +884,7 @@ export class IqsService {
         {
           slug: 'highest-conviction',
           title: 'Highest conviction',
-          subtitle: 'Top-ranked by Insider Buying Quality Score',
+          subtitle: 'Top-ranked by Insider Score',
           rows: byIqs.slice(0, 10),
         },
         {
@@ -861,7 +902,7 @@ export class IqsService {
         {
           slug: 'small-cap-conviction',
           title: 'Small-cap conviction',
-          subtitle: 'Under $500M with strong IQS — biggest potential, biggest risk',
+          subtitle: 'Under $500M with strong Insider Score — biggest potential, biggest risk',
           rows: smallcap.slice(0, 10),
         },
         {
@@ -1078,6 +1119,40 @@ export class IqsService {
     };
   }
 
+  /** Current-calendar-month insider buy/sell COUNTS per ticker (open-market
+   *  P = buy, S = sell). Keyed by UPPERCASE ticker. Used by the Hot Sectors
+   *  ranking to tally insider activity across each thematic basket. */
+  async getMonthlyBuySellByTicker(
+    tickers: string[],
+  ): Promise<Map<string, { buys: number; sells: number }>> {
+    const map = new Map<string, { buys: number; sells: number }>();
+    const ups = Array.from(
+      new Set(tickers.filter(Boolean).map((t) => t.toUpperCase())),
+    );
+    if (!ups.length) return map;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const rows = await this.txRepo
+      .createQueryBuilder('t')
+      .innerJoin('t.company', 'c')
+      .select('UPPER(c.ticker)', 'ticker')
+      .addSelect('t."transactionCode"', 'code')
+      .addSelect('COUNT(*)', 'count')
+      .where('UPPER(c.ticker) IN (:...ups)', { ups })
+      .andWhere('t."transactionDate" >= :ms', { ms: monthStart.toISOString() })
+      .andWhere(`t."transactionCode" IN ('P','S')`)
+      .groupBy('UPPER(c.ticker)')
+      .addGroupBy('t."transactionCode"')
+      .getRawMany<{ ticker: string; code: string; count: string }>();
+    for (const r of rows) {
+      const e = map.get(r.ticker) || { buys: 0, sells: 0 };
+      if (r.code === 'P') e.buys += Number(r.count);
+      else if (r.code === 'S') e.sells += Number(r.count);
+      map.set(r.ticker, e);
+    }
+    return map;
+  }
+
   // ───────────────────────────────────────────────────────────────
   // Prediction of the day — deterministic top-IQS company w/ blurb
   // ───────────────────────────────────────────────────────────────
@@ -1098,7 +1173,7 @@ export class IqsService {
       reasons.push('buying near the 52-week low — possible value conviction');
     const why = reasons.length
       ? reasons.join(' · ')
-      : 'top-ranked single signal in our daily IQS run';
+      : 'top-ranked single signal in our daily Insider Score run';
     return {
       ticker: pick.ticker,
       name: pick.name,

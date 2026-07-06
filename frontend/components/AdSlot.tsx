@@ -15,7 +15,7 @@ const PROMOS = [
     sector: "technology",
   },
   {
-    eyebrow: "Premium IQS list",
+    eyebrow: "Premium Insider Score list",
     title: "Forget SpaceX — These 5 Stocks Could Soar Next",
     body: "Our analysts have just released their five highest-rated stocks for the month. None of the usual suspects, including Apple and Nvidia, made the cut.",
     cta: "See the 5 stocks",

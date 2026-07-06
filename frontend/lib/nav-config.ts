@@ -1,6 +1,5 @@
 import {
   Activity,
-  BarChart3,
   Bitcoin,
   Briefcase,
   Building2,
@@ -15,6 +14,7 @@ import {
   Globe2,
   Landmark,
   LineChart,
+  Lock,
   Newspaper,
   Plane,
   Rocket,
@@ -31,11 +31,12 @@ export interface NavLink {
   href: string;
   description?: string;
   icon?: any;
-  badge?: "premium" | "new" | "live";
+  badge?: "premium" | "new" | "live" | "popular";
 }
 
 export interface NavColumn {
-  title: string;
+  /** Optional column heading. Omit to render a clean, header-less link list. */
+  title?: string;
   links: NavLink[];
 }
 
@@ -44,12 +45,16 @@ export interface NavCallout {
   description: string;
   href: string;
   icon: any;
+  /** Marks the callout as a premium feature (lock icon + standout styling). */
+  premium?: boolean;
 }
 
 export interface NavGroup {
   label: string;
   columns: NavColumn[];
   callouts?: NavCallout[];
+  /** Where to render the callout cards relative to the columns. Default bottom. */
+  calloutPosition?: "top" | "bottom";
 }
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -57,27 +62,24 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Market Data",
     columns: [
       {
-        title: "Trading Activity",
         links: [
+          { label: "Top Buys", href: "/insiders/hot", description: "Most insider buying right now, by Insider Score", icon: Flame, badge: "popular" },
           { label: "Insider Trades", href: "/trades", description: "All open-market Form 4 buys & sells", icon: Activity },
-          { label: "Insider Hot Stocks", href: "/insiders/hot", description: "Most insider buying right now, by IQS", icon: Flame },
           { label: "Upcoming Earnings", href: "/earnings", description: "Live earnings calendar, next 7 days", icon: Calendar },
         ],
       },
       {
-        title: "Market Movers",
         links: [
-          { label: "Top Gainers", href: "/market-data/top-gainers", description: "Today's biggest percentage gains", icon: TrendingUp },
+          { label: "Top Gainers", href: "/market-data/top-gainers", description: "Today's biggest percentage gains", icon: TrendingUp, badge: "popular" },
           { label: "Top Losers", href: "/market-data/top-losers", description: "Today's biggest percentage losses", icon: TrendingUp },
           { label: "Short Squeeze List", href: "/short-squeeze", description: "Stocks ranked by squeeze potential", icon: Flame },
         ],
       },
       {
-        title: "Heatmaps & Charts",
         links: [
           { label: "Market Heatmap", href: "/heatmaps/market", description: "Every ranked U.S. company", icon: Flame },
           { label: "Sector Heatmap", href: "/sectors", description: "Buying volume by sector", icon: Building2 },
-          { label: "Top Insiders", href: "/insiders", description: "Most-active executives", icon: Users },
+          { label: "Top Insiders", href: "/insiders", description: "Most-active executives", icon: Users, badge: "popular" },
         ],
       },
     ],
@@ -96,6 +98,7 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         title: "Stocks By Interest",
         links: [
+          { label: "Hot Sectors", href: "/stock-lists/hot-sectors", icon: Flame, badge: "new" },
           { label: "Large Cap", href: "/stock-lists/large-cap", icon: Building2 },
           { label: "Small Cap", href: "/stock-lists/small-cap", icon: Rocket },
           { label: "Penny Stocks", href: "/stock-lists/penny-stocks", icon: Coins },
@@ -129,12 +132,14 @@ export const NAV_GROUPS: NavGroup[] = [
         ],
       },
     ],
+    calloutPosition: "top",
     callouts: [
       {
-        title: "IQS Top Picks · Premium",
-        description: "Unlock the top-5 daily IQS picks — the strongest insider-buying signals before they hit the broader feed.",
+        title: "Insider Score Top Picks",
+        description: "Unlock the top-5 daily Insider Score picks — the strongest insider-buying signals before they hit the broader feed.",
         href: "/stock-lists/iqs-top-picks",
-        icon: Sparkles,
+        icon: Lock,
+        premium: true,
       },
     ],
   },
@@ -142,21 +147,6 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "News & Analysis",
     columns: [
       {
-        title: "Data Tools",
-        links: [
-          { label: "Analyst Ratings", href: "/analyst-ratings", description: "Consensus & price targets", icon: ShieldCheck },
-          { label: "Dividends", href: "/dividends", description: "Yields, rates & ex-dates", icon: Coins },
-          { label: "Short Interest", href: "/short-interest", description: "Shares short & days-to-cover", icon: TrendingUp },
-          { label: "Short Squeeze List", href: "/short-squeeze", description: "Stocks ranked by squeeze potential", icon: Flame },
-          { label: "Earnings", href: "/earnings", description: "Live earnings calendar", icon: BarChart3 },
-          { label: "IPOs", href: "/ipos", description: "Priced & upcoming offerings", icon: Rocket },
-          { label: "Insider Trades", href: "/trades", description: "All Form 4 buys & sells", icon: Activity },
-          { label: "Congressional Trades", href: "/congressional-trades", description: "STOCK Act disclosures", icon: Landmark },
-          { label: "Stock Heatmap", href: "/heatmaps/market", description: "Every ranked U.S. company", icon: Flame },
-        ],
-      },
-      {
-        title: "News Topics",
         links: [
           { label: "AI", href: "/topics/ai", description: "AI-refined, updated daily", icon: Sparkles },
           { label: "Biotech", href: "/topics/biotech", description: "AI-refined, updated daily", icon: FlaskConical },
@@ -169,7 +159,15 @@ export const NAV_GROUPS: NavGroup[] = [
         ],
       },
       {
-        title: "Sections",
+        links: [
+          { label: "Analyst Ratings", href: "/analyst-ratings", description: "Consensus & price targets", icon: ShieldCheck },
+          { label: "Dividends", href: "/dividends", description: "Yields, rates & ex-dates", icon: Coins },
+          { label: "Short Interest", href: "/short-interest", description: "Shares short & days-to-cover", icon: TrendingUp },
+          { label: "IPOs", href: "/ipos", description: "Priced & upcoming offerings", icon: Rocket },
+          { label: "Congressional Trades", href: "/congressional-trades", description: "STOCK Act disclosures", icon: Landmark },
+        ],
+      },
+      {
         links: [
           { label: "AI Insights", href: "/insights", description: "AI-generated daily briefings — refreshed each morning", icon: Sparkles },
           { label: "Intro to Insider Buying", href: "/learn/insider-buying", description: "New here? Start with the basics", icon: FileText },
@@ -184,10 +182,11 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
     callouts: [
       {
-        title: "Subscribe — IQS Premium",
-        description: "Unlock the top-5 daily IQS picks, real-time alerts, and analyst-consensus filters.",
+        title: "Subscribe — Insider Score Premium",
+        description: "Unlock the top-5 daily Insider Score picks, real-time alerts, and analyst-consensus filters.",
         href: "/premium",
-        icon: Sparkles,
+        icon: Lock,
+        premium: true,
       },
     ],
   },

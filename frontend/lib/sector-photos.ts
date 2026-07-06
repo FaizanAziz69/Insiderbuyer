@@ -104,7 +104,7 @@ const PHOTOS: Record<string, string[]> = {
     "photo-1610433572201-110753c6cff9", // food retail
   ],
   // Fallback bucket for unknown / multi-sector posts (daily summaries,
-  // top-IQS leaderboards, sector roundups when sector isn't matched).
+  // top Insider Score leaderboards, sector roundups when sector isn't matched).
   default: [
     "photo-1590283603385-17ffb3a7f29f", // stock chart
     "photo-1611974789855-9c2a0a7236a3", // wall street

@@ -6,6 +6,7 @@ import { CongressionalService } from '../congressional/congressional.service';
 import {
   BLUE_CHIP_MIN_MARKET_CAP,
   COUNTRY_UNIVERSE,
+  HOT_SECTOR_BASKETS,
   PERSONA_HOLDINGS,
   PersonaHolding,
   SECTOR_LIST_RULES,
@@ -13,6 +14,41 @@ import {
   STOCK_LIST_META,
   UNIVERSE_LISTS,
 } from './persona-data';
+
+/** One thematic sector in the Hot Sectors ranking. */
+export interface HotSectorRow {
+  rank: number;
+  key: string;
+  label: string;
+  /** Basket members that resolved to a live month-to-date return. */
+  companies: number;
+  /** Members up >10% month-to-date. */
+  gainers10: number;
+  /** gainers10 / companies (0–1). */
+  gainerRatio: number;
+  /** Current-month open-market insider buys / sells across the basket. */
+  insiderBuys: number;
+  insiderSells: number;
+  netInsider: number;
+  /** Equal-weighted average member YTD % (null when no data). */
+  ytd: number | null;
+  /** Sector YTD minus S&P 500 YTD (percentage points). */
+  vsSp500: number | null;
+  /** Composite 0–100 heat score (gainer ratio + insider buying). */
+  hotScore: number;
+}
+
+export interface HotSectorsResponse {
+  asOfDate: string;
+  monthLabel: string;
+  sp500Ytd: number | null;
+  sectors: HotSectorRow[];
+}
+
+// Hot Sectors ranking weights: how much the >10% gainer ratio vs. the insider
+// buying intensity each contribute to the composite heat score.
+const HOT_GAINER_WEIGHT = 0.6;
+const HOT_INSIDER_WEIGHT = 0.4;
 
 export interface LiveQuote {
   price: number;
@@ -47,7 +83,7 @@ export interface StockListFilters {
   sector?: string;
   minMarketCap?: number;
   maxMarketCap?: number;
-  minIqs?: number;           // IQS score band (now an open filter)
+  minIqs?: number;           // Insider Score band (now an open filter)
   sentiment?: string;        // pay-gated
   analystConsensus?: string; // pay-gated
 }
@@ -199,17 +235,111 @@ export class StockListsService {
       }
       out.push({ slug, ...meta, count });
     }
-    // Add the premium IQS list as a virtual entry
+    // Hot Sectors — a virtual list ranking thematic baskets, not individual
+    // stocks (rendered by its own page).
+    out.push({
+      slug: 'hot-sectors',
+      title: 'Hot Sectors',
+      description:
+        'Thematic sectors ranked by this month’s 10%+ gainers and insider buying, with each sector’s YTD return vs. the S&P 500.',
+      kind: 'sector',
+      count: HOT_SECTOR_BASKETS.length,
+    });
+    // Add the premium Insider Score list as a virtual entry
     const { total: iqsTotal } = await this.iqs.getRankings({ limit: 1, offset: 0 });
     out.push({
       slug: 'iqs-top-picks',
-      title: 'IQS Top Picks',
+      title: 'Insider Score Top Picks',
       description:
-        'Premium ranking — the highest Insider Buying Quality Scores across the U.S. market, updated daily.',
+        'Premium ranking — the highest Insider Scores across the U.S. market, updated daily.',
       kind: 'premium',
       count: iqsTotal,
     });
     return out;
+  }
+
+  /** Hot Sectors — rank the thematic baskets by month-to-date 10%+ gainers
+   *  (relative to basket size) and current-month insider buying, with each
+   *  sector's YTD performance vs. the S&P 500. */
+  async getHotSectors(): Promise<HotSectorsResponse> {
+    const allTickers = Array.from(
+      new Set(HOT_SECTOR_BASKETS.flatMap((b) => b.tickers)),
+    );
+    const [returns, buySell, spReturns] = await Promise.all([
+      this.marketStats.getMonthYtdReturns(allTickers),
+      this.iqs.getMonthlyBuySellByTicker(allTickers),
+      this.marketStats.getMonthYtdReturns(['^GSPC']),
+    ]);
+    const sp500Ytd = spReturns['^GSPC']?.ytd ?? null;
+
+    const raw = HOT_SECTOR_BASKETS.map((b) => {
+      let companies = 0;
+      let gainers10 = 0;
+      let ytdSum = 0;
+      let ytdCount = 0;
+      let insiderBuys = 0;
+      let insiderSells = 0;
+      for (const t of b.tickers) {
+        const up = t.toUpperCase();
+        const r = returns[up];
+        if (r && r.mtd != null) {
+          companies++;
+          if (r.mtd > 10) gainers10++;
+        }
+        if (r && r.ytd != null) {
+          ytdSum += r.ytd;
+          ytdCount++;
+        }
+        const bs = buySell.get(up);
+        if (bs) {
+          insiderBuys += bs.buys;
+          insiderSells += bs.sells;
+        }
+      }
+      const gainerRatio = companies > 0 ? gainers10 / companies : 0;
+      const ytd = ytdCount > 0 ? +(ytdSum / ytdCount).toFixed(2) : null;
+      return {
+        key: b.key,
+        label: b.label,
+        companies,
+        gainers10,
+        gainerRatio,
+        insiderBuys,
+        insiderSells,
+        netInsider: insiderBuys - insiderSells,
+        ytd,
+        vsSp500:
+          ytd != null && sp500Ytd != null ? +(ytd - sp500Ytd).toFixed(2) : null,
+      };
+    });
+
+    // Insider buying is scaled relative to the busiest sector so it combines
+    // cleanly with the 0–1 gainer ratio into a 0–100 composite heat score.
+    const maxBuys = Math.max(1, ...raw.map((r) => r.insiderBuys));
+    const scored: HotSectorRow[] = raw
+      .map((r) => ({
+        ...r,
+        hotScore: Math.round(
+          (HOT_GAINER_WEIGHT * r.gainerRatio +
+            HOT_INSIDER_WEIGHT * (r.insiderBuys / maxBuys)) *
+            100,
+        ),
+      }))
+      .sort(
+        (a, b) =>
+          b.hotScore - a.hotScore ||
+          b.gainerRatio - a.gainerRatio ||
+          b.netInsider - a.netInsider,
+      )
+      .map((r, i) => ({ rank: i + 1, ...r }));
+
+    const now = new Date();
+    return {
+      asOfDate: now.toISOString().slice(0, 10),
+      monthLabel: now.toLocaleString('en-US', { month: 'long', year: 'numeric' }),
+      sp500Ytd,
+      sectors: scored,
+    };
   }
 
   async getDetail(slug: string, filters: StockListFilters): Promise<StockListDetail | null> {
@@ -234,9 +364,9 @@ export class StockListsService {
       const enriched = this.enrichRows(rows, live) as any[];
       return {
         slug,
-        title: 'IQS Top Picks',
+        title: 'Insider Score Top Picks',
         description:
-          'Premium ranking — the highest Insider Buying Quality Scores across the U.S. market, updated daily.',
+          'Premium ranking — the highest Insider Scores across the U.S. market, updated daily.',
         kind: 'premium',
         total,
         rows: enriched,
@@ -272,8 +402,8 @@ export class StockListsService {
           r.sector.toLowerCase().includes(filters.sector!.toLowerCase()),
         );
       }
-      // Cross-reference each persona holding against the live IQS table to
-      // attach an IQS score — and, where the same name also has Form 4 buys, a
+      // Cross-reference each persona holding against the live Insider Score table to
+      // attach an Insider Score — and, where the same name also has Form 4 buys, a
       // real insider avg cost + last buy date.
       const { rows: rankRows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
       const byTicker = new Map(rankRows.map((r) => [r.ticker, r]));
@@ -355,7 +485,7 @@ export class StockListsService {
       }
 
       // Curated market-cap / thematic baskets — always populated with live
-      // quotes; IQS + avg cost + last buy attached where the name also has
+      // quotes; Insider Score + avg cost + last buy attached where the name also has
       // Form 4 insider buys in our rankings.
       let rows = UNIVERSE_LISTS[slug] || [];
       if (filters.sector) {
@@ -410,16 +540,16 @@ export class StockListsService {
         minIqs: filters.minIqs,
       });
     }
-    // When an IQS band is selected, don't pad with the (unscored) universe.
+    // When an Insider Score band is selected, don't pad with the (unscored) universe.
     const rows = filters.minIqs
       ? base.rows
       : this.topUpWithUniverse(slug, base.rows, filters);
     return { total: rows.length, rows };
   }
 
-  /** Sector lists draw from our SEC Form 4 / IQS company table, which skews
+  /** Sector lists draw from our SEC Form 4 / Insider Score company table, which skews
    *  to smaller caps — append the curated universe of well-known names so
-   *  every list renders a full table (20+ rows). IQS-scored matches stay on
+   *  every list renders a full table (20+ rows). Insider Score matches stay on
    *  top; universe rows resolve name/sector/market-cap from the reference
    *  quote table and get live quotes merged downstream like any other row. */
   private topUpWithUniverse(

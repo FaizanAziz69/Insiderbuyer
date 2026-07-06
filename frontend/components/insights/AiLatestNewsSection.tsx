@@ -14,7 +14,7 @@ import { AiCoverImage } from "./AiCoverImage";
 import { assignUniquePhotos } from "@/lib/sector-photos";
 import { bylineFor } from "@/lib/byline";
 
-/** "Latest Financial News" block — pulls AI-refined SEC + IQS editorial,
+/** "Latest Financial News" block — pulls AI-refined SEC + Insider Score editorial,
  *  not raw SEC press releases. Skips the first article (which is featured
  *  in the hero above) so the home feels editorially curated, not duplicated. */
 export function AiLatestNewsSection() {
@@ -191,7 +191,7 @@ function EmptyHint() {
         Daily news briefings refresh every morning
       </p>
       <p className="text-[12px] text-mute leading-relaxed max-w-md mx-auto">
-        Articles are generated from live SEC Form 4 data and our IQS scoring
+        Articles are generated from live SEC Form 4 data and our Insider Score scoring
         engine. Trigger a refresh with{" "}
         <code className="text-accent">POST /content/refresh</code>.
       </p>

@@ -66,7 +66,7 @@ export function TopScoresPanel() {
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
   const rows = data?.rows || [];
-  // Top-5 (highest IQS) are gated behind premium; ranks 6-10 are free.
+  // Top-5 (highest Insider Score) are gated behind premium; ranks 6-10 are free.
   // Display order counts DOWN: visible 10→6 on top, blurred 5→1 below.
   const visibleDesc = rows.slice(5, 10).map((r, i) => ({ row: r, rank: i + 6 })).reverse();
   const blurredDesc = rows.slice(0, 5).map((r, i) => ({ row: r, rank: i + 1 })).reverse();
@@ -88,7 +88,7 @@ export function TopScoresPanel() {
           Top scores ·{" "}
           <IqsTooltip>
             <span className="font-mono font-bold text-accent underline decoration-dotted underline-offset-2">
-              IQS
+              Insider Score
             </span>
           </IqsTooltip>
         </div>
@@ -143,7 +143,7 @@ export function TopScoresPanel() {
                   Top 5 are premium
                 </div>
                 <div className="text-[11px] text-mute mb-2.5 max-w-[200px]">
-                  Unlock the highest-IQS signals first.
+                  Unlock the highest Insider Score signals first.
                 </div>
                 <Link
                   href="/premium"

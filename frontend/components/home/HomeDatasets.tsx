@@ -39,9 +39,9 @@ function InsiderSidePanel({
   href: string;
   side: "buys" | "sells";
 }) {
-  // For now, both panels are sourced from the IQS rankings:
-  // - Buys = top IQS rows (already filtered to open-market purchases).
-  // - Sells = lowest-IQS / negative-purchase rows are not in our schema, so
+  // For now, both panels are sourced from the Insider Score rankings:
+  // - Buys = top Insider Score rows (already filtered to open-market purchases).
+  // - Sells = lowest Insider Score / negative-purchase rows are not in our schema, so
   //   we'll display the same descending list with a "Sells" label and let
   //   the visual indicator differentiate.
   const { data } = useSWR<RankingsResponse>(

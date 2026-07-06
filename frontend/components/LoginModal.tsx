@@ -1,9 +1,29 @@
 "use client";
 import { AnimatePresence, motion } from "framer-motion";
-import { Lock, Mail, X } from "lucide-react";
-import { useEffect } from "react";
+import { Lock, Mail, User as UserIcon, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth";
+
+type Mode = "signin" | "signup";
 
 export function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { signIn, signUp } = useAuth();
+  const [mode, setMode] = useState<Mode>("signin");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset transient state whenever the modal closes.
+  useEffect(() => {
+    if (!open) {
+      setError(null);
+      setSubmitting(false);
+      setPassword("");
+    }
+  }, [open]);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -17,6 +37,23 @@ export function LoginModal({ open, onClose }: { open: boolean; onClose: () => vo
       document.body.style.overflow = "";
     };
   }, [open, onClose]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      if (mode === "signup") await signUp(email, password, name);
+      else await signIn(email, password);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const isSignup = mode === "signup";
 
   return (
     <AnimatePresence>
@@ -67,51 +104,104 @@ export function LoginModal({ open, onClose }: { open: boolean; onClose: () => vo
                 <X className="h-4 w-4 text-mute" />
               </button>
 
-              <div className="relative text-center">
-                <div
-                  className="inline-flex h-14 w-14 rounded-2xl items-center justify-center mb-5"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
-                    boxShadow: "0 8px 24px rgba(0,102,255,0.3)",
-                  }}
-                >
-                  <Lock className="h-6 w-6 text-white" />
+              <div className="relative">
+                <div className="text-center">
+                  <div
+                    className="inline-flex h-14 w-14 rounded-2xl items-center justify-center mb-5"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
+                      boxShadow: "0 8px 24px rgba(0,102,255,0.3)",
+                    }}
+                  >
+                    <Lock className="h-6 w-6 text-white" />
+                  </div>
+                  <h2
+                    className="text-2xl font-bold tracking-tight mb-2"
+                    style={{ letterSpacing: "-0.3px" }}
+                  >
+                    {isSignup ? "Create your account" : "Welcome back"}
+                  </h2>
+                  <p className="text-soft text-sm mb-6 max-w-sm mx-auto">
+                    {isSignup
+                      ? "Sign up to save watchlists, follow insider buying, and get personalized alerts."
+                      : "Sign in to access your watchlist and alerts."}
+                  </p>
                 </div>
-                <h2
-                  className="text-2xl font-bold tracking-tight mb-2"
-                  style={{ letterSpacing: "-0.3px" }}
-                >
-                  Accounts are coming soon
-                </h2>
-                <p className="text-soft text-sm mb-6 max-w-sm mx-auto">
-                  We're polishing sign-in, saved watchlists, and personalized alerts. Drop your
-                  email and we'll let you know the moment they're live.
-                </p>
 
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    onClose();
-                  }}
-                  className="space-y-3"
-                >
+                <form onSubmit={handleSubmit} className="space-y-3">
+                  {isSignup && (
+                    <div className="relative">
+                      <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-faint pointer-events-none" />
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Your name (optional)"
+                        autoComplete="name"
+                        className="input-base pl-10"
+                      />
+                    </div>
+                  )}
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-faint pointer-events-none" />
                     <input
                       type="email"
                       required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@email.com"
+                      autoComplete="email"
                       className="input-base pl-10"
                     />
                   </div>
-                  <button type="submit" className="btn-primary w-full" style={{ padding: "10px 16px" }}>
-                    Notify me
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-faint pointer-events-none" />
+                    <input
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={isSignup ? "Create a password (8+ characters)" : "Password"}
+                      autoComplete={isSignup ? "new-password" : "current-password"}
+                      className="input-base pl-10"
+                    />
+                  </div>
+
+                  {error && (
+                    <p className="text-[12.5px] font-medium" style={{ color: "var(--bad)" }}>
+                      {error}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="btn-primary w-full"
+                    style={{ padding: "10px 16px" }}
+                  >
+                    {submitting
+                      ? isSignup
+                        ? "Creating account…"
+                        : "Signing in…"
+                      : isSignup
+                        ? "Create account"
+                        : "Sign in"}
                   </button>
                 </form>
 
-                <div className="text-[11px] text-mute mt-5">
-                  In the meantime — explore the dashboard, charts, and rankings.
+                <div className="text-[13px] text-mute mt-5 text-center">
+                  {isSignup ? "Already have an account?" : "New to InsiderBuying?"}{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode(isSignup ? "signin" : "signup");
+                      setError(null);
+                    }}
+                    className="font-semibold text-accent hover:underline"
+                  >
+                    {isSignup ? "Sign in" : "Create an account"}
+                  </button>
                 </div>
               </div>
             </div>

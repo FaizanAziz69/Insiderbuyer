@@ -196,12 +196,12 @@ function hashUnit(s: string) {
 /**
  * Daily change % for a tile. Uses the REAL intraday change merged from the
  * live quote feed (rankings?live=1). Only when no quote exists for a ticker
- * do we fall back to an IQS-derived estimate so the tile still renders.
+ * do we fall back to an Insider Score-derived estimate so the tile still renders.
  */
 function changePctFor(row: RankingRow): number {
   if (typeof row.changePct === "number") return row.changePct;
   const noise = (hashUnit(row.companyId || row.ticker || row.name) - 0.5) * 1.2;
-  // IQS bands on the 0–100 composite scale.
+  // Insider Score bands on the 0–100 composite scale.
   if (row.iqs >= 70) return 2.0 + noise;
   if (row.iqs >= 55) return 1.0 + noise * 0.8;
   if (row.iqs >= 40) return 0.3 + noise * 0.6;
@@ -247,7 +247,7 @@ function colorForChange(pct: number, clamp = 5) {
   return { bg: rgb(c), fg: textFor(c) };
 }
 
-// IQS-band coloring on the 0–100 composite, mapped onto the same diverging
+// Insider Score-band coloring on the 0–100 composite, mapped onto the same diverging
 // scale (50 = neutral, 100 = strong green, 0 = strong red).
 function colorForIqs(iqs: number) {
   const t = Math.max(-1, Math.min(1, (iqs - 50) / 50));
@@ -634,13 +634,13 @@ export function StockHeatmap({
                 colorBy === "relvol"
                   ? `${rv.toFixed(1)}×`
                   : mode === "iqs"
-                    ? `IQS ${iqs.toFixed(1)}`
+                    ? `Insider Score ${iqs.toFixed(1)}`
                     : colorBy === "change"
                       ? `${sign}${pct.toFixed(2)}%`
                       : `${metric >= 0 ? "+" : ""}${metric.toFixed(2)}%`;
               const tileTitle =
                 mode === "iqs"
-                  ? `${rect.row.ticker || rect.row.name} · IQS ${iqs.toFixed(1)} · ${formatCurrency(rect.row.marketCap)}`
+                  ? `${rect.row.ticker || rect.row.name} · Insider Score ${iqs.toFixed(1)} · ${formatCurrency(rect.row.marketCap)}`
                   : `${rect.row.ticker || rect.row.name} · ${sign}${pct.toFixed(2)}% · ${formatCurrency(rect.row.marketCap)}`;
               const tileX = PAD + rect.x;
               const tileY = HEADER_H + rect.y;

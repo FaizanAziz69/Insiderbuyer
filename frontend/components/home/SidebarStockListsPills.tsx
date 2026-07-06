@@ -136,13 +136,13 @@ function NewsletterCard() {
     >
       <div className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-accent mb-2">
         <Sparkles className="h-3 w-3" />
-        Daily IQS digest
+        Daily Insider Score digest
       </div>
       <h4 className="text-[18px] font-semibold tracking-tight leading-tight mb-2">
         Get the morning insider-buying recap
       </h4>
       <p className="text-[12px] text-soft leading-relaxed mb-3">
-        One short email each market day — the strongest IQS movers, biggest Form 4 buys,
+        One short email each market day — the strongest Insider Score movers, biggest Form 4 buys,
         and a snapshot of congressional disclosures.
       </p>
       {done ? (

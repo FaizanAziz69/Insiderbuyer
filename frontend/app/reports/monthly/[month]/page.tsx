@@ -54,7 +54,7 @@ export default function MonthlyReportPage({
         </h1>
         <p className="text-soft text-[15px] sm:text-[17px] mt-4 leading-relaxed">
           A look at insider-buying activity across all U.S. listed companies for {label},
-          built directly from SEC Form 4 filings. Our IQS scoring system aggregates this
+          built directly from SEC Form 4 filings. Our Insider Score scoring system aggregates this
           data daily — what follows is the monthly synthesis.
         </p>
 
@@ -82,18 +82,18 @@ export default function MonthlyReportPage({
           <p>
             On the sell side, the pattern matched recent quarters: scheduled 10b5-1
             sales from C-suite executives at large-cap companies that have run hard
-            year-to-date. None of those sales triggered new clusters in the IQS scoring
+            year-to-date. None of those sales triggered new clusters in the Insider Score scoring
             system, suggesting routine portfolio rebalancing rather than informed
             distribution.
           </p>
 
-          <h2>Names that lit up the IQS feed</h2>
+          <h2>Names that lit up the Insider Score feed</h2>
           <p>
-            Several mid-cap names crossed our IQS threshold this month with cluster-buy
+            Several mid-cap names crossed our Insider Score threshold this month with cluster-buy
             patterns from multiple senior executives. We highlight the top-5 daily in
             our premium signal feed. The full live ranking is always available on the{" "}
             <Link href="/companies" className="font-bold underline">
-              IQS rankings page
+              Insider Score rankings page
             </Link>
             .
           </p>
@@ -104,7 +104,7 @@ export default function MonthlyReportPage({
             tend to act on visibility into the next quarter, not the current one. That
             makes the {direction === "up" ? "tilt to net buying" : "tilt to net selling"}{" "}
             in {label} a useful (if imperfect) forward signal for the next 4–8 weeks of
-            market action. Pair it with the daily IQS feed and you have a robust
+            market action. Pair it with the daily Insider Score feed and you have a robust
             picture of where conviction is forming — or quietly fading.
           </p>
         </div>
@@ -125,7 +125,7 @@ export default function MonthlyReportPage({
             Get next month&rsquo;s report — free, in your inbox
           </h3>
           <p className="text-[14px] text-soft leading-relaxed mb-5">
-            Sign up to receive the monthly insider-buying digest plus the daily IQS
+            Sign up to receive the monthly insider-buying digest plus the daily Insider Score
             highlights from our premium feed.
           </p>
           <Link

@@ -62,11 +62,20 @@ const boughtCol: Column<RankingRow> = {
 
 const iqsCol: Column<RankingRow> = {
   key: "iqs",
-  label: "IQS",
+  label: "Insider Score",
   align: "center",
   sortValue: (r) => r.iqs ?? null,
   render: (r) => <IqsScoreCell iqs={r.iqs} />,
 };
+
+// Categorized preset filter for the "Insiders Buying" column. Cluster = 2+
+// distinct insiders; CEO/CFO/Hedge Funds match the buyer types on each stock.
+const INSIDER_TYPE_PRESETS = [
+  { key: "cluster", label: "Cluster Buying (2+ insiders)", test: (r: RankingRow) => r.distinctBuyers >= 2 },
+  { key: "ceo", label: "CEO buying", test: (r: RankingRow) => !!r.hasCeoBuyer },
+  { key: "cfo", label: "CFO buying", test: (r: RankingRow) => !!r.hasCfoBuyer },
+  { key: "fund", label: "Hedge funds / institutions", test: (r: RankingRow) => !!r.hasFundBuyer },
+];
 
 export default function CompaniesPage() {
   const { data, isLoading } = useSWR<RankingsResponse>(
@@ -155,9 +164,11 @@ export default function CompaniesPage() {
     boughtCol,
     {
       key: "buyers",
-      label: "Buyers",
+      label: "Insiders Buying",
       filterable: true,
-      filterType: "range",
+      filterType: "preset",
+      filterLabelText: "Insider Type",
+      filterPresets: INSIDER_TYPE_PRESETS,
       align: "right",
       sortValue: (r) => r.distinctBuyers,
       render: (r) => <span className="tabular text-[14px] font-bold">{r.distinctBuyers}</span>,
@@ -232,9 +243,9 @@ export default function CompaniesPage() {
   return (
     <div className="space-y-6 w-full">
       <header>
-        <h1 className="text-[24px] font-bold tracking-tight">Companies by IQS</h1>
+        <h1 className="text-[24px] font-bold tracking-tight">Companies by Insider Score</h1>
         <p className="text-mute text-sm mt-1">
-          U.S. public companies ranked by the Insider Buying Quality Score. Highest scores at the
+          U.S. public companies ranked by the Insider Score. Highest scores at the
           bottom — top 5 are premium.
         </p>
       </header>

@@ -30,11 +30,11 @@ const ITEMS: {
   { symbol: "CL=F", label: "Oil" },
   { symbol: "BTC-USD", label: "Bitcoin" },
   { symbol: "NVDA", label: "Nvidia", href: "/companies/NVDA" },
-  // Private company — approximate private-market valuation (edit as needed).
-  { symbol: "SPACEX", label: "SpaceX", privateNote: "Private", valuation: "~$400B" },
+  // SpaceX now trades publicly — fetch a live quote like any other stock.
+  { symbol: "SPACEX", label: "SpaceX", href: "/companies/SPACEX" },
 ];
 
-// Only real, quotable symbols are fetched (SpaceX is private → static).
+// Every symbol is now live-quoted (no private/static entries).
 const SYMBOLS = ITEMS.filter((i) => !i.privateNote).map((i) => i.symbol);
 
 /**
@@ -53,8 +53,8 @@ export function TopTickerBar() {
   for (const r of data?.rows || []) {
     if (r?.symbol && typeof r.price === "number") bySymbol.set(r.symbol, r);
   }
-  // Preserve curated order: private entries (SpaceX) always show; the rest
-  // only when a real live quote is available.
+  // Preserve curated order: any private entries always show; the rest
+  // (SpaceX included) only when a real live quote is available.
   const items = ITEMS.map((it) => ({ ...it, q: bySymbol.get(it.symbol) })).filter(
     (it) => it.privateNote || it.q,
   );

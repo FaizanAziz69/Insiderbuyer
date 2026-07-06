@@ -37,7 +37,7 @@ export function IqsTooltip({ className = "", children }: Props) {
         onBlur={() => setOpen(false)}
         tabIndex={0}
       >
-        {children ?? <span className="font-mono font-bold">IQS</span>}
+        {children ?? <span className="font-mono font-bold">Insider Score</span>}
       </span>
       {mounted &&
         open &&
@@ -61,16 +61,16 @@ export function IqsTooltip({ className = "", children }: Props) {
             }}
           >
             <div className="text-[11px] font-bold mb-1.5 text-accent uppercase tracking-wider">
-              Insider Buying Quality Score
+              Insider Score
             </div>
             <p
               className="text-[12.5px] leading-relaxed normal-case tracking-normal"
               style={{ color: "var(--text)", fontWeight: 400 }}
             >
-              <span className="font-bold">IQS</span> blends four signals from SEC Form 4 buys:
-              purchase volume, cluster effect (multiple insiders within days), role weighting
-              (CEO/CFO/Director), and holding-change magnitude. Higher = stronger insider
-              conviction.
+              The <span className="font-bold">Insider Score</span> blends four signals from SEC
+              Form 4 buys: purchase volume, cluster effect (multiple insiders within days), role
+              weighting (CEO/CFO/Director), and holding-change magnitude. Higher = stronger
+              insider conviction.
             </p>
           </div>,
           document.body,

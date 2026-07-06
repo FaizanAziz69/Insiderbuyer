@@ -22,7 +22,7 @@ import { rankColumn } from "@/components/tableColumns";
 /**
  * Insider strategy signal — how strong/clustered the recent insider buying is,
  * mirroring TipRanks' "Insider Signal" (Very Positive / Positive / Neutral).
- * Driven by the IQS composite and the number of distinct insiders buying.
+ * Driven by the Insider Score composite and the number of distinct insiders buying.
  */
 function insiderSignal(r: RankingRow): { label: string; color: string; strength: number } {
   const buyers = r.distinctBuyers || 0;
@@ -144,7 +144,7 @@ export default function InsiderHotStocksPage() {
     },
     {
       key: "iqs",
-      label: "IQS",
+      label: "Insider Score",
       align: "center",
       sortValue: (r) => r.iqs ?? null,
       render: (r) => <IqsScoreCell iqs={r.iqs} />,
@@ -255,11 +255,11 @@ export default function InsiderHotStocksPage() {
           className="text-[28px] sm:text-[40px] font-semibold tracking-tight"
           style={{ letterSpacing: "-0.6px" }}
         >
-          Insider Hot Stocks
+          Top Buys
         </h1>
         <p className="text-mute text-[14px] sm:text-[15px] mt-2 max-w-3xl leading-relaxed">
           U.S. companies seeing the most insider buying right now, ranked by our
-          Insider Buying Quality Score (IQS).
+          Insider Score.
         </p>
       </header>
 
@@ -289,7 +289,7 @@ export default function InsiderHotStocksPage() {
           How we rank insider hot stocks
         </h2>
         <p className="text-[15px] text-soft leading-relaxed">
-          Stocks are ranked by our Insider Buying Quality Score (IQS), a 0–100
+          Stocks are ranked by our Insider Score, a 0–100
           composite that weighs the dollar size of insider purchases relative to
           the company&rsquo;s market cap, the number of distinct insiders buying
           (a cluster of buyers carries more signal than a lone trade), the

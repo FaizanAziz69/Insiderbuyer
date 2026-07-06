@@ -22,7 +22,7 @@ export const ADVERTORIALS: Record<string, Advertorial> = {
     body: [
       "Every cycle has its sceptics, and every cycle the same phrase gets uttered: 'this time is different.' Most of the time it isn't. But the last twelve months of insider buying tell a story you won't see in the price charts — corporate executives are increasing personal stakes in their own companies at the highest rate since the 2009 bottom, with one important twist.",
       "It's not the names you'd expect. The cluster is forming across mid-cap industrials, regional banks with clean loan books, and small-cap energy operators that have already shed their high-yield debt. These aren't the meme stocks of the last cycle. They're the kind of unloved compounders that quietly mint long-term returns when the market rotates.",
-      "What follows is our running list of the names where the insider conviction is loudest. We track these in real time on the IQS dashboard, but the headline names from the last 30 days are worth highlighting here.",
+      "What follows is our running list of the names where the insider conviction is loudest. We track these in real time on the Insider Score dashboard, but the headline names from the last 30 days are worth highlighting here.",
     ],
     bullets: [
       "Multi-insider buying across mid-cap industrials",
@@ -63,14 +63,14 @@ export const ADVERTORIALS: Record<string, Advertorial> = {
       "Insider buying in early-stage biotech is rare. When it happens, it deserves attention.",
     body: [
       "Biotech executives almost never buy their own stock. Their compensation is heavily weighted toward equity grants, the dilution risk from secondaries is real, and clinical trial timing makes most insiders wary of the optics. So when several senior officers and board members at a small-cap biotech file Form 4 buys within days of each other, the signal cuts through the noise.",
-      "In the last 90 days we've flagged three small-cap biotechs where the cluster-buy pattern has lit up the IQS scoring system. All three have upcoming Phase II or Phase III readouts in the next nine months. All three have insiders adding meaningful personal stakes — not the token $5,000 director buys, but six-figure positions from C-suite executives.",
-      "We can't share the names here. But subscribers get them in their inbox the day the IQS score crosses our internal threshold.",
+      "In the last 90 days we've flagged three small-cap biotechs where the cluster-buy pattern has lit up the Insider Score scoring system. All three have upcoming Phase II or Phase III readouts in the next nine months. All three have insiders adding meaningful personal stakes — not the token $5,000 director buys, but six-figure positions from C-suite executives.",
+      "We can't share the names here. But subscribers get them in their inbox the day the Insider Score crosses our internal threshold.",
     ],
     bullets: [
       "Cluster buying at small-cap biotech in last 90 days",
       "Upcoming Phase II / Phase III readouts within 9 months",
       "Six-figure insider stakes — not symbolic director buys",
-      "IQS scoring system flagged all three above our threshold",
+      "Insider Score scoring system flagged all three above our threshold",
     ],
     primaryTicker: "MRNA",
     image:
@@ -105,8 +105,8 @@ export const ADVERTORIALS: Record<string, Advertorial> = {
       "Silver is a hybrid — half precious metal, half industrial input. Insider buying at the industrial users is the read most investors miss.",
     body: [
       "Silver doesn't just respond to gold. Roughly half of global demand is industrial — solar panels, electronics, EV batteries, medical devices. So while precious-metals investors watch the spot chart, the smarter signal is sitting at the producers and processors who supply industrial buyers.",
-      "Our IQS scoring system flagged a cluster of insider buys at silver-heavy polymetallic producers in Q2 2026, alongside coincident buying at a handful of silver-streaming companies. The pattern coincides with rising solar capacity announcements out of Asia and a notable narrowing of the supply / demand balance.",
-      "If you only watch the precious-metals narrative, you'll miss the underlying industrial bid. Subscribers to the IQS feed see both sides at once.",
+      "Our Insider Score scoring system flagged a cluster of insider buys at silver-heavy polymetallic producers in Q2 2026, alongside coincident buying at a handful of silver-streaming companies. The pattern coincides with rising solar capacity announcements out of Asia and a notable narrowing of the supply / demand balance.",
+      "If you only watch the precious-metals narrative, you'll miss the underlying industrial bid. Subscribers to the Insider Score feed see both sides at once.",
     ],
     bullets: [
       "Cluster insider buying at silver-heavy polymetallic producers",

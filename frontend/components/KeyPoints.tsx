@@ -8,7 +8,7 @@ const POINTS: { title: string; body: string }[] = [
     body: "Every open-market insider buy is pulled directly from EDGAR within minutes of filing — no third-party aggregator.",
   },
   {
-    title: "Four-factor IQS scoring",
+    title: "Four-factor Insider Score",
     body: "Purchase volume, cluster effect, role-weighted size, and holding-change magnitude combine into a single ranked signal.",
   },
   {
@@ -40,7 +40,7 @@ export function KeyPoints({ points = POINTS, heading = "Key points" }: Props) {
         {heading} ·{" "}
         <IqsTooltip>
           <span className="font-mono font-bold underline decoration-dotted underline-offset-2">
-            IQS
+            Insider Score
           </span>
         </IqsTooltip>
       </div>

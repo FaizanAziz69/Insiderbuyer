@@ -77,7 +77,7 @@ export function IndexPulse() {
 
   const indices: Index[] = [
     {
-      label: "IQS Index",
+      label: "Insider Score Index",
       value: data.metrics.confidence.toFixed(2),
       change: buysWeekChange / 2,
       sparkData: counts.slice(-14).length ? counts.slice(-14) : [1, 2, 1, 3, 2, 4, 3],

@@ -37,7 +37,7 @@ export default function MoversPage() {
         <p className="text-mute text-[14px] mt-2 max-w-3xl leading-relaxed">
           The stocks seeing the most open-market insider buying right now — ranked
           by total purchase value and the number of distinct insiders, alongside
-          each name&rsquo;s live price move and IQS. Click any column header to
+          each name&rsquo;s live price move and Insider Score. Click any column header to
           re-sort (e.g. by distinct insiders or price change).
         </p>
       </header>
@@ -150,7 +150,7 @@ export default function MoversPage() {
               },
               {
                 key: "iqs",
-                label: "IQS",
+                label: "Insider Score",
                 align: "center",
                 sortValue: (r) => r.iqs,
                 render: (r) => <TierBadge iqs={r.iqs} size="sm" />,

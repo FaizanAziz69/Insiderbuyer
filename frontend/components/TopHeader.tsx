@@ -1,16 +1,43 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
-import { Bell, LogIn, Menu, Sparkles, User, X, ChevronRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Bell,
+  LogIn,
+  LogOut,
+  Menu,
+  Settings,
+  Sparkles,
+  Star,
+  User,
+  X,
+  ChevronRight,
+} from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { LoginModal } from "./LoginModal";
 import { Logo } from "./Logo";
 import { MegaDropdown } from "./nav/MegaDropdown";
 import { NAV_GROUPS } from "@/lib/nav-config";
+import { useAuth } from "@/lib/auth";
 
 export function TopHeader() {
+  const { user, signOut } = useAuth();
   const [loginOpen, setLoginOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Close the account dropdown on outside click.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [menuOpen]);
+
+  const initial = (user?.name?.trim()?.[0] || user?.email?.[0] || "U").toUpperCase();
 
   return (
     <>
@@ -76,38 +103,105 @@ export function TopHeader() {
             <Sparkles className="h-4 w-4" style={{ color: "#ffffff" }} />
             <span style={{ color: "#ffffff" }}>Subscribe</span>
           </Link>
-          <button
-            onClick={() => setLoginOpen(true)}
-            className="hidden sm:inline-flex items-center justify-center gap-1.5 px-5 h-10 rounded-md text-[14px] font-semibold"
-            style={{
-              background: "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
-              color: "#ffffff",
-              boxShadow: "0 4px 12px rgba(0,88,130,0.28)",
-              border: "none",
-              minWidth: 120,
-              cursor: "pointer",
-            }}
-          >
-            <LogIn className="h-4 w-4" style={{ color: "#ffffff" }} />
-            <span style={{ color: "#ffffff" }}>Log in</span>
-          </button>
+          {!user && (
+            <button
+              onClick={() => setLoginOpen(true)}
+              className="hidden sm:inline-flex items-center justify-center gap-1.5 px-5 h-10 rounded-md text-[14px] font-semibold"
+              style={{
+                background: "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
+                color: "#ffffff",
+                boxShadow: "0 4px 12px rgba(0,88,130,0.28)",
+                border: "none",
+                minWidth: 120,
+                cursor: "pointer",
+              }}
+            >
+              <LogIn className="h-4 w-4" style={{ color: "#ffffff" }} />
+              <span style={{ color: "#ffffff" }}>Log in</span>
+            </button>
+          )}
           <div style={{ color: "#ffffff" }}>
             <ThemeToggle />
           </div>
-          <button
-            onClick={() => setLoginOpen(true)}
-            className="h-9 w-9 rounded-full flex items-center justify-center"
-            style={{
-              border: "1px solid rgba(255,255,255,0.45)",
-              background: "transparent",
-              color: "#ffffff",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.12)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            aria-label="Profile"
-          >
-            <User className="h-4 w-4" style={{ color: "#ffffff" }} />
-          </button>
+          {user ? (
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                className="h-9 w-9 rounded-full flex items-center justify-center text-[13px] font-bold"
+                style={{
+                  border: "1px solid rgba(255,255,255,0.45)",
+                  background: "rgba(255,255,255,0.12)",
+                  color: "#ffffff",
+                }}
+                aria-label="Account menu"
+                aria-expanded={menuOpen}
+              >
+                {initial}
+              </button>
+              {menuOpen && (
+                <div
+                  className="absolute right-0 top-full mt-2 w-60 rounded-lg overflow-hidden z-50"
+                  style={{
+                    background: "var(--bg-2)",
+                    border: "1px solid var(--border-strong)",
+                    boxShadow: "0 16px 40px rgba(0,0,0,0.22)",
+                  }}
+                >
+                  <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                    {user.name && (
+                      <div className="text-[14px] font-bold truncate" style={{ color: "var(--text)" }}>
+                        {user.name}
+                      </div>
+                    )}
+                    <div className="text-[12px] text-mute truncate">{user.email}</div>
+                  </div>
+                  <nav className="py-1">
+                    <Link
+                      href="/watchlist"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium hover:bg-[var(--accent-soft)] transition"
+                      style={{ color: "var(--text)" }}
+                    >
+                      <Star className="h-4 w-4 text-mute" /> Watchlist
+                    </Link>
+                    <Link
+                      href="/settings"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium hover:bg-[var(--accent-soft)] transition"
+                      style={{ color: "var(--text)" }}
+                    >
+                      <Settings className="h-4 w-4 text-mute" /> Settings
+                    </Link>
+                    <button
+                      onClick={() => {
+                        signOut();
+                        setMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium hover:bg-[var(--accent-soft)] transition text-left"
+                      style={{ color: "var(--bad)" }}
+                    >
+                      <LogOut className="h-4 w-4" /> Sign out
+                    </button>
+                  </nav>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={() => setLoginOpen(true)}
+              className="h-9 w-9 rounded-full flex items-center justify-center"
+              style={{
+                border: "1px solid rgba(255,255,255,0.45)",
+                background: "transparent",
+                color: "#ffffff",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.12)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              aria-label="Sign in"
+            >
+              <User className="h-4 w-4" style={{ color: "#ffffff" }} />
+            </button>
+          )}
         </div>
         </div>
       </header>

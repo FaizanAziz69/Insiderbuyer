@@ -24,7 +24,7 @@ import { authorFor, reviewerFor } from "@/lib/byline";
 
 const KIND_LABELS: Record<string, string> = {
   "daily-summary": "Daily Briefing",
-  "top-iqs": "Top IQS Picks",
+  "top-iqs": "Top Insider Score Picks",
   "ticker-deep-dive": "Ticker Focus",
   "sector-roundup": "Sector Roundup",
   "cluster-buy": "Cluster Buy Alert",
@@ -211,7 +211,7 @@ export default function InsightDetailPage({
                         )}
                         <strong className="inline-flex items-center gap-1">
                           <TrendingUp className="h-3.5 w-3.5 text-accent" />
-                          IQS {Number(post.iqsAtGeneration).toFixed(2)}
+                          Insider Score {Number(post.iqsAtGeneration).toFixed(2)}
                         </strong>{" "}
                         on our four-factor insider-buying scale.
                       </span>
@@ -224,7 +224,7 @@ export default function InsightDetailPage({
                     {post.sector ? (
                       <> in the <strong>{post.sector}</strong> sector</>
                     ) : null}
-                    , scored by the IQS engine —{" "}
+                    , scored by the Insider Score engine —{" "}
                     <Link
                       href="/companies"
                       className="text-accent font-semibold underline"
@@ -279,7 +279,7 @@ export default function InsightDetailPage({
       </article>
 
       <aside className="space-y-5">
-        {/* Stock quote card + IQS breakdown — MarketBeat-style right rail */}
+        {/* Stock quote card + Insider Score breakdown — MarketBeat-style right rail */}
         {post?.ticker && (
           <>
             <TickerSnapshotCard ticker={post.ticker} />

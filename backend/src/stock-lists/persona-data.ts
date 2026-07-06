@@ -216,7 +216,7 @@ export const BLUE_CHIP_MIN_MARKET_CAP = 50_000_000_000;
 // Major listed names per exchange. Live prices come from the quote feed
 // (Yahoo supports the .TO / .DE suffixes). These are stock-coverage lists —
 // insider data for these exchanges (SEDI/BaFin) is a separate feed, so they
-// carry live quotes but no IQS yet.
+// carry live quotes but no Insider Score yet.
 export interface CountryStock {
   ticker: string;
   name: string;
@@ -273,7 +273,7 @@ export const COUNTRY_UNIVERSE: Record<string, CountryStock[]> = {
 // ── Market-cap & thematic universes ───────────────────────────────────────
 // Curated baskets of well-known U.S. names with LIVE prices/market cap. Unlike
 // the sector lists (which filter our insider-buy universe and therefore skew to
-// small/micro-caps), these always render real constituents. IQS is attached
+// small/micro-caps), these always render real constituents. Insider Score is attached
 // where the name also appears in our Form 4 rankings.
 export const UNIVERSE_LISTS: Record<string, CountryStock[]> = {
   'large-cap': [
@@ -593,3 +593,79 @@ export const STOCK_LIST_META: Record<
     kind: 'persona',
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// Hot Sectors — thematic baskets ranked by month-to-date 10%+ gainers and
+// insider buying. Each basket is a hand-categorized set of liquid, U.S.-listed
+// pure-plays for the theme (not GICS sectors). Tickers that don't resolve to a
+// live quote are simply skipped in the computation.
+// ─────────────────────────────────────────────────────────────────────────
+export interface HotSectorBasket {
+  key: string;
+  label: string;
+  tickers: string[];
+}
+
+export const HOT_SECTOR_BASKETS: HotSectorBasket[] = [
+  {
+    key: 'quantum',
+    label: 'Quantum',
+    tickers: ['IONQ', 'RGTI', 'QBTS', 'QUBT', 'ARQQ', 'LAES', 'QSI', 'QMCO'],
+  },
+  {
+    key: 'ai',
+    label: 'AI',
+    tickers: [
+      'NVDA', 'AMD', 'PLTR', 'SMCI', 'AVGO', 'MRVL', 'MU', 'ARM', 'ANET',
+      'VRT', 'SOUN', 'BBAI', 'AI', 'TEM', 'DELL',
+    ],
+  },
+  {
+    key: 'gold',
+    label: 'Gold',
+    tickers: [
+      'NEM', 'GOLD', 'AEM', 'KGC', 'AU', 'WPM', 'FNV', 'RGLD', 'GFI', 'HMY',
+      'AGI', 'BTG', 'EGO', 'OR', 'SSRM',
+    ],
+  },
+  {
+    key: 'rare-earths',
+    label: 'Rare Earths & Critical Metals',
+    tickers: [
+      'MP', 'TMC', 'UUUU', 'NB', 'CRML', 'REE', 'MTAL', 'USAR', 'ALB', 'SQM',
+      'LAC', 'PLL',
+    ],
+  },
+  {
+    key: 'biotech-pharma',
+    label: 'Biotech & Pharmaceuticals',
+    tickers: [
+      'LLY', 'PFE', 'MRK', 'ABBV', 'BMY', 'AMGN', 'GILD', 'VRTX', 'REGN',
+      'MRNA', 'BIIB', 'VKTX', 'CRSP', 'NTLA',
+    ],
+  },
+  {
+    key: 'energy',
+    label: 'Energy',
+    tickers: [
+      'XOM', 'CVX', 'COP', 'EOG', 'SLB', 'PSX', 'MPC', 'VLO', 'OXY', 'WMB',
+      'KMI', 'HAL', 'DVN', 'HES', 'FANG', 'LNG',
+    ],
+  },
+  {
+    key: 'financials',
+    label: 'Financials',
+    tickers: [
+      'JPM', 'BAC', 'WFC', 'C', 'GS', 'MS', 'BLK', 'SCHW', 'AXP', 'V', 'MA',
+      'USB', 'PNC', 'BX', 'KKR', 'COF',
+    ],
+  },
+  {
+    key: 'crypto',
+    label: 'Crypto',
+    tickers: [
+      'COIN', 'MSTR', 'MARA', 'RIOT', 'CLSK', 'HUT', 'BITF', 'CIFR', 'WULF',
+      'BTBT', 'HOOD', 'IREN',
+    ],
+  },
+];

@@ -36,7 +36,7 @@ const ARTICLE_TOOL: Anthropic.Messages.Tool = {
       eyebrow: {
         type: 'string',
         description:
-          'Short label rendered above the headline (e.g. "DAILY BRIEFING", "TICKER FOCUS", "SECTOR ROUNDUP", "TOP IQS PICKS"). Uppercase, 1-4 words.',
+          'Short label rendered above the headline (e.g. "DAILY BRIEFING", "TICKER FOCUS", "SECTOR ROUNDUP", "TOP INSIDER SCORE PICKS"). Uppercase, 1-4 words.',
       },
       summary: {
         type: 'string',
@@ -46,7 +46,7 @@ const ARTICLE_TOOL: Anthropic.Messages.Tool = {
       body: {
         type: 'string',
         description:
-          'Article body in HTML. 350-600 words. Use 4-7 <p> paragraphs and 1-2 <h2> sub-headings. Cite our IQS feed and Form 4 filings. Use cautious finance phrasing ("may suggest", "historically associated with", "investors may want to monitor"). NEVER write "buy", "guaranteed", "will go up", "recommend buying". End with a 1-sentence closer that points to monitoring on the InsiderBuying site.',
+          'Article body in HTML. 350-600 words. Use 4-7 <p> paragraphs and 1-2 <h2> sub-headings. Cite our Insider Score feed and Form 4 filings. Use cautious finance phrasing ("may suggest", "historically associated with", "investors may want to monitor"). NEVER write "buy", "guaranteed", "will go up", "recommend buying". End with a 1-sentence closer that points to monitoring on the InsiderBuying site.',
       },
       imagePrompt: {
         type: 'string',
@@ -64,7 +64,7 @@ const ARTICLE_TOOL: Anthropic.Messages.Tool = {
   },
 };
 
-const STYLE_BASE = `You are the senior editor of **InsiderBuying.com**, a finance publication that surfaces Form 4 insider-buying intelligence using a proprietary IQS (Insider Buying Quality Score).
+const STYLE_BASE = `You are the senior editor of **InsiderBuying.com**, a finance publication that surfaces Form 4 insider-buying intelligence using a proprietary Insider Score.
 
 Voice: Bloomberg + MarketBeat — confident, specific, data-led, never breathless. Plain English. Active voice.
 
@@ -74,10 +74,10 @@ CRITICAL — never give explicit financial advice:
 
 Always:
 - Refer to tickers in **bold** the first time they appear: <strong>NVDA</strong>.
-- Cite our IQS feed when quoting a score: "per our IQS feed".
+- Cite our Insider Score feed when quoting a score: "per our Insider Score feed".
 - Reference Form 4 / SEC filings when discussing transactions.
 - Keep paragraphs short (2-4 sentences).
-- End with a soft CTA pointing the reader to the ticker page or the IQS rankings page.
+- End with a soft CTA pointing the reader to the ticker page or the Insider Score rankings page.
 
 You MUST call the publish_article tool to return the article. Do not respond with prose outside the tool call.`;
 
@@ -105,19 +105,19 @@ export class ContentGeneratorService {
       .slice(0, 8)
       .map(
         (r, i) =>
-          `${i + 1}. ${r.ticker} — ${r.name} (${r.sector || 'n/a'}) — IQS ${r.iqs.toFixed(2)}` +
+          `${i + 1}. ${r.ticker} — ${r.name} (${r.sector || 'n/a'}) — Insider Score ${r.iqs.toFixed(2)}` +
           (r.distinctBuyers ? `, ${r.distinctBuyers} distinct buyers` : '') +
           (r.totalPurchaseValue ? `, $${Math.round(r.totalPurchaseValue).toLocaleString()} purchased` : ''),
       )
       .join('\n');
     const prompt = `Write today's **Daily Insider Briefing** for ${dateLabel}.
 
-Here is the IQS leaderboard as of close, ranked by Insider Buying Quality Score:
+Here is the Insider Score leaderboard as of close, ranked by Insider Score:
 
 ${lines}
 
 Synthesise the day in 4-6 paragraphs:
-- Lead with what stood out (highest-IQS name + why).
+- Lead with what stood out (highest Insider Score name + why).
 - Cover 2-3 specific names with role/transaction colour where relevant.
 - Identify any sector tilt visible in the top 8.
 - Close with what to monitor tomorrow / the rest of the week.
@@ -131,22 +131,22 @@ eyebrow: "DAILY BRIEFING"`;
       .slice(0, 5)
       .map(
         (r, i) =>
-          `${i + 1}. ${r.ticker} — ${r.name} — Sector: ${r.sector || 'n/a'} — IQS ${r.iqs.toFixed(2)}` +
+          `${i + 1}. ${r.ticker} — ${r.name} — Sector: ${r.sector || 'n/a'} — Insider Score ${r.iqs.toFixed(2)}` +
           (r.totalPurchaseValue ? `, total purchased $${Math.round(r.totalPurchaseValue).toLocaleString()}` : ''),
       )
       .join('\n');
-    const prompt = `Write a ranked **Top 5 IQS Picks** article highlighting the names with the strongest insider conviction right now.
+    const prompt = `Write a ranked **Top 5 Insider Score Picks** article highlighting the names with the strongest insider conviction right now.
 
-Source data (already sorted by IQS, highest first):
+Source data (already sorted by Insider Score, highest first):
 
 ${lines}
 
 Format:
-- Strong intro paragraph framing what high IQS means for the reader.
+- Strong intro paragraph framing what high Insider Score means for the reader.
 - One <h2> per ticker (e.g. "1. NVDA — Sector Leader Sees Cluster Buying"), each followed by 2-3 sentences citing the data.
-- Closing paragraph pointing to the live IQS rankings page on InsiderBuying.com.
+- Closing paragraph pointing to the live Insider Score rankings page on InsiderBuying.com.
 
-eyebrow: "TOP IQS PICKS"`;
+eyebrow: "TOP INSIDER SCORE PICKS"`;
     return this.callTool(prompt);
   }
 
@@ -169,7 +169,7 @@ eyebrow: "TOP IQS PICKS"`;
 
 Snapshot:
 - Sector: ${row.sector || 'n/a'}
-- IQS: ${row.iqs.toFixed(2)} (per our IQS feed)
+- Insider Score: ${row.iqs.toFixed(2)} (per our Insider Score feed)
 - Market cap: ${row.marketCap ? `$${Math.round(row.marketCap).toLocaleString()}` : 'n/a'}
 - Distinct insider buyers: ${row.distinctBuyers ?? 'n/a'}
 - Total purchase value: ${row.totalPurchaseValue ? `$${Math.round(row.totalPurchaseValue).toLocaleString()}` : 'n/a'}
@@ -192,7 +192,7 @@ eyebrow: "TICKER FOCUS"`;
 
 Snapshot:
 - Sector: ${row.sector || 'n/a'}
-- IQS: ${row.iqs.toFixed(2)} (per our IQS feed)
+- Insider Score: ${row.iqs.toFixed(2)} (per our Insider Score feed)
 - Market cap: ${row.marketCap ? `$${Math.round(row.marketCap).toLocaleString()}` : 'n/a'}
 - Distinct insider buyers: ${row.distinctBuyers ?? 'n/a'}
 - Total insider purchase value: ${row.totalPurchaseValue ? `$${Math.round(row.totalPurchaseValue).toLocaleString()}` : 'n/a'}
@@ -217,13 +217,13 @@ Use cautious language ("may suggest", "could indicate") — never "buy" or "reco
       .slice(0, 6)
       .map(
         (r, i) =>
-          `${i + 1}. ${r.ticker} — ${r.name} — IQS ${r.iqs.toFixed(2)}` +
+          `${i + 1}. ${r.ticker} — ${r.name} — Insider Score ${r.iqs.toFixed(2)}` +
           (r.distinctBuyers ? `, ${r.distinctBuyers} buyers` : ''),
       )
       .join('\n');
     const prompt = `Write a sector roundup on **insider buying in the ${sector} sector**.
 
-Top names in ${sector} by IQS right now:
+Top names in ${sector} by Insider Score right now:
 
 ${lines}
 
@@ -231,7 +231,7 @@ Structure:
 - Open with the broad sector picture — is this cluster buying, single-name conviction, or sector-wide pickup?
 - Highlight 2-3 names with role/transaction colour.
 - Discuss what the pattern may suggest for the sector.
-- Close with a CTA to filter our IQS rankings by ${sector}.
+- Close with a CTA to filter our Insider Score rankings by ${sector}.
 
 eyebrow: "SECTOR ROUNDUP"`;
     return this.callTool(prompt);
@@ -245,7 +245,7 @@ eyebrow: "SECTOR ROUNDUP"`;
       .slice(0, 8)
       .map(
         (r, i) =>
-          `${i + 1}. ${r.ticker} — ${r.name} (${r.sector || 'n/a'}) — IQS ${r.iqs.toFixed(2)}` +
+          `${i + 1}. ${r.ticker} — ${r.name} (${r.sector || 'n/a'}) — Insider Score ${r.iqs.toFixed(2)}` +
           (r.distinctBuyers ? `, ${r.distinctBuyers} buyers` : ''),
       )
       .join('\n');
@@ -255,7 +255,7 @@ Week totals from our SEC Form 4 feed:
 - Open-market insider buys logged: ${stats.totalBuys}
 - Total dollar value purchased: $${Math.round(stats.totalValue).toLocaleString()}
 
-Highest-IQS names this week:
+Highest Insider Score names this week:
 
 ${lines}
 
@@ -263,7 +263,7 @@ Structure (5-7 paragraphs):
 - Open with the week in one line — was insider buying heavier or lighter than usual?
 - <h2> The week's standout signals — 2-3 names with role/cluster colour.
 - <h2> Sector tilt — where the buying concentrated.
-- Close with what to monitor next week and a CTA to the IQS rankings page.
+- Close with what to monitor next week and a CTA to the Insider Score rankings page.
 
 eyebrow: "WEEKLY REPORT"`;
     return this.callTool(prompt);
@@ -274,7 +274,7 @@ eyebrow: "WEEKLY REPORT"`;
 
 Snapshot:
 - Sector: ${row.sector || 'n/a'}
-- IQS: ${row.iqs.toFixed(2)} (per our IQS feed)
+- Insider Score: ${row.iqs.toFixed(2)} (per our Insider Score feed)
 - Distinct insider buyers in the window: ${row.distinctBuyers ?? 'n/a'}
 - Total insider purchase value: ${row.totalPurchaseValue ? `$${Math.round(row.totalPurchaseValue).toLocaleString()}` : 'n/a'}
 
@@ -285,7 +285,7 @@ advantage, independent conviction), then ground it in this company's numbers.
 Structure:
 - Lead with the cluster fact (how many buyers, how much).
 - <h2> Why cluster buying matters — the research-backed context, cautiously phrased.
-- <h2> What it may suggest for ${row.ticker} — tie to the IQS components.
+- <h2> What it may suggest for ${row.ticker} — tie to the Insider Score components.
 - Close with a CTA to the ${row.ticker} page on InsiderBuying.
 
 eyebrow: "CLUSTER BUYING"`;
@@ -315,7 +315,7 @@ Recent CEO open-market purchases from our Form 4 feed:
 ${lines}
 
 Angle: a CEO putting personal capital into their own stock is the single
-highest-signal insider role in our IQS model (Insider Weight 100/100).
+highest-signal insider role in our Insider Score model (Insider Weight 100/100).
 
 Structure:
 - Lead with the biggest CEO purchase and what it may suggest.
@@ -346,7 +346,7 @@ eyebrow: "CEO BUYING"`;
         (s) =>
           `- ${s.ticker} (${s.name})` +
           (typeof s.changePct === 'number' ? `, ${s.changePct >= 0 ? '+' : ''}${s.changePct.toFixed(2)}% today` : '') +
-          (typeof s.iqs === 'number' && s.iqs > 0 ? `, IQS ${s.iqs.toFixed(1)}/100` : ''),
+          (typeof s.iqs === 'number' && s.iqs > 0 ? `, Insider Score ${s.iqs.toFixed(1)}/100` : ''),
       )
       .join('\n');
 
@@ -355,13 +355,13 @@ eyebrow: "CEO BUYING"`;
 Fresh source headlines from our news feeds:
 ${headlineLines}
 
-Key tickers in this theme with live market data (from our quote + IQS feeds):
+Key tickers in this theme with live market data (from our quote + Insider Score feeds):
 ${stockLines}
 
 Write a clean, SEO-friendly news roundup (350-550 words):
 - Open with the single most important development in ${opts.label} right now.
 - Synthesise the source headlines above into 2-3 short paragraphs — attribute to "reports" / "filings" rather than naming outlets.
-- Weave in 2-3 of the tickers above with their live move and, where shown, their insider-buying IQS ("per our IQS feed").
+- Weave in 2-3 of the tickers above with their live move and, where shown, their insider-buying Insider Score ("per our Insider Score feed").
 - Use ONE <h2> sub-heading.
 - Cautious, non-advisory language throughout ("may suggest", "could indicate", "investors may want to monitor"). Never "buy", "guaranteed", "will go up", "we recommend".
 - Close by pointing readers to monitor the theme on InsiderBuying.
@@ -384,7 +384,7 @@ eyebrow: "${opts.label.toUpperCase()}"`;
         : "trading in line with the group";
     const iqsLine =
       typeof opts.iqs === "number" && opts.iqs > 0
-        ? `Its Insider Buying Quality Score is ${opts.iqs.toFixed(1)}/100 (per our IQS feed).`
+        ? `Its Insider Score is ${opts.iqs.toFixed(1)}/100 (per our Insider Score feed).`
         : "";
     const headlineLines = opts.headlines.length
       ? opts.headlines.slice(0, 4).map((h, i) => `${i + 1}. "${h.title}" — ${h.source}`).join("\n")
@@ -400,7 +400,7 @@ ${headlineLines}
 Write a clean, SEO-friendly news article (300-480 words):
 - Open with what is happening with ${opts.ticker} and why it matters in ${opts.topicLabel} right now.
 - Use ONE <h2> sub-heading.
-- Reference the live move and, where shown, the IQS.
+- Reference the live move and, where shown, the Insider Score.
 - Cautious, non-advisory language ("may suggest", "could indicate", "investors may want to monitor"). Never "buy", "guaranteed", "will go up", "we recommend".
 - Close by pointing readers to monitor ${opts.ticker} on InsiderBuying.
 

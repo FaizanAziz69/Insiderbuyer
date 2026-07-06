@@ -68,10 +68,10 @@ export default function MethodologyPage() {
         Methodology
       </div>
       <h1 className="font-bold tracking-tight" style={{ fontSize: "clamp(28px,4vw,40px)", letterSpacing: "-0.6px" }}>
-        How We Calculate the Insider Buying Quality Score (IQS)
+        How We Calculate the Insider Score
       </h1>
       <p className="mt-4 text-[16px] leading-relaxed text-soft">
-        The IQS is a single 0–100 number that combines multiple factors to
+        The Insider Score is a single 0–100 number that combines multiple factors to
         measure how strong insider buying activity is for a company. We calculate
         four key factors that capture the <strong>size, intensity, and
         significance</strong> of insider purchases, then combine them into a
@@ -132,7 +132,7 @@ export default function MethodologyPage() {
         </h2>
         <p className="text-[14px] text-soft leading-relaxed">
           These four factors are combined and normalised into a single{" "}
-          <strong className="text-[var(--text)]">0–100 IQS</strong>. The exact
+          <strong className="text-[var(--text)]">0–100 Insider Score</strong>. The exact
           weighting and combination are part of our proprietary model, but the
           intuition is simple: the more an insider purchase reflects real
           conviction — large relative to the company, made by senior insiders,
@@ -142,7 +142,7 @@ export default function MethodologyPage() {
         <ul className="mt-3 space-y-1.5">
           <li className="flex gap-2 text-[13px] text-soft leading-relaxed">
             <span className="text-accent font-bold flex-shrink-0">•</span>
-            <span><strong>Higher IQS = stronger insider confidence.</strong></span>
+            <span><strong>Higher Insider Score = stronger insider confidence.</strong></span>
           </li>
           <li className="flex gap-2 text-[13px] text-soft leading-relaxed">
             <span className="text-accent font-bold flex-shrink-0">•</span>
@@ -158,7 +158,7 @@ export default function MethodologyPage() {
 
       <div className="mt-8 flex flex-wrap gap-3">
         <Link href="/companies" className="btn-primary">
-          See the live IQS rankings
+          See the live Insider Score rankings
         </Link>
         <Link href="/screener" className="btn-secondary">
           Open the screener

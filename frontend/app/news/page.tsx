@@ -10,7 +10,7 @@ import { AdSlot } from "@/components/AdSlot";
 /**
  * News & analysis — AI editorial only. No raw SEC press releases or their
  * (often broken) images: every story is an AI-written briefing synthesised from
- * the live Form 4 + IQS feed, rendered in the same card style as Stock Ideas.
+ * the live Form 4 + Insider Score feed, rendered in the same card style as Stock Ideas.
  */
 export default function NewsPage() {
   return (
@@ -29,7 +29,7 @@ export default function NewsPage() {
         </h1>
         <p className="text-mute text-[14px] sm:text-[15px] mt-2 max-w-3xl leading-relaxed">
           AI-written financial news and analysis, synthesised from today&rsquo;s SEC Form 4
-          filings and our proprietary IQS scoring engine — refreshed every morning.
+          filings and our proprietary Insider Score scoring engine — refreshed every morning.
         </p>
       </header>
 
