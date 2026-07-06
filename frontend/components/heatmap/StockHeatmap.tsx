@@ -771,8 +771,13 @@ function HeatmapTooltip({
   const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
   const W = 232;
-  const left = Math.min(hover.x + 16, vw - W - 12);
-  const top = Math.min(hover.y + 16, vh - 150);
+  const GAP = 16;
+  // Flip the card to the LEFT of the cursor when it would overflow the right
+  // edge (tiles on the far-right side), otherwise open to the right as usual.
+  const openLeft = hover.x + GAP + W > vw - 8;
+  let left = openLeft ? hover.x - GAP - W : hover.x + GAP;
+  left = Math.max(8, Math.min(left, vw - W - 8));
+  const top = Math.min(hover.y + 16, vh - 170);
   return (
     <div
       style={{

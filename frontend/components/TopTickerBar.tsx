@@ -30,11 +30,9 @@ const ITEMS: {
   { symbol: "CL=F", label: "Oil" },
   { symbol: "BTC-USD", label: "Bitcoin" },
   { symbol: "NVDA", label: "Nvidia", href: "/companies/NVDA" },
-  // SpaceX now trades publicly — fetch a live quote like any other stock.
-  { symbol: "SPACEX", label: "SpaceX", href: "/companies/SPACEX" },
 ];
 
-// Every symbol is now live-quoted (no private/static entries).
+// Every symbol is live-quoted (no private/static entries).
 const SYMBOLS = ITEMS.filter((i) => !i.privateNote).map((i) => i.symbol);
 
 /**
