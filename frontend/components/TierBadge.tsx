@@ -1,36 +1,32 @@
 "use client";
-import { Award, Medal, Shield } from "lucide-react";
+import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 
-export type Tier = "Gold" | "Silver" | "Bronze" | "Watch";
+export type Tier = "Bullish" | "Neutral" | "Bearish";
 
-// IQS is a 0–100 composite (six weighted components).
+// The Insider Score is a 0–100 composite. We translate it into a directional
+// signal: Bullish (green) for strong insider buying, Neutral (yellow) in the
+// middle, Bearish (red) when the signal is weak.
 export function tierFor(iqs: number): Tier {
-  if (iqs >= 70) return "Gold";
-  if (iqs >= 55) return "Silver";
-  if (iqs >= 40) return "Bronze";
-  return "Watch";
+  if (iqs >= 55) return "Bullish";
+  if (iqs >= 40) return "Neutral";
+  return "Bearish";
 }
 
 const STYLE: Record<Tier, { bg: string; fg: string; icon: any }> = {
-  Gold: {
-    bg: "linear-gradient(135deg, #f59e0b, #fbbf24)",
-    fg: "#3b2300",
-    icon: Award,
-  },
-  Silver: {
-    bg: "linear-gradient(135deg, #94a3b8, #cbd5e1)",
-    fg: "#1f2937",
-    icon: Medal,
-  },
-  Bronze: {
-    bg: "linear-gradient(135deg, #b45309, #d97706)",
+  Bullish: {
+    bg: "var(--good)",
     fg: "#ffffff",
-    icon: Medal,
+    icon: TrendingUp,
   },
-  Watch: {
-    bg: "var(--bg-3)",
-    fg: "var(--text-soft)",
-    icon: Shield,
+  Neutral: {
+    bg: "var(--gold)",
+    fg: "#3b2300",
+    icon: Minus,
+  },
+  Bearish: {
+    bg: "var(--bad)",
+    fg: "#ffffff",
+    icon: TrendingDown,
   },
 };
 
@@ -53,7 +49,7 @@ export function TierBadge({
     <span
       className={`inline-flex items-center gap-1 ${dims} rounded-full font-semibold uppercase tracking-wide`}
       style={{ background: s.bg, color: s.fg }}
-      title={`${tier} tier · IQS ${iqs.toFixed(1)}/100`}
+      title={`${tier} · Insider Score ${iqs.toFixed(1)}/100`}
     >
       <Icon className={iconSize} />
       {showLabel && <span>{tier}</span>}

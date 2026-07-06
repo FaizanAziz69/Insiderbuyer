@@ -19,14 +19,14 @@ const TOOLS = [
     icon: LineChart,
   },
   // {
-  //   title: "IQS Methodology",
+  //   title: "Insider Score Methodology",
   //   body: "Under the hood of our four-factor score — purchase volume, cluster effect, role weighting, and holding-change magnitude.",
   //   href: "/methodology",
   //   icon: Calculator,
   // },
   {
     title: "Stock Screener",
-    body: "Slice the universe by sector, market-cap band, IQS tier, and recent insider activity. Save the screens you keep running.",
+    body: "Slice the universe by sector, market-cap band, Insider Score tier, and recent insider activity. Save the screens you keep running.",
     href: "/screener",
     icon: BarChart3,
   },
@@ -38,7 +38,7 @@ const TOOLS = [
   },
   {
     title: "Earnings Calendar",
-    body: "Upcoming earnings releases with EPS estimates, report time, and the IQS-flagged names reporting this week.",
+    body: "Upcoming earnings releases with EPS estimates, report time, and the Insider Score-flagged names reporting this week.",
     href: "/earnings",
     icon: Calendar,
   },

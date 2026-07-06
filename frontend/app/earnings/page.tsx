@@ -77,7 +77,7 @@ export default function EarningsPage() {
         <p className="text-mute text-[14px] mt-2 max-w-3xl leading-relaxed">
           The next 7 days of corporate earnings releases for U.S. listed companies. Earnings
           surprises move stocks fast — and insider buying ahead of earnings is one of the
-          highest-conviction IQS signals.
+          highest-conviction Insider Score signals.
         </p>
       </header>
 

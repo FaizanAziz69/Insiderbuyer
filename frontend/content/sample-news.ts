@@ -22,7 +22,7 @@ const sampleSets: Array<Omit<NewsItem, "id" | "pubDate"> & { image: string }> = 
   {
     title: "Biotech Pipeline Watch: Late-Stage Trials Lining Up for the Fall Calendar",
     description:
-      "A cluster of mid-cap biotech names have meaningful Phase II and Phase III readouts on the horizon — and our IQS feed has been flagging insider buying ahead of several.",
+      "A cluster of mid-cap biotech names have meaningful Phase II and Phase III readouts on the horizon — and our Insider Score feed has been flagging insider buying ahead of several.",
     link: "https://www.sec.gov/news/pressreleases",
     source: "Insider Buying Editorial",
     category: "Market",

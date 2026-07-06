@@ -6,7 +6,7 @@ interface Point {
   iqs: number;
 }
 
-/** IQS trend over time — one point per scoring run, on the 0–100 scale.
+/** Insider Score trend over time — one point per scoring run, on the 0–100 scale.
  *  Pure-SVG line chart so it stays light enough for every stock page. */
 export function IqsTrendChart({
   history,
@@ -54,7 +54,7 @@ export function IqsTrendChart({
         style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
       >
         <h3 className="text-[12px] font-bold uppercase tracking-wider">
-          IQS Trend Over Time
+          Insider Score Trend Over Time
         </h3>
         <span
           className="tabular font-bold text-[12px]"
@@ -117,7 +117,7 @@ export function IqsTrendChart({
               r={pts.length > 20 ? 2 : 3}
               fill="var(--accent)"
             >
-              <title>{`${fmtDate(p.asOfDate)} — IQS ${p.iqs.toFixed(1)}`}</title>
+              <title>{`${fmtDate(p.asOfDate)} — Insider Score ${p.iqs.toFixed(1)}`}</title>
             </circle>
           ))}
           {/* x labels: first / middle / last */}
@@ -137,7 +137,7 @@ export function IqsTrendChart({
             ))}
         </svg>
         <p className="text-[11px] text-faint mt-1 px-1">
-          Composite IQS (0–100) recomputed on each scoring run from live SEC
+          Composite Insider Score (0–100) recomputed on each scoring run from live SEC
           Form 4 data.
         </p>
       </div>

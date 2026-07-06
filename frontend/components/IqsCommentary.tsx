@@ -17,11 +17,11 @@ export function IqsCommentary() {
       >
         About the{" "}
         <IqsTooltip>
-          <span className="text-accent">Insider Buying Quality Score</span>
+          <span className="text-accent">Insider Score</span>
         </IqsTooltip>
       </h2>
       <p className="text-[14px] text-soft leading-relaxed mb-3">
-        <span className="font-semibold text-[var(--text)]">IQS</span> is a daily ranking signal
+        <span className="font-semibold text-[var(--text)]">Insider Score</span> is a daily ranking signal
         built from SEC Form 4 open-market purchases. We score each company across four
         components — purchase volume, cluster effect (multiple insiders buying within a short
         window), role-weighted size (CEO/CFO/Director carry more weight), and holding-change
@@ -33,7 +33,7 @@ export function IqsCommentary() {
         aggregator, no opinion, no estimates — just the public record, structured and ranked.
         Read the full{" "}
         <Link href="/companies" className="text-accent font-semibold hover:underline">
-          IQS rankings
+          Insider Score rankings
         </Link>{" "}
         or learn how to{" "}
         <Link href="/premium" className="text-accent font-semibold hover:underline">

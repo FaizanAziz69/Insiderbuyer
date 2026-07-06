@@ -8,8 +8,8 @@ const FEATURES = [
     icon: Briefcase,
     title: "Best-in-class portfolio monitoring",
     bullets: [
-      "Build a watchlist and get IQS movement alerts.",
-      "Compare your portfolio against the IQS-leader basket.",
+      "Build a watchlist and get Insider Score movement alerts.",
+      "Compare your portfolio against the Insider Score-leader basket.",
       "Track news, ratings, and SEC filings on your tickers.",
     ],
   },
@@ -17,7 +17,7 @@ const FEATURES = [
     icon: Lightbulb,
     title: "Stock ideas and recommendations",
     bullets: [
-      "See daily ideas from our top-IQS feed.",
+      "See daily ideas from our top Insider Score feed.",
       "Receive short-term trade callouts when clusters form.",
       "Spot trending tickers across our curated lists.",
     ],
@@ -26,7 +26,7 @@ const FEATURES = [
     icon: BarChart3,
     title: "Advanced screeners and research tools",
     bullets: [
-      "Filter the market by sector, market cap, and IQS tier.",
+      "Filter the market by sector, market cap, and Insider Score tier.",
       "Stay informed with real-time Form 4 alerts.",
       "Export results to CSV for offline analysis.",
     ],
@@ -52,7 +52,7 @@ export function AllAccessCta() {
             Get 30 days of <span className="text-accent">Insider Buying Premium</span> for free
           </h2>
           <p className="text-soft text-[14px] sm:text-[15px] mt-3 leading-relaxed">
-            Open up the top-five IQS picks, the full congressional-trade table, and the
+            Open up the top-five Insider Score picks, the full congressional-trade table, and the
             daily SEC Form 4 alert stream. Cancel anytime — no card needed for the trial.
           </p>
           <Link

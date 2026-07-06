@@ -22,7 +22,7 @@ const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
 /* ────────────────────────────────────────────────────────────
    Subscribe/premium landing page.
    Section order mirrors newsfailures.com, content adapted to
-   InsiderBuying.com (Form 4 + IQS insider-buying analytics).
+   InsiderBuying.com (Form 4 + Insider Score insider-buying analytics).
    1. Hero  2. In Action  3. Why Investors  4. Testimonials
    5. Conversion band  6. Pricing  7. From the Blog
    The global Footer is rendered by AppShell — no footer here.
@@ -141,7 +141,7 @@ function TrialCapture({
 // ─── Data ─────────────────────────────────────────────────────
 const STATS = [
   { value: "10,000+", label: "Form 4 filings tracked" },
-  { value: "500", label: "Companies IQS-scored" },
+  { value: "500", label: "Companies scored" },
   { value: "Daily", label: "AI insider briefings" },
   { value: "Live", label: "Market data & heatmaps" },
 ];
@@ -149,8 +149,8 @@ const STATS = [
 const FEATURES = [
   {
     icon: Gauge,
-    title: "IQS 4-Factor Scoring",
-    desc: "Every company gets a proprietary 0–100 Insider Buying Quality Score from purchase volume, cluster effect, role weighting, and holding-change magnitude.",
+    title: "Insider Score — 4-Factor Scoring",
+    desc: "Every company gets a proprietary 0–100 Insider Score from purchase volume, cluster effect, role weighting, and holding-change magnitude.",
   },
   {
     icon: Bell,
@@ -165,7 +165,7 @@ const FEATURES = [
   {
     icon: LineChart,
     title: "Live Market Data & Heatmaps",
-    desc: "Real-time quotes, sector performance, top movers and earnings — paired with IQS heatmaps so you see where the smart money is concentrated.",
+    desc: "Real-time quotes, sector performance, top movers and earnings — paired with Insider Score heatmaps so you see where the smart money is concentrated.",
   },
   {
     icon: Landmark,
@@ -201,7 +201,7 @@ const TESTIMONIALS = [
 ];
 
 const PLAN_FEATURES = [
-  "IQS rankings & cluster-buy alerts",
+  "Insider Score rankings & cluster-buy alerts",
   "Full insider + congressional feeds",
   "Live heatmaps & top movers",
   "Famous-investor 13F portfolios",
@@ -211,8 +211,8 @@ const PLAN_FEATURES = [
 
 const BLOG_POSTS = [
   {
-    category: "IQS Methodology",
-    title: "How the IQS Score Reads Insider Conviction",
+    category: "Insider Score Methodology",
+    title: "How the Insider Score Reads Insider Conviction",
     read: "8 min read",
     desc: "A breakdown of the four factors — volume, clusters, role weighting and holding change — and why each one matters.",
   },
@@ -274,7 +274,7 @@ export default function PremiumPage() {
             <p className="text-soft mt-5 text-[15px] sm:text-[17px] max-w-2xl mx-auto leading-relaxed">
               Insiders buy their own stock for one reason — they expect the price to
               rise. InsiderBuying.com tracks every open-market SEC Form 4 purchase and
-              scores it with our proprietary 0–100 IQS engine, so you can catch
+              scores it with our proprietary 0–100 Insider Score engine, so you can catch
               executive conviction the moment it shows up in the filings — before the
               crowd does.
             </p>
@@ -300,7 +300,7 @@ export default function PremiumPage() {
         <SectionHeading
           eyebrow="Product tour"
           title="See InsiderBuying in Action"
-          blurb="A live analytics layer on top of the SEC Form 4 firehose — rankings, heatmaps and the raw insider feed, all scored by IQS."
+          blurb="A live analytics layer on top of the SEC Form 4 firehose — rankings, heatmaps and the raw insider feed, all scored by Insider Score."
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-10">
@@ -431,7 +431,7 @@ export default function PremiumPage() {
               Start tracking insider conviction today
             </h2>
             <p className="text-soft mt-4 text-[15px] sm:text-[17px] max-w-2xl mx-auto leading-relaxed">
-              Join the investors who follow the smart money. Get full access to IQS
+              Join the investors who follow the smart money. Get full access to Insider Score
               rankings, cluster-buy alerts, live heatmaps and daily AI briefings — free
               for 30 days.
             </p>
@@ -500,7 +500,7 @@ export default function PremiumPage() {
         <SectionHeading
           eyebrow="From the blog"
           title="Insider-Buying Insights"
-          blurb="Editorial briefings synthesised from the live Form 4 feed and our IQS scoring engine."
+          blurb="Editorial briefings synthesised from the live Form 4 feed and our Insider Score scoring engine."
           action={{ label: "View all articles", href: "/insights" }}
         />
 
@@ -615,7 +615,7 @@ function FauxLeaderboard() {
     { rank: 6, ticker: "PLTR", iqs: 52 },
   ];
   return (
-    <PanelChrome title="IQS Leaderboard">
+    <PanelChrome title="Insider Score Leaderboard">
       <div className="space-y-1.5">
         {rows.map((r) => (
           <div
@@ -654,7 +654,7 @@ function FauxHeatmap() {
     74, 36, 62,
   ];
   return (
-    <PanelChrome title="IQS Heatmap">
+    <PanelChrome title="Insider Score Heatmap">
       <div className="grid grid-cols-6 gap-1.5">
         {tiles.map((v, i) => (
           <div
@@ -672,8 +672,8 @@ function FauxHeatmap() {
         ))}
       </div>
       <div className="flex items-center justify-between mt-3 text-[10px] text-mute font-mono uppercase tracking-wider">
-        <span>Low IQS</span>
-        <span>High IQS</span>
+        <span>Low Insider Score</span>
+        <span>High Insider Score</span>
       </div>
     </PanelChrome>
   );

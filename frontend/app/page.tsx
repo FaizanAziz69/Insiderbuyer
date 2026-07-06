@@ -37,7 +37,7 @@ export default function HomePage() {
       {/* Free-trial + newsletter dual strip — directly below the heat map */}
       <TrialAndNewsletterStrip />
 
-      {/* LATEST FINANCIAL NEWS — AI-refined editorial from SEC + IQS data */}
+      {/* LATEST FINANCIAL NEWS — AI-refined editorial from SEC + Insider Score data */}
       <div className="grid grid-cols-1 xl:grid-cols-[2.5fr_1fr] gap-6 xl:gap-10">
         <AiLatestNewsSection />
         <SidebarPopularTools />

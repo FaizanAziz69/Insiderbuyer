@@ -193,7 +193,7 @@ export class ThirteenFService {
       .map((h) => ({
         ticker: h.ticker,
         name: h.name,
-        sector: '', // 13F carries no sector; stock-lists enriches from IQS data
+        sector: '', // 13F carries no sector; stock-lists enriches from Insider Score data
         sharesHeld: h.shares,
         dollarValue: h.value,
         lastReported: filed,

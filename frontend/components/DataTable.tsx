@@ -28,8 +28,12 @@ export interface Column<T> {
   /** Expose this column in the collapsible Filters panel. */
   filterable?: boolean;
   /** Filter UI: "select" = dropdown of distinct values; "range" = Min/Max;
-   *  "marketCapPreset" = preset cap-band dropdown. */
-  filterType?: "select" | "range" | "marketCapPreset";
+   *  "marketCapPreset" = preset cap-band dropdown; "preset" = a custom
+   *  dropdown of predicate-based presets supplied via `filterPresets`. */
+  filterType?: "select" | "range" | "marketCapPreset" | "preset";
+  /** Predicate-based preset options for filterType "preset" (e.g. insider
+   *  type: Cluster / CEO / CFO / Hedge Funds). */
+  filterPresets?: { key: string; label: string; test: (row: T) => boolean }[];
   /** Display string for a row's value in a select dropdown. */
   filterLabel?: (row: T) => string;
   /** Value used for sorting AND filtering. */
@@ -127,6 +131,10 @@ export function DataTable<T>({
     if (c.filterType === "range" || c.filterType === "marketCapPreset") {
       return hasNumericData(c);
     }
+    if (c.filterType === "preset") {
+      // Only show when at least one preset actually matches some row.
+      return !!c.filterPresets?.some((p) => rows.some((r) => p.test(r)));
+    }
     // select (default): needs at least one distinct value
     return rows.some((r, i) => !!filterText(c, r, i));
   });
@@ -135,7 +143,12 @@ export function DataTable<T>({
   const optionsByCol = useMemo(() => {
     const m: Record<string, string[]> = {};
     for (const c of filterCols) {
-      if (c.filterType === "range" || c.filterType === "marketCapPreset") continue;
+      if (
+        c.filterType === "range" ||
+        c.filterType === "marketCapPreset" ||
+        c.filterType === "preset"
+      )
+        continue;
       const set = new Set<string>();
       rows.forEach((r, i) => {
         const t = filterText(c, r, i);
@@ -156,6 +169,10 @@ export function DataTable<T>({
       active.every(([key, v]) => {
         const col = columns.find((c) => c.key === key);
         if (!col) return true;
+        if (col.filterType === "preset" && typeof v === "string") {
+          const preset = col.filterPresets?.find((p) => p.key === v);
+          return preset ? preset.test(row) : true;
+        }
         if (col.filterType === "marketCapPreset" && typeof v === "string") {
           const preset = CAP_BY_KEY.get(v);
           if (!preset) return true;
@@ -285,6 +302,28 @@ export function DataTable<T>({
                       >
                         <option value="">All Market Caps</option>
                         {CAP_PRESETS.map((p) => (
+                          <option key={p.key} value={p.key}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                }
+                if (c.filterType === "preset") {
+                  return (
+                    <label key={c.key} className="flex flex-col gap-1">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-mute">
+                        {title}
+                      </span>
+                      <select
+                        value={(filters[c.key] as string) ?? ""}
+                        onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
+                        className="text-[13px] font-semibold rounded-md px-2.5 py-1.5 min-w-[170px]"
+                        style={numInput}
+                      >
+                        <option value="">All {title}</option>
+                        {c.filterPresets?.map((p) => (
                           <option key={p.key} value={p.key}>
                             {p.label}
                           </option>

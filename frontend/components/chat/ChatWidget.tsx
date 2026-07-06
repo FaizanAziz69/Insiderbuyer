@@ -24,7 +24,7 @@ interface ChatMessage {
 }
 
 const STARTER_PROMPTS = [
-  { icon: TrendingUp, text: "What's the IQS for NVDA?" },
+  { icon: TrendingUp, text: "What's the Insider Score for NVDA?" },
   { icon: Sparkles, text: "Top 5 insider buys today" },
   { icon: Star, text: "Analyst rating for AAPL?" },
   { icon: GitCompare, text: "Compare TSLA vs F" },
@@ -36,7 +36,7 @@ const WELCOME: ChatMessage = {
   id: "welcome",
   role: "assistant",
   content:
-    "Hi! I'm the **Insider Buying** assistant. I can help you with stocks, IQS scores, insider trading, congressional trades, and anything about our site. Ask me anything below.",
+    "Hi! I'm the **Insider Buying** assistant. I can help you with stocks, Insider Scores, insider trading, congressional trades, and anything about our site. Ask me anything below.",
 };
 
 function uid() {
@@ -361,7 +361,7 @@ export function ChatWidget() {
                           send(input);
                         }
                       }}
-                      placeholder="Ask about a ticker, IQS score, or insider activity…"
+                      placeholder="Ask about a ticker, Insider Score, or insider activity…"
                       rows={1}
                       className="flex-1 resize-none rounded-lg px-3 py-2.5 text-[14px] outline-none transition"
                       style={{

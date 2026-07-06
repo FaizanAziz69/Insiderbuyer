@@ -195,7 +195,7 @@ export default function LearnInsiderBuyingPage() {
           <p className="text-[14px] text-soft leading-relaxed">
             These four characteristics are exactly what our{" "}
             <strong className="text-[var(--text)]">
-              Insider Buying Quality Score (IQS)
+              Insider Score
             </strong>{" "}
             captures — a single 0–100 number that combines the size, intensity
             and significance of insider purchases so you don&apos;t have to weigh
@@ -205,7 +205,7 @@ export default function LearnInsiderBuyingPage() {
             </Link>{" "}
             or see live scores in the{" "}
             <Link href="/companies" className="text-accent font-semibold underline">
-              IQS rankings
+              Insider Score rankings
             </Link>
             .
           </p>
@@ -264,7 +264,7 @@ export default function LearnInsiderBuyingPage() {
             <span className="text-accent font-bold flex-shrink-0">•</span>
             <span>
               <Link href="/companies" className="text-accent font-semibold underline">
-                IQS rankings
+                Insider Score rankings
               </Link>{" "}
               — every company sorted by the strength of its current insider
               buying, strongest signals first.
@@ -301,7 +301,7 @@ export default function LearnInsiderBuyingPage() {
       {/* CTA */}
       <div className="mt-8 flex flex-wrap gap-3">
         <Link href="/companies" className="btn-primary">
-          See the live IQS rankings
+          See the live Insider Score rankings
         </Link>
       </div>
     </div>

@@ -71,7 +71,7 @@ export default function MarketMoversPage() {
         <p className="text-soft text-[15px] sm:text-[17px] mt-4 leading-relaxed">
           A live read on the biggest intraday percentage moves across the U.S. market, with
           a short note on the likely catalyst. Watch the names that pair with same-day
-          insider Form 4 filings — that&rsquo;s where the IQS signal lives.
+          insider Form 4 filings — that&rsquo;s where the Insider Score signal lives.
         </p>
 
         <AdSlot slot="leaderboard" seed="market-movers" />

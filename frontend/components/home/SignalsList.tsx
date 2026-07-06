@@ -118,7 +118,7 @@ export function SignalsList() {
                   Top 5 are premium
                 </div>
                 <div className="text-[12px] text-mute mb-3 max-w-[260px]">
-                  Unlock the highest-IQS signals first.
+                  Unlock the highest Insider Score signals first.
                 </div>
                 <Link
                   href="/premium"
@@ -170,7 +170,7 @@ function SignalRow({
       </div>
       <div className="text-right">
         <div className="text-[10px] uppercase tracking-wider text-mute font-semibold">
-          IQS
+          Insider Score
         </div>
         <div
           className="text-[15px] font-bold tabular"

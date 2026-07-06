@@ -109,7 +109,7 @@ const FAQS = [
   },
   {
     q: "Why follow sector performance?",
-    a: "Capital rotates between sectors. Seeing which groups are leading or lagging — and lining that up with where insiders are buying — is where the IQS signal is most actionable.",
+    a: "Capital rotates between sectors. Seeing which groups are leading or lagging — and lining that up with where insiders are buying — is where the Insider Score signal is most actionable.",
   },
 ];
 

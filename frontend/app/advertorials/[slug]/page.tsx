@@ -109,7 +109,7 @@ export default function AdvertorialPage({
             </h3>
             <p className="text-[14px] text-soft leading-relaxed mb-5">
               Enter your email to receive the full list of stocks behind this analysis,
-              plus the daily IQS digest.
+              plus the daily Insider Score digest.
             </p>
             <Link
               href={`/reports/cta/${article.primaryTicker}`}

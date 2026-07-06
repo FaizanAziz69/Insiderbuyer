@@ -32,7 +32,7 @@ function IdeaItem({ r, rank }: { r: IdeaRow; rank: number }) {
         <div className="text-[13px] text-soft truncate mt-0.5">{r.name}</div>
       </div>
       <div className="text-right hidden sm:block">
-        <div className="text-[11px] label-mini">IQS</div>
+        <div className="text-[11px] label-mini">Insider Score</div>
         <div className="text-sm font-bold tabular">{r.iqs.toFixed(1)}</div>
       </div>
       <div className="text-right hidden md:block">

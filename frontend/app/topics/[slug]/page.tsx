@@ -116,7 +116,7 @@ export default function TopicPage({
           {meta.label} Articles
         </h1>
         <p className="text-mute text-[13px] mt-1">
-          AI-refined {meta.label} coverage from SEC, market and IQS data —
+          AI-refined {meta.label} coverage from SEC, market and Insider Score data —
           new articles published daily.
         </p>
       </header>

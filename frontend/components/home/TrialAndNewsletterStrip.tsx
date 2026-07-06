@@ -32,7 +32,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
 
 const FEATURES = [
-  { icon: BellRing, text: "Automated portfolio monitoring with IQS alerts" },
+  { icon: BellRing, text: "Automated portfolio monitoring with Insider Score alerts" },
   { icon: Lightbulb, text: "Daily stock ideas drawn from insider activity" },
   { icon: SlidersHorizontal, text: "Stock screeners and Form 4 research tools" },
 ];
@@ -181,7 +181,7 @@ function DashboardSide() {
         className="absolute -right-3 top-40 hidden xl:flex"
         icon={Activity}
         value="92"
-        label="IQS score"
+        label="Insider Score"
         tone="accent"
         delay={0.45}
       />
@@ -390,7 +390,7 @@ function NewsletterPanel() {
       </div>
 
       <h3 className="mt-2 text-[18px] font-semibold leading-tight tracking-tight sm:text-[20px]">
-        Subscribe to the Daily IQS Digest.
+        Subscribe to the Daily Insider Score Digest.
       </h3>
 
       {done ? (

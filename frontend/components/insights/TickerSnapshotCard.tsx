@@ -15,8 +15,8 @@ interface Props {
   ticker: string;
 }
 
-/** MarketBeat-style right-rail stock quote card — logo, name, price, IQS
- *  tier, then a key-stats grid sourced from our SEC/IQS feed. */
+/** MarketBeat-style right-rail stock quote card — logo, name, price, Insider Score
+ *  tier, then a key-stats grid sourced from our SEC/Insider Score feed. */
 export function TickerSnapshotCard({ ticker }: Props) {
   const { data, isLoading } = useSWR<CompanyDetail>(
     `${API_BASE}/companies/${encodeURIComponent(ticker)}`,
@@ -102,14 +102,14 @@ export function TickerSnapshotCard({ ticker }: Props) {
   );
 }
 
-/** 2-column stats grid — Market Cap / IQS / Buyers / Transactions /
+/** 2-column stats grid — Market Cap / Insider Score / Buyers / Transactions /
  *  Insider $ bought / As-of date. Reused inline in article bodies too. */
 export function KeyStatsGrid({ detail }: { detail: CompanyDetail }) {
   const c = detail.company;
   const s = detail.score;
   const stats: Array<[string, string]> = [
     ["Market Cap", c.marketCap ? formatCurrency(Number(c.marketCap)) : "—"],
-    ["IQS Score", s ? Number(s.iqs).toFixed(2) : "—"],
+    ["Insider Score", s ? Number(s.iqs).toFixed(2) : "—"],
     ["Distinct Buyers", s ? String(s.distinctBuyers) : "—"],
     ["Form 4 Buys", s ? String(s.transactionCount) : "—"],
     [

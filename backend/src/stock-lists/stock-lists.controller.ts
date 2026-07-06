@@ -10,6 +10,13 @@ export class StockListsController {
     return { lists: await this.svc.getIndex() };
   }
 
+  // Static route declared before the ':slug' param route so it isn't captured
+  // as a slug. Returns the sector ranking (not a stock list).
+  @Get('hot-sectors')
+  async hotSectors() {
+    return this.svc.getHotSectors();
+  }
+
   @Get(':slug')
   async detail(
     @Param('slug') slug: string,

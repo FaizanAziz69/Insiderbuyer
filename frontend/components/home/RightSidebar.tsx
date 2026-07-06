@@ -40,7 +40,7 @@ export function RightSidebar() {
             AI-powered insider signals
           </h3>
           <p className="text-[12px] text-soft mt-2 leading-relaxed">
-            Cluster detection, anomaly flags, and natural-language summaries of every IQS spike —
+            Cluster detection, anomaly flags, and natural-language summaries of every Insider Score spike —
             built on top of our SEC Form 4 pipeline.
           </p>
           <div

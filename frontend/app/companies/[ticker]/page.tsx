@@ -272,7 +272,7 @@ export default function CompanyPage({
                 {/* Recent insider-buy summary */}
                 <InsiderSummary transactions={data.transactions} />
 
-                {/* IQS trend over time */}
+                {/* Insider Score trend over time */}
                 {data.scoreHistory && data.scoreHistory.length > 1 && (
                   <IqsTrendChart history={data.scoreHistory} />
                 )}
@@ -526,8 +526,8 @@ export default function CompanyPage({
             >
               <span className="font-bold">Disclaimer</span> — Informational only —
               not investment advice. Insider transaction data is sourced from SEC
-              Form 4 filings; market data from public feeds and may be delayed. IQS
-              is a proprietary score for research purposes and does not predict
+              Form 4 filings; market data from public feeds and may be delayed. The
+              Insider Score is a proprietary score for research purposes and does not predict
               future performance. Always do your own research.
             </div>
           </main>
@@ -646,7 +646,7 @@ function CompanyHeader({
             >
               <IqsTooltip>
                 <div className="text-[10px] uppercase tracking-wider font-bold text-accent underline decoration-dotted underline-offset-2 cursor-help">
-                  Insider Quality Score
+                  Insider Score
                 </div>
               </IqsTooltip>
               <div className="text-[26px] font-bold tabular text-accent leading-none mt-1">
@@ -1087,7 +1087,7 @@ function StockOverviewGrid({
   );
 }
 
-// ── Smart Score panel (TipRanks-style gauge + factor breakdown) ──────────────
+// ── Insider Score panel (gauge + factor breakdown) ──────────────
 const SCORE_FACTORS: {
   key: keyof NonNullable<CompanyDetail["score"]>;
   label: string;
@@ -1110,9 +1110,8 @@ function factorRating(pct: number): { label: string; color: string } {
 
 function ringColorForTier(iqs: number): string {
   const tier = tierFor(iqs);
-  if (tier === "Gold") return "var(--good)";
-  if (tier === "Silver") return "color-mix(in srgb, var(--good) 60%, var(--warn))";
-  if (tier === "Bronze") return "var(--warn)";
+  if (tier === "Bullish") return "var(--good)";
+  if (tier === "Neutral") return "var(--gold)";
   return "var(--bad)";
 }
 
@@ -1126,9 +1125,9 @@ function SmartScorePanel({ score }: { score: NonNullable<CompanyDetail["score"]>
   const maxW = Math.max(...weights, 0.0001);
   return (
     <section className="card p-5">
-      <h2 className="text-[16px] font-semibold">Smart Score</h2>
+      <h2 className="text-[16px] font-semibold">Insider Score</h2>
       <p className="text-[12px] text-mute mb-4">
-        Our 0&ndash;100 Insider Quality Score (IQS) and the signals behind it.
+        Our 0&ndash;100 Insider Score and the signals behind it.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-6 items-center">
         {/* Circular gauge */}

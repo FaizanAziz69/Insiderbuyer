@@ -44,7 +44,7 @@ export function HomeHero() {
             Track insider conviction in real time
           </h1>
           <p className="text-soft mt-4 text-[15px] sm:text-[17px] max-w-2xl mx-auto leading-relaxed">
-            Daily Insider Buying Quality Score (IQS) rankings from SEC Form 4 filings —
+            Daily Insider Score rankings from SEC Form 4 filings —
             distilled into a single, ranked feed of the strongest open-market signals.
           </p>
 

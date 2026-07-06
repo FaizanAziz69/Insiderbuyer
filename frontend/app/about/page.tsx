@@ -3,7 +3,7 @@ import Link from "next/link";
 export const metadata = {
   title: "About Us — Insider Buying",
   description:
-    "Who we are and how Insider Buying turns SEC Form 4 filings into the Insider Buying Quality Score.",
+    "Who we are and how Insider Buying turns SEC Form 4 filings into the Insider Score.",
 };
 
 export default function AboutPage() {
@@ -28,7 +28,7 @@ export default function AboutPage() {
         </p>
         <p>
           At the heart of the platform is our proprietary{" "}
-          <strong>Insider Buying Quality Score (IQS)</strong> — a 0–100 measure that weighs
+          <strong>Insider Score</strong> — a 0–100 measure that weighs
           purchase size, buying clusters, the role of the insider, and conviction, so you can
           instantly see where insiders are putting their own capital with the most confidence.
         </p>
@@ -38,7 +38,7 @@ export default function AboutPage() {
         </h2>
         <ul className="list-disc pl-5 space-y-2">
           <li>Track every open-market insider buy and sell from SEC Form 4 filings.</li>
-          <li>Score and rank companies by insider conviction with the IQS engine.</li>
+          <li>Score and rank companies by insider conviction with the Insider Score engine.</li>
           <li>Surface live market data — heatmaps, gainers, dividends, analyst ratings and more.</li>
           <li>Publish plain-English research and daily AI briefings on the biggest insider moves.</li>
         </ul>

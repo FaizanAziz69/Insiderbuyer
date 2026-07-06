@@ -29,7 +29,7 @@ const AUTO_ADVANCE_MS = 9000;
 
 /** Hero carousel — same grid-of-images layout as the old SEC-news carousel
  *  (1 big card + 3 thumbs, dot navigation, auto-advance), but fed entirely
- *  by our AI editorial pipeline: SEC Form 4 data → IQS scoring → articles.
+ *  by our AI editorial pipeline: SEC Form 4 data → Insider Score scoring → articles.
  *  Posts are date-stamped, so the whole hero rolls over every 24 hours when
  *  the daily content refresh runs. */
 export function AiFeaturedHero() {

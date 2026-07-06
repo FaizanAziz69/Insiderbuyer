@@ -39,8 +39,8 @@ const LICENSE_FEATURES = [
   },
   {
     icon: Gauge,
-    title: "IQS Scores API",
-    desc: "Pull our proprietary 0–100 Insider Buying Quality Score for any covered company, along with the underlying factor breakdown — volume, clusters, role weighting and conviction.",
+    title: "Insider Scores API",
+    desc: "Pull our proprietary 0–100 Insider Score for any covered company, along with the underlying factor breakdown — volume, clusters, role weighting and conviction.",
   },
   {
     icon: Landmark,
@@ -50,7 +50,7 @@ const LICENSE_FEATURES = [
   {
     icon: LayoutGrid,
     title: "Heatmap & Widget Embeds",
-    desc: "Drop-in embeddable widgets — IQS heatmaps, leaderboards and live insider-buy tickers — that render in an iframe and inherit your brand's look and feel.",
+    desc: "Drop-in embeddable widgets — Insider Score heatmaps, leaderboards and live insider-buy tickers — that render in an iframe and inherit your brand's look and feel.",
   },
   {
     icon: Briefcase,
@@ -73,7 +73,7 @@ const AUDIENCES = [
   {
     icon: Briefcase,
     title: "Brokerages",
-    desc: "Surface IQS scores and insider activity right inside your trading flow to deepen engagement and give clients a signal they can't get elsewhere.",
+    desc: "Surface Insider Scores and insider activity right inside your trading flow to deepen engagement and give clients a signal they can't get elsewhere.",
   },
   {
     icon: Newspaper,
@@ -92,7 +92,7 @@ const STEPS = [
     icon: KeyRound,
     step: "01",
     title: "Get a key",
-    desc: "Book a demo and we'll provision an API key scoped to the datasets you need — insider feed, IQS, congressional, or 13F — with sandbox access to start.",
+    desc: "Book a demo and we'll provision an API key scoped to the datasets you need — insider feed, Insider Score, congressional, or 13F — with sandbox access to start.",
   },
   {
     icon: Code2,
@@ -152,7 +152,7 @@ export default function BusinessPage() {
             <p className="text-soft mt-5 text-[15px] sm:text-[17px] max-w-2xl mx-auto leading-relaxed">
               Give your users the same insider-conviction signal we built our platform
               on — without building the pipeline yourself. Get programmatic API access to
-              our real-time Form 4 feed, IQS scores, congressional trades and 13F data,
+              our real-time Form 4 feed, Insider Scores, congressional trades and 13F data,
               drop in embeddable heatmap and leaderboard widgets, or ship a fully
               white-label dashboard under your own brand.
             </p>

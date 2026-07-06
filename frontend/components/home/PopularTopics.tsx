@@ -12,7 +12,7 @@ interface Topic {
 const TOPICS: Topic[] = [
   {
     href: "/companies",
-    title: "Top stocks by IQS",
+    title: "Top stocks by Insider Score",
     description:
       "Live ranking of U.S. public companies by the strength of recent insider purchases.",
   },
@@ -38,7 +38,7 @@ const TOPICS: Topic[] = [
     href: "/heatmaps/market",
     title: "Stock-market heatmap",
     description:
-      "Every ranked U.S. company in one view, sized by market cap, coloured by IQS tier.",
+      "Every ranked U.S. company in one view, sized by market cap, coloured by Insider Score tier.",
   },
   {
     href: "/trades",
@@ -56,7 +56,7 @@ const TOPICS: Topic[] = [
     href: "/premium",
     title: "Premium AI analysis",
     description:
-      "Anomaly detection, cluster scoring, and natural-language summaries for every IQS spike.",
+      "Anomaly detection, cluster scoring, and natural-language summaries for every Insider Score spike.",
   },
 ];
 

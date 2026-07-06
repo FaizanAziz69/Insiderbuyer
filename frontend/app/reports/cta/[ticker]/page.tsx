@@ -20,7 +20,7 @@ export default function CtaOptInPage({
     ? "5 Top Stocks to Buy Right Now — Free Report"
     : `Should You Invest $1,000 in ${safeTicker} Right Now?`;
   const subhead = isGeneric
-    ? "Our analysts have just released their five highest-IQS stocks for the month."
+    ? "Our analysts have just released their five highest Insider Score stocks for the month."
     : `Before you consider ${safeTicker}, you'll want to hear this.`;
 
   const [email, setEmail] = useState("");
@@ -109,7 +109,7 @@ export default function CtaOptInPage({
                 className="btn-primary inline-flex items-center gap-1.5"
                 style={{ padding: "11px 22px", fontSize: 13 }}
               >
-                See live IQS rankings
+                See live Insider Score rankings
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
@@ -129,7 +129,7 @@ export default function CtaOptInPage({
                   best-performing research signals and the stocks they point to on a
                   daily basis. We&rsquo;ve identified the{" "}
                   <strong className="text-[var(--text)]">five stocks</strong> that top
-                  IQS scores are quietly highlighting before the broader market catches
+                  Insider Scores are quietly highlighting before the broader market catches
                   on{!isGeneric && ` — and ${safeTicker} may or may not be on the list`}.
                 </p>
                 <p>

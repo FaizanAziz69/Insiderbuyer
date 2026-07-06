@@ -8,9 +8,9 @@ interface Props {
   ticker: string;
 }
 
-/** Right-rail card visualising the four IQS factors as horizontal bars —
+/** Right-rail card visualising the four Insider Score factors as horizontal bars —
  *  shows readers exactly WHY this stock scores what it scores. This is the
- *  IQS equivalent of MarketBeat's "MarketRank" breakdown widget. */
+ *  Insider Score equivalent of MarketBeat's "MarketRank" breakdown widget. */
 export function IqsBreakdownCard({ ticker }: Props) {
   const { data, isLoading } = useSWR<CompanyDetail>(
     `${API_BASE}/companies/${encodeURIComponent(ticker)}`,
@@ -24,8 +24,8 @@ export function IqsBreakdownCard({ ticker }: Props) {
   const s = data?.score;
   if (!s) return null;
 
-  // The six IQS components — each 0–100, weighted into the composite:
-  // IQS = Insider×.25 + Transaction×.25 + Conviction×.20 + History×.15
+  // The six Insider Score components — each 0–100, weighted into the composite:
+  // Insider Score = Insider×.25 + Transaction×.25 + Conviction×.20 + History×.15
   //     + Cluster×.10 + Timing×.05
   const factors: Array<{ label: string; value: number; weight: string; hint: string }> = [
     {
@@ -77,7 +77,7 @@ export function IqsBreakdownCard({ ticker }: Props) {
         style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
       >
         <h3 className="text-[12px] font-bold uppercase tracking-wider">
-          IQS Breakdown
+          Insider Score Breakdown
         </h3>
         <span
           className="tabular font-bold px-2 py-0.5 rounded text-[13px]"

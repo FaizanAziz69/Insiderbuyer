@@ -7,7 +7,7 @@ export const metadata = {
 const SECTIONS: { h: string; p: string }[] = [
   {
     h: "Not investment advice",
-    p: "All content on Insider Buying — including the Insider Buying Quality Score (IQS), rankings, heatmaps, articles and AI-generated summaries — is provided for general informational and educational purposes only. It is not, and should not be construed as, investment, financial, legal or tax advice, nor a recommendation, offer or solicitation to buy or sell any security.",
+    p: "All content on Insider Buying — including the Insider Score, rankings, heatmaps, articles and AI-generated summaries — is provided for general informational and educational purposes only. It is not, and should not be construed as, investment, financial, legal or tax advice, nor a recommendation, offer or solicitation to buy or sell any security.",
   },
   {
     h: "Do your own research",
@@ -15,7 +15,7 @@ const SECTIONS: { h: string; p: string }[] = [
   },
   {
     h: "Data accuracy & third-party sources",
-    p: "Our data is aggregated from third-party and public sources, including SEC EDGAR (Form 4 filings) and live market-data feeds. While we work to keep it accurate and timely, we cannot guarantee that all information is complete, correct or up to date, and figures may be delayed or restated. The IQS is a proprietary, opinion-based score derived from publicly available filings.",
+    p: "Our data is aggregated from third-party and public sources, including SEC EDGAR (Form 4 filings) and live market-data feeds. While we work to keep it accurate and timely, we cannot guarantee that all information is complete, correct or up to date, and figures may be delayed or restated. The Insider Score is a proprietary, opinion-based score derived from publicly available filings.",
   },
   {
     h: "No warranty",

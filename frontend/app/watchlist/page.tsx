@@ -3,10 +3,11 @@ import useSWR from "swr";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Star, X } from "lucide-react";
-import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
+import { API_BASE, RankingsResponse, fetcher, formatCurrency } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
+import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { rankColumn } from "@/components/tableColumns";
 import { useWatchlist } from "@/lib/watchlist";
 
@@ -17,6 +18,7 @@ interface Quote {
   changeAbs: number;
   changePct: number;
   marketCap: number | null;
+  volume: number | null;
 }
 
 interface WRow {
@@ -26,6 +28,18 @@ interface WRow {
   changeAbs: number | null;
   changePct: number | null;
   marketCap: number | null;
+  volume: number | null;
+  insiderTrades: number | null;
+  iqs: number | null;
+}
+
+/** Compact volume formatter (no currency sign): 1.2M, 940K, 3.1B. */
+function fmtVol(v: number | null): string {
+  if (v == null) return "—";
+  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`;
+  return String(v);
 }
 
 const SUGGESTIONS = ["AAPL", "NVDA", "TSLA", "MSFT", "AMZN", "META", "GOOGL", "AMD"];
@@ -45,21 +59,42 @@ export default function WatchlistPage() {
     revalidateOnFocus: true,
   });
 
+  // Insider Score + insider-trade counts, keyed by ticker, from the rankings
+  // feed (companies with open-market Form 4 buys in the last 90 days).
+  const { data: rankData } = useSWR<RankingsResponse>(
+    tickers.length ? `${API_BASE}/rankings?limit=5000` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 5 * 60_000 },
+  );
+  const insiderBySym = useMemo(() => {
+    const m = new Map<string, { iqs: number; trades: number }>();
+    (rankData?.rows || []).forEach((r) => {
+      if (r.ticker)
+        m.set(r.ticker.toUpperCase(), { iqs: r.iqs, trades: r.transactionCount });
+    });
+    return m;
+  }, [rankData]);
+
   const rows: WRow[] = useMemo(() => {
     const bySym = new Map<string, Quote>();
     (data?.rows || []).forEach((q) => bySym.set(q.symbol.toUpperCase(), q));
     return tickers.map((t) => {
-      const q = bySym.get(t.toUpperCase());
+      const sym = t.toUpperCase();
+      const q = bySym.get(sym);
+      const ins = insiderBySym.get(sym);
       return {
-        symbol: t.toUpperCase(),
-        name: q?.name || t.toUpperCase(),
+        symbol: sym,
+        name: q?.name || sym,
         price: q?.price ?? null,
         changeAbs: q?.changeAbs ?? null,
         changePct: q?.changePct ?? null,
         marketCap: q?.marketCap ?? null,
+        volume: q?.volume ?? null,
+        insiderTrades: ins?.trades ?? null,
+        iqs: ins?.iqs ?? null,
       };
     });
-  }, [tickers, data]);
+  }, [tickers, data, insiderBySym]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -168,6 +203,33 @@ export default function WatchlistPage() {
       ),
     },
     {
+      key: "volume",
+      label: "Daily Volume",
+      align: "right",
+      sortValue: (r) => r.volume,
+      render: (r) => (
+        <span className="tabular text-[13px] font-bold">{fmtVol(r.volume)}</span>
+      ),
+    },
+    {
+      key: "insiderTrades",
+      label: "Insider Trades",
+      align: "right",
+      sortValue: (r) => r.insiderTrades,
+      render: (r) => (
+        <span className="tabular text-[13px] font-bold">
+          {r.insiderTrades != null ? r.insiderTrades : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "iqs",
+      label: "Insider Score",
+      align: "center",
+      sortValue: (r) => r.iqs,
+      render: (r) => <IqsScoreCell iqs={r.iqs} />,
+    },
+    {
       key: "remove",
       label: "",
       sortable: false,
@@ -203,8 +265,9 @@ export default function WatchlistPage() {
           Your Watchlist
         </h1>
         <p className="text-mute text-[14px] mt-2 max-w-3xl leading-relaxed">
-          Track any stocks you follow with live prices and daily change. Add from here, or
-          tap the star on any company page. Saved on this device — no login needed.
+          Track any stocks you follow with live prices, daily volume, insider trades and our
+          Insider Score. Add from here, or tap the star on any company page. Saved on this
+          device — no login needed.
         </p>
       </header>
 

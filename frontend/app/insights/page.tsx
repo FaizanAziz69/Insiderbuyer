@@ -19,7 +19,7 @@ import { bylineFor } from "@/lib/byline";
 
 const KIND_LABELS: Record<BlogKind, string> = {
   "daily-summary": "Daily Briefing",
-  "top-iqs": "Top IQS Picks",
+  "top-iqs": "Top Insider Score Picks",
   "ticker-deep-dive": "Ticker Focus",
   "sector-roundup": "Sector Roundup",
   "cluster-buy": "Cluster Buy Alert",
@@ -48,13 +48,13 @@ const SORT_COPY: Record<
     eyebrow: "LATEST",
     title: "Latest Financial News",
     blurb:
-      "The freshest editorial briefings, newest first — synthesised from today’s SEC Form 4 filings and our IQS scoring engine.",
+      "The freshest editorial briefings, newest first — synthesised from today’s SEC Form 4 filings and our Insider Score scoring engine.",
   },
   popular: {
     eyebrow: "POPULAR",
     title: "Popular Articles",
     blurb:
-      "The most-read insider-buying stories — top IQS picks, cluster buys and CEO purchases drawn from the live Form 4 feed.",
+      "The most-read insider-buying stories — top Insider Score picks, cluster buys and CEO purchases drawn from the live Form 4 feed.",
   },
 };
 
@@ -72,7 +72,7 @@ function InsightsIndexInner() {
     eyebrow: "INSIGHTS",
     title: "Insider Buying Insights",
     blurb:
-      "Editorial briefings synthesised from today’s SEC Form 4 filings and our proprietary IQS scoring engine. New posts published every morning from the live insider-buying feed.",
+      "Editorial briefings synthesised from today’s SEC Form 4 filings and our proprietary Insider Score scoring engine. New posts published every morning from the live insider-buying feed.",
   };
 
   const { data, isLoading } = useSWR<BlogListResponse>(
@@ -406,7 +406,7 @@ function EmptyState() {
         href="/companies"
         className="inline-flex items-center gap-1 mt-5 text-[13px] font-bold text-accent hover:underline"
       >
-        Browse the live IQS rankings <ArrowRight className="h-3 w-3" />
+        Browse the live Insider Score rankings <ArrowRight className="h-3 w-3" />
       </Link>
     </div>
   );

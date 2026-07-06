@@ -37,8 +37,7 @@ export function Footer() {
             </Link>
             <p className="text-[13px] text-soft mt-4 max-w-md leading-relaxed">
               Daily insider intelligence sourced from SEC Form 4 filings, the Federal Reserve, U.S.
-              Treasury, CFTC, Bank of Canada, and Statistics Canada — distilled into the Insider
-              Buying Quality Score.
+              Treasury, CFTC, Bank of Canada, and Statistics Canada — distilled into the Insider Score.
             </p>
             <div className="flex items-center gap-3 mt-5">
               <a
@@ -72,8 +71,8 @@ export function Footer() {
           <div>
             <div className="label-mini mb-3">Market Data</div>
             <ul className="space-y-2 text-[13px]">
+              <li><Link href="/insiders/hot" className="text-soft hover:text-accent transition">Top Buys</Link></li>
               <li><Link href="/trades" className="text-soft hover:text-accent transition">Insider Trades</Link></li>
-              <li><Link href="/insiders/hot" className="text-soft hover:text-accent transition">Insider Hot Stocks</Link></li>
               <li><Link href="/market-data/top-gainers" className="text-soft hover:text-accent transition">Top Gainers</Link></li>
               <li><Link href="/congressional-trades" className="text-soft hover:text-accent transition">Congressional Trades</Link></li>
               <li><Link href="/heatmaps/market" className="text-soft hover:text-accent transition">Stock Heatmap</Link></li>
@@ -97,7 +96,7 @@ export function Footer() {
             <div className="label-mini mb-3">Research</div>
             <ul className="space-y-2 text-[13px]">
               <li><Link href="/learn/insider-buying" className="text-soft hover:text-accent transition">Intro to Insider Buying</Link></li>
-              <li><Link href="/methodology" className="text-soft hover:text-accent transition">How the IQS Works</Link></li>
+              <li><Link href="/methodology" className="text-soft hover:text-accent transition">How the Insider Score Works</Link></li>
               <li><Link href="/reports" className="text-soft hover:text-accent transition">Reports &amp; Features</Link></li>
               <li><Link href="/premium" className="text-soft hover:text-accent transition">Premium</Link></li>
               <li><Link href="/business" className="text-soft hover:text-accent transition">For Business / API</Link></li>
@@ -188,7 +187,7 @@ export function Footer() {
           className="mt-6 pt-5 border-t text-[11px] text-faint leading-relaxed max-w-4xl"
           style={{ borderColor: "var(--border)" }}
         >
-          Not investment advice. The Insider Buying Quality Score (IQS) summarises publicly
+          Not investment advice. The Insider Score summarises publicly
           available SEC Form 4 filings and is provided for informational purposes only. Always
           conduct your own research and consult a licensed financial professional before making any
           investment decision.

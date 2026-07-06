@@ -7,7 +7,7 @@ export interface TopicConfig {
   label: string;
   /** Tag understood by NewsService for pulling matching source headlines. */
   newsTag: string;
-  /** Representative tickers — cross-referenced against our IQS/quote data. */
+  /** Representative tickers — cross-referenced against our Insider Score/quote data. */
   tickers: string[];
   /** One-line angle for the AI editor. */
   angle: string;

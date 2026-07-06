@@ -765,6 +765,96 @@ export class MarketStatsService {
     }
   }
 
+  // ── Month-to-date + year-to-date returns (for Hot Sectors) ────────────
+  private monthYtdCache = new Map<
+    string,
+    { ts: number; data: { mtd: number | null; ytd: number | null } | null }
+  >();
+  private readonly MONTH_YTD_TTL_MS = 60 * 60_000;
+
+  /** Month-to-date and year-to-date % returns per symbol, derived from one
+   *  1-year daily chart each (timestamps + closes). MTD/YTD bases are the last
+   *  close before the first calendar day of the current month / year. Cached
+   *  1h, concurrency-limited. */
+  async getMonthYtdReturns(
+    symbols: string[],
+  ): Promise<Record<string, { mtd: number | null; ytd: number | null }>> {
+    const unique = Array.from(
+      new Set(symbols.filter(Boolean).map((s) => s.toUpperCase())),
+    ).slice(0, 300);
+    const out: Record<string, { mtd: number | null; ytd: number | null }> = {};
+    const now = Date.now();
+    const toFetch: string[] = [];
+    for (const sym of unique) {
+      const c = this.monthYtdCache.get(sym);
+      if (c && now - c.ts < this.MONTH_YTD_TTL_MS) {
+        if (c.data) out[sym] = c.data;
+      } else {
+        toFetch.push(sym);
+      }
+    }
+    for (let i = 0; i < toFetch.length; i += this.QUOTE_CONCURRENCY) {
+      const chunk = toFetch.slice(i, i + this.QUOTE_CONCURRENCY);
+      const settled = await Promise.all(
+        chunk.map((s) => this.fetchMonthYtd(s)),
+      );
+      chunk.forEach((sym, j) => {
+        const data = settled[j];
+        this.monthYtdCache.set(sym, { ts: Date.now(), data });
+        if (data) out[sym] = data;
+      });
+    }
+    return out;
+  }
+
+  private async fetchMonthYtd(
+    symbol: string,
+  ): Promise<{ mtd: number | null; ytd: number | null } | null> {
+    try {
+      const host = symbol.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
+      const { data } = await this.http.get(
+        `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1y&interval=1d`,
+      );
+      const result = data?.chart?.result?.[0];
+      const stamps: number[] = (result?.timestamp || []).map((t: any) => Number(t));
+      const closesRaw: any[] = result?.indicators?.quote?.[0]?.close || [];
+      // Pair each close with its timestamp, dropping null/holiday gaps.
+      const pts: { t: number; c: number }[] = [];
+      for (let i = 0; i < closesRaw.length; i++) {
+        const c = Number(closesRaw[i]);
+        const t = stamps[i];
+        if (Number.isFinite(c) && c > 0 && Number.isFinite(t)) pts.push({ t, c });
+      }
+      if (pts.length < 2) return null;
+      const last = pts[pts.length - 1].c;
+
+      const now = new Date();
+      const monthStartSec =
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000;
+      const yearStartSec = Date.UTC(now.getUTCFullYear(), 0, 1) / 1000;
+
+      // Base = last close strictly before the boundary (prior period's close).
+      // Fall back to the first available point when the chart starts later.
+      const baseBefore = (boundary: number): number => {
+        let base = pts[0].c;
+        for (const p of pts) {
+          if (p.t < boundary) base = p.c;
+          else break;
+        }
+        return base;
+      };
+      const pct = (from: number) =>
+        from > 0 ? +(((last - from) / from) * 100).toFixed(2) : null;
+
+      return {
+        mtd: pct(baseBefore(monthStartSec)),
+        ytd: pct(baseBefore(yearStartSec)),
+      };
+    } catch {
+      return null;
+    }
+  }
+
   // ── 7-day sparklines for stock listings ───────────────────────────────
   private sparkCache = new Map<string, { ts: number; data: number[] }>();
   private readonly SPARK_TTL_MS = 30 * 60_000;
