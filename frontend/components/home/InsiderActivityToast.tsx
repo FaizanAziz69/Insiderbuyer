@@ -90,7 +90,29 @@ export function InsiderActivityToast({
   const [expanded, setExpanded] = useState(false);
   const [idx, setIdx] = useState(0);
   const [hovered, setHovered] = useState(false);
+  // Newest trade id the user has acknowledged (by opening the bubble). Trades
+  // that arrive above it are counted as "new" until the bubble is opened.
+  const [lastSeenId, setLastSeenId] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState(false);
   const barRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<HTMLDivElement | null>(null);
+
+  // Session-scoped dismissal (the × on the bubble removes it for the session).
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("ib_insider_toast_dismissed") === "1") setDismissed(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  function dismiss() {
+    setDismissed(true);
+    try {
+      sessionStorage.setItem("ib_insider_toast_dismissed", "1");
+    } catch {
+      /* ignore */
+    }
+  }
 
   const { data } = useSWR<TradesResponse>(
     provided ? null : `${API_BASE}/trades?limit=40`,
@@ -121,6 +143,26 @@ export function InsiderActivityToast({
 
   const count = activities.length;
 
+  // Baseline: on first load, acknowledge the current newest so existing trades
+  // aren't counted as "new".
+  useEffect(() => {
+    if (lastSeenId == null && count > 0) setLastSeenId(activities[0].id);
+  }, [lastSeenId, count, activities]);
+
+  // Unseen-arrival count: trades sitting above the last acknowledged one.
+  const newCount = useMemo(() => {
+    if (!lastSeenId || count === 0) return 0;
+    const i = activities.findIndex((x) => x.id === lastSeenId);
+    return i === -1 ? Math.min(count, 99) : i;
+  }, [activities, lastSeenId, count]);
+
+  // Open the card: acknowledge everything current, jump to the newest.
+  function open() {
+    setIdx(0);
+    if (activities[0]) setLastSeenId(activities[0].id);
+    setExpanded(true);
+  }
+
   // Auto-advance (pauses on hover).
   useEffect(() => {
     if (hovered || count <= 1) return;
@@ -148,6 +190,7 @@ export function InsiderActivityToast({
     if (idx >= count && count > 0) setIdx(0);
   }, [count, idx]);
 
+  if (dismissed) return null;
   if (count === 0) return null;
   const a = activities[idx];
   if (!a) return null;
@@ -157,65 +200,106 @@ export function InsiderActivityToast({
   const Icon = isBuy ? TrendingUp : TrendingDown;
 
   return (
-    <motion.div
-      layout
-      transition={reduce ? { duration: 0.2 } : SPRING}
-      initial={reduce ? { opacity: 0 } : { opacity: 0, x: -44, scale: 0.9 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="fixed bottom-5 left-4 sm:left-5 z-40 overflow-hidden"
-      style={{
-        borderRadius: expanded ? 18 : 9999,
-        background: "linear-gradient(160deg, rgba(17,24,39,0.94), rgba(11,18,32,0.96))",
-        border: "1px solid rgba(255,255,255,0.10)",
-        backdropFilter: "blur(20px) saturate(1.3)",
-        WebkitBackdropFilter: "blur(20px) saturate(1.3)",
-        boxShadow:
-          expanded && hovered
-            ? `0 34px 80px rgba(0,0,0,0.55), 0 0 26px ${s.glow}`
-            : "0 18px 50px rgba(0,0,0,0.45)",
-        maxWidth: "calc(100vw - 2rem)",
-      }}
-    >
+    <>
+      {/* Viewport bounds so the widget can be dragged but stays on-screen. */}
+      <div ref={dragRef} aria-hidden className="fixed inset-2 z-30 pointer-events-none" />
+      <motion.div
+        drag
+        dragConstraints={dragRef}
+        dragMomentum={false}
+        dragElastic={0.12}
+        whileDrag={reduce ? undefined : { cursor: "grabbing", scale: 1.02 }}
+        className="fixed bottom-5 left-4 sm:left-5 z-40"
+        style={{ touchAction: "none", cursor: expanded ? "default" : "grab" }}
+      >
+        <motion.div
+          layout
+          transition={reduce ? { duration: 0.2 } : SPRING}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, x: -44, scale: 0.9 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          className="overflow-hidden"
+          style={{
+            borderRadius: expanded ? 18 : 9999,
+            background: "linear-gradient(160deg, rgba(17,24,39,0.94), rgba(11,18,32,0.96))",
+            border: "1px solid rgba(255,255,255,0.10)",
+            backdropFilter: "blur(20px) saturate(1.3)",
+            WebkitBackdropFilter: "blur(20px) saturate(1.3)",
+            boxShadow:
+              expanded && hovered
+                ? `0 34px 80px rgba(0,0,0,0.55), 0 0 26px ${s.glow}`
+                : "0 18px 50px rgba(0,0,0,0.45)",
+            maxWidth: "calc(100vw - 2rem)",
+          }}
+        >
       {/* faint white glass overlay */}
       <span aria-hidden className="absolute inset-0 pointer-events-none" style={{ background: "rgba(255,255,255,0.05)" }} />
 
       <AnimatePresence mode="popLayout" initial={false}>
         {!expanded ? (
           /* ── COLLAPSED BUBBLE ─────────────────────────────────────── */
-          <motion.button
+          <motion.div
             key="bubble"
-            type="button"
-            onClick={() => setExpanded(true)}
-            aria-label={`Live insider activity: ${a.ticker} ${a.role} ${s.verb.toLowerCase()}. Open details.`}
             initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.6 }}
-            animate={
-              reduce
-                ? { opacity: 1 }
-                : { opacity: 1, scale: 1, y: [0, -2, 0] }
-            }
+            animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: [0, -2, 0] }}
             exit={{ opacity: 0 }}
             transition={reduce ? { duration: 0.2 } : { ...SPRING, y: { duration: 3.2, repeat: Infinity, ease: "easeInOut" } }}
-            className="relative z-10 flex items-center gap-2.5 pl-3.5 pr-4 py-2.5 cursor-pointer"
+            className="relative z-10 flex items-center gap-1 pl-3.5 pr-1.5 py-2.5"
           >
-            <LiveDot reduce={reduce} />
-            <span className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "rgba(255,255,255,0.55)" }}>
-              Live
-            </span>
-            {/* fresh-activity pop on rotation */}
-            <motion.span
-              key={a.id + idx}
-              initial={reduce ? false : { scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 400, damping: 20 }}
-              className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold whitespace-nowrap"
-              style={{ color: "rgba(255,255,255,0.9)" }}
+            <button
+              type="button"
+              onClick={open}
+              aria-label={
+                newCount > 0
+                  ? `${newCount} new insider trade${newCount > 1 ? "s" : ""}. Open details.`
+                  : `Live insider activity: ${a.ticker} ${a.role} ${s.verb.toLowerCase()}. Open details.`
+              }
+              className="flex items-center gap-2.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded-full pr-1"
             >
-              <span className="font-mono">{a.ticker}</span>
-              <span style={{ color: s.solid }}>{s.verb}</span>
-            </motion.span>
-          </motion.button>
+              <LiveDot reduce={reduce} />
+              {newCount > 0 ? (
+                /* Unseen arrivals — count badge, re-pops each time it changes */
+                <motion.span
+                  key={`new-${newCount}`}
+                  initial={reduce ? false : { scale: 0.7, opacity: 0 }}
+                  animate={reduce ? { opacity: 1 } : { scale: [0.7, 1.12, 1], opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 18 }}
+                  className="text-[12.5px] font-bold whitespace-nowrap"
+                  style={{ color: "#fff" }}
+                >
+                  {newCount === 1 ? "1 New Insider Trade" : `${newCount} New`}
+                </motion.span>
+              ) : (
+                <>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "rgba(255,255,255,0.55)" }}>
+                    Live
+                  </span>
+                  <motion.span
+                    key={`live-${a.id}-${idx}`}
+                    initial={reduce ? false : { scale: 0.85, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                    className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold whitespace-nowrap"
+                    style={{ color: "rgba(255,255,255,0.9)" }}
+                  >
+                    <span className="font-mono">{a.ticker}</span>
+                    <span style={{ color: s.solid }}>{s.verb}</span>
+                  </motion.span>
+                </>
+              )}
+            </button>
+            {/* Dismiss — remove the widget from the screen for the session */}
+            <button
+              type="button"
+              onClick={dismiss}
+              aria-label="Remove notification"
+              className="h-6 w-6 rounded-full flex items-center justify-center flex-shrink-0 transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+              style={{ color: "rgba(255,255,255,0.45)" }}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </motion.div>
         ) : (
           /* ── EXPANDED CARD ────────────────────────────────────────── */
           <motion.div
@@ -351,6 +435,8 @@ export function InsiderActivityToast({
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+        </motion.div>
+      </motion.div>
+    </>
   );
 }
