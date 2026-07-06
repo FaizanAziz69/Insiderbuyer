@@ -570,6 +570,14 @@ body {
   color: var(--text);
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
+/* Icon inputs: the leading-icon utilities must win over .input-base's padding
+   shorthand, otherwise the placeholder text renders under the icon. */
+.input-base.pl-10 {
+  padding-left: 2.5rem;
+}
+.input-base.pl-9 {
+  padding-left: 2.25rem;
+}
 .input-base::placeholder {
   color: var(--text-faint);
 }
