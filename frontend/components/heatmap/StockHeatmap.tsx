@@ -759,7 +759,12 @@ export function StockHeatmap({
         );
       })}
 
-      {hover && <HeatmapTooltip hover={hover} />}
+      {hover && (
+        <HeatmapTooltip
+          hover={hover}
+          boundsRight={ref.current?.getBoundingClientRect().right}
+        />
+      )}
     </div>
   );
 }
@@ -767,8 +772,12 @@ export function StockHeatmap({
 /** Floating TradingView-style tooltip: name, ticker, price, change, cap, volume. */
 function HeatmapTooltip({
   hover,
+  boundsRight,
 }: {
   hover: { sym: string; sector: string; row: RankingRow; x: number; y: number };
+  /** Right edge (viewport px) of the heatmap container — the card flips left
+   *  when it would spill past this, not just the viewport edge. */
+  boundsRight?: number;
 }) {
   const r = hover.row;
   const chg = changePctFor(r);
@@ -778,9 +787,10 @@ function HeatmapTooltip({
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
   const W = 232;
   const GAP = 16;
-  // Flip the card to the LEFT of the cursor when it would overflow the right
-  // edge (tiles on the far-right side), otherwise open to the right as usual.
-  const openLeft = hover.x + GAP + W > vw - 8;
+  // Flip the card to the LEFT of the cursor when it would spill past the
+  // heatmap's right edge (right-side tiles), otherwise open to the right.
+  const rightLimit = Math.min(vw - 8, (boundsRight ?? vw) - 4);
+  const openLeft = hover.x + GAP + W > rightLimit;
   let left = openLeft ? hover.x - GAP - W : hover.x + GAP;
   left = Math.max(8, Math.min(left, vw - W - 8));
   const top = Math.max(8, Math.min(hover.y + 16, vh - 170));
