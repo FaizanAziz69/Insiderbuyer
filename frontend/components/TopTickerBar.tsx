@@ -30,9 +30,12 @@ const ITEMS: {
   { symbol: "CL=F", label: "Oil" },
   { symbol: "BTC-USD", label: "Bitcoin" },
   { symbol: "NVDA", label: "Nvidia", href: "/companies/NVDA" },
+  // SpaceX is privately held (no live quote) — show its latest private-market
+  // valuation. ~$1T per Forge secondary pricing (Apr 2026); edit as it moves.
+  { symbol: "SPACEX", label: "SpaceX", privateNote: "Private", valuation: "~$1T" },
 ];
 
-// Every symbol is live-quoted (no private/static entries).
+// Only real, quotable symbols are fetched (SpaceX is private → static).
 const SYMBOLS = ITEMS.filter((i) => !i.privateNote).map((i) => i.symbol);
 
 /**
@@ -84,12 +87,6 @@ export function TopTickerBar() {
                   {it.valuation}
                 </span>
               )}
-              <span
-                className="font-mono font-semibold text-[11px] uppercase tracking-wide"
-                style={{ color: "rgba(255,255,255,0.6)" }}
-              >
-                {it.privateNote}
-              </span>
             </>
           ) : q ? (
             <>
