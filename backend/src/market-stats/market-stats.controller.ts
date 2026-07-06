@@ -5,6 +5,12 @@ import { MarketStatsService } from './market-stats.service';
 export class MarketStatsController {
   constructor(private readonly svc: MarketStatsService) {}
 
+  @Get('search')
+  async search(@Query('q') q?: string, @Query('limit') limit?: string) {
+    const rows = await this.svc.searchSymbols(q || '', limit ? Number(limit) : 8);
+    return { rows };
+  }
+
   @Get('top-gainers')
   async gainers(@Query('limit') limit?: string) {
     const rows = await this.svc.getTopGainers(limit ? Number(limit) : 20);

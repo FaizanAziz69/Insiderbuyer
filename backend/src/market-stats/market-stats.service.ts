@@ -900,6 +900,55 @@ export class MarketStatsService {
     }
   }
 
+  // ── Ticker / company-name search (navbar typeahead) ───────────────────
+  private searchCache = new Map<
+    string,
+    { ts: number; data: Array<{ symbol: string; name: string; exchange: string | null; type: string | null }> }
+  >();
+  private readonly SEARCH_TTL_MS = 10 * 60_000;
+  // US exchanges we surface first (stockanalysis-style: US listings on top).
+  private readonly US_EXCHANGES = new Set([
+    'NASDAQ', 'NasdaqGS', 'NasdaqGM', 'NasdaqCM', 'NYSE', 'NYSEArca',
+    'NYSE American', 'AMEX', 'BATS', 'BATS Trading', 'OTC Markets', 'Cboe US',
+  ]);
+
+  /** Symbol/name search via Yahoo's keyless search endpoint. Returns equities
+   *  and ETFs, US listings first, cached 10 min. */
+  async searchSymbols(q: string, limit = 8) {
+    const query = (q || '').trim();
+    if (!query) return [];
+    const key = `${query.toLowerCase()}|${limit}`;
+    const cached = this.searchCache.get(key);
+    if (cached && Date.now() - cached.ts < this.SEARCH_TTL_MS) return cached.data;
+    try {
+      const { data } = await this.http.get(
+        `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=15&newsCount=0&enableFuzzyQuery=false`,
+      );
+      const quotes: any[] = data?.quotes || [];
+      const rows = quotes
+        .filter(
+          (x) => x?.symbol && (x.quoteType === 'EQUITY' || x.quoteType === 'ETF'),
+        )
+        .map((x) => ({
+          symbol: String(x.symbol).toUpperCase(),
+          name: x.shortname || x.longname || String(x.symbol),
+          exchange: x.exchDisp || x.exchange || null,
+          type: x.quoteType || null,
+        }))
+        // US listings first, otherwise preserve Yahoo's relevance order.
+        .sort(
+          (a, b) =>
+            (this.US_EXCHANGES.has(b.exchange || '') ? 1 : 0) -
+            (this.US_EXCHANGES.has(a.exchange || '') ? 1 : 0),
+        )
+        .slice(0, limit);
+      this.searchCache.set(key, { ts: Date.now(), data: rows });
+      return rows;
+    } catch {
+      return [];
+    }
+  }
+
   async getQuoteBatch(symbols: string[]): Promise<Map<string, MarketStatRow>> {
     const map = new Map<string, MarketStatRow>();
     if (!symbols.length) return map;

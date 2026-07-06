@@ -17,6 +17,7 @@ import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
 import { AiPopularArticlesSection } from "@/components/insights/AiPopularArticlesSection";
 import { AiLatestNewsSection } from "@/components/insights/AiLatestNewsSection";
 import { AiFeaturedHero } from "@/components/insights/AiFeaturedHero";
+import { InsiderActivityToast } from "@/components/home/InsiderActivityToast";
 
 export default function HomePage() {
   return (
@@ -71,6 +72,9 @@ export default function HomePage() {
 
       {/* All-Access CTA — the "Get 30 Days for Free" closer */}
       <AllAccessCta />
+
+      {/* Live insider-activity popup (bottom-left, homepage only) */}
+      <InsiderActivityToast />
     </div>
   );
 }

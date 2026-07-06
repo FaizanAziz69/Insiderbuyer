@@ -17,6 +17,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { LoginModal } from "./LoginModal";
 import { Logo } from "./Logo";
 import { MegaDropdown } from "./nav/MegaDropdown";
+import { StockSearch } from "./nav/StockSearch";
 import { NAV_GROUPS } from "@/lib/nav-config";
 import { useAuth } from "@/lib/auth";
 
@@ -64,8 +65,13 @@ export function TopHeader() {
           ))}
         </nav>
 
+        {/* Ticker / company search */}
+        <div className="hidden md:block ml-auto w-56 lg:w-72">
+          <StockSearch />
+        </div>
+
         {/* RIGHT — actions */}
-        <div className="ml-auto flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+        <div className="ml-auto md:ml-2 flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           <button
             onClick={() => setMobileOpen(true)}
             className="lg:hidden h-9 w-9 rounded-md flex items-center justify-center"
@@ -225,6 +231,9 @@ export function TopHeader() {
               >
                 <X className="h-4 w-4" />
               </button>
+            </div>
+            <div className="mb-6">
+              <StockSearch dark={false} onNavigate={() => setMobileOpen(false)} />
             </div>
             {NAV_GROUPS.map((g) => (
               <div key={g.label} className="mb-6">
