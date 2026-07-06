@@ -71,8 +71,27 @@ export default function WatchlistPage() {
             const r = await fetch(`${API_BASE}/companies/${encodeURIComponent(t)}`);
             if (!r.ok) throw new Error("bad status");
             const d = await r.json();
-            const trades = Array.isArray(d?.transactions) ? d.transactions.length : null;
-            const iqs = typeof d?.score?.iqs === "number" ? d.score.iqs : null;
+            const txs: any[] = Array.isArray(d?.transactions) ? d.transactions : [];
+            const trades = txs.length || null;
+            // Prefer the formal Insider Score (buy-quality). When a stock has no
+            // open-market buys (so no formal score), derive a 0–100 insider
+            // sentiment from its Form 4 buys vs sells, weighted by role — so the
+            // column is populated for every stock with insider activity.
+            let iqs = typeof d?.score?.iqs === "number" ? d.score.iqs : null;
+            if (iqs == null && txs.length) {
+              const roleMult = (role: string) =>
+                /chief|\bceo\b|\bcfo\b|\bcoo\b/i.test(role) ? 3 : /director/i.test(role) ? 2 : 1;
+              let buy = 0;
+              let sell = 0;
+              for (const tx of txs) {
+                const v = Number(tx.totalValue) || 0;
+                const m = roleMult(String(tx.role || tx.rawTitle || ""));
+                if (tx.type === "SELL" || tx.transactionCode === "S") sell += v * m;
+                else buy += v * m;
+              }
+              const denom = buy + sell;
+              if (denom > 0) iqs = Math.round((buy / denom) * 100);
+            }
             return [t.toUpperCase(), { iqs, trades }] as const;
           } catch {
             return [t.toUpperCase(), { iqs: null, trades: null }] as const;
