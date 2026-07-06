@@ -3,7 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Star, X } from "lucide-react";
-import { API_BASE, RankingsResponse, fetcher, formatCurrency } from "@/lib/api";
+import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
@@ -59,21 +59,37 @@ export default function WatchlistPage() {
     revalidateOnFocus: true,
   });
 
-  // Insider Score + insider-trade counts, keyed by ticker, from the rankings
-  // feed (companies with open-market Form 4 buys in the last 90 days).
-  const { data: rankData } = useSWR<RankingsResponse>(
-    tickers.length ? `${API_BASE}/rankings?limit=5000` : null,
-    fetcher,
+  // Insider Score + insider-trade counts per ticker, pulled from each stock's
+  // company detail. Unlike the rankings feed (buy-scored companies only), this
+  // covers ANY watchlist ticker that has Form 4 activity — buys and sells,
+  // live-fetched from SEC when we haven't ingested it.
+  const detailsKey = tickers.length ? `wl-insider:${tickers.join(",")}` : null;
+  const { data: insiderData } = useSWR<Record<string, { iqs: number | null; trades: number | null }>>(
+    detailsKey,
+    async () => {
+      const entries = await Promise.all(
+        tickers.map(async (t) => {
+          try {
+            const r = await fetch(`${API_BASE}/companies/${encodeURIComponent(t)}`);
+            if (!r.ok) throw new Error("bad status");
+            const d = await r.json();
+            const trades = Array.isArray(d?.transactions) ? d.transactions.length : null;
+            const iqs = typeof d?.score?.iqs === "number" ? d.score.iqs : null;
+            return [t.toUpperCase(), { iqs, trades }] as const;
+          } catch {
+            return [t.toUpperCase(), { iqs: null, trades: null }] as const;
+          }
+        }),
+      );
+      return Object.fromEntries(entries);
+    },
     { revalidateOnFocus: false, dedupingInterval: 5 * 60_000 },
   );
   const insiderBySym = useMemo(() => {
-    const m = new Map<string, { iqs: number; trades: number }>();
-    (rankData?.rows || []).forEach((r) => {
-      if (r.ticker)
-        m.set(r.ticker.toUpperCase(), { iqs: r.iqs, trades: r.transactionCount });
-    });
+    const m = new Map<string, { iqs: number | null; trades: number | null }>();
+    Object.entries(insiderData || {}).forEach(([k, v]) => m.set(k, v));
     return m;
-  }, [rankData]);
+  }, [insiderData]);
 
   const rows: WRow[] = useMemo(() => {
     const bySym = new Map<string, Quote>();
