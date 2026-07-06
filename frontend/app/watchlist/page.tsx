@@ -1,13 +1,14 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Plus, Star, X } from "lucide-react";
+import { useMemo } from "react";
+import { ArrowDown, ArrowUp, Star, X } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { StockSearch } from "@/components/nav/StockSearch";
 import { rankColumn } from "@/components/tableColumns";
 import { useWatchlist } from "@/lib/watchlist";
 
@@ -46,9 +47,6 @@ const SUGGESTIONS = ["AAPL", "NVDA", "TSLA", "MSFT", "AMZN", "META", "GOOGL", "A
 
 export default function WatchlistPage() {
   const { tickers, add, remove } = useWatchlist();
-  const [input, setInput] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
 
   // Live quotes for the saved tickers — refreshed every 20s.
   const key = tickers.length
@@ -112,35 +110,6 @@ export default function WatchlistPage() {
     });
   }, [tickers, data, insiderBySym]);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const t = input.trim().toUpperCase();
-    setError(null);
-    if (!t) return;
-    if (tickers.includes(t)) {
-      setInput("");
-      return; // already on the list — no duplicate
-    }
-    // Validate the ticker is a real, priced US stock before adding.
-    setChecking(true);
-    try {
-      const res = await fetch(`${API_BASE}/market-stats/quotes?symbols=${encodeURIComponent(t)}`);
-      const d = await res.json();
-      const ok = (d?.rows || []).some(
-        (r: Quote) => r.symbol?.toUpperCase() === t && typeof r.price === "number" && r.price > 0,
-      );
-      if (ok) {
-        add(t);
-        setInput("");
-      } else {
-        setError(`“${t}” isn’t a recognized U.S. stock ticker.`);
-      }
-    } catch {
-      setError("Couldn’t verify that ticker — please try again.");
-    } finally {
-      setChecking(false);
-    }
-  }
 
   const columns: Column<WRow>[] = [
     rankColumn<WRow>(),
@@ -287,33 +256,13 @@ export default function WatchlistPage() {
         </p>
       </header>
 
-      {/* Add-by-symbol (validated against live quotes before saving) */}
+      {/* Add by ticker OR company name — typeahead search (e.g. "goo" → GOOGL) */}
       <div className="max-w-md">
-        <form onSubmit={submit} className="flex gap-2">
-          <input
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              if (error) setError(null);
-            }}
-            placeholder="Add a ticker (e.g. AAPL)"
-            className="input-base flex-1"
-            style={{ textTransform: "uppercase" }}
-          />
-          <button
-            type="submit"
-            disabled={checking}
-            className="btn-primary"
-            style={{ padding: "0 18px" }}
-          >
-            <Plus className="h-4 w-4" /> {checking ? "Checking…" : "Add"}
-          </button>
-        </form>
-        {error && (
-          <p className="mt-1.5 text-[12px]" style={{ color: "var(--bad)" }}>
-            {error}
-          </p>
-        )}
+        <StockSearch
+          dark={false}
+          placeholder="Add a ticker or company (e.g. Google)…"
+          onSelect={(r) => add(r.symbol)}
+        />
       </div>
 
       {tickers.length === 0 ? (

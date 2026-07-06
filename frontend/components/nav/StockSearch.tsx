@@ -18,12 +18,21 @@ export function StockSearch({
   className = "",
   dark = true,
   onNavigate,
+  onSelect,
+  placeholder = "Search ticker or company…",
+  clearOnSelect,
 }: {
   className?: string;
   /** true = translucent-on-navbar styling; false = light panel (mobile menu). */
   dark?: boolean;
   /** Called after navigating to a result (e.g. to close the mobile menu). */
   onNavigate?: () => void;
+  /** When provided, selecting a result calls this instead of navigating to the
+   *  company page (e.g. add to watchlist). */
+  onSelect?: (result: Result) => void;
+  placeholder?: string;
+  /** Clear the input after a selection (defaults to true when onSelect is set). */
+  clearOnSelect?: boolean;
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -75,9 +84,20 @@ export function StockSearch({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  function go(symbol: string) {
-    const sym = symbol.trim().toUpperCase();
+  // Handle a chosen result: hand off to onSelect (e.g. add to watchlist), or
+  // navigate to the company profile by default.
+  function select(r: Result) {
+    const sym = (r.symbol || "").trim().toUpperCase();
     if (!sym) return;
+    if (onSelect) {
+      onSelect({ ...r, symbol: sym });
+      if (clearOnSelect ?? true) {
+        setQ("");
+        setResults([]);
+      }
+      setOpen(false);
+      return;
+    }
     router.push(`/companies/${encodeURIComponent(sym)}`);
     setOpen(false);
     setQ("");
@@ -96,9 +116,11 @@ export function StockSearch({
     } else if (e.key === "Enter") {
       e.preventDefault();
       // Selected result, else first result, else the raw typed ticker.
-      if (results[active]) go(results[active].symbol);
-      else if (results[0]) go(results[0].symbol);
-      else if (q.trim()) go(q);
+      const pick =
+        results[active] ||
+        results[0] ||
+        (q.trim() ? { symbol: q, name: "", exchange: null, type: null } : null);
+      if (pick) select(pick);
     } else if (e.key === "Escape") {
       setOpen(false);
       inputRef.current?.blur();
@@ -124,7 +146,7 @@ export function StockSearch({
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          placeholder="Search ticker or company…"
+          placeholder={placeholder}
           aria-label="Search stocks"
           spellCheck={false}
           autoComplete="off"
@@ -181,7 +203,7 @@ export function StockSearch({
                   <button
                     type="button"
                     onMouseEnter={() => setActive(i)}
-                    onClick={() => go(r.symbol)}
+                    onClick={() => select(r)}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-left transition"
                     style={{ background: i === active ? "var(--accent-soft)" : "transparent" }}
                   >
