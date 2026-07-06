@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { useMemo, useRef, useState, useEffect } from "react";
 import { RankingRow, formatCurrency, formatNumber } from "@/lib/api";
@@ -215,10 +216,12 @@ function changePctFor(row: RankingRow): number {
 // go dark — exactly like TradingView's heatmap.
 type RGB = [number, number, number];
 const NEUTRAL: RGB = [209, 212, 220]; // #D1D4DC light gray (0%)
-const GREEN_MID: RGB = [76, 174, 100]; // #4CAE64
-const GREEN_DARK: RGB = [22, 107, 55]; // #166B37
-const RED_MID: RGB = [224, 102, 102]; // #E06666
-const RED_DARK: RGB = [147, 38, 44]; // #93262C
+// Vibrant, saturated greens/reds (aligned with the app's semantic colors) so
+// gainers/losers pop instead of looking washed-out.
+const GREEN_MID: RGB = [34, 197, 94]; // #22C55E
+const GREEN_DARK: RGB = [21, 128, 61]; // #15803D
+const RED_MID: RGB = [239, 68, 68]; // #EF4444
+const RED_DARK: RGB = [153, 27, 27]; // #991B1B
 
 function mix(a: RGB, b: RGB, t: number): RGB {
   return [
@@ -777,8 +780,12 @@ function HeatmapTooltip({
   const openLeft = hover.x + GAP + W > vw - 8;
   let left = openLeft ? hover.x - GAP - W : hover.x + GAP;
   left = Math.max(8, Math.min(left, vw - W - 8));
-  const top = Math.min(hover.y + 16, vh - 170);
-  return (
+  const top = Math.max(8, Math.min(hover.y + 16, vh - 170));
+  // Portal to <body> so `position: fixed` is relative to the viewport, not a
+  // transformed ancestor (framer-motion tiles / page wrappers create a
+  // containing block that would otherwise let the card run off-screen).
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
       style={{
         position: "fixed",
@@ -816,7 +823,8 @@ function HeatmapTooltip({
         <Stat label="Mkt Cap" value={r.marketCap ? formatCurrency(r.marketCap) : "—"} />
         <Stat label="Volume" value={r.volume ? formatNumber(r.volume) : "—"} />
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
