@@ -25,6 +25,11 @@ const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
  *  not alert-worthy (keeps the feed high-signal). */
 function alertTags(t: TradeRow): string[] {
   if (t.type === "SELL") return [];
+  // Only real, tradable-company insider buys. Form 4s filed by closed-end
+  // funds / BDCs / private credit funds have no tradable ticker (N/A) and are
+  // institutional fund subscriptions, not actionable insider-buy signals.
+  const sym = (t.ticker || "").trim().toUpperCase();
+  if (!sym || sym === "N/A" || sym === "NONE") return [];
   const tags: string[] = [];
   if (["CEO", "CFO", "COO"].includes(t.role)) tags.push("EXEC BUY");
   if (Number(t.totalValue) >= BIG_BUY) tags.push("BIG BUY");
