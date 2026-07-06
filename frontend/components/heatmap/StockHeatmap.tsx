@@ -31,11 +31,11 @@ export type SizeBy =
 // Per-mode saturation clamp (%) for the diverging color scale. Larger windows
 // (yearly performance) need a wider clamp than a single day's change.
 const COLOR_CLAMP: Record<ColorBy, number> = {
-  change: 5.5,
-  postmarket: 5.5,
-  perf50d: 20,
-  perf200d: 30,
-  perfYear: 60,
+  change: 3.5,
+  postmarket: 3.5,
+  perf50d: 15,
+  perf200d: 22,
+  perfYear: 45,
   relvol: 0,
 };
 
@@ -245,7 +245,10 @@ function textFor(c: RGB): string {
 }
 
 function colorForChange(pct: number, clamp = 5) {
-  const t = Math.max(-1, Math.min(1, pct / clamp));
+  const raw = Math.max(-1, Math.min(1, pct / clamp));
+  // Ease the magnitude so even small moves reach saturated color — punchier,
+  // more vibrant tiles instead of a mostly-gray map.
+  const t = Math.sign(raw) * Math.pow(Math.abs(raw), 0.65);
   const c = t >= 0 ? ramp(NEUTRAL, GREEN_MID, GREEN_DARK, t) : ramp(NEUTRAL, RED_MID, RED_DARK, -t);
   return { bg: rgb(c), fg: textFor(c) };
 }
