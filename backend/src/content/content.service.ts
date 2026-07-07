@@ -117,14 +117,18 @@ export class ContentService {
 
   /** Run the full daily refresh. Concurrency-locked so a manual trigger and
    *  the boot/cron refresh can't run at once and race on duplicate slugs. */
-  async runDailyRefresh(): Promise<{ generated: number; skipped: number; errors: string[] }> {
+  async runDailyRefresh(opts?: {
+    reset?: boolean;
+    staleOnly?: boolean;
+    limit?: number;
+  }): Promise<{ generated: number; skipped: number; errors: string[] }> {
     if (this.refreshing) {
       this.logger.warn('Daily refresh already in progress — skipping duplicate run.');
       return { generated: 0, skipped: 0, errors: ['refresh already running'] };
     }
     this.refreshing = true;
     try {
-      return await this.runDailyRefreshInner();
+      return await this.runDailyRefreshInner(opts);
     } finally {
       this.refreshing = false;
     }
@@ -133,7 +137,11 @@ export class ContentService {
   /** Wipes aged posts, then regenerates the full batch (daily summary, top Insider Score,
    *  ticker deep dives, stock ideas, sector roundup, weekly/cluster/CEO, and
    *  the per-topic news roundups + per-stock topic articles). */
-  private async runDailyRefreshInner(): Promise<{ generated: number; skipped: number; errors: string[] }> {
+  private async runDailyRefreshInner(opts?: {
+    reset?: boolean;
+    staleOnly?: boolean;
+    limit?: number;
+  }): Promise<{ generated: number; skipped: number; errors: string[] }> {
     if (!this.generator.isReady()) {
       this.logger.warn('Content generator not ready — skipping daily refresh.');
       return { generated: 0, skipped: 0, errors: ['ANTHROPIC_API_KEY missing'] };
@@ -142,6 +150,26 @@ export class ContentService {
     let generated = 0;
     let skipped = 0;
     const errors: string[] = [];
+    // Batch controls (for regenerating the feed through a new engine within the
+    // serverless time budget): `limit` caps generations per call; `reset`
+    // deletes today's articles once so subsequent batched calls refill the same
+    // slugs. `take(slug)` = "should we (re)generate this slug now?" — true when
+    // it's missing and we're still under the per-call cap.
+    const cap = opts?.limit && opts.limit > 0 ? opts.limit : Infinity;
+    // The verbatim disclosure marks a guide-compliant (current-engine) article.
+    const DISCLOSURE =
+      'Not investment advice. Summarized from public SEC Form 4 and congressional disclosure data.';
+    const take = async (slug: string): Promise<boolean> => {
+      if (generated >= cap) return false;
+      const existing = await this.repo.findOne({ where: { slug } });
+      if (!existing) return true; // missing → generate
+      if (opts?.reset) return true; // force this cycle
+      // staleOnly: regenerate articles produced by an older engine (no
+      // disclosure line) in place — zero downtime, converges as each rewrite
+      // gains the disclosure and is then skipped.
+      if (opts?.staleOnly && !(existing.body || '').includes(DISCLOSURE)) return true;
+      return false; // up-to-date → skip
+    };
 
     // Prune most posts after 7 days so the homepage stays fresh, but let
     // topic-roundup articles live ~28 days so each topic page accumulates a
@@ -182,8 +210,19 @@ export class ContentService {
       year: 'numeric',
     });
 
-    // Daily summary (only generate if today's is missing).
-    if (!(await this.repo.findOne({ where: { slug: `daily-briefing-${dayKey}` } }))) {
+    // Reset: delete today's day-keyed articles once so batched refresh calls
+    // refill the SAME slugs (URLs) through the current engine.
+    if (opts?.reset) {
+      const del = await this.repo
+        .createQueryBuilder()
+        .delete()
+        .where('slug LIKE :d', { d: `%-${dayKey}` })
+        .execute();
+      this.logger.log(`Refresh reset: cleared ${del.affected ?? 0} of today's articles.`);
+    }
+
+    // Daily summary (only generate if today's is missing / under the cap).
+    if (await take(`daily-briefing-${dayKey}`)) {
       try {
         const article = await this.generator.generateDailySummary(rows.slice(0, 10), dateLabel);
         await this.persist({
@@ -204,7 +243,7 @@ export class ContentService {
     }
 
     // Top Insider Score weekly-style article (rebuilt daily — overwritten by slug).
-    if (!(await this.repo.findOne({ where: { slug: `top-iqs-picks-${dayKey}` } }))) {
+    if (await take(`top-iqs-picks-${dayKey}`)) {
       try {
         const article = await this.generator.generateTopIqsArticle(rows.slice(0, 5));
         await this.persist({
@@ -227,7 +266,7 @@ export class ContentService {
     // Ticker deep dives for the top 5.
     for (const row of rows.slice(0, 5)) {
       const slug = `ticker-deep-dive-${row.ticker.toLowerCase()}-${dayKey}`;
-      if (await this.repo.findOne({ where: { slug } })) {
+      if (!(await take(slug))) {
         skipped++;
         continue;
       }
@@ -252,7 +291,7 @@ export class ContentService {
     // Generate one per top-6 ticker so the home grid always has live content.
     for (const row of rows.slice(0, 6)) {
       const slug = `stock-idea-${row.ticker.toLowerCase()}-${dayKey}`;
-      if (await this.repo.findOne({ where: { slug } })) {
+      if (!(await take(slug))) {
         skipped++;
         continue;
       }
@@ -280,7 +319,7 @@ export class ContentService {
     );
     const sector = SECTOR_ROTATION[dayOfYear % SECTOR_ROTATION.length];
     const sectorSlug = `sector-roundup-${sector.toLowerCase().replace(/[^a-z]+/g, '-')}-${dayKey}`;
-    if (!(await this.repo.findOne({ where: { slug: sectorSlug } }))) {
+    if (await take(sectorSlug)) {
       const sectorRows = rows.filter((r) =>
         (r.sector || '').toLowerCase().includes(sector.toLowerCase()),
       );
@@ -311,7 +350,7 @@ export class ContentService {
     // first refresh of the week and kept until it ages out.
     const weekKey = isoWeekKey(today);
     const weeklySlug = `weekly-insider-report-${weekKey}`;
-    if (!(await this.repo.findOne({ where: { slug: weeklySlug } }))) {
+    if (await take(weeklySlug)) {
       try {
         const vol = await this.iqs.getVolumeSeries(7);
         const article = await this.generator.generateWeeklyReport(rows.slice(0, 8), {
@@ -340,7 +379,7 @@ export class ContentService {
     const clusterRow = rows.find((r) => (r.distinctBuyers ?? 0) >= 2);
     if (clusterRow) {
       const clusterSlug = `cluster-buy-${clusterRow.ticker.toLowerCase()}-${dayKey}`;
-      if (!(await this.repo.findOne({ where: { slug: clusterSlug } }))) {
+      if (await take(clusterSlug)) {
         try {
           const article = await this.generator.generateClusterBuyArticle(clusterRow);
           await this.persist({
@@ -363,7 +402,7 @@ export class ContentService {
 
     // CEO buying tracker — roundup of recent chief-executive purchases.
     const ceoSlug = `ceo-buying-tracker-${dayKey}`;
-    if (!(await this.repo.findOne({ where: { slug: ceoSlug } }))) {
+    if (await take(ceoSlug)) {
       try {
         const { rows: trades } = await this.iqs.getAllTrades({ limit: 300, offset: 0 });
         const ceoBuys = trades
@@ -392,8 +431,9 @@ export class ContentService {
     }
 
     // News-topic roundups (AI, Biotech, EV, ETFs, Macro, Markets, M&A, Semis).
-    const topicResult = await this.generateTopicRoundups(dayKey, dateLabel);
-    generated += topicResult.generated;
+    const topicResult = await this.generateTopicRoundups(dayKey, dateLabel, take, () => {
+      generated++;
+    });
     skipped += topicResult.skipped;
     errors.push(...topicResult.errors);
 
@@ -409,6 +449,8 @@ export class ContentService {
   private async generateTopicRoundups(
     dayKey: string,
     dateLabel: string,
+    take: (slug: string) => Promise<boolean>,
+    bump: () => void,
   ): Promise<{ generated: number; skipped: number; errors: string[] }> {
     let generated = 0;
     let skipped = 0;
@@ -428,7 +470,7 @@ export class ContentService {
       const slug = `topic-${topic.slug}-${dayKey}`;
       // Generate the daily roundup if today's isn't already on file. (Don't
       // `continue` here — the per-stock articles below must still run.)
-      if (await this.repo.findOne({ where: { slug } })) {
+      if (!(await take(slug))) {
         skipped++;
       } else {
         try {
@@ -474,7 +516,7 @@ export class ContentService {
               tickers: topic.tickers,
             },
           });
-          generated++;
+          bump();
         } catch (err) {
           errors.push(`topic ${topic.slug}: ${(err as Error).message}`);
         }
@@ -491,7 +533,7 @@ export class ContentService {
       }
       for (const tk of perTicker) {
         const tkSlug = `topic-${topic.slug}-${tk.toLowerCase()}-${dayKey}`;
-        if (await this.repo.findOne({ where: { slug: tkSlug } })) {
+        if (!(await take(tkSlug))) {
           skipped++;
           continue;
         }
@@ -519,7 +561,7 @@ export class ContentService {
             article,
             inputSnapshot: { topic: topic.slug, ticker: tk },
           });
-          generated++;
+          bump();
         } catch (err) {
           errors.push(`topic ${topic.slug} ${tk}: ${(err as Error).message}`);
         }
@@ -545,7 +587,11 @@ export class ContentService {
       sector,
     });
     const featuredTickers = extractFeaturedTickers(kind, ticker, inputSnapshot);
+    // Upsert by slug: overwrite an existing article in place (regeneration)
+    // rather than inserting a duplicate that would violate the unique slug.
+    const existing = await this.repo.findOne({ where: { slug } });
     const post = this.repo.create({
+      ...(existing ? { id: existing.id } : {}),
       slug,
       kind,
       ticker,

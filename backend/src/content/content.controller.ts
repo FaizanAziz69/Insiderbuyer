@@ -107,9 +107,20 @@ export class ContentController {
     return this.content.getMovementExplainer(symbol, name, Number(change) || 0);
   }
 
-  /** Manual trigger for the daily refresh. Same path used by the cron. */
+  /** Manual trigger for the daily refresh. Same path used by the cron.
+   *  `?reset=1` clears today's articles first (regenerate the same slugs through
+   *  the current engine); `?limit=N` caps generations per call so batched
+   *  regeneration fits within the serverless time budget. */
   @Post('refresh')
-  async refresh() {
-    return this.content.runDailyRefresh();
+  async refresh(
+    @Query('reset') reset?: string,
+    @Query('stale') stale?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.content.runDailyRefresh({
+      reset: reset === '1' || reset === 'true',
+      staleOnly: stale === '1' || stale === 'true',
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 }
