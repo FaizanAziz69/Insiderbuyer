@@ -174,7 +174,9 @@ export function InsiderActivityToast({
   }, []);
 
   const { data } = useSWR<TradesResponse>(
-    provided ? null : `${API_BASE}/trades?limit=40`,
+    // Buys only, server-side — the generic trades feed is often dominated by
+    // recent sells, which would leave the buy-only bubble empty.
+    provided ? null : `${API_BASE}/trades?side=buy&limit=40`,
     fetcher,
     { refreshInterval: 3 * 60_000, revalidateOnFocus: false },
   );
