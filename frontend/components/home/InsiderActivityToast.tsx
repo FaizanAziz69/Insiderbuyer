@@ -54,7 +54,9 @@ function ensureAudio() {
 }
 function playCashSound() {
   const ctx = ensureAudio();
-  if (!ctx || ctx.state !== "running") return;
+  if (!ctx) return;
+  // Don't hard-gate on "running": ensureAudio() has already called resume(),
+  // and when invoked from a user gesture the sound will play once it resumes.
   const now = ctx.currentTime;
   // Two bright bell dings → a "cha-ching".
   [
@@ -230,8 +232,11 @@ export function InsiderActivityToast({
     prevNewRef.current = newCount;
   }, [newCount, visible]);
 
-  // Open the card: acknowledge everything current, jump to the newest.
+  // Open the card: acknowledge everything current, jump to the newest. Play
+  // the cash sound here too — a click is a guaranteed user gesture, so this is
+  // the most reliable place for it to be audible.
   function open() {
+    playCashSound();
     setIdx(0);
     if (activities[0]) setLastSeenId(activities[0].id);
     setExpanded(true);
