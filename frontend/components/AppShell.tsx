@@ -5,6 +5,7 @@ import { TopTickerBar } from "./TopTickerBar";
 import { ChatWidget } from "./chat/ChatWidget";
 import { PREMIUM_UNLOCKED } from "@/lib/premium";
 import { AuthProvider } from "@/lib/auth";
+import { InsiderActivityToast } from "@/components/home/InsiderActivityToast";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -21,6 +22,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
         <Footer />
         <ChatWidget />
+        {/* Live insider-buy notification — appears ~10s after landing, any page */}
+        <InsiderActivityToast />
       </div>
     </AuthProvider>
   );

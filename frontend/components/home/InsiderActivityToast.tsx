@@ -37,6 +37,43 @@ const SIDE = {
 
 const SPRING = { type: "spring", stiffness: 260, damping: 26 } as const;
 
+// Lazily-created audio context + a synthesized "cha-ching" cash sound (no asset
+// file). Autoplay is gated by the browser until a user gesture, so we resume
+// the context on the first interaction.
+let audioCtx: AudioContext | null = null;
+function ensureAudio() {
+  if (typeof window === "undefined") return null;
+  try {
+    audioCtx =
+      audioCtx || new (window.AudioContext || (window as any).webkitAudioContext)();
+    if (audioCtx.state === "suspended") void audioCtx.resume();
+    return audioCtx;
+  } catch {
+    return null;
+  }
+}
+function playCashSound() {
+  const ctx = ensureAudio();
+  if (!ctx || ctx.state !== "running") return;
+  const now = ctx.currentTime;
+  // Two bright bell dings → a "cha-ching".
+  [
+    { f: 1318.5, t: 0 },
+    { f: 1975.5, t: 0.09 },
+  ].forEach(({ f, t }) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.value = f;
+    gain.gain.setValueAtTime(0.0001, now + t);
+    gain.gain.exponentialRampToValueAtTime(0.22, now + t + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.38);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now + t);
+    osc.stop(now + t + 0.42);
+  });
+}
+
 function relTime(dateStr: string): string {
   const t = new Date(dateStr).getTime();
   if (!Number.isFinite(t)) return "";
@@ -94,8 +131,10 @@ export function InsiderActivityToast({
   // that arrive above it are counted as "new" until the bubble is opened.
   const [lastSeenId, setLastSeenId] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [visible, setVisible] = useState(false);
   const barRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<HTMLDivElement | null>(null);
+  const prevNewRef = useRef(0);
 
   // Session-scoped dismissal (the × on the bubble removes it for the session).
   useEffect(() => {
@@ -114,6 +153,26 @@ export function InsiderActivityToast({
     }
   }
 
+  // Prime the audio context on the first user gesture (autoplay policy).
+  useEffect(() => {
+    const prime = () => ensureAudio();
+    window.addEventListener("pointerdown", prime, { once: true });
+    window.addEventListener("keydown", prime, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", prime);
+      window.removeEventListener("keydown", prime);
+    };
+  }, []);
+
+  // Appear ~10s after landing (not pre-populated) with a cha-ching.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setVisible(true);
+      playCashSound();
+    }, 10_000);
+    return () => clearTimeout(t);
+  }, []);
+
   const { data } = useSWR<TradesResponse>(
     provided ? null : `${API_BASE}/trades?limit=40`,
     fetcher,
@@ -124,7 +183,14 @@ export function InsiderActivityToast({
     return (data?.rows || [])
       .filter((t) => {
         const sym = (t.ticker || "").trim().toUpperCase();
-        return sym && sym !== "N/A" && sym !== "NONE" && Number(t.totalValue) > 0;
+        // Buys only — no sells in the popup.
+        return (
+          t.type !== "SELL" &&
+          sym &&
+          sym !== "N/A" &&
+          sym !== "NONE" &&
+          Number(t.totalValue) > 0
+        );
       })
       .slice(0, 25)
       .map((t) => ({
@@ -155,6 +221,12 @@ export function InsiderActivityToast({
     const i = activities.findIndex((x) => x.id === lastSeenId);
     return i === -1 ? Math.min(count, 99) : i;
   }, [activities, lastSeenId, count]);
+
+  // Cha-ching whenever a new insider buy arrives (once visible).
+  useEffect(() => {
+    if (visible && newCount > prevNewRef.current) playCashSound();
+    prevNewRef.current = newCount;
+  }, [newCount, visible]);
 
   // Open the card: acknowledge everything current, jump to the newest.
   function open() {
@@ -190,7 +262,7 @@ export function InsiderActivityToast({
     if (idx >= count && count > 0) setIdx(0);
   }, [count, idx]);
 
-  if (dismissed) return null;
+  if (dismissed || !visible) return null;
   if (count === 0) return null;
   const a = activities[idx];
   if (!a) return null;
@@ -252,7 +324,7 @@ export function InsiderActivityToast({
               onClick={open}
               aria-label={
                 newCount > 0
-                  ? `${newCount} new insider trade${newCount > 1 ? "s" : ""}. Open details.`
+                  ? `${newCount} new insider buy${newCount > 1 ? "s" : ""}. Open details.`
                   : `Live insider activity: ${a.ticker} ${a.role} ${s.verb.toLowerCase()}. Open details.`
               }
               className="flex items-center gap-2.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded-full pr-1"
@@ -268,7 +340,7 @@ export function InsiderActivityToast({
                   className="text-[12.5px] font-bold whitespace-nowrap"
                   style={{ color: "#fff" }}
                 >
-                  {newCount === 1 ? "1 New Insider Trade" : `${newCount} New`}
+                  {newCount === 1 ? "1 New Insider Buy" : `${newCount} New Buys`}
                 </motion.span>
               ) : (
                 <>
@@ -334,8 +406,8 @@ export function InsiderActivityToast({
                   transition={SPRING}
                 >
                   <Link
-                    href={a.ticker ? `/companies/${encodeURIComponent(a.ticker)}` : "#"}
-                    aria-label={`${a.role} ${isBuy ? "purchased" : "sold"} ${formatCurrency(a.amount)} of ${a.ticker}. View stock.`}
+                    href="/insiders/hot"
+                    aria-label={`${a.role} purchased ${formatCurrency(a.amount)} of ${a.ticker}. View Top Buys.`}
                     className="group block cursor-pointer px-5 pt-4 pb-4 focus:outline-none"
                     style={{
                       transform: hovered && !reduce ? "translateY(-4px)" : "translateY(0)",
@@ -411,7 +483,7 @@ export function InsiderActivityToast({
                       className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold transition-[filter] group-hover:brightness-125"
                       style={{ color: s.solid }}
                     >
-                      View stock
+                      View Top Buys
                       <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
                     </span>
                   </Link>
