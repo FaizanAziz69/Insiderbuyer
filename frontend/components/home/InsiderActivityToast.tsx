@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, TrendingDown, TrendingUp, X } from "lucide-react";
 import useSWR from "swr";
@@ -126,6 +127,7 @@ export function InsiderActivityToast({
   activities?: InsiderActivity[];
 }) {
   const reduce = useReducedMotion();
+  const pathname = usePathname();
   const [expanded, setExpanded] = useState(false);
   const [idx, setIdx] = useState(0);
   const [hovered, setHovered] = useState(false);
@@ -184,14 +186,19 @@ export function InsiderActivityToast({
     };
   }, []);
 
-  // Appear ~10s after landing (not pre-populated) with a cha-ching.
+  // Appear ~10s after landing on each page (re-fires on navigation) with a
+  // cha-ching. Because navigating here was itself a click, audio is already
+  // unlocked by the time it pops, so the sound plays on arrival.
   useEffect(() => {
+    setExpanded(false);
+    setVisible(false);
     const t = setTimeout(() => {
       setVisible(true);
       chime();
     }, 10_000);
     return () => clearTimeout(t);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   const { data } = useSWR<TradesResponse>(
     // Buys only, server-side — the generic trades feed is often dominated by
