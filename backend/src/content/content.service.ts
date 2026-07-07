@@ -162,18 +162,20 @@ export class ContentService {
     // slugs. `take(slug)` = "should we (re)generate this slug now?" — true when
     // it's missing and we're still under the per-call cap.
     const cap = opts?.limit && opts.limit > 0 ? opts.limit : Infinity;
-    // The verbatim disclosure marks a guide-compliant (current-engine) article.
-    const DISCLOSURE =
-      'Not investment advice. Summarized from public SEC Form 4 and congressional disclosure data.';
+    // The "Key points" box opens every current-engine article. We use it (not
+    // the disclosure, which sits at the very end and can be truncated on long
+    // bodies) as the compliance marker — otherwise a truncated article would
+    // look stale forever and be regenerated in an endless, token-burning loop.
+    const isCurrentEngine = (body: string | null | undefined) =>
+      /key\s*points/i.test(body || '');
     const take = async (slug: string): Promise<boolean> => {
       if (generated >= cap) return false;
       const existing = await this.repo.findOne({ where: { slug } });
       if (!existing) return true; // missing → generate
       if (opts?.reset) return true; // force this cycle
-      // staleOnly: regenerate articles produced by an older engine (no
-      // disclosure line) in place — zero downtime, converges as each rewrite
-      // gains the disclosure and is then skipped.
-      if (opts?.staleOnly && !(existing.body || '').includes(DISCLOSURE)) return true;
+      // staleOnly: regenerate older-engine articles in place — zero downtime,
+      // converges as each rewrite gains the Key points box and is then skipped.
+      if (opts?.staleOnly && !isCurrentEngine(existing.body)) return true;
       return false; // up-to-date → skip
     };
 
