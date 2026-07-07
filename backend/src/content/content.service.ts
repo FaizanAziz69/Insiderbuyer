@@ -34,6 +34,7 @@ export class ContentService {
   /** Guards against a manual refresh and the boot/cron refresh running at the
    *  same time (which raced on duplicate slugs). */
   private refreshing = false;
+  private refreshingSince = 0;
 
   constructor(
     @InjectRepository(BlogPost)
@@ -122,11 +123,16 @@ export class ContentService {
     staleOnly?: boolean;
     limit?: number;
   }): Promise<{ generated: number; skipped: number; errors: string[] }> {
-    if (this.refreshing) {
+    // Auto-expiring lock — on serverless a function killed at the time cap can
+    // leave `refreshing` stuck; expire it after 2 min so it self-heals. Safe
+    // because persist() upserts by slug (a concurrent run can't duplicate).
+    const LOCK_TTL = 120_000;
+    if (this.refreshing && Date.now() - this.refreshingSince < LOCK_TTL) {
       this.logger.warn('Daily refresh already in progress — skipping duplicate run.');
       return { generated: 0, skipped: 0, errors: ['refresh already running'] };
     }
     this.refreshing = true;
+    this.refreshingSince = Date.now();
     try {
       return await this.runDailyRefreshInner(opts);
     } finally {
