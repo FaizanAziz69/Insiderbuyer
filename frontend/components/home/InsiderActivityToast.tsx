@@ -137,6 +137,15 @@ export function InsiderActivityToast({
   const barRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<HTMLDivElement | null>(null);
   const prevNewRef = useRef(0);
+  // A ding that couldn't play (audio still locked) — flushed on first gesture.
+  const chimePendingRef = useRef(false);
+
+  // Play now if audio is unlocked, else queue it for the first user gesture.
+  function chime() {
+    const ctx = ensureAudio();
+    if (ctx && ctx.state === "running") playCashSound();
+    else chimePendingRef.current = true;
+  }
 
   // Session-scoped dismissal (the × on the bubble removes it for the session).
   useEffect(() => {
@@ -155,14 +164,23 @@ export function InsiderActivityToast({
     }
   }
 
-  // Prime the audio context on the first user gesture (autoplay policy).
+  // Unlock audio on the first user gesture and flush any queued ding, so the
+  // arrival "cha-ching" is heard the moment the user first interacts.
   useEffect(() => {
-    const prime = () => ensureAudio();
-    window.addEventListener("pointerdown", prime, { once: true });
-    window.addEventListener("keydown", prime, { once: true });
+    const onGesture = () => {
+      const ctx = ensureAudio();
+      if (ctx && chimePendingRef.current) {
+        chimePendingRef.current = false;
+        window.setTimeout(() => playCashSound(), 50);
+      }
+    };
+    window.addEventListener("pointerdown", onGesture);
+    window.addEventListener("keydown", onGesture);
+    window.addEventListener("touchstart", onGesture, { passive: true });
     return () => {
-      window.removeEventListener("pointerdown", prime);
-      window.removeEventListener("keydown", prime);
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("keydown", onGesture);
+      window.removeEventListener("touchstart", onGesture);
     };
   }, []);
 
@@ -170,7 +188,7 @@ export function InsiderActivityToast({
   useEffect(() => {
     const t = setTimeout(() => {
       setVisible(true);
-      playCashSound();
+      chime();
     }, 10_000);
     return () => clearTimeout(t);
   }, []);
@@ -228,7 +246,7 @@ export function InsiderActivityToast({
 
   // Cha-ching whenever a new insider buy arrives (once visible).
   useEffect(() => {
-    if (visible && newCount > prevNewRef.current) playCashSound();
+    if (visible && newCount > prevNewRef.current) chime();
     prevNewRef.current = newCount;
   }, [newCount, visible]);
 
@@ -236,6 +254,7 @@ export function InsiderActivityToast({
   // the cash sound here too — a click is a guaranteed user gesture, so this is
   // the most reliable place for it to be audible.
   function open() {
+    chimePendingRef.current = false;
     playCashSound();
     setIdx(0);
     if (activities[0]) setLastSeenId(activities[0].id);
