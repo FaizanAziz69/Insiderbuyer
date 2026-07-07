@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   NotFoundException,
@@ -7,11 +8,52 @@ import {
   Query,
 } from '@nestjs/common';
 import { ContentService } from './content.service';
+import { ContentGeneratorService } from './content-generator.service';
+import { CONTENT_FORMATS, findFormat } from './content-formats';
 import { BlogKind } from '../entities/blog-post.entity';
 
 @Controller('content')
 export class ContentController {
-  constructor(private readonly content: ContentService) {}
+  constructor(
+    private readonly content: ContentService,
+    private readonly generator: ContentGeneratorService,
+  ) {}
+
+  /** The full content-guide format library (Top Stories, series, programmatic). */
+  @Get('formats')
+  formats() {
+    return {
+      formats: CONTENT_FORMATS.map((f) => ({
+        key: f.key,
+        ref: f.ref,
+        kind: f.kind,
+        title: f.title,
+        section: f.section,
+        trigger: f.trigger,
+        headlineFormula: f.headlineFormula,
+        requiredData: f.requiredData,
+        sections: f.sections ?? null,
+        cadenceTag: f.cadenceTag ?? null,
+        wordCount: f.wordCount ?? null,
+        editorialNote: f.editorialNote ?? null,
+      })),
+    };
+  }
+
+  /** Generate an article for a specific guide format from supplied data.
+   *  Body = the data payload the format's `requiredData` describes. */
+  @Post('formats/:key/generate')
+  async generateFormat(@Param('key') key: string, @Body() data: unknown) {
+    const format = findFormat(key);
+    if (!format) throw new NotFoundException(`Unknown content format: ${key}`);
+    if (!this.generator.isReady()) {
+      throw new NotFoundException(
+        'Content generator not configured (ANTHROPIC_API_KEY missing).',
+      );
+    }
+    const article = await this.generator.generateFromFormat(format, data);
+    return { format: format.key, ref: format.ref, article };
+  }
 
   /** Latest articles, newest first. Filter by kind and/or ticker. */
   @Get('blogs')

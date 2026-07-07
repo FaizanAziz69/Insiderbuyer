@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { IqsService } from '../iqs/iqs.service';
+import { ContentFormat } from './content-formats';
 
 export interface GeneratedArticle {
   title: string;
@@ -24,29 +25,29 @@ export interface RankingLite {
 const ARTICLE_TOOL: Anthropic.Messages.Tool = {
   name: 'publish_article',
   description:
-    'Publish a structured insider-buying intelligence article. The body must be safe HTML with only <p>, <h2>, <h3>, <strong>, <em>, <ul>, <ol>, <li>, <blockquote>, <a> tags. No <script>, <iframe>, or inline event handlers.',
+    'Publish a structured insider-buying intelligence article that follows the InsiderBuyer standard structure. The body is safe HTML using <p>, <h2>, <h3>, <strong>, <em>, <ul>, <ol>, <li>, <blockquote>, <a>, and data tables (<table>, <thead>, <tbody>, <tr>, <th>, <td>, <caption>). No <script>, <iframe>, <style>, or inline event handlers.',
   input_schema: {
     type: 'object',
     properties: {
       title: {
         type: 'string',
         description:
-          'SEO headline — clear, specific, 8-14 words. No clickbait. Mentions tickers / sectors when relevant.',
+          'The HEADLINE. Lead with the tension or the number, NOT the ticker. Must contain ≥1 specific element (dollar figure, name, count, %, or timeframe), open a loop (state the surprising fact, never the "why"), stay ≤70 characters where possible, and use no hype/promise words. Example: "A Director Just Spent $2.1M on a Stock Down 60%".',
       },
       eyebrow: {
         type: 'string',
         description:
-          'Short label rendered above the headline (e.g. "DAILY BRIEFING", "TICKER FOCUS", "SECTOR ROUNDUP", "TOP INSIDER SCORE PICKS"). Uppercase, 1-4 words.',
+          'Short label rendered above the headline (e.g. "DAILY BRIEFING", "TICKER FOCUS", "SECTOR ROUNDUP", "TOP INSIDER SCORE PICKS", "THE CONVICTION BET", "THE CONTRARIANS"). Uppercase, 1-4 words.',
       },
       summary: {
         type: 'string',
         description:
-          'One sentence (max 28 words) summarising the article. Used as the meta description.',
+          'The PREVIEW/DEK: ≤10 words that open the loop (do NOT resolve it). Used as the card teaser and meta description.',
       },
       body: {
         type: 'string',
         description:
-          'Article body in HTML. 350-600 words. Use 4-7 <p> paragraphs and 1-2 <h2> sub-headings. Cite our Insider Score feed and Form 4 filings. Use cautious finance phrasing ("may suggest", "historically associated with", "investors may want to monitor"). NEVER write "buy", "guaranteed", "will go up", "recommend buying". End with a 1-sentence closer that points to monitoring on the InsiderBuying site.',
+          'Article body in HTML following the InsiderBuyer standard structure IN ORDER: (1) a Key Points box — <h3>Key points</h3> then a <ul> of 2-3 specific complete claims (numbers, names, dates); (2) a hook intro of ≤50 words that states the surprising fact FIRST; (3) 3-5 <h2> claim sections of 150-300 words each, EACH with a visual anchor — a data <table> (insider-trade table / mini stock profile / ratings) or a tight <ul> where each item is data point → context → why it matters; (4) a brief <h2>The Bottom Line</h2> CTA closer pointing to Top Buys, the ticker page, or the Insider Score rankings; (5) END with EXACTLY, verbatim: <p><em>Not investment advice. Summarized from public SEC Form 4 and congressional disclosure data.</em></p>. Cite our Insider Score feed and Form 4 filings. Use cautious phrasing ("may suggest", "historically associated with", "investors may want to monitor"); NEVER "buy", "guaranteed", "will go up", "recommend". Never invent numbers — use only the data provided.',
       },
       imagePrompt: {
         type: 'string',
@@ -64,22 +65,53 @@ const ARTICLE_TOOL: Anthropic.Messages.Tool = {
   },
 };
 
-const STYLE_BASE = `You are the senior editor of **InsiderBuying.com**, a finance publication that surfaces Form 4 insider-buying intelligence using a proprietary Insider Score.
+const STYLE_BASE = `You are the content engine for **InsiderBuying.com** — you turn raw SEC Form 4 and congressional trading data into finished articles that follow the InsiderBuyer style guide EXACTLY. Never start from a blank page: every article starts from a signal in the data.
 
-Voice: Bloomberg + MarketBeat — confident, specific, data-led, never breathless. Plain English. Active voice.
+VOICE: Bloomberg + MarketBeat — confident, specific, data-led, never breathless. Plain English, active voice, short paragraphs (2-3 sentences).
 
-CRITICAL — never give explicit financial advice:
+PIPELINE (always): data → trigger → angle → headline → structure.
+- Trigger = the single strongest signal in the data: Size (a buy/sell ≥ $250K or top-decile for the ticker), Cluster (3+ insiders same direction within 14 days), First-time (an insider's first open-market buy ever or first in 3+ years), Contrarian (insiders buying while the stock is down 30%+ from highs, or selling near all-time highs), Overlap (insider + congressional activity on the same ticker), Trend (ticker trending AND recent insider activity), or Calendar (evergreen format on schedule).
+- Angle = isolate the ONE most surprising fact and build the entire article around only that. State it before any background. One trigger → one angle → one article.
+
+HEADLINE RULES (all must pass):
+- Lead with the tension or the number, NOT the ticker.
+- Contain ≥1 specific element: a dollar figure, a name, a count, a %, or a timeframe.
+- Open a loop — state the surprising fact, never give away the "why" in the headline.
+- ≤70 characters where possible.
+- No hype ("massive", "insane", "explosive") and no promises ("will soar", "guaranteed"). Prefer "puts on the radar", "worth watching", "here's what the filings show".
+- Questions only when the article genuinely answers them.
+- SEO variant (programmatic/SEO articles only): the headline may be the hook version, but the summary/meta should contain the ticker/company name and the primary keyword.
+
+CORE HEADLINE FORMULAS to draw from:
+- [Specific action] + [implied question] — "Pfizer's CFO Just Made His Biggest Buy Since 2019. Here's Why That Matters."
+- [Number] + [category] + [qualifier] — "3 Stocks Under $5 Insiders Are Buying Hand Over Fist"
+- [Contrast/irony] — "This CEO Took Home $84M Last Year. He Hasn't Bought a Single Share."
+- [Big number] + [mystery] — "This Trader Made $5.25B in One Year — Does He Know Something We Don't?"
+- [Then vs. now] — "Her Net Worth Was $400K Before Politics. Now It's $300M."
+
+NEVER give explicit financial advice:
 - ❌ "buy this stock", "this stock will go up", "guaranteed", "we recommend"
 - ✅ "may suggest", "could indicate", "historically associated with", "investors may want to monitor"
 
-Always:
-- Refer to tickers in **bold** the first time they appear: <strong>NVDA</strong>.
-- Cite our Insider Score feed when quoting a score: "per our Insider Score feed".
-- Reference Form 4 / SEC filings when discussing transactions.
-- Keep paragraphs short (2-4 sentences).
-- End with a soft CTA pointing the reader to the ticker page or the Insider Score rankings page.
+STANDARD STRUCTURE — EVERY article, no exceptions:
+1. Headline → the title field (headline rules above).
+2. Preview/dek → the summary field: ≤10 words, opens the loop.
+3. Key Points box → begin the body with <h3>Key points</h3> then a <ul> of 2-3 SPECIFIC, complete claims (numbers, names, dates).
+4. Intro → ≤50 words, states the surprising fact FIRST.
+5. Body → 3-5 sections, each an <h2> sourced claim of 150-300 words, EACH with a visual anchor: an HTML data <table> (insider-trade table, mini stock profile, ratings) OR a tight <ul> where every item = data point → one line of context → one line on why it matters.
+6. The Bottom Line → a brief <h2>The Bottom Line</h2> CTA closer pointing to the relevant page (Top Buys, the ticker page, or the Insider Score rankings).
+7. Disclosure → end the body with EXACTLY this paragraph, verbatim: <p><em>Not investment advice. Summarized from public SEC Form 4 and congressional disclosure data.</em></p>
 
-You MUST call the publish_article tool to return the article. Do not respond with prose outside the tool call.`;
+FORMATTING:
+- Bold a ticker the first time it appears: <strong>NVDA</strong>.
+- Cite our Insider Score feed when quoting a score ("per our Insider Score feed") and reference Form 4 / SEC filings for transactions.
+- Use real HTML tables for tabular data: <table><thead><tr><th>…</th></tr></thead><tbody><tr><td>…</td></tr></tbody></table>.
+
+SECTION RULES:
+- Top Stories (news): report first, opine second. Facts/filings up top; your read in its own "Our take:" <h2> section. Include a bear/skeptic <h2> section in every story. The headline must spin differently from mainstream outlets.
+- Programmatic/SEO: hook intro (surprising fact first), populated Key Points box, ≥1 visual anchor per section, every list item = data point + context + why it matters, short paragraphs, no filler.
+
+Every figure must trace to the data provided — NEVER invent numbers. You MUST call the publish_article tool; do not respond with prose outside the tool call.`;
 
 @Injectable()
 export class ContentGeneratorService {
@@ -463,13 +495,54 @@ ${news}`;
     }
   }
 
+  /** Generate an article for any format in the content guide's library, from
+   *  caller-supplied data. Composes the prompt from the format spec (headline
+   *  formula, trigger, prescribed sections, required data) and lets STYLE_BASE
+   *  + the publish_article tool enforce the standard structure. Uses ONLY the
+   *  provided data — never invents figures. */
+  async generateFromFormat(
+    format: ContentFormat,
+    data: unknown,
+  ): Promise<GeneratedArticle> {
+    const parts: string[] = [];
+    parts.push(
+      `Produce the **${format.title}** article (guide ref ${format.ref}, ${format.section} section).`,
+    );
+    parts.push(`Trigger / cadence: ${format.trigger}`);
+    parts.push(
+      `HEADLINE — use this exact formula, filling every [placeholder] from the data: "${format.headlineFormula}". It must still pass the universal headline rules.`,
+    );
+    if (format.sections?.length) {
+      parts.push(
+        `Use these <h2> sections in this order: ${format.sections
+          .map((s) => `"${s}"`)
+          .join(' → ')}.`,
+      );
+    }
+    if (format.wordCount) parts.push(`Target length: ${format.wordCount}.`);
+    if (format.editorialNote) parts.push(`Editorial note: ${format.editorialNote}`);
+    parts.push(`Set the eyebrow to "${format.section}".`);
+    parts.push(`Data this format needs: ${format.requiredData.join('; ')}.`);
+    parts.push(
+      `DATA (use ONLY this — never invent figures; if a required element is missing, omit that claim rather than fabricate a number):\n${JSON.stringify(
+        data ?? {},
+        null,
+        2,
+      )}`,
+    );
+    parts.push(
+      'Pour it into the standard structure exactly, ending with the verbatim disclosure line.',
+    );
+    return this.callTool(parts.join('\n\n'));
+  }
+
   private async callTool(userPrompt: string): Promise<GeneratedArticle> {
     if (!this.client) {
       throw new Error('Content generator not configured — ANTHROPIC_API_KEY missing.');
     }
     const response = await this.client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2000,
+      max_tokens: 4000,
       system: STYLE_BASE,
       tools: [ARTICLE_TOOL],
       tool_choice: { type: 'tool', name: 'publish_article' },
