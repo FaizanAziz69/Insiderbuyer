@@ -59,22 +59,51 @@ function playCashSound() {
   // Don't hard-gate on "running": ensureAudio() has already called resume(),
   // and when invoked from a user gesture the sound will play once it resumes.
   const now = ctx.currentTime;
-  // Two bright bell dings → a "cha-ching".
-  [
-    { f: 1318.5, t: 0 },
-    { f: 1975.5, t: 0.09 },
-  ].forEach(({ f, t }) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "triangle";
-    osc.frequency.value = f;
-    gain.gain.setValueAtTime(0.0001, now + t);
-    gain.gain.exponentialRampToValueAtTime(0.22, now + t + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.38);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(now + t);
-    osc.stop(now + t + 0.42);
-  });
+  const master = ctx.createGain();
+  master.gain.value = 0.85;
+  master.connect(ctx.destination);
+
+  // Cash-register "cha-ching": two metallic bell dings (up-interval), each a
+  // slightly inharmonic chord so it rings like a real register bell.
+  const ding = (t: number, base: number, level: number) => {
+    const partials = [1, 2.01, 3.0, 4.13];
+    const weights = [1, 0.5, 0.32, 0.16];
+    partials.forEach((mult, i) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = base * mult;
+      const peak = level * weights[i];
+      g.gain.setValueAtTime(0.0001, now + t);
+      g.gain.exponentialRampToValueAtTime(peak, now + t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.6);
+      osc.connect(g).connect(master);
+      osc.start(now + t);
+      osc.stop(now + t + 0.65);
+    });
+  };
+  ding(0, 1046.5, 0.28); // "cha" — C6
+  ding(0.11, 1568, 0.3); // "ching" — G6
+
+  // Coin jingle: a short burst of band-passed noise → bright metallic shimmer.
+  const dur = 0.28;
+  const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+  const chan = buffer.getChannelData(0);
+  for (let i = 0; i < chan.length; i++) chan[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buffer;
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = 4200;
+  bp.Q.value = 5;
+  const ng = ctx.createGain();
+  const nStart = now + 0.16;
+  ng.gain.setValueAtTime(0.0001, nStart);
+  ng.gain.exponentialRampToValueAtTime(0.14, nStart + 0.02);
+  ng.gain.exponentialRampToValueAtTime(0.0001, nStart + dur);
+  noise.connect(bp).connect(ng).connect(master);
+  noise.start(nStart);
+  noise.stop(nStart + dur);
 }
 
 function relTime(dateStr: string): string {
