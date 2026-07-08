@@ -63,7 +63,8 @@ export const NAV_GROUPS: NavGroup[] = [
     columns: [
       {
         links: [
-          { label: "Top Buys", href: "/insiders/hot", description: "Most insider buying right now, by Insider Score", icon: Flame, badge: "popular" },
+          { label: "Top Insider Scores", href: "/insiders/hot", description: "Ranked by Insider Score quality — the strongest insider-buying signals", icon: Flame, badge: "popular" },
+          { label: "Top Stock Ratings", href: "/analyst-ratings", description: "Analyst-rated top stocks — consensus & price targets", icon: ShieldCheck },
           { label: "Insider Trades", href: "/trades", description: "All open-market Form 4 buys & sells", icon: Activity },
           { label: "Upcoming Earnings", href: "/earnings", description: "Live earnings calendar, next 7 days", icon: Calendar },
         ],
@@ -135,8 +136,8 @@ export const NAV_GROUPS: NavGroup[] = [
     calloutPosition: "top",
     callouts: [
       {
-        title: "Insider Score Top Picks",
-        description: "Unlock the top-5 daily Insider Score picks — the strongest insider-buying signals before they hit the broader feed.",
+        title: "Top Insider Scores",
+        description: "Unlock the top-ranked Insider Scores — the highest-quality insider-buying signals, ranked #50 → #1.",
         href: "/stock-lists/iqs-top-picks",
         icon: Lock,
         premium: true,
@@ -160,7 +161,6 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       {
         links: [
-          { label: "Analyst Ratings", href: "/analyst-ratings", description: "Consensus & price targets", icon: ShieldCheck },
           { label: "Dividends", href: "/dividends", description: "Yields, rates & ex-dates", icon: Coins },
           { label: "Short Interest", href: "/short-interest", description: "Shares short & days-to-cover", icon: TrendingUp },
           { label: "IPOs", href: "/ipos", description: "Priced & upcoming offerings", icon: Rocket },
@@ -169,6 +169,7 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       {
         links: [
+          { label: "Editorial Desk", href: "/editorial", description: "Breaking financial stories — factual, refreshed daily", icon: Newspaper, badge: "new" },
           { label: "AI Insights", href: "/insights", description: "AI-generated daily briefings — refreshed each morning", icon: Sparkles },
           { label: "Intro to Insider Buying", href: "/learn/insider-buying", description: "New here? Start with the basics", icon: FileText },
           { label: "Latest Financial News", href: "/insights?sort=latest", description: "Freshest AI editorial across all topics", icon: Newspaper },

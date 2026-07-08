@@ -98,8 +98,12 @@ export class MarketStatsController {
   }
 
   @Get('analyst-ratings')
-  async analystRatings() {
-    return { rows: await this.svc.getAnalystRatings() };
+  async analystRatings(@Query('symbols') symbols?: string) {
+    const syms = (symbols || '')
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
+    return { rows: await this.svc.getAnalystRatings(syms.length ? syms : undefined) };
   }
 
   @Get('dividends')

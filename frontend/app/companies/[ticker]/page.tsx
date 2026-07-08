@@ -22,18 +22,12 @@ import {
 import { AdSlot } from "@/components/AdSlot";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import {
-  FinancialsSection,
-  TechnicalsSection,
   AnalystRatingSection,
-  SeasonalitySection,
-  EtfOwnershipSection,
-  BondsSection,
   StockFAQSection,
 } from "@/components/stock/StockResearch";
 import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { RightRailArticles } from "@/components/article/RightRailArticles";
 import { RightRailStockLists } from "@/components/article/RightRailStockLists";
-import { Indicators } from "@/components/Indicators";
 import { IqsTooltip } from "@/components/IqsTooltip";
 import { TierBadge, tierFor } from "@/components/TierBadge";
 import { WatchlistButton } from "@/components/WatchlistButton";
@@ -134,6 +128,8 @@ const RATING_LABEL: Record<string, string> = {
   sell: "Sell",
 };
 
+type ProfileTab = "overview" | "financials";
+
 export default function CompanyPage({
   params,
 }: {
@@ -141,6 +137,7 @@ export default function CompanyPage({
 }) {
   const { ticker } = use(params);
   const sym = ticker.toUpperCase();
+  const [tab, setTab] = useState<ProfileTab>("overview");
 
   const { data, isLoading } = useSWR<
     CompanyDetail & { congressionalTrades?: CongressTrade[] }
@@ -192,10 +189,50 @@ export default function CompanyPage({
               earningsDate={earningsDate}
             />
 
+            {/* ── Tabs (StockAnalysis / TipRanks-style): clean Overview by
+                default; Financials focuses on the analyst forecast view. ── */}
+            <div
+              className="flex items-center gap-1 rounded-lg p-1 w-fit"
+              style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}
+              role="tablist"
+              aria-label="Stock profile sections"
+            >
+              {(
+                [
+                  ["overview", "Overview"],
+                  ["financials", "Financials & Forecast"],
+                ] as [ProfileTab, string][]
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={tab === key}
+                  onClick={() => setTab(key)}
+                  className="px-4 py-1.5 rounded-md text-[13px] font-bold transition"
+                  style={{
+                    background: tab === key ? "var(--bg-2)" : "transparent",
+                    color: tab === key ? "var(--accent)" : "var(--text-mute)",
+                    boxShadow: tab === key ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {tab === "financials" ? (
+              /* ── Financials & Forecast: forecast chart, consensus buy meter,
+                    and analyst coverage — nothing else. ── */
+              <div className="space-y-6">
+                <AnalystRatingSection ticker={sym} price={stats?.price ?? data.company.lastPrice} />
+                <AnalystCoverageCard ticker={sym} />
+              </div>
+            ) : (
+              <>
             {/* Price performance row — 1D / 5D / 1M / 6M / 1Y (TradingView-style) */}
             <PricePerformanceRow ticker={sym} />
 
-            {/* Live price chart */}
+            {/* Live price chart — compact so key data shows without scrolling */}
             <PriceChart ticker={sym} />
 
             {/* Standard 3-column overview: trading ranges | market cap &
@@ -209,65 +246,9 @@ export default function CompanyPage({
               earningsDate={earningsDate}
             />
 
-            {/* Everything below renders in one consistent flow (no tabs) so
-                every stock shows the same sections in the same order. */}
-
-            {/* Analyst forecast — consensus gauge + Low/Avg/High targets */}
-            <AnalystRatingSection ticker={sym} price={stats?.price ?? data.company.lastPrice} />
-
-            {/* Financials — Performance / Revenue / Profitability / Balance /
-                Cash Flow / Earnings tabs (dynamic per ticker) */}
-            <FinancialsSection ticker={sym} />
-
-            {/* Technicals — computed live from price history */}
-            <TechnicalsSection ticker={sym} />
-
-            {/* Seasonality — average monthly performance */}
-            <SeasonalitySection ticker={sym} />
-
-            {/* ETFs holding this stock + bonds — auto-hide when no data */}
-            <EtfOwnershipSection ticker={sym} />
-            <BondsSection ticker={sym} />
-
             {/* ── Overview ───────────────────────────────────────────── */}
             <div className="space-y-6">
                 {data.score && <SmartScorePanel score={data.score} />}
-
-                {profile?.description && (
-                  <section className="card p-5">
-                    <h2 className="text-[16px] font-semibold mb-2">
-                      About {data.company.name}
-                    </h2>
-                    <p className="text-[14px] text-soft leading-relaxed">
-                      {profile.description}
-                    </p>
-                    {(profile.industry || profile.employees != null) && (
-                      <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-[13px] text-mute">
-                        {profile.industry && (
-                          <span>
-                            Industry: <span className="font-bold text-[var(--text)]">{profile.industry}</span>
-                          </span>
-                        )}
-                        {profile.employees != null && (
-                          <span>
-                            Employees: <span className="font-bold text-[var(--text)]">{formatNumber(profile.employees)}</span>
-                          </span>
-                        )}
-                        {profile.website && (
-                          <a
-                            href={profile.website}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-accent hover:underline inline-flex items-center gap-1"
-                          >
-                            {profile.website.replace(/^https?:\/\//, "")}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                      </div>
-                    )}
-                  </section>
-                )}
 
                 {/* Recent insider-buy summary */}
                 <InsiderSummary transactions={data.transactions} />
@@ -276,30 +257,6 @@ export default function CompanyPage({
                 {data.scoreHistory && data.scoreHistory.length > 1 && (
                   <IqsTrendChart history={data.scoreHistory} />
                 )}
-
-                {/* Indicators chip strip */}
-                <section
-                  className="rounded-lg p-5"
-                  style={{
-                    background: "var(--bg-2)",
-                    border: "1px solid var(--border)",
-                  }}
-                >
-                  <h3 className="text-[14px] font-bold uppercase tracking-wider text-mute mb-3">
-                    Indicators
-                  </h3>
-                  <Indicators
-                    flags={{
-                      insiderTrade: recentInsiderFlag(data.transactions),
-                      positiveNews: !!data.score && data.score.iqs >= 50,
-                      analystUpgrade:
-                        stats?.analystRating === "buy" ||
-                        stats?.analystRating === "strong_buy",
-                      earningsDueSoon: isEarningsSoon(earningsDate),
-                    }}
-                    size="md"
-                  />
-                </section>
 
                 <AdSlot slot="leaderboard" seed={`stock-${ticker}`} />
               </div>
@@ -504,8 +461,61 @@ export default function CompanyPage({
                 </div>
               </div>
 
-            {/* ── News ────────────────────────────────────────────────── */}
-            <RecentNews ticker={sym} />
+            {/* ── Company News & Press Releases ───────────────────────── */}
+            <section>
+              <h2
+                className="text-[20px] sm:text-[24px] font-semibold tracking-tight mb-3"
+                style={{ letterSpacing: "-0.4px" }}
+              >
+                Company News &amp; Press Releases
+              </h2>
+              <RecentNews ticker={sym} />
+            </section>
+
+            {/* ── About (what the company does, industry, sector, employees) ── */}
+            {profile?.description && (
+              <section className="card p-5">
+                <h2 className="text-[16px] font-semibold mb-2">
+                  About {data.company.name}
+                </h2>
+                <p className="text-[14px] text-soft leading-relaxed">
+                  {profile.description}
+                </p>
+                <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-[13px] text-mute">
+                  {(profile.sector || data.company.sector) && (
+                    <span>
+                      Sector: <span className="font-bold text-[var(--text)]">{profile.sector || data.company.sector}</span>
+                    </span>
+                  )}
+                  {profile.industry && (
+                    <span>
+                      Industry: <span className="font-bold text-[var(--text)]">{profile.industry}</span>
+                    </span>
+                  )}
+                  {profile.employees != null && (
+                    <span>
+                      Employees: <span className="font-bold text-[var(--text)]">{formatNumber(profile.employees)}</span>
+                    </span>
+                  )}
+                  {profile.country && (
+                    <span>
+                      Country: <span className="font-bold text-[var(--text)]">{profile.country}</span>
+                    </span>
+                  )}
+                  {profile.website && (
+                    <a
+                      href={profile.website}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-accent hover:underline inline-flex items-center gap-1"
+                    >
+                      {profile.website.replace(/^https?:\/\//, "")}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </section>
+            )}
 
             {/* ── FAQ (auto-generated from this company's data) ────────── */}
             <StockFAQSection
@@ -515,6 +525,8 @@ export default function CompanyPage({
               profile={profile}
               marketCap={data.company.marketCap}
             />
+              </>
+            )}
 
             {/* Disclaimer */}
             <div
@@ -656,6 +668,12 @@ function CompanyHeader({
               <div className="mt-1.5 flex justify-center">
                 <TierBadge iqs={score.iqs} size="sm" />
               </div>
+              <Link
+                href="/methodology"
+                className="block mt-1.5 text-[10px] font-semibold text-mute hover:text-accent transition"
+              >
+                How the score works →
+              </Link>
             </div>
           )}
         </div>
@@ -740,7 +758,7 @@ function PriceChart({ ticker }: { ticker: string }) {
   const intraday = !!data?.history?.intraday || range === "1d" || range === "5d";
 
   const W = 1000;
-  const H = 280;
+  const H = 200;
   const geo = useMemo(() => {
     if (bars.length < 2) return null;
     const closes = bars.map((b) => b.close);
@@ -826,9 +844,9 @@ function PriceChart({ ticker }: { ticker: string }) {
       </div>
 
       {isLoading && !geo ? (
-        <div className="h-[280px] shimmer rounded-lg" />
+        <div className="h-[200px] shimmer rounded-lg" />
       ) : !geo ? (
-        <div className="h-[280px] flex items-center justify-center text-mute text-sm">
+        <div className="h-[200px] flex items-center justify-center text-mute text-sm">
           No price history available.
         </div>
       ) : (
@@ -936,7 +954,6 @@ function StockOverviewGrid({
   fallbackPrice: number | null;
   earningsDate: string | null;
 }) {
-  const [expanded, setExpanded] = useState(false);
   // Shared with FinancialsSection — SWR dedupes the identical key so this is free.
   const { data: finData } = useSWR<{ financials: FinStatement }>(
     `${API_BASE}/market-stats/financials?symbol=${encodeURIComponent(ticker)}`,
@@ -952,8 +969,6 @@ function StockOverviewGrid({
     n === null || n === undefined ? "—" : formatCurrency(n);
   const num = (n: number | null | undefined) =>
     n === null || n === undefined ? "—" : formatNumber(n);
-  const pct = (n: number | null | undefined) =>
-    n === null || n === undefined || Number.isNaN(n) ? "—" : `${Number(n).toFixed(2)}%`;
   const range = (a: number | null | undefined, b: number | null | undefined) =>
     a == null || b == null ? "—" : `${dec(a)} – ${dec(b)}`;
 
@@ -963,20 +978,10 @@ function StockOverviewGrid({
   const fin = finData?.financials;
   const last = <T,>(arr: T[] | undefined): T | undefined => (arr && arr.length ? arr[arr.length - 1] : undefined);
   const inc = last(fin?.income);
-  const bal = last(fin?.balance);
-  const cf = last(fin?.cashflow);
   const n = (r: Record<string, number | string | null> | undefined, k: string): number | null =>
     r && typeof r[k] === "number" ? (r[k] as number) : null;
 
   const revenue = stats?.revenue ?? n(inc, "revenue");
-  const netIncome = stats?.netIncome ?? n(inc, "netIncome");
-  const equity = n(bal, "totalEquity");
-  const assets = n(bal, "totalAssets");
-  const cash = n(bal, "cash");
-  const debt = n(bal, "totalDebt");
-  const ebitda = n(inc, "ebitda");
-  const ev = marketCap != null && debt != null && cash != null ? marketCap + debt - cash : null;
-  const ratio = (a: number | null, b: number | null | undefined) => (a != null && b ? a / b : null);
 
   const trading: [string, string][] = [
     ["Price", usd(stats?.price ?? fallbackPrice)],
@@ -1006,32 +1011,6 @@ function StockOverviewGrid({
     ],
     ["Industry", profile?.industry || "—"],
     ["Employees", profile?.employees != null ? num(profile.employees) : "—"],
-  ];
-
-  // Extra "See more" statistics — valuation, margins, returns, balance sheet.
-  const valuation: [string, string][] = [
-    ["Enterprise Value", cur(ev)],
-    ["Price / Sales", dec(ratio(marketCap, revenue))],
-    ["Price / Book", dec(ratio(marketCap, equity))],
-    ["EV / EBITDA", dec(ratio(ev, ebitda))],
-    ["EV / Revenue", dec(ratio(ev, revenue))],
-    ["Net Income (ttm)", cur(netIncome)],
-  ];
-  const margins: [string, string][] = [
-    ["Gross Margin", pct(n(inc, "grossMargin"))],
-    ["Operating Margin", pct(n(inc, "operatingMargin"))],
-    ["Profit Margin", pct(n(inc, "profitMargin") ?? (netIncome != null && revenue ? (netIncome / revenue) * 100 : null))],
-    ["Return on Equity", pct(netIncome != null && equity ? (netIncome / equity) * 100 : null)],
-    ["Return on Assets", pct(netIncome != null && assets ? (netIncome / assets) * 100 : null)],
-    ["EBITDA", cur(ebitda)],
-  ];
-  const balanceSheet: [string, string][] = [
-    ["Total Cash", cur(cash)],
-    ["Total Debt", cur(debt)],
-    ["Total Assets", cur(assets)],
-    ["Total Equity", cur(equity)],
-    ["Operating Cash Flow", cur(n(cf, "operatingCashflow"))],
-    ["Free Cash Flow", cur(n(cf, "freeCashflow"))],
   ];
 
   const Col = ({ title, rows }: { title: string; rows: [string, string][] }) => (
@@ -1064,25 +1043,6 @@ function StockOverviewGrid({
         <Col title="Market Cap & Financials" rows={financials} />
         <Col title="Other Data" rows={other} />
       </div>
-
-      {expanded && (
-        <div
-          className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-5 mt-5 pt-5"
-          style={{ borderTop: "1px solid var(--border)" }}
-        >
-          <Col title="Valuation" rows={valuation} />
-          <Col title="Margins & Returns" rows={margins} />
-          <Col title="Balance Sheet" rows={balanceSheet} />
-        </div>
-      )}
-
-      <button
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full mt-4 py-2 rounded-md text-[13px] font-semibold text-accent hover:bg-[var(--accent-soft)] transition"
-        style={{ border: "1px solid var(--border)" }}
-      >
-        {expanded ? "See less" : "See more statistics"}
-      </button>
     </div>
   );
 }
@@ -1327,29 +1287,59 @@ function RecentNews({
   );
 }
 
+// ── Analyst coverage (Financials tab) — who covers the stock ────────────────
+interface CoverageRow {
+  symbol: string;
+  recommendation: string | null;
+  numAnalysts: number | null;
+  targetMean: number | null;
+  targetHigh: number | null;
+  targetLow: number | null;
+  upsidePct: number | null;
+}
+function AnalystCoverageCard({ ticker }: { ticker: string }) {
+  const { data } = useSWR<{ rows: CoverageRow[] }>(
+    `${API_BASE}/market-stats/analyst-ratings?symbols=${encodeURIComponent(ticker)}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
+  const row = data?.rows?.find((r) => r.symbol.toUpperCase() === ticker.toUpperCase()) ?? null;
+  if (!row) return null;
+  const items: [string, string][] = [
+    ["Covering analysts", row.numAnalysts != null ? String(row.numAnalysts) : "—"],
+    [
+      "Consensus",
+      row.recommendation ? RATING_LABEL[row.recommendation] || row.recommendation : "—",
+    ],
+    ["Average target", row.targetMean != null ? `$${row.targetMean.toFixed(2)}` : "—"],
+    ["Highest target", row.targetHigh != null ? `$${row.targetHigh.toFixed(2)}` : "—"],
+    ["Lowest target", row.targetLow != null ? `$${row.targetLow.toFixed(2)}` : "—"],
+    [
+      "Implied upside",
+      row.upsidePct != null ? `${row.upsidePct >= 0 ? "+" : ""}${row.upsidePct.toFixed(1)}%` : "—",
+    ],
+  ];
+  return (
+    <section className="card p-5">
+      <h2 className="text-[16px] font-semibold mb-1">Analyst Coverage</h2>
+      <p className="text-[12px] text-mute mb-4">
+        Aggregated sell-side coverage for {ticker} — consensus, targets, and the
+        number of covering firms. Individual analyst-by-analyst breakdowns are
+        rolling out.
+      </p>
+      <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3">
+        {items.map(([l, v]) => (
+          <div key={l}>
+            <dt className="text-[11px] uppercase tracking-wider text-mute font-bold">{l}</dt>
+            <dd className="text-[16px] font-bold tabular mt-0.5">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 // ── Hooks / helpers ──────────────────────────────────────────────────────────
-function recentInsiderFlag(
-  txs: CompanyDetail["transactions"],
-): "buy" | "sell" | null {
-  const within = (code: string) =>
-    txs.some(
-      (t) =>
-        t.transactionCode === code &&
-        Date.now() - new Date(t.transactionDate).getTime() < 5 * 86400000,
-    );
-  if (within("P")) return "buy";
-  if (within("S")) return "sell";
-  return null;
-}
-
-function isEarningsSoon(date: string | null): boolean {
-  if (!date) return false;
-  const d = new Date(date).getTime();
-  if (Number.isNaN(d)) return false;
-  const diff = d - Date.now();
-  return diff > 0 && diff < 14 * 86400000;
-}
-
 function formatShortDate(s: string | null | undefined): string {
   if (!s) return "—";
   const d = new Date(s);

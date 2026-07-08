@@ -172,26 +172,32 @@ export const SECTOR_UNIVERSE: Record<string, string[]> = {
   'metals-and-mining': [
     'BHP', 'RIO', 'VALE', 'FCX', 'SCCO', 'NUE', 'STLD', 'CLF', 'X', 'AA',
     'CENX', 'MP', 'ALB', 'SQM', 'TECK', 'HBM', 'ERO', 'CMC', 'RS', 'ATI',
-    'MT', 'GGB', 'SID', 'NEM',
+    'MT', 'GGB', 'SID', 'NEM', 'AEM', 'B', 'IVN', 'LUN', 'CS', 'FM',
+    'UEC', 'CCJ', 'DNN', 'UUUU', 'LAC', 'PLL', 'TMC', 'NB',
   ],
   tech: [
     'AAPL', 'MSFT', 'NVDA', 'AVGO', 'ORCL', 'CRM', 'ADBE', 'AMD', 'CSCO', 'IBM',
     'QCOM', 'TXN', 'INTU', 'NOW', 'PANW', 'SNOW', 'PLTR', 'CRWD', 'MU', 'AMAT',
     'LRCX', 'KLAC', 'ADI', 'INTC', 'SMCI', 'ANET', 'DELL', 'HPQ',
+    'ARM', 'MRVL', 'ON', 'NXPI', 'MCHP', 'CDNS', 'SNPS', 'FTNT', 'ZS', 'DDOG',
+    'NET', 'MDB', 'TEAM', 'WDAY', 'SHOP', 'SQ', 'UBER', 'ABNB', 'TTD', 'APP',
   ],
   gold: [
     'NEM', 'GOLD', 'AEM', 'KGC', 'FNV', 'WPM', 'RGLD', 'AU', 'GFI', 'HMY',
     'EGO', 'BTG', 'AGI', 'OR', 'SSRM', 'CDE', 'IAG', 'NGD', 'SAND', 'EQX',
-    'DRD', 'NG', 'GORO', 'USAU',
+    'DRD', 'NG', 'GORO', 'USAU', 'KGC', 'AUY', 'PAAS', 'AGX', 'WGS', 'SA',
+    'GAU', 'THM', 'VGZ', 'AUMN',
   ],
   silver: [
     'PAAS', 'AG', 'HL', 'EXK', 'FSM', 'MAG', 'SVM', 'ASM', 'GATO', 'SILV',
     'USAS', 'BVN', 'WPM', 'SSRM', 'CDE', 'SLV', 'SIVR', 'PSLV', 'SIL', 'SILJ',
+    'AYA', 'DV', 'GPL', 'AXU', 'HYMC', 'ABRA',
   ],
   oil: [
     'XOM', 'CVX', 'COP', 'EOG', 'SLB', 'OXY', 'PSX', 'VLO', 'MPC', 'HES',
     'WMB', 'KMI', 'OKE', 'HAL', 'BKR', 'DVN', 'FANG', 'CTRA', 'APA', 'EQT',
-    'AR', 'RRC', 'PR', 'SM', 'MUR', 'NOG', 'CHRD',
+    'AR', 'RRC', 'PR', 'SM', 'MUR', 'NOG', 'CHRD', 'LNG', 'TRGP', 'ET',
+    'EPD', 'MPLX', 'PAA', 'WES', 'AM', 'DINO', 'PBF', 'CVI', 'VNOM', 'CRC',
   ],
   'blue-chip': [
     'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA', 'AVGO', 'BRK-B', 'JPM',
@@ -610,14 +616,19 @@ export const HOT_SECTOR_BASKETS: HotSectorBasket[] = [
   {
     key: 'quantum',
     label: 'Quantum',
-    tickers: ['IONQ', 'RGTI', 'QBTS', 'QUBT', 'ARQQ', 'LAES', 'QSI', 'QMCO'],
+    tickers: [
+      'IONQ', 'RGTI', 'QBTS', 'QUBT', 'ARQQ', 'LAES', 'QSI', 'QMCO', 'IBM',
+      'GOOGL', 'MSFT', 'NVDA', 'HON', 'FORM', 'MKSI', 'COHR',
+    ],
   },
   {
     key: 'ai',
     label: 'AI',
     tickers: [
       'NVDA', 'AMD', 'PLTR', 'SMCI', 'AVGO', 'MRVL', 'MU', 'ARM', 'ANET',
-      'VRT', 'SOUN', 'BBAI', 'AI', 'TEM', 'DELL',
+      'VRT', 'SOUN', 'BBAI', 'AI', 'TEM', 'DELL', 'MSFT', 'GOOGL', 'META',
+      'ORCL', 'NOW', 'SNOW', 'DDOG', 'PSTG', 'CRDO', 'ALAB', 'NBIS', 'APP',
+      'IOT', 'AISP', 'INOD',
     ],
   },
   {
@@ -625,7 +636,8 @@ export const HOT_SECTOR_BASKETS: HotSectorBasket[] = [
     label: 'Gold',
     tickers: [
       'NEM', 'GOLD', 'AEM', 'KGC', 'AU', 'WPM', 'FNV', 'RGLD', 'GFI', 'HMY',
-      'AGI', 'BTG', 'EGO', 'OR', 'SSRM',
+      'AGI', 'BTG', 'EGO', 'OR', 'SSRM', 'CDE', 'IAG', 'NGD', 'SAND', 'EQX',
+      'DRD', 'HL', 'PAAS', 'AG', 'MAG', 'EXK', 'FSM', 'SA',
     ],
   },
   {
@@ -633,7 +645,8 @@ export const HOT_SECTOR_BASKETS: HotSectorBasket[] = [
     label: 'Rare Earths & Critical Metals',
     tickers: [
       'MP', 'TMC', 'UUUU', 'NB', 'CRML', 'REE', 'MTAL', 'USAR', 'ALB', 'SQM',
-      'LAC', 'PLL',
+      'LAC', 'PLL', 'CCJ', 'UEC', 'DNN', 'NXE', 'LEU', 'SMR', 'FCX', 'SCCO',
+      'TECK', 'IVN', 'ERO', 'HBM', 'SGML', 'AREC',
     ],
   },
   {
@@ -641,7 +654,9 @@ export const HOT_SECTOR_BASKETS: HotSectorBasket[] = [
     label: 'Biotech & Pharmaceuticals',
     tickers: [
       'LLY', 'PFE', 'MRK', 'ABBV', 'BMY', 'AMGN', 'GILD', 'VRTX', 'REGN',
-      'MRNA', 'BIIB', 'VKTX', 'CRSP', 'NTLA',
+      'MRNA', 'BIIB', 'VKTX', 'CRSP', 'NTLA', 'NVO', 'AZN', 'NVS', 'JNJ',
+      'SNY', 'GSK', 'ALNY', 'BNTX', 'SRPT', 'RARE', 'BEAM', 'RXRX', 'TEM',
+      'HIMS', 'EXAS', 'NBIX',
     ],
   },
   {
@@ -649,7 +664,8 @@ export const HOT_SECTOR_BASKETS: HotSectorBasket[] = [
     label: 'Energy',
     tickers: [
       'XOM', 'CVX', 'COP', 'EOG', 'SLB', 'PSX', 'MPC', 'VLO', 'OXY', 'WMB',
-      'KMI', 'HAL', 'DVN', 'HES', 'FANG', 'LNG',
+      'KMI', 'HAL', 'DVN', 'HES', 'FANG', 'LNG', 'OKE', 'BKR', 'CTRA', 'APA',
+      'EQT', 'AR', 'TRGP', 'ET', 'EPD', 'FSLR', 'ENPH', 'NEE', 'VST', 'CEG',
     ],
   },
   {
@@ -657,7 +673,8 @@ export const HOT_SECTOR_BASKETS: HotSectorBasket[] = [
     label: 'Financials',
     tickers: [
       'JPM', 'BAC', 'WFC', 'C', 'GS', 'MS', 'BLK', 'SCHW', 'AXP', 'V', 'MA',
-      'USB', 'PNC', 'BX', 'KKR', 'COF',
+      'USB', 'PNC', 'BX', 'KKR', 'COF', 'TFC', 'BK', 'STT', 'APO', 'ARES',
+      'CME', 'ICE', 'SPGI', 'MCO', 'PYPL', 'SOFI', 'AFRM', 'FI', 'DFS', 'SYF',
     ],
   },
   {
@@ -665,7 +682,8 @@ export const HOT_SECTOR_BASKETS: HotSectorBasket[] = [
     label: 'Crypto',
     tickers: [
       'COIN', 'MSTR', 'MARA', 'RIOT', 'CLSK', 'HUT', 'BITF', 'CIFR', 'WULF',
-      'BTBT', 'HOOD', 'IREN',
+      'BTBT', 'HOOD', 'IREN', 'CORZ', 'BTDR', 'GLXY', 'CRCL', 'SBET', 'DFDV',
+      'BMNR', 'HIVE', 'CAN', 'SDIG',
     ],
   },
 ];

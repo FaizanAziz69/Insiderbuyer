@@ -17,7 +17,7 @@ import { DataTable, Column } from "@/components/DataTable";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { InsiderSignalHover } from "@/components/InsiderSignalHover";
-import { rankColumn } from "@/components/tableColumns";
+import { PremiumGate } from "@/components/PremiumGate";
 
 /**
  * Insider strategy signal — how strong/clustered the recent insider buying is,
@@ -59,8 +59,32 @@ export default function InsiderHotStocksPage() {
   );
   const sparkMap = sparkData?.spark || {};
 
+  // Analyst-implied potential upside % — rendered next to the Insider Score.
+  const { data: analystData } = useSWR<{ rows: { symbol: string; upsidePct: number | null }[] }>(
+    tickerKey
+      ? `${API_BASE}/market-stats/analyst-ratings?symbols=${encodeURIComponent(tickerKey)}`
+      : null,
+    fetcher,
+    { refreshInterval: 10 * 60_000, revalidateOnFocus: false },
+  );
+  const upsideBySym = new Map<string, number | null>();
+  (analystData?.rows || []).forEach((r) => upsideBySym.set(r.symbol.toUpperCase(), r.upsidePct));
+
+  // TipRanks-style ascending scale: the list counts DOWN (#N → #6) with the
+  // top 5 (#5 → #1) locked as a premium block at the bottom.
+  const top5Desc = [...rows.slice(0, 5)].reverse();
+  const restDesc = [...rows.slice(5)].reverse();
+
   const columns: Column<RankingRow>[] = [
-    rankColumn<RankingRow>(),
+    {
+      key: "rank",
+      label: "#",
+      align: "center",
+      sortValue: (r) => r.rank,
+      render: (r) => (
+        <span className="tabular text-[13px] font-mono font-bold text-faint">#{r.rank}</span>
+      ),
+    },
     {
       key: "ticker",
       label: "Company",
@@ -148,6 +172,23 @@ export default function InsiderHotStocksPage() {
       align: "center",
       sortValue: (r) => r.iqs ?? null,
       render: (r) => <IqsScoreCell iqs={r.iqs} />,
+    },
+    {
+      key: "upside",
+      label: "Potential Upside",
+      align: "right",
+      sortValue: (r) => upsideBySym.get((r.ticker || "").toUpperCase()) ?? null,
+      render: (r) => {
+        const u = upsideBySym.get((r.ticker || "").toUpperCase());
+        if (u == null) return <span className="text-faint text-[13px]">—</span>;
+        const up = u >= 0;
+        return (
+          <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>
+            {up ? "+" : ""}
+            {u.toFixed(0)}%
+          </span>
+        );
+      },
     },
     {
       key: "signal",
@@ -255,16 +296,19 @@ export default function InsiderHotStocksPage() {
           className="text-[28px] sm:text-[40px] font-semibold tracking-tight"
           style={{ letterSpacing: "-0.6px" }}
         >
-          Top Buys
+          Top Insider Scores
         </h1>
         <p className="text-mute text-[14px] sm:text-[15px] mt-2 max-w-3xl leading-relaxed">
-          U.S. companies seeing the most insider buying right now, ranked by our
-          Insider Score.
+          U.S. companies ranked by Insider Score <em>quality</em> — not by raw
+          dollar volume of buying. The list counts down to #1: a higher score
+          means stronger, more bullish insider conviction, even when the share
+          price is falling. The top 5 ranks are premium.
         </p>
       </header>
 
       <AdSlot slot="leaderboard" seed="insider-hot-top" />
 
+      {/* Free ranks — counts down from #N to #6 */}
       <div className="card overflow-hidden">
         {isLoading ? (
           <div className="p-12 text-center text-mute">Loading insider data…</div>
@@ -274,30 +318,43 @@ export default function InsiderHotStocksPage() {
           </div>
         ) : (
           <DataTable<RankingRow>
-            rows={rows}
+            rows={restDesc}
             rowKey={(r, i) => (r.ticker || r.companyId || r.name || "") + i}
-            initialSort={{ key: "marketCap", dir: "desc" }}
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={columns}
           />
         )}
       </div>
 
+      {/* Premium-gated top 5 (#5 → #1) — blurred but visibly present. */}
+      {/* TODO: Stripe paywall — replace PREMIUM_UNLOCKED bypass with real entitlement check. */}
+      {top5Desc.length > 0 && (
+        <PremiumGate label="Insider Score ranks" count={5} cta="Unlock the top 5 ranks">
+          <div className="card overflow-hidden m-0" style={{ border: "none" }}>
+            <DataTable<RankingRow>
+              rows={top5Desc}
+              rowKey={(r, i) => (r.ticker || r.companyId || r.name || "") + i}
+              columns={columns}
+            />
+          </div>
+        </PremiumGate>
+      )}
+
       {/* How we rank */}
       <section className="card p-5 sm:p-6 max-w-4xl">
         <h2 className="text-[20px] font-bold tracking-tight mb-3">
-          How we rank insider hot stocks
+          How we rank Top Insider Scores
         </h2>
         <p className="text-[15px] text-soft leading-relaxed">
-          Stocks are ranked by our Insider Score, a 0–100
-          composite that weighs the dollar size of insider purchases relative to
-          the company&rsquo;s market cap, the number of distinct insiders buying
-          (a cluster of buyers carries more signal than a lone trade), the
-          seniority of the buyers&rsquo; roles (a CEO or CFO buy outweighs a
-          director&rsquo;s), and how much each insider grew their existing stake.
-          The result is a feed of where corporate insiders are putting their own
-          capital with the most conviction — informational, not a trade
-          recommendation.
+          Stocks are ranked by our Insider Score, a 0–100 composite that weighs
+          the dollar size of insider purchases relative to the company&rsquo;s
+          market cap, the number of distinct insiders buying (a cluster of
+          buyers carries more signal than a lone trade), the seniority of the
+          buyers&rsquo; roles (a CEO or CFO buy outweighs a director&rsquo;s),
+          and how much each insider grew their existing stake. A higher score is
+          more bullish — even when the share price is falling — because it
+          measures buying quality, not price momentum. Informational, not a
+          trade recommendation.
         </p>
       </section>
     </div>

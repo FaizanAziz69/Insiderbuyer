@@ -79,6 +79,23 @@ export default function MethodologyPage() {
         signals.
       </p>
 
+      <div
+        className="mt-5 rounded-lg p-4"
+        style={{
+          background: "var(--accent-soft)",
+          border: "1px solid var(--border)",
+          borderLeft: "4px solid var(--accent)",
+        }}
+      >
+        <p className="text-[14px] leading-relaxed" style={{ color: "var(--text)" }}>
+          <strong>The one thing to remember:</strong> a higher score = more
+          bullish insider conviction — <em>even if the share price is
+          falling</em>. The score measures the quality of insider buying (who is
+          buying, how much, and how clustered), not price momentum. Insiders
+          often buy hardest when their own stock is down.
+        </p>
+      </div>
+
       <div className="mt-8 space-y-5">
         {FACTORS.map((f) => {
           const Icon = f.icon;
@@ -154,6 +171,60 @@ export default function MethodologyPage() {
           predictive and useful as possible. Informational only — not investment
           advice.
         </p>
+      </section>
+
+      {/* Composite pillars — where the score is heading */}
+      <section
+        className="mt-6 rounded-lg p-5"
+        style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+      >
+        <h2 className="font-bold tracking-tight mb-2" style={{ fontSize: 20 }}>
+          One Score, Multiple Signals
+        </h2>
+        <p className="text-[14px] text-soft leading-relaxed mb-4">
+          The score is built as a set of weighted pillars, so new signals can be
+          added without changing the 0–100 scale. Here is what feeds it today
+          and what is coming:
+        </p>
+        <ul className="space-y-3">
+          {[
+            {
+              label: "Insider Activity",
+              status: "Live",
+              live: true,
+              desc: "The four factors above — purchase size vs. market cap, buyer seniority, cluster effect, and stake growth.",
+            },
+            {
+              label: "Analyst Ratings",
+              status: "Live",
+              live: true,
+              desc: "Wall Street consensus and the implied upside to the average 12-month price target.",
+            },
+            {
+              label: "News & Sentiment",
+              status: "Coming soon",
+              live: false,
+              desc: "Tone and momentum of news coverage and social discussion around the stock.",
+            },
+          ].map((p) => (
+            <li key={p.label} className="flex items-start gap-3">
+              <span
+                className="mt-0.5 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex-shrink-0"
+                style={{
+                  background: p.live
+                    ? "color-mix(in srgb, var(--good) 16%, transparent)"
+                    : "var(--bg-3)",
+                  color: p.live ? "var(--good)" : "var(--text-mute)",
+                }}
+              >
+                {p.status}
+              </span>
+              <span className="text-[13.5px] leading-relaxed text-soft">
+                <strong className="text-[var(--text)]">{p.label}</strong> — {p.desc}
+              </span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <div className="mt-8 flex flex-wrap gap-3">

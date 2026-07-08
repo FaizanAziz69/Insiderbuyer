@@ -249,9 +249,9 @@ export class StockListsService {
     const { total: iqsTotal } = await this.iqs.getRankings({ limit: 1, offset: 0 });
     out.push({
       slug: 'iqs-top-picks',
-      title: 'Insider Score Top Picks',
+      title: 'Top Insider Scores',
       description:
-        'Premium ranking — the highest Insider Scores across the U.S. market, updated daily.',
+        'Premium ranking — the highest-quality Insider Scores across the U.S. market (score quality, not dollar volume), updated daily.',
       kind: 'premium',
       count: iqsTotal,
     });
@@ -364,9 +364,9 @@ export class StockListsService {
       const enriched = this.enrichRows(rows, live) as any[];
       return {
         slug,
-        title: 'Insider Score Top Picks',
+        title: 'Top Insider Scores',
         description:
-          'Premium ranking — the highest Insider Scores across the U.S. market, updated daily.',
+          'Premium ranking — the highest-quality Insider Scores across the U.S. market (score quality, not dollar volume), updated daily.',
         kind: 'premium',
         total,
         rows: enriched,

@@ -1456,12 +1456,21 @@ export class MarketStatsService {
   }
 
   /** Analyst Ratings — consensus recommendation + price targets across the
-   *  market universe, sorted by analyst-implied upside. */
-  async getAnalystRatings(): Promise<AnalystRow[]> {
+   *  market universe, sorted by analyst-implied upside. Pass `symbols` to get
+   *  coverage for an arbitrary ticker set (e.g. the Insider Score tables)
+   *  instead of the default most-covered universe. */
+  async getAnalystRatings(symbols?: string[]): Promise<AnalystRow[]> {
+    if (symbols && symbols.length) {
+      const key = `analyst:${[...symbols].sort().join(',').slice(0, 400)}`;
+      return this.cachedTool(key, () => this.buildAnalystRatings(symbols), 20);
+    }
     return this.cachedTool("analyst", () => this.buildAnalystRatings(), 20);
   }
-  private async buildAnalystRatings(): Promise<AnalystRow[]> {
-    const syms = this.universe();
+  private async buildAnalystRatings(symbols?: string[]): Promise<AnalystRow[]> {
+    const syms =
+      symbols && symbols.length
+        ? Array.from(new Set(symbols.map((s) => s.toUpperCase()))).slice(0, 250)
+        : this.universe();
     // Consensus comes from the v7 batch quote (averageAnalystRating), which is
     // reliable on the server. Price targets need the per-symbol summary, which
     // Yahoo blocks from datacenter IPs — so we fetch it only as a time-boxed

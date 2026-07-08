@@ -469,7 +469,7 @@ export function InsiderActivityToast({
                 >
                   <Link
                     href="/insiders/hot"
-                    aria-label={`${a.role} purchased ${formatCurrency(a.amount)} of ${a.ticker}. View Top Buys.`}
+                    aria-label={`${a.role} purchased ${formatCurrency(a.amount)} of ${a.ticker}. View Top Insider Scores.`}
                     className="group block cursor-pointer px-5 pt-4 pb-4 focus:outline-none"
                     style={{
                       transform: hovered && !reduce ? "translateY(-4px)" : "translateY(0)",
@@ -545,7 +545,7 @@ export function InsiderActivityToast({
                       className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold transition-[filter] group-hover:brightness-125"
                       style={{ color: s.solid }}
                     >
-                      View Top Buys
+                      View Top Insider Scores
                       <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
                     </span>
                   </Link>

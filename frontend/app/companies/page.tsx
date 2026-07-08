@@ -97,17 +97,34 @@ export default function CompaniesPage() {
   const quoteBySym = new Map<string, { price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null }>();
   (quoteData?.rows || []).forEach((q) => quoteBySym.set(q.symbol.toUpperCase(), q));
 
+  // Analyst-implied potential upside % for the same tickers (12-month avg
+  // target vs. current price) — shown next to the Insider Score.
+  const { data: analystData } = useSWR<{ rows: { symbol: string; upsidePct: number | null }[] }>(
+    tickerKey
+      ? `${API_BASE}/market-stats/analyst-ratings?symbols=${encodeURIComponent(tickerKey)}`
+      : null,
+    fetcher,
+    { refreshInterval: 10 * 60_000, revalidateOnFocus: false },
+  );
+  const upsideBySym = new Map<string, number | null>();
+  (analystData?.rows || []).forEach((r) => upsideBySym.set(r.symbol.toUpperCase(), r.upsidePct));
+
   // Top-5 are premium-gated; rest are free.
   // Display order counts DOWN: free rows N → 6 on top, blurred 5 → 1 at bottom.
   const top5Desc = [...(data?.rows.slice(0, 5) || [])].reverse();
   const restDesc = [...(data?.rows.slice(5) || [])].reverse();
 
+  // Segmented layout: stock/market data on the left band, Insider Score data
+  // on the right band (grouped header renders the two labelled segments).
+  const STOCK = "Stock";
+  const INSIDER = "Insider Score";
   const freeColumns: Column<RankingRow>[] = [
-    rankColumn<RankingRow>(),
-    tickerCol,
+    { ...rankColumn<RankingRow>(), group: STOCK },
+    { ...tickerCol, group: STOCK },
     {
       key: "price",
       label: "Price",
+      group: STOCK,
       align: "right",
       sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.price ?? null,
       render: (r) => {
@@ -118,6 +135,7 @@ export default function CompaniesPage() {
     {
       key: "changePct",
       label: "Change %",
+      group: STOCK,
       align: "right",
       sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.changePct ?? null,
       render: (r) => {
@@ -130,6 +148,7 @@ export default function CompaniesPage() {
     {
       key: "mktcap",
       label: "Mkt cap",
+      group: STOCK,
       filterable: true,
       filterType: "marketCapPreset",
       filterLabelText: "Market Cap",
@@ -139,10 +158,10 @@ export default function CompaniesPage() {
         <span className="tabular text-mute text-[14px] font-bold">{formatCurrency(r.marketCap)}</span>
       ),
     },
-    iqsCol,
     {
       key: "peRatio",
       label: "P/E",
+      group: STOCK,
       align: "right",
       sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.peRatio ?? null,
       render: (r) => {
@@ -153,6 +172,7 @@ export default function CompaniesPage() {
     {
       key: "dividendYield",
       label: "Div Yield",
+      group: STOCK,
       align: "right",
       sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.dividendYield ?? null,
       render: (r) => {
@@ -160,11 +180,32 @@ export default function CompaniesPage() {
         return <span className="tabular text-mute text-[13px] font-bold">{dy != null ? dy.toFixed(2) + "%" : "—"}</span>;
       },
     },
-    sectorCol,
-    boughtCol,
+    { ...sectorCol, group: STOCK },
+    { ...iqsCol, group: INSIDER },
+    {
+      key: "upside",
+      label: "Potential Upside",
+      group: INSIDER,
+      filterable: true,
+      filterType: "range",
+      align: "right",
+      sortValue: (r) => upsideBySym.get((r.ticker || "").toUpperCase()) ?? null,
+      render: (r) => {
+        const u = upsideBySym.get((r.ticker || "").toUpperCase());
+        if (u == null) return <span className="text-faint text-[13px]">—</span>;
+        const up = u >= 0;
+        return (
+          <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>
+            {up ? "+" : ""}
+            {u.toFixed(0)}%
+          </span>
+        );
+      },
+    },
     {
       key: "buyers",
       label: "Insiders Buying",
+      group: INSIDER,
       filterable: true,
       filterType: "preset",
       filterLabelText: "Insider Type",
@@ -176,15 +217,18 @@ export default function CompaniesPage() {
     {
       key: "trades",
       label: "Trades",
+      group: INSIDER,
       filterable: true,
       filterType: "range",
       align: "right",
       sortValue: (r) => r.transactionCount,
       render: (r) => <span className="tabular text-mute text-[14px] font-bold">{r.transactionCount}</span>,
     },
+    { ...boughtCol, group: INSIDER },
     {
       key: "avgCost",
       label: "Avg Cost",
+      group: INSIDER,
       align: "right",
       sortValue: (r) => r.avgCost ?? null,
       render: (r) => (
@@ -196,6 +240,7 @@ export default function CompaniesPage() {
     {
       key: "lastBuyDate",
       label: "Last Buy",
+      group: INSIDER,
       align: "right",
       sortValue: (r) => r.lastBuyDate ?? null,
       render: (r) => (
@@ -247,6 +292,22 @@ export default function CompaniesPage() {
         <p className="text-mute text-sm mt-1">
           U.S. public companies ranked by the Insider Score. Highest scores at the
           bottom — top 5 are premium.
+        </p>
+        <p
+          className="mt-3 max-w-3xl rounded-lg px-4 py-3 text-[13px] leading-relaxed"
+          style={{
+            background: "var(--accent-soft)",
+            border: "1px solid var(--border)",
+            color: "var(--text)",
+          }}
+        >
+          <strong>How to read the score:</strong> a higher Insider Score = more
+          bullish insider conviction — even if the share price is falling. The
+          score measures the <em>quality</em> of insider buying (who is buying,
+          how large, and how clustered), not price momentum.{" "}
+          <Link href="/methodology" className="text-accent font-semibold hover:underline">
+            How the score works →
+          </Link>
         </p>
       </header>
 

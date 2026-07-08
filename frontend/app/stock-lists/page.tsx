@@ -55,46 +55,47 @@ export default function StockListsHubPage() {
         </p>
       </header>
 
-      {/* Premium Insider Score list — highlighted callout */}
+      {/* Premium "Top Insider Scores" — clean table-style row at the top,
+          matching the list cards below (no gradient box). */}
       {premium && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
+          className="card overflow-hidden"
         >
           <Link
             href={`/stock-lists/${premium.slug}`}
-            className="block rounded-xl p-5 sm:p-6 group transition"
-            style={{
-              background:
-                "linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, var(--bg-2)) 0%, color-mix(in srgb, var(--accent-2) 16%, var(--bg-2)) 100%)",
-              border:
-                "1px solid color-mix(in srgb, var(--accent) 30%, var(--border-strong))",
-            }}
+            className="flex items-center justify-between gap-3 px-5 py-4 hover:bg-[var(--accent-soft)] transition group"
           >
-            <div className="flex items-start sm:items-center gap-4 flex-col sm:flex-row">
-              <div
-                className="h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0"
+            <div className="flex items-center gap-3 min-w-0">
+              <span
+                className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
                 style={{
-                  background: "linear-gradient(135deg, var(--accent), var(--accent-2))",
-                  boxShadow: "0 6px 18px rgba(0,102,255,0.25)",
+                  background: "color-mix(in srgb, var(--gold) 18%, var(--bg-3))",
+                  border: "1px solid color-mix(in srgb, var(--gold) 45%, var(--border))",
                 }}
               >
-                <Sparkles className="h-6 w-6 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-accent mb-1">
-                  <Lock className="h-3 w-3" />
-                  Premium
+                <Lock className="h-4 w-4" style={{ color: "var(--gold)" }} />
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-[15px] group-hover:text-accent transition">
+                    {premium.title}
+                  </span>
+                  <span
+                    className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                    style={{ background: "var(--gold)", color: "#3b2300" }}
+                  >
+                    <Sparkles className="h-2.5 w-2.5" /> Premium
+                  </span>
                 </div>
-                <div className="text-[20px] font-bold tracking-tight">{premium.title}</div>
-                <div className="text-[13px] text-soft mt-1 leading-relaxed">
-                  {premium.description}
-                </div>
+                <div className="text-[12px] text-mute truncate">{premium.description}</div>
               </div>
-              <div className="text-[13px] font-semibold text-accent flex items-center gap-1 flex-shrink-0 group-hover:underline">
-                Unlock <ChevronRight className="h-4 w-4" />
-              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="badge badge-neutral">{premium.count}</span>
+              <ChevronRight className="h-4 w-4 text-faint group-hover:text-accent" />
             </div>
           </Link>
         </motion.div>

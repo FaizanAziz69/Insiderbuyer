@@ -445,10 +445,95 @@ export class ContentService {
     skipped += topicResult.skipped;
     errors.push(...topicResult.errors);
 
+    // Editorial Desk — at least 4 structured, factual news stories per day,
+    // each grounded in a distinct lead headline from the live news feed (the
+    // feed hook is NewsService; swap/add sources there).
+    const editorialResult = await this.generateEditorialStories(dayKey, dateLabel, take, () => {
+      generated++;
+    });
+    skipped += editorialResult.skipped;
+    errors.push(...editorialResult.errors);
+
     this.logger.log(
       `Daily refresh complete — generated=${generated} skipped=${skipped} errors=${errors.length}`,
     );
     return { generated, skipped, errors };
+  }
+
+  /** Editorial Desk — ≥4 structured, non-promotional news stories per day in a
+   *  factual WSJ/Barron's tone. Each story takes one distinct lead headline
+   *  from the aggregated news feed (one per source where possible) and rewrites
+   *  it in our voice with an "Our take:" and a bear/skeptic section. */
+  private readonly EDITORIAL_PER_DAY = 4;
+  private async generateEditorialStories(
+    dayKey: string,
+    dateLabel: string,
+    take: (slug: string) => Promise<boolean>,
+    bump: () => void,
+  ): Promise<{ skipped: number; errors: string[] }> {
+    let skipped = 0;
+    const errors: string[] = [];
+
+    let allNews: Awaited<ReturnType<NewsService['getLatest']>> = [];
+    try {
+      allNews = await this.news.getLatest();
+    } catch {
+      allNews = [];
+    }
+    if (!allNews.length) {
+      errors.push('editorial: no source headlines available');
+      return { skipped, errors };
+    }
+
+    // Pick distinct leads — prefer one story per source so the day's desk
+    // covers different corners of the market instead of one outlet's feed.
+    const leads: typeof allNews = [];
+    const seenSources = new Set<string>();
+    for (const n of allNews) {
+      if (leads.length >= this.EDITORIAL_PER_DAY) break;
+      const src = (n.source || 'unknown').toLowerCase();
+      if (seenSources.has(src)) continue;
+      seenSources.add(src);
+      leads.push(n);
+    }
+    // Top up from remaining headlines if we had fewer sources than stories.
+    for (const n of allNews) {
+      if (leads.length >= this.EDITORIAL_PER_DAY) break;
+      if (!leads.includes(n)) leads.push(n);
+    }
+
+    for (let i = 0; i < leads.length; i++) {
+      const slug = `editorial-${i + 1}-${dayKey}`;
+      if (!(await take(slug))) {
+        skipped++;
+        continue;
+      }
+      const lead = leads[i];
+      try {
+        const related = allNews
+          .filter((n) => n !== lead)
+          .slice(0, 5)
+          .map((n) => ({ title: n.title, source: n.source }));
+        const article = await this.generator.generateEditorialStory({
+          dateLabel,
+          lead: { title: lead.title, source: lead.source },
+          related,
+        });
+        await this.persist({
+          slug,
+          kind: 'editorial',
+          ticker: null,
+          sector: null,
+          iqsAtGeneration: null,
+          article,
+          inputSnapshot: { date: dayKey, lead: { title: lead.title, source: lead.source } },
+        });
+        bump();
+      } catch (err) {
+        errors.push(`editorial ${i + 1}: ${(err as Error).message}`);
+      }
+    }
+    return { skipped, errors };
   }
 
   /** Generate one AI news roundup per topic per day — grounded in real source

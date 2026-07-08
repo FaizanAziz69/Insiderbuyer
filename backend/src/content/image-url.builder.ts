@@ -19,6 +19,20 @@
  * the image. The visual layer is purely scene + composition; the headline
  * sits over it in the layout, not inside the image.
  */
+/**
+ * AI-image provider configuration — swap providers via env, no code changes.
+ *
+ *   AI_IMAGE_ENDPOINT — base URL of the image-generation service. The styled
+ *     prompt is appended URL-encoded, so any GET-style "prompt in the path"
+ *     API works. Defaults to Pollinations (free, key-less).
+ *   AI_IMAGE_API_KEY  — appended as an `apikey` query param when set.
+ *     // TODO: paste your paid AI-image API key/endpoint (hosted Flux, DALL·E
+ *     // proxy, etc.) into .env to upgrade thumbnail quality site-wide.
+ */
+const AI_IMAGE_ENDPOINT =
+  process.env.AI_IMAGE_ENDPOINT || 'https://image.pollinations.ai/prompt';
+const AI_IMAGE_API_KEY = process.env.AI_IMAGE_API_KEY || '';
+
 export function buildAiImageUrl(
   prompt: string,
   opts: {
@@ -60,7 +74,8 @@ export function buildAiImageUrl(
     model: 'flux',
     seed: String(Math.abs(Number(seed) || 0)),
   });
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(styled)}?${params.toString()}`;
+  if (AI_IMAGE_API_KEY) params.set('apikey', AI_IMAGE_API_KEY);
+  return `${AI_IMAGE_ENDPOINT.replace(/\/$/, '')}/${encodeURIComponent(styled)}?${params.toString()}`;
 }
 
 /** Map a sector to a concrete photographic scene so the image always looks

@@ -19,6 +19,9 @@ export interface Column<T> {
   key: string;
   /** Header label. */
   label: React.ReactNode;
+  /** Optional column-group label. Contiguous columns sharing a group render
+   *  under one segmented header band (e.g. "Stock" | "Insider Score"). */
+  group?: string;
   /** Plain-text label for the filter control's title (falls back to `label`). */
   filterLabelText?: string;
   /** Column alignment — applied to BOTH the header and every cell. */
@@ -230,6 +233,17 @@ export function DataTable<T>({
     color: "var(--text)",
   } as const;
 
+  // Column keys where a NEW group starts (not counting the first column) —
+  // used to draw a vertical divider through the whole table at the boundary.
+  const groupStartKeys = new Set<string>();
+  if (columns.some((c) => c.group)) {
+    for (let i = 1; i < columns.length; i++) {
+      if (columns[i].group !== columns[i - 1].group) groupStartKeys.add(columns[i].key);
+    }
+  }
+  const boundaryStyle = (key: string): React.CSSProperties | undefined =>
+    groupStartKeys.has(key) ? { borderLeft: "2px solid var(--border-strong)" } : undefined;
+
   return (
     <div>
       {/* Filters — always visible above the table (no toggle button). */}
@@ -360,13 +374,49 @@ export function DataTable<T>({
       <div className="overflow-x-auto">
         <table className="table-base">
           <thead>
+            {/* Segmented group band — renders when any column declares a group
+                (e.g. "Stock" | "Insider Score"). Contiguous same-group columns
+                are merged into one banded header cell. */}
+            {columns.some((c) => c.group) && (
+              <tr>
+                {columns
+                  .reduce<{ group: string | undefined; span: number }[]>((acc, c) => {
+                    const last = acc[acc.length - 1];
+                    if (last && last.group === c.group) last.span += 1;
+                    else acc.push({ group: c.group, span: 1 });
+                    return acc;
+                  }, [])
+                  .map((g, i) => (
+                    <th
+                      key={`grp-${i}`}
+                      colSpan={g.span}
+                      className="text-center"
+                      style={{
+                        fontSize: 10,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.14em",
+                        fontWeight: 800,
+                        padding: "6px 8px",
+                        color: g.group ? "var(--accent)" : "var(--text-faint)",
+                        background: g.group
+                          ? "color-mix(in srgb, var(--accent) 6%, var(--bg-3))"
+                          : "var(--bg-3)",
+                        borderBottom: "1px solid var(--border)",
+                        borderLeft: i > 0 ? "2px solid var(--border-strong)" : undefined,
+                      }}
+                    >
+                      {g.group ?? ""}
+                    </th>
+                  ))}
+              </tr>
+            )}
             <tr>
               {columns.map((c) => {
                 const a = c.align ?? "left";
                 const sortable = c.sortable !== false;
                 const active = sort?.key === c.key;
                 return (
-                  <th key={c.key} className={`${alignClass[a]} ${c.className ?? ""}`}>
+                  <th key={c.key} className={`${alignClass[a]} ${c.className ?? ""}`} style={boundaryStyle(c.key)}>
                     <button
                       type="button"
                       disabled={!sortable}
@@ -404,7 +454,11 @@ export function DataTable<T>({
               pageRows.map((row, i) => (
                 <tr key={rowKey(row, safePage * PAGE_SIZE + i)} className={rowClassName}>
                   {columns.map((c) => (
-                    <td key={c.key} className={`${alignClass[c.align ?? "left"]} ${c.className ?? ""}`}>
+                    <td
+                      key={c.key}
+                      className={`${alignClass[c.align ?? "left"]} ${c.className ?? ""}`}
+                      style={boundaryStyle(c.key)}
+                    >
                       {c.render(row, safePage * PAGE_SIZE + i)}
                     </td>
                   ))}

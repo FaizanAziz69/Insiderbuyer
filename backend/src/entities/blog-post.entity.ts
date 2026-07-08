@@ -16,7 +16,8 @@ export type BlogKind =
   | 'ceo-buying'
   | 'stock-idea'
   | 'weekly-report'
-  | 'topic-roundup';
+  | 'topic-roundup'
+  | 'editorial';
 
 @Entity('blog_posts')
 @Index(['kind', 'generatedAt'])

@@ -111,6 +111,10 @@ SECTION RULES:
 - Top Stories (news): report first, opine second. Facts/filings up top; your read in its own "Our take:" <h2> section. Include a bear/skeptic <h2> section in every story. The headline must spin differently from mainstream outlets.
 - Programmatic/SEO: hook intro (surprising fact first), populated Key Points box, ≥1 visual anchor per section, every list item = data point + context + why it matters, short paragraphs, no filler.
 
+STOCK EMBEDS: whenever a specific stock is discussed as a ranked item or its own section, insert the marker [[STOCK:TICKER]] (e.g. [[STOCK:NVDA]]) on its own line immediately after that stock's heading or first paragraph. The site replaces each marker with a live data card (price chart, Insider Score, analyst rating) pulled from our database — so never fabricate chart/table data for a stock; place the marker instead. Do not wrap the marker in any HTML tags.
+
+HEADLINE TICKER RULES: single-stock articles MUST include the ticker in the headline. List/roundup articles must NOT enumerate tickers in the headline — the full list with tickers belongs inside the article body.
+
 Every figure must trace to the data provided — NEVER invent numbers. You MUST call the publish_article tool; do not respond with prose outside the tool call.`;
 
 @Injectable()
@@ -153,6 +157,8 @@ Synthesise the day in 4-6 paragraphs:
 - Cover 2-3 specific names with role/transaction colour where relevant.
 - Identify any sector tilt visible in the top 8.
 - Close with what to monitor tomorrow / the rest of the week.
+- HEADLINE: do NOT enumerate tickers in the headline (list article) — the names belong in the body.
+- Insert [[STOCK:TICKER]] after each covered name's paragraph.
 
 eyebrow: "DAILY BRIEFING"`;
     return this.callTool(prompt);
@@ -175,8 +181,9 @@ ${lines}
 
 Format:
 - Strong intro paragraph framing what high Insider Score means for the reader.
-- One <h2> per ticker (e.g. "1. NVDA — Sector Leader Sees Cluster Buying"), each followed by 2-3 sentences citing the data.
+- One <h2> per ticker (e.g. "1. NVDA — Sector Leader Sees Cluster Buying"), each followed by the marker [[STOCK:TICKER]] on its own line, then 2-3 sentences citing the data.
 - Closing paragraph pointing to the live Insider Score rankings page on InsiderBuying.com.
+- HEADLINE: do NOT enumerate the tickers in the headline (list article).
 
 eyebrow: "TOP INSIDER SCORE PICKS"`;
     return this.callTool(prompt);
@@ -210,7 +217,9 @@ Recent Form 4 transactions:
 ${txLines}
 
 Structure:
+- HEADLINE: MUST include the ticker ${row.ticker}.
 - Lead with what the recent Form 4 activity says, not the company's headline business.
+- Insert the marker [[STOCK:${row.ticker}]] on its own line after the intro.
 - <h2> Insider activity snapshot — interpret the role/cluster pattern.
 - <h2> What it may suggest — historical context with cautious phrasing.
 - Close with where to monitor the activity on InsiderBuying.
@@ -230,7 +239,7 @@ Snapshot:
 - Total insider purchase value: ${row.totalPurchaseValue ? `$${Math.round(row.totalPurchaseValue).toLocaleString()}` : 'n/a'}
 
 Format — SHORT and PUNCHY:
-- title: a curiosity headline that frames the insider angle (e.g. "Why ${row.ticker} Insiders Are Quietly Buying"), 6-12 words.
+- title: a curiosity headline that frames the insider angle and MUST include the ticker ${row.ticker} (e.g. "Why ${row.ticker} Insiders Are Quietly Buying"), 6-12 words.
 - summary: 1-2 sentences (max 32 words) — what's the insider pattern + why it might matter.
 - body: 2-3 short paragraphs (180-260 words total). Open with the insider hook, give one specific data point, close with what to monitor next. No <h2> needed.
 - eyebrow: "STOCK IDEA"
@@ -260,8 +269,9 @@ Top names in ${sector} by Insider Score right now:
 ${lines}
 
 Structure:
+- HEADLINE: do NOT enumerate tickers in the headline (list article).
 - Open with the broad sector picture — is this cluster buying, single-name conviction, or sector-wide pickup?
-- Highlight 2-3 names with role/transaction colour.
+- Highlight 2-3 names with role/transaction colour, inserting [[STOCK:TICKER]] after each highlighted name's paragraph.
 - Discuss what the pattern may suggest for the sector.
 - Close with a CTA to filter our Insider Score rankings by ${sector}.
 
@@ -302,7 +312,7 @@ eyebrow: "WEEKLY REPORT"`;
   }
 
   async generateClusterBuyArticle(row: RankingLite): Promise<GeneratedArticle> {
-    const prompt = `Write a **Cluster Buying Alert** article on **${row.ticker}** (${row.name}).
+    const prompt = `Write a **Cluster Buying Alert** article on **${row.ticker}** (${row.name}). The headline MUST include the ticker ${row.ticker}. Insert the marker [[STOCK:${row.ticker}]] on its own line after the intro.
 
 Snapshot:
 - Sector: ${row.sector || 'n/a'}
@@ -340,7 +350,7 @@ eyebrow: "CLUSTER BUYING"`;
           `${i + 1}. ${b.ticker || 'n/a'} — ${b.companyName} — ${b.insiderName} bought $${Math.round(b.totalValue).toLocaleString()} on ${String(b.transactionDate).slice(0, 10)}`,
       )
       .join('\n');
-    const prompt = `Write a **CEO Buying Tracker** roundup covering chief executives who bought their own company's stock on the open market recently.
+    const prompt = `Write a **CEO Buying Tracker** roundup covering chief executives who bought their own company's stock on the open market recently. HEADLINE: do NOT enumerate tickers in the headline (list article). Insert [[STOCK:TICKER]] after each covered company's paragraph.
 
 Recent CEO open-market purchases from our Form 4 feed:
 
@@ -422,7 +432,7 @@ eyebrow: "${opts.label.toUpperCase()}"`;
       ? opts.headlines.slice(0, 4).map((h, i) => `${i + 1}. "${h.title}" — ${h.source}`).join("\n")
       : "(no fresh wire headlines today — lead with the company's role in the theme)";
 
-    const prompt = `Write a focused **${opts.topicLabel} stock article** on **${opts.ticker}** (${opts.name}).
+    const prompt = `Write a focused **${opts.topicLabel} stock article** on **${opts.ticker}** (${opts.name}). The headline MUST include the ticker ${opts.ticker}. Insert the marker [[STOCK:${opts.ticker}]] on its own line after the intro.
 
 Live snapshot: ${opts.ticker} is ${move}. ${iqsLine}
 
@@ -493,6 +503,41 @@ ${news}`;
       );
       return { title: `Why ${opts.symbol} is ${dir} ${pct}% today`, explainer: '' };
     }
+  }
+
+  /** Editorial Desk story — a structured, non-promotional news piece in a
+   *  factual WSJ/Barron's tone, rewritten in our own voice from source
+   *  headlines (never copied). Follows the Top Stories rules: report first,
+   *  "Our take:" labeled opinion, and a bear/skeptic section. */
+  async generateEditorialStory(opts: {
+    dateLabel: string;
+    /** The lead headline this story covers. */
+    lead: { title: string; source: string };
+    /** Related headlines for context/corroboration. */
+    related: { title: string; source: string }[];
+    /** Live market context for tickers connected to the story (optional). */
+    stocks?: { ticker: string; name: string; changePct: number | null; iqs?: number | null }[];
+  }): Promise<GeneratedArticle> {
+    const stockLines = (opts.stocks || [])
+      .map(
+        (s) =>
+          `- ${s.ticker} (${s.name}): ${s.changePct != null ? `${s.changePct >= 0 ? '+' : ''}${s.changePct}% today` : 'no live quote'}${s.iqs != null ? ` · Insider Score ${s.iqs}` : ''}`,
+      )
+      .join('\n');
+    const prompt = `Write an **Editorial Desk** story for ${opts.dateLabel} — Top Stories section rules apply.
+
+LEAD STORY (rewrite in OUR voice — never copy the source outlet, and spin the headline differently from mainstream coverage):
+- "${opts.lead.title}" — ${opts.lead.source}
+
+RELATED COVERAGE for corroboration/context:
+${opts.related.map((h) => `- "${h.title}" — ${h.source}`).join('\n') || '- (none)'}
+
+${stockLines ? `LIVE MARKET CONTEXT:\n${stockLines}\n` : ''}
+Tone: factual, WSJ/Barron's-style news reporting — non-promotional, never a stock pitch, no hype adjectives; let the numbers be the drama. Report first, opine second: facts and filings up top, your read clearly labeled in its own "Our take:" <h2> section, and a bear/skeptic <h2> section. No subheadings beyond the standard structure + CTA.
+
+eyebrow: "EDITORIAL"
+tags: include "editorial" plus any tickers/themes involved.`;
+    return this.callTool(prompt);
   }
 
   /** Generate an article for any format in the content guide's library, from
@@ -581,6 +626,12 @@ ${news}`;
  *  forbids script / iframe. */
 function sanitiseBody(html: string): string {
   return html
+    // [[STOCK:NVDA]] markers → embed placeholders the article renderer swaps
+    // for live data cards (chart + Insider Score + analyst rating).
+    .replace(
+      /(?:<p>\s*)?\[\[STOCK:([A-Za-z.\-]{1,10})\]\](?:\s*<\/p>)?/g,
+      (_m, t) => `<div data-stock-embed="${String(t).toUpperCase()}"></div>`,
+    )
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')

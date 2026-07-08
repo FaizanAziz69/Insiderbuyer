@@ -71,7 +71,7 @@ export function Footer() {
           <div>
             <div className="label-mini mb-3">Market Data</div>
             <ul className="space-y-2 text-[13px]">
-              <li><Link href="/insiders/hot" className="text-soft hover:text-accent transition">Top Buys</Link></li>
+              <li><Link href="/insiders/hot" className="text-soft hover:text-accent transition">Top Insider Scores</Link></li>
               <li><Link href="/trades" className="text-soft hover:text-accent transition">Insider Trades</Link></li>
               <li><Link href="/market-data/top-gainers" className="text-soft hover:text-accent transition">Top Gainers</Link></li>
               <li><Link href="/congressional-trades" className="text-soft hover:text-accent transition">Congressional Trades</Link></li>

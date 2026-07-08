@@ -8,6 +8,11 @@ import { CongressionalService } from '../congressional/congressional.service';
 import { FmpService } from '../fmp/fmp.service';
 import { SecClient } from '../ingestion/sec.client';
 import { MarketStatsService } from '../market-stats/market-stats.service';
+import {
+  CompositeScore,
+  analystPillarScore,
+  computeCompositeScore,
+} from './composite-score';
 
 export interface RankingRow {
   rank: number;
@@ -60,6 +65,26 @@ const ROLE_MULTIPLIER: Record<InsiderRole, number> = {
 const IQS_LOG_SCALE = 6.5;
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+
+// ── Data-quality guards ──────────────────────────────────────────────────
+// A single open-market Form 4 purchase above this is almost certainly a parse
+// artifact (the largest real insider buys are low hundreds of millions) — such
+// rows are excluded from score aggregates so one bad filing can't distort them.
+const MAX_PLAUSIBLE_TX_VALUE = 1_000_000_000;
+
+/** Null out a market cap that is impossible against observed insider buying —
+ *  insiders cannot buy more dollars of stock than the whole company is worth.
+ *  (Happens when the SEC-derived fallback cap uses stale/wrong shares
+ *  outstanding.) Returning null makes the UI show "—" instead of bad data. */
+function sanitizedMarketCap(
+  marketCap: number | null | undefined,
+  totalPurchaseValue: number,
+): number | null {
+  const cap = Number(marketCap) || 0;
+  if (cap <= 0) return null;
+  if (totalPurchaseValue > cap) return null;
+  return cap;
+}
 
 @Injectable()
 export class IqsService {
@@ -187,6 +212,11 @@ export class IqsService {
 
       for (const t of txs) {
         const value = Number(t.sharesBought) * Number(t.pricePerShare);
+        // Data-quality guard: skip implausible parse artifacts so one bad
+        // filing can't blow up the aggregates (and the market-cap check below).
+        if (!Number.isFinite(value) || value <= 0 || value > MAX_PLAUSIBLE_TX_VALUE) {
+          continue;
+        }
         totalPurchaseValue += value;
         roleWeightedValue += value * (ROLE_MULTIPLIER[t.role] ?? 1);
         buyers.add(t.insiderName.toLowerCase());
@@ -197,15 +227,19 @@ export class IqsService {
         }
       }
 
+      // Data-quality guard: a cap smaller than the observed insider buying is
+      // impossible — treat it as unknown rather than producing absurd factors.
+      const safeCap = sanitizedMarketCap(marketCap, totalPurchaseValue) ?? 0;
+
       // ── The four IQS factors (client-specified formula) ───────────────
       // A. Purchase Volume Factor = Σ(Shares × Price) / Market Cap
       const purchaseVolumeFactor =
-        marketCap > 0 ? totalPurchaseValue / marketCap : 0;
+        safeCap > 0 ? totalPurchaseValue / safeCap : 0;
       // B. Cluster Factor = log(1 + number of distinct insider buyers)
       const clusterFactor = Math.log(1 + buyers.size);
       // C. Role-Weighted Purchase Volume = Σ(Shares × Price × Role Mult) / Market Cap
       const roleWeightedFactor =
-        marketCap > 0 ? roleWeightedValue / marketCap : 0;
+        safeCap > 0 ? roleWeightedValue / safeCap : 0;
       // D. Holding Change Factor = Σ(Holding Change %) / number of buying insiders
       const holdingChangeFactor = holdingChanges.length
         ? holdingChanges.reduce((a, b) => a + b, 0) / holdingChanges.length
@@ -359,7 +393,9 @@ export class IqsService {
       ticker: r.ticker,
       name: r.name,
       sector: r.sector,
-      marketCap: r.marketCap ? Number(r.marketCap) : null,
+      // Sanity-checked: a cap smaller than the insider buying it supposedly
+      // contains is bad reference data — show "—" rather than nonsense.
+      marketCap: sanitizedMarketCap(r.marketCap, Number(r.totalPurchaseValue) || 0),
       lastPrice: r.lastPrice !== null ? Number(r.lastPrice) : null,
       iqs: Number(r.iqs),
       insiderWeight: Number(r.insiderWeight),
@@ -515,10 +551,21 @@ export class IqsService {
       transactions = await this.getLiveInsiderTx(company.ticker);
     }
 
+    // Sanity-check the cap against observed open-market buying (see
+    // sanitizedMarketCap) so the profile never shows an impossible value.
+    const buysTotal = transactions
+      .filter((t: any) => t.transactionCode === 'P')
+      .reduce((a: number, t: any) => {
+        const v = Number(t.totalValue) || 0;
+        return v > 0 && v <= MAX_PLAUSIBLE_TX_VALUE ? a + v : a;
+      }, 0);
     const companyOut = {
       ...company,
       lastPrice: company.lastPrice === null ? null : Number(company.lastPrice),
-      marketCap: company.marketCap === null ? null : Number(company.marketCap),
+      marketCap:
+        company.marketCap === null
+          ? null
+          : sanitizedMarketCap(Number(company.marketCap), buysTotal),
     };
 
     let congressionalTrades: any[] = [];
@@ -1017,6 +1064,48 @@ export class IqsService {
       }))
       .sort((a, b) => b.accuracy - a.accuracy || b.trades - a.trades)
       .slice(0, limit);
+  }
+
+  /** Composite 0–100 score for one ticker — insider pillar (our Insider
+   *  Score) + analyst pillar (consensus/upside), with the sentiment pillar
+   *  slot wired but not yet live. See composite-score.ts for the model. */
+  async getCompositeScore(ticker: string): Promise<
+    CompositeScore & { ticker: string; insiderScore: number | null }
+  > {
+    const sym = (ticker || '').toUpperCase();
+
+    // Insider pillar — latest stored Insider Score for the company.
+    let insider: number | null = null;
+    const company = await this.companies
+      .createQueryBuilder('c')
+      .where('UPPER(c.ticker) = :t', { t: sym })
+      .getOne();
+    if (company) {
+      const scoreRow = await this.scores
+        .createQueryBuilder('s')
+        .where('s.company_id = :id', { id: company.id })
+        .orderBy('s."asOfDate"', 'DESC')
+        .getOne();
+      if (scoreRow) insider = Number(scoreRow.iqs);
+    }
+
+    // Analyst pillar — consensus + implied upside from the live feed.
+    let analyst: number | null = null;
+    try {
+      const rows = await this.marketStats.getAnalystRatings([sym]);
+      const row = rows.find((r) => r.symbol.toUpperCase() === sym);
+      if (row) analyst = analystPillarScore(row.recommendation, row.upsidePct);
+    } catch {
+      analyst = null;
+    }
+
+    const composite = computeCompositeScore([
+      { key: 'insider', value: insider },
+      { key: 'analyst', value: analyst },
+      // TODO: sentiment pillar — supply { key: 'sentiment', value } once a
+      // news/sentiment provider is wired (see SCORE_PILLARS in composite-score.ts).
+    ]);
+    return { ticker: sym, insiderScore: insider, ...composite };
   }
 
   /** Distinct insider countries present in the data, with counts — drives the

@@ -111,6 +111,13 @@ export class IqsController {
     return detail;
   }
 
+  /** Composite 0–100 score (insider + analyst pillars; sentiment slot wired
+   *  for a future provider) with the per-pillar breakdown. */
+  @Get('scores/:ticker')
+  async compositeScore(@Param('ticker') ticker: string) {
+    return this.iqs.getCompositeScore(ticker);
+  }
+
   @Get('dashboard')
   async dashboard() {
     return this.iqs.getDashboard();
