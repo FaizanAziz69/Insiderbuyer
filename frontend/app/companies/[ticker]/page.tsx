@@ -233,11 +233,9 @@ export default function CompanyPage({
             {/* Price performance row — 1D / 5D / 1M / 6M / 1Y (TradingView-style) */}
             <PricePerformanceRow ticker={sym} />
 
-            {/* Live price chart — compact so key data shows without scrolling */}
-            <PriceChart ticker={sym} />
-
-            {/* Standard 3-column overview: trading ranges | market cap &
-                financials | other data — same layout for every stock. */}
+            {/* Key data FIRST — the 3-column overview (trading ranges | market
+                cap & financials | other data) lands above the fold, before the
+                chart (client spec: key info visible on first load). */}
             <StockOverviewGrid
               ticker={sym}
               stats={stats}
@@ -246,6 +244,54 @@ export default function CompanyPage({
               fallbackPrice={data.company.lastPrice}
               earningsDate={earningsDate}
             />
+
+            {/* About — directly under the key data (client spec). */}
+            {profile?.description && (
+              <section className="card p-5">
+                <h2 className="text-[16px] font-semibold mb-2">
+                  About {data.company.name}
+                </h2>
+                <p className="text-[14px] text-soft leading-relaxed">
+                  {profile.description}
+                </p>
+                <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-[13px] text-mute">
+                  {(profile.sector || data.company.sector) && (
+                    <span>
+                      Sector: <span className="font-bold text-[var(--text)]">{profile.sector || data.company.sector}</span>
+                    </span>
+                  )}
+                  {profile.industry && (
+                    <span>
+                      Industry: <span className="font-bold text-[var(--text)]">{profile.industry}</span>
+                    </span>
+                  )}
+                  {profile.employees != null && (
+                    <span>
+                      Employees: <span className="font-bold text-[var(--text)]">{formatNumber(profile.employees)}</span>
+                    </span>
+                  )}
+                  {profile.country && (
+                    <span>
+                      Country: <span className="font-bold text-[var(--text)]">{profile.country}</span>
+                    </span>
+                  )}
+                  {profile.website && (
+                    <a
+                      href={profile.website}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-accent hover:underline inline-flex items-center gap-1"
+                    >
+                      {profile.website.replace(/^https?:\/\//, "")}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Live price chart — compact, below the key data + About. */}
+            <PriceChart ticker={sym} />
 
             {/* ── Overview ───────────────────────────────────────────── */}
             <div className="space-y-6">
@@ -475,51 +521,6 @@ export default function CompanyPage({
               </h2>
               <RecentNews ticker={sym} />
             </section>
-
-            {/* ── About (what the company does, industry, sector, employees) ── */}
-            {profile?.description && (
-              <section className="card p-5">
-                <h2 className="text-[16px] font-semibold mb-2">
-                  About {data.company.name}
-                </h2>
-                <p className="text-[14px] text-soft leading-relaxed">
-                  {profile.description}
-                </p>
-                <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-[13px] text-mute">
-                  {(profile.sector || data.company.sector) && (
-                    <span>
-                      Sector: <span className="font-bold text-[var(--text)]">{profile.sector || data.company.sector}</span>
-                    </span>
-                  )}
-                  {profile.industry && (
-                    <span>
-                      Industry: <span className="font-bold text-[var(--text)]">{profile.industry}</span>
-                    </span>
-                  )}
-                  {profile.employees != null && (
-                    <span>
-                      Employees: <span className="font-bold text-[var(--text)]">{formatNumber(profile.employees)}</span>
-                    </span>
-                  )}
-                  {profile.country && (
-                    <span>
-                      Country: <span className="font-bold text-[var(--text)]">{profile.country}</span>
-                    </span>
-                  )}
-                  {profile.website && (
-                    <a
-                      href={profile.website}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-accent hover:underline inline-flex items-center gap-1"
-                    >
-                      {profile.website.replace(/^https?:\/\//, "")}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </div>
-              </section>
-            )}
 
             {/* ── FAQ (auto-generated from this company's data) ────────── */}
             <StockFAQSection
