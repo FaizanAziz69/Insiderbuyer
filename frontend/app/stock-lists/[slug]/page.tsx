@@ -41,6 +41,11 @@ interface DetailRow {
   totalPurchaseValue?: number;
   avgCost?: number | null;
   lastBuyDate?: string | null;
+  /** Blue Sky list — analyst target fields. */
+  upsidePct?: number | null;
+  targetMean?: number | null;
+  recommendation?: string | null;
+  numAnalysts?: number | null;
   live?: RowLive | null;
 }
 type ListKind = "sector" | "persona" | "premium" | "universe" | "country";
@@ -64,6 +69,15 @@ const KIND_BLURB: Record<ListKind, string> = {
     "A curated market-cap and thematic basket, refreshed with live quotes. Where a name also shows up in our Form 4 insider data, we attach its insider cost basis and most recent buy date.",
   country:
     "A universe of the most-traded names listed in this market, refreshed with live quotes and cross-referenced against U.S. insider buying activity where available.",
+};
+
+const DETAIL_REC_LABEL: Record<string, { label: string; color: string }> = {
+  strong_buy: { label: "Strong Buy", color: "var(--good)" },
+  buy: { label: "Buy", color: "var(--good)" },
+  hold: { label: "Hold", color: "var(--gold)" },
+  underperform: { label: "Underperform", color: "var(--bad)" },
+  sell: { label: "Sell", color: "var(--bad)" },
+  strong_sell: { label: "Strong Sell", color: "var(--bad)" },
 };
 
 // Default cap-band selection per list so each opens true to its name. Large-Cap
@@ -138,12 +152,12 @@ export default function StockListDetailPage({
   // universe lists that were cross-referenced against Form 4 data).
   const showBuyers = rows.some((r) => (r.distinctBuyers ?? 0) > 0);
   const showBought = rows.some((r) => (r.totalPurchaseValue ?? 0) > 0);
-  // Insider Score is only meaningful on insider-scored lists (premium Insider Score Top Picks +
-  // the Form 4-cross-referenced sector lists) — not the quote-only universe /
-  // country / persona lists.
-  const showIqs =
-    (data?.kind === "premium" || data?.kind === "sector") &&
-    rows.some((r) => typeof r.iqs === "number");
+  // Every stock list carries the Insider Score column (client spec) — names
+  // without Form 4 activity simply render a dash.
+  const showIqs = true;
+  // Blue Sky list — analyst-upside columns + a #50 → #1 countdown rank.
+  const showUpside = rows.some((r) => r.upsidePct != null);
+  const isBlueSky = slug === "blue-sky";
 
   // Sector select options derived from the rows actually present.
   const hasSectors = rows.some((r) => r.sector && r.sector.trim());
@@ -216,11 +230,15 @@ export default function StockListDetailPage({
             rows={rows}
             rowKey={(r, i) => (r.ticker || r.symbol || r.name || "") + i}
             empty="No stocks in this list yet."
-            initialSort={{ key: "marketCap", dir: "desc" }}
+            initialSort={
+              isBlueSky
+                ? { key: "upside", dir: "asc" } // weakest qualifier first → counts down to #1
+                : { key: "marketCap", dir: "desc" }
+            }
             initialFilters={capDefault ? { marketCap: capDefault } : undefined}
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={[
-              rankColumn<DetailRow>(),
+              rankColumn<DetailRow>(isBlueSky ? { countdownFrom: rows.length } : undefined),
               {
                 key: "company",
                 label: "Company",
@@ -314,8 +332,70 @@ export default function StockListDetailPage({
                       key: "iqs",
                       label: "Insider Score",
                       align: "center",
+                      filterable: true,
+                      filterType: "range",
+                      filterLabelText: "Insider Score (0–100)",
                       sortValue: (r) => r.iqs ?? null,
                       render: (r) => <IqsScoreCell iqs={r.iqs} />,
+                    },
+                  ] as Column<DetailRow>[])
+                : []),
+              ...(showUpside
+                ? ([
+                    {
+                      key: "upside",
+                      label: "Analyst Upside",
+                      align: "center",
+                      filterable: true,
+                      filterType: "range",
+                      filterLabelText: "Analyst Upside (%)",
+                      sortValue: (r) => r.upsidePct ?? null,
+                      render: (r) =>
+                        r.upsidePct != null ? (
+                          <span
+                            className="tabular text-[13.5px] font-bold"
+                            style={{ color: r.upsidePct >= 0 ? "var(--good)" : "var(--bad)" }}
+                          >
+                            +{r.upsidePct.toFixed(0)}%
+                          </span>
+                        ) : (
+                          <span className="text-mute">—</span>
+                        ),
+                    },
+                    {
+                      key: "targetMean",
+                      label: "Avg Target",
+                      align: "right",
+                      sortValue: (r) => r.targetMean ?? null,
+                      render: (r) => (
+                        <span className="tabular text-[13px] font-bold text-soft">
+                          {r.targetMean != null ? `$${r.targetMean.toFixed(2)}` : "—"}
+                        </span>
+                      ),
+                    },
+                    {
+                      key: "recommendation",
+                      label: "Consensus",
+                      align: "center",
+                      sortValue: (r) => r.recommendation ?? "",
+                      render: (r) => {
+                        const rec = r.recommendation
+                          ? DETAIL_REC_LABEL[r.recommendation]
+                          : null;
+                        return rec ? (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10.5px] font-bold uppercase tracking-wider"
+                            style={{
+                              background: `color-mix(in srgb, ${rec.color} 16%, transparent)`,
+                              color: rec.color,
+                            }}
+                          >
+                            {rec.label}
+                          </span>
+                        ) : (
+                          <span className="text-mute">—</span>
+                        );
+                      },
                     },
                   ] as Column<DetailRow>[])
                 : []),
@@ -576,8 +656,8 @@ export default function StockListDetailPage({
             href="/reports/cta/TOP5"
             className="inline-flex items-center gap-1.5 font-bold uppercase tracking-wider mt-2"
             style={{
-              background: "var(--gold)",
-              color: "#1a1a1a",
+              background: "var(--premium)",
+              color: "var(--premium-ink)",
               padding: "12px 22px",
               fontSize: 12,
               letterSpacing: "0.08em",

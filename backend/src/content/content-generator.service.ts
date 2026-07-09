@@ -113,7 +113,7 @@ SECTION RULES:
 
 STOCK EMBEDS: whenever a specific stock is discussed as a ranked item or its own section, insert the marker [[STOCK:TICKER]] (e.g. [[STOCK:NVDA]]) on its own line immediately after that stock's heading or first paragraph. The site replaces each marker with a live data card (price chart, Insider Score, analyst rating) pulled from our database — so never fabricate chart/table data for a stock; place the marker instead. Do not wrap the marker in any HTML tags.
 
-HEADLINE TICKER RULES: single-stock articles MUST include the ticker in the headline. List/roundup articles must NOT enumerate tickers in the headline — the full list with tickers belongs inside the article body.
+HEADLINE TICKER RULES: single-stock articles MUST include the ticker in the headline. List/roundup articles must NOT enumerate tickers in the headline — the full list with tickers belongs inside the article body. List/roundup headlines SHOULD name the sector or category of stocks instead ("gold stocks", "AI stocks", "biotech stocks") — e.g. "Best Gold Stocks Right Now — And How to Invest", "5 Gold Stocks Worth Considering", "Insiders Are Buying These 3 Gold Stocks".
 
 Every figure must trace to the data provided — NEVER invent numbers. You MUST call the publish_article tool; do not respond with prose outside the tool call.`;
 
@@ -276,6 +276,56 @@ Structure:
 - Close with a CTA to filter our Insider Score rankings by ${sector}.
 
 eyebrow: "SECTOR ROUNDUP"`;
+    return this.callTool(prompt);
+  }
+
+  /** Sector/category list article ("Best Gold Stocks Right Now", "5 AI Stocks
+   *  Worth Considering", "Insiders Are Buying These 3 Gold Stocks") — the
+   *  category goes in the headline, every stock gets its Insider Score and a
+   *  live data card, fool.com-style structure with a how-to-invest section. */
+  async generateSectorListArticle(
+    categoryLabel: string,
+    variant: 'best' | 'worth-considering' | 'insiders-buying',
+    stocks: Array<{
+      ticker: string;
+      name: string;
+      price: number | null;
+      marketCap: number | null;
+      iqs: number | null;
+      distinctBuyers: number | null;
+    }>,
+  ): Promise<GeneratedArticle> {
+    const lines = stocks
+      .map(
+        (s, i) =>
+          `${i + 1}. ${s.ticker} — ${s.name}` +
+          (s.price != null ? ` — $${s.price.toFixed(2)}` : '') +
+          (s.marketCap != null ? `, mkt cap $${Math.round(s.marketCap / 1e6).toLocaleString()}M` : '') +
+          (s.iqs != null ? `, Insider Score ${s.iqs.toFixed(1)}` : ', no Insider Score yet') +
+          (s.distinctBuyers ? `, ${s.distinctBuyers} distinct insider buyers` : ''),
+      )
+      .join('\n');
+    const headlineHint =
+      variant === 'best'
+        ? `"Best ${categoryLabel} Stocks Right Now — And How to Invest" (or a close variation)`
+        : variant === 'worth-considering'
+          ? `"${stocks.length} ${categoryLabel} Stocks Worth Considering" (or a close variation)`
+          : `"Insiders Are Buying These ${stocks.length} ${categoryLabel} Stocks" (or a close variation)`;
+    const prompt = `Write a **${categoryLabel} stocks list article** (category list, like a Motley Fool sector page).
+
+The ${stocks.length} stocks to cover, with our live data:
+
+${lines}
+
+Structure:
+- HEADLINE: must name the category — ${headlineHint}. NO tickers in the headline.
+- Intro: what ${categoryLabel.toLowerCase()} stocks are and why investors are watching the group right now (surprising fact first).
+- One <h2> section PER STOCK, numbered ("1. ${stocks[0]?.name ?? 'Company'} (${stocks[0]?.ticker ?? 'TICK'})"): what the company does, the data above (price, market cap, Insider Score${variant === 'insiders-buying' ? ', insider buyers' : ''}), and why it stands out. Insert [[STOCK:TICKER]] on its own line after EACH stock's section.
+- <h2>How to Invest in ${categoryLabel} Stocks</h2>: brief practical section — buying individual names vs. a sector ETF, position sizing, and the category's specific risks.
+- The Bottom Line CTA pointing to our ${categoryLabel} stock list and the Insider Score rankings.
+- Reference each stock's Insider Score explicitly in its section (or note it has no insider-buying signal yet).
+
+eyebrow: "${variant === 'insiders-buying' ? 'INSIDERS ARE BUYING' : 'SECTOR SPOTLIGHT'}"`;
     return this.callTool(prompt);
   }
 

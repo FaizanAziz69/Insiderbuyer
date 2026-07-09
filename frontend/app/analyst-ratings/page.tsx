@@ -9,6 +9,7 @@ import { AdSlot } from "@/components/AdSlot";
 import { DataTable } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
+import { IqsScoreCell } from "@/components/IqsScoreCell";
 
 interface AnalystRow {
   symbol: string;
@@ -21,6 +22,10 @@ interface AnalystRow {
   upsidePct: number | null;
   recommendation: string | null;
   numAnalysts: number | null;
+  /** Insider Score + blended Top Stocks score (from /top-stocks). */
+  iqs?: number | null;
+  insiderSuccess?: number | null;
+  topStocksScore?: number | null;
 }
 
 const REC_LABEL: Record<string, { label: string; color: string }> = {
@@ -34,7 +39,7 @@ const REC_LABEL: Record<string, { label: string; color: string }> = {
 export default function AnalystRatingsPage() {
   const [q, setQ] = useState("");
   const { data, isLoading } = useSWR<{ rows: AnalystRow[] }>(
-    `${API_BASE}/market-stats/analyst-ratings`,
+    `${API_BASE}/top-stocks`,
     fetcher,
     { refreshInterval: 10 * 60_000, revalidateOnFocus: false },
   );
@@ -76,10 +81,14 @@ export default function AnalystRatingsPage() {
         </h1>
         <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
           Live consensus recommendations and 12-month price targets across the
-          most widely-covered U.S. stocks, ranked by analyst-implied upside.
-          Pair the Street&rsquo;s view with each name&rsquo;s insider-buying Insider Score
-          to see where conviction lines up. Data refreshed throughout the trading
-          day.
+          most widely-covered U.S. stocks — ranked by our{" "}
+          <strong style={{ color: "var(--text)" }}>Top Stocks Score</strong>, a 0–99
+          blend of the analyst consensus and implied upside, each name&rsquo;s{" "}
+          <strong style={{ color: "var(--text)" }}>Insider Score</strong> (the quality
+          of its insider buying), and the insiders&rsquo; historical success rate.
+          Two different signals: the Insider Score grades the insider buying alone;
+          the Top Stocks Score is the combined conviction view. Data refreshed
+          throughout the trading day.
         </p>
       </header>
 
@@ -112,7 +121,7 @@ export default function AnalystRatingsPage() {
           <DataTable<AnalystRow>
             rows={rows}
             rowKey={(r) => r.symbol}
-            initialSort={{ key: "marketCap", dir: "desc" }}
+            initialSort={{ key: "topStocksScore", dir: "desc" }}
             empty="No matches."
             columns={[
               rankColumn<AnalystRow>(),
@@ -166,6 +175,49 @@ export default function AnalystRatingsPage() {
                     "—"
                   );
                 },
+              },
+              {
+                key: "topStocksScore",
+                label: "Top Stocks Score",
+                filterable: true,
+                filterType: "range",
+                filterLabelText: "Top Stocks Score (0–99)",
+                align: "center",
+                sortValue: (r) => r.topStocksScore ?? null,
+                render: (r) =>
+                  r.topStocksScore != null ? (
+                    <span
+                      className="inline-flex items-center justify-center h-8 w-8 rounded-full text-[13px] font-bold tabular"
+                      style={{
+                        background:
+                          r.topStocksScore >= 70
+                            ? "color-mix(in srgb, var(--good) 16%, transparent)"
+                            : r.topStocksScore >= 50
+                            ? "color-mix(in srgb, var(--gold) 18%, transparent)"
+                            : "color-mix(in srgb, var(--bad) 14%, transparent)",
+                        color:
+                          r.topStocksScore >= 70
+                            ? "var(--good)"
+                            : r.topStocksScore >= 50
+                            ? "var(--gold)"
+                            : "var(--bad)",
+                      }}
+                    >
+                      {r.topStocksScore}
+                    </span>
+                  ) : (
+                    <span className="text-mute">—</span>
+                  ),
+              },
+              {
+                key: "iqs",
+                label: "Insider Score",
+                filterable: true,
+                filterType: "range",
+                filterLabelText: "Insider Score (0–100)",
+                align: "center",
+                sortValue: (r) => r.iqs ?? null,
+                render: (r) => <IqsScoreCell iqs={r.iqs} />,
               },
               {
                 key: "price",

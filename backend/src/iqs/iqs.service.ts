@@ -12,6 +12,7 @@ import {
   CompositeScore,
   analystPillarScore,
   computeCompositeScore,
+  topStocksScore,
 } from './composite-score';
 import { SentimentService } from './sentiment.service';
 
@@ -297,7 +298,8 @@ export class IqsService {
           roleWeightedFactor +
           holdingChangeFactor,
       );
-      const iqs = +Math.min(100, (rawIqs / IQS_LOG_SCALE) * 100).toFixed(2);
+      // Cap at 99 — no stock ever shows a perfect 100 (client spec).
+      const iqs = +Math.min(99, (rawIqs / IQS_LOG_SCALE) * 100).toFixed(2);
 
       const existing = await this.scores.findOne({
         where: { companyId: company.id, asOfDate: today },
@@ -1065,6 +1067,69 @@ export class IqsService {
         totalValue: e.totalValue,
       }))
       .sort((a, b) => b.accuracy - a.accuracy || b.trades - a.trades)
+      .slice(0, limit);
+  }
+
+  /** "Top Stocks" ranking — the site's second branded score. Blends the
+   *  analyst pillar (consensus + implied upside), the Insider Score, and the
+   *  insiders' historical success rate into one 0–99 conviction score
+   *  (analyst success rate slot is wired, pending a per-analyst provider). */
+  async getTopStocks(limit = 200): Promise<
+    Array<{
+      symbol: string;
+      name: string;
+      sector: string | null;
+      price: number;
+      targetMean: number | null;
+      targetHigh: number | null;
+      targetLow: number | null;
+      upsidePct: number | null;
+      recommendation: string | null;
+      numAnalysts: number | null;
+      iqs: number | null;
+      insiderSuccess: number | null;
+      topStocksScore: number | null;
+    }>
+  > {
+    const [analystRows, rank] = await Promise.all([
+      this.marketStats.getAnalystRatings(),
+      this.getRankings({ limit: 500, offset: 0 }),
+    ]);
+    const bySym = new Map(
+      rank.rows.map((r) => [(r.ticker || '').toUpperCase(), r]),
+    );
+    return analystRows
+      .map((a) => {
+        const rk = bySym.get(a.symbol.toUpperCase());
+        const insiderScore = rk?.iqs != null ? Number(rk.iqs) : null;
+        const insiderSuccess =
+          rk?.historicalSuccessWeight != null
+            ? Number(rk.historicalSuccessWeight)
+            : null;
+        const score = topStocksScore({
+          insiderScore,
+          insiderSuccess,
+          analystScore: analystPillarScore(a.recommendation, a.upsidePct),
+          analystSuccess: null, // TODO: activate with a per-analyst data provider
+        });
+        return {
+          symbol: a.symbol,
+          name: a.name,
+          sector: a.sector,
+          price: a.price,
+          targetMean: a.targetMean,
+          targetHigh: a.targetHigh,
+          targetLow: a.targetLow,
+          upsidePct: a.upsidePct,
+          recommendation: a.recommendation,
+          numAnalysts: a.numAnalysts,
+          iqs: insiderScore,
+          insiderSuccess,
+          topStocksScore: score,
+        };
+      })
+      .filter((r) => r.topStocksScore != null)
+      .sort((x, y) => (y.topStocksScore ?? 0) - (x.topStocksScore ?? 0))
       .slice(0, limit);
   }
 

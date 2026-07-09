@@ -463,7 +463,7 @@ export default function PremiumPage() {
         >
           <div className="flex items-baseline justify-between gap-3 mb-1">
             <div className="text-[20px] font-bold tracking-tight">All-Access</div>
-            <span className="badge badge-gold">Best value</span>
+            <span className="badge badge-premium">Best value</span>
           </div>
           <div className="flex items-baseline gap-1.5 mb-5">
             <span className="text-[44px] font-bold tracking-tight" style={{ letterSpacing: "-1px" }}>

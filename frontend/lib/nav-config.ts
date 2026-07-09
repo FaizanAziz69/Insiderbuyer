@@ -100,6 +100,7 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Stocks By Interest",
         links: [
           { label: "Hot Sectors", href: "/stock-lists/hot-sectors", icon: Flame, badge: "new" },
+          { label: "Blue Sky Stocks", href: "/stock-lists/blue-sky", description: "Analyst targets implying 300%+ upside", icon: Rocket, badge: "premium" },
           { label: "Large Cap", href: "/stock-lists/large-cap", icon: Building2 },
           { label: "Small Cap", href: "/stock-lists/small-cap", icon: Rocket },
           { label: "Penny Stocks", href: "/stock-lists/penny-stocks", icon: Coins },

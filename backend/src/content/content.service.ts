@@ -12,6 +12,7 @@ import { IqsService } from '../iqs/iqs.service';
 import { NewsService } from '../news/news.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 import { TOPICS } from './topics';
+import { HOT_SECTOR_BASKETS } from '../stock-lists/persona-data';
 
 // How many per-stock topic articles to generate per topic per day. With ~28-day
 // retention this accumulates to dozens of articles per topic page.
@@ -349,6 +350,71 @@ export class ContentService {
         }
       } else {
         skipped++;
+      }
+    } else {
+      skipped++;
+    }
+
+    // Category list article ("Best Gold Stocks Right Now", "5 AI Stocks Worth
+    // Considering", "Insiders Are Buying These 3 Gold Stocks") — rotate the
+    // thematic category and the headline variant daily; the category goes in
+    // the headline, and every stock carries its Insider Score + a live data card.
+    const basket = HOT_SECTOR_BASKETS[dayOfYear % HOT_SECTOR_BASKETS.length];
+    const listSlug = `sector-list-${basket.key}-${dayKey}`;
+    if (await take(listSlug)) {
+      try {
+        const variants = ['best', 'worth-considering', 'insiders-buying'] as const;
+        let variant: (typeof variants)[number] = variants[dayOfYear % variants.length];
+        const { rows: catRank } = await this.iqs.getRankings({ limit: 500, offset: 0 });
+        const rankByTicker = new Map(
+          catRank.map((r) => [(r.ticker || '').toUpperCase(), r]),
+        );
+        const quotes = await this.marketStats.getQuoteBatch(basket.tickers.slice(0, 30));
+        const members = basket.tickers.map((t) => {
+          const sym = t.toUpperCase();
+          const rk = rankByTicker.get(sym);
+          const q = quotes.get(sym);
+          return {
+            ticker: sym,
+            name: q?.name || rk?.name || sym,
+            price: q?.price ?? null,
+            marketCap: q?.marketCap ?? rk?.marketCap ?? null,
+            iqs: rk?.iqs != null ? Number(rk.iqs) : null,
+            distinctBuyers: rk?.distinctBuyers ?? null,
+          };
+        });
+        const withInsiders = members.filter((m) => m.iqs != null);
+        // "Insiders are buying…" needs real insider names — fall back when thin.
+        if (variant === 'insiders-buying' && withInsiders.length < 2) variant = 'best';
+        const pool = variant === 'insiders-buying' ? withInsiders : members;
+        const picks = [...pool]
+          .sort(
+            (a, b) =>
+              (b.iqs ?? -1) - (a.iqs ?? -1) ||
+              (b.marketCap ?? 0) - (a.marketCap ?? 0),
+          )
+          .slice(0, 5);
+        if (picks.length >= 3) {
+          const article = await this.generator.generateSectorListArticle(
+            basket.label,
+            variant,
+            picks,
+          );
+          await this.persist({
+            slug: listSlug,
+            kind: 'sector-roundup',
+            ticker: null,
+            sector: basket.label,
+            iqsAtGeneration: picks[0]?.iqs ?? null,
+            article,
+            inputSnapshot: { category: basket.label, variant, picks },
+          });
+          generated++;
+        } else {
+          skipped++;
+        }
+      } catch (err) {
+        errors.push(`sector-list ${basket.key}: ${(err as Error).message}`);
       }
     } else {
       skipped++;

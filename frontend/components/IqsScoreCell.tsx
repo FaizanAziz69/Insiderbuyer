@@ -8,12 +8,15 @@ import { TierBadge } from "./TierBadge";
  */
 export function IqsScoreCell({ iqs }: { iqs?: number | null }) {
   if (typeof iqs !== "number") return <span className="text-mute">—</span>;
+  // No stock ever shows a perfect 100 (scores cap at 99 — also enforced at
+  // the scoring layer; this guards older stored values).
+  const capped = Math.min(99, iqs);
   return (
     <span className="inline-flex flex-col items-center gap-1 leading-none">
       <span className="tabular text-[15px] font-bold" style={{ color: "var(--accent)" }}>
-        {iqs.toFixed(1)}
+        {capped.toFixed(1)}
       </span>
-      <TierBadge iqs={iqs} size="sm" />
+      <TierBadge iqs={capped} size="sm" />
     </span>
   );
 }

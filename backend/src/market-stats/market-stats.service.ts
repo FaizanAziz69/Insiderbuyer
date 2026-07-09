@@ -361,12 +361,17 @@ export class MarketStatsService {
     }
   }
 
-  async getTopGainers(limit = 100) {
+  /** Minimum absolute daily move (%) to qualify as a top gainer/loser —
+   *  client spec: show every stock that moved 7%+ on the day. */
+  private readonly MOVER_MIN_PCT = 7;
+
+  async getTopGainers(limit = 500) {
     const rows = await this.screenYahoo({
       key: 'gainers',
       sortField: 'percentchange',
       sortType: 'DESC',
       operands: [
+        { operator: 'GT', operands: ['percentchange', this.MOVER_MIN_PCT] },
         { operator: 'GT', operands: ['intradayprice', 1] },
         { operator: 'GT', operands: ['dayvolume', 20000] },
         { operator: 'EQ', operands: ['region', 'us'] },
@@ -375,9 +380,11 @@ export class MarketStatsService {
       limit,
     });
     const base = rows.length ? rows : await this.fetchScreener('day_gainers', limit);
-    return this.onlyMajorExchanges(base).slice(0, limit);
+    return this.onlyMajorExchanges(base)
+      .filter((r) => r.changePct >= this.MOVER_MIN_PCT)
+      .slice(0, limit);
   }
-  async getTopLosers(limit = 100) {
+  async getTopLosers(limit = 500) {
     // Yahoo's screener 500s on an ASC percentchange sort, so pull a large pool
     // of decliners ordered by volume (works) and sort biggest-loss-first here.
     const pool = await this.screenYahoo({
@@ -385,7 +392,7 @@ export class MarketStatsService {
       sortField: 'dayvolume',
       sortType: 'DESC',
       operands: [
-        { operator: 'LT', operands: ['percentchange', 0] },
+        { operator: 'LT', operands: ['percentchange', -this.MOVER_MIN_PCT] },
         { operator: 'GT', operands: ['intradayprice', 1] },
         { operator: 'GT', operands: ['dayvolume', 20000] },
         { operator: 'EQ', operands: ['region', 'us'] },
@@ -394,10 +401,11 @@ export class MarketStatsService {
       limit: Math.max(limit, 500),
     });
     const base = pool.length ? pool : await this.fetchScreener('day_losers', limit);
-    return this.onlyMajorExchanges([...base].sort((a, b) => a.changePct - b.changePct)).slice(
-      0,
-      limit,
-    );
+    return this.onlyMajorExchanges(
+      [...base].sort((a, b) => a.changePct - b.changePct),
+    )
+      .filter((r) => r.changePct <= -this.MOVER_MIN_PCT)
+      .slice(0, limit);
   }
   async getMostActive(limit = 100) {
     const rows = await this.screenYahoo({

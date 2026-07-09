@@ -58,9 +58,9 @@ export function MegaDropdown({ group }: Props) {
                 c.premium
                   ? {
                       background:
-                        "color-mix(in srgb, var(--gold) 12%, var(--bg-2))",
+                        "color-mix(in srgb, var(--premium) 12%, var(--bg-2))",
                       border:
-                        "1px solid color-mix(in srgb, var(--gold) 55%, var(--border))",
+                        "1px solid color-mix(in srgb, var(--premium) 45%, var(--border))",
                     }
                   : {
                       background:
@@ -74,13 +74,13 @@ export function MegaDropdown({ group }: Props) {
                 className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
                 style={{
                   background: c.premium
-                    ? "linear-gradient(135deg, var(--gold), #f59e0b)"
+                    ? "linear-gradient(135deg, var(--premium), var(--premium-strong))"
                     : "linear-gradient(135deg, var(--accent), var(--accent-2))",
                 }}
               >
                 <Icon
                   className="h-4 w-4"
-                  style={{ color: c.premium ? "#3b2300" : "#fff" }}
+                  style={{ color: c.premium ? "var(--premium-ink)" : "#fff" }}
                 />
               </div>
               <div className="min-w-0">
@@ -89,7 +89,7 @@ export function MegaDropdown({ group }: Props) {
                   {c.premium && (
                     <span
                       className="inline-flex items-center gap-0.5 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
-                      style={{ background: "var(--gold)", color: "#3b2300" }}
+                      style={{ background: "var(--premium)", color: "var(--premium-ink)" }}
                     >
                       <Lock className="h-2.5 w-2.5" /> Premium
                     </span>
@@ -185,8 +185,8 @@ export function MegaDropdown({ group }: Props) {
                                   <span
                                     className="inline-flex items-center gap-0.5 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
                                     style={{
-                                      background: "var(--gold)",
-                                      color: "#3b2300",
+                                      background: "var(--premium)",
+                                      color: "var(--premium-ink)",
                                     }}
                                   >
                                     <Lock className="h-2.5 w-2.5" /> Premium

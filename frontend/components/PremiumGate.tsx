@@ -24,9 +24,9 @@ export function PremiumGate({
     <div
       className="relative rounded-lg overflow-hidden"
       style={{
-        border: "1px solid color-mix(in srgb, var(--accent) 22%, var(--border))",
+        border: "1px solid color-mix(in srgb, var(--premium) 30%, var(--border))",
         background:
-          "linear-gradient(180deg, color-mix(in srgb, var(--accent) 6%, var(--bg-2)) 0%, var(--bg-2) 100%)",
+          "linear-gradient(180deg, color-mix(in srgb, var(--premium) 8%, var(--bg-2)) 0%, var(--bg-2) 100%)",
       }}
     >
       <div style={{ filter: "blur(5px)" }} className="select-none pointer-events-none" aria-hidden>
@@ -45,8 +45,8 @@ export function PremiumGate({
             compact ? "h-8 w-8 mb-2" : "h-11 w-11 mb-3"
           }`}
           style={{
-            background: "linear-gradient(135deg, var(--accent), var(--accent-2))",
-            boxShadow: "0 6px 18px rgba(0,102,255,0.25)",
+            background: "linear-gradient(135deg, var(--premium), var(--premium-strong))",
+            boxShadow: "0 6px 18px rgba(56,189,248,0.3)",
           }}
         >
           <Sparkles className={compact ? "h-3.5 w-3.5 text-white" : "h-5 w-5 text-white"} />

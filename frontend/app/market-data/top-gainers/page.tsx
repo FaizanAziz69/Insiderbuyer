@@ -218,7 +218,7 @@ export default function TopGainersPage() {
           Today&rsquo;s Top Gainers
         </h1>
         <p className="text-mute text-[14px] mt-2 max-w-3xl leading-relaxed">
-          The biggest percentage gainers on the U.S. market today, ranked by intraday change
+          Every U.S. stock up 7% or more today, ranked by intraday change
           with live volume, market cap and a 7-day price trend. Hover the{" "}
           <Sparkles className="inline h-3.5 w-3.5 text-accent align-text-bottom" /> AI Catalyst
           icon on any row for a one-line read on the likely driver of the move.

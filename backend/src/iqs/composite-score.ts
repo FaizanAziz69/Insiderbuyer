@@ -76,7 +76,7 @@ export interface CompositeScore {
   coverage: number;
 }
 
-/** Map an analyst consensus + implied upside onto a 0–100 pillar score.
+/** Map an analyst consensus + implied upside onto a 0–99 pillar score.
  *  Consensus anchors the score; upside nudges it within the band. */
 export function analystPillarScore(
   recommendation: string | null | undefined,
@@ -97,7 +97,49 @@ export function analystPillarScore(
     // ±30% implied upside moves the score up to ±10 points within the band.
     score += Math.max(-10, Math.min(10, (upsidePct / 30) * 10));
   }
-  return Math.round(Math.max(0, Math.min(100, score)));
+  return Math.round(Math.max(0, Math.min(SCORE_CEILING, score)));
+}
+
+/** No stock ever gets a perfect score — every 0–100 scale caps at 99. */
+export const SCORE_CEILING = 99;
+
+/**
+ * "Top Stocks" score — the site's second branded score, distinct from the
+ * Insider Score:
+ *
+ *   1. Insider Score  — quality of the insider BUYING (our Form 4 model).
+ *   2. Top Stocks     — blends analyst ratings, analyst success rate,
+ *                       the Insider Score, and the insiders' success rate
+ *                       into one 0–99 conviction score.
+ *
+ * Weights renormalise over whichever inputs have data. Analyst success rate
+ * requires per-analyst history that no free feed provides — the slot is
+ * wired and weighted, and activates as soon as a value is supplied.
+ * TODO: supply analystSuccess when a per-analyst provider (Benzinga/FMP) is added.
+ */
+export function topStocksScore(inputs: {
+  insiderScore: number | null;
+  /** Share of past insider buys currently in profit, 0–100. */
+  insiderSuccess: number | null;
+  /** Analyst pillar (consensus + upside), 0–99. */
+  analystScore: number | null;
+  /** Per-analyst hit rate, 0–100 — pending a data provider. */
+  analystSuccess?: number | null;
+}): number | null {
+  const parts: Array<{ value: number | null | undefined; weight: number }> = [
+    { value: inputs.analystScore, weight: 0.35 },
+    { value: inputs.analystSuccess, weight: 0.15 },
+    { value: inputs.insiderScore, weight: 0.35 },
+    { value: inputs.insiderSuccess, weight: 0.15 },
+  ];
+  const present = parts.filter((p) => p.value != null);
+  const totalWeight = present.reduce((a, p) => a + p.weight, 0);
+  if (totalWeight <= 0) return null;
+  const score = present.reduce(
+    (a, p) => a + (p.value as number) * (p.weight / totalWeight),
+    0,
+  );
+  return Math.round(Math.max(0, Math.min(SCORE_CEILING, score)));
 }
 
 /** Combine pillar values into the 0–100 composite, renormalising weights over
@@ -125,10 +167,13 @@ export function computeCompositeScore(values: PillarValue[]): CompositeScore {
 
   const score =
     presentWeight > 0
-      ? Math.round(
-          present.reduce(
-            (a, p) => a + (byKey.get(p.key) as number) * (p.weight / presentWeight),
-            0,
+      ? Math.min(
+          SCORE_CEILING,
+          Math.round(
+            present.reduce(
+              (a, p) => a + (byKey.get(p.key) as number) * (p.weight / presentWeight),
+              0,
+            ),
           ),
         )
       : null;

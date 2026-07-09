@@ -20,7 +20,7 @@ export default function StockListsHubPage() {
     (l) => l.kind === "sector" || l.kind === "universe" || l.kind === "country",
   );
   const personas = lists.filter((l) => l.kind === "persona");
-  const premium = lists.find((l) => l.kind === "premium");
+  const premiumLists = lists.filter((l) => l.kind === "premium");
 
   return (
     <div className="w-full space-y-8">
@@ -57,8 +57,9 @@ export default function StockListsHubPage() {
 
       {/* Premium "Top Insider Scores" — clean table-style row at the top,
           matching the list cards below (no gradient box). */}
-      {premium && (
+      {premiumLists.map((premium) => (
         <motion.div
+          key={premium.slug}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
@@ -72,11 +73,11 @@ export default function StockListsHubPage() {
               <span
                 className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
                 style={{
-                  background: "color-mix(in srgb, var(--gold) 18%, var(--bg-3))",
-                  border: "1px solid color-mix(in srgb, var(--gold) 45%, var(--border))",
+                  background: "color-mix(in srgb, var(--premium) 18%, var(--bg-3))",
+                  border: "1px solid color-mix(in srgb, var(--premium) 45%, var(--border))",
                 }}
               >
-                <Lock className="h-4 w-4" style={{ color: "var(--gold)" }} />
+                <Lock className="h-4 w-4" style={{ color: "var(--premium-strong)" }} />
               </span>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -85,7 +86,7 @@ export default function StockListsHubPage() {
                   </span>
                   <span
                     className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
-                    style={{ background: "var(--gold)", color: "#3b2300" }}
+                    style={{ background: "var(--premium)", color: "var(--premium-ink)" }}
                   >
                     <Sparkles className="h-2.5 w-2.5" /> Premium
                   </span>
@@ -99,7 +100,7 @@ export default function StockListsHubPage() {
             </div>
           </Link>
         </motion.div>
-      )}
+      ))}
 
       {/* Two-column grid: Sectors / Personas */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

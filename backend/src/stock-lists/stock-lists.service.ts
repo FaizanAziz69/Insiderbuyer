@@ -255,7 +255,72 @@ export class StockListsService {
       kind: 'premium',
       count: iqsTotal,
     });
+    // Blue Sky Stocks — analyst-implied upside of 300%+ (virtual screener).
+    out.push({
+      slug: 'blue-sky',
+      title: 'Blue Sky Stocks',
+      description:
+        'Stocks where the average analyst price target implies 300%+ upside from the current price — high-risk, high-reward names, ranked #50 → #1 by implied upside.',
+      kind: 'premium',
+      count: 50,
+    });
     return out;
+  }
+
+  /** Blue Sky Stocks — every name in our combined coverage universe whose
+   *  average analyst price target implies >= 300% upside, best 50 by upside.
+   *  Candidates come from our Form 4 rankings, the live penny-stock screener
+   *  (where extreme-upside targets actually live), and the sector baskets. */
+  private async buildBlueSkyRows(): Promise<any[]> {
+    const MIN_UPSIDE = 300;
+    const candidates = new Set<string>();
+    try {
+      const { rows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
+      for (const r of rows) if (r.ticker) candidates.add(r.ticker.toUpperCase());
+    } catch { /* rankings unavailable — screener pool still applies */ }
+    try {
+      for (const q of await this.marketStats.getPennyStocks(500)) {
+        candidates.add(q.symbol.toUpperCase());
+      }
+    } catch { /* screener unavailable */ }
+    for (const b of HOT_SECTOR_BASKETS) for (const t of b.tickers) candidates.add(t.toUpperCase());
+    for (const list of Object.values(SECTOR_UNIVERSE)) for (const t of list) candidates.add(t.toUpperCase());
+
+    // Analyst ratings are built in 250-symbol batches (the builder's cap);
+    // run batches in parallel so the whole scan stays inside one request.
+    const syms = Array.from(candidates);
+    const chunks: string[][] = [];
+    for (let i = 0; i < syms.length; i += 250) chunks.push(syms.slice(i, i + 250));
+    const settled = await Promise.allSettled(
+      chunks.map((c) => this.marketStats.getAnalystRatings(c)),
+    );
+    const all = settled.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+
+    const qualifying = all
+      .filter((r) => (r.upsidePct ?? -1) >= MIN_UPSIDE && (r.price ?? 0) > 0)
+      .sort((a, b) => (b.upsidePct ?? 0) - (a.upsidePct ?? 0))
+      .slice(0, 50);
+
+    // Attach Insider Scores (every list carries the column).
+    let iqsByTicker = new Map<string | null, number>();
+    try {
+      const { rows: rankRows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
+      iqsByTicker = new Map(rankRows.map((r) => [r.ticker, r.iqs]));
+    } catch { /* scores unavailable */ }
+
+    const rows = qualifying.map((r) => ({
+      ticker: r.symbol,
+      name: r.name,
+      sector: r.sector,
+      marketCap: null as number | null,
+      iqs: iqsByTicker.get(r.symbol) ?? undefined,
+      upsidePct: r.upsidePct,
+      targetMean: r.targetMean,
+      recommendation: r.recommendation,
+      numAnalysts: r.numAnalysts,
+    }));
+    const live = await this.fetchLiveQuotes(rows.map((r) => r.ticker));
+    return this.enrichRows(rows, live);
   }
 
   /** Hot Sectors — rank the thematic baskets by month-to-date 10%+ gainers
@@ -344,7 +409,20 @@ export class StockListsService {
 
   async getDetail(slug: string, filters: StockListFilters): Promise<StockListDetail | null> {
     const meta = STOCK_LIST_META[slug];
-    if (!meta && slug !== 'iqs-top-picks') return null;
+    if (!meta && slug !== 'iqs-top-picks' && slug !== 'blue-sky') return null;
+
+    if (slug === 'blue-sky') {
+      const rows = await this.buildBlueSkyRows();
+      return {
+        slug,
+        title: 'Blue Sky Stocks',
+        description:
+          'Stocks where the average analyst price target implies 300%+ upside from the current price — high-risk, high-reward names, ranked #50 → #1 by implied upside. Price targets this aggressive usually mean small caps with binary outcomes: position sizing matters.',
+        kind: 'premium',
+        total: rows.length,
+        rows,
+      };
+    }
 
     if (slug === 'iqs-top-picks') {
       const { total, rows: rawRows } = await this.iqs.getRankings({
@@ -435,8 +513,16 @@ export class StockListsService {
           r.sector.toLowerCase().includes(filters.sector!.toLowerCase()),
         );
       }
+      // Every list carries an Insider Score column — cross-reference against
+      // the live rankings (U.S. Form 4 data; foreign-only names stay blank).
+      const { rows: rankRows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
+      const iqsByTicker = new Map(rankRows.map((r) => [r.ticker, r.iqs]));
+      const withIqs = rows.map((h) => ({
+        ...h,
+        iqs: iqsByTicker.get(h.ticker) ?? undefined,
+      }));
       const live = await this.fetchLiveQuotes(rows.map((r) => r.ticker));
-      const enriched = this.enrichRows(rows, live) as any[];
+      const enriched = this.enrichRows(withIqs, live) as any[];
       return { slug, ...meta, total: enriched.length, rows: enriched };
     }
 
@@ -447,11 +533,16 @@ export class StockListsService {
       if (slug === 'penny-stocks') {
         const penny = await this.marketStats.getPennyStocks(1000);
         if (penny.length) {
+          // Insider Score column on every list — penny names that also appear
+          // in our Form 4 rankings get their live score attached.
+          const { rows: pennyRank } = await this.iqs.getRankings({ limit: 500, offset: 0 });
+          const pennyIqs = new Map(pennyRank.map((r) => [r.ticker, r.iqs]));
           let pennyRows = penny.map((q) => ({
             ticker: q.symbol,
             name: q.name,
             sector: q.sector,
             marketCap: q.marketCap,
+            iqs: pennyIqs.get(q.symbol) ?? undefined,
             live: {
               price: q.price,
               changeAbs: q.changeAbs,

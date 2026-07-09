@@ -118,6 +118,14 @@ export class IqsController {
     return this.iqs.getCompositeScore(ticker);
   }
 
+  /** "Top Stocks" ranking — analyst ratings + Insider Score + insider success
+   *  rate blended into one 0–99 conviction score (see composite-score.ts). */
+  @Get('top-stocks')
+  async topStocks(@Query('limit') limit?: string) {
+    const rows = await this.iqs.getTopStocks(limit ? Number(limit) : 200);
+    return { rows };
+  }
+
   @Get('dashboard')
   async dashboard() {
     return this.iqs.getDashboard();
