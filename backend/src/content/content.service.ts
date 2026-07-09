@@ -121,6 +121,8 @@ export class ContentService {
    *  the boot/cron refresh can't run at once and race on duplicate slugs. */
   async runDailyRefresh(opts?: {
     reset?: boolean;
+    /** Clear the ENTIRE feed (all days) before regenerating — full replace. */
+    resetAll?: boolean;
     staleOnly?: boolean;
     limit?: number;
   }): Promise<{ generated: number; skipped: number; errors: string[] }> {
@@ -146,6 +148,7 @@ export class ContentService {
    *  the per-topic news roundups + per-stock topic articles). */
   private async runDailyRefreshInner(opts?: {
     reset?: boolean;
+    resetAll?: boolean;
     staleOnly?: boolean;
     limit?: number;
   }): Promise<{ generated: number; skipped: number; errors: string[] }> {
@@ -228,6 +231,13 @@ export class ContentService {
         .where('slug LIKE :d', { d: `%-${dayKey}` })
         .execute();
       this.logger.log(`Refresh reset: cleared ${del.affected ?? 0} of today's articles.`);
+    }
+    // Full replace: wipe the ENTIRE feed once (send on the first batched call
+    // only), then batched calls refill today's full slug set through the
+    // current engine — everything QA sees is newest-rules content.
+    if (opts?.resetAll) {
+      const del = await this.repo.createQueryBuilder().delete().where('1=1').execute();
+      this.logger.log(`Refresh reset-all: cleared ${del.affected ?? 0} articles (full feed).`);
     }
 
     // Daily summary (only generate if today's is missing / under the cap).

@@ -119,6 +119,8 @@ export class ContentController {
   ) {
     return this.content.runDailyRefresh({
       reset: reset === '1' || reset === 'true',
+      // ?reset=all — wipe the whole feed once, then batched calls rebuild it.
+      resetAll: reset === 'all',
       staleOnly: stale === '1' || stale === 'true',
       limit: limit ? Number(limit) : undefined,
     });
