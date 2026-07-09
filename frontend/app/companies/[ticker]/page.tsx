@@ -32,6 +32,7 @@ import { IqsTooltip } from "@/components/IqsTooltip";
 import { TierBadge, tierFor } from "@/components/TierBadge";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsTrendChart } from "@/components/IqsTrendChart";
+import { ScorePillarsCard } from "@/components/ScorePillarsCard";
 import { track } from "@/lib/analytics";
 
 // ── Local types for endpoints not modelled in lib/api.ts ──────────────────
@@ -249,6 +250,9 @@ export default function CompanyPage({
             {/* ── Overview ───────────────────────────────────────────── */}
             <div className="space-y-6">
                 {data.score && <SmartScorePanel score={data.score} />}
+
+                {/* Composite pillars — insider + analyst + news sentiment */}
+                <ScorePillarsCard ticker={sym} />
 
                 {/* Recent insider-buy summary */}
                 <InsiderSummary transactions={data.transactions} />

@@ -48,8 +48,8 @@ export const SCORE_PILLARS: PillarDefinition[] = [
     label: 'News & Sentiment',
     weight: 0.25,
     description:
-      'Tone and momentum of news coverage and social discussion. Coming soon — architecture is wired, data provider pending.',
-    live: false, // TODO: wire a news/sentiment provider, then flip to true.
+      'Tone of recent news coverage: analyst actions, earnings, and business headlines from the last two weeks, scored by AI. 50 = neutral; higher = bullish coverage.',
+    live: true, // powered by SentimentService (Yahoo headlines + Claude scoring)
   },
 ];
 

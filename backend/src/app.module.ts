@@ -11,6 +11,7 @@ import { Subscriber } from './entities/subscriber.entity';
 import { BlogPost } from './entities/blog-post.entity';
 import { EarningsEvent } from './entities/earnings-event.entity';
 import { User } from './entities/user.entity';
+import { SentimentScore } from './entities/sentiment-score.entity';
 import { AuthModule } from './auth/auth.module';
 import { CompaniesModule } from './companies/companies.module';
 import { TransactionsModule } from './transactions/transactions.module';
@@ -61,6 +62,7 @@ import { ContentModule } from './content/content.module';
           BlogPost,
           EarningsEvent,
           User,
+          SentimentScore,
         ],
         synchronize: true,
         logging: false,

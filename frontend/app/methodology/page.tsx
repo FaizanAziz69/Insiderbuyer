@@ -202,9 +202,9 @@ export default function MethodologyPage() {
             },
             {
               label: "News & Sentiment",
-              status: "Coming soon",
-              live: false,
-              desc: "Tone and momentum of news coverage and social discussion around the stock.",
+              status: "Live",
+              live: true,
+              desc: "Tone of recent news coverage — analyst actions, earnings, and business headlines from the last two weeks, scored by AI.",
             },
           ].map((p) => (
             <li key={p.label} className="flex items-start gap-3">

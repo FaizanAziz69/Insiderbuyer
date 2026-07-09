@@ -13,6 +13,7 @@ import {
   analystPillarScore,
   computeCompositeScore,
 } from './composite-score';
+import { SentimentService } from './sentiment.service';
 
 export interface RankingRow {
   rank: number;
@@ -96,6 +97,7 @@ export class IqsService {
     private readonly marketStats: MarketStatsService,
     private readonly fmp: FmpService,
     private readonly sec: SecClient,
+    private readonly sentiment: SentimentService,
   ) {}
 
   // Live SEC Form 4 lookups for tickers not in our ingested set (cached 30m).
@@ -1067,10 +1069,14 @@ export class IqsService {
   }
 
   /** Composite 0–100 score for one ticker — insider pillar (our Insider
-   *  Score) + analyst pillar (consensus/upside), with the sentiment pillar
-   *  slot wired but not yet live. See composite-score.ts for the model. */
+   *  Score) + analyst pillar (consensus/upside) + sentiment pillar (recent
+   *  headlines scored by AI). See composite-score.ts for the model. */
   async getCompositeScore(ticker: string): Promise<
-    CompositeScore & { ticker: string; insiderScore: number | null }
+    CompositeScore & {
+      ticker: string;
+      insiderScore: number | null;
+      sentimentRationale: string | null;
+    }
   > {
     const sym = (ticker || '').toUpperCase();
 
@@ -1099,13 +1105,23 @@ export class IqsService {
       analyst = null;
     }
 
+    // Sentiment pillar — recent headlines scored by AI (cached 12h per ticker).
+    let sentimentValue: number | null = null;
+    let sentimentRationale: string | null = null;
+    try {
+      const s = await this.sentiment.getSentimentScore(sym, company?.name);
+      sentimentValue = s?.score ?? null;
+      sentimentRationale = s?.rationale ?? null;
+    } catch {
+      sentimentValue = null;
+    }
+
     const composite = computeCompositeScore([
       { key: 'insider', value: insider },
       { key: 'analyst', value: analyst },
-      // TODO: sentiment pillar — supply { key: 'sentiment', value } once a
-      // news/sentiment provider is wired (see SCORE_PILLARS in composite-score.ts).
+      { key: 'sentiment', value: sentimentValue },
     ]);
-    return { ticker: sym, insiderScore: insider, ...composite };
+    return { ticker: sym, insiderScore: insider, sentimentRationale, ...composite };
   }
 
   /** Distinct insider countries present in the data, with counts — drives the
