@@ -10,7 +10,7 @@ interface Props {
   tone?: "theme" | "light";
 }
 
-const HEIGHTS = { sm: 34, md: 46, lg: 72 } as const;
+const HEIGHTS = { sm: 44, md: 58, lg: 88 } as const;
 
 /** Official stacked "INSIDER BUYING" wordmark (client-supplied PNGs, served
  *  as trimmed transparent versions in /public). */
