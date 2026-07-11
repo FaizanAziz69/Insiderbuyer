@@ -29,6 +29,7 @@ import { EarningsPerfModule } from './earnings-perf/earnings-perf.module';
 import { CtaModule } from './cta/cta.module';
 import { ChatModule } from './chat/chat.module';
 import { ContentModule } from './content/content.module';
+import { SocialModule } from './social/social.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { ContentModule } from './content/content.module';
     CtaModule,
     ChatModule,
     ContentModule,
+    SocialModule,
     AuthModule,
   ],
 })

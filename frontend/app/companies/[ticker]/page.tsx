@@ -33,6 +33,7 @@ import { TierBadge, tierFor } from "@/components/TierBadge";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsTrendChart } from "@/components/IqsTrendChart";
 import { ScorePillarsCard } from "@/components/ScorePillarsCard";
+import { ConversationsSection } from "@/components/stock/ConversationsSection";
 import { track } from "@/lib/analytics";
 
 // ── Local types for endpoints not modelled in lib/api.ts ──────────────────
@@ -129,7 +130,7 @@ const RATING_LABEL: Record<string, string> = {
   sell: "Sell",
 };
 
-type ProfileTab = "overview" | "financials";
+type ProfileTab = "overview" | "financials" | "conversations";
 
 export default function CompanyPage({
   params,
@@ -202,6 +203,7 @@ export default function CompanyPage({
                 [
                   ["overview", "Overview"],
                   ["financials", "Financials & Forecast"],
+                  ["conversations", "Conversations"],
                 ] as [ProfileTab, string][]
               ).map(([key, label]) => (
                 <button
@@ -228,6 +230,9 @@ export default function CompanyPage({
                 <AnalystRatingSection ticker={sym} price={stats?.price ?? data.company.lastPrice} />
                 <AnalystCoverageCard ticker={sym} />
               </div>
+            ) : tab === "conversations" ? (
+              /* ── Conversations: community posts mentioning this ticker ── */
+              <ConversationsSection ticker={sym} />
             ) : (
               <>
             {/* Price performance row — 1D / 5D / 1M / 6M / 1Y (TradingView-style) */}

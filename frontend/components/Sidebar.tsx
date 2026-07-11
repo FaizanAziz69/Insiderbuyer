@@ -1,4 +1,5 @@
 "use client";
+import { Logo } from "./Logo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -16,7 +17,6 @@ import {
   Sparkles,
   TrendingUp,
   Users,
-  Zap,
 } from "lucide-react";
 
 type NavItem =
@@ -124,13 +124,9 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         }`}
         style={{ background: "var(--bg-sidebar)" }}
       >
-        <Link href="/" className="flex items-center gap-2.5 px-5 h-16 border-b border-[var(--border)]">
-          <div className="relative h-8 w-8 rounded-lg flex items-center justify-center bg-[var(--accent)]">
-            <Zap className="h-4 w-4 text-white" strokeWidth={2.5} />
-          </div>
-          <div className="flex flex-col leading-tight">
-            <span className="text-[15px] font-bold tracking-tight">insiderbuying</span>
-          </div>
+        <Link href="/" className="flex items-center px-5 h-16 border-b border-[var(--border)]">
+          {/* Official stacked wordmark — theme-aware (client logo files) */}
+          <Logo size="sm" />
         </Link>
 
         <nav className="flex-1 overflow-y-auto scrollbar-thin px-3 py-4 space-y-0.5">

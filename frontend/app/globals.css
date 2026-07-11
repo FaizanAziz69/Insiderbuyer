@@ -1137,3 +1137,8 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============ LOGO THEME SWAP ============ */
+.logo-when-dark { display: none; }
+:root[data-theme="dark"] .logo-when-light { display: none; }
+:root[data-theme="dark"] .logo-when-dark { display: inline-block; }

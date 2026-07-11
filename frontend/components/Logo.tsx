@@ -1,35 +1,46 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 interface Props {
   size?: "sm" | "md" | "lg";
   className?: string;
-  /** `theme` follows var(--text), `light` forces white (for use on dark headers/footers) */
+  /** `theme` swaps dark/light wordmark with the site theme; `light` forces the
+   *  white-text wordmark (for dark headers/footers regardless of theme). */
   tone?: "theme" | "light";
 }
 
-const SIZES = {
-  sm: { fs: 26, gap: 8 },
-  md: { fs: 40, gap: 14 },
-  lg: { fs: 64, gap: 20 },
-} as const;
+const HEIGHTS = { sm: 34, md: 46, lg: 72 } as const;
 
+/** Official stacked "INSIDER BUYING" wordmark (client-supplied PNGs, served
+ *  as trimmed transparent versions in /public). */
 export function Logo({ size = "md", className = "", tone = "theme" }: Props) {
-  const s = SIZES[size];
-  const color = tone === "light" ? "#ffffff" : "var(--text)";
+  const h = HEIGHTS[size];
+  if (tone === "light") {
+    return (
+      <img
+        src="/logo-wordmark-light-text.png"
+        alt="Insider Buying"
+        style={{ height: h, width: "auto" }}
+        className={`select-none ${className}`}
+      />
+    );
+  }
   return (
-    <span
-      className={`inline-flex items-baseline select-none ${className}`}
-      style={{
-        color,
-        gap: s.gap,
-        fontWeight: 900,
-        fontStretch: "75%",
-        letterSpacing: "-0.04em",
-      }}
-      aria-label="Insider Buying"
-    >
-      <span style={{ fontSize: s.fs, lineHeight: 1 }}>INSIDER</span>
-      <span style={{ fontSize: s.fs, lineHeight: 1 }}>BUYING</span>
+    <span className={`inline-flex select-none ${className}`} aria-label="Insider Buying">
+      <img
+        src="/logo-wordmark-dark-text.png"
+        alt="Insider Buying"
+        style={{ height: h, width: "auto" }}
+        className="logo-when-light"
+      />
+      <img
+        src="/logo-wordmark-light-text.png"
+        alt=""
+        aria-hidden
+        style={{ height: h, width: "auto" }}
+        className="logo-when-dark"
+      />
     </span>
   );
 }
