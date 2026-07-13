@@ -1,9 +1,59 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { Sparkles } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
+
+/** SWR key for one ticker's explainer — shared by the hover popover and the
+ *  page-level prewarm so a seeded cache makes hovers instant. */
+export function explainKey(ticker: string, name: string, changePct: number) {
+  return `${API_BASE}/content/explain?symbol=${encodeURIComponent(ticker)}&name=${encodeURIComponent(
+    name,
+  )}&change=${changePct}`;
+}
+
+/**
+ * Pre-warms movement explainers for a movers table: one POST generates every
+ * missing row server-side (single model call), then each result is seeded
+ * into the SWR cache under the same key the popover reads — so the ✨ hover
+ * renders instantly with zero extra requests.
+ */
+export function useExplainerPrewarm(
+  rows: Array<{ symbol: string; name: string; changePct: number }>,
+) {
+  const { mutate } = useSWRConfig();
+  const fired = useRef(false);
+  useEffect(() => {
+    if (fired.current || !rows.length) return;
+    fired.current = true;
+    const items = rows.slice(0, 30).map((r) => ({
+      symbol: r.symbol,
+      name: r.name,
+      changePct: r.changePct,
+    }));
+    fetch(`${API_BASE}/content/explain-batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    })
+      .then((r) => r.json())
+      .then((d: { explainers?: Record<string, { title: string; explainer: string }> }) => {
+        const map = d?.explainers || {};
+        for (const it of items) {
+          const hit = map[it.symbol.toUpperCase()];
+          if (hit) {
+            mutate(explainKey(it.symbol, it.name, it.changePct), hit, {
+              revalidate: false,
+            });
+          }
+        }
+      })
+      .catch(() => {
+        /* prewarm is best-effort — hovers still fetch on demand */
+      });
+  }, [rows, mutate]);
+}
 
 /**
  * "Movement Explainer" hover popover — hover (or focus) the ✨ icon to open an
@@ -37,11 +87,7 @@ export function AiCatalyst({
   useEffect(() => setMounted(true), []);
 
   const { data, isLoading } = useSWR<{ title: string; explainer: string }>(
-    armed && ticker
-      ? `${API_BASE}/content/explain?symbol=${encodeURIComponent(ticker)}&name=${encodeURIComponent(
-          name,
-        )}&change=${changePct}`
-      : null,
+    armed && ticker ? explainKey(ticker, name, changePct) : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 30 * 60_000 },
   );

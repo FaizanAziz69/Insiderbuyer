@@ -107,6 +107,18 @@ export class ContentController {
     return this.content.getMovementExplainer(symbol, name, Number(change) || 0);
   }
 
+  /** Pre-warm movement explainers for a movers table in one model call —
+   *  the gainers/losers pages post their visible rows on load so every ✨
+   *  hover resolves instantly. Body: { items: [{symbol, name, changePct}] } */
+  @Post('explain-batch')
+  async explainBatch(
+    @Body() body: { items?: Array<{ symbol: string; name?: string; changePct?: number }> },
+  ) {
+    const items = Array.isArray(body?.items) ? body.items : [];
+    if (!items.length) return { explainers: {} };
+    return { explainers: await this.content.getMovementExplainersBatch(items) };
+  }
+
   /** Manual trigger for the daily refresh. Same path used by the cron.
    *  `?reset=1` clears today's articles first (regenerate the same slugs through
    *  the current engine); `?limit=N` caps generations per call so batched

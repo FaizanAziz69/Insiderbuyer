@@ -1,13 +1,12 @@
 "use client";
-import { useEffect } from "react";
-import useSWR, { preload } from "swr";
+import useSWR from "swr";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Sparkles, TrendingUp } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
 import { Sparkline } from "@/components/Sparkline";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
-import { AiCatalyst } from "@/components/AiCatalyst";
+import { AiCatalyst, useExplainerPrewarm } from "@/components/AiCatalyst";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
 import { API_BASE, fetcher, formatCurrency, formatNumber } from "@/lib/api";
@@ -35,19 +34,9 @@ export default function TopGainersPage() {
   );
   const rows = data?.rows || [];
 
-  // Pre-warm the AI "Movement Explainer" for the first page of rows so hovering
-  // the ✨ icon is instant (SWR + server cache are populated in the background).
-  useEffect(() => {
-    rows.slice(0, 15).forEach((r) => {
-      preload(
-        `${API_BASE}/content/explain?symbol=${encodeURIComponent(r.symbol)}&name=${encodeURIComponent(
-          r.name,
-        )}&change=${r.changePct}`,
-        fetcher,
-      );
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows.length]);
+  // Pre-warm the AI "Movement Explainer" for the visible rows in ONE batched
+  // request (single model call server-side) — every ✨ hover is then instant.
+  useExplainerPrewarm(rows);
 
   // 7-day price sparklines for the listed tickers (cached, keyless until ready).
   const tickerKey = rows

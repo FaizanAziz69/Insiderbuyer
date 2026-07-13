@@ -6,6 +6,7 @@ import { DataTable, Column } from "@/components/DataTable";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
+import { AiCatalyst, useExplainerPrewarm } from "@/components/AiCatalyst";
 import {
   API_BASE,
   fetcher,
@@ -41,6 +42,9 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
   const rows = data?.rows || [];
+
+  // Pre-warm the AI "Movement Explainer" for visible rows in one batched call.
+  useExplainerPrewarm(rows);
 
   const columns: Column<MarketStatRow>[] = [
     rankColumn<MarketStatRow>(),
@@ -175,6 +179,15 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
       sortValue: (r) => r.avgVolume,
       render: (r) => (
         <span className="tabular text-mute text-[14px] font-bold">{formatNumber(r.avgVolume)}</span>
+      ),
+    },
+    {
+      key: "catalyst",
+      label: "AI Catalyst",
+      sortable: false,
+      align: "center",
+      render: (r) => (
+        <AiCatalyst ticker={r.symbol} name={r.name} changePct={r.changePct} />
       ),
     },
   ];

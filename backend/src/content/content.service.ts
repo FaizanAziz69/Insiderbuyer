@@ -87,26 +87,7 @@ export class ContentService {
     const cached = this.explainerCache.get(key);
     if (cached && Date.now() - cached.ts < this.EXPLAINER_TTL) return cached.data;
 
-    // First, prefer an existing AI article for this ticker (already grounded).
-    let headlines: string[] = [];
-    try {
-      const news = await this.news.getLatest();
-      const sym = key.toLowerCase();
-      const firstWord = (name || '').toLowerCase().split(/[\s,]+/)[0];
-      headlines = news
-        .filter((n) => {
-          const t = (n.title || '').toLowerCase();
-          return (
-            t.includes(sym) ||
-            (firstWord.length > 2 && t.includes(firstWord))
-          );
-        })
-        .map((n) => n.title)
-        .slice(0, 6);
-    } catch {
-      /* news optional */
-    }
-
+    const headlines = await this.tickerHeadlines(key, name);
     const data = await this.generator.generateMovementExplainer({
       symbol: key,
       name,
@@ -115,6 +96,99 @@ export class ContentService {
     });
     if (data.explainer) this.explainerCache.set(key, { ts: Date.now(), data });
     return data;
+  }
+
+  /** Company-specific recent headlines — Yahoo's public per-ticker news feed
+   *  first (actually mentions the company), macro RSS as a weak fallback. */
+  private async tickerHeadlines(symbol: string, name: string): Promise<string[]> {
+    try {
+      const axios = (await import('axios')).default;
+      const { data } = await axios.get(
+        'https://query1.finance.yahoo.com/v1/finance/search',
+        {
+          params: { q: symbol, newsCount: 8, quotesCount: 0 },
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          timeout: 6000,
+        },
+      );
+      const items: any[] = Array.isArray(data?.news) ? data.news : [];
+      const titles = items
+        .map((n) => String(n?.title || '').trim())
+        .filter(Boolean)
+        .slice(0, 6);
+      if (titles.length) return titles;
+    } catch {
+      /* fall through to RSS */
+    }
+    try {
+      const news = await this.news.getLatest();
+      const sym = symbol.toLowerCase();
+      const firstWord = (name || '').toLowerCase().split(/[\s,]+/)[0];
+      return news
+        .filter((n) => {
+          const t = (n.title || '').toLowerCase();
+          return t.includes(sym) || (firstWord.length > 2 && t.includes(firstWord));
+        })
+        .map((n) => n.title)
+        .slice(0, 6);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Pre-warm movement explainers for a page of movers in ONE model call —
+   *  the top-gainers page posts its visible tickers on load so every hover
+   *  resolves instantly from cache. Returns whatever is ready (cached +
+   *  freshly generated). */
+  async getMovementExplainersBatch(
+    items: Array<{ symbol: string; name?: string; changePct?: number }>,
+  ): Promise<Record<string, { title: string; explainer: string }>> {
+    const wanted = items
+      .map((i) => ({
+        symbol: (i.symbol || '').toUpperCase(),
+        name: i.name || '',
+        changePct: Number(i.changePct) || 0,
+      }))
+      .filter((i) => /^[A-Z][A-Z0-9.\-]{0,9}$/.test(i.symbol))
+      .slice(0, 30);
+
+    const out: Record<string, { title: string; explainer: string }> = {};
+    const missing: typeof wanted = [];
+    for (const it of wanted) {
+      const cached = this.explainerCache.get(it.symbol);
+      if (cached && Date.now() - cached.ts < this.EXPLAINER_TTL) {
+        out[it.symbol] = cached.data;
+      } else {
+        missing.push(it);
+      }
+    }
+    if (!missing.length) return out;
+
+    // Per-ticker headlines in parallel (bounded), then ONE batched model call.
+    const settled = await Promise.allSettled(
+      missing.map((m) => this.tickerHeadlines(m.symbol, m.name)),
+    );
+    const withNews = missing.map((m, i) => ({
+      ...m,
+      headlines:
+        settled[i].status === 'fulfilled'
+          ? (settled[i] as PromiseFulfilledResult<string[]>).value.slice(0, 3)
+          : [],
+    }));
+
+    const generatedMap = await this.generator.generateMovementExplainersBatch(withNews);
+    for (const m of missing) {
+      const explainer = generatedMap[m.symbol];
+      if (!explainer) continue;
+      const dir = m.changePct >= 0 ? 'up' : 'down';
+      const data = {
+        title: `Why ${m.symbol} is ${dir} ${Math.abs(m.changePct).toFixed(2)}% today`,
+        explainer,
+      };
+      this.explainerCache.set(m.symbol, { ts: Date.now(), data });
+      out[m.symbol] = data;
+    }
+    return out;
   }
 
   /** Run the full daily refresh. Concurrency-locked so a manual trigger and

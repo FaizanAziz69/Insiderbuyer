@@ -525,8 +525,8 @@ tags: include "${opts.ticker}" and the topic.`;
       ? `Recent headlines mentioning the company:\n- ${opts.headlines.slice(0, 6).join('\n- ')}`
       : 'No recent company-specific headlines are available.';
     const prompt = `In 2-4 sentences, explain why ${opts.name || opts.symbol} (${opts.symbol}) stock is ${dir} ${pct}% today, written for a retail investor.
-- Be specific and factual; use the headlines below if they explain the move.
-- If there is no clear company-specific catalyst, say the move appears driven by broader market/sector rotation, momentum, or unusual volume.
+- Be SPECIFIC to this company: name what it actually does (its industry/product) and tie the move to the headlines below when they explain it.
+- If no clear company-specific catalyst appears in the headlines, still anchor the explanation in THIS company's context (its sector, size, volatility profile) — never produce a generic sentence that could apply to any stock.
 - Use cautious, non-advisory language. Never give buy/sell advice.
 
 ${news}`;
@@ -552,6 +552,86 @@ ${news}`;
         `Movement explainer failed for ${opts.symbol}: ${err?.message || err}`,
       );
       return { title: `Why ${opts.symbol} is ${dir} ${pct}% today`, explainer: '' };
+    }
+  }
+
+  /** Batched movement explainers — ONE model call for a whole movers table,
+   *  so the page can pre-warm every row on load. Each entry gets a unique,
+   *  company-specific 2-3 sentence explanation. */
+  async generateMovementExplainersBatch(
+    items: Array<{
+      symbol: string;
+      name: string;
+      changePct: number;
+      headlines: string[];
+    }>,
+  ): Promise<Record<string, string>> {
+    if (!this.client || !items.length) return {};
+    const tool: Anthropic.Messages.Tool = {
+      name: 'publish_explainers',
+      description: 'Publish one movement explanation per stock.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          explainers: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                symbol: { type: 'string', description: 'The ticker, uppercase.' },
+                explainer: {
+                  type: 'string',
+                  description:
+                    '2-3 sentences, unique and specific to THIS company: what it does, and why it is moving today (tie to its headlines when given). Cautious, factual, no advice.',
+                },
+              },
+              required: ['symbol', 'explainer'],
+            },
+          },
+        },
+        required: ['explainers'],
+      },
+    };
+    const list = items
+      .map((i) => {
+        const dir = i.changePct >= 0 ? 'up' : 'down';
+        const news = i.headlines.length
+          ? ` Recent headlines: ${i.headlines.join(' | ')}`
+          : ' No company-specific headlines available.';
+        return `- ${i.symbol} (${i.name || 'unknown name'}): ${dir} ${Math.abs(i.changePct).toFixed(2)}% today.${news}`;
+      })
+      .join('\n');
+    try {
+      const response = await this.client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: Math.min(8000, 250 * items.length + 500),
+        system:
+          'You are a concise, factual financial-news analyst. For EACH stock you produce a DISTINCT explanation grounded in that specific company — its actual business and its own headlines. Never reuse the same wording across stocks. No investment advice.',
+        tools: [tool],
+        tool_choice: { type: 'tool', name: 'publish_explainers' },
+        messages: [
+          {
+            role: 'user',
+            content: `Explain today's move for each of these stocks, one entry per ticker:\n${list}`,
+          },
+        ],
+      });
+      const block = response.content.find(
+        (b): b is Anthropic.Messages.ToolUseBlock => b.type === 'tool_use',
+      );
+      const arr = (block?.input as any)?.explainers;
+      const out: Record<string, string> = {};
+      if (Array.isArray(arr)) {
+        for (const e of arr) {
+          const sym = String(e?.symbol || '').toUpperCase();
+          const text = String(e?.explainer || '').trim();
+          if (sym && text) out[sym] = text;
+        }
+      }
+      return out;
+    } catch (err: any) {
+      this.logger.warn(`Batch movement explainers failed: ${err?.message || err}`);
+      return {};
     }
   }
 
