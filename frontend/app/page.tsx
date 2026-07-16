@@ -4,10 +4,10 @@ import useSWR from "swr";
 import { ChevronRight } from "lucide-react";
 import { API_BASE, HeatQuote, heatToRanking, fetcher } from "@/lib/api";
 import { MonthlyBuySellMeter } from "@/components/home/MonthlyBuySellMeter";
+import { TopStoriesSection } from "@/components/home/TopStoriesSection";
 import { PredictionOfTheDay } from "@/components/home/PredictionOfTheDay";
 import { HomeDatasets } from "@/components/home/HomeDatasets";
 import { EarningsCalendar } from "@/components/home/EarningsCalendar";
-import { SidebarPopularTools } from "@/components/home/SidebarPopularTools";
 import { SidebarStockListsPills } from "@/components/home/SidebarStockListsPills";
 import { AllAccessCta } from "@/components/home/AllAccessCta";
 import { TrialAndNewsletterStrip } from "@/components/home/TrialAndNewsletterStrip";
@@ -16,20 +16,13 @@ import { AdSlot } from "@/components/AdSlot";
 import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
 import { AiPopularArticlesSection } from "@/components/insights/AiPopularArticlesSection";
 import { AiLatestNewsSection } from "@/components/insights/AiLatestNewsSection";
-import { AiFeaturedHero } from "@/components/insights/AiFeaturedHero";
 
 export default function HomePage() {
   return (
     <div className="space-y-10">
-      {/* HERO — AI editorial carousel (left) + Top-5 gainers rail (right),
-          same proportions as before. */}
-      <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4 items-stretch xl:min-h-[540px]">
-        <AiFeaturedHero />
-        <div className="flex flex-col gap-4 h-full">
-          <TopGainersPanel />
-          <MonthlyBuySellMeter />
-        </div>
-      </section>
+      {/* TOP STORIES — Benzinga-style full-width block: one large featured
+          story + four smaller cards in a bordered container. */}
+      <TopStoriesSection />
 
       {/* Horizontal market heat map (full width) */}
       <MarketHeatmapPanel />
@@ -37,10 +30,14 @@ export default function HomePage() {
       {/* Free-trial + newsletter dual strip — directly below the heat map */}
       <TrialAndNewsletterStrip />
 
-      {/* LATEST FINANCIAL NEWS — AI-refined editorial from SEC + Insider Score data */}
+      {/* LATEST FINANCIAL NEWS — AI-refined editorial; right rail keeps the
+          Top Gainers panel (client-approved) + monthly buy/sell meter. */}
       <div className="grid grid-cols-1 xl:grid-cols-[2.5fr_1fr] gap-6 xl:gap-10">
         <AiLatestNewsSection />
-        <SidebarPopularTools />
+        <aside className="space-y-4">
+          <TopGainersPanel />
+          <MonthlyBuySellMeter />
+        </aside>
       </div>
 
       {/* Banner ad between sections */}

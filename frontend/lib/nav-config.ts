@@ -59,7 +59,7 @@ export interface NavGroup {
 
 export const NAV_GROUPS: NavGroup[] = [
   {
-    label: "Market Data",
+    label: "Stock Data",
     columns: [
       {
         links: [

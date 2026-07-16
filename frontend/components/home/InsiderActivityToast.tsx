@@ -42,6 +42,8 @@ const SPRING = { type: "spring", stiffness: 260, damping: 26 } as const;
 // file). Autoplay is gated by the browser until a user gesture, so we resume
 // the context on the first interaction.
 let audioCtx: AudioContext | null = null;
+// Hard mute — set when the user dismisses the bubble; nothing may play after.
+let soundMuted = false;
 function ensureAudio() {
   if (typeof window === "undefined") return null;
   try {
@@ -54,6 +56,7 @@ function ensureAudio() {
   }
 }
 function playCashSound() {
+  if (soundMuted) return;
   const ctx = ensureAudio();
   if (!ctx) return;
   // Don't hard-gate on "running": ensureAudio() has already called resume(),
@@ -82,11 +85,35 @@ function playCashSound() {
       osc.stop(now + t + 0.65);
     });
   };
-  ding(0, 1046.5, 0.28); // "cha" — C6
-  ding(0.11, 1568, 0.3); // "ching" — G6
+  ding(0, 1046.5, 0.26); // "cha" — C6
+  ding(0.1, 1568, 0.28); // "ching" — G6
 
-  // Coin jingle: a short burst of band-passed noise → bright metallic shimmer.
-  const dur = 0.28;
+  // Coin drops: a handful of short, bright metallic clinks landing at
+  // staggered times/pitches — reads unmistakably as money hitting a tray.
+  const clink = (t: number, freq: number, level: number) => {
+    const partials = [1, 2.76, 5.4, 8.93]; // inharmonic — coin-like
+    const weights = [1, 0.6, 0.35, 0.18];
+    partials.forEach((mult, i) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq * mult;
+      const peak = level * weights[i];
+      g.gain.setValueAtTime(0.0001, now + t);
+      g.gain.exponentialRampToValueAtTime(peak, now + t + 0.003);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.12);
+      osc.connect(g).connect(master);
+      osc.start(now + t);
+      osc.stop(now + t + 0.14);
+    });
+  };
+  clink(0.2, 2350, 0.16);
+  clink(0.27, 2960, 0.13);
+  clink(0.33, 2610, 0.11);
+  clink(0.41, 3180, 0.08);
+
+  // Soft metallic shimmer under the coins.
+  const dur = 0.32;
   const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
   const chan = buffer.getChannelData(0);
   for (let i = 0; i < chan.length; i++) chan[i] = Math.random() * 2 - 1;
@@ -94,12 +121,12 @@ function playCashSound() {
   noise.buffer = buffer;
   const bp = ctx.createBiquadFilter();
   bp.type = "bandpass";
-  bp.frequency.value = 4200;
-  bp.Q.value = 5;
+  bp.frequency.value = 5200;
+  bp.Q.value = 4;
   const ng = ctx.createGain();
-  const nStart = now + 0.16;
+  const nStart = now + 0.18;
   ng.gain.setValueAtTime(0.0001, nStart);
-  ng.gain.exponentialRampToValueAtTime(0.14, nStart + 0.02);
+  ng.gain.exponentialRampToValueAtTime(0.1, nStart + 0.02);
   ng.gain.exponentialRampToValueAtTime(0.0001, nStart + dur);
   noise.connect(bp).connect(ng).connect(master);
   noise.start(nStart);
@@ -181,13 +208,20 @@ export function InsiderActivityToast({
   // Session-scoped dismissal (the × on the bubble removes it for the session).
   useEffect(() => {
     try {
-      if (sessionStorage.getItem("ib_insider_toast_dismissed") === "1") setDismissed(true);
+      if (sessionStorage.getItem("ib_insider_toast_dismissed") === "1") {
+        setDismissed(true);
+        soundMuted = true; // dismissed earlier this session — stay silent
+      }
     } catch {
       /* ignore */
     }
   }, []);
   function dismiss() {
     setDismissed(true);
+    // Closing must actually silence it: kill the queued chime and hard-mute
+    // for the rest of the session so no later effect can replay the sound.
+    chimePendingRef.current = false;
+    soundMuted = true;
     try {
       sessionStorage.setItem("ib_insider_toast_dismissed", "1");
     } catch {
@@ -199,6 +233,10 @@ export function InsiderActivityToast({
   // arrival "cha-ching" is heard the moment the user first interacts.
   useEffect(() => {
     const onGesture = () => {
+      if (soundMuted) {
+        chimePendingRef.current = false;
+        return;
+      }
       const ctx = ensureAudio();
       if (ctx && chimePendingRef.current) {
         chimePendingRef.current = false;
@@ -219,6 +257,7 @@ export function InsiderActivityToast({
   // cha-ching. Because navigating here was itself a click, audio is already
   // unlocked by the time it pops, so the sound plays on arrival.
   useEffect(() => {
+    if (dismissed) return; // closed for the session — never re-appear or ding
     setExpanded(false);
     setVisible(false);
     const t = setTimeout(() => {
@@ -227,7 +266,7 @@ export function InsiderActivityToast({
     }, 10_000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [pathname, dismissed]);
 
   const { data } = useSWR<TradesResponse>(
     // Buys only, server-side — the generic trades feed is often dominated by
@@ -282,9 +321,10 @@ export function InsiderActivityToast({
 
   // Cha-ching whenever a new insider buy arrives (once visible).
   useEffect(() => {
-    if (visible && newCount > prevNewRef.current) chime();
+    if (visible && !dismissed && newCount > prevNewRef.current) chime();
     prevNewRef.current = newCount;
-  }, [newCount, visible]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newCount, visible, dismissed]);
 
   // Open the card: acknowledge everything current, jump to the newest. Play
   // the cash sound here too — a click is a guaranteed user gesture, so this is

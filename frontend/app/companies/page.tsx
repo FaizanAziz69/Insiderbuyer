@@ -158,29 +158,6 @@ export default function CompaniesPage() {
         <span className="tabular text-mute text-[14px] font-bold">{formatCurrency(r.marketCap)}</span>
       ),
     },
-    {
-      key: "peRatio",
-      label: "P/E",
-      group: STOCK,
-      align: "right",
-      sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.peRatio ?? null,
-      render: (r) => {
-        const pe = quoteBySym.get((r.ticker || "").toUpperCase())?.peRatio;
-        return <span className="tabular text-mute text-[13px] font-bold">{pe != null ? pe.toFixed(1) : "—"}</span>;
-      },
-    },
-    {
-      key: "dividendYield",
-      label: "Div Yield",
-      group: STOCK,
-      align: "right",
-      sortValue: (r) => quoteBySym.get((r.ticker || "").toUpperCase())?.dividendYield ?? null,
-      render: (r) => {
-        const dy = quoteBySym.get((r.ticker || "").toUpperCase())?.dividendYield;
-        return <span className="tabular text-mute text-[13px] font-bold">{dy != null ? dy.toFixed(2) + "%" : "—"}</span>;
-      },
-    },
-    { ...sectorCol, group: STOCK },
     { ...iqsCol, group: INSIDER },
     {
       key: "upside",
@@ -214,29 +191,7 @@ export default function CompaniesPage() {
       sortValue: (r) => r.distinctBuyers,
       render: (r) => <span className="tabular text-[14px] font-bold">{r.distinctBuyers}</span>,
     },
-    {
-      key: "trades",
-      label: "Trades",
-      group: INSIDER,
-      filterable: true,
-      filterType: "range",
-      align: "right",
-      sortValue: (r) => r.transactionCount,
-      render: (r) => <span className="tabular text-mute text-[14px] font-bold">{r.transactionCount}</span>,
-    },
     { ...boughtCol, group: INSIDER },
-    {
-      key: "avgCost",
-      label: "Avg Cost",
-      group: INSIDER,
-      align: "right",
-      sortValue: (r) => r.avgCost ?? null,
-      render: (r) => (
-        <span className="tabular text-[14px] font-bold">
-          {r.avgCost != null ? `$${r.avgCost.toFixed(2)}` : "—"}
-        </span>
-      ),
-    },
     {
       key: "lastBuyDate",
       label: "Last Buy",

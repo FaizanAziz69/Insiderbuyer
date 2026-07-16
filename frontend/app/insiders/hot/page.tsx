@@ -12,11 +12,9 @@ import {
 } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
-import { Sparkline } from "@/components/Sparkline";
 import { DataTable, Column } from "@/components/DataTable";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { WatchlistButton } from "@/components/WatchlistButton";
-import { InsiderSignalHover } from "@/components/InsiderSignalHover";
 import { PremiumGate } from "@/components/PremiumGate";
 
 /**
@@ -24,18 +22,6 @@ import { PremiumGate } from "@/components/PremiumGate";
  * mirroring TipRanks' "Insider Signal" (Very Positive / Positive / Neutral).
  * Driven by the Insider Score composite and the number of distinct insiders buying.
  */
-function insiderSignal(r: RankingRow): { label: string; color: string; strength: number } {
-  const buyers = r.distinctBuyers || 0;
-  if (r.iqs >= 70 || buyers >= 4)
-    return { label: "Very Positive", color: "var(--good)", strength: 92 };
-  if (r.iqs >= 50 || buyers >= 2)
-    return {
-      label: "Positive",
-      color: "color-mix(in srgb, var(--good) 70%, var(--warn))",
-      strength: 64,
-    };
-  return { label: "Neutral", color: "var(--warn)", strength: 32 };
-}
 
 export default function InsiderHotStocksPage() {
   const { data, isLoading } = useSWR<RankingsResponse>(
@@ -52,12 +38,6 @@ export default function InsiderHotStocksPage() {
     .filter(Boolean)
     .slice(0, 60)
     .join(",");
-  const { data: sparkData } = useSWR<{ spark: Record<string, number[]> }>(
-    tickerKey ? `${API_BASE}/market-stats/spark?symbols=${tickerKey}` : null,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
-  );
-  const sparkMap = sparkData?.spark || {};
 
   // Analyst-implied potential upside % — rendered next to the Insider Score.
   const { data: analystData } = useSWR<{ rows: { symbol: string; upsidePct: number | null }[] }>(
@@ -153,20 +133,6 @@ export default function InsiderHotStocksPage() {
       },
     },
     {
-      key: "marketCap",
-      label: "Market Cap",
-      align: "right",
-      filterable: true,
-      filterType: "marketCapPreset",
-      filterLabelText: "Market Cap",
-      sortValue: (r) => r.marketCap ?? null,
-      render: (r) => (
-        <span className="tabular text-[14px] text-mute font-bold">
-          {formatCurrency(r.marketCap)}
-        </span>
-      ),
-    },
-    {
       key: "iqs",
       label: "Insider Score",
       align: "center",
@@ -191,48 +157,18 @@ export default function InsiderHotStocksPage() {
       },
     },
     {
-      key: "signal",
-      label: "Insider Signal",
-      align: "center",
-      sortValue: (r) => insiderSignal(r).strength,
-      render: (r) => {
-        const s = insiderSignal(r);
-        return (
-          <InsiderSignalHover
-            ticker={r.ticker || ""}
-            signalLabel={s.label}
-            distinctBuyers={r.distinctBuyers}
-            totalPurchaseValue={r.totalPurchaseValue}
-            avgCost={r.avgCost ?? null}
-            lastBuyDate={r.lastBuyDate ?? null}
-          >
-            <div className="inline-flex flex-col items-stretch gap-1 min-w-[110px] align-middle cursor-help">
-              <div
-                className="w-full h-2 rounded-full overflow-hidden"
-                style={{ background: "var(--bg-3)" }}
-              >
-                <div
-                  className="h-full rounded-full"
-                  style={{ width: `${s.strength}%`, background: s.color }}
-                />
-              </div>
-              <span
-                className="text-[11px] font-bold whitespace-nowrap text-center"
-                style={{ color: s.color }}
-              >
-                {s.label}
-              </span>
-            </div>
-          </InsiderSignalHover>
-        );
-      },
-    },
-    {
-      key: "recent",
-      label: "Recent (7D)",
-      align: "center",
-      sortable: false,
-      render: (r) => <Sparkline data={sparkMap[(r.ticker || "").toUpperCase()]} />,
+      key: "marketCap",
+      label: "Market Cap",
+      align: "right",
+      filterable: true,
+      filterType: "marketCapPreset",
+      filterLabelText: "Market Cap",
+      sortValue: (r) => r.marketCap ?? null,
+      render: (r) => (
+        <span className="tabular text-[14px] text-mute font-bold">
+          {formatCurrency(r.marketCap)}
+        </span>
+      ),
     },
     {
       key: "buyers",
@@ -254,28 +190,6 @@ export default function InsiderHotStocksPage() {
           style={{ color: "var(--good)" }}
         >
           {formatCurrency(r.totalPurchaseValue)}
-        </span>
-      ),
-    },
-    {
-      key: "avgCost",
-      label: "Avg Cost",
-      align: "right",
-      sortValue: (r) => r.avgCost ?? null,
-      render: (r) => (
-        <span className="tabular text-[14px] font-bold">
-          {r.avgCost != null ? `$${r.avgCost.toFixed(2)}` : "—"}
-        </span>
-      ),
-    },
-    {
-      key: "lastBuyDate",
-      label: "Last Buy",
-      align: "right",
-      sortValue: (r) => r.lastBuyDate ?? null,
-      render: (r) => (
-        <span className="tabular text-[14px] text-soft whitespace-nowrap">
-          {formatDate(r.lastBuyDate)}
         </span>
       ),
     },
