@@ -20,7 +20,7 @@ export default function HomePage() {
     <div className="space-y-10">
       {/* TOP — Benzinga-style Top Stories (left) with the Top Gainers rail +
           buy/sell meter on the right side, same split as the old hero. */}
-      <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4 items-stretch">
+      <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4 items-stretch xl:min-h-[540px]">
         <TopStoriesSection />
         <div className="flex flex-col gap-4 h-full">
           <TopGainersPanel />
