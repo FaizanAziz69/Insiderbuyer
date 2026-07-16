@@ -18,19 +18,18 @@ import { AiLatestNewsSection } from "@/components/insights/AiLatestNewsSection";
 export default function HomePage() {
   return (
     <div className="space-y-10">
-      {/* TOP STORIES — Benzinga-style full-width block: one large featured
-          story + four smaller cards in a bordered container. */}
-      <TopStoriesSection />
-
-      {/* TOP AREA — Top Gainers stay on the side (client-approved position),
-          next to the market heat map. */}
+      {/* TOP — Benzinga-style Top Stories (left) with the Top Gainers rail +
+          buy/sell meter on the right side, same split as the old hero. */}
       <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4 items-stretch">
-        <MarketHeatmapPanel />
+        <TopStoriesSection />
         <div className="flex flex-col gap-4 h-full">
           <TopGainersPanel />
           <MonthlyBuySellMeter />
         </div>
       </section>
+
+      {/* Horizontal market heat map (full width) */}
+      <MarketHeatmapPanel />
 
       {/* LATEST FINANCIAL NEWS — AI-refined editorial, full width */}
       <AiLatestNewsSection />
