@@ -36,7 +36,7 @@ export function TopStoriesSection() {
       {/* Section header */}
       <div
         className="flex items-center justify-between px-5 py-3 border-b"
-        style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
+        style={{ borderColor: "var(--border)", background: "transparent" }}
       >
         <h2 className="flex items-center gap-2 text-[15px] font-bold uppercase tracking-wider">
           <Newspaper className="h-4 w-4 text-accent" />
