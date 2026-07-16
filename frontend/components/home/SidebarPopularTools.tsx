@@ -4,102 +4,77 @@ import {
   ArrowUpRight,
   BarChart3,
   Bell,
-  Calculator,
   Calendar,
   Flame,
   LineChart,
   TrendingDown,
 } from "lucide-react";
 
+/** Each tool gets its own tint so the grid reads as colorful app tiles —
+ *  deliberately unlike MarketBeat's plain text-row list. */
 const TOOLS = [
-  {
-    title: "Watchlist",
-    body: "Track any stocks you follow with live prices and daily change. Add with the ☆ star on any company page — saved on your device.",
-    href: "/watchlist",
-    icon: LineChart,
-  },
-  // {
-  //   title: "Insider Score Methodology",
-  //   body: "Under the hood of our four-factor score — purchase volume, cluster effect, role weighting, and holding-change magnitude.",
-  //   href: "/methodology",
-  //   icon: Calculator,
-  // },
-  {
-    title: "Stock Screener",
-    body: "Slice the universe by sector, market-cap band, Insider Score tier, and recent insider activity. Save the screens you keep running.",
-    href: "/screener",
-    icon: BarChart3,
-  },
-  {
-    title: "Insider Trade Alerts",
-    body: "Subscribe to email + SMS alerts the moment a tracked insider files a Form 4 — buy, sell, or 10b5-1 plan.",
-    href: "/alerts",
-    icon: Bell,
-  },
-  {
-    title: "Earnings Calendar",
-    body: "Upcoming earnings releases with EPS estimates, report time, and the Insider Score-flagged names reporting this week.",
-    href: "/earnings",
-    icon: Calendar,
-  },
-  {
-    title: "Top Movers",
-    body: "Today's biggest gainers, losers, and most-active tickers — cross-referenced with recent insider buys.",
-    href: "/movers",
-    icon: Flame,
-  },
-  {
-    title: "Short Squeeze List",
-    body: "Stocks ranked by squeeze potential — short % of float, days-to-cover, and rising short interest combined into a single score.",
-    href: "/short-squeeze",
-    icon: TrendingDown,
-  },
+  { title: "Watchlist", caption: "Track your stocks live", href: "/watchlist", icon: LineChart, color: "#0ea5e9" },
+  { title: "Stock Screener", caption: "Filter by score & sector", href: "/screener", icon: BarChart3, color: "#8b5cf6" },
+  { title: "Trade Alerts", caption: "Form 4 email + SMS", href: "/alerts", icon: Bell, color: "#f59e0b" },
+  { title: "Earnings Calendar", caption: "Who reports this week", href: "/earnings", icon: Calendar, color: "#10b981" },
+  { title: "Top Movers", caption: "Gainers, losers, actives", href: "/movers", icon: Flame, color: "#ef4444" },
+  { title: "Short Squeeze", caption: "Ranked squeeze setups", href: "/short-squeeze", icon: TrendingDown, color: "#ec4899" },
 ];
 
+/**
+ * Popular Tools — redesigned per the homepage review: a compact grid of
+ * colorful icon tiles (app-launcher style) instead of the old MarketBeat-like
+ * stacked text cards. Same tools, same links — new look.
+ */
 export function SidebarPopularTools() {
   return (
-    <aside className="space-y-3">
-      <div className="flex items-baseline justify-between mb-2">
-        <h3
-          className="text-[16px] font-semibold tracking-tight"
-          style={{ letterSpacing: "-0.2px" }}
-        >
+    <aside
+      className="rounded-xl p-4"
+      style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+    >
+      <div className="flex items-baseline justify-between mb-3">
+        <h3 className="text-[15px] font-bold tracking-tight" style={{ letterSpacing: "-0.2px" }}>
           Popular Tools
         </h3>
         <Link
           href="/premium"
           className="text-[11px] font-semibold text-accent hover:underline inline-flex items-center gap-0.5"
         >
-          Premium tools <ArrowUpRight className="h-3 w-3" />
+          Premium <ArrowUpRight className="h-3 w-3" />
         </Link>
       </div>
-      {TOOLS.map((t) => {
-        const Icon = t.icon;
-        return (
-          <Link
-            key={t.title}
-            href={t.href}
-            className="block rounded-lg p-4 group transition"
-            style={{
-              background: "var(--bg-2)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <div className="flex items-start justify-between gap-2 mb-1.5">
-              <div className="inline-flex items-center gap-2">
-                <Icon className="h-4 w-4 text-accent" />
-                <span className="text-[14px] font-bold group-hover:text-accent transition">
+      <div className="grid grid-cols-2 gap-2.5">
+        {TOOLS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <Link
+              key={t.title}
+              href={t.href}
+              className="group rounded-lg p-3 flex flex-col items-start gap-2 transition hover:-translate-y-0.5"
+              style={{
+                background: "var(--bg-1)",
+                border: "1px solid var(--border)",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <span
+                className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: `color-mix(in srgb, ${t.color} 15%, transparent)` }}
+              >
+                <Icon className="h-4.5 w-4.5" style={{ color: t.color, height: 18, width: 18 }} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-bold leading-tight group-hover:text-accent transition">
                   {t.title}
                 </span>
-              </div>
-              <ArrowUpRight className="h-4 w-4 text-faint group-hover:text-accent transition" />
-            </div>
-            <p className="text-[12px] text-mute leading-relaxed line-clamp-3">
-              {t.body}
-            </p>
-          </Link>
-        );
-      })}
+                <span className="block text-[11px] text-mute leading-tight mt-0.5">
+                  {t.caption}
+                </span>
+              </span>
+            </Link>
+          );
+        })}
+      </div>
     </aside>
   );
 }

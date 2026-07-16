@@ -9,6 +9,7 @@ import { PredictionOfTheDay } from "@/components/home/PredictionOfTheDay";
 import { HomeDatasets } from "@/components/home/HomeDatasets";
 import { EarningsCalendar } from "@/components/home/EarningsCalendar";
 import { SidebarStockListsPills } from "@/components/home/SidebarStockListsPills";
+import { SidebarPopularTools } from "@/components/home/SidebarPopularTools";
 import { StockHeatmap, HeatmapLegend } from "@/components/heatmap/StockHeatmap";
 import { AdSlot } from "@/components/AdSlot";
 import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
@@ -33,8 +34,11 @@ export default function HomePage() {
       {/* Horizontal market heat map (full width) */}
       <MarketHeatmapPanel />
 
-      {/* LATEST FINANCIAL NEWS — AI-refined editorial, full width */}
-      <AiLatestNewsSection />
+      {/* LATEST FINANCIAL NEWS — with the redesigned Popular Tools rail */}
+      <div className="grid grid-cols-1 xl:grid-cols-[2.5fr_1fr] gap-6 xl:gap-10">
+        <AiLatestNewsSection />
+        <SidebarPopularTools />
+      </div>
 
       {/* Banner ad between sections */}
       <AdSlot slot="leaderboard" seed="home-mid-1" />
