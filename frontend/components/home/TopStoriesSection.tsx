@@ -30,14 +30,14 @@ export function TopStoriesSection() {
 
   return (
     <section
-      className="rounded-xl overflow-hidden p-4 sm:p-5 flex flex-col"
+      className="rounded-xl overflow-hidden p-4 flex flex-col h-full"
       style={{
         background: "var(--brand-surface)",
         border: "1px solid var(--brand-surface-border)",
       }}
     >
       {/* Header — white on the navbar-colored band */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <h2 className="text-[17px] font-bold uppercase tracking-wide" style={{ color: "#ffffff" }}>
           Top Stories
         </h2>
@@ -67,7 +67,7 @@ export function TopStoriesSection() {
             className="group rounded-lg overflow-hidden flex flex-col sm:flex-row flex-1"
             style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
           >
-            <div className="relative sm:w-[42%] flex-shrink-0 min-h-[200px] sm:min-h-[260px] overflow-hidden">
+            <div className="relative sm:w-[40%] flex-shrink-0 min-h-[170px] sm:min-h-[200px] overflow-hidden">
               <AiCoverImage
                 primary={lead.imageUrl}
                 seed={lead.slug}
@@ -87,14 +87,14 @@ export function TopStoriesSection() {
                 </span>
               )}
             </div>
-            <div className="p-5 sm:p-7 flex flex-col justify-center min-w-0">
-              <h3 className="text-[20px] sm:text-[26px] font-bold leading-tight group-hover:text-accent transition">
+            <div className="p-4 sm:p-5 flex flex-col justify-center min-w-0">
+              <h3 className="text-[18px] sm:text-[22px] font-bold leading-tight group-hover:text-accent transition">
                 {lead.title}
               </h3>
-              <p className="mt-3 text-[14.5px] leading-relaxed text-soft line-clamp-3">
+              <p className="mt-2 text-[13.5px] leading-relaxed text-soft line-clamp-2">
                 {lead.summary}
               </p>
-              <p className="mt-3 text-[12px] text-mute">
+              <p className="mt-2 text-[12px] text-mute">
                 {bylineFor(lead.kind, lead.slug)} · {timeAgo(lead.generatedAt)}
               </p>
             </div>
@@ -109,7 +109,7 @@ export function TopStoriesSection() {
                 className="group rounded-lg overflow-hidden flex flex-col"
                 style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
               >
-                <div className="relative h-[110px] sm:h-[130px] flex-shrink-0 overflow-hidden">
+                <div className="relative h-[92px] sm:h-[104px] flex-shrink-0 overflow-hidden">
                   <AiCoverImage
                     primary={item.imageUrl}
                     seed={item.slug}
@@ -121,7 +121,7 @@ export function TopStoriesSection() {
                   />
                 </div>
                 <div className="p-3 flex flex-col flex-1">
-                  <h4 className="text-[13.5px] font-bold leading-snug group-hover:text-accent transition line-clamp-3">
+                  <h4 className="text-[13px] font-bold leading-snug group-hover:text-accent transition line-clamp-2">
                     {item.title}
                   </h4>
                   <p className="mt-auto pt-2 text-[10.5px] text-mute">
