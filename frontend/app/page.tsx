@@ -22,18 +22,18 @@ export default function HomePage() {
           story + four smaller cards in a bordered container. */}
       <TopStoriesSection />
 
-      {/* Horizontal market heat map (full width) */}
-      <MarketHeatmapPanel />
-
-      {/* LATEST FINANCIAL NEWS — AI-refined editorial; right rail keeps the
-          Top Gainers panel (client-approved) + monthly buy/sell meter. */}
-      <div className="grid grid-cols-1 xl:grid-cols-[2.5fr_1fr] gap-6 xl:gap-10">
-        <AiLatestNewsSection />
-        <aside className="space-y-4">
+      {/* TOP AREA — Top Gainers stay on the side (client-approved position),
+          next to the market heat map. */}
+      <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4 items-stretch">
+        <MarketHeatmapPanel />
+        <div className="flex flex-col gap-4 h-full">
           <TopGainersPanel />
           <MonthlyBuySellMeter />
-        </aside>
-      </div>
+        </div>
+      </section>
+
+      {/* LATEST FINANCIAL NEWS — AI-refined editorial, full width */}
+      <AiLatestNewsSection />
 
       {/* Banner ad between sections */}
       <AdSlot slot="leaderboard" seed="home-mid-1" />
