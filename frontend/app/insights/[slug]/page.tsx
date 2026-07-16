@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
 import { ArticleBody } from "@/components/article/ArticleBody";
+import { ArticleLimitPopup } from "@/components/ArticleLimitPopup";
 import { RightRailStockLists } from "@/components/article/RightRailStockLists";
 import { ProgrammaticCta } from "@/components/article/ProgrammaticCta";
 import { AiCoverImage } from "@/components/insights/AiCoverImage";
@@ -174,6 +175,9 @@ export default function InsightDetailPage({
             <div className="h-px my-6" style={{ background: "var(--border)" }} />
 
             <ArticleBody html={post.body} />
+
+            {/* Free-signup gate — slides up after the 3-article limit */}
+            <ArticleLimitPopup slug={slug} />
 
             {/* Embedded Form 4 table — the data behind the story */}
             {post.ticker && <InsiderActivityTable ticker={post.ticker} />}

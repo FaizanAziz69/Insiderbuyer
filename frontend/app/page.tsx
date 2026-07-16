@@ -9,8 +9,6 @@ import { PredictionOfTheDay } from "@/components/home/PredictionOfTheDay";
 import { HomeDatasets } from "@/components/home/HomeDatasets";
 import { EarningsCalendar } from "@/components/home/EarningsCalendar";
 import { SidebarStockListsPills } from "@/components/home/SidebarStockListsPills";
-import { AllAccessCta } from "@/components/home/AllAccessCta";
-import { TrialAndNewsletterStrip } from "@/components/home/TrialAndNewsletterStrip";
 import { StockHeatmap, HeatmapLegend } from "@/components/heatmap/StockHeatmap";
 import { AdSlot } from "@/components/AdSlot";
 import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
@@ -26,9 +24,6 @@ export default function HomePage() {
 
       {/* Horizontal market heat map (full width) */}
       <MarketHeatmapPanel />
-
-      {/* Free-trial + newsletter dual strip — directly below the heat map */}
-      <TrialAndNewsletterStrip />
 
       {/* LATEST FINANCIAL NEWS — AI-refined editorial; right rail keeps the
           Top Gainers panel (client-approved) + monthly buy/sell meter. */}
@@ -66,8 +61,6 @@ export default function HomePage() {
       {/* Earnings calendar */}
       <EarningsCalendar days={7} />
 
-      {/* All-Access CTA — the "Get 30 Days for Free" closer */}
-      <AllAccessCta />
     </div>
   );
 }
