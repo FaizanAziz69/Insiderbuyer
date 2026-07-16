@@ -134,14 +134,14 @@ export default function AnalystRatingsPage() {
                     <WatchlistButton ticker={r.symbol} variant="icon" size="sm" />
                     <Link
                       href={`/companies/${encodeURIComponent(r.symbol)}`}
-                      className="flex items-center gap-2.5 min-w-[200px]"
+                      className="flex items-center gap-2.5"
                     >
                       <CompanyLogo ticker={r.symbol} name={r.name} size={28} />
                       <div className="min-w-0">
                         <div className="font-mono text-[15px] font-bold text-accent">
                           {r.symbol}
                         </div>
-                        <div className="text-[14px] font-medium truncate max-w-[200px]" style={{ color: "var(--text)" }}>
+                        <div className="text-[13px] font-medium truncate max-w-[170px]" style={{ color: "var(--text)" }}>
                           {r.name}
                         </div>
                       </div>
@@ -150,30 +150,24 @@ export default function AnalystRatingsPage() {
                 ),
               },
               {
-                key: "consensus",
-                label: "Consensus",
+                key: "price",
+                label: "Price",
                 filterable: true,
-                sortValue: (r) => r.recommendation ?? "",
+                filterType: "range",
+                align: "right",
+                sortValue: (r) => r.price,
+                render: (r) => <span className="tabular text-[14px] font-bold">${r.price.toFixed(2)}</span>,
+              },
+              {
+                key: "changePct",
+                label: "Change %",
+                align: "right",
+                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.changePct ?? null,
                 render: (r) => {
-                  const rec = r.recommendation
-                    ? REC_LABEL[r.recommendation] || {
-                        label: r.recommendation,
-                        color: "var(--text-soft)",
-                      }
-                    : null;
-                  return rec ? (
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
-                      style={{
-                        background: `color-mix(in srgb, ${rec.color} 16%, transparent)`,
-                        color: rec.color,
-                      }}
-                    >
-                      {rec.label}
-                    </span>
-                  ) : (
-                    "—"
-                  );
+                  const q = quoteBySym.get((r.symbol || "").toUpperCase());
+                  if (!q || q.changePct == null) return <span className="text-faint text-[13px]">—</span>;
+                  const up = q.changePct >= 0;
+                  return <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>{up ? "+" : ""}{q.changePct.toFixed(2)}%</span>;
                 },
               },
               {
@@ -220,61 +214,30 @@ export default function AnalystRatingsPage() {
                 render: (r) => <IqsScoreCell iqs={r.iqs} />,
               },
               {
-                key: "price",
-                label: "Price",
+                key: "consensus",
+                label: "Consensus",
                 filterable: true,
-                filterType: "range",
-                align: "right",
-                sortValue: (r) => r.price,
-                render: (r) => <span className="tabular text-[14px] font-bold">${r.price.toFixed(2)}</span>,
-              },
-              {
-                key: "changePct",
-                label: "Change %",
-                align: "right",
-                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.changePct ?? null,
+                sortValue: (r) => r.recommendation ?? "",
                 render: (r) => {
-                  const q = quoteBySym.get((r.symbol || "").toUpperCase());
-                  if (!q || q.changePct == null) return <span className="text-faint text-[13px]">—</span>;
-                  const up = q.changePct >= 0;
-                  return <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>{up ? "+" : ""}{q.changePct.toFixed(2)}%</span>;
-                },
-              },
-              {
-                key: "marketCap",
-                label: "Market Cap",
-                filterable: true,
-                filterType: "marketCapPreset",
-                filterLabelText: "Market Cap",
-                align: "right",
-                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null,
-                render: (r) => {
-                  const mc = quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null;
-                  return (
-                    <span className="tabular text-mute text-[14px] font-bold">
-                      {mc ? formatCurrency(mc) : "—"}
+                  const rec = r.recommendation
+                    ? REC_LABEL[r.recommendation] || {
+                        label: r.recommendation,
+                        color: "var(--text-soft)",
+                      }
+                    : null;
+                  return rec ? (
+                    <span
+                      className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
+                      style={{
+                        background: `color-mix(in srgb, ${rec.color} 16%, transparent)`,
+                        color: rec.color,
+                      }}
+                    >
+                      {rec.label}
                     </span>
+                  ) : (
+                    "—"
                   );
-                },
-              },
-              {
-                key: "peRatio",
-                label: "P/E",
-                align: "right",
-                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.peRatio ?? null,
-                render: (r) => {
-                  const pe = quoteBySym.get((r.symbol || "").toUpperCase())?.peRatio;
-                  return <span className="tabular text-mute text-[13px] font-bold">{pe != null ? pe.toFixed(1) : "—"}</span>;
-                },
-              },
-              {
-                key: "dividendYield",
-                label: "Div Yield",
-                align: "right",
-                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.dividendYield ?? null,
-                render: (r) => {
-                  const dy = quoteBySym.get((r.symbol || "").toUpperCase())?.dividendYield;
-                  return <span className="tabular text-mute text-[13px] font-bold">{dy != null ? dy.toFixed(2) + "%" : "—"}</span>;
                 },
               },
               {
@@ -312,33 +275,21 @@ export default function AnalystRatingsPage() {
                 },
               },
               {
-                key: "range",
-                label: "Range",
+                key: "marketCap",
+                label: "Market Cap",
                 filterable: true,
-                filterLabel: (r) =>
-                  r.targetLow && r.targetHigh
-                    ? `$${r.targetLow.toFixed(0)}–$${r.targetHigh.toFixed(0)}`
-                    : "",
+                filterType: "marketCapPreset",
+                filterLabelText: "Market Cap",
                 align: "right",
-                sortValue: (r) => r.targetLow,
-                render: (r) => (
-                  <span className="tabular text-[14px] font-bold text-mute whitespace-nowrap">
-                    {r.targetLow && r.targetHigh
-                      ? `$${r.targetLow.toFixed(0)}–$${r.targetHigh.toFixed(0)}`
-                      : "—"}
-                  </span>
-                ),
-              },
-              {
-                key: "numAnalysts",
-                label: "Analysts",
-                filterable: true,
-                filterType: "range",
-                align: "right",
-                sortValue: (r) => r.numAnalysts,
-                render: (r) => (
-                  <span className="tabular text-mute text-[14px] font-bold">{r.numAnalysts ?? "—"}</span>
-                ),
+                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null,
+                render: (r) => {
+                  const mc = quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null;
+                  return (
+                    <span className="tabular text-mute text-[14px] font-bold">
+                      {mc ? formatCurrency(mc) : "—"}
+                    </span>
+                  );
+                },
               },
             ]}
           />

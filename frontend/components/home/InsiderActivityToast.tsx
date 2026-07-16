@@ -13,6 +13,8 @@ import {
   formatNumber,
 } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
+import { useAuth } from "@/lib/auth";
+import { LoginModal } from "@/components/LoginModal";
 
 /** A single insider activity the widget cycles through. */
 export interface InsiderActivity {
@@ -267,6 +269,23 @@ export function InsiderActivityToast({
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, dismissed]);
+
+  const { user } = useAuth();
+  const [signupOpen, setSignupOpen] = useState(false);
+
+  // Opt-in tease (review "Explore" items): the latest congressional BUY with a
+  // photo — shown blurred in the expanded card to drive free-account signups.
+  const { data: congressData } = useSWR<{ rows: any[] }>(
+    `${API_BASE}/congressional-trades?limit=40`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
+  const politicianBuy = useMemo(() => {
+    const rows = congressData?.rows || [];
+    return (
+      rows.find((r) => r.action === "Buy" && r.photoUrl && r.ticker) || null
+    );
+  }, [congressData]);
 
   const { data } = useSWR<TradesResponse>(
     // Buys only, server-side — the generic trades feed is often dominated by
@@ -593,6 +612,35 @@ export function InsiderActivityToast({
               </AnimatePresence>
             </div>
 
+            {/* Opt-in strip — blurred politician buy → free signup (review item) */}
+            {!user && politicianBuy && (
+              <button
+                type="button"
+                onClick={() => setSignupOpen(true)}
+                className="relative z-10 w-full flex items-center gap-3 px-4 py-2.5 text-left transition hover:bg-[rgba(255,255,255,0.06)]"
+                style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                <span className="relative h-8 w-8 rounded-full overflow-hidden flex-shrink-0" aria-hidden>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={politicianBuy.photoUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    style={{ filter: "blur(5px) saturate(1.1)", transform: "scale(1.15)" }}
+                  />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[12px] font-bold leading-tight" style={{ color: "#fff" }}>
+                    A member of Congress just bought {politicianBuy.ticker}
+                  </span>
+                  <span className="block text-[11px] leading-tight" style={{ color: "rgba(255,255,255,0.6)" }}>
+                    Create a free account to see who — plus daily insider alerts
+                  </span>
+                </span>
+                <ArrowRight className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.7)" }} />
+              </button>
+            )}
+
             {/* Progress bar */}
             {count > 1 && (
               <div className="relative z-10 h-[3px] w-full" style={{ background: "rgba(255,255,255,0.07)" }}>
@@ -611,6 +659,7 @@ export function InsiderActivityToast({
       </AnimatePresence>
         </motion.div>
       </motion.div>
+      <LoginModal open={signupOpen} onClose={() => setSignupOpen(false)} />
     </>
   );
 }
