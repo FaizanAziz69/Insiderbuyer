@@ -152,31 +152,32 @@ export default function InsightDetailPage({
               <ArticleShareRow title={post.title} />
             </div>
 
-            <div
-              className="relative mt-6 rounded-lg overflow-hidden"
-              style={{ aspectRatio: "16 / 9" }}
-            >
-              <AiCoverImage
-                primary={post.imageUrl}
-                seed={post.slug}
-                tags={post.tags}
-                ticker={post.ticker}
-                sector={post.sector}
-                featuredTickers={post.featuredTickers}
-                overlay="lg"
-                loading="eager"
-                style={{ width: "100%", height: "100%" }}
-                className="w-full h-full"
-              />
-            </div>
-
-            <AdSlot slot="leaderboard" seed={`insight-${slug}`} />
-
-            <div className="h-px my-6" style={{ background: "var(--border)" }} />
-
-            {/* Hard signup gate — after 3 free articles the body blurs and a
-                full unlock panel takes over (free account only, no payment). */}
+            {/* Hard signup gate — after 3 free articles the cover image AND
+                body blur, and the unlock sheet slides up from the bottom
+                (free account only, no payment). */}
             <ArticleGate slug={slug}>
+              <div
+                className="relative mt-6 rounded-lg overflow-hidden"
+                style={{ aspectRatio: "16 / 9" }}
+              >
+                <AiCoverImage
+                  primary={post.imageUrl}
+                  seed={post.slug}
+                  tags={post.tags}
+                  ticker={post.ticker}
+                  sector={post.sector}
+                  featuredTickers={post.featuredTickers}
+                  overlay="lg"
+                  loading="eager"
+                  style={{ width: "100%", height: "100%" }}
+                  className="w-full h-full"
+                />
+              </div>
+
+              <AdSlot slot="leaderboard" seed={`insight-${slug}`} />
+
+              <div className="h-px my-6" style={{ background: "var(--border)" }} />
+
               <ArticleBody html={post.body} />
             </ArticleGate>
 
