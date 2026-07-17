@@ -96,10 +96,15 @@ export function LoginModal({ open, onClose }: { open: boolean; onClose: () => vo
                 style={{ background: "color-mix(in srgb, var(--accent-2) 18%, transparent)" }}
               />
 
+              {/* z-10 keeps the button ABOVE the content wrapper that follows
+                  it in the DOM — without it, clicks/hover land on the content
+                  div and the × is unreachable. */}
               <button
+                type="button"
                 onClick={onClose}
                 aria-label="Close"
-                className="absolute top-4 right-4 h-8 w-8 rounded-md hover:bg-[var(--bg-3)] flex items-center justify-center transition"
+                className="absolute top-3 right-3 z-10 h-9 w-9 rounded-md hover:bg-[var(--bg-3)] flex items-center justify-center transition cursor-pointer"
+                style={{ border: "1px solid var(--border)" }}
               >
                 <X className="h-4 w-4 text-mute" />
               </button>
