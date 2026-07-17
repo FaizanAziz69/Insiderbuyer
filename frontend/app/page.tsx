@@ -8,7 +8,7 @@ import { TopStoriesSection } from "@/components/home/TopStoriesSection";
 import { PredictionOfTheDay } from "@/components/home/PredictionOfTheDay";
 import { HomeDatasets } from "@/components/home/HomeDatasets";
 import { EarningsCalendar } from "@/components/home/EarningsCalendar";
-import { SidebarStockListsPills } from "@/components/home/SidebarStockListsPills";
+import { SidebarListsAndTools } from "@/components/home/SidebarListsAndTools";
 import { SidebarPopularTools } from "@/components/home/SidebarPopularTools";
 import { StockHeatmap, HeatmapLegend } from "@/components/heatmap/StockHeatmap";
 import { AdSlot } from "@/components/AdSlot";
@@ -46,7 +46,7 @@ export default function HomePage() {
       {/* POPULAR ARTICLES — AI-generated editorial, refreshed daily */}
       <div className="grid grid-cols-1 xl:grid-cols-[2.5fr_1fr] gap-6 xl:gap-10">
         <AiPopularArticlesSection />
-        <SidebarStockListsPills />
+        <SidebarListsAndTools />
       </div>
 
       {/* STOCK IDEAS — AI-generated trade-idea cards refreshed daily */}
