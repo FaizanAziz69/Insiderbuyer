@@ -100,8 +100,9 @@ export function AiCatalyst({
     // Width: a wide, readable banner on desktop (so the AI text doesn't wrap
     // into a tall narrow column), narrowing to fit the viewport on mobile.
     const W = vw >= 700 ? 460 : Math.min(360, vw - 16);
-    // Anchor the right edge under the icon, then clamp inside the viewport.
-    const left = Math.min(Math.max(8, r.right - W), vw - W - 8);
+    // Always open to the LEFT of the icon (the catalyst column sits at the
+    // table's right edge), clamped on-screen — never overflows the window.
+    const left = Math.min(Math.max(8, r.left - W - 8), vw - W - 8);
     // Open on whichever side has more room, and cap the height to that room so
     // tall AI text scrolls inside the popover instead of overflowing off-screen.
     const spaceBelow = vh - r.bottom - 8;
