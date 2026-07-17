@@ -1,119 +1,142 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { BookOpen, X } from "lucide-react";
+import { Bell, BookOpen, LineChart, Trophy } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { LoginModal } from "@/components/LoginModal";
+import { Logo } from "@/components/Logo";
 
-/** Free articles a visitor can read before the signup prompt appears. */
+/** Free articles a visitor can read before the article body locks. */
 const FREE_ARTICLES = 3;
 const STORE_KEY = "ib_articles_read";
-const SNOOZE_KEY = "ib_article_popup_snoozed";
+
+const PERKS = [
+  { icon: BookOpen, title: "Unlimited articles", body: "Every daily briefing, deep dive, and sector report — no limits." },
+  { icon: LineChart, title: "Watchlists with live scores", body: "Track your stocks with live prices and Insider Scores." },
+  { icon: Bell, title: "Daily insider alerts", body: "Know the moment executives buy their own stock." },
+  { icon: Trophy, title: "Full Insider Score rankings", body: "The complete #50 → #1 conviction leaderboard." },
+];
 
 /**
- * Benzinga-style subscribe-gate: after a visitor reads 3 articles, a bar
- * slides up from the bottom asking them to create a FREE account to keep
- * reading. No payment — signup-gated only (client spec). Dismissible; stays
- * quiet for the rest of the session once closed, and never shows to
- * signed-in users.
+ * Benzinga-style HARD article gate: after 3 free articles the article body is
+ * blurred and unreadable, with a large sign-up panel over it. No dismiss —
+ * the only way through is a free account (sign up or log in). Never shown to
+ * signed-in users. Free signup only; no payment.
  */
-export function ArticleLimitPopup({ slug }: { slug: string }) {
+export function ArticleGate({ slug, children }: { slug: string; children: React.ReactNode }) {
   const { user } = useAuth();
-  const [show, setShow] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
 
   useEffect(() => {
-    if (!slug || user) return;
+    if (!slug || user) {
+      setLocked(false);
+      return;
+    }
     try {
-      if (sessionStorage.getItem(SNOOZE_KEY) === "1") return;
       const read: string[] = JSON.parse(localStorage.getItem(STORE_KEY) || "[]");
       if (!read.includes(slug)) {
         read.push(slug);
         localStorage.setItem(STORE_KEY, JSON.stringify(read.slice(-50)));
       }
-      if (read.length > FREE_ARTICLES) {
-        // Slide up after the reader has settled into the page.
-        const t = setTimeout(() => setShow(true), 1_500);
-        return () => clearTimeout(t);
-      }
+      setLocked(read.length > FREE_ARTICLES);
     } catch {
-      /* storage unavailable — never block reading */
+      setLocked(false); // storage unavailable — never block reading
     }
   }, [slug, user]);
 
-  function snooze() {
-    setShow(false);
-    try {
-      sessionStorage.setItem(SNOOZE_KEY, "1");
-    } catch {
-      /* ignore */
-    }
-  }
-
-  if (user) return null;
+  if (!locked || user) return <>{children}</>;
 
   return (
     <>
-      <AnimatePresence>
-        {show && !loginOpen && (
-          <motion.div
-            initial={{ y: 160, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 160, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 30 }}
-            className="fixed inset-x-0 bottom-0 z-40"
-            role="dialog"
-            aria-label="Create a free account to continue reading"
+      <div className="relative">
+        {/* Article body — blurred and unreadable until sign-in */}
+        <div
+          className="select-none pointer-events-none overflow-hidden"
+          style={{ filter: "blur(7px)", maxHeight: 900, opacity: 0.75 }}
+          aria-hidden
+        >
+          {children}
+        </div>
+        {/* Fade so the blur bleeds out at the bottom */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-40 pointer-events-none"
+          style={{ background: "linear-gradient(180deg, transparent, var(--bg-1))" }}
+        />
+
+        {/* The gate panel — big, benefit-rich, NOT dismissible */}
+        <div className="absolute inset-0 flex items-start justify-center px-3 pt-10 sm:pt-16">
+          <div
+            className="w-full max-w-[640px] rounded-2xl overflow-hidden"
+            style={{
+              background: "var(--bg-2)",
+              border: "1px solid var(--border-strong)",
+              boxShadow: "0 30px 90px rgba(0,0,0,0.35)",
+            }}
           >
-            {/* Full-width Benzinga-style strip spanning the whole screen */}
+            {/* Brand band */}
             <div
-              className="w-full"
-              style={{
-                background: "var(--bg-2)",
-                borderTop: "3px solid var(--accent)",
-                boxShadow: "0 -16px 48px rgba(0,0,0,0.28)",
-              }}
+              className="px-6 sm:px-9 py-4 flex items-center justify-between"
+              style={{ background: "var(--brand-surface)" }}
             >
-              <div className="mx-auto max-w-6xl px-5 sm:px-8 py-5 sm:py-7 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
-                <div
-                  className="hidden sm:flex h-14 w-14 rounded-2xl items-center justify-center flex-shrink-0"
-                  style={{ background: "var(--accent-soft)" }}
-                >
-                  <BookOpen className="h-6 w-6 text-accent" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[18px] sm:text-[21px] font-bold leading-tight">
-                    You&rsquo;ve reached your free article limit
-                  </div>
-                  <p className="text-[13.5px] sm:text-[14.5px] text-mute mt-1 leading-relaxed">
-                    It&rsquo;s free to keep reading — create a free account for unlimited
-                    articles, watchlists, and daily insider alerts.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2.5 flex-shrink-0 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => setLoginOpen(true)}
-                    className="btn-primary whitespace-nowrap flex-1 sm:flex-none"
-                    style={{ padding: "12px 26px", fontSize: 15 }}
-                  >
-                    Create free account
-                  </button>
-                  <button
-                    type="button"
-                    onClick={snooze}
-                    aria-label="Dismiss"
-                    className="h-10 w-10 rounded-md flex items-center justify-center hover:bg-[var(--bg-3)] transition flex-shrink-0"
-                    style={{ border: "1px solid var(--border)", color: "var(--text-mute)" }}
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
+              <Logo size="sm" tone="light" />
+              <span
+                className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
+                style={{ background: "rgba(255,255,255,0.14)", color: "#fff" }}
+              >
+                Free account
+              </span>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+            <div className="px-6 sm:px-9 py-7 sm:py-8">
+              <h2 className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight">
+                Unlock unlimited free articles
+              </h2>
+              <p className="mt-2 text-[14.5px] sm:text-[15.5px] text-soft leading-relaxed">
+                You&rsquo;ve read your {FREE_ARTICLES} free articles. Create a free
+                account to keep reading — <strong>100% free, no credit card, no payment.</strong>
+              </p>
+
+              {/* Benefits — 2×2 like Benzinga's unlock panel */}
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                {PERKS.map((p) => {
+                  const Icon = p.icon;
+                  return (
+                    <div key={p.title} className="flex items-start gap-3">
+                      <span
+                        className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                        style={{ background: "var(--accent-soft)" }}
+                      >
+                        <Icon className="h-4.5 w-4.5 text-accent" style={{ height: 18, width: 18 }} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[14px] font-bold leading-tight">{p.title}</span>
+                        <span className="block text-[12.5px] text-mute leading-snug mt-0.5">{p.body}</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setLoginOpen(true)}
+                className="btn-primary w-full mt-7"
+                style={{ padding: "14px 20px", fontSize: 16, fontWeight: 700 }}
+              >
+                Create Your Free Account
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoginOpen(true)}
+                className="w-full mt-3 text-[13.5px] text-mute hover:text-accent transition text-center"
+              >
+                Already have an account? <span className="font-bold text-accent underline">Log in</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </>
   );
