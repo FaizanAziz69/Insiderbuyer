@@ -524,10 +524,14 @@ tags: include "${opts.ticker}" and the topic.`;
     const news = opts.headlines.length
       ? `Recent headlines mentioning the company:\n- ${opts.headlines.slice(0, 6).join('\n- ')}`
       : 'No recent company-specific headlines are available.';
-    const prompt = `In 2-4 sentences, explain why ${opts.name || opts.symbol} (${opts.symbol}) stock is ${dir} ${pct}% today, written for a retail investor.
-- Be SPECIFIC to this company: name what it actually does (its industry/product) and tie the move to the headlines below when they explain it.
-- If no clear company-specific catalyst appears in the headlines, still anchor the explanation in THIS company's context (its sector, size, volatility profile) — never produce a generic sentence that could apply to any stock.
-- Use cautious, non-advisory language. Never give buy/sell advice.
+    const prompt = `You are explaining why ${opts.name || opts.symbol} (${opts.symbol}) stock is ${dir} ${pct}% today, for a retail investor. 2-4 sentences.
+
+METHOD — find the real catalyst:
+1. Scan the dated headlines below (freshest first). Look for a CONCRETE catalyst: merger/acquisition, earnings or guidance, offering/dilution, FDA or regulatory news, major contract, analyst action, index inclusion, short squeeze, exchange notice.
+2. If you find one, LEAD with it and name it specifically (e.g. "after announcing a $400M share-swap merger with EnChem America"). Weight the FRESHEST headlines most — today's move needs recent news, not last week's.
+3. If NO company-specific catalyst appears in the headlines, say that plainly: "No company-specific news appears to explain today's move" — then note it looks like momentum/volume-driven trading. NEVER invent or imply a reason that isn't in the headlines. A wrong reason destroys user trust; "no clear catalyst" is an acceptable, honest answer.
+- Mention what the company actually does in passing.
+- Cautious, factual, no buy/sell advice.
 
 ${news}`;
     try {
@@ -582,7 +586,7 @@ ${news}`;
                 explainer: {
                   type: 'string',
                   description:
-                    '2-3 sentences, unique and specific to THIS company: what it does, and why it is moving today (tie to its headlines when given). Cautious, factual, no advice.',
+                    "2-3 sentences. LEAD with the concrete catalyst found in that stock's dated headlines (merger, earnings, offering, FDA, contract, analyst action...), named specifically. If its headlines show no company-specific catalyst, say plainly that no clear news explains the move and it looks momentum/volume-driven — NEVER invent a reason. Mention what the company does. Cautious, factual, no advice.",
                 },
               },
               required: ['symbol', 'explainer'],
@@ -606,7 +610,7 @@ ${news}`;
         model: 'claude-haiku-4-5-20251001',
         max_tokens: Math.min(8000, 250 * items.length + 500),
         system:
-          'You are a concise, factual financial-news analyst. For EACH stock you produce a DISTINCT explanation grounded in that specific company — its actual business and its own headlines. Never reuse the same wording across stocks. No investment advice.',
+          'You are a rigorous financial-news analyst. For EACH stock: identify the REAL catalyst from its own dated headlines (weight the freshest most) and lead with it, named specifically. If no company-specific catalyst appears in its headlines, say so honestly and describe the move as momentum/volume-driven — NEVER fabricate a reason; a wrong reason destroys user trust. Every explanation must be distinct and grounded in that company. No investment advice.',
         tools: [tool],
         tool_choice: { type: 'tool', name: 'publish_explainers' },
         messages: [

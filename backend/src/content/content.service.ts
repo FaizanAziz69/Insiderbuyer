@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import axios from 'axios';
+import { XMLParser } from 'fast-xml-parser';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BlogPost, BlogKind } from '../entities/blog-post.entity';
@@ -98,42 +100,80 @@ export class ContentService {
     return data;
   }
 
-  /** Company-specific recent headlines — Yahoo's public per-ticker news feed
-   *  first (actually mentions the company), macro RSS as a weak fallback. */
+  /** Deep per-ticker news sweep for the movement explainer — THREE sources in
+   *  parallel (Google News RSS, Yahoo per-ticker RSS, Yahoo search), each
+   *  headline stamped with its source and date so the model can anchor the
+   *  move to the actual, current catalyst (merger, offering, earnings, ...)
+   *  instead of guessing. Freshest first, deduped, last 7 days, max 8. */
+  private readonly rssParser = new XMLParser({ ignoreAttributes: false, trimValues: true });
+
   private async tickerHeadlines(symbol: string, name: string): Promise<string[]> {
-    try {
-      const axios = (await import('axios')).default;
-      const { data } = await axios.get(
-        'https://query1.finance.yahoo.com/v1/finance/search',
-        {
-          params: { q: symbol, newsCount: 8, quotesCount: 0 },
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-          timeout: 6000,
-        },
-      );
-      const items: any[] = Array.isArray(data?.news) ? data.news : [];
-      const titles = items
-        .map((n) => String(n?.title || '').trim())
-        .filter(Boolean)
-        .slice(0, 6);
-      if (titles.length) return titles;
-    } catch {
-      /* fall through to RSS */
-    }
-    try {
-      const news = await this.news.getLatest();
-      const sym = symbol.toLowerCase();
-      const firstWord = (name || '').toLowerCase().split(/[\s,]+/)[0];
-      return news
-        .filter((n) => {
-          const t = (n.title || '').toLowerCase();
-          return t.includes(sym) || (firstWord.length > 2 && t.includes(firstWord));
+    const sym = symbol.toUpperCase();
+    const UA = { 'User-Agent': 'Mozilla/5.0' };
+    type Item = { title: string; source: string; date: number };
+    const items: Item[] = [];
+
+    const parseRss = (xml: string, fallbackSource: string): Item[] => {
+      try {
+        const parsed = this.rssParser.parse(xml);
+        const raw = parsed?.rss?.channel?.item || [];
+        const list = Array.isArray(raw) ? raw : [raw];
+        return list.filter(Boolean).map((it: any) => {
+          let title = String(it.title?.['#text'] ?? it.title ?? '').trim();
+          let source = String(it.source?.['#text'] ?? '').trim() || fallbackSource;
+          // Google News titles end with " - Publisher"
+          const m = title.match(/^(.*)\s-\s([^-]{2,40})$/);
+          if (m && !it.source) { title = m[1].trim(); source = m[2].trim(); }
+          return { title, source, date: Date.parse(String(it.pubDate || '')) || 0 };
+        });
+      } catch { return []; }
+    };
+
+    const q = encodeURIComponent(`"${sym}" OR "${(name || sym).split(/[,(]/)[0].trim()}" stock`);
+    const fetches: Array<Promise<void>> = [
+      // 1. Google News — best coverage of the actual catalyst (press wires,
+      //    Benzinga/StockTitan/TipRanks write-ups), especially for small caps.
+      axios.get(`https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`, { headers: UA, timeout: 6000, responseType: 'text' })
+        .then((r) => { items.push(...parseRss(r.data, 'Google News')); })
+        .catch(() => undefined),
+      // 2. Yahoo per-ticker headline feed — company press releases.
+      axios.get(`https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(sym)}&region=US&lang=en-US`, { headers: UA, timeout: 6000, responseType: 'text' })
+        .then((r) => { items.push(...parseRss(r.data, 'Yahoo Finance')); })
+        .catch(() => undefined),
+      // 3. Yahoo search JSON — extra publisher-tagged coverage.
+      axios.get('https://query1.finance.yahoo.com/v1/finance/search', { params: { q: sym, newsCount: 8, quotesCount: 0 }, headers: UA, timeout: 6000 })
+        .then((r) => {
+          const arr: any[] = Array.isArray(r.data?.news) ? r.data.news : [];
+          items.push(...arr.map((n) => ({
+            title: String(n?.title || '').trim(),
+            source: String(n?.publisher || 'Yahoo Finance').trim(),
+            date: (Number(n?.providerPublishTime) || 0) * 1000,
+          })));
         })
-        .map((n) => n.title)
-        .slice(0, 6);
-    } catch {
-      return [];
-    }
+        .catch(() => undefined),
+    ];
+    await Promise.allSettled(fetches);
+
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const seen = new Set<string>();
+    const fmtAge = (d: number) => {
+      if (!d) return 'date unknown';
+      const h = Math.max(0, (Date.now() - d) / 3_600_000);
+      if (h < 1) return 'just now';
+      if (h < 24) return `${Math.round(h)}h ago`;
+      return `${Math.round(h / 24)}d ago`;
+    };
+    return items
+      .filter((i) => i.title && (!i.date || i.date >= cutoff))
+      .sort((a, b) => b.date - a.date)
+      .filter((i) => {
+        const k = i.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 70);
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .slice(0, 8)
+      .map((i) => `[${i.source} · ${fmtAge(i.date)}] ${i.title}`);
   }
 
   /** Pre-warm movement explainers for a page of movers in ONE model call —
@@ -172,7 +212,7 @@ export class ContentService {
       ...m,
       headlines:
         settled[i].status === 'fulfilled'
-          ? (settled[i] as PromiseFulfilledResult<string[]>).value.slice(0, 3)
+          ? (settled[i] as PromiseFulfilledResult<string[]>).value.slice(0, 5)
           : [],
     }));
 
