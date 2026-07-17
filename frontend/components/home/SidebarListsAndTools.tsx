@@ -46,19 +46,12 @@ const TOOLS = [
   { name: "Stock Heatmap", icon: LayoutGrid, href: "/heatmaps/market" },
 ];
 
-const LABEL: React.CSSProperties = {
-  fontSize: "10.5px",
-  fontWeight: 700,
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-  color: "#8494a8",
-  marginBottom: 9,
-};
+
 
 function Header({ title, allHref, allLabel }: { title: string; allHref: string; allLabel: string }) {
   return (
     <div className="flex items-center justify-between" style={{ marginBottom: 14 }}>
-      <h3 style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.01em", color: "#0f1e2e" }}>
+      <h3 className="sbw-title" style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.01em" }}>
         {title}
       </h3>
       <Link href={allHref} className="sbw-alllink">
@@ -70,8 +63,8 @@ function Header({ title, allHref, allLabel }: { title: string; allHref: string; 
 
 /**
  * Sidebar widget — "Stock Lists" (investor avatars + sector/theme chips) and
- * "More Tools" (2-column tool grid). Spec-locked light styling (fixed hex
- * values, Figtree) — intentionally not theme-variable based.
+ * "More Tools" (2-column tool grid). Light mode follows the fixed design
+ * spec; dark mode maps onto the site palette via the .sbw-* classes.
  */
 export function SidebarListsAndTools() {
   return (
@@ -80,7 +73,7 @@ export function SidebarListsAndTools() {
       <section>
         <Header title="Stock Lists" allHref="/stock-lists" allLabel="All lists" />
 
-        <div style={LABEL}>Follow an Investor</div>
+        <div className="sbw-label">Follow an Investor</div>
         <ul className="flex" style={{ gap: 14, marginBottom: 18, listStyle: "none", padding: 0 }}>
           {INVESTORS.map((inv) => (
             <li key={inv.initials} style={{ width: 56 }}>
@@ -90,45 +83,25 @@ export function SidebarListsAndTools() {
                 style={{ gap: 6, cursor: "pointer" }}
               >
                 <span
-                  className="flex items-center justify-center"
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 999,
-                    background: inv.color,
-                    border: "2px solid #fff",
-                    boxShadow: "0 0 0 1.5px #dbe4ee",
-                    fontSize: 15,
-                    fontWeight: 800,
-                    color: "#fff",
-                  }}
+                  className="sbw-avatar flex items-center justify-center"
+                  style={{ background: inv.color }}
                 >
                   {inv.initials}
                 </span>
-                <span
-                  style={{
-                    fontSize: "10.5px",
-                    fontWeight: 700,
-                    color: "#45566b",
-                    textAlign: "center",
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {inv.name}
-                </span>
+                <span className="sbw-name">{inv.name}</span>
               </Link>
             </li>
           ))}
         </ul>
 
-        <div style={LABEL}>By Sector &amp; Theme</div>
+        <div className="sbw-label">By Sector &amp; Theme</div>
         <ul className="flex flex-wrap" style={{ gap: 7, listStyle: "none", padding: 0 }}>
           {CHIPS.map((c) => {
             const Icon = c.icon;
             return (
               <li key={c.name}>
                 <Link href={c.href} className="sbw-chip">
-                  <Icon style={{ width: 12, height: 12, color: "#175d8d" }} />
+                  <Icon className="sbw-icon" style={{ width: 12, height: 12 }} />
                   {c.name}
                 </Link>
               </li>
@@ -138,7 +111,7 @@ export function SidebarListsAndTools() {
       </section>
 
       {/* divider */}
-      <div style={{ height: 1, background: "#e6ebf1", margin: "24px 0" }} aria-hidden />
+      <div className="sbw-divider" aria-hidden />
 
       {/* ── SECTION 2 — MORE TOOLS ── */}
       <section>
@@ -157,7 +130,7 @@ export function SidebarListsAndTools() {
             return (
               <li key={t.name}>
                 <Link href={t.href} className="sbw-tool">
-                  <Icon style={{ width: 14, height: 14, color: "#175d8d", flexShrink: 0 }} />
+                  <Icon className="sbw-icon" style={{ width: 14, height: 14, flexShrink: 0 }} />
                   {t.name}
                 </Link>
               </li>

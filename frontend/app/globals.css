@@ -1143,7 +1143,9 @@ body {
 :root[data-theme="dark"] .logo-when-light { display: none; }
 :root[data-theme="dark"] .logo-when-dark { display: inline-block; }
 
-/* ============ SIDEBAR LISTS & TOOLS WIDGET (fixed light spec) ============ */
+/* ============ SIDEBAR LISTS & TOOLS WIDGET ============
+   Light mode follows the fixed design spec exactly; dark mode maps every
+   color onto the site's dark-theme variables. */
 .sbw-card {
   background: #fff;
   border: 1px solid #dde4ec;
@@ -1151,6 +1153,22 @@ body {
   padding: 22px;
   font-family: var(--font-figtree), system-ui, sans-serif;
 }
+.sbw-title { color: #0f1e2e; }
+.sbw-label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: #8494a8; margin-bottom: 9px;
+}
+.sbw-name {
+  font-size: 10.5px; font-weight: 700; color: #45566b;
+  text-align: center; line-height: 1.2;
+}
+.sbw-avatar {
+  width: 48px; height: 48px; border-radius: 999px;
+  border: 2px solid #fff; box-shadow: 0 0 0 1.5px #dbe4ee;
+  font-size: 15px; font-weight: 800; color: #fff;
+}
+.sbw-divider { height: 1px; background: #e6ebf1; margin: 24px 0; }
+.sbw-icon { color: #175d8d; }
 .sbw-alllink { font-size: 12.5px; font-weight: 700; color: #175d8d; }
 .sbw-alllink:hover { color: #0d3f63; text-decoration: underline; }
 .sbw-chip {
@@ -1167,3 +1185,26 @@ body {
   line-height: 1.2; background: #fff;
 }
 .sbw-tool:hover { border-color: #b9d2e6; background: #f7fafc; }
+
+/* Dark theme — same layout, site dark palette */
+:root[data-theme="dark"] .sbw-card { background: var(--bg-2); border-color: var(--border); }
+:root[data-theme="dark"] .sbw-title { color: var(--text); }
+:root[data-theme="dark"] .sbw-label { color: var(--text-mute); }
+:root[data-theme="dark"] .sbw-name { color: var(--text-soft); }
+:root[data-theme="dark"] .sbw-avatar { border-color: var(--bg-2); box-shadow: 0 0 0 1.5px var(--border); }
+:root[data-theme="dark"] .sbw-divider { background: var(--border); }
+:root[data-theme="dark"] .sbw-icon { color: var(--accent); }
+:root[data-theme="dark"] .sbw-alllink { color: var(--accent); }
+:root[data-theme="dark"] .sbw-alllink:hover { color: var(--accent-2); }
+:root[data-theme="dark"] .sbw-chip {
+  color: var(--text); background: var(--bg-3); border-color: var(--border);
+}
+:root[data-theme="dark"] .sbw-chip:hover {
+  background: var(--accent-soft); border-color: var(--accent);
+}
+:root[data-theme="dark"] .sbw-tool {
+  color: var(--text); background: var(--bg-1); border-color: var(--border);
+}
+:root[data-theme="dark"] .sbw-tool:hover {
+  background: var(--accent-soft); border-color: var(--accent);
+}
