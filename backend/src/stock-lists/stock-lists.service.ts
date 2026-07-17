@@ -253,7 +253,9 @@ export class StockListsService {
       description:
         'Premium ranking — the highest-quality Insider Scores across the U.S. market (score quality, not dollar volume), updated daily.',
       kind: 'premium',
-      count: iqsTotal,
+      // The list page shows the TOP 50 — the card count must match what the
+      // page actually renders, not the size of the whole ranked universe.
+      count: Math.min(50, iqsTotal),
     });
     // Blue Sky Stocks — analyst-implied upside of 300%+ (virtual screener).
     out.push({
