@@ -62,7 +62,7 @@ export default function InsiderHotStocksPage() {
       align: "center",
       sortValue: (r) => r.rank,
       render: (r) => (
-        <span className="tabular text-[13px] font-mono font-bold text-faint">#{r.rank}</span>
+        <span className="tabular text-[15px] font-bold" style={{ color: "var(--text)" }}>#{r.rank}</span>
       ),
     },
     {
