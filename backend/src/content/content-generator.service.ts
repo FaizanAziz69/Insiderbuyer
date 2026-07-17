@@ -111,6 +111,7 @@ SECTION RULES:
 - Top Stories (news): report first, opine second. Facts/filings up top; your read in its own "Our take:" <h2> section. Include a bear/skeptic <h2> section in every story. The headline must spin differently from mainstream outlets.
 - Programmatic/SEO: hook intro (surprising fact first), populated Key Points box, ≥1 visual anchor per section, every list item = data point + context + why it matters, short paragraphs, no filler.
 
+DATA FIDELITY (non-negotiable): Use ONLY the numbers, dates, names, and transaction directions provided in the data. NEVER describe a purchase as a sale or invent selling activity; never invent or extrapolate dollar figures. If the provided data seems thin, write a shorter article — do not fill gaps with plausible-sounding specifics. Buy-signal articles (deep dives, stock ideas, cluster/CEO pieces, top-score lists) are about BUYING; if the data cannot support a bullish insider-buying narrative, state the facts plainly and neutrally instead of forcing a story.
 STOCK EMBEDS: whenever a specific stock is discussed as a ranked item or its own section, insert the marker [[STOCK:TICKER]] (e.g. [[STOCK:NVDA]]) on its own line immediately after that stock's heading or first paragraph. The site replaces each marker with a live data card (price chart, Insider Score, analyst rating) pulled from our database — so never fabricate chart/table data for a stock; place the marker instead. Do not wrap the marker in any HTML tags.
 
 HEADLINE TICKER RULES: single-stock articles MUST include the ticker in the headline. List/roundup articles must NOT enumerate tickers in the headline — the full list with tickers belongs inside the article body. List/roundup headlines SHOULD name the sector or category of stocks instead ("gold stocks", "AI stocks", "biotech stocks") — e.g. "Best Gold Stocks Right Now — And How to Invest", "5 Gold Stocks Worth Considering", "Insiders Are Buying These 3 Gold Stocks".
@@ -197,6 +198,10 @@ eyebrow: "TOP INSIDER SCORE PICKS"`;
       this.logger.warn(`getCompanyDetail(${row.ticker}) failed: ${(err as Error).message}`);
     }
     const txLines = (detail?.transactions || [])
+      // Buy-conviction format: only open-market purchases feed the story.
+      // (Sells leaking in here once produced a "bought $128K then dumped
+      // $43M" article under a 99 score — never again.)
+      .filter((t: any) => (t.transactionCode || 'P') === 'P' || t.type === 'BUY')
       .slice(0, 5)
       .map(
         (t: any) =>

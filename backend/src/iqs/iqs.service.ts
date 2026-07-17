@@ -172,12 +172,36 @@ export class IqsService {
     }
 
     for (const company of companies) {
-      const txs = await this.txRepo
+      const allTxs = await this.txRepo
         .createQueryBuilder('t')
         .where('t.company_id = :id', { id: company.id })
         .andWhere('t.transactionDate >= :since', { since })
-        .andWhere(`t."transactionCode" = 'P'`)
+        .andWhere(`t."transactionCode" IN ('P','S')`)
         .getMany();
+
+      // Round-trip guard: an "insider" who sells back a large share of what
+      // they bought inside the window (market makers, wash-style flipping —
+      // e.g. buy 6M shares, dump 3.7M two days later) shows zero conviction.
+      // Exclude that insider's buys entirely so such names can't top the
+      // rankings and feed contradictory articles.
+      const sharesBySide = new Map<string, { buy: number; sell: number }>();
+      for (const t of allTxs) {
+        const key = t.insiderName.toLowerCase();
+        const e = sharesBySide.get(key) || { buy: 0, sell: 0 };
+        const sh = Number(t.sharesBought) || 0;
+        if (t.transactionCode === 'P') e.buy += sh;
+        else e.sell += sh;
+        sharesBySide.set(key, e);
+      }
+      const isRoundTripper = (insider: string): boolean => {
+        const e = sharesBySide.get(insider.toLowerCase());
+        if (!e || e.buy <= 0) return false;
+        return e.sell >= e.buy * 0.5; // sold back ≥50% of window buys
+      };
+
+      const txs = allTxs.filter(
+        (t) => t.transactionCode === 'P' && !isRoundTripper(t.insiderName),
+      );
 
       if (!txs.length) {
         await this.scores.delete({ companyId: company.id });

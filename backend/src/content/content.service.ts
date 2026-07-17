@@ -853,6 +853,64 @@ export class ContentService {
     return { generated, skipped, errors };
   }
 
+  /** Publish gate — reject an article whose story contradicts the data it
+   *  was generated from. A wrong story (e.g. "insider dumped shares" under a
+   *  99 buy-conviction score) erodes reader trust; skipping a slot is always
+   *  better than publishing it. Throws so the caller records it as an error
+   *  and the slot regenerates on the next refresh cycle. */
+  private guardArticle(opts: {
+    slug: string;
+    kind: BlogKind;
+    article: GeneratedArticle;
+    inputSnapshot: Record<string, unknown>;
+  }) {
+    const { slug, kind, article, inputSnapshot } = opts;
+    const text = `${article.title} ${article.summary} ${article.body.replace(/<[^>]+>/g, ' ')}`;
+
+    // 1. Buy-conviction formats must not tell a selling story. The pipeline
+    //    only feeds these formats BUY transactions, so sell language means
+    //    the model contradicted its input.
+    const BUY_KINDS = new Set([
+      'ticker-deep-dive', 'stock-idea', 'cluster-buys', 'cluster-buy',
+      'ceo-buys', 'top-iqs', 'daily-summary',
+    ]);
+    if (BUY_KINDS.has(kind)) {
+      const snapshotStr = JSON.stringify(inputSnapshot).toLowerCase();
+      const snapshotHasSells = /"(type|side|transactioncode)":"?(sell|s)"/i.test(snapshotStr);
+      const sellStory = /\b(dumped|dumping|sold|sell-off|selling spree|liquidated|unloaded)\b/i;
+      if (!snapshotHasSells && sellStory.test(`${article.title} ${article.summary}`)) {
+        throw new Error(
+          `publish gate: sell-language in a buy-conviction ${kind} ("${article.title.slice(0, 80)}") with no sells in input — rejected (${slug})`,
+        );
+      }
+    }
+
+    // 2. Number sanity — no dollar figure in the article may exceed 10× the
+    //    largest number present in the input snapshot (catches invented or
+    //    corrupted amounts like a "$6.8B bought" on a $6M company).
+    const factNums: number[] = [];
+    JSON.stringify(inputSnapshot).replace(/-?\d+(\.\d+)?/g, (m) => {
+      const n = Math.abs(Number(m));
+      if (Number.isFinite(n)) factNums.push(n);
+      return m;
+    });
+    const maxFact = Math.max(1_000_000, ...factNums); // $1M floor avoids false alarms
+    const dollarRe = /\$([\d,.]+)\s*(billion|million|thousand|[bmk])?\b/gi;
+    let m: RegExpExecArray | null;
+    while ((m = dollarRe.exec(text)) !== null) {
+      const base = Number(m[1].replace(/,/g, ''));
+      if (!Number.isFinite(base)) continue;
+      const unit = (m[2] || '').toLowerCase();
+      const mult = unit.startsWith('b') ? 1e9 : unit.startsWith('m') ? 1e6 : unit.startsWith('k') || unit === 'thousand' ? 1e3 : 1;
+      const v = base * mult;
+      if (v > maxFact * 10) {
+        throw new Error(
+          `publish gate: article claims $${v.toLocaleString()} but the largest input figure is ${maxFact.toLocaleString()} — rejected (${slug})`,
+        );
+      }
+    }
+  }
+
   private async persist(opts: {
     slug: string;
     kind: BlogKind;
@@ -864,6 +922,7 @@ export class ContentService {
     inputSnapshot: Record<string, unknown>;
   }) {
     const { slug, kind, ticker, sector, topic, iqsAtGeneration, article, inputSnapshot } = opts;
+    this.guardArticle({ slug, kind, article, inputSnapshot });
     const imageUrl = buildAiImageUrl(article.imagePrompt, {
       seed: slug,
       ticker,
