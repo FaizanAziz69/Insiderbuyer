@@ -1209,40 +1209,29 @@ body {
   background: var(--accent-soft); border-color: var(--accent);
 }
 
-/* ============ STOCK LISTS "COMMAND DECK" (always-dark page) ============
-   Derived strictly from existing palette tokens: teal #005882 (brand),
-   blue #0077b4 (--accent-2), cyan #20d0ff / #6ddfff (dark-theme accents). */
-.deck {
-  --deck-bg: color-mix(in srgb, #005882 26%, #000);         /* ≈ #041e2b */
-  --deck-panel: color-mix(in srgb, #005882 16%, #000);
-  --deck-cyan: #20d0ff;
-  --deck-cyan-soft: rgba(32, 208, 255, 0.22);
-  --deck-cyan-faint: rgba(32, 208, 255, 0.10);
-  --deck-blue: #0077b4;
-  --deck-text: #eaf6fc;
-  --deck-body: rgba(234, 246, 252, 0.74);  /* ≥4.5:1 on deck bg */
-  --deck-dim: rgba(234, 246, 252, 0.42);
-  background: var(--deck-bg);
-  color: var(--deck-text);
+/* ============ STOCK LISTS "SIGNAL GRID" ============
+   Theme-token based — resolves correctly in light AND dark mode. */
+.sg-rule {
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), transparent);
 }
-.deck .deck-glass {
-  background: rgba(255, 255, 255, 0.035);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-.deck .deck-rule {
+.sg-hairline {
   height: 1px;
-  background: linear-gradient(90deg, var(--deck-cyan-soft), transparent);
+  flex: 1;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 35%, transparent), transparent);
 }
-.deck .deck-row { border-top: 1px solid var(--deck-cyan-faint); transition: background 0.15s; }
-.deck .deck-row:hover { background: rgba(32, 208, 255, 0.06); }
-.deck .deck-row:hover .deck-chev { color: var(--deck-cyan); }
-.deck .deck-count-glow { text-shadow: 0 0 22px rgba(32, 208, 255, 0.45); }
-@keyframes deckBlink { 0%, 55% { opacity: 1; } 70% { opacity: 0.15; } 100% { opacity: 1; } }
-.deck .deck-live-dot {
+@keyframes sgBlink { 0%, 55% { opacity: 1; } 70% { opacity: 0.15; } 100% { opacity: 1; } }
+.sg-live-dot {
   width: 7px; height: 7px; border-radius: 999px;
-  background: var(--deck-cyan);
-  box-shadow: 0 0 10px var(--deck-cyan);
-  animation: deckBlink 1.6s infinite;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: sgBlink 1.6s infinite;
 }
-@media (prefers-reduced-motion: reduce) { .deck .deck-live-dot { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .sg-live-dot { animation: none; } }
+.sg-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.sg-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); transform: translateY(-1px); }
