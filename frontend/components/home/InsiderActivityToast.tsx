@@ -96,10 +96,12 @@ function playCashSound() {
     const partials = [1, 2.76, 5.4, 8.93]; // inharmonic — coin-like
     const weights = [1, 0.6, 0.35, 0.18];
     partials.forEach((mult, i) => {
+      const f = freq * mult;
+      if (f > 16000) return; // stay under Nyquist — inaudible anyway
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
       osc.type = "sine";
-      osc.frequency.value = freq * mult;
+      osc.frequency.value = f;
       const peak = level * weights[i];
       g.gain.setValueAtTime(0.0001, now + t);
       g.gain.exponentialRampToValueAtTime(peak, now + t + 0.003);

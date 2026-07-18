@@ -108,6 +108,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "FAANG", href: "/stock-lists/faang", icon: Cpu },
           { label: "REITs", href: "/stock-lists/reits", icon: Landmark },
           { label: "Tech", href: "/stock-lists/tech", icon: Cpu },
+          { label: "Biotech", href: "/stock-lists/biotech", icon: FlaskConical },
           { label: "Metals & Mining", href: "/stock-lists/metals-and-mining", icon: Wrench },
           { label: "Gold", href: "/stock-lists/gold", icon: Coins },
           { label: "Silver", href: "/stock-lists/silver", icon: Gem },

@@ -169,6 +169,12 @@ export const PERSONA_HOLDINGS: Record<string, PersonaHolding[]> = {
 // company table only has a handful of matches. Name / sector / market cap
 // resolve from the market-stats reference quote table at read time.
 export const SECTOR_UNIVERSE: Record<string, string[]> = {
+  biotech: [
+    'LLY', 'PFE', 'MRK', 'ABBV', 'BMY', 'AMGN', 'GILD', 'VRTX', 'REGN',
+    'MRNA', 'BIIB', 'VKTX', 'CRSP', 'NTLA', 'NVO', 'AZN', 'NVS', 'JNJ',
+    'SNY', 'GSK', 'ALNY', 'BNTX', 'SRPT', 'RARE', 'BEAM', 'RXRX', 'TEM',
+    'HIMS', 'EXAS', 'NBIX',
+  ],
   'metals-and-mining': [
     'BHP', 'RIO', 'VALE', 'FCX', 'SCCO', 'NUE', 'STLD', 'CLF', 'X', 'AA',
     'CENX', 'MP', 'ALB', 'SQM', 'TECK', 'HBM', 'ERO', 'CMC', 'RS', 'ATI',
@@ -209,6 +215,7 @@ export const SECTOR_UNIVERSE: Record<string, string[]> = {
 
 export const SECTOR_LIST_RULES: Record<string, RegExp> = {
   'metals-and-mining': /metal|mining|copper|aluminum|steel/i,
+  biotech: /biotech|pharma|life science|drug|biologic|therapeutic|medicinal|diagnostic/i,
   tech: /technology|software|semiconductor|internet|computer/i,
   gold: /gold/i,
   silver: /silver/i,
@@ -530,6 +537,12 @@ export const STOCK_LIST_META: Record<
     title: 'Metals & Mining Stocks',
     description:
       'Producers and explorers of base and industrial metals — copper, aluminum, steel, iron ore — that move with the global construction and infrastructure cycle.',
+    kind: 'sector',
+  },
+  biotech: {
+    title: 'Biotech Stocks',
+    description:
+      'Biotechnology and pharmaceutical companies — from megacap drugmakers to clinical-stage names. Insider buying in biotech often front-runs catalysts like trial readouts and FDA decisions.',
     kind: 'sector',
   },
   tech: {

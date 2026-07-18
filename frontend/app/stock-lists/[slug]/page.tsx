@@ -128,6 +128,7 @@ export default function StockListDetailPage({
   }, [analystData]);
 
   const rows = data?.rows || [];
+  const listMissing = !isLoading && (!data || !Array.isArray(data.rows));
 
   // 7-day price sparklines for the listed tickers (keyless v8 chart, cached).
   const tickerKey = rows
@@ -164,6 +165,26 @@ export default function StockListDetailPage({
 
   // Last-updated stamp: newest live quote is intraday, so just stamp "today".
   const updatedLabel = formatDate(new Date().toISOString());
+
+  if (listMissing) {
+    return (
+      <div className="w-full space-y-6">
+        <Link
+          href="/stock-lists"
+          className="inline-flex items-center gap-1.5 text-xs text-mute hover:text-accent transition"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          <span>All stock lists</span>
+        </Link>
+        <div className="card p-12 text-center text-mute">
+          This stock list doesn&rsquo;t exist.{" "}
+          <Link href="/stock-lists" className="text-accent font-bold hover:underline">
+            Browse all lists →
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-6">
@@ -208,7 +229,7 @@ export default function StockListDetailPage({
             style={{ color: "var(--text-soft)" }}
           >
             <span className="tabular font-semibold" style={{ color: "var(--text)" }}>
-              {data.rows.length} {data.rows.length === 1 ? "stock" : "stocks"}
+              {rows.length} {rows.length === 1 ? "stock" : "stocks"}
             </span>
             <span aria-hidden style={{ color: "var(--text-mute)" }}>·</span>
             <span>Live quotes, updated {updatedLabel}</span>
