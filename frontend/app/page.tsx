@@ -123,13 +123,14 @@ function TopGainersPanel() {
       </Link>
       {/* Column header */}
       <div
-        className="grid grid-cols-[18px_1fr_60px_auto] gap-2 px-4 py-1.5 text-[10px] uppercase tracking-wider font-bold border-b flex-shrink-0"
+        className="grid grid-cols-[18px_1fr_60px_auto_36px] gap-2 px-4 py-1.5 text-[10px] uppercase tracking-wider font-bold border-b flex-shrink-0"
         style={{ color: "var(--text-mute)", borderColor: "var(--border)" }}
       >
         <span>#</span>
         <span>Company</span>
         <span className="text-center">Price</span>
-        <span className="text-right">Chg / Cap · ✨</span>
+        <span className="text-right">Chg / Cap</span>
+        <span className="text-center">AI</span>
       </div>
       <ul className="divide-y divide-[var(--border)] flex flex-col flex-1 min-h-0 overflow-y-auto scrollbar-visible">
         {gainers.length === 0 ? (

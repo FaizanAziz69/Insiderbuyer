@@ -1267,3 +1267,18 @@ h1, h2, h3 {
   border: 1px solid var(--bg-3);
 }
 .scrollbar-visible::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ============ AI CATALYST TRIGGER ============
+   Navbar-colored in light mode, accent cyan in dark — always visible. */
+.ai-catalyst-btn {
+  background: color-mix(in srgb, var(--brand-surface) 14%, transparent);
+  color: var(--brand-surface);
+}
+.ai-catalyst-btn:hover { background: color-mix(in srgb, var(--brand-surface) 24%, transparent); }
+:root[data-theme="dark"] .ai-catalyst-btn {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+:root[data-theme="dark"] .ai-catalyst-btn:hover {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
