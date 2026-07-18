@@ -1248,3 +1248,22 @@ h1, h2, h3 {
   font-weight: 800;
   letter-spacing: -0.01em;
 }
+
+/* ============ VISIBLE SCROLLBAR (light + dark) ============
+   Always-visible themed scrollbar for scrollable panels, so users can see
+   there's more content below the fold. */
+.scrollbar-visible {
+  scrollbar-width: thin;                                /* Firefox */
+  scrollbar-color: var(--accent) var(--bg-3);
+}
+.scrollbar-visible::-webkit-scrollbar { width: 8px; }
+.scrollbar-visible::-webkit-scrollbar-track {
+  background: var(--bg-3);
+  border-radius: 8px;
+}
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 65%, var(--bg-3));
+  border-radius: 8px;
+  border: 1px solid var(--bg-3);
+}
+.scrollbar-visible::-webkit-scrollbar-thumb:hover { background: var(--accent); }

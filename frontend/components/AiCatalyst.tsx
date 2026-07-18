@@ -100,23 +100,11 @@ export function AiCatalyst({
     // Width: a wide, readable banner on desktop (so the AI text doesn't wrap
     // into a tall narrow column), narrowing to fit the viewport on mobile.
     const W = vw >= 700 ? 460 : Math.min(360, vw - 16);
-    // Always open to the LEFT of the icon (the catalyst column sits at the
-    // table's right edge), clamped on-screen — never overflows the window.
-    const left = Math.min(Math.max(8, r.left - W - 8), vw - W - 8);
-    // Open on whichever side has more room, and cap the height to that room so
-    // tall AI text scrolls inside the popover instead of overflowing off-screen.
-    const spaceBelow = vh - r.bottom - 8;
-    const spaceAbove = r.top - 8;
-    if (spaceBelow >= spaceAbove) {
-      setPos({ left, top: r.bottom + 8, width: W, maxHeight: Math.max(160, spaceBelow) });
-    } else {
-      setPos({
-        left,
-        bottom: vh - r.top + 8,
-        width: W,
-        maxHeight: Math.max(160, spaceAbove),
-      });
-    }
+    // True LEFT-side flyout: the panel sits fully to the left of the icon,
+    // roughly centered on it vertically, clamped inside the viewport.
+    const left = Math.max(8, r.left - W - 10);
+    const top = Math.min(Math.max(8, r.top + r.height / 2 - 130), Math.max(8, vh - 240));
+    setPos({ left, top, width: W, maxHeight: Math.max(180, vh - top - 12) });
   }
 
   function show() {

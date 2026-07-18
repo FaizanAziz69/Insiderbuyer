@@ -131,7 +131,7 @@ function TopGainersPanel() {
         <span className="text-center">Price</span>
         <span className="text-right">Chg / Cap · ✨</span>
       </div>
-      <ul className="divide-y divide-[var(--border)] flex flex-col flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+      <ul className="divide-y divide-[var(--border)] flex flex-col flex-1 min-h-0 overflow-y-auto scrollbar-visible">
         {gainers.length === 0 ? (
           <li className="px-4 py-6 text-center text-mute text-[12px]">Loading…</li>
         ) : (
