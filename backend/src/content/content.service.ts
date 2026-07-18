@@ -14,6 +14,7 @@ import { IqsService } from '../iqs/iqs.service';
 import { NewsService } from '../news/news.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 import { TOPICS } from './topics';
+import { findFormat } from './content-formats';
 import { HOT_SECTOR_BASKETS } from '../stock-lists/persona-data';
 
 // How many per-stock topic articles to generate per topic per day. With ~28-day
@@ -644,6 +645,18 @@ export class ContentService {
     skipped += editorialResult.skipped;
     errors.push(...editorialResult.errors);
 
+    // ── Programmatic guide-format series (client content guide) ──────────
+    // Two formats rotate per day, each fed with real internal data. Slugs are
+    // day-keyed so the batched refresh fills them like every other kind.
+    try {
+      const guideResult = await this.generateGuideFormatArticles(dayKey, take);
+      generated += guideResult.generated;
+      skipped += guideResult.skipped;
+      errors.push(...guideResult.errors);
+    } catch (err) {
+      errors.push(`guide-formats: ${(err as Error).message}`);
+    }
+
     this.logger.log(
       `Daily refresh complete — generated=${generated} skipped=${skipped} errors=${errors.length}`,
     );
@@ -848,6 +861,176 @@ export class ContentService {
         } catch (err) {
           errors.push(`topic ${topic.slug} ${tk}: ${(err as Error).message}`);
         }
+      }
+    }
+    return { generated, skipped, errors };
+  }
+
+
+  /** Rotate the client's programmatic guide formats through the daily feed —
+   *  each format gets a real-data payload built from our own tables; formats
+   *  whose data is too thin today are skipped rather than forced. */
+  private async generateGuideFormatArticles(
+    dayKey: string,
+    take: (slug: string) => Promise<boolean>,
+  ): Promise<{ generated: number; skipped: number; errors: string[] }> {
+    let generated = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    const { rows: rankings } = await this.iqs.getRankings({ limit: 300, offset: 0 });
+    const { rows: trades } = await this.iqs.getAllTrades({ limit: 400, offset: 0 });
+    const weekAgo = Date.now() - 7 * 86400000;
+    const buys7d = trades.filter(
+      (t: any) => t.type === 'BUY' && new Date(t.transactionDate).getTime() >= weekAgo,
+    );
+    const sells7d = trades.filter(
+      (t: any) => t.type === 'SELL' && new Date(t.transactionDate).getTime() >= weekAgo,
+    );
+    const tradeLite = (t: any) => ({
+      ticker: t.ticker,
+      company: t.companyName,
+      insider: t.insiderName,
+      role: t.role || t.rawTitle,
+      shares: Number(t.shares ?? t.sharesBought) || 0,
+      pricePerShare: Number(t.pricePerShare) || null,
+      totalValue: Number(t.totalValue) || 0,
+      date: String(t.transactionDate).slice(0, 10),
+      previousHoldings: Number(t.previousHoldings) || null,
+    });
+    const rankLite = (r: any) => ({
+      ticker: r.ticker,
+      name: r.name,
+      sector: r.sector,
+      insiderScore: r.iqs,
+      marketCap: r.marketCap,
+      lastPrice: r.lastPrice,
+      distinctBuyers: r.distinctBuyers,
+      totalPurchaseValue: r.totalPurchaseValue,
+    });
+
+    // Format key → data builder. Returns null when today's data is too thin.
+    const builders: Array<{ key: string; build: () => Record<string, unknown> | null }> = [
+      {
+        key: 'conviction-bet',
+        build: () => {
+          const top = [...buys7d].sort((a: any, b: any) => Number(b.totalValue) - Number(a.totalValue))[0];
+          if (!top || Number(top.totalValue) < 100_000) return null;
+          const row = rankings.find((r) => r.ticker === top.ticker);
+          return { biggestBuyThisWeek: tradeLite(top), companyRanking: row ? rankLite(row) : null };
+        },
+      },
+      {
+        key: 'radar-big-buys',
+        build: () => {
+          const top5 = [...buys7d]
+            .sort((a: any, b: any) => Number(b.totalValue) - Number(a.totalValue))
+            .slice(0, 5);
+          if (top5.length < 3) return null;
+          return { biggestBuysThisWeek: top5.map(tradeLite) };
+        },
+      },
+      {
+        key: 'insider-buying-under-5',
+        build: () => {
+          const rows = rankings.filter((r) => (r.lastPrice ?? 99) < 5 && r.ticker).slice(0, 8);
+          if (rows.length < 3) return null;
+          return { stocksUnder5WithInsiderBuying: rows.map(rankLite) };
+        },
+      },
+      {
+        key: 'insider-buying-under-1',
+        build: () => {
+          const rows = rankings.filter((r) => (r.lastPrice ?? 99) < 1 && r.ticker).slice(0, 8);
+          if (rows.length < 3) return null;
+          return { stocksUnder1WithInsiderBuying: rows.map(rankLite) };
+        },
+      },
+      {
+        key: 'cant-stop-buying',
+        build: () => {
+          const byInsider = new Map<string, any[]>();
+          for (const t of buys7d.concat(trades.filter((x: any) => x.type === 'BUY')).slice(0, 400)) {
+            const k = `${t.insiderName}|${t.ticker}`;
+            byInsider.set(k, [...(byInsider.get(k) || []), t]);
+          }
+          const repeat = Array.from(byInsider.values())
+            .filter((arr) => new Set(arr.map((t: any) => String(t.transactionDate).slice(0, 10))).size >= 3)
+            .sort((a, b) => b.length - a.length)[0];
+          if (!repeat) return null;
+          return {
+            repeatBuyer: repeat[0].insiderName,
+            ticker: repeat[0].ticker,
+            company: repeat[0].companyName,
+            purchases: repeat.slice(0, 10).map(tradeLite),
+          };
+        },
+      },
+      {
+        key: 'skin-in-the-game',
+        build: () => {
+          const big = buys7d
+            .map(tradeLite)
+            .filter((t) => t.previousHoldings && t.previousHoldings > 0 && t.shares / t.previousHoldings >= 0.5)
+            .slice(0, 6);
+          if (big.length < 2) return null;
+          return { stakeDoublers: big };
+        },
+      },
+      {
+        key: 'quiet-whales',
+        build: () => {
+          const rows = rankings.filter((r: any) => r.hasFundBuyer && r.ticker).slice(0, 6);
+          if (rows.length < 2) return null;
+          return { fundBackedBuys: rows.map(rankLite) };
+        },
+      },
+      {
+        key: 'insider-selling-roundup',
+        build: () => {
+          const top = [...sells7d]
+            .sort((a: any, b: any) => Number(b.totalValue) - Number(a.totalValue))
+            .slice(0, 6);
+          if (top.length < 3) return null;
+          return { biggestSellsThisWeek: top.map(tradeLite) };
+        },
+      },
+    ];
+
+    // Rotate: 2 formats per day, walking the list so every format appears
+    // regularly; thin-data formats fall through to the next candidate.
+    const dayNum = Math.floor(new Date(dayKey).getTime() / 86400000);
+    let produced = 0;
+    for (let hop = 0; hop < builders.length && produced < 2; hop++) {
+      const b = builders[(dayNum * 2 + hop) % builders.length];
+      const slug = `series-${b.key}-${dayKey}`;
+      if (!(await take(slug))) {
+        skipped++;
+        continue;
+      }
+      const format = findFormat(b.key);
+      if (!format) continue;
+      const data = b.build();
+      if (!data) continue; // not enough data today — try the next format
+      try {
+        const article = await this.generator.generateFromFormat(format, data);
+        const firstTicker =
+          (data as any).ticker ??
+          (data as any).biggestBuyThisWeek?.ticker ??
+          null;
+        await this.persist({
+          slug,
+          kind: 'guide-format',
+          ticker: firstTicker,
+          sector: null,
+          iqsAtGeneration: null,
+          article,
+          inputSnapshot: { format: b.key, ...data },
+        });
+        generated++;
+        produced++;
+      } catch (err) {
+        errors.push(`guide-format ${b.key}: ${(err as Error).message}`);
       }
     }
     return { generated, skipped, errors };

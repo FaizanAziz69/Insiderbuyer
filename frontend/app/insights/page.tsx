@@ -28,6 +28,7 @@ const KIND_LABELS: Record<BlogKind, string> = {
   "weekly-report": "Weekly Report",
   "topic-roundup": "News Roundup",
   editorial: "Editorial",
+  "guide-format": "Insider Series",
 };
 
 // "Most-read"/popular ordering: high-signal editorial kinds float to the top.

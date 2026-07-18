@@ -374,7 +374,8 @@ export type BlogKind =
   | "stock-idea"
   | "weekly-report"
   | "topic-roundup"
-  | "editorial";
+  | "editorial"
+  | "guide-format";
 
 export interface BlogPostListItem {
   slug: string;
