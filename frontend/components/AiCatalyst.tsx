@@ -99,11 +99,14 @@ export function AiCatalyst({
     const vh = window.innerHeight;
     // Width: a wide, readable banner on desktop (so the AI text doesn't wrap
     // into a tall narrow column), narrowing to fit the viewport on mobile.
-    const W = vw >= 700 ? 460 : Math.min(360, vw - 16);
-    // True LEFT-side flyout: the panel sits fully to the left of the icon,
-    // roughly centered on it vertically, clamped inside the viewport.
-    const left = Math.max(8, r.left - W - 10);
-    const top = Math.min(Math.max(8, r.top + r.height / 2 - 130), Math.max(8, vh - 240));
+    // Strict LEFT-side flyout: the panel's RIGHT edge is pinned just left of
+    // the ✨ icon and its width shrinks to the space available on that side —
+    // it can never spill into the middle/right of the screen or off-viewport.
+    const gap = 10;
+    const spaceLeft = r.left - gap - 8; // room between viewport left edge and the icon
+    const W = Math.max(240, Math.min(340, spaceLeft));
+    const left = Math.max(8, r.left - gap - W);
+    const top = Math.min(Math.max(8, r.top + r.height / 2 - 110), Math.max(8, vh - 260));
     setPos({ left, top, width: W, maxHeight: Math.max(180, vh - top - 12) });
   }
 
