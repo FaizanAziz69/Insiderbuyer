@@ -4,7 +4,6 @@ import Link from "next/link";
 import { use, useMemo } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Sparkles } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
-import { Sparkline } from "@/components/Sparkline";
 import {
   API_BASE,
   fetcher,
@@ -130,24 +129,11 @@ export default function StockListDetailPage({
   const rows = data?.rows || [];
   const listMissing = !isLoading && (!data || !Array.isArray(data.rows));
 
-  // 7-day price sparklines for the listed tickers (keyless v8 chart, cached).
-  const tickerKey = rows
-    .map((r) => (r.ticker || r.symbol || "").toUpperCase())
-    .filter(Boolean)
-    .slice(0, 60)
-    .join(",");
-  const { data: sparkData } = useSWR<{ spark: Record<string, number[]> }>(
-    tickerKey ? `${API_BASE}/market-stats/spark?symbols=${tickerKey}` : null,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
-  );
-  const sparkMap = sparkData?.spark || {};
 
   // Avg Cost / Last Buy are insider/holder concepts that the backend attaches
   // to sector, persona, universe and country lists (Form 4 cost basis or 13F
   // reported value). Only render the columns when at least one row carries a
   // real value, so pure quote-only lists don't show a column of dashes.
-  const showAvgCost = rows.some((r) => r.avgCost != null);
   const showLastBuy = rows.some((r) => r.lastBuyDate != null);
   // Buyers / $ Bought come from the Insider Score RankingRow shape (sector + premium +
   // universe lists that were cross-referenced against Form 4 data).
@@ -159,9 +145,6 @@ export default function StockListDetailPage({
   // Blue Sky list — analyst-upside columns + a #50 → #1 countdown rank.
   const showUpside = rows.some((r) => r.upsidePct != null);
   const isBlueSky = slug === "blue-sky";
-
-  // Sector select options derived from the rows actually present.
-  const hasSectors = rows.some((r) => r.sector && r.sector.trim());
 
   // Last-updated stamp: newest live quote is intraday, so just stamp "today".
   const updatedLabel = formatDate(new Date().toISOString());
@@ -254,7 +237,7 @@ export default function StockListDetailPage({
             initialSort={
               isBlueSky
                 ? { key: "upside", dir: "asc" } // weakest qualifier first → counts down to #1
-                : { key: "marketCap", dir: "desc" }
+                : { key: "iqs", dir: "desc" } // scored names first; unscored sink (nulls last)
             }
             initialFilters={capDefault ? { marketCap: capDefault } : undefined}
             rowClassName="hover:bg-[var(--accent-soft)]"
@@ -420,81 +403,6 @@ export default function StockListDetailPage({
                     },
                   ] as Column<DetailRow>[])
                 : []),
-              {
-                key: "peRatio",
-                label: "P/E",
-                align: "right",
-                sortValue: (r) => r.live?.peRatio ?? null,
-                render: (r) => (
-                  <span className="tabular text-mute text-[13px] font-bold">
-                    {r.live?.peRatio != null ? r.live.peRatio.toFixed(1) : "—"}
-                  </span>
-                ),
-              },
-              {
-                key: "dividendYield",
-                label: "Div Yield",
-                align: "right",
-                sortValue: (r) => r.live?.dividendYield ?? null,
-                render: (r) => (
-                  <span className="tabular text-mute text-[13px] font-bold">
-                    {r.live?.dividendYield != null
-                      ? r.live.dividendYield.toFixed(2) + "%"
-                      : "—"}
-                  </span>
-                ),
-              },
-              ...(hasSectors
-                ? ([
-                    {
-                      key: "sector",
-                      label: "Sector",
-                      filterable: true,
-                      filterType: "select",
-                      filterLabelText: "Sector",
-                      sortValue: (r) => r.sector || "",
-                      filterLabel: (r) => r.sector || "",
-                      render: (r) => (
-                        <span className="text-[14px] truncate max-w-[150px] inline-block align-middle" style={{ color: "var(--text)" }}>
-                          {r.sector || "—"}
-                        </span>
-                      ),
-                    },
-                  ] as Column<DetailRow>[])
-                : []),
-              {
-                key: "spark7d",
-                label: "7D Price",
-                sortable: false,
-                align: "center",
-                render: (r) => <Sparkline data={sparkMap[(r.ticker || r.symbol || "").toUpperCase()]} />,
-              },
-              {
-                key: "volume",
-                label: "Volume",
-                filterable: true,
-                filterType: "range",
-                align: "center",
-                sortValue: (r) => r.live?.volume ?? null,
-                render: (r) => (
-                  <span className="tabular text-[14px] font-bold">
-                    {r.live?.volume ? formatNumber(r.live.volume) : "—"}
-                  </span>
-                ),
-              },
-              {
-                key: "avgVolume",
-                label: "Avg Volume",
-                filterable: true,
-                filterType: "range",
-                align: "center",
-                sortValue: (r) => r.live?.avgVolume ?? null,
-                render: (r) => (
-                  <span className="tabular text-mute text-[14px] font-bold">
-                    {r.live?.avgVolume ? formatNumber(r.live.avgVolume) : "—"}
-                  </span>
-                ),
-              },
               ...(showBuyers
                 ? ([
                     {
@@ -522,21 +430,6 @@ export default function StockListDetailPage({
                           {r.totalPurchaseValue
                             ? formatCurrency(r.totalPurchaseValue)
                             : "—"}
-                        </span>
-                      ),
-                    },
-                  ] as Column<DetailRow>[])
-                : []),
-              ...(showAvgCost
-                ? ([
-                    {
-                      key: "avgCost",
-                      label: "Avg Cost",
-                      align: "center",
-                      sortValue: (r) => r.avgCost ?? null,
-                      render: (r) => (
-                        <span className="tabular text-[14px] font-bold">
-                          {r.avgCost != null ? `$${r.avgCost.toFixed(2)}` : "—"}
                         </span>
                       ),
                     },

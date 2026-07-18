@@ -637,6 +637,26 @@ export class StockListsService {
     const rows = filters.minIqs
       ? base.rows
       : this.topUpWithUniverse(slug, base.rows, filters);
+    // Universe top-up names can still have a live Insider Score (their sector
+    // string may not match the regex, but the company is in our rankings) —
+    // cross-reference so the score column isn't needlessly blank.
+    const missing = rows.filter((r) => r.iqs == null && r.ticker);
+    if (missing.length) {
+      try {
+        const { rows: allRank } = await this.iqs.getRankings({ limit: 500, offset: 0 });
+        const bySym = new Map(allRank.map((r) => [r.ticker, r]));
+        for (const row of missing) {
+          const hit = bySym.get(row.ticker!);
+          if (hit) {
+            row.iqs = hit.iqs;
+            (row as any).distinctBuyers = hit.distinctBuyers;
+            (row as any).totalPurchaseValue = hit.totalPurchaseValue;
+            (row as any).avgCost = hit.avgCost ?? null;
+            (row as any).lastBuyDate = hit.lastBuyDate ?? null;
+          }
+        }
+      } catch { /* rankings unavailable — leave blank */ }
+    }
     return { total: rows.length, rows };
   }
 
