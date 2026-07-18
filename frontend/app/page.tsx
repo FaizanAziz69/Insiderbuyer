@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import useSWR from "swr";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { API_BASE, HeatQuote, heatToRanking, fetcher } from "@/lib/api";
 import { MonthlyBuySellMeter } from "@/components/home/MonthlyBuySellMeter";
 import { TopStoriesSection } from "@/components/home/TopStoriesSection";
@@ -123,7 +123,7 @@ function TopGainersPanel() {
       </Link>
       {/* Column header */}
       <div
-        className="grid grid-cols-[18px_1fr_60px_auto_56px] gap-2 px-4 py-1.5 text-[10px] uppercase tracking-wider font-bold border-b flex-shrink-0"
+        className="grid grid-cols-[18px_1fr_64px_auto_60px] gap-2 px-4 py-2 text-[12px] uppercase tracking-wider font-bold border-b flex-shrink-0"
         style={{ color: "var(--text-mute)", borderColor: "var(--border)" }}
       >
         <span>#</span>
@@ -173,10 +173,6 @@ function TopGainersPanel() {
           ))
         )}
       </ul>
-      {/* Always-visible cue that the list scrolls (25 rows) */}
-      <div className="scroll-more-hint flex-shrink-0">
-        <ChevronDown className="h-3 w-3" /> Scroll for all {gainers.length || 25} gainers
-      </div>
     </aside>
   );
 }
