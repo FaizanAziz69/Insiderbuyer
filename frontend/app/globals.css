@@ -1256,10 +1256,17 @@ h1, h2, h3 {
    Always-visible themed scrollbar for scrollable panels, so users can see
    there's more content below the fold. */
 .scrollbar-visible {
-  scrollbar-width: thin;                                /* Firefox */
-  scrollbar-color: var(--accent) var(--bg-3);
   /* Force a persistent gutter so the bar never disappears (overlay OSes). */
   scrollbar-gutter: stable;
+}
+/* Firefox only — in Chrome/Safari, setting the standard scrollbar-width/color
+   properties DISABLES the ::-webkit-scrollbar styling below and falls back to
+   the auto-hiding native overlay bar (which is exactly the bug). */
+@supports (-moz-appearance: none) {
+  .scrollbar-visible {
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent) var(--bg-3);
+  }
 }
 .scrollbar-visible::-webkit-scrollbar { width: 10px; }
 .scrollbar-visible::-webkit-scrollbar-track {
