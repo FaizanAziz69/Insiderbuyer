@@ -554,7 +554,7 @@ ${news}`;
         .trim();
       return {
         title: `Why ${opts.symbol} is ${dir} ${pct}% today`,
-        explainer: explainer || 'No explanation available right now.',
+        explainer: plainExplainer(explainer) || 'No explanation available right now.',
       };
     } catch (err: any) {
       this.logger.warn(
@@ -633,7 +633,7 @@ ${news}`;
       if (Array.isArray(arr)) {
         for (const e of arr) {
           const sym = String(e?.symbol || '').toUpperCase();
-          const text = String(e?.explainer || '').trim();
+          const text = plainExplainer(String(e?.explainer || ''));
           if (sym && text) out[sym] = text;
         }
       }
@@ -803,5 +803,16 @@ function sanitiseBody(html: string): string {
     .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
     .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
     .replace(/javascript:/gi, '')
+    .trim();
+}
+
+/** Explainers render as plain text in a popover — strip any markdown the
+ *  model sneaks in (headings, bold, bullets). */
+function plainExplainer(text: string): string {
+  return text
+    .replace(/^#+\s*[^\n]*\n?/gm, (m) => (m.includes('%') || m.length > 60 ? '' : ''))
+    .replace(/\*\*/g, '')
+    .replace(/^[-*]\s+/gm, '')
+    .replace(/\s+/g, ' ')
     .trim();
 }

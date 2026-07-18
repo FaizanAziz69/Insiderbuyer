@@ -125,7 +125,11 @@ export function AiCatalyst({
     setOpen(false);
   }
 
-  const explainer = data?.explainer || "";
+  // Server strips markdown, but older cached explainers may still carry it.
+  const explainer = (data?.explainer || "")
+    .replace(/^#+\s?[^\n]*\n?/g, "")
+    .replace(/\*\*/g, "")
+    .trim();
   const title = data?.title || "";
 
   return (
