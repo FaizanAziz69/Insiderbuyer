@@ -771,6 +771,32 @@ function sanitiseBody(html: string): string {
       /(?:<p>\s*)?\[\[STOCK:([A-Za-z.\-]{1,10})\]\](?:\s*<\/p>)?/g,
       (_m, t) => `<div data-stock-embed="${String(t).toUpperCase()}"></div>`,
     )
+    // Internal links: the model can invent routes that don't exist (e.g.
+    // "/biotech" → 404). Rewrite topical shorthands to their real hubs and
+    // strip any other unknown internal link (keep the text, drop the <a>).
+    .replace(
+      /<a\s+[^>]*href="(\/[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi,
+      (full: string, href: string, text: string) => {
+        const path = (href.split(/[?#]/)[0].replace(/\/$/, '') || '/').toLowerCase();
+        const ALLOWED_PREFIXES = [
+          '/companies/', '/insights/', '/topics/', '/stock-lists/', '/insiders/',
+          '/market-data/', '/heatmaps/', '/learn/', '/articles/',
+        ];
+        const ALLOWED_EXACT = new Set([
+          '/', '/companies', '/insights', '/editorial', '/stock-lists', '/trades',
+          '/insiders/hot', '/analyst-ratings', '/earnings', '/dividends', '/ipos',
+          '/short-interest', '/short-squeeze', '/congressional-trades', '/sectors',
+          '/methodology', '/screener', '/premium', '/news',
+        ]);
+        if (ALLOWED_EXACT.has(path) || ALLOWED_PREFIXES.some((pfx) => path.startsWith(pfx))) {
+          return full;
+        }
+        const TOPIC_SLUGS = new Set(['ai', 'biotech', 'ev', 'etf', 'macro', 'markets', 'ma', 'semis']);
+        const slug = path.slice(1);
+        if (TOPIC_SLUGS.has(slug)) return full.replace(href, `/topics/${slug}`);
+        return text; // unknown internal route — keep the words, drop the link
+      },
+    )
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')

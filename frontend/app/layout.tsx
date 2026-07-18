@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed, Figtree } from "next/font/google";
+import { Barlow, Barlow_Condensed, Figtree, Libre_Franklin } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import { PostHogProvider } from "@/components/PostHogProvider";
@@ -8,6 +8,13 @@ const barlow = Barlow({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-sans",
+  display: "swap",
+});
+
+const libreFranklin = Libre_Franklin({
+  subsets: ["latin"],
+  weight: ["700", "800", "900"],
+  variable: "--font-heading",
   display: "swap",
 });
 
@@ -47,7 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${barlow.variable} ${barlowCondensed.variable} ${figtree.variable}`}
+      className={`${barlow.variable} ${barlowCondensed.variable} ${figtree.variable} ${libreFranklin.variable}`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />

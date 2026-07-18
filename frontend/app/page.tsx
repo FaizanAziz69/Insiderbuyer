@@ -12,6 +12,7 @@ import { SidebarListsAndTools } from "@/components/home/SidebarListsAndTools";
 import { SidebarPopularTools } from "@/components/home/SidebarPopularTools";
 import { StockHeatmap, HeatmapLegend } from "@/components/heatmap/StockHeatmap";
 import { AdSlot } from "@/components/AdSlot";
+import { AiCatalyst, useExplainerPrewarm } from "@/components/AiCatalyst";
 import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
 import { AiPopularArticlesSection } from "@/components/insights/AiPopularArticlesSection";
 import { AiLatestNewsSection } from "@/components/insights/AiLatestNewsSection";
@@ -86,15 +87,21 @@ function fmtCap(v: number | null): string {
   return `$${v}`;
 }
 
-/** Top-5 gainers rail — sits beside the hero. Columns: #, Company, Price,
- *  Change %, Market Cap. Each row → that company's page. */
+/** Top-25 gainers rail — scrollable list beside the hero. Columns: #,
+ *  Company, Price, Change/Cap, and the AI Catalyst ✨ explainer per row. */
 function TopGainersPanel() {
   const { data } = useSWR<{ rows: GainerRow[] }>(
-    `${API_BASE}/market-stats/top-gainers?limit=5`,
+    `${API_BASE}/market-stats/top-gainers?limit=25`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
-  const gainers = (data?.rows ?? []).slice(0, 5);
+  const gainers = (data?.rows ?? []).slice(0, 25);
+
+  // Pre-generate every row's AI Movement Explainer in one batched call so
+  // hovering the ✨ icon is instant.
+  useExplainerPrewarm(
+    gainers.map((g) => ({ symbol: g.symbol, name: g.name, changePct: g.changePct })),
+  );
 
   return (
     <aside
@@ -122,17 +129,17 @@ function TopGainersPanel() {
         <span>#</span>
         <span>Company</span>
         <span className="text-center">Price</span>
-        <span className="text-right">Chg / Cap</span>
+        <span className="text-right">Chg / Cap · ✨</span>
       </div>
-      <ul className="divide-y divide-[var(--border)] flex flex-col flex-1 min-h-0">
+      <ul className="divide-y divide-[var(--border)] flex flex-col flex-1 min-h-0 overflow-y-auto scrollbar-thin">
         {gainers.length === 0 ? (
           <li className="px-4 py-6 text-center text-mute text-[12px]">Loading…</li>
         ) : (
           gainers.map((g, i) => (
-            <li key={g.symbol} className="flex-1">
+            <li key={g.symbol} className="flex-shrink-0 flex items-center pr-2">
               <Link
                 href={`/companies/${encodeURIComponent(g.symbol)}`}
-                className="grid grid-cols-[18px_1fr_60px_auto] gap-2 items-center px-4 py-2 h-full hover:bg-[var(--accent-soft)] transition"
+                className="grid grid-cols-[18px_1fr_60px_auto] gap-2 items-center px-4 py-2 flex-1 min-w-0 hover:bg-[var(--accent-soft)] transition"
               >
                 <span className="text-[11px] font-mono font-bold text-faint text-center">
                   {i + 1}
@@ -157,6 +164,8 @@ function TopGainersPanel() {
                   </span>
                 </span>
               </Link>
+              {/* AI Catalyst — why this stock is moving (hover) */}
+              <AiCatalyst ticker={g.symbol} name={g.name} changePct={g.changePct} />
             </li>
           ))
         )}

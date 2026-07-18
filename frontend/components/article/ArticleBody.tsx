@@ -12,7 +12,37 @@ const EMBED_RE = /<div\s+data-stock-embed="([A-Za-z.\-]{1,10})"\s*><\/div>/g;
  * Insider Score, analyst rating pulled from our own APIs). Plain articles
  * without embeds render exactly as before.
  */
-export function ArticleBody({ html }: { html: string }) {
+const LINK_ALLOWED_PREFIXES = [
+  "/companies/", "/insights/", "/topics/", "/stock-lists/", "/insiders/",
+  "/market-data/", "/heatmaps/", "/learn/", "/articles/",
+];
+const LINK_ALLOWED_EXACT = new Set([
+  "/", "/companies", "/insights", "/editorial", "/stock-lists", "/trades",
+  "/insiders/hot", "/analyst-ratings", "/earnings", "/dividends", "/ipos",
+  "/short-interest", "/short-squeeze", "/congressional-trades", "/sectors",
+  "/methodology", "/screener", "/premium", "/news",
+]);
+const LINK_TOPIC_SLUGS = new Set(["ai", "biotech", "ev", "etf", "macro", "markets", "ma", "semis"]);
+
+/** Render-time guard for older articles: rewrite invented internal routes
+ *  (e.g. "/biotech") to their real hubs, strip unknown ones (keep the text). */
+function fixInternalLinks(html: string): string {
+  return html.replace(
+    /<a\s+[^>]*href="(\/[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi,
+    (full, href: string, text: string) => {
+      const path = (href.split(/[?#]/)[0].replace(/\/$/, "") || "/").toLowerCase();
+      if (LINK_ALLOWED_EXACT.has(path) || LINK_ALLOWED_PREFIXES.some((p) => path.startsWith(p))) {
+        return full;
+      }
+      const slug = path.slice(1);
+      if (LINK_TOPIC_SLUGS.has(slug)) return full.replace(href, `/topics/${slug}`);
+      return text;
+    },
+  );
+}
+
+export function ArticleBody({ html: rawHtml }: { html: string }) {
+  const html = useMemo(() => fixInternalLinks(rawHtml), [rawHtml]);
   const segments = useMemo(() => {
     const out: Array<{ type: "html"; value: string } | { type: "stock"; ticker: string }> = [];
     let last = 0;

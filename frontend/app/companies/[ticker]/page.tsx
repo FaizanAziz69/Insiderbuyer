@@ -343,7 +343,9 @@ export default function CompanyPage({
                           <th>Insider</th>
                           <th>Action</th>
                           <th className="text-right">Shares</th>
+                          <th className="text-right">Avg Cost</th>
                           <th className="text-right">Total</th>
+                          <th className="text-right">&Delta; Holdings</th>
                           <th className="text-right">Held After</th>
                           <th>Date</th>
                           <th />
@@ -352,7 +354,7 @@ export default function CompanyPage({
                       <tbody>
                         {data.transactions.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="text-center text-mute py-10">
+                            <td colSpan={9} className="text-center text-mute py-10">
                               No Form 4 filings in the last 90 days.
                             </td>
                           </tr>
@@ -397,8 +399,50 @@ export default function CompanyPage({
                                 <td className="text-right tabular text-[14px] font-bold">
                                   {formatNumber(Number(t.sharesBought))}
                                 </td>
+                                <td className="text-right tabular text-[14px] font-bold text-soft">
+                                  {Number(t.pricePerShare) > 0
+                                    ? `$${Number(t.pricePerShare).toFixed(2)}`
+                                    : "—"}
+                                </td>
                                 <td className="text-right tabular font-bold text-[14px]">
                                   {formatCurrency(Number(t.totalValue))}
+                                </td>
+                                <td className="text-right tabular text-[13.5px] font-bold">
+                                  {(() => {
+                                    const prev = Number(t.previousHoldings) || 0;
+                                    const sh = Number(t.sharesBought) || 0;
+                                    if (sh <= 0) return <span className="text-faint">—</span>;
+                                    if (prev <= 0) {
+                                      // First reported position — an infinite % is meaningless.
+                                      return isBuy ? (
+                                        <span
+                                          className="inline-flex items-center gap-0.5"
+                                          style={{ color: "var(--good)" }}
+                                        >
+                                          <ArrowUp className="h-3.5 w-3.5" /> New
+                                        </span>
+                                      ) : (
+                                        <span className="text-faint">—</span>
+                                      );
+                                    }
+                                    const pct = (sh / prev) * 100;
+                                    const label = `${pct >= 100 ? Math.round(pct) : pct.toFixed(1)}%`;
+                                    return isBuy ? (
+                                      <span
+                                        className="inline-flex items-center gap-0.5"
+                                        style={{ color: "var(--good)" }}
+                                      >
+                                        <ArrowUp className="h-3.5 w-3.5" /> {label}
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="inline-flex items-center gap-0.5"
+                                        style={{ color: "var(--bad)" }}
+                                      >
+                                        <ArrowDown className="h-3.5 w-3.5" /> {label}
+                                      </span>
+                                    );
+                                  })()}
                                 </td>
                                 <td className="text-right tabular text-mute text-[14px] font-bold">
                                   {t.postHoldings != null
@@ -992,6 +1036,7 @@ function StockOverviewGrid({
     r && typeof r[k] === "number" ? (r[k] as number) : null;
 
   const revenue = stats?.revenue ?? n(inc, "revenue");
+  const netIncome = stats?.netIncome ?? n(inc, "netIncome");
 
   const trading: [string, string][] = [
     ["Price", usd(stats?.price ?? fallbackPrice)],
@@ -1007,6 +1052,7 @@ function StockOverviewGrid({
     ["Forward P/E", dec(stats?.forwardPE)],
     ["EPS (ttm)", dec(stats?.eps)],
     ["Revenue (ttm)", cur(revenue)],
+    ["Net Income (ttm)", cur(netIncome)],
     ["Shares Out", num(stats?.sharesOut)],
   ];
   const other: [string, string][] = [
@@ -1018,6 +1064,16 @@ function StockOverviewGrid({
     [
       "Analyst Rating",
       stats?.analystRating ? RATING_LABEL[stats.analystRating] || stats.analystRating : "—",
+    ],
+    [
+      "Price Target",
+      stats?.priceTarget != null
+        ? `$${Number(stats.priceTarget).toFixed(2)}${
+            stats.priceTargetUpsidePct != null
+              ? ` (${stats.priceTargetUpsidePct >= 0 ? "+" : ""}${Number(stats.priceTargetUpsidePct).toFixed(1)}%)`
+              : ""
+          }`
+        : "—",
     ],
     ["Industry", profile?.industry || "—"],
     ["Employees", profile?.employees != null ? num(profile.employees) : "—"],

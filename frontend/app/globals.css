@@ -1235,3 +1235,16 @@ body {
   transition: border-color 0.15s, transform 0.15s;
 }
 .sg-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); transform: translateY(-1px); }
+
+/* ============ HEADINGS — thick Business-Insider-style grotesque ============
+   Libre Franklin (Franklin Gothic family) at heavy weights for every heading:
+   page titles, homepage section headers, and AI-article body headings. */
+h1, h2, h3 {
+  font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
+  font-weight: 800;
+}
+.article-body h2, .article-body h3 {
+  font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
