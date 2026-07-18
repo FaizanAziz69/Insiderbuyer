@@ -32,7 +32,7 @@ export function MonthlyBuySellMeter({ linkable = true }: { linkable?: boolean })
       <div className="flex items-baseline justify-between mb-2 flex-wrap gap-2">
         <div className="inline-flex items-center gap-1.5">
           <Activity className="h-3.5 w-3.5 text-accent" />
-          <h3 className="text-[14px] font-bold tracking-tight group-hover:text-accent transition">
+          <h3 className="text-[14px] font-bold uppercase tracking-wide group-hover:text-accent transition" style={{ fontFamily: "var(--font-heading), var(--font-sans)" }}>
             Insider buying vs selling — {data?.monthLabel || "This Month"}
           </h3>
         </div>

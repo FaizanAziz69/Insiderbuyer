@@ -182,14 +182,17 @@ a:hover, a:active, a:focus { color: var(--accent-hover); }
 
 /* Larger section heading — for the marquee "Latest Financial News" / "Stock Ideas" rows */
 .large-section-h {
-  font-family: var(--font-sans);
-  font-weight: 600;
+  /* Matches the Top Stories header: thick Franklin Gothic, uppercase,
+     tracked — one look for every homepage/site section heading. */
+  font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
   border-bottom: 1px solid var(--border-strong);
-  font-size: 1.85rem;
+  font-size: 1.35rem;
   line-height: 1.15;
   padding: 6px 0 12px;
   margin: 0 0 1em;
-  letter-spacing: -0.005em;
+  letter-spacing: 0.02em;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -197,7 +200,7 @@ a:hover, a:active, a:focus { color: var(--accent-hover); }
   color: var(--text);
 }
 @media (max-width: 575.98px) {
-  .large-section-h { font-size: 1.45rem; }
+  .large-section-h { font-size: 1.15rem; }
 }
 .large-section-h .section-h-action {
   font-size: 0.85rem;
