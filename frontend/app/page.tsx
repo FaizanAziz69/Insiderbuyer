@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import useSWR from "swr";
-import { ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { API_BASE, HeatQuote, heatToRanking, fetcher } from "@/lib/api";
 import { MonthlyBuySellMeter } from "@/components/home/MonthlyBuySellMeter";
 import { TopStoriesSection } from "@/components/home/TopStoriesSection";
@@ -123,21 +123,21 @@ function TopGainersPanel() {
       </Link>
       {/* Column header */}
       <div
-        className="grid grid-cols-[18px_1fr_60px_auto_36px] gap-2 px-4 py-1.5 text-[10px] uppercase tracking-wider font-bold border-b flex-shrink-0"
+        className="grid grid-cols-[18px_1fr_60px_auto_56px] gap-2 px-4 py-1.5 text-[10px] uppercase tracking-wider font-bold border-b flex-shrink-0"
         style={{ color: "var(--text-mute)", borderColor: "var(--border)" }}
       >
         <span>#</span>
         <span>Company</span>
         <span className="text-center">Price</span>
         <span className="text-right">Chg / Cap</span>
-        <span className="text-center">AI</span>
+        <span className="text-center">Catalyst</span>
       </div>
       <ul className="divide-y divide-[var(--border)] flex flex-col flex-1 min-h-0 overflow-y-auto scrollbar-visible">
         {gainers.length === 0 ? (
           <li className="px-4 py-6 text-center text-mute text-[12px]">Loading…</li>
         ) : (
           gainers.map((g, i) => (
-            <li key={g.symbol} className="flex-shrink-0 flex items-center pr-2">
+            <li key={g.symbol} className="flex-shrink-0 flex items-center">
               <Link
                 href={`/companies/${encodeURIComponent(g.symbol)}`}
                 className="grid grid-cols-[18px_1fr_60px_auto] gap-2 items-center px-4 py-2 flex-1 min-w-0 hover:bg-[var(--accent-soft)] transition"
@@ -166,11 +166,17 @@ function TopGainersPanel() {
                 </span>
               </Link>
               {/* AI Catalyst — why this stock is moving (hover) */}
-              <AiCatalyst ticker={g.symbol} name={g.name} changePct={g.changePct} />
+              <span className="w-[56px] flex items-center justify-center flex-shrink-0">
+                <AiCatalyst ticker={g.symbol} name={g.name} changePct={g.changePct} />
+              </span>
             </li>
           ))
         )}
       </ul>
+      {/* Always-visible cue that the list scrolls (25 rows) */}
+      <div className="scroll-more-hint flex-shrink-0">
+        <ChevronDown className="h-3 w-3" /> Scroll for all {gainers.length || 25} gainers
+      </div>
     </aside>
   );
 }
