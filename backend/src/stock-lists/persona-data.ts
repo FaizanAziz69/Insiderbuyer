@@ -215,7 +215,7 @@ export const SECTOR_UNIVERSE: Record<string, string[]> = {
 
 export const SECTOR_LIST_RULES: Record<string, RegExp> = {
   'metals-and-mining': /metal|mining|copper|aluminum|steel/i,
-  biotech: /biotech|pharma|life science|drug|biologic|therapeutic|medicinal|diagnostic/i,
+  biotech: /biotech|pharma|life science|drug|biologic|therapeut|medicinal|diagnostic|genom|oncolog|vaccine|laborator|surgical/i,
   tech: /technology|software|semiconductor|internet|computer/i,
   gold: /gold/i,
   silver: /silver/i,
