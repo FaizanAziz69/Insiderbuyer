@@ -105,7 +105,10 @@ export function AiCatalyst({
     const gap = 10;
     const spaceLeft = r.left - gap - 8; // room between viewport left edge and the icon
     const W = Math.max(240, Math.min(340, spaceLeft));
-    const left = Math.max(8, r.left - gap - W);
+    // ALWAYS open on the LEFT of the trigger: right edge pinned at the icon,
+    // then a final clamp so no part can ever cross the viewport's right edge.
+    let left = Math.max(8, r.left - gap - W);
+    left = Math.min(left, vw - W - 8);
     const top = Math.min(Math.max(8, r.top + r.height / 2 - 110), Math.max(8, vh - 260));
     setPos({ left, top, width: W, maxHeight: Math.max(180, vh - top - 12) });
   }
@@ -124,6 +127,19 @@ export function AiCatalyst({
     if (timer.current) clearTimeout(timer.current);
     setOpen(false);
   }
+
+  // Keep the panel pinned correctly if the page scrolls/resizes while open.
+  useEffect(() => {
+    if (!open) return;
+    const onMove = () => place();
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Server strips markdown, but older cached explainers may still carry it.
   const explainer = (data?.explainer || "")
