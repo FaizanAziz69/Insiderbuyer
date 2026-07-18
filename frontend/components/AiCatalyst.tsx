@@ -76,9 +76,10 @@ export function AiCatalyst({
   const [open, setOpen] = useState(false);
   const [armed, setArmed] = useState(false);
   const [pos, setPos] = useState<{
-    left: number;
-    bottom?: number;
-    top?: number;
+    /** Distance from the VIEWPORT's right edge to the panel's right edge —
+     *  CSS `right` pins the panel so it can never cross the trigger icon. */
+    right: number;
+    top: number;
     width: number;
     maxHeight: number;
   } | null>(null);
@@ -103,14 +104,15 @@ export function AiCatalyst({
     // the ✨ icon and its width shrinks to the space available on that side —
     // it can never spill into the middle/right of the screen or off-viewport.
     const gap = 10;
-    const spaceLeft = r.left - gap - 8; // room between viewport left edge and the icon
-    const W = Math.max(240, Math.min(340, spaceLeft));
-    // ALWAYS open on the LEFT of the trigger: right edge pinned at the icon,
-    // then a final clamp so no part can ever cross the viewport's right edge.
-    let left = Math.max(8, r.left - gap - W);
-    left = Math.min(left, vw - W - 8);
+    // RIGHT-ANCHORED left flyout: positioned via CSS `right` (distance from
+    // the viewport's right edge to the icon's left side); the panel grows
+    // leftward only, so crossing the icon or the window's right edge is
+    // geometrically impossible.
+    const right = Math.max(8, vw - r.left + gap);
+    const spaceLeft = vw - right - 8; // room left of the anchor
+    const W = Math.max(220, Math.min(340, spaceLeft));
     const top = Math.min(Math.max(8, r.top + r.height / 2 - 110), Math.max(8, vh - 260));
-    setPos({ left, top, width: W, maxHeight: Math.max(180, vh - top - 12) });
+    setPos({ right, top, width: W, maxHeight: Math.max(180, vh - top - 12) });
   }
 
   function show() {
@@ -159,11 +161,7 @@ export function AiCatalyst({
         type="button"
         onFocus={show}
         onBlur={hide}
-        className="inline-flex items-center justify-center h-7 w-7 rounded-full cursor-help focus:outline-none"
-        style={{
-          background: "color-mix(in srgb, var(--accent) 14%, transparent)",
-          color: "var(--accent)",
-        }}
+        className="ai-catalyst-btn inline-flex items-center justify-center h-7 w-7 rounded-full cursor-help focus:outline-none flex-shrink-0"
         aria-label={`Movement explainer for ${name}`}
       >
         <Sparkles className="h-4 w-4" />
@@ -177,10 +175,10 @@ export function AiCatalyst({
             className="pointer-events-none rounded-lg overflow-y-auto text-left"
             style={{
               position: "fixed",
-              left: pos.left,
+              right: pos.right,
               top: pos.top,
-              bottom: pos.bottom,
               width: pos.width,
+              maxWidth: "calc(100vw - 16px)",
               maxHeight: pos.maxHeight,
               zIndex: 60,
               border: "1px solid var(--border)",
