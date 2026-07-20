@@ -235,12 +235,15 @@ export default function CompanyPage({
               <ConversationsSection ticker={sym} />
             ) : (
               <>
+            {/* Stock chart FIRST — directly below the header (client spec),
+                defaults to 1D with the full timeframe toggle. */}
+            <PriceChart ticker={sym} />
+
             {/* Price performance row — 1D / 5D / 1M / 6M / 1Y (TradingView-style) */}
             <PricePerformanceRow ticker={sym} />
 
-            {/* Key data FIRST — the 3-column overview (trading ranges | market
-                cap & financials | other data) lands above the fold, before the
-                chart (client spec: key info visible on first load). */}
+            {/* Key data — the 3-column overview (trading ranges | market cap &
+                financials | other data). */}
             <StockOverviewGrid
               ticker={sym}
               stats={stats}
@@ -295,8 +298,6 @@ export default function CompanyPage({
               </section>
             )}
 
-            {/* Live price chart — compact, below the key data + About. */}
-            <PriceChart ticker={sym} />
 
             {/* ── Overview ───────────────────────────────────────────── */}
             <div className="space-y-6">
@@ -797,7 +798,7 @@ function Chip({ children }: { children: React.ReactNode }) {
 
 // ── Interactive price chart (timeframe tabs + crosshair, TipRanks-style) ─────
 function PriceChart({ ticker }: { ticker: string }) {
-  const [range, setRange] = useState<string>("1y");
+  const [range, setRange] = useState<string>("1d");
   const [hover, setHover] = useState<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 

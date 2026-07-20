@@ -71,8 +71,12 @@ export function TopStoriesSection() {
                 primary={lead.imageUrl}
                 seed={lead.slug}
                 tags={lead.tags}
+                ticker={lead.ticker}
+                sector={lead.sector}
+                featuredTickers={lead.featuredTickers}
+                preferPrimary
+                overlay={lead.featuredTickers?.length ? "md" : "none"}
                 alt={lead.title}
-                overlay="none"
                 loading="eager"
                 style={{ width: "100%", height: "100%" }}
                 className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
@@ -113,8 +117,12 @@ export function TopStoriesSection() {
                     primary={item.imageUrl}
                     seed={item.slug}
                     tags={item.tags}
+                    ticker={item.ticker}
+                    sector={item.sector}
+                    featuredTickers={item.featuredTickers}
+                    preferPrimary
+                    overlay={item.featuredTickers?.length ? "sm" : "none"}
                     alt={item.title}
-                    overlay="none"
                     style={{ width: "100%", height: "100%" }}
                     className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
                   />

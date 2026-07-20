@@ -33,6 +33,10 @@ interface Props {
   /** Loaded-priority hint forwarded to <img>. */
   loading?: "eager" | "lazy";
   alt?: string;
+  /** Prefer the story-specific AI-generated image (`primary`) as the cover,
+   *  falling back to the curated library only if it fails. Used by the Top
+   *  Stories section so every thumbnail is unique to the story. */
+  preferPrimary?: boolean;
 }
 
 /** Sector → concrete photographic search terms. Every entry blends a
@@ -161,6 +165,7 @@ export function AiCoverImage({
   style,
   loading = "lazy",
   alt = "",
+  preferPrimary = false,
 }: Props) {
   const key = seed || ticker || "default";
   // Primary = the reliable curated Unsplash photo (always loads full). An
@@ -194,13 +199,17 @@ export function AiCoverImage({
     }
   });
 
+  // When preferPrimary is on and a story-specific AI image exists, it leads;
+  // the curated library becomes the fallback chain behind it.
+  const usePrimaryFirst = preferPrimary && !!primary;
+  const stageSrcs = usePrimaryFirst
+    ? [primary as string, curated, curatedAlt, curatedDefault]
+    : [curated, curatedAlt, curatedDefault];
+  const svgStage = stageSrcs.length;
+
   let src: string;
-  if (stage === 0) {
-    src = curated;
-  } else if (stage === 1) {
-    src = curatedAlt;
-  } else if (stage === 2) {
-    src = curatedDefault;
+  if (stage < svgStage) {
+    src = stageSrcs[stage];
   } else {
     src = placeholderSvg(ticker || key);
   }
@@ -216,7 +225,7 @@ export function AiCoverImage({
       }}
     >
       {/* Shimmer underlay while the chosen src is still loading. */}
-      {!loaded && stage < 3 && (
+      {!loaded && stage < svgStage && (
         <div
           className="absolute inset-0 shimmer"
           aria-hidden
@@ -232,7 +241,7 @@ export function AiCoverImage({
         decoding="async"
         onLoad={() => setLoaded(true)}
         onError={() => {
-          if (stage < 3) setStage((s) => s + 1);
+          if (stage < svgStage) setStage((s) => s + 1);
         }}
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
         style={{ opacity: loaded ? 1 : 0 }}
