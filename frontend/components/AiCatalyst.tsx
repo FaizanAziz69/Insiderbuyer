@@ -77,11 +77,14 @@ export function AiCatalyst({
   const [armed, setArmed] = useState(false);
   const [pos, setPos] = useState<{
     /** Distance from the VIEWPORT's right edge to the panel's right edge —
-     *  CSS `right` pins the panel so it can never cross the trigger icon. */
-    right: number;
+     *  CSS `right` pins the panel so it can never cross the trigger icon.
+     *  On mobile the panel is centered instead (see `centered`). */
+    right?: number;
+    left?: number;
     top: number;
     width: number;
     maxHeight: number;
+    centered?: boolean;
   } | null>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -104,10 +107,19 @@ export function AiCatalyst({
     // the ✨ icon and its width shrinks to the space available on that side —
     // it can never spill into the middle/right of the screen or off-viewport.
     const gap = 10;
-    // RIGHT-ANCHORED left flyout: positioned via CSS `right` (distance from
-    // the viewport's right edge to the icon's left side); the panel grows
-    // leftward only, so crossing the icon or the window's right edge is
-    // geometrically impossible.
+    // Mobile / narrow screens: no room for a left flyout, so center a
+    // near-full-width card and clamp it fully on-screen.
+    if (vw < 560) {
+      const W = vw - 24;
+      const left = 12;
+      const top = Math.min(Math.max(8, r.top + r.height + 8), Math.max(8, vh - 300));
+      setPos({ left, top, width: W, maxHeight: Math.max(200, vh - top - 12), centered: true });
+      return;
+    }
+    // Desktop: RIGHT-ANCHORED left flyout — positioned via CSS `right`
+    // (distance from the viewport's right edge to the icon's left side); the
+    // panel grows leftward only, so crossing the icon or the window's right
+    // edge is geometrically impossible.
     const right = Math.max(8, vw - r.left + gap);
     const spaceLeft = vw - right - 8; // room left of the anchor
     const W = Math.max(220, Math.min(340, spaceLeft));
@@ -176,6 +188,7 @@ export function AiCatalyst({
             style={{
               position: "fixed",
               right: pos.right,
+              left: pos.left,
               top: pos.top,
               width: pos.width,
               maxWidth: "calc(100vw - 16px)",
