@@ -4,7 +4,6 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { API_BASE, BlogListResponse, fetcher } from "@/lib/api";
 import { AiCoverImage } from "@/components/insights/AiCoverImage";
-import { homeThumbAt, HOME_THUMB_BASE } from "@/lib/editorial-thumbs";
 import { bylineFor } from "@/lib/byline";
 
 function timeAgo(iso: string): string {
@@ -90,7 +89,6 @@ export function TopStoriesSection() {
                 ticker={lead.ticker}
                 sector={lead.sector}
                 preferPrimary
-                editorialSrc={homeThumbAt(HOME_THUMB_BASE.top, 0)}
                 overlay="none"
                 alt={lead.title}
                 loading="eager"
@@ -136,7 +134,6 @@ export function TopStoriesSection() {
                     ticker={item.ticker}
                     sector={item.sector}
                     preferPrimary
-                    editorialSrc={homeThumbAt(HOME_THUMB_BASE.top, i + 1)}
                     overlay="none"
                     alt={item.title}
                     style={{ width: "100%", height: "100%" }}

@@ -12,7 +12,6 @@ import {
 } from "@/lib/api";
 import { AiCoverImage } from "./AiCoverImage";
 import { assignUniquePhotos } from "@/lib/sector-photos";
-import { homeThumbAt, HOME_THUMB_BASE } from "@/lib/editorial-thumbs";
 import { bylineFor } from "@/lib/byline";
 
 /** Live editorial feed in the home-page "Popular Articles" slot. Pulls every
@@ -64,7 +63,7 @@ export function AiPopularArticlesSection() {
         <EmptyHint />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-6 lg:gap-8">
-          {big && <BigCard item={big} src={covers[big.slug]} editorialSrc={homeThumbAt(HOME_THUMB_BASE.popular, 0)} />}
+          {big && <BigCard item={big} src={covers[big.slug]} />}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
             {small.map((it, i) => (
               <motion.div
@@ -74,7 +73,7 @@ export function AiPopularArticlesSection() {
                 viewport={{ once: true, amount: 0.1 }}
                 transition={{ duration: 0.3, delay: 0.05 * i }}
               >
-                <SmallCard item={it} src={covers[it.slug]} editorialSrc={homeThumbAt(HOME_THUMB_BASE.popular, i + 1)} />
+                <SmallCard item={it} src={covers[it.slug]} />
               </motion.div>
             ))}
           </div>

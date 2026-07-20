@@ -54,8 +54,8 @@ const THUMBS: Thumb[] = [
 const GENERIC_POOL = THUMBS.filter((t) => t.generic);
 const CONGRESS_POOL = THUMBS.filter((t) => t.congress);
 
-/** Insider-buying/investor article kinds — eligible for the neutral pool. */
-const INSIDER_SLUG = /^(daily-briefing|top-iqs|cluster|ceo|weekly|stock-idea|ticker-deep-dive|series|sector-roundup|topic)/i;
+/** Article kinds eligible for an editorial thumbnail (every article type). */
+const INSIDER_SLUG = /^(daily-briefing|top-iqs|cluster|ceo|weekly|stock-idea|ticker-deep-dive|series|sector-roundup|topic|editorial)/i;
 
 function hash(s: string): number {
   let h = 0;
@@ -93,7 +93,9 @@ function candidatesFor(opts: ThumbInput): Thumb[] {
   if (sym) primary = THUMBS.filter((t) => t.tickers?.includes(sym));
   if (!primary.length && /congress|politician|senate|pelosi|capitol/.test(hay)) primary = CONGRESS_POOL;
   if (!primary.length) primary = THUMBS.filter((t) => t.kw?.some((k) => hay.includes(k)));
-  if (!primary.length && INSIDER_SLUG.test(seed)) primary = GENERIC_POOL;
+  // Any article kind → the FULL 25-image set (keyed by slug downstream) so a
+  // card's thumbnail and its opened article page always show the same image.
+  if (!primary.length && INSIDER_SLUG.test(seed)) primary = THUMBS;
   if (!primary.length) return [];
 
   // Append the neutral pool as backup (deduped) so uniqueness never runs dry.
