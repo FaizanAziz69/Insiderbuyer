@@ -21,6 +21,7 @@ export class StockListsController {
   async detail(
     @Param('slug') slug: string,
     @Query('country') country?: string,
+    @Query('exchange') exchange?: string,
     @Query('sector') sector?: string,
     @Query('minMarketCap') minMc?: string,
     @Query('maxMarketCap') maxMc?: string,
@@ -30,6 +31,7 @@ export class StockListsController {
   ) {
     const detail = await this.svc.getDetail(slug, {
       country: country || undefined,
+      exchange: exchange || undefined,
       sector: sector || undefined,
       minMarketCap: minMc ? Number(minMc) : undefined,
       maxMarketCap: maxMc ? Number(maxMc) : undefined,

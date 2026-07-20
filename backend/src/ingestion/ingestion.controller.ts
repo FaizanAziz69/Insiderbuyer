@@ -26,4 +26,19 @@ export class IngestionController {
   async backfillFilingUrls() {
     return this.ingestion.backfillFilingUrls();
   }
+
+  /** Ingest German (BaFin) directors' dealings. Chunk the A–Z sweep with
+   *  `letters` (e.g. "ABCDE") to fit the 60s serverless budget; rescore once at
+   *  the end via POST /iqs/recalculate (or pass rescore:true on the last call).
+   *  Body: { letters?: string, maxIssuers?: number, rescore?: boolean }. */
+  @Post('german')
+  async german(
+    @Body() body: { letters?: string; maxIssuers?: number; rescore?: boolean },
+  ) {
+    return this.ingestion.ingestGermanDealings({
+      letters: body?.letters,
+      maxIssuers: body?.maxIssuers,
+      rescore: body?.rescore,
+    });
+  }
 }

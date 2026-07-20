@@ -1,7 +1,7 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { use, useMemo } from "react";
+import { use, useMemo, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Sparkles } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
 import {
@@ -87,6 +87,71 @@ const DEFAULT_CAP_BY_SLUG: Record<string, string> = {
   "penny-stocks": "small",
 };
 
+const EXCHANGE_OPTIONS: {
+  value: "all" | "US" | "CA" | "DE";
+  label: string;
+  disabled?: boolean;
+  hint?: string;
+}[] = [
+  { value: "all", label: "All" },
+  { value: "US", label: "U.S." },
+  { value: "CA", label: "Canada", disabled: true, hint: "Coming soon" },
+  { value: "DE", label: "Germany" },
+];
+
+function ExchangeFilter({
+  value,
+  onChange,
+}: {
+  value: "all" | "US" | "CA" | "DE";
+  onChange: (v: "all" | "US" | "CA" | "DE") => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span
+        className="text-[12px] font-bold uppercase tracking-wider"
+        style={{ color: "var(--text-mute)" }}
+      >
+        Exchanges
+      </span>
+      <div
+        className="inline-flex items-center gap-1 rounded-lg p-1"
+        style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+      >
+        {EXCHANGE_OPTIONS.map((opt) => {
+          const active = value === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              disabled={opt.disabled}
+              title={opt.hint}
+              onClick={() => !opt.disabled && onChange(opt.value)}
+              className="px-3 py-1.5 rounded-md text-[13px] font-semibold transition disabled:cursor-not-allowed"
+              style={{
+                background: active ? "var(--accent)" : "transparent",
+                color: active
+                  ? "#fff"
+                  : opt.disabled
+                    ? "var(--text-mute)"
+                    : "var(--text)",
+                opacity: opt.disabled ? 0.5 : 1,
+              }}
+            >
+              {opt.label}
+              {opt.disabled && opt.hint && (
+                <span className="ml-1 text-[10px] font-normal normal-case">
+                  ({opt.hint})
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function StockListDetailPage({
   params,
 }: {
@@ -95,8 +160,13 @@ export default function StockListDetailPage({
   const { slug } = use(params);
   const capDefault = DEFAULT_CAP_BY_SLUG[slug];
 
+  // "Exchanges" filter — narrows the list by listing venue. Ranking stays
+  // global (a German stock scoring #1 shows #1 under "All"). Sent to the API
+  // as ?exchange=; the backend maps US / CA / DE.
+  const [exchange, setExchange] = useState<"all" | "US" | "CA" | "DE">("all");
+
   const { data, isLoading } = useSWR<DetailResponse>(
-    `${API_BASE}/stock-lists/${slug}`,
+    `${API_BASE}/stock-lists/${slug}${exchange !== "all" ? `?exchange=${exchange}` : ""}`,
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
@@ -221,6 +291,10 @@ export default function StockListDetailPage({
           </div>
         )}
       </header>
+
+      {/* Exchanges filter — All / U.S. / Canada / Germany. Ranking is global;
+          this narrows the visible list by listing venue. */}
+      <ExchangeFilter value={exchange} onChange={setExchange} />
 
       {/* Top banner ad */}
       <AdSlot slot="leaderboard" seed={`${slug}-top`} />

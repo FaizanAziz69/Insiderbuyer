@@ -34,6 +34,13 @@ export class Company {
   @Column({ type: 'varchar', length: 64, nullable: true })
   sector: string;
 
+  /** Listing exchange group used by the "Exchanges" filter (All / U.S. /
+   *  Canada / Germany). SEC-ingested companies default to 'US'; BaFin
+   *  directors'-dealings ingestion tags German issuers 'DE'. */
+  @Index()
+  @Column({ type: 'varchar', length: 8, default: 'US' })
+  exchange: string;
+
   @UpdateDateColumn()
   updatedAt: Date;
 

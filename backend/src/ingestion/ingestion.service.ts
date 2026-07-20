@@ -9,7 +9,9 @@ import { normalizeRole } from '../common/role.util';
 import { deriveCountry, cleanCity } from '../common/country.util';
 import { SecClient } from './sec.client';
 import { QuoteClient } from './quote.client';
+import { BafinClient, BafinDealing } from './bafin.client';
 import { IqsService } from '../iqs/iqs.service';
+import { MarketStatsService } from '../market-stats/market-stats.service';
 
 @Injectable()
 export class IngestionService implements OnModuleInit {
@@ -22,7 +24,9 @@ export class IngestionService implements OnModuleInit {
     @InjectRepository(ProcessedFiling) private readonly processedRepo: Repository<ProcessedFiling>,
     private readonly sec: SecClient,
     private readonly quote: QuoteClient,
+    private readonly bafin: BafinClient,
     private readonly iqs: IqsService,
+    private readonly marketStats: MarketStatsService,
   ) {}
 
   async onModuleInit() {
@@ -217,6 +221,21 @@ export class IngestionService implements OnModuleInit {
         await this.delay(150);
       }
 
+      // Keep German (BaFin) data fresh incrementally: each daily cron ingests
+      // a rotating ~4-letter slice so the whole A–Z is covered over ~7 days
+      // without ever blowing the 60s serverless budget. Deduped, so overlap is
+      // cheap. Wrapped so a BaFin hiccup never aborts the SEC cron. rescore is
+      // false here — the recalculateAll() below scores US + German together.
+      if ((process.env.GERMAN_INGEST || 'true') === 'true') {
+        try {
+          const slices = ['ABCD', 'EFGH', 'IJKL', 'MNOP', 'QRST', 'UVWX', 'YZ'];
+          const dayIdx = new Date().getUTCDate() % slices.length;
+          await this.ingestGermanDealings({ letters: slices[dayIdx], rescore: false });
+        } catch (e: any) {
+          this.logger.warn(`German cron slice failed: ${e?.message || e}`);
+        }
+      }
+
       this.logger.log(`Computing IQS scores...`);
       await this.iqs.recalculateAll();
       this.logger.log(`Ingestion done: ${JSON.stringify(summary)}`);
@@ -270,5 +289,243 @@ export class IngestionService implements OnModuleInit {
 
   private delay(ms: number) {
     return new Promise((r) => setTimeout(r, ms));
+  }
+
+  // ── German (BaFin Directors' Dealings) ingestion ───────────────────────
+  // Free, machine-readable MAR Art. 19 managers'-transactions data. Written
+  // into the SAME companies + insider_transactions tables as SEC Form 4, so
+  // the source-agnostic scoring engine ranks German issuers alongside US ones.
+  // Companies are tagged exchange='DE'; the "Exchanges" filter keys off that.
+
+  /** Map BaFin "Nature of transaction" → our P (buy) / S (sell) code, or null
+   *  to skip (grants, exercises, pledges — not directional open-market trades
+   *  we can score honestly). */
+  private mapNature(nature: string): 'P' | 'S' | null {
+    const n = (nature || '').toLowerCase();
+    if (/(buy|purchase|acquisition|subscription)/.test(n)) return 'P';
+    if (/(sell|sale|disposal)/.test(n)) return 'S';
+    return null;
+  }
+
+  /** Map BaFin "Position / status" → our InsiderRole. We can't tell CEO/CFO
+   *  from the category, so executives map to 'Other' (honest) and the
+   *  supervisory board to 'Director'. */
+  private mapRole(position: string): 'Director' | 'Other' {
+    return /supervis/i.test(position || '') ? 'Director' : 'Other';
+  }
+
+  private shortHash(s: string): string {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  }
+
+  /** Resolve an ISIN to its Yahoo German listing symbol (prefer Xetra .DE,
+   *  then other German venues). Cached per run. */
+  private async resolveGermanTicker(
+    isin: string,
+    cache: Map<string, string | null>,
+  ): Promise<string | null> {
+    if (cache.has(isin)) return cache.get(isin)!;
+    let ticker: string | null = null;
+    try {
+      const results = await this.marketStats.searchSymbols(isin, 15);
+      const de = results.find((r) => /\.DE$/i.test(r.symbol));
+      const other = results.find((r) =>
+        /\.(F|MU|SG|DU|BE|HM|HA|STU)$/i.test(r.symbol),
+      );
+      ticker = de?.symbol || other?.symbol || null;
+    } catch {
+      ticker = null;
+    }
+    cache.set(isin, ticker);
+    return ticker;
+  }
+
+  /** Pull BaFin directors' dealings, keep the top issuers by directional buy
+   *  volume, resolve tickers, and upsert companies + transactions. Optionally
+   *  rescores everything at the end so German stocks get an IQS immediately. */
+  async ingestGermanDealings(opts?: {
+    maxIssuers?: number;
+    letters?: string;
+    rescore?: boolean;
+  }): Promise<{
+    issuers: number;
+    companies: number;
+    transactions: number;
+    skippedNoTicker: number;
+  }> {
+    const maxIssuers = opts?.maxIssuers ?? 120;
+    const letters = opts?.letters || 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    this.logger.log(`German (BaFin) ingestion: fetching directors' dealings [${letters}]…`);
+    const rows = await this.bafin.fetchAllDealings(letters);
+    this.logger.log(`BaFin: ${rows.length} total dealings fetched.`);
+
+    // Group by ISIN; only directional, priced share trades are scoreable.
+    const byIsin = new Map<string, BafinDealing[]>();
+    for (const r of rows) {
+      if (!this.mapNature(r.nature)) continue;
+      if (!(r.avgPrice > 0) || !(r.volumeEur > 0)) continue;
+      const arr = byIsin.get(r.isin) || [];
+      arr.push(r);
+      byIsin.set(r.isin, arr);
+    }
+
+    // Rank issuers by total directional EUR volume and cap the universe.
+    const ranked = Array.from(byIsin.entries())
+      .map(([isin, ds]) => ({
+        isin,
+        ds,
+        vol: ds.reduce((s, d) => s + d.volumeEur, 0),
+      }))
+      .sort((a, b) => b.vol - a.vol);
+    const selected = ranked.slice(0, maxIssuers);
+    if (ranked.length > selected.length) {
+      this.logger.log(
+        `BaFin: capping to top ${selected.length}/${ranked.length} issuers by buy volume.`,
+      );
+    }
+
+    const tickerCache = new Map<string, string | null>();
+    let companiesTouched = 0;
+    let txInserted = 0;
+    let skippedNoTicker = 0;
+
+    for (const { isin, ds } of selected) {
+      const head = ds[0];
+      const ticker = await this.resolveGermanTicker(isin, tickerCache);
+      if (!ticker) {
+        skippedNoTicker++;
+        continue;
+      }
+      const cik = `DE-${head.bafinId}`.slice(0, 16);
+
+      let company = await this.companies.findOne({ where: { cik } });
+      if (!company) {
+        company = this.companies.create({
+          cik,
+          ticker,
+          name: head.issuer,
+          exchange: 'DE',
+        });
+        company = await this.companies.save(company);
+      } else {
+        let dirty = false;
+        if (company.ticker !== ticker) {
+          company.ticker = ticker;
+          dirty = true;
+        }
+        if (company.exchange !== 'DE') {
+          company.exchange = 'DE';
+          dirty = true;
+        }
+        if (dirty) await this.companies.save(company);
+      }
+      companiesTouched++;
+
+      // Existing accession numbers for this company — dedupe re-ingestion.
+      const existing = new Set(
+        (
+          await this.txRepo
+            .createQueryBuilder('t')
+            .select('t.accessionNumber', 'acc')
+            .where('t.company_id = :id', { id: company.id })
+            .getRawMany<{ acc: string }>()
+        ).map((r) => r.acc),
+      );
+
+      const filingUrl = `https://portal.mvp.bafin.de/database/DealingsInfo/sucheForm.do?locale=en_GB&emittentName=${encodeURIComponent(head.issuer)}`;
+
+      for (const d of ds) {
+        const code = this.mapNature(d.nature);
+        if (!code || !d.transactionDate) continue;
+        const shares = d.avgPrice > 0 ? d.volumeEur / d.avgPrice : 0;
+        if (!(shares > 0)) continue;
+        const acc = `B${d.bafinId}-${d.transactionDate.replace(/-/g, '')}-${this.shortHash(
+          `${d.insiderName}|${d.volumeEur}|${d.nature}|${d.avgPrice}`,
+        )}`.slice(0, 64);
+        if (existing.has(acc)) continue;
+        existing.add(acc);
+        await this.txRepo.save(
+          this.txRepo.create({
+            companyId: company.id,
+            insiderName: d.insiderName || 'Undisclosed',
+            role: this.mapRole(d.position),
+            rawTitle: d.position || null,
+            insiderCity: null,
+            insiderState: null,
+            insiderCountry: 'Germany',
+            transactionDate: new Date(d.transactionDate),
+            transactionCode: code,
+            sharesBought: shares,
+            pricePerShare: d.avgPrice,
+            totalValue: d.volumeEur,
+            previousHoldings: null,
+            postHoldings: null,
+            accessionNumber: acc,
+            lineNumber: 0,
+            filingUrl,
+          }),
+        );
+        txInserted++;
+      }
+    }
+
+    // Set sector / price / market cap from Yahoo for the German tickers so
+    // lists render real data even before the full rescore.
+    try {
+      const tickers = Array.from(
+        new Set(
+          selected
+            .map((s) => tickerCache.get(s.isin))
+            .filter((t): t is string => !!t),
+        ),
+      );
+      if (tickers.length) {
+        const quotes = await this.marketStats.getQuoteBatch(tickers);
+        const deCompanies = await this.companies.find({ where: { exchange: 'DE' } });
+        for (const c of deCompanies) {
+          const q = c.ticker ? quotes.get(c.ticker.toUpperCase()) : null;
+          if (!q) continue;
+          let dirty = false;
+          if (q.sector && c.sector !== q.sector) {
+            c.sector = q.sector;
+            dirty = true;
+          }
+          if (q.price > 0 && Number(c.lastPrice) !== q.price) {
+            c.lastPrice = q.price;
+            dirty = true;
+          }
+          if (q.marketCap && q.marketCap > 0) {
+            const mc = String(Math.round(q.marketCap));
+            if (c.marketCap !== mc) {
+              c.marketCap = mc as unknown as string;
+              dirty = true;
+            }
+          }
+          if (dirty) await this.companies.save(c);
+        }
+      }
+    } catch (e: any) {
+      this.logger.warn(`German market-data backfill failed: ${e?.message || e}`);
+    }
+
+    this.logger.log(
+      `German ingestion done: ${companiesTouched} companies, ${txInserted} transactions (${skippedNoTicker} issuers skipped — no Yahoo ticker).`,
+    );
+
+    // Rescore only when explicitly asked — chunked serverless calls should
+    // rescore once at the end (via POST /iqs/recalculate) to fit the 60s budget.
+    if (opts?.rescore === true) {
+      this.logger.log('Rescoring after German ingestion…');
+      await this.iqs.recalculateAll();
+    }
+
+    return {
+      issuers: selected.length,
+      companies: companiesTouched,
+      transactions: txInserted,
+      skippedNoTicker,
+    };
   }
 }

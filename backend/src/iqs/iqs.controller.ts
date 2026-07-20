@@ -47,6 +47,7 @@ export class IqsController {
     @Query('maxMarketCap') maxMc?: string,
     @Query('minIqs') minIqs?: string,
     @Query('country') country?: string,
+    @Query('exchange') exchange?: string,
     @Query('live') live?: string,
   ) {
     return this.iqs.getRankings({
@@ -57,6 +58,7 @@ export class IqsController {
       maxMarketCap: maxMc ? Number(maxMc) : undefined,
       minIqs: minIqs ? Number(minIqs) : undefined,
       country: country || undefined,
+      exchange: exchange || undefined,
       withLive: live === '1' || live === 'true',
     });
   }

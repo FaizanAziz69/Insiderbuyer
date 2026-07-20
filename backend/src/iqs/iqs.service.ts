@@ -68,6 +68,18 @@ const IQS_LOG_SCALE = 6.5;
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
+/** Normalize an "Exchanges" filter value to a stored Company.exchange code,
+ *  or null for "All" / unknown (no filter). Accepts UI labels and codes:
+ *  us/u.s./united states→US, ca/canada→CA, de/germany/deutschland→DE. */
+function normalizeExchange(raw?: string): string | null {
+  const v = (raw || '').trim().toLowerCase();
+  if (!v || v === 'all') return null;
+  if (/^(us|u\.s\.?|usa|united states)$/.test(v)) return 'US';
+  if (/^(ca|canada|canadian)$/.test(v)) return 'CA';
+  if (/^(de|germany|german|deutschland)$/.test(v)) return 'DE';
+  return null;
+}
+
 // ── Data-quality guards ──────────────────────────────────────────────────
 // A single open-market Form 4 purchase above this is almost certainly a parse
 // artifact (the largest real insider buys are low hundreds of millions) — such
@@ -361,6 +373,7 @@ export class IqsService {
     maxMarketCap?: number;
     minIqs?: number;
     country?: string;
+    exchange?: string;
     withLive?: boolean;
   }): Promise<{ total: number; rows: RankingRow[] }> {
     const limit = Math.min(opts.limit ?? 50, 5000);
@@ -402,7 +415,13 @@ export class IqsService {
     if (typeof opts.minIqs === 'number') {
       qb.andWhere('s.iqs >= :minIqs', { minIqs: opts.minIqs });
     }
-    // country is reserved for future non-US data; we only have US Form 4s today.
+    // "Exchanges" filter: All (no filter) / US / CA / DE. Companies default to
+    // 'US'; BaFin ingestion tags German issuers 'DE'. Ranking stays global —
+    // a German stock scoring #1 shows #1 unless the user narrows the exchange.
+    const exchange = normalizeExchange(opts.exchange);
+    if (exchange) {
+      qb.andWhere('c.exchange = :exchange', { exchange });
+    }
 
     const countRow = await qb.clone().select('COUNT(*)', 'count').getRawOne<{ count: string }>();
     const total = Number(countRow?.count || 0);

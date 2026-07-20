@@ -80,6 +80,7 @@ export interface StockListDetail {
 
 export interface StockListFilters {
   country?: string;
+  exchange?: string;         // "Exchanges" filter: all / US / CA / DE
   sector?: string;
   minMarketCap?: number;
   maxMarketCap?: number;
@@ -433,6 +434,7 @@ export class StockListsService {
         minMarketCap: filters.minMarketCap,
         maxMarketCap: filters.maxMarketCap,
         minIqs: filters.minIqs,
+        exchange: filters.exchange,
       });
       // Drop rows whose SEC mapping yielded no usable ticker symbol.
       const rows = rawRows.filter(
@@ -620,6 +622,7 @@ export class StockListsService {
         minMarketCap: Math.max(filters.minMarketCap ?? 0, BLUE_CHIP_MIN_MARKET_CAP),
         maxMarketCap: filters.maxMarketCap,
         minIqs: filters.minIqs,
+        exchange: filters.exchange,
       });
     } else {
       const rx = SECTOR_LIST_RULES[slug];
@@ -631,12 +634,18 @@ export class StockListsService {
         minMarketCap: filters.minMarketCap,
         maxMarketCap: filters.maxMarketCap,
         minIqs: filters.minIqs,
+        exchange: filters.exchange,
       });
     }
-    // When an Insider Score band is selected, don't pad with the (unscored) universe.
-    const rows = filters.minIqs
-      ? base.rows
-      : this.topUpWithUniverse(slug, base.rows, filters);
+    // The curated top-up basket is US-centric — don't pad a non-US ("Germany"/
+    // "Canada") exchange view with US names, and don't pad when an Insider
+    // Score band is selected (those are unscored).
+    const ex = (filters.exchange || '').toLowerCase();
+    const nonUsExchange = !!ex && !/^(all|us|u\.s\.?|usa|united states)$/.test(ex);
+    const rows =
+      filters.minIqs || nonUsExchange
+        ? base.rows
+        : this.topUpWithUniverse(slug, base.rows, filters);
     // Universe top-up names can still have a live Insider Score (their sector
     // string may not match the regex, but the company is in our rankings) —
     // cross-reference so the score column isn't needlessly blank.
