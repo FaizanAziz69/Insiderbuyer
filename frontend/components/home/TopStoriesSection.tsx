@@ -20,12 +20,27 @@ function timeAgo(iso: string): string {
  * in a row beneath it.
  */
 export function TopStoriesSection() {
+  // Top Stories = the Editorial Desk: real world stock-market news rewritten
+  // by our AI. This is a DISTINCT feed from Stock Ideas / Popular Articles
+  // (which show internal insider-buying content).
   const { data, isLoading } = useSWR<BlogListResponse>(
-    `${API_BASE}/content/blogs?limit=10`,
+    `${API_BASE}/content/blogs?kind=editorial&limit=12`,
     fetcher,
     { revalidateOnFocus: false, refreshInterval: 10 * 60_000 },
   );
-  const items = data?.items || [];
+  // Fallback fill: if editorial is thin, top up with the newest general
+  // articles so the block is never empty.
+  const { data: fillData } = useSWR<BlogListResponse>(
+    (data?.items?.length ?? 0) < 5 ? `${API_BASE}/content/blogs?limit=10` : null,
+    fetcher,
+    { revalidateOnFocus: false, refreshInterval: 10 * 60_000 },
+  );
+  const editorial = data?.items || [];
+  const seen = new Set(editorial.map((i) => i.slug));
+  const items = [
+    ...editorial,
+    ...(fillData?.items || []).filter((i) => !seen.has(i.slug)),
+  ];
   const lead = items[0];
   const rest = items.slice(1, 5);
   // List-level assignment so all 5 covers are guaranteed distinct.

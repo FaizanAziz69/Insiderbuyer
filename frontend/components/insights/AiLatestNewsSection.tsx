@@ -24,7 +24,11 @@ export function AiLatestNewsSection() {
     fetcher,
     { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
-  const all = (data?.items || []).filter((i) => i.kind !== "stock-idea");
+  // Exclude stock-idea (own section) and editorial (owned by Top Stories) so
+  // the home sections don't repeat each other.
+  const all = (data?.items || []).filter(
+    (i) => i.kind !== "stock-idea" && i.kind !== "editorial",
+  );
   // Skip the top item — it lives in the hero already.
   const items = all.slice(1);
   const big = items[0];

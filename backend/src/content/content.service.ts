@@ -667,7 +667,7 @@ export class ContentService {
    *  factual WSJ/Barron's tone. Each story takes one distinct lead headline
    *  from the aggregated news feed (one per source where possible) and rewrites
    *  it in our voice with an "Our take:" and a bear/skeptic section. */
-  private readonly EDITORIAL_PER_DAY = 4;
+  private readonly EDITORIAL_PER_DAY = 6;
   private async generateEditorialStories(
     dayKey: string,
     dateLabel: string,

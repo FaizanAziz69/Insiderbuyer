@@ -165,6 +165,38 @@ const FEEDS: FeedDef[] = [
     region: 'US',
     label: 'Liberty Street research',
   },
+  // ── Broad world stock-market headlines (Google News RSS) — these give the
+  //    Editorial Desk / Top Stories real market news (earnings, big movers,
+  //    tech, macro) beyond the regulatory feeds above. Distinct source names
+  //    so the "one story per source" lead picker spreads coverage. ──
+  {
+    url: 'https://news.google.com/rss/search?q=stock%20market%20when:2d&hl=en-US&gl=US&ceid=US:en',
+    source: 'Markets Wire',
+    category: 'Market',
+    region: 'US',
+    label: 'Market news',
+  },
+  {
+    url: 'https://news.google.com/rss/search?q=(earnings%20OR%20guidance)%20stock%20when:2d&hl=en-US&gl=US&ceid=US:en',
+    source: 'Earnings Desk',
+    category: 'Market',
+    region: 'US',
+    label: 'Earnings',
+  },
+  {
+    url: 'https://news.google.com/rss/search?q=(S%26P%20500%20OR%20Nasdaq%20OR%20Dow%20Jones)%20when:2d&hl=en-US&gl=US&ceid=US:en',
+    source: 'Index Watch',
+    category: 'Market',
+    region: 'US',
+    label: 'Indexes',
+  },
+  {
+    url: 'https://news.google.com/rss/search?q=(tech%20stocks%20OR%20AI%20stocks%20OR%20semiconductor)%20when:2d&hl=en-US&gl=US&ceid=US:en',
+    source: 'Tech Markets',
+    category: 'Market',
+    region: 'US',
+    label: 'Tech & AI',
+  },
 ];
 
 const FUND_KEYWORDS = /(fund|ETF|mutual|investment\s+compan|advis|portfolio)/i;
