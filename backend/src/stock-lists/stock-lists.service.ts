@@ -657,6 +657,27 @@ export class StockListsService {
         }
       } catch { /* rankings unavailable — leave blank */ }
     }
+    // Backfill company name / sector / market cap from the live Yahoo quote
+    // for universe rows the static reference table doesn't cover — this is how
+    // Canadian (.TO) and other non-US names get a proper company name instead
+    // of just the ticker.
+    const needMeta = rows.filter(
+      (r) => r.ticker && (!r.name || r.name === r.ticker || r.marketCap == null),
+    );
+    if (needMeta.length) {
+      try {
+        const q = await this.marketStats.getQuoteBatch(
+          needMeta.map((r) => (r.ticker as string).toUpperCase()),
+        );
+        for (const row of needMeta) {
+          const m = q.get((row.ticker as string).toUpperCase());
+          if (!m) continue;
+          if (!row.name || row.name === row.ticker) row.name = m.name || row.name;
+          if (row.sector == null) row.sector = m.sector ?? row.sector;
+          if (row.marketCap == null) row.marketCap = m.marketCap ?? row.marketCap;
+        }
+      } catch { /* live quotes unavailable — ticker-only name is the fallback */ }
+    }
     return { total: rows.length, rows };
   }
 
