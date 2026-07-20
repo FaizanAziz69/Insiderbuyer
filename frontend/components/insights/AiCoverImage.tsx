@@ -41,6 +41,10 @@ interface Props {
   /** Position within its list — spreads the editorial-thumb pool so adjacent
    *  cards never repeat an image. */
   spreadIndex?: number;
+  /** Explicit editorial-thumb URL from a list-level unique assignment
+   *  (assignEditorialThumbs). `undefined` = compute internally; `null` = this
+   *  card has no editorial thumb (use the curated fallback). */
+  editorialSrc?: string | null;
 }
 
 /** Sector → concrete photographic search terms. Every entry blends a
@@ -171,6 +175,7 @@ export function AiCoverImage({
   alt = "",
   preferPrimary = false,
   spreadIndex = 0,
+  editorialSrc,
 }: Props) {
   const key = seed || ticker || "default";
   // Primary = the reliable curated Unsplash photo (always loads full). An
@@ -207,7 +212,12 @@ export function AiCoverImage({
   // Client-supplied editorial thumbnail (figure/story-centric) when one fits
   // this article — the top-priority cover; falls through to the AI image and
   // curated library if it's missing or fails to load.
-  const editorial = pickEditorialThumb({ ticker, sector, tags, seed: key, index: spreadIndex });
+  // Explicit list-level assignment wins (guarantees uniqueness across a
+  // section); otherwise compute a best-fit per card.
+  const editorial =
+    editorialSrc !== undefined
+      ? editorialSrc
+      : pickEditorialThumb({ ticker, sector, tags, seed: key, index: spreadIndex });
 
   // When preferPrimary is on and a story-specific AI image exists, it leads;
   // the curated library becomes the fallback chain behind it.

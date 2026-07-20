@@ -73,39 +73,69 @@ function pick(pool: Thumb[], seed: string, index: number): string {
   return url(pool[(hash(seed) + index) % pool.length].file);
 }
 
-/** Best editorial thumbnail for an article, or null (→ curated fallback). */
-export function pickEditorialThumb(opts: {
+export interface ThumbInput {
   ticker?: string | null;
   sector?: string | null;
   tags?: string[] | null;
   seed?: string | null;
-  /** Position within its list — spreads the pool so no two adjacent cards
-   *  share an image. */
-  index?: number;
-}): string | null {
+}
+
+/** Ordered candidate files for an article: its best-fit bucket first, then
+ *  the neutral pool as backup so a unique assignment can always find an
+ *  unused image. Empty → no editorial thumb (curated fallback). */
+function candidatesFor(opts: ThumbInput): Thumb[] {
   const seed = (opts.seed || "").toLowerCase();
-  const idx = opts.index ?? 0;
   const sym = (opts.ticker || "").toUpperCase();
   const hay = [seed, (opts.sector || "").toLowerCase(), ...(opts.tags || []).map((t) => t.toLowerCase())]
     .join(" ");
 
-  // 1. Exact ticker match wins.
-  if (sym) {
-    const hits = THUMBS.filter((t) => t.tickers?.includes(sym));
-    if (hits.length) return pick(hits, seed, idx);
-  }
+  let primary: Thumb[] = [];
+  if (sym) primary = THUMBS.filter((t) => t.tickers?.includes(sym));
+  if (!primary.length && /congress|politician|senate|pelosi|capitol/.test(hay)) primary = CONGRESS_POOL;
+  if (!primary.length) primary = THUMBS.filter((t) => t.kw?.some((k) => hay.includes(k)));
+  if (!primary.length && INSIDER_SLUG.test(seed)) primary = GENERIC_POOL;
+  if (!primary.length) return [];
 
-  // 2. Congressional / politician content.
-  if (/congress|politician|senate|pelosi|capitol/.test(hay)) {
-    return pick(CONGRESS_POOL, seed, idx);
-  }
+  // Append the neutral pool as backup (deduped) so uniqueness never runs dry.
+  const seen = new Set(primary.map((t) => t.file));
+  return [...primary, ...GENERIC_POOL.filter((t) => !seen.has(t.file))];
+}
 
-  // 3. Specific topic / keyword match.
-  const kwHits = THUMBS.filter((t) => t.kw?.some((k) => hay.includes(k)));
-  if (kwHits.length) return pick(kwHits, seed, idx);
+/** Best editorial thumbnail for a single article, or null (→ curated). */
+export function pickEditorialThumb(opts: ThumbInput & { index?: number }): string | null {
+  const cands = candidatesFor(opts);
+  if (!cands.length) return null;
+  const seed = (opts.seed || "").toLowerCase();
+  return pick(cands, seed, opts.index ?? 0);
+}
 
-  // 4. Neutral investor/finance pool for insider-buying article kinds.
-  if (INSIDER_SLUG.test(seed)) return pick(GENERIC_POOL, seed, idx);
-
-  return null;
+/** Assign editorial thumbnails to a LIST so no two cards repeat an image
+ *  (like assignUniquePhotos for the curated library). Returns a map keyed by
+ *  each item's `seed` (slug); value is a URL or null (→ curated fallback). */
+export function assignEditorialThumbs(items: ThumbInput[]): Record<string, string | null> {
+  const used = new Set<string>();
+  const out: Record<string, string | null> = {};
+  items.forEach((item, i) => {
+    const seed = (item.seed || `i${i}`).toLowerCase();
+    const cands = candidatesFor(item);
+    if (!cands.length) {
+      out[seed] = null;
+      return;
+    }
+    // Rotate candidate order deterministically, then take the first unused.
+    const start = hash(seed) % cands.length;
+    let chosen: Thumb | null = null;
+    for (let k = 0; k < cands.length; k++) {
+      const c = cands[(start + k) % cands.length];
+      if (!used.has(c.file)) {
+        chosen = c;
+        break;
+      }
+    }
+    // Pool exhausted (more cards than images) — allow a repeat rather than blank.
+    if (!chosen) chosen = cands[start];
+    used.add(chosen.file);
+    out[seed] = url(chosen.file);
+  });
+  return out;
 }

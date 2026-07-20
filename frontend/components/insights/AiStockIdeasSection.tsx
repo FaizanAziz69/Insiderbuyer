@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import { AiCoverImage } from "./AiCoverImage";
 import { assignUniquePhotos } from "@/lib/sector-photos";
+import { assignEditorialThumbs } from "@/lib/editorial-thumbs";
 import { bylineFor } from "@/lib/byline";
 
 /** Pulls live AI-generated stock-idea cards from /content/blogs?kind=stock-idea
@@ -28,6 +29,12 @@ export function AiStockIdeasSection() {
   const small = items.slice(1, 5);
   const covers = assignUniquePhotos(
     [big, ...small].filter(Boolean).map((it) => ({ seed: it.slug, sector: it.sector })),
+  );
+  // List-level editorial-thumbnail assignment — guarantees unique covers.
+  const eThumbs = assignEditorialThumbs(
+    [big, ...small].filter(Boolean).map((it) => ({
+      ticker: it.ticker, sector: it.sector, tags: it.tags, seed: it.slug,
+    })),
   );
 
   return (
@@ -69,7 +76,7 @@ export function AiStockIdeasSection() {
         <EmptyHint />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-6 lg:gap-8">
-          {big && <BigCard item={big} src={covers[big.slug]} idx={0} />}
+          {big && <BigCard item={big} src={covers[big.slug]} editorialSrc={eThumbs[big.slug.toLowerCase()]} />}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
             {small.map((it, i) => (
               <motion.div
@@ -79,7 +86,7 @@ export function AiStockIdeasSection() {
                 viewport={{ once: true, amount: 0.1 }}
                 transition={{ duration: 0.3, delay: 0.05 * i }}
               >
-                <SmallCard item={it} src={covers[it.slug]} idx={i + 1} />
+                <SmallCard item={it} src={covers[it.slug]} editorialSrc={eThumbs[it.slug.toLowerCase()]} />
               </motion.div>
             ))}
           </div>
@@ -89,7 +96,7 @@ export function AiStockIdeasSection() {
   );
 }
 
-function BigCard({ item, src, idx = 0 }: { item: BlogPostListItem; src?: string; idx?: number }) {
+function BigCard({ item, src, editorialSrc }: { item: BlogPostListItem; src?: string; editorialSrc?: string | null }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -107,7 +114,7 @@ function BigCard({ item, src, idx = 0 }: { item: BlogPostListItem; src?: string;
           tags={item.tags}
           ticker={item.ticker}
           sector={item.sector}
-        spreadIndex={idx}
+        editorialSrc={editorialSrc}
           seed={item.slug}
           overlay="none"
           loading="eager"
@@ -148,7 +155,7 @@ function BigCard({ item, src, idx = 0 }: { item: BlogPostListItem; src?: string;
   );
 }
 
-function SmallCard({ item, src, idx = 0 }: { item: BlogPostListItem; src?: string; idx?: number }) {
+function SmallCard({ item, src, editorialSrc }: { item: BlogPostListItem; src?: string; editorialSrc?: string | null }) {
   return (
     <Link href={`/insights/${item.slug}`} className="block group h-full">
       <AiCoverImage
@@ -158,7 +165,7 @@ function SmallCard({ item, src, idx = 0 }: { item: BlogPostListItem; src?: strin
         tags={item.tags}
         ticker={item.ticker}
         sector={item.sector}
-        spreadIndex={idx}
+        editorialSrc={editorialSrc}
         className="w-full rounded-lg mb-3 transition-transform duration-500 group-hover:scale-[1.02]"
         style={{ aspectRatio: "16 / 9" }}
       />
