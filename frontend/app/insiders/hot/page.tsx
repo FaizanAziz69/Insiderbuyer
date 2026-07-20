@@ -1,7 +1,9 @@
 "use client";
+import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { Flame, Activity, ArrowUp, ArrowDown } from "lucide-react";
+import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
 import {
   API_BASE,
   RankingRow,
@@ -24,8 +26,12 @@ import { PremiumGate } from "@/components/PremiumGate";
  */
 
 export default function InsiderHotStocksPage() {
+  // "Exchanges" filter — narrows the ranking by listing venue (ranking stays
+  // global; sent to the API as &exchange=).
+  const [exchange, setExchange] = useState<ExchangeValue>("all");
+
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=1000&live=1`,
+    `${API_BASE}/rankings?limit=1000&live=1${exchange !== "all" ? `&exchange=${exchange}` : ""}`,
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
@@ -221,6 +227,9 @@ export default function InsiderHotStocksPage() {
       </header>
 
       <AdSlot slot="leaderboard" seed="insider-hot-top" />
+
+      {/* Exchanges filter — All / U.S. / Canada / Germany */}
+      <ExchangeFilter value={exchange} onChange={setExchange} />
 
       {/* Free ranks — counts down from #N to #6 */}
       <div className="card overflow-hidden">
