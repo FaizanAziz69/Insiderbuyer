@@ -158,7 +158,7 @@ function SmallCard({ item, src }: { item: BlogPostListItem; src?: string }) {
         )}
       </div>
       <h4
-        className="text-[14px] sm:text-[15px] font-semibold leading-snug line-clamp-3 group-hover:text-accent transition"
+        className="text-[14px] sm:text-[15px] font-semibold leading-snug group-hover:text-accent transition"
         style={{ letterSpacing: "-0.01em" }}
       >
         {item.title}

@@ -79,7 +79,7 @@ function HeroImage({
       />
       <div className={`absolute bottom-0 left-0 right-0 ${padding}`} style={{ color: "#ffffff" }}>
         <h3
-          className={`font-semibold leading-tight line-clamp-3 ${titleSize}`}
+          className={`font-semibold leading-tight ${titleSize}`}
           style={{
             color: "#ffffff",
             letterSpacing: "-0.01em",

@@ -139,7 +139,7 @@ export function AiInsightsStrip({
                     {it.eyebrow || it.kind.replace(/-/g, " ")}
                   </div>
                   <h3
-                    className="font-bold leading-snug line-clamp-3 group-hover:text-accent transition"
+                    className="font-bold leading-snug group-hover:text-accent transition"
                     style={{ fontSize: 14, letterSpacing: "-0.01em" }}
                   >
                     {it.title}

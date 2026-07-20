@@ -29,22 +29,21 @@ export function TopStoriesSection() {
   const rest = items.slice(1, 5);
 
   return (
-    <section
-      className="rounded-xl overflow-hidden p-4 flex flex-col h-full"
-      style={{
-        background: "var(--brand-surface)",
-        border: "1px solid var(--brand-surface-border)",
-      }}
-    >
-      {/* Header — white on the navbar-colored band */}
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-[17px] font-bold uppercase tracking-wide" style={{ color: "#ffffff" }}>
+    <section className="flex flex-col h-full">
+      {/* Header — clean, on the page background (no colored container) */}
+      <div
+        className="flex items-center justify-between mb-3 pb-2"
+        style={{ borderBottom: "2px solid var(--text)" }}
+      >
+        <h2
+          className="text-[19px] font-bold uppercase tracking-wide"
+          style={{ color: "var(--text)", fontFamily: "var(--font-heading), var(--font-sans)" }}
+        >
           Top Stories
         </h2>
         <Link
           href="/insights"
-          className="text-[11px] font-mono uppercase tracking-wider inline-flex items-center gap-1 hover:underline"
-          style={{ color: "rgba(255,255,255,0.85)" }}
+          className="text-[11px] font-mono uppercase tracking-wider inline-flex items-center gap-1 text-accent hover:underline"
         >
           All stories <ChevronRight className="h-3 w-3" />
         </Link>
@@ -121,7 +120,7 @@ export function TopStoriesSection() {
                   />
                 </div>
                 <div className="p-3 flex flex-col flex-1">
-                  <h4 className="text-[13px] font-bold leading-snug group-hover:text-accent transition line-clamp-2">
+                  <h4 className="text-[13px] font-bold leading-snug group-hover:text-accent transition">
                     {item.title}
                   </h4>
                   <p className="mt-auto pt-2 text-[10.5px] text-mute">

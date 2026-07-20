@@ -47,7 +47,7 @@ export function TopStoriesStrip({ title = "Top Stories", items }: Props) {
               >
                 {item.category}
               </div>
-              <h3 className="text-[13px] font-bold leading-snug line-clamp-3 group-hover:text-accent transition">
+              <h3 className="text-[13px] font-bold leading-snug group-hover:text-accent transition">
                 {item.title}
               </h3>
               <div className="text-[11px] text-mute mt-2 truncate">

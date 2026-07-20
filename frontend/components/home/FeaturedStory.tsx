@@ -58,7 +58,7 @@ export function FeaturedStory() {
             <div className="text-[10px] uppercase tracking-wider font-bold opacity-90 mb-1">
               {s.eyebrow}
             </div>
-            <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight leading-snug line-clamp-2"
+            <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight leading-snug"
               style={{ letterSpacing: "-0.2px" }}
             >
               {s.title}

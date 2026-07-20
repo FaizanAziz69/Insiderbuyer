@@ -45,7 +45,7 @@ export function TrendingHeadlines({ items, title = "Top Headlines", count = 10 }
               href={`/article?u=${encodeURIComponent(n.link)}&c=${encodeURIComponent(n.label)}`}
               className="group block"
             >
-              <h4 className="text-[13px] font-semibold leading-snug line-clamp-3 group-hover:text-accent transition">
+              <h4 className="text-[13px] font-semibold leading-snug group-hover:text-accent transition">
                 {n.title}
               </h4>
               <div className="text-[11px] text-faint mt-1.5">

@@ -141,7 +141,7 @@ function SmallCard({ item, images }: { item: NewsItem; images: boolean }) {
         <div className="text-[9px] uppercase tracking-wider font-bold text-accent mb-1">
           {item.category}
         </div>
-        <h4 className="text-[14px] sm:text-[15px] font-semibold leading-snug line-clamp-3 group-hover:text-accent transition">
+        <h4 className="text-[14px] sm:text-[15px] font-semibold leading-snug group-hover:text-accent transition">
           {item.title}
         </h4>
         <div className="text-[11px] text-mute mt-1.5">
