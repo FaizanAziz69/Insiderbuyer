@@ -50,7 +50,7 @@ export function AiLatestNewsSection() {
         <EmptyHint />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-6 lg:gap-8 flex-1">
-          {big && <BigCard item={big} src={covers[big.slug]} />}
+          {big && <BigCard item={big} src={covers[big.slug]} idx={0} />}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
             {small.map((it, i) => (
               <motion.div
@@ -60,7 +60,7 @@ export function AiLatestNewsSection() {
                 viewport={{ once: true, amount: 0.1 }}
                 transition={{ duration: 0.3, delay: 0.05 * i }}
               >
-                <SmallCard item={it} src={covers[it.slug]} />
+                <SmallCard item={it} src={covers[it.slug]} idx={i + 1} />
               </motion.div>
             ))}
           </div>
@@ -70,7 +70,7 @@ export function AiLatestNewsSection() {
   );
 }
 
-function BigCard({ item, src }: { item: BlogPostListItem; src?: string }) {
+function BigCard({ item, src, idx = 0 }: { item: BlogPostListItem; src?: string; idx?: number }) {
   return (
     <Link href={`/insights/${item.slug}`} className="flex flex-col group h-full">
       <AiCoverImage
@@ -80,6 +80,7 @@ function BigCard({ item, src }: { item: BlogPostListItem; src?: string }) {
         tags={item.tags}
         ticker={item.ticker}
         sector={item.sector}
+        spreadIndex={idx}
         loading="eager"
         className="w-full rounded-lg mb-4 transition-transform duration-500 group-hover:scale-[1.02]"
         style={{ flex: "1 1 auto", minHeight: 300 }}
@@ -104,7 +105,7 @@ function BigCard({ item, src }: { item: BlogPostListItem; src?: string }) {
   );
 }
 
-function SmallCard({ item, src }: { item: BlogPostListItem; src?: string }) {
+function SmallCard({ item, src, idx = 0 }: { item: BlogPostListItem; src?: string; idx?: number }) {
   return (
     <Link href={`/insights/${item.slug}`} className="block group h-full">
       <AiCoverImage
@@ -114,6 +115,7 @@ function SmallCard({ item, src }: { item: BlogPostListItem; src?: string }) {
         tags={item.tags}
         ticker={item.ticker}
         sector={item.sector}
+        spreadIndex={idx}
         className="w-full rounded-lg mb-3 transition-transform duration-500 group-hover:scale-[1.02]"
         style={{ aspectRatio: "16 / 9" }}
       />

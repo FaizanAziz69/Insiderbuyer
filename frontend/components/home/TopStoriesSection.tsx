@@ -73,9 +73,9 @@ export function TopStoriesSection() {
                 tags={lead.tags}
                 ticker={lead.ticker}
                 sector={lead.sector}
-                featuredTickers={lead.featuredTickers}
                 preferPrimary
-                overlay={lead.featuredTickers?.length ? "md" : "none"}
+                spreadIndex={0}
+                overlay="none"
                 alt={lead.title}
                 loading="eager"
                 style={{ width: "100%", height: "100%" }}
@@ -105,7 +105,7 @@ export function TopStoriesSection() {
 
           {/* Four smaller cards in a row */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {rest.map((item) => (
+            {rest.map((item, i) => (
               <Link
                 key={item.slug}
                 href={`/insights/${item.slug}`}
@@ -119,9 +119,9 @@ export function TopStoriesSection() {
                     tags={item.tags}
                     ticker={item.ticker}
                     sector={item.sector}
-                    featuredTickers={item.featuredTickers}
                     preferPrimary
-                    overlay={item.featuredTickers?.length ? "sm" : "none"}
+                    spreadIndex={i + 1}
+                    overlay="none"
                     alt={item.title}
                     style={{ width: "100%", height: "100%" }}
                     className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"

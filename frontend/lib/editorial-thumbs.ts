@@ -1,58 +1,61 @@
 /**
  * Client-supplied editorial thumbnails (in /public/editorial-thumbs).
- * Each article is matched to the best-fitting image by ticker → topic →
- * a general insider/investor pool; when nothing fits, the caller falls back
- * to the curated sector photo. Images are figure/story-centric editorial
- * covers (Buffett, Pelosi, Ackman, Icahn, Cathie Wood, Musk, Trump, plus
- * ticker- and topic-specific art), so they read like a real finance
- * publication.
+ * Each article is matched to the best-fitting image by ticker → congressional
+ * → specific topic → a neutral investor/finance pool; when nothing fits, the
+ * caller falls back to the curated sector photo. A per-list `index` spreads
+ * the pool so cards in the same section never repeat an image.
  */
 
 interface Thumb {
   file: string;
   /** Exact ticker matches — strongest signal. */
   tickers?: string[];
-  /** Keyword fragments matched against the article's slug/sector/tags. */
+  /** SPECIFIC keyword fragments (topic/persona) — deliberately narrow so a
+   *  broad word like "insider" never collapses every article to one image. */
   kw?: string[];
   /** Eligible for congressional / politician content. */
   congress?: boolean;
-  /** Eligible for the general insider-buying / investor pool. */
+  /** Neutral investor/finance image — safe for any insider-buying story. */
   generic?: boolean;
 }
 
 const THUMBS: Thumb[] = [
-  { file: "ryan-cohen-alibaba", tickers: ["BABA"], kw: ["alibaba", "china"] },
-  { file: "ryan-cohen-alibaba-2", tickers: ["BABA"], kw: ["alibaba"] },
-  { file: "ackman-uber-stake", tickers: ["UBER"], kw: ["uber", "ackman"] },
-  { file: "apple-500b-investment", tickers: ["AAPL"], kw: ["apple"] },
-  { file: "englander-nvidia-etf", tickers: ["NVDA"], kw: ["nvidia"] },
-  { file: "vimeo-insider-buys", tickers: ["VMEO"], kw: ["vimeo"] },
-  { file: "chamath-perimeter-ai", kw: ["ai", "artificial-intelligence", "medical-imaging", "spac", "semis"] },
-  { file: "carl-icahn-fertilizer", kw: ["fertilizer", "icahn", "materials", "chemical", "metals", "mining"] },
-  { file: "zefiro-methane-ceo", kw: ["methane", "energy", "oil", "gas", "emission"] },
-  { file: "abudhabi-bitcoin-etf", kw: ["bitcoin", "crypto", "etf", "blackrock", "coin"] },
-  { file: "jamie-dimon-doge", kw: ["dimon", "jpmorgan", "bank", "financial", "doge"] },
-  { file: "lutnick-cantor", kw: ["cantor", "wall-street", "financial", "broker"] },
-  { file: "invest-like-pelosi", kw: ["pelosi", "congress", "politician"], congress: true },
-  { file: "pelosi-husband-trades", kw: ["pelosi", "congress"], congress: true },
-  { file: "trump-jr-hot-stock", kw: ["trump"], congress: true },
-  { file: "musk-congress-wealth", kw: ["musk", "congress", "doge"], congress: true },
-  { file: "kash-patel-shein", kw: ["shein", "china", "politician"], congress: true },
-  { file: "trump-social-posts", kw: ["trump", "market"], congress: true },
-  { file: "cathie-wood-bargain", kw: ["cathie", "ark", "growth"], generic: true },
-  { file: "buffett-40pct-stock", kw: ["buffett", "berkshire"], generic: true },
-  { file: "buffett-value-stock", kw: ["buffett", "berkshire", "value"], generic: true },
-  { file: "buffett-annual-letter", kw: ["buffett", "berkshire", "letter"], generic: true },
-  { file: "insiders-most-money", kw: ["insider", "buying", "bought"], generic: true },
-  { file: "billionaires-super-stocks", kw: ["billionaire", "super-stock"], generic: true },
-  { file: "ackman-howard-hughes", kw: ["ackman", "howard-hughes", "real-estate"], generic: true },
+  // Ticker-specific
+  { file: "ryan-cohen-alibaba", tickers: ["BABA"] },
+  { file: "ryan-cohen-alibaba-2", tickers: ["BABA"] },
+  { file: "ackman-uber-stake", tickers: ["UBER"] },
+  { file: "apple-500b-investment", tickers: ["AAPL"] },
+  { file: "englander-nvidia-etf", tickers: ["NVDA"] },
+  { file: "vimeo-insider-buys", tickers: ["VMEO"] },
+  // Specific topic
+  { file: "chamath-perimeter-ai", kw: ["artificial-intelligence", "medical-imaging", "\bai\b", "semis", "semiconductor"] },
+  { file: "carl-icahn-fertilizer", kw: ["fertilizer", "chemical", "metals-and-mining", "materials"] },
+  { file: "zefiro-methane-ceo", kw: ["methane", "energy", "oil", "petroleum"] },
+  { file: "abudhabi-bitcoin-etf", kw: ["bitcoin", "crypto", "blackrock"] },
+  // Congressional / politician
+  { file: "invest-like-pelosi", congress: true },
+  { file: "pelosi-husband-trades", congress: true },
+  { file: "trump-jr-hot-stock", congress: true },
+  { file: "musk-congress-wealth", congress: true },
+  { file: "kash-patel-shein", congress: true },
+  { file: "trump-social-posts", congress: true },
+  // Neutral investor / finance pool (spread across insider-buying stories)
+  { file: "buffett-40pct-stock", generic: true },
+  { file: "buffett-value-stock", generic: true },
+  { file: "buffett-annual-letter", generic: true },
+  { file: "cathie-wood-bargain", generic: true },
+  { file: "billionaires-super-stocks", generic: true },
+  { file: "insiders-most-money", generic: true },
+  { file: "ackman-howard-hughes", generic: true },
+  { file: "lutnick-cantor", generic: true },
+  { file: "jamie-dimon-doge", generic: true },
 ];
 
 const GENERIC_POOL = THUMBS.filter((t) => t.generic);
+const CONGRESS_POOL = THUMBS.filter((t) => t.congress);
 
-/** Slug prefixes that are insider-buying / investor content — eligible for
- *  the general editorial pool even without a specific keyword hit. */
-const INSIDER_SLUG = /^(daily-briefing|top-iqs|cluster|ceo|weekly|stock-idea|ticker-deep-dive|series|sector-roundup)/i;
+/** Insider-buying/investor article kinds — eligible for the neutral pool. */
+const INSIDER_SLUG = /^(daily-briefing|top-iqs|cluster|ceo|weekly|stock-idea|ticker-deep-dive|series|sector-roundup|topic)/i;
 
 function hash(s: string): number {
   let h = 0;
@@ -64,40 +67,45 @@ function url(file: string): string {
   return `/editorial-thumbs/${file}.jpg`;
 }
 
-/** Pick the best editorial thumbnail for an article, or null to let the
- *  caller fall back to the curated sector photo. Deterministic per seed. */
+/** Deterministic pick from a pool, offset by a per-list index so adjacent
+ *  cards in the same section land on different images. */
+function pick(pool: Thumb[], seed: string, index: number): string {
+  return url(pool[(hash(seed) + index) % pool.length].file);
+}
+
+/** Best editorial thumbnail for an article, or null (→ curated fallback). */
 export function pickEditorialThumb(opts: {
   ticker?: string | null;
   sector?: string | null;
   tags?: string[] | null;
   seed?: string | null;
+  /** Position within its list — spreads the pool so no two adjacent cards
+   *  share an image. */
+  index?: number;
 }): string | null {
   const seed = (opts.seed || "").toLowerCase();
+  const idx = opts.index ?? 0;
   const sym = (opts.ticker || "").toUpperCase();
   const hay = [seed, (opts.sector || "").toLowerCase(), ...(opts.tags || []).map((t) => t.toLowerCase())]
     .join(" ");
 
   // 1. Exact ticker match wins.
   if (sym) {
-    const tickerHits = THUMBS.filter((t) => t.tickers?.includes(sym));
-    if (tickerHits.length) return url(tickerHits[hash(seed) % tickerHits.length].file);
+    const hits = THUMBS.filter((t) => t.tickers?.includes(sym));
+    if (hits.length) return pick(hits, seed, idx);
   }
 
   // 2. Congressional / politician content.
-  const isCongress = /congress|politician|senate|pelosi|capitol/.test(hay);
-  if (isCongress) {
-    const c = THUMBS.filter((t) => t.congress);
-    if (c.length) return url(c[hash(seed) % c.length].file);
+  if (/congress|politician|senate|pelosi|capitol/.test(hay)) {
+    return pick(CONGRESS_POOL, seed, idx);
   }
 
-  // 3. Topic / keyword match.
+  // 3. Specific topic / keyword match.
   const kwHits = THUMBS.filter((t) => t.kw?.some((k) => hay.includes(k)));
-  if (kwHits.length) return url(kwHits[hash(seed) % kwHits.length].file);
+  if (kwHits.length) return pick(kwHits, seed, idx);
 
-  // 4. General insider/investor pool for insider-buying article kinds.
-  if (INSIDER_SLUG.test(seed) || /insider|buy/.test(hay)) {
-    return url(GENERIC_POOL[hash(seed) % GENERIC_POOL.length].file);
-  }
+  // 4. Neutral investor/finance pool for insider-buying article kinds.
+  if (INSIDER_SLUG.test(seed)) return pick(GENERIC_POOL, seed, idx);
 
   return null;
 }
