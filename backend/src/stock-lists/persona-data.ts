@@ -180,9 +180,6 @@ export const SECTOR_UNIVERSE: Record<string, string[]> = {
     'CENX', 'MP', 'ALB', 'SQM', 'TECK', 'HBM', 'ERO', 'CMC', 'RS', 'ATI',
     'MT', 'GGB', 'SID', 'NEM', 'AEM', 'B', 'IVN', 'LUN', 'CS', 'FM',
     'UEC', 'CCJ', 'DNN', 'UUUU', 'LAC', 'PLL', 'TMC', 'NB',
-    // Canada (TSX)
-    'TECK-B.TO', 'FM.TO', 'LUN.TO', 'HBM.TO', 'IVN.TO', 'CS.TO', 'ERO.TO',
-    'CCO.TO', 'NXE.TO', 'DML.TO', 'FCU.TO', 'CIA.TO', 'LUG.TO',
   ],
   tech: [
     'AAPL', 'MSFT', 'NVDA', 'AVGO', 'ORCL', 'CRM', 'ADBE', 'AMD', 'CSCO', 'IBM',
@@ -190,44 +187,29 @@ export const SECTOR_UNIVERSE: Record<string, string[]> = {
     'LRCX', 'KLAC', 'ADI', 'INTC', 'SMCI', 'ANET', 'DELL', 'HPQ',
     'ARM', 'MRVL', 'ON', 'NXPI', 'MCHP', 'CDNS', 'SNPS', 'FTNT', 'ZS', 'DDOG',
     'NET', 'MDB', 'TEAM', 'WDAY', 'SHOP', 'SQ', 'UBER', 'ABNB', 'TTD', 'APP',
-    // Canada (TSX)
-    'SHOP.TO', 'CSU.TO', 'GIB-A.TO', 'OTEX.TO', 'DSG.TO', 'KXS.TO', 'LSPD.TO',
-    'NVEI.TO', 'DCBO.TO', 'BB.TO', 'HUT.TO', 'BITF.TO',
   ],
   gold: [
     'NEM', 'GOLD', 'AEM', 'KGC', 'FNV', 'WPM', 'RGLD', 'AU', 'GFI', 'HMY',
     'EGO', 'BTG', 'AGI', 'OR', 'SSRM', 'CDE', 'IAG', 'NGD', 'SAND', 'EQX',
     'DRD', 'NG', 'GORO', 'USAU', 'KGC', 'AUY', 'PAAS', 'AGX', 'WGS', 'SA',
     'GAU', 'THM', 'VGZ', 'AUMN',
-    // Canada (TSX)
-    'ABX.TO', 'AEM.TO', 'K.TO', 'FNV.TO', 'WPM.TO', 'AGI.TO', 'OGC.TO',
-    'IMG.TO', 'BTO.TO', 'ELD.TO', 'KNT.TO', 'NGT.TO',
   ],
   silver: [
     'PAAS', 'AG', 'HL', 'EXK', 'FSM', 'MAG', 'SVM', 'ASM', 'GATO', 'SILV',
     'USAS', 'BVN', 'WPM', 'SSRM', 'CDE', 'SLV', 'SIVR', 'PSLV', 'SIL', 'SILJ',
     'AYA', 'DV', 'GPL', 'AXU', 'HYMC', 'ABRA',
-    // Canada (TSX)
-    'FR.TO', 'MAG.TO', 'SVM.TO', 'FVI.TO', 'AYA.TO', 'PAAS.TO', 'DSV.V',
   ],
   oil: [
     'XOM', 'CVX', 'COP', 'EOG', 'SLB', 'OXY', 'PSX', 'VLO', 'MPC', 'HES',
     'WMB', 'KMI', 'OKE', 'HAL', 'BKR', 'DVN', 'FANG', 'CTRA', 'APA', 'EQT',
     'AR', 'RRC', 'PR', 'SM', 'MUR', 'NOG', 'CHRD', 'LNG', 'TRGP', 'ET',
     'EPD', 'MPLX', 'PAA', 'WES', 'AM', 'DINO', 'PBF', 'CVI', 'VNOM', 'CRC',
-    // Canada (TSX)
-    'SU.TO', 'CNQ.TO', 'CVE.TO', 'IMO.TO', 'TRP.TO', 'ENB.TO', 'PPL.TO',
-    'TOU.TO', 'ARX.TO', 'MEG.TO', 'WCP.TO', 'BTE.TO', 'VET.TO', 'CPG.TO',
   ],
   'blue-chip': [
     'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA', 'AVGO', 'BRK-B', 'JPM',
     'V', 'MA', 'UNH', 'XOM', 'JNJ', 'WMT', 'PG', 'HD', 'COST', 'ORCL',
     'LLY', 'ABBV', 'BAC', 'KO', 'PEP', 'MRK', 'CVX', 'CRM', 'ADBE', 'NFLX',
     'MCD', 'DIS',
-    // Canada (TSX) — big-cap banks, rails, energy, telecom
-    'RY.TO', 'TD.TO', 'BNS.TO', 'BMO.TO', 'CM.TO', 'NA.TO', 'ENB.TO', 'TRP.TO',
-    'CNR.TO', 'CP.TO', 'BCE.TO', 'T.TO', 'MFC.TO', 'SLF.TO', 'ATD.TO',
-    'BAM.TO', 'BN.TO', 'TRI.TO', 'CSU.TO', 'SU.TO', 'CNQ.TO', 'SHOP.TO',
   ],
 };
 
