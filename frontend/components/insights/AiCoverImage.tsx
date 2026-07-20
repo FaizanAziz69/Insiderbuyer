@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BrandLogoOverlay } from "./BrandLogoOverlay";
 import { pickSectorPhoto } from "@/lib/sector-photos";
+import { pickEditorialThumb } from "@/lib/editorial-thumbs";
 
 interface Props {
   /** Pollinations AI URL stored on the post — used as a fallback only.
@@ -199,12 +200,18 @@ export function AiCoverImage({
     }
   });
 
+  // Client-supplied editorial thumbnail (figure/story-centric) when one fits
+  // this article — the top-priority cover; falls through to the AI image and
+  // curated library if it's missing or fails to load.
+  const editorial = pickEditorialThumb({ ticker, sector, tags, seed: key });
+
   // When preferPrimary is on and a story-specific AI image exists, it leads;
   // the curated library becomes the fallback chain behind it.
   const usePrimaryFirst = preferPrimary && !!primary;
-  const stageSrcs = usePrimaryFirst
+  const base = usePrimaryFirst
     ? [primary as string, curated, curatedAlt, curatedDefault]
     : [curated, curatedAlt, curatedDefault];
+  const stageSrcs = editorial ? [editorial, ...base] : base;
   const svgStage = stageSrcs.length;
 
   let src: string;
@@ -213,6 +220,9 @@ export function AiCoverImage({
   } else {
     src = placeholderSvg(ticker || key);
   }
+  // Editorial thumbs are pre-composed cards — show the FULL image (no crop)
+  // on desktop and mobile; sector photos still cover-fill their frame.
+  const isEditorial = src.startsWith("/editorial-thumbs/");
 
   return (
     <div
@@ -243,7 +253,9 @@ export function AiCoverImage({
         onError={() => {
           if (stage < svgStage) setStage((s) => s + 1);
         }}
-        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+        className={`absolute inset-0 w-full h-full transition-opacity duration-500 ${
+          isEditorial ? "object-contain" : "object-cover"
+        }`}
         style={{ opacity: loaded ? 1 : 0 }}
       />
       {/* Subtle vignette so logos always read against any background. */}

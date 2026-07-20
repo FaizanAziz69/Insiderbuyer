@@ -110,10 +110,11 @@ export function AiCatalyst({
     // Mobile / narrow screens: no room for a left flyout, so center a
     // near-full-width card and clamp it fully on-screen.
     if (vw < 560) {
-      const W = vw - 24;
-      const left = 12;
-      const top = Math.min(Math.max(8, r.top + r.height + 8), Math.max(8, vh - 300));
-      setPos({ left, top, width: W, maxHeight: Math.max(200, vh - top - 12), centered: true });
+      const W = Math.min(vw - 28, 330);
+      const left = Math.round((vw - W) / 2); // horizontally centered
+      const maxH = Math.min(340, vh - 100);
+      const top = Math.max(70, Math.round((vh - maxH) / 2)); // vertically centered
+      setPos({ left, top, width: W, maxHeight: maxH, centered: true });
       return;
     }
     // Desktop: RIGHT-ANCHORED left flyout — positioned via CSS `right`
@@ -199,41 +200,41 @@ export function AiCatalyst({
             }}
             role="tooltip"
           >
-            {/* Header band — our accent scheme */}
+            {/* Header band — our accent scheme (compact on mobile) */}
             <div
-              className="px-4 py-2.5 flex items-center gap-2"
+              className={`flex items-center gap-2 ${pos.centered ? "px-3 py-2" : "px-4 py-2.5"}`}
               style={{
                 background: "linear-gradient(135deg, var(--accent), var(--accent-2))",
                 color: "#ffffff",
               }}
             >
-              <Sparkles className="h-4 w-4 flex-shrink-0" />
-              <span className="text-[13.5px] font-bold leading-tight">
+              <Sparkles className={pos.centered ? "h-3.5 w-3.5 flex-shrink-0" : "h-4 w-4 flex-shrink-0"} />
+              <span className={`font-bold leading-tight ${pos.centered ? "text-[12px]" : "text-[13.5px]"}`}>
                 Movement Explainer · {name}
               </span>
             </div>
             {/* Body — AI analysis only */}
-            <div className="px-4 py-3.5" style={{ background: "#ffffff" }}>
+            <div className={pos.centered ? "px-3 py-3" : "px-4 py-3.5"} style={{ background: "#ffffff" }}>
               {isLoading || !data ? (
-                <p className="text-[13.5px] leading-relaxed" style={{ color: "#5b6b75" }}>
+                <p className={`leading-relaxed ${pos.centered ? "text-[12px]" : "text-[13.5px]"}`} style={{ color: "#5b6b75" }}>
                   Generating the latest AI analysis…
                 </p>
               ) : explainer ? (
                 <>
                   {title && (
-                    <div className="text-[13.5px] font-bold mb-1.5" style={{ color: "#0b1f2a" }}>
+                    <div className={`font-bold mb-1.5 ${pos.centered ? "text-[12px]" : "text-[13.5px]"}`} style={{ color: "#0b1f2a" }}>
                       {title}
                     </div>
                   )}
-                  <p className="text-[13.5px] leading-relaxed" style={{ color: "#2b3a44" }}>
+                  <p className={`leading-relaxed ${pos.centered ? "text-[12px]" : "text-[13.5px]"}`} style={{ color: "#2b3a44" }}>
                     {explainer}
                   </p>
-                  <p className="mt-2.5 text-[11px]" style={{ color: "#8a98a1" }}>
+                  <p className={`mt-2.5 ${pos.centered ? "text-[10px]" : "text-[11px]"}`} style={{ color: "#8a98a1" }}>
                     AI-generated · informational only, not investment advice.
                   </p>
                 </>
               ) : (
-                <p className="text-[13.5px] leading-relaxed" style={{ color: "#5b6b75" }}>
+                <p className={`leading-relaxed ${pos.centered ? "text-[12px]" : "text-[13.5px]"}`} style={{ color: "#5b6b75" }}>
                   A detailed AI analysis isn&rsquo;t available for {ticker} right now.
                 </p>
               )}
