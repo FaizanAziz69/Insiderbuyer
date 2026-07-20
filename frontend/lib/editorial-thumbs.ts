@@ -109,6 +109,35 @@ export function pickEditorialThumb(opts: ThumbInput & { index?: number }): strin
   return pick(cands, seed, opts.index ?? 0);
 }
 
+/** A pleasing fixed ordering of all 25 client thumbnails. The home page maps
+ *  each card to a slot in this list so every cover across the whole page is
+ *  unique (Top Stories, Popular, Stock Ideas, Latest News draw disjoint
+ *  ranges — see homeThumbAt / HOME_THUMB_BASE). */
+const HOME_ORDER: string[] = [
+  // Top Stories range (0–5): market/finance scenes + marquee investors
+  "insiders-most-money", "abudhabi-bitcoin-etf", "billionaires-super-stocks",
+  "apple-500b-investment", "buffett-40pct-stock", "englander-nvidia-etf",
+  // Popular range (6–11)
+  "cathie-wood-bargain", "ackman-uber-stake", "ryan-cohen-alibaba",
+  "jamie-dimon-doge", "carl-icahn-fertilizer", "buffett-value-stock",
+  // Stock Ideas range (12–17)
+  "chamath-perimeter-ai", "vimeo-insider-buys", "lutnick-cantor",
+  "ackman-howard-hughes", "zefiro-methane-ceo", "ryan-cohen-alibaba-2",
+  // Latest News range (18–24)
+  "buffett-annual-letter", "invest-like-pelosi", "pelosi-husband-trades",
+  "trump-jr-hot-stock", "musk-congress-wealth", "kash-patel-shein",
+  "trump-social-posts",
+];
+
+/** Per-section starting slot in HOME_ORDER so sections never overlap. */
+export const HOME_THUMB_BASE = { top: 0, popular: 6, ideas: 12, latest: 18 } as const;
+
+/** Home-page cover for a card at (base + index) — guarantees a unique image
+ *  across the whole page (25 images cover the ~20 home cards). */
+export function homeThumbAt(base: number, index: number): string {
+  return url(HOME_ORDER[(base + index) % HOME_ORDER.length]);
+}
+
 /** Assign editorial thumbnails to a LIST so no two cards repeat an image
  *  (like assignUniquePhotos for the curated library). Returns a map keyed by
  *  each item's `seed` (slug); value is a URL or null (→ curated fallback). */

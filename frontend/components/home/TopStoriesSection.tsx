@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { API_BASE, BlogListResponse, fetcher } from "@/lib/api";
 import { AiCoverImage } from "@/components/insights/AiCoverImage";
-import { assignEditorialThumbs } from "@/lib/editorial-thumbs";
+import { homeThumbAt, HOME_THUMB_BASE } from "@/lib/editorial-thumbs";
 import { bylineFor } from "@/lib/byline";
 
 function timeAgo(iso: string): string {
@@ -43,15 +43,6 @@ export function TopStoriesSection() {
   ];
   const lead = items[0];
   const rest = items.slice(1, 5);
-  // List-level assignment so all 5 covers are guaranteed distinct.
-  const thumbs = assignEditorialThumbs(
-    [lead, ...rest].filter(Boolean).map((it) => ({
-      ticker: it.ticker,
-      sector: it.sector,
-      tags: it.tags,
-      seed: it.slug,
-    })),
-  );
 
   return (
     <section className="flex flex-col h-full">
@@ -99,7 +90,7 @@ export function TopStoriesSection() {
                 ticker={lead.ticker}
                 sector={lead.sector}
                 preferPrimary
-                editorialSrc={thumbs[lead.slug.toLowerCase()]}
+                editorialSrc={homeThumbAt(HOME_THUMB_BASE.top, 0)}
                 overlay="none"
                 alt={lead.title}
                 loading="eager"
@@ -145,7 +136,7 @@ export function TopStoriesSection() {
                     ticker={item.ticker}
                     sector={item.sector}
                     preferPrimary
-                    editorialSrc={thumbs[item.slug.toLowerCase()]}
+                    editorialSrc={homeThumbAt(HOME_THUMB_BASE.top, i + 1)}
                     overlay="none"
                     alt={item.title}
                     style={{ width: "100%", height: "100%" }}
