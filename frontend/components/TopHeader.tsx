@@ -248,10 +248,51 @@ export function TopHeader() {
                         onClick={() => setMobileOpen(false)}
                         className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-[var(--accent-soft)]"
                       >
-                        <span className="text-[14px] font-semibold text-soft">
+                        <span className="text-[14px] font-semibold text-soft inline-flex items-center gap-1.5">
                           {link.label}
+                          {/* Same badge chips as the desktop mega-dropdown */}
+                          {link.badge === "new" && (
+                            <span
+                              className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                              style={{ background: "var(--good-soft)", color: "var(--good)" }}
+                            >
+                              New
+                            </span>
+                          )}
+                          {link.badge === "popular" && (
+                            <span
+                              className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                              style={{
+                                background: "color-mix(in srgb, var(--warn) 18%, transparent)",
+                                color: "var(--warn)",
+                              }}
+                            >
+                              Popular
+                            </span>
+                          )}
+                          {link.badge === "premium" && (
+                            <span
+                              className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                              style={{ background: "var(--premium)", color: "var(--premium-ink)" }}
+                            >
+                              Premium
+                            </span>
+                          )}
+                          {link.badge === "live" && (
+                            <span
+                              className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded inline-flex items-center gap-1"
+                              style={{ background: "var(--bad-soft)", color: "var(--bad)" }}
+                            >
+                              <span
+                                className="h-1.5 w-1.5 rounded-full"
+                                style={{ background: "var(--bad)" }}
+                                aria-hidden
+                              />
+                              Live
+                            </span>
+                          )}
                         </span>
-                        <ChevronRight className="h-4 w-4 text-faint" />
+                        <ChevronRight className="h-4 w-4 text-faint flex-shrink-0" />
                       </Link>
                     </li>
                   ))}
