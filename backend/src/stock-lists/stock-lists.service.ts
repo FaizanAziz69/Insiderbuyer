@@ -648,6 +648,7 @@ export class StockListsService {
       sectorMatch?: RegExp;
     } = {};
     if (slug === 'large-cap') base.minMarketCap = 10 * B;
+    else if (slug === 'blue-chip') base.minMarketCap = 10 * B;
     else if (slug === 'small-cap') {
       base.minMarketCap = 0.3 * B;
       base.maxMarketCap = 10 * B;
