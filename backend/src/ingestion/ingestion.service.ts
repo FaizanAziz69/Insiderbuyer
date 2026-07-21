@@ -244,6 +244,20 @@ export class IngestionService implements OnModuleInit {
         }
       }
 
+      // IQ v2 slow-component backfills — a bounded slice each run so the whole
+      // universe converges over days without a big one-time LLM/SEC burn.
+      // Both are idempotent (onlyMissing) and never abort the cron on error.
+      try {
+        await this.backfillMdaSentiment({ limit: 12, onlyMissing: true });
+      } catch (e: any) {
+        this.logger.warn(`MD&A cron slice failed: ${e?.message || e}`);
+      }
+      try {
+        await this.backfillDilution({ limit: 40, onlyMissing: true });
+      } catch (e: any) {
+        this.logger.warn(`Dilution cron slice failed: ${e?.message || e}`);
+      }
+
       this.logger.log(`Computing IQS scores...`);
       await this.iqs.recalculateAll();
       this.logger.log(`Ingestion done: ${JSON.stringify(summary)}`);
@@ -584,6 +598,40 @@ export class IngestionService implements OnModuleInit {
       if (dirty) {
         await this.companies.save(c);
         updated++;
+      }
+    }
+    return {
+      scanned: batch.length,
+      updated,
+      remaining: Math.max(0, pending.length - batch.length),
+    };
+  }
+
+  /** Backfill trailing-12-month dilution (IQ v2 component 5) onto scored US
+   *  companies from SEC XBRL. Chunk-friendly / idempotent. */
+  async backfillDilution(opts?: {
+    limit?: number;
+    onlyMissing?: boolean;
+  }): Promise<{ scanned: number; updated: number; remaining: number }> {
+    const onlyMissing = opts?.onlyMissing !== false;
+    const scored = await this.companies
+      .createQueryBuilder('c')
+      .innerJoin('iqs_scores', 's', 's.company_id = c.id')
+      .where('c.exchange = :ex', { ex: 'US' })
+      .getMany();
+    const pending = onlyMissing ? scored.filter((c) => c.dilutionPctTtm == null) : scored;
+    const batch = pending.slice(0, opts?.limit ?? 40);
+    let updated = 0;
+    for (const c of batch) {
+      try {
+        const facts = await this.quote.fetchSecFacts(c.cik);
+        if (facts?.sharesOutstanding && facts?.sharesOutstandingYearAgo && facts.sharesOutstandingYearAgo > 0) {
+          c.dilutionPctTtm = +(facts.sharesOutstanding / facts.sharesOutstandingYearAgo - 1).toFixed(6);
+          await this.companies.save(c);
+          updated++;
+        }
+      } catch {
+        /* SEC facts unavailable — skip */
       }
     }
     return {

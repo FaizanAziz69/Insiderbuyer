@@ -65,4 +65,14 @@ export class IngestionController {
       onlyMissing: body?.onlyMissing,
     });
   }
+
+  /** Backfill trailing-12-month dilution (IQ v2 component 5) from SEC XBRL onto
+   *  scored companies. Chunk until remaining = 0, then rescore. */
+  @Post('dilution')
+  async dilution(@Body() body: { limit?: number; onlyMissing?: boolean }) {
+    return this.ingestion.backfillDilution({
+      limit: body?.limit,
+      onlyMissing: body?.onlyMissing,
+    });
+  }
 }
