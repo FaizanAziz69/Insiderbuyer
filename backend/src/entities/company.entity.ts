@@ -34,6 +34,12 @@ export class Company {
   @Column({ type: 'varchar', length: 64, nullable: true })
   sector: string;
 
+  /** Finer-grained Yahoo industry (e.g. "Gold", "Semiconductors", "Oil & Gas
+   *  Integrated"). Populated for non-US listings where the broad `sector` is
+   *  too coarse for the sector-list keyword rules to match. */
+  @Column({ type: 'varchar', length: 96, nullable: true })
+  industry: string | null;
+
   /** Listing exchange group used by the "Exchanges" filter (All / U.S. /
    *  Canada / Germany). SEC-ingested companies default to 'US'; BaFin
    *  directors'-dealings ingestion tags German issuers 'DE'. */

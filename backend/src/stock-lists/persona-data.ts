@@ -530,7 +530,7 @@ export const STOCK_LIST_META: Record<
   germany: {
     title: 'German Stocks (Xetra / DAX)',
     description:
-      'Leading German-listed companies on Xetra / the DAX — autos, industrials, software and chemicals — with live prices. German directors’-dealings (BaFin) coverage is being added.',
+      'Leading German-listed companies on Xetra / the DAX — autos, industrials, software and chemicals — with live prices and Insider Scores derived from official BaFin directors’-dealings filings.',
     kind: 'country',
   },
   'metals-and-mining': {

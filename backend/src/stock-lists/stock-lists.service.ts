@@ -467,7 +467,18 @@ export class StockListsService {
       return { slug, ...meta, total: enriched.length, rows: enriched };
     }
 
+    // Persona (13F / congressional) and the curated market-cap baskets are
+    // U.S.-sourced. When a non-US exchange is selected, serve exchange-native
+    // names from the scored rankings instead (or empty where the concept is
+    // inherently US, e.g. FAANG) — never pad a "Germany" view with US names.
+    const exLower = (filters.exchange || '').toLowerCase();
+    const nonUsExchange =
+      !!exLower && !/^(all|us|u\.s\.?|usa|united states)$/.test(exLower);
+
     if (meta.kind === 'persona') {
+      if (nonUsExchange) {
+        return { slug, ...meta, total: 0, rows: [] as any[] };
+      }
       // Prefer the latest real 13F-HR from SEC EDGAR for institutional filers
       // (Buffett/Dalio/Sprott); fall back to the curated list for individuals
       // (Bezos/Trump) who don't file 13Fs, or if the live fetch fails.
@@ -531,6 +542,16 @@ export class StockListsService {
     }
 
     if (meta.kind === 'universe') {
+      // Non-US exchange: the curated baskets are US tickers, so build the list
+      // from the exchange's own scored companies instead.
+      if (nonUsExchange) {
+        const rows = await this.buildUniverseForExchange(slug, filters);
+        const live = await this.fetchLiveQuotes(
+          rows.map((r: any) => r.ticker || '').filter(Boolean),
+        );
+        const enriched = this.enrichRows(rows, live) as any[];
+        return { slug, ...meta, total: enriched.length, rows: enriched };
+      }
       // Penny stocks: a LIVE screener of every U.S. equity under $5 (hundreds
       // of names), not a hand-picked basket. Falls through to the static
       // basket only if the screener is unavailable.
@@ -608,6 +629,46 @@ export class StockListsService {
       return { slug, ...meta, total: enriched.length, rows: enriched };
     }
     return null;
+  }
+
+  /** Build a curated-basket list (large/small cap, penny, reits, faang) for a
+   *  NON-US exchange from that exchange's own scored companies — the static
+   *  baskets are US-only, so we approximate each concept with a market-cap band
+   *  or sector rule applied to the exchange-filtered rankings. FAANG is an
+   *  inherently-US acronym, so it returns empty for other exchanges. */
+  private async buildUniverseForExchange(
+    slug: string,
+    filters: StockListFilters,
+  ): Promise<any[]> {
+    const B = 1_000_000_000;
+    if (slug === 'faang') return [];
+    const base: {
+      minMarketCap?: number;
+      maxMarketCap?: number;
+      sectorMatch?: RegExp;
+    } = {};
+    if (slug === 'large-cap') base.minMarketCap = 10 * B;
+    else if (slug === 'small-cap') {
+      base.minMarketCap = 0.3 * B;
+      base.maxMarketCap = 10 * B;
+    } else if (slug === 'reits') base.sectorMatch = /reit|real estate/i;
+    // penny-stocks: no market-cap band — filtered by price below.
+
+    const { rows } = await this.iqs.getRankings({
+      limit: 200,
+      exchange: filters.exchange,
+      sector: filters.sector,
+      minMarketCap: base.minMarketCap ?? filters.minMarketCap,
+      maxMarketCap: base.maxMarketCap ?? filters.maxMarketCap,
+      minIqs: filters.minIqs,
+      sectorMatch: base.sectorMatch,
+    });
+    if (slug === 'penny-stocks') {
+      return rows.filter(
+        (r) => r.lastPrice != null && r.lastPrice > 0 && r.lastPrice <= 5,
+      );
+    }
+    return rows;
   }
 
   private async fetchSectorList(

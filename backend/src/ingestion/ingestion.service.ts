@@ -482,15 +482,30 @@ export class IngestionService implements OnModuleInit {
         ),
       );
       if (tickers.length) {
-        const quotes = await this.marketStats.getQuoteBatch(tickers);
+        const [quotes, profiles] = await Promise.all([
+          this.marketStats.getQuoteBatch(tickers),
+          // Real sector/industry for .DE tickers (v7 quote omits it).
+          this.marketStats.getCompanyProfiles(tickers),
+        ]);
         const deCompanies = await this.companies.find({ where: { exchange: 'DE' } });
         for (const c of deCompanies) {
-          const q = c.ticker ? quotes.get(c.ticker.toUpperCase()) : null;
-          if (!q) continue;
+          const sym = c.ticker ? c.ticker.toUpperCase() : '';
+          const q = sym ? quotes.get(sym) : null;
+          const prof = sym ? profiles.get(sym) : null;
           let dirty = false;
-          if (q.sector && c.sector !== q.sector) {
-            c.sector = q.sector;
+          // Broad sector for display/heatmap; industry (finer) for list rules.
+          const sector = prof?.sector || q?.sector || null;
+          if (sector && c.sector !== sector) {
+            c.sector = sector;
             dirty = true;
+          }
+          if (prof?.industry && c.industry !== prof.industry) {
+            c.industry = prof.industry;
+            dirty = true;
+          }
+          if (!q) {
+            if (dirty) await this.companies.save(c);
+            continue;
           }
           if (q.price > 0 && Number(c.lastPrice) !== q.price) {
             c.lastPrice = q.price;
@@ -526,6 +541,47 @@ export class IngestionService implements OnModuleInit {
       companies: companiesTouched,
       transactions: txInserted,
       skippedNoTicker,
+    };
+  }
+
+  /** Backfill sector + industry for already-ingested German companies (from
+   *  Yahoo assetProfile). Idempotent and chunk-friendly — processes companies
+   *  still missing a sector first so repeated calls converge. */
+  async backfillGermanProfiles(opts?: {
+    limit?: number;
+    onlyMissing?: boolean;
+  }): Promise<{ scanned: number; updated: number; remaining: number }> {
+    const onlyMissing = opts?.onlyMissing !== false;
+    const all = await this.companies.find({ where: { exchange: 'DE' } });
+    const pending = onlyMissing ? all.filter((c) => !c.sector) : all;
+    const batch = pending.slice(0, opts?.limit ?? 60);
+    const tickers = batch.map((c) => c.ticker).filter((t): t is string => !!t);
+    if (!tickers.length) {
+      return { scanned: 0, updated: 0, remaining: pending.length };
+    }
+    const profiles = await this.marketStats.getCompanyProfiles(tickers);
+    let updated = 0;
+    for (const c of batch) {
+      const prof = c.ticker ? profiles.get(c.ticker.toUpperCase()) : null;
+      if (!prof) continue;
+      let dirty = false;
+      if (prof.sector && c.sector !== prof.sector) {
+        c.sector = prof.sector;
+        dirty = true;
+      }
+      if (prof.industry && c.industry !== prof.industry) {
+        c.industry = prof.industry;
+        dirty = true;
+      }
+      if (dirty) {
+        await this.companies.save(c);
+        updated++;
+      }
+    }
+    return {
+      scanned: batch.length,
+      updated,
+      remaining: Math.max(0, pending.length - batch.length),
     };
   }
 }

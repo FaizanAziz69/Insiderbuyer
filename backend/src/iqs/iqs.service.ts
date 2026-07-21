@@ -389,6 +389,7 @@ export class IqsService {
         'c.ticker as ticker',
         'c.name as name',
         'c.sector as sector',
+        'c.industry as industry',
         'c."marketCap" as "marketCap"',
         'c."lastPrice" as "lastPrice"',
         's.iqs as iqs',
@@ -430,7 +431,14 @@ export class IqsService {
 
     if (opts.sectorMatch) {
       const rx = opts.sectorMatch;
-      raw = raw.filter((r) => r.sector && rx.test(String(r.sector)));
+      // Match the broad sector OR the finer industry — non-US listings often
+      // only have a coarse sector ("Basic Materials") whose specific industry
+      // ("Gold") is what the keyword rule actually targets.
+      raw = raw.filter(
+        (r) =>
+          (r.sector && rx.test(String(r.sector))) ||
+          (r.industry && rx.test(String(r.industry))),
+      );
     }
     raw = raw.slice(0, limit);
 

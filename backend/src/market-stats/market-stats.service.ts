@@ -652,6 +652,58 @@ export class MarketStatsService {
     return out;
   }
 
+  /** Company sector + industry via Yahoo quoteSummary `assetProfile`. This is
+   *  the ONLY reliable free source of sector data for non-US (.DE / foreign)
+   *  tickers — the v7 quote omits it and our static SECTOR_BY_TICKER map is
+   *  US-only. Crumb-authed, per-symbol, run with modest concurrency. Returns a
+   *  map keyed by UPPER-CASE symbol → { sector, industry } (either may be null). */
+  async getCompanyProfiles(
+    symbols: string[],
+  ): Promise<Map<string, { sector: string | null; industry: string | null }>> {
+    const out = new Map<string, { sector: string | null; industry: string | null }>();
+    const unique = Array.from(
+      new Set(symbols.filter(Boolean).map((s) => s.toUpperCase())),
+    );
+    if (!unique.length) return out;
+    let auth = await this.getAuth();
+
+    const CONCURRENCY = 6;
+    for (let i = 0; i < unique.length; i += CONCURRENCY) {
+      const chunk = unique.slice(i, i + CONCURRENCY);
+      await Promise.all(
+        chunk.map(async (sym) => {
+          for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+              const host = sym.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
+              const url =
+                `https://${host}.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(sym)}` +
+                `?modules=assetProfile${auth ? `&crumb=${encodeURIComponent(auth.crumb)}` : ''}`;
+              const { data } = await this.http.get(url, {
+                headers: auth ? { Cookie: auth.cookie } : undefined,
+                validateStatus: () => true,
+              });
+              const p = data?.quoteSummary?.result?.[0]?.assetProfile;
+              if (p && (p.sector || p.industry)) {
+                out.set(sym, {
+                  sector: p.sector ?? null,
+                  industry: p.industry ?? null,
+                });
+              }
+              return;
+            } catch (err: any) {
+              if (err?.response?.status === 401 && attempt === 0) {
+                auth = await this.getAuth(true);
+              } else {
+                return;
+              }
+            }
+          }
+        }),
+      );
+    }
+    return out;
+  }
+
   /** Per-symbol fallback via Yahoo's v8 chart endpoint (no crumb needed).
    *  One call per symbol gives current price, prev close, today's volume,
    *  and 3 months of daily volumes for the average. */

@@ -41,4 +41,17 @@ export class IngestionController {
       rescore: body?.rescore,
     });
   }
+
+  /** Backfill sector + industry for already-ingested German companies (Yahoo
+   *  assetProfile). Call repeatedly until `remaining` hits 0.
+   *  Body: { limit?: number, onlyMissing?: boolean }. */
+  @Post('german-profiles')
+  async germanProfiles(
+    @Body() body: { limit?: number; onlyMissing?: boolean },
+  ) {
+    return this.ingestion.backfillGermanProfiles({
+      limit: body?.limit,
+      onlyMissing: body?.onlyMissing,
+    });
+  }
 }
