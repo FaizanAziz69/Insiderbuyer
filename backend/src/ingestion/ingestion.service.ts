@@ -11,6 +11,7 @@ import { SecClient } from './sec.client';
 import { QuoteClient } from './quote.client';
 import { BafinClient, BafinDealing } from './bafin.client';
 import { IqsService } from '../iqs/iqs.service';
+import { MdaSentimentService } from '../iqs/mda-sentiment.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 
 @Injectable()
@@ -27,6 +28,7 @@ export class IngestionService implements OnModuleInit {
     private readonly bafin: BafinClient,
     private readonly iqs: IqsService,
     private readonly marketStats: MarketStatsService,
+    private readonly mda: MdaSentimentService,
   ) {}
 
   async onModuleInit() {
@@ -203,6 +205,12 @@ export class IngestionService implements OnModuleInit {
 
         const facts = await this.quote.fetchSecFacts(company.cik);
         if (facts?.sicDescription) company.sector = facts.sicDescription;
+
+        // Dilution component (IQ v2): trailing-12-month share-count growth.
+        if (facts?.sharesOutstanding && facts?.sharesOutstandingYearAgo && facts.sharesOutstandingYearAgo > 0) {
+          company.dilutionPctTtm =
+            +(facts.sharesOutstanding / facts.sharesOutstandingYearAgo - 1).toFixed(6);
+        }
 
         const latestTx = await this.txRepo
           .createQueryBuilder('t')
@@ -576,6 +584,45 @@ export class IngestionService implements OnModuleInit {
       if (dirty) {
         await this.companies.save(c);
         updated++;
+      }
+    }
+    return {
+      scanned: batch.length,
+      updated,
+      remaining: Math.max(0, pending.length - batch.length),
+    };
+  }
+
+  /** Backfill MD&A / communications sentiment (IQ v2 component 3) onto
+   *  companies. LLM + SEC calls are too slow for the scoring loop, so this runs
+   *  as a chunked batch that stores company.mdaSentiment. Prioritises companies
+   *  that currently have a score (i.e. appear in rankings) and no MD&A yet. */
+  async backfillMdaSentiment(opts?: {
+    limit?: number;
+    onlyMissing?: boolean;
+  }): Promise<{ scanned: number; updated: number; remaining: number }> {
+    const onlyMissing = opts?.onlyMissing !== false;
+    // Only score companies that have qualifying buys (a current IQS row) — no
+    // point spending LLM calls on names that never rank.
+    const scored = await this.companies
+      .createQueryBuilder('c')
+      .innerJoin('iqs_scores', 's', 's.company_id = c.id')
+      .where('c.exchange = :ex', { ex: 'US' })
+      .getMany();
+    const pending = onlyMissing ? scored.filter((c) => c.mdaSentiment == null) : scored;
+    const batch = pending.slice(0, opts?.limit ?? 12);
+    let updated = 0;
+    for (const c of batch) {
+      try {
+        const r = await this.mda.computeForCompany(c.cik, c.ticker, c.name);
+        if (r.score != null) {
+          c.mdaSentiment = r.score;
+          c.mdaDocsAnalyzed = r.docsAnalyzed;
+          await this.companies.save(c);
+          updated++;
+        }
+      } catch (e: any) {
+        this.logger.debug?.(`MD&A backfill failed for ${c.ticker}: ${e?.message || e}`);
       }
     }
     return {

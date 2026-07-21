@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
-import { InsiderTransaction, InsiderRole } from '../entities/insider-transaction.entity';
+import { InsiderTransaction } from '../entities/insider-transaction.entity';
 import { IqsScore } from '../entities/iqs-score.entity';
 import { CongressionalService } from '../congressional/congressional.service';
 import { FmpService } from '../fmp/fmp.service';
@@ -15,6 +15,20 @@ import {
   topStocksScore,
 } from './composite-score';
 import { SentimentService } from './sentiment.service';
+import { SectorSentimentService } from './sector-sentiment.service';
+import { ROLE_MULTIPLIER, NORM } from './scoring-config';
+import {
+  assembleComposite,
+  computeBuyingScore,
+  scoreCluster,
+  scoreDilution,
+  scoreHoldingChange,
+  scoreMomentum,
+  scoreOwnershipPctIncrease,
+  scorePriceVsBuys,
+  scoreRole,
+  scoreVolumeVsMarketCap,
+} from './iq-score-v2';
 
 export interface RankingRow {
   rank: number;
@@ -34,6 +48,19 @@ export interface RankingRow {
   distinctBuyers: number;
   transactionCount: number;
   totalPurchaseValue: number;
+  // ── IQ Score v2 component breakdown (explainability) ──────────────────
+  buyingScore?: number | null;
+  sectorSentiment?: number | null;
+  mdaSentiment?: number | null;
+  momentumScore?: number | null;
+  dilutionScore?: number | null;
+  dataCompleteness?: number | null;
+  subVolumeVsMcap?: number | null;
+  subCluster?: number | null;
+  subRole?: number | null;
+  subHoldingChange?: number | null;
+  subPriceVsBuys?: number | null;
+  subOwnershipPct?: number | null;
   /** Category flags for the insider-type filter — true when at least one
    *  open-market ('P') buyer of this company matches the category. */
   hasCeoBuyer?: boolean;
@@ -52,19 +79,8 @@ export interface RankingRow {
   livePrice?: number | null;
 }
 
-/** Role significance for the Insider Weight component (0–100). */
-// Role multipliers for the Role-Weighted Purchase Volume factor (C).
-const ROLE_MULTIPLIER: Record<InsiderRole, number> = {
-  CEO: 3,
-  CFO: 3,
-  COO: 3,
-  Director: 2,
-  Other: 1,
-};
-
-/** Scales the raw log-IQS (= ln(1 + sum of the four factors)) onto a 0–100
- *  composite. Tuning knob — raise to compress scores, lower to spread them. */
-const IQS_LOG_SCALE = 6.5;
+// Role multipliers (ROLE_MULTIPLIER) now live in scoring-config.ts so product
+// can tune them without a code change — imported above.
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
@@ -111,6 +127,7 @@ export class IqsService {
     private readonly fmp: FmpService,
     private readonly sec: SecClient,
     private readonly sentiment: SentimentService,
+    private readonly sectorSentiment: SectorSentimentService,
   ) {}
 
   // Live SEC Form 4 lookups for tickers not in our ingested set (cached 30m).
@@ -155,18 +172,16 @@ export class IqsService {
     return data;
   }
 
-  /** IQS — Insider Quality Score, 0–100.
+  /** IQ Score v2 — 0–100 composite (see scoring-config.ts / iq-score-v2.ts):
    *
-   *  IQS = Insider Weight        × 0.25
-   *      + Transaction Weight    × 0.25
-   *      + Conviction Weight     × 0.20
-   *      + Historical Success    × 0.15
-   *      + Cluster Weight        × 0.10
-   *      + Market Timing Weight  × 0.05
+   *   IQ = 0.50·Buying + 0.25·Sector + 0.10·MD&A + 0.10·Momentum + 0.05·Dilution
    *
-   *  Each component is 0–100; weights sum to 1, so the composite is 0–100.
-   *  Only open-market purchases (Form 4 code P) are scored — sells are
-   *  ingested and displayed but don't earn quality points. */
+   *  Buying is itself a 6-sub-factor composite (volume/mcap, cluster, role,
+   *  holding change, avg-buy-price-vs-current, ownership %). Sector, MD&A and
+   *  dilution read precomputed inputs (sector cache / company.mdaSentiment /
+   *  company.dilutionPctTtm) so the per-company loop stays inside the 60s
+   *  serverless budget. Only open-market purchases (code P) feed the Buying
+   *  component; missing components degrade to neutral 50 (dataCompleteness). */
   async recalculateAll(windowDays = 90): Promise<number> {
     const since = new Date(Date.now() - windowDays * 86400000);
     const seasonedCutoff = new Date(Date.now() - 14 * 86400000);
@@ -174,7 +189,11 @@ export class IqsService {
     const companies = await this.companies.find();
     let updated = 0;
 
-    // One quote batch for 52-week ranges — feeds the Market Timing Weight.
+    // Warm the daily sector-sentiment cache once (11 ETF fetches) so the
+    // per-company lookups below are synchronous cache hits.
+    await this.sectorSentiment.getScores().catch(() => new Map());
+
+    // One quote batch for price, market cap, 52-week ranges + volume momentum.
     let quotes = new Map<string, any>();
     try {
       const tickers = companies.map((c) => c.ticker).filter(Boolean) as string[];
@@ -245,54 +264,103 @@ export class IqsService {
       }
 
       let totalPurchaseValue = 0; // Σ shares × price
-      let roleWeightedValue = 0; //  Σ shares × price × role multiplier
+      let totalShares = 0; // Σ shares (for insider VWAP)
+      let roleWeightedValue = 0; // Σ shares × price × role multiplier
       const buyers = new Set<string>();
-      const holdingChanges: number[] = [];
+      const holdingChangePcts: number[] = []; // D: per-buyer % add
+      // F: role-weighted ownership % increase
+      let ownWeightedSum = 0;
+      let ownWeightSum = 0;
 
       for (const t of txs) {
-        const value = Number(t.sharesBought) * Number(t.pricePerShare);
+        const shares = Number(t.sharesBought);
+        const value = shares * Number(t.pricePerShare);
         // Data-quality guard: skip implausible parse artifacts so one bad
         // filing can't blow up the aggregates (and the market-cap check below).
         if (!Number.isFinite(value) || value <= 0 || value > MAX_PLAUSIBLE_TX_VALUE) {
           continue;
         }
+        const roleMult = ROLE_MULTIPLIER[t.role] ?? ROLE_MULTIPLIER.Other;
         totalPurchaseValue += value;
-        roleWeightedValue += value * (ROLE_MULTIPLIER[t.role] ?? 1);
+        totalShares += shares;
+        roleWeightedValue += value * roleMult;
         buyers.add(t.insiderName.toLowerCase());
         const prev = Number(t.previousHoldings) || 0;
         if (prev > 0) {
-          // D component: Holding Change % = (Shares Bought / Previous Holdings) × 100
-          holdingChanges.push((Number(t.sharesBought) / prev) * 100);
+          const frac = shares / prev; // relative stake growth
+          holdingChangePcts.push(frac * 100); // D (percent)
+          ownWeightedSum += Math.min(frac, NORM.ownershipPctCap) * roleMult; // F
+          ownWeightSum += roleMult;
+        } else {
+          // First-time buyer (held 0 before) — maximum relative commitment.
+          ownWeightedSum += NORM.ownershipPctCap * roleMult;
+          ownWeightSum += roleMult;
         }
       }
 
       // Data-quality guard: a cap smaller than the observed insider buying is
       // impossible — treat it as unknown rather than producing absurd factors.
       const safeCap = sanitizedMarketCap(marketCap, totalPurchaseValue) ?? 0;
+      const insiderVwap = totalShares > 0 ? totalPurchaseValue / totalShares : null;
 
-      // ── The four IQS factors (client-specified formula) ───────────────
-      // A. Purchase Volume Factor = Σ(Shares × Price) / Market Cap
-      const purchaseVolumeFactor =
-        safeCap > 0 ? totalPurchaseValue / safeCap : 0;
-      // B. Cluster Factor = log(1 + number of distinct insider buyers)
-      const clusterFactor = Math.log(1 + buyers.size);
-      // C. Role-Weighted Purchase Volume = Σ(Shares × Price × Role Mult) / Market Cap
-      const roleWeightedFactor =
-        safeCap > 0 ? roleWeightedValue / safeCap : 0;
-      // D. Holding Change Factor = Σ(Holding Change %) / number of buying insiders
-      const holdingChangeFactor = holdingChanges.length
-        ? holdingChanges.reduce((a, b) => a + b, 0) / holdingChanges.length
-        : 0;
+      // ── Component 1: Insider Buying (6 sub-factors, each 0–100) ──────────
+      const subVolume = scoreVolumeVsMarketCap(safeCap > 0 ? totalPurchaseValue / safeCap : null);
+      const subCluster = scoreCluster(buyers.size);
+      const subRole = scoreRole(safeCap > 0 ? roleWeightedValue / safeCap : null);
+      const subHolding = scoreHoldingChange(
+        holdingChangePcts.length
+          ? holdingChangePcts.reduce((a, b) => a + b, 0) / holdingChangePcts.length
+          : null,
+      );
+      const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
+      const subOwnership = scoreOwnershipPctIncrease(
+        ownWeightSum > 0 ? ownWeightedSum / ownWeightSum : null,
+      );
+      const buyingScore = computeBuyingScore({
+        volumeVsMarketCap: subVolume,
+        cluster: subCluster,
+        role: subRole,
+        holdingChange: subHolding,
+        priceVsBuys: subPriceVsBuys,
+        ownershipPctIncrease: subOwnership,
+      });
 
-      // Display-friendly 0–100 versions of each factor for the breakdown UI
-      // (the headline IQS below is computed straight from the raw factors).
-      const transactionWeight = clamp01(purchaseVolumeFactor / 0.02) * 100;
-      const insiderWeight = clamp01(roleWeightedFactor / 0.06) * 100;
-      const convictionWeight = clamp01(holdingChangeFactor / 100) * 100;
+      // ── Component 2: Sector Sentiment (from daily cache) ────────────────
+      const sectorScore = await this.sectorSentiment
+        .getScoreFor(company.sector, company.industry)
+        .catch(() => null);
 
-      // 4. Historical Success Weight — share of this company's past insider
-      //    buys (≥14 days old) currently in profit vs the latest price.
-      //    Neutral 50 until at least two seasoned samples exist.
+      // ── Component 3: MD&A / communications (precomputed, batch) ─────────
+      const mdaScore = company.mdaSentiment != null ? Number(company.mdaSentiment) : null;
+
+      // ── Component 4: Volume Momentum (short vs long avg dollar volume) ──
+      // Proxy 20d/90d with the quote batch's 10-day vs 3-month avg volume so
+      // the loop needs no extra per-company chart calls.
+      const shortVol = Number(liveQ?.avgVol10d ?? 0);
+      const longVol = Number(liveQ?.avgVolume ?? 0);
+      const relVol = shortVol > 0 && longVol > 0 ? shortVol / longVol : null;
+      const recentDollarVol =
+        lastPrice > 0 && shortVol > 0 ? lastPrice * shortVol : null;
+      const momentumScore = scoreMomentum(relVol, recentDollarVol);
+
+      // ── Component 5: Dilution (precomputed TTM share growth) ────────────
+      const dilutionScore = scoreDilution(
+        company.dilutionPctTtm != null ? Number(company.dilutionPctTtm) : null,
+      );
+
+      // ── Composite (weighted; missing components → neutral 50) ───────────
+      const composite = assembleComposite({
+        buying: buyingScore,
+        sector: sectorScore,
+        mda: mdaScore,
+        momentum: momentumScore,
+        dilution: dilutionScore,
+      });
+      const iqs = composite.score ?? 0;
+
+      // Legacy display columns (kept so existing UI keeps working) mapped to
+      // their nearest v2 sub-factor; historical-success + market-timing are no
+      // longer in the composite but still computed for the breakdown card.
       let historicalSuccessWeight = 50;
       if (lastPrice > 0) {
         const seasoned = await this.txRepo
@@ -302,40 +370,18 @@ export class IqsService {
           .andWhere('t.transactionDate < :cut', { cut: seasonedCutoff })
           .getMany();
         if (seasoned.length >= 2) {
-          const wins = seasoned.filter(
-            (t) => lastPrice > Number(t.pricePerShare),
-          ).length;
+          const wins = seasoned.filter((t) => lastPrice > Number(t.pricePerShare)).length;
           historicalSuccessWeight = (wins / seasoned.length) * 100;
         }
       }
-
-      // Cluster Weight — distinct insiders buying, as a 0–100 display value.
-      const clusterWeight = clamp01(buyers.size / 4) * 100;
-
-      // 6. Market Timing Weight — where the stock trades in its 52-week
-      //    range. Buying after major price drops (near the low) scores
-      //    highest; neutral 50 when range data is unavailable.
       let marketTimingWeight = 50;
       const hi = Number(liveQ?.fiftyTwoWeekHigh ?? 0);
       const lo = Number(liveQ?.fiftyTwoWeekLow ?? 0);
       const px = Number(liveQ?.price ?? lastPrice);
-      if (hi > lo && px > 0) {
-        const pos = clamp01((px - lo) / (hi - lo));
-        marketTimingWeight = (1 - pos) * 100;
-      }
+      if (hi > lo && px > 0) marketTimingWeight = (1 - clamp01((px - lo) / (hi - lo))) * 100;
 
-      // Final IQS = log(1 + (A + B + C + D)), per the client formula. The log
-      // transform keeps extreme values from distorting the rankings; we then
-      // scale onto a 0–100 composite for display.
-      const rawIqs = Math.log(
-        1 +
-          purchaseVolumeFactor +
-          clusterFactor +
-          roleWeightedFactor +
-          holdingChangeFactor,
-      );
-      // Cap at 99 — no stock ever shows a perfect 100 (client spec).
-      const iqs = +Math.min(99, (rawIqs / IQS_LOG_SCALE) * 100).toFixed(2);
+      const round2 = (x: number | null): number | null =>
+        x == null ? null : +x.toFixed(2);
 
       const existing = await this.scores.findOne({
         where: { companyId: company.id, asOfDate: today },
@@ -343,13 +389,27 @@ export class IqsService {
       const payload: Partial<IqsScore> = {
         companyId: company.id,
         asOfDate: today,
-        insiderWeight: +insiderWeight.toFixed(2),
-        transactionWeight: +transactionWeight.toFixed(2),
-        convictionWeight: +convictionWeight.toFixed(2),
+        // v2 components + sub-factors (explainability)
+        buyingScore: round2(buyingScore),
+        sectorSentiment: round2(sectorScore),
+        mdaSentiment: round2(mdaScore),
+        momentumScore: round2(momentumScore),
+        dilutionScore: round2(dilutionScore),
+        dataCompleteness: +composite.dataCompleteness.toFixed(4),
+        subVolumeVsMcap: round2(subVolume),
+        subCluster: round2(subCluster),
+        subRole: round2(subRole),
+        subHoldingChange: round2(subHolding),
+        subPriceVsBuys: round2(subPriceVsBuys),
+        subOwnershipPct: round2(subOwnership),
+        // legacy display columns
+        insiderWeight: +(subRole ?? 0).toFixed(2),
+        transactionWeight: +(subVolume ?? 0).toFixed(2),
+        convictionWeight: +(subOwnership ?? subHolding ?? 0).toFixed(2),
         historicalSuccessWeight: +historicalSuccessWeight.toFixed(2),
-        clusterWeight: +clusterWeight.toFixed(2),
+        clusterWeight: +(subCluster ?? 0).toFixed(2),
         marketTimingWeight: +marketTimingWeight.toFixed(2),
-        iqs,
+        iqs: +iqs.toFixed(2),
         distinctBuyers: buyers.size,
         transactionCount: txs.length,
         totalPurchaseValue,
@@ -402,6 +462,18 @@ export class IqsService {
         's."distinctBuyers" as "distinctBuyers"',
         's."transactionCount" as "transactionCount"',
         's."totalPurchaseValue" as "totalPurchaseValue"',
+        's."buyingScore" as "buyingScore"',
+        's."sectorSentiment" as "sectorSentiment"',
+        's."mdaSentiment" as "mdaSentiment"',
+        's."momentumScore" as "momentumScore"',
+        's."dilutionScore" as "dilutionScore"',
+        's."dataCompleteness" as "dataCompleteness"',
+        's."subVolumeVsMcap" as "subVolumeVsMcap"',
+        's."subCluster" as "subCluster"',
+        's."subRole" as "subRole"',
+        's."subHoldingChange" as "subHoldingChange"',
+        's."subPriceVsBuys" as "subPriceVsBuys"',
+        's."subOwnershipPct" as "subOwnershipPct"',
       ]);
 
     if (opts.sector) {
@@ -462,6 +534,19 @@ export class IqsService {
       distinctBuyers: Number(r.distinctBuyers),
       transactionCount: Number(r.transactionCount),
       totalPurchaseValue: Number(r.totalPurchaseValue),
+      // IQ v2 component breakdown (null-safe — older rows may lack them).
+      buyingScore: r.buyingScore != null ? Number(r.buyingScore) : null,
+      sectorSentiment: r.sectorSentiment != null ? Number(r.sectorSentiment) : null,
+      mdaSentiment: r.mdaSentiment != null ? Number(r.mdaSentiment) : null,
+      momentumScore: r.momentumScore != null ? Number(r.momentumScore) : null,
+      dilutionScore: r.dilutionScore != null ? Number(r.dilutionScore) : null,
+      dataCompleteness: r.dataCompleteness != null ? Number(r.dataCompleteness) : null,
+      subVolumeVsMcap: r.subVolumeVsMcap != null ? Number(r.subVolumeVsMcap) : null,
+      subCluster: r.subCluster != null ? Number(r.subCluster) : null,
+      subRole: r.subRole != null ? Number(r.subRole) : null,
+      subHoldingChange: r.subHoldingChange != null ? Number(r.subHoldingChange) : null,
+      subPriceVsBuys: r.subPriceVsBuys != null ? Number(r.subPriceVsBuys) : null,
+      subOwnershipPct: r.subOwnershipPct != null ? Number(r.subOwnershipPct) : null,
     }));
 
     // Average insider cost + last buy date per company — computed from the

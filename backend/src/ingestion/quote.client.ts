@@ -3,6 +3,9 @@ import axios, { AxiosInstance } from 'axios';
 
 export interface SecFacts {
   sharesOutstanding: number | null;
+  /** Shares outstanding ~12 months before the latest report — for the
+   *  trailing-12-month dilution component (IQ Score v2). Null if unavailable. */
+  sharesOutstandingYearAgo: number | null;
   sic: string | null;
   sicDescription: string | null;
 }
@@ -40,6 +43,7 @@ export class QuoteClient {
     }
 
     let sharesOutstanding: number | null = null;
+    let sharesOutstandingYearAgo: number | null = null;
     try {
       const { data } = await this.http.get(factsUrl);
       const dei = data?.facts?.dei || {};
@@ -55,22 +59,32 @@ export class QuoteClient {
         const seriesKey = Object.keys(units)[0];
         const series: any[] = units[seriesKey] || [];
         if (!series.length) continue;
-        const sorted = [...series].sort((a, b) => {
-          const ae = new Date(a.end || a.filed || 0).getTime();
-          const be = new Date(b.end || b.filed || 0).getTime();
-          return be - ae;
-        });
-        const v = Number(sorted[0]?.val);
-        if (Number.isFinite(v) && v > 0) {
-          sharesOutstanding = v;
-          break;
+        const dated = series
+          .map((s) => ({ v: Number(s.val), t: new Date(s.end || s.filed || 0).getTime() }))
+          .filter((s) => Number.isFinite(s.v) && s.v > 0 && s.t > 0)
+          .sort((a, b) => b.t - a.t);
+        if (!dated.length) continue;
+        sharesOutstanding = dated[0].v;
+        // Value closest to ~365 days before the latest report.
+        const target = dated[0].t - 365 * 86400000;
+        let best: { v: number; t: number } | null = null;
+        for (const d of dated) {
+          if (best == null || Math.abs(d.t - target) < Math.abs(best.t - target)) {
+            best = d;
+          }
         }
+        // Only accept if it's genuinely older (≥180d back) so we don't compare
+        // two same-quarter values.
+        if (best && dated[0].t - best.t >= 180 * 86400000) {
+          sharesOutstandingYearAgo = best.v;
+        }
+        break;
       }
     } catch {
       // facts not available — skip
     }
 
     if (sharesOutstanding === null && !sic) return null;
-    return { sharesOutstanding, sic, sicDescription };
+    return { sharesOutstanding, sharesOutstandingYearAgo, sic, sicDescription };
   }
 }

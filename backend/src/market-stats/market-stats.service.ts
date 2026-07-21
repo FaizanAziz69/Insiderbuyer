@@ -58,6 +58,15 @@ export interface PeriodReturns {
   y1: number | null;
 }
 
+/** 20-/60-day returns + short/long relative dollar-volume for one symbol —
+ *  inputs for Sector Sentiment and per-stock Volume Momentum (IQ Score v2). */
+export interface MomentumSeries {
+  ret20: number | null;
+  ret60: number | null;
+  relVol: number | null;
+  recentDollarVol: number | null;
+}
+
 export interface MarketStatRow {
   symbol: string;
   name: string;
@@ -742,6 +751,75 @@ export class MarketStatsService {
       };
     } catch {
       return null;
+    }
+  }
+
+  private momentumCache = new Map<
+    string,
+    { ts: number; data: MomentumSeries }
+  >();
+  private readonly MOMENTUM_TTL_MS = 60 * 60_000;
+
+  /** 20-/60-day price returns + short/long relative DOLLAR volume for one
+   *  symbol, from a single 6-month daily chart. Powers Sector Sentiment
+   *  (component 2) and per-stock Volume Momentum (component 4). Cached 1h;
+   *  missing data → nulls. */
+  async getMomentumSeries(symbol: string): Promise<MomentumSeries> {
+    const key = symbol.toUpperCase();
+    const cached = this.momentumCache.get(key);
+    if (cached && Date.now() - cached.ts < this.MOMENTUM_TTL_MS) return cached.data;
+    const empty: MomentumSeries = {
+      ret20: null,
+      ret60: null,
+      relVol: null,
+      recentDollarVol: null,
+    };
+    try {
+      const host = key.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
+      const { data } = await this.http.get(
+        `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=6mo&interval=1d`,
+      );
+      const result = data?.chart?.result?.[0];
+      const closesRaw: number[] = (result?.indicators?.quote?.[0]?.close || []).map(Number);
+      const volsRaw: number[] = (result?.indicators?.quote?.[0]?.volume || []).map(Number);
+      // Keep only aligned, valid (close,volume) pairs.
+      const closes: number[] = [];
+      const dollarVol: number[] = [];
+      for (let i = 0; i < closesRaw.length; i++) {
+        const c = closesRaw[i];
+        const v = volsRaw[i];
+        if (Number.isFinite(c) && c > 0) {
+          closes.push(c);
+          dollarVol.push(Number.isFinite(v) && v > 0 ? c * v : 0);
+        }
+      }
+      const n = closes.length;
+      if (n < 21) {
+        this.momentumCache.set(key, { ts: Date.now(), data: empty });
+        return empty;
+      }
+      const last = closes[n - 1];
+      const ret = (back: number): number | null =>
+        n > back && closes[n - 1 - back] > 0
+          ? (last / closes[n - 1 - back] - 1) * 100
+          : null;
+      const avgTail = (arr: number[], k: number): number | null => {
+        const slice = arr.slice(Math.max(0, arr.length - k)).filter((x) => x > 0);
+        return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : null;
+      };
+      const avg20 = avgTail(dollarVol, 20);
+      const avg90 = avgTail(dollarVol, 90);
+      const out: MomentumSeries = {
+        ret20: ret(20),
+        ret60: ret(60),
+        relVol: avg20 != null && avg90 != null && avg90 > 0 ? avg20 / avg90 : null,
+        recentDollarVol: avg20,
+      };
+      this.momentumCache.set(key, { ts: Date.now(), data: out });
+      return out;
+    } catch {
+      this.momentumCache.set(key, { ts: Date.now(), data: empty });
+      return empty;
     }
   }
 

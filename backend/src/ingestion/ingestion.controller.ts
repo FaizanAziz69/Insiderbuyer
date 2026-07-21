@@ -54,4 +54,15 @@ export class IngestionController {
       onlyMissing: body?.onlyMissing,
     });
   }
+
+  /** Backfill MD&A / communications sentiment (IQ Score v2 component 3) onto
+   *  scored companies. LLM + SEC calls — chunk it; call until remaining = 0,
+   *  then rescore. Body: { limit?: number, onlyMissing?: boolean }. */
+  @Post('mda-sentiment')
+  async mdaSentiment(@Body() body: { limit?: number; onlyMissing?: boolean }) {
+    return this.ingestion.backfillMdaSentiment({
+      limit: body?.limit,
+      onlyMissing: body?.onlyMissing,
+    });
+  }
 }

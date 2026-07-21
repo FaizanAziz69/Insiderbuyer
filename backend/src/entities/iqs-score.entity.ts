@@ -55,10 +55,51 @@ export class IqsScore {
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 50 })
   marketTimingWeight: number;
 
-  /** Composite Insider Quality Score, 0–100. */
+  /** Composite Insider Quality Score, 0–100. In v2 this is the 5-component
+   *  weighted composite (Buying·0.50 + Sector·0.25 + MD&A·0.10 + Momentum·0.10
+   *  + Dilution·0.05); see scoring-config.ts. */
   @Index()
   @Column({ type: 'numeric', precision: 18, scale: 8 })
   iqs: number;
+
+  // ── IQ Score v2 components (each 0–100, null when no data) ──────────────
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  buyingScore: number | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  sectorSentiment: number | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  mdaSentiment: number | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  momentumScore: number | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  dilutionScore: number | null;
+
+  /** Share of model weight that had data (0–1) — confidence hint. */
+  @Column({ type: 'numeric', precision: 6, scale: 4, default: 1 })
+  dataCompleteness: number;
+
+  // ── Buying sub-factors (0–100, null when no data) — explainability ──────
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  subVolumeVsMcap: number | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  subCluster: number | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  subRole: number | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  subHoldingChange: number | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  subPriceVsBuys: number | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  subOwnershipPct: number | null;
 
   @Column({ type: 'int', default: 0 })
   distinctBuyers: number;

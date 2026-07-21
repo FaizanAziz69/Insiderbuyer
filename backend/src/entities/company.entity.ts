@@ -47,6 +47,23 @@ export class Company {
   @Column({ type: 'varchar', length: 8, default: 'US' })
   exchange: string;
 
+  // ── IQ Score v2 precomputed inputs (populated out-of-band, read by the
+  //    batch scorer which can't afford a per-company SEC/LLM call) ─────────
+
+  /** Trailing-12-month share-count growth (0.06 = +6% dilution; ≤0 = buyback).
+   *  From SEC XBRL dei:EntityCommonStockSharesOutstanding. */
+  @Column({ type: 'numeric', precision: 12, scale: 6, nullable: true })
+  dilutionPctTtm: number | null;
+
+  /** MD&A / company-communications sentiment, 0–100 (50 = neutral). Populated
+   *  by the MD&A NLP batch; read by the composite scorer. */
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  mdaSentiment: number | null;
+
+  /** How many documents backed the MD&A score (explainability / completeness). */
+  @Column({ type: 'int', default: 0 })
+  mdaDocsAnalyzed: number;
+
   @UpdateDateColumn()
   updatedAt: Date;
 
