@@ -65,76 +65,53 @@ function playCashSound() {
   // and when invoked from a user gesture the sound will play once it resumes.
   const now = ctx.currentTime;
   const master = ctx.createGain();
-  master.gain.value = 0.85;
-  master.connect(ctx.destination);
+  master.gain.value = 0.7;
+  // Gentle lowpass smooths the FM sidebands so the chime reads bright but
+  // clean (musical), not harsh or gritty.
+  const smooth = ctx.createBiquadFilter();
+  smooth.type = "lowpass";
+  smooth.frequency.value = 9000;
+  master.connect(smooth).connect(ctx.destination);
 
-  // Cash-register "cha-ching": two metallic bell dings (up-interval), each a
-  // slightly inharmonic chord so it rings like a real register bell.
-  const ding = (t: number, base: number, level: number) => {
-    const partials = [1, 2.01, 3.0, 4.13];
-    const weights = [1, 0.5, 0.32, 0.16];
-    partials.forEach((mult, i) => {
-      const osc = ctx.createOscillator();
-      const g = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = base * mult;
-      const peak = level * weights[i];
-      g.gain.setValueAtTime(0.0001, now + t);
-      g.gain.exponentialRampToValueAtTime(peak, now + t + 0.005);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.6);
-      osc.connect(g).connect(master);
-      osc.start(now + t);
-      osc.stop(now + t + 0.65);
-    });
+  // A bright, clean two-note bell chime in the spirit of Shopify's "Cha-Ching"
+  // — a quick lower "cha" leaping up to a ringing, sustained "ching", with a
+  // faint octave sparkle. FM synthesis (carrier + a fast-decaying modulator)
+  // gives the musical glockenspiel/marimba-like metallic ring, no cash-register
+  // coins or noise.
+  const bell = (start: number, freq: number, dur: number, level: number) => {
+    const t = now + start;
+    const carrier = ctx.createOscillator();
+    carrier.type = "sine";
+    carrier.frequency.value = freq;
+
+    // Modulator at an inharmonic ratio → bell-like timbre. The modulation
+    // depth (index) starts rich and decays quickly, so the tone has a bright
+    // shimmering attack that settles into a pure, singing sustain.
+    const mod = ctx.createOscillator();
+    mod.type = "sine";
+    mod.frequency.value = freq * 1.41;
+    const modDepth = ctx.createGain();
+    modDepth.gain.setValueAtTime(freq * 0.9, t);
+    modDepth.gain.exponentialRampToValueAtTime(freq * 0.04, t + dur * 0.45);
+    mod.connect(modDepth).connect(carrier.frequency);
+
+    const amp = ctx.createGain();
+    amp.gain.setValueAtTime(0.0001, t);
+    amp.gain.exponentialRampToValueAtTime(level, t + 0.006);
+    amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    carrier.connect(amp).connect(master);
+
+    carrier.start(t);
+    mod.start(t);
+    carrier.stop(t + dur + 0.05);
+    mod.stop(t + dur + 0.05);
   };
-  ding(0, 1046.5, 0.26); // "cha" — C6
-  ding(0.1, 1568, 0.28); // "ching" — G6
 
-  // Coin drops: a handful of short, bright metallic clinks landing at
-  // staggered times/pitches — reads unmistakably as money hitting a tray.
-  const clink = (t: number, freq: number, level: number) => {
-    const partials = [1, 2.76, 5.4, 8.93]; // inharmonic — coin-like
-    const weights = [1, 0.6, 0.35, 0.18];
-    partials.forEach((mult, i) => {
-      const f = freq * mult;
-      if (f > 16000) return; // stay under Nyquist — inaudible anyway
-      const osc = ctx.createOscillator();
-      const g = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = f;
-      const peak = level * weights[i];
-      g.gain.setValueAtTime(0.0001, now + t);
-      g.gain.exponentialRampToValueAtTime(peak, now + t + 0.003);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.12);
-      osc.connect(g).connect(master);
-      osc.start(now + t);
-      osc.stop(now + t + 0.14);
-    });
-  };
-  clink(0.2, 2350, 0.16);
-  clink(0.27, 2960, 0.13);
-  clink(0.33, 2610, 0.11);
-  clink(0.41, 3180, 0.08);
-
-  // Soft metallic shimmer under the coins.
-  const dur = 0.32;
-  const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
-  const chan = buffer.getChannelData(0);
-  for (let i = 0; i < chan.length; i++) chan[i] = Math.random() * 2 - 1;
-  const noise = ctx.createBufferSource();
-  noise.buffer = buffer;
-  const bp = ctx.createBiquadFilter();
-  bp.type = "bandpass";
-  bp.frequency.value = 5200;
-  bp.Q.value = 4;
-  const ng = ctx.createGain();
-  const nStart = now + 0.18;
-  ng.gain.setValueAtTime(0.0001, nStart);
-  ng.gain.exponentialRampToValueAtTime(0.1, nStart + 0.02);
-  ng.gain.exponentialRampToValueAtTime(0.0001, nStart + dur);
-  noise.connect(bp).connect(ng).connect(master);
-  noise.start(nStart);
-  noise.stop(nStart + dur);
+  // "cha" (short, lower) → "ching" (higher, long ring) — a bright rising
+  // fifth, the cheerful "you made money" motif.
+  bell(0, 1318.5, 0.2, 0.5); // E6 — quick pickup
+  bell(0.11, 1975.5, 0.95, 0.62); // B6 — the ringing "ching"
+  bell(0.12, 2637.0, 0.7, 0.16); // E7 — faint octave sparkle on top
 }
 
 function relTime(dateStr: string): string {
