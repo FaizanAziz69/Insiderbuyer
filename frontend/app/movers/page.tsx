@@ -1,7 +1,9 @@
 "use client";
 import useSWR from "swr";
+import { useState } from "react";
 import Link from "next/link";
 import { Flame, ArrowUp, ArrowDown } from "lucide-react";
+import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
 import {
   API_BASE,
   RankingsResponse,
@@ -17,8 +19,9 @@ import { rankColumn } from "@/components/tableColumns";
 import { AdSlot } from "@/components/AdSlot";
 
 export default function MoversPage() {
+  const [exchange, setExchange] = useState<ExchangeValue>("all");
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=200&live=1`,
+    `${API_BASE}/rankings?limit=200&live=1${exchange !== "all" ? `&exchange=${exchange}` : ""}`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
@@ -41,6 +44,8 @@ export default function MoversPage() {
           re-sort (e.g. by distinct insiders or price change).
         </p>
       </header>
+
+      <ExchangeFilter value={exchange} onChange={setExchange} />
 
       <AdSlot slot="leaderboard" seed="movers-top" />
 

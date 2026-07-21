@@ -1,7 +1,9 @@
 "use client";
 import useSWR from "swr";
+import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
 import { API_BASE, RankingRow, RankingsResponse, fetcher, formatCurrency, formatDate } from "@/lib/api";
 import { PremiumGate } from "@/components/PremiumGate";
 import { CompanyLogo } from "@/components/CompanyLogo";
@@ -78,8 +80,9 @@ const INSIDER_TYPE_PRESETS = [
 ];
 
 export default function CompaniesPage() {
+  const [exchange, setExchange] = useState<ExchangeValue>("all");
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=500`,
+    `${API_BASE}/rankings?limit=500${exchange !== "all" ? `&exchange=${exchange}` : ""}`,
     fetcher,
   );
 
@@ -265,6 +268,8 @@ export default function CompaniesPage() {
           </Link>
         </p>
       </header>
+
+      <ExchangeFilter value={exchange} onChange={setExchange} />
 
       {/* Free rows — highest rank at top, counts down to rank 6 */}
       <div className="card overflow-hidden">

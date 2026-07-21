@@ -771,6 +771,7 @@ export class IqsService {
     q?: string;
     side?: 'buy' | 'sell' | 'all';
     month?: boolean;
+    exchange?: string;
   }) {
     const limit = Math.min(opts.limit ?? 100, 2000);
     const offset = opts.offset ?? 0;
@@ -779,6 +780,9 @@ export class IqsService {
       .leftJoinAndSelect('t.company', 'c')
       .orderBy('t.transactionDate', 'DESC')
       .addOrderBy('t.totalValue', 'DESC');
+    // "Exchanges" filter — narrow to a listing venue (US / CA / DE).
+    const exchange = normalizeExchange(opts.exchange);
+    if (exchange) qb.andWhere('c.exchange = :exchange', { exchange });
     if (opts.q) {
       qb.andWhere(
         '(LOWER(c.ticker) LIKE :q OR LOWER(c.name) LIKE :q OR LOWER(t.insiderName) LIKE :q)',

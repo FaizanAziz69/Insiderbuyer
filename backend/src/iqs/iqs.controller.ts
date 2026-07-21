@@ -140,6 +140,7 @@ export class IqsController {
     @Query('q') q?: string,
     @Query('side') side?: string,
     @Query('month') month?: string,
+    @Query('exchange') exchange?: string,
   ) {
     return this.iqs.getAllTrades({
       limit: limit ? Number(limit) : undefined,
@@ -147,6 +148,7 @@ export class IqsController {
       q: q || undefined,
       side: side === 'buy' || side === 'sell' || side === 'all' ? side : undefined,
       month: month === '1' || month === 'true',
+      exchange: exchange || undefined,
     });
   }
 
