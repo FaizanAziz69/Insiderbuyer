@@ -40,78 +40,36 @@ const SIDE = {
 
 const SPRING = { type: "spring", stiffness: 260, damping: 26 } as const;
 
-// Lazily-created audio context + a synthesized "cha-ching" cash sound (no asset
-// file). Autoplay is gated by the browser until a user gesture, so we resume
-// the context on the first interaction.
-let audioCtx: AudioContext | null = null;
+// Shopify-style "Cha-Ching" sale sound — a real MP3 asset served from
+// /public/sounds. Autoplay is gated by the browser until a user gesture, so a
+// blocked play is queued and flushed on the first interaction.
+const CASH_SOUND_SRC = "/sounds/cha-ching.mp3";
+let cashAudio: HTMLAudioElement | null = null;
 // Hard mute — set when the user dismisses the bubble; nothing may play after.
 let soundMuted = false;
-function ensureAudio() {
+function getCashAudio(): HTMLAudioElement | null {
   if (typeof window === "undefined") return null;
-  try {
-    audioCtx =
-      audioCtx || new (window.AudioContext || (window as any).webkitAudioContext)();
-    if (audioCtx.state === "suspended") void audioCtx.resume();
-    return audioCtx;
-  } catch {
-    return null;
+  if (!cashAudio) {
+    cashAudio = new Audio(CASH_SOUND_SRC);
+    cashAudio.preload = "auto";
+    cashAudio.volume = 0.7;
   }
+  return cashAudio;
 }
-function playCashSound() {
-  if (soundMuted) return;
-  const ctx = ensureAudio();
-  if (!ctx) return;
-  // Don't hard-gate on "running": ensureAudio() has already called resume(),
-  // and when invoked from a user gesture the sound will play once it resumes.
-  const now = ctx.currentTime;
-  const master = ctx.createGain();
-  master.gain.value = 0.7;
-  // Gentle lowpass smooths the FM sidebands so the chime reads bright but
-  // clean (musical), not harsh or gritty.
-  const smooth = ctx.createBiquadFilter();
-  smooth.type = "lowpass";
-  smooth.frequency.value = 9000;
-  master.connect(smooth).connect(ctx.destination);
-
-  // A bright, clean two-note bell chime in the spirit of Shopify's "Cha-Ching"
-  // — a quick lower "cha" leaping up to a ringing, sustained "ching", with a
-  // faint octave sparkle. FM synthesis (carrier + a fast-decaying modulator)
-  // gives the musical glockenspiel/marimba-like metallic ring, no cash-register
-  // coins or noise.
-  const bell = (start: number, freq: number, dur: number, level: number) => {
-    const t = now + start;
-    const carrier = ctx.createOscillator();
-    carrier.type = "sine";
-    carrier.frequency.value = freq;
-
-    // Modulator at an inharmonic ratio → bell-like timbre. The modulation
-    // depth (index) starts rich and decays quickly, so the tone has a bright
-    // shimmering attack that settles into a pure, singing sustain.
-    const mod = ctx.createOscillator();
-    mod.type = "sine";
-    mod.frequency.value = freq * 1.41;
-    const modDepth = ctx.createGain();
-    modDepth.gain.setValueAtTime(freq * 0.9, t);
-    modDepth.gain.exponentialRampToValueAtTime(freq * 0.04, t + dur * 0.45);
-    mod.connect(modDepth).connect(carrier.frequency);
-
-    const amp = ctx.createGain();
-    amp.gain.setValueAtTime(0.0001, t);
-    amp.gain.exponentialRampToValueAtTime(level, t + 0.006);
-    amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    carrier.connect(amp).connect(master);
-
-    carrier.start(t);
-    mod.start(t);
-    carrier.stop(t + dur + 0.05);
-    mod.stop(t + dur + 0.05);
-  };
-
-  // "cha" (short, lower) → "ching" (higher, long ring) — a bright rising
-  // fifth, the cheerful "you made money" motif.
-  bell(0, 1318.5, 0.2, 0.5); // E6 — quick pickup
-  bell(0.11, 1975.5, 0.95, 0.62); // B6 — the ringing "ching"
-  bell(0.12, 2637.0, 0.7, 0.16); // E7 — faint octave sparkle on top
+/** Play the cha-ching from the start. Returns false if the browser blocked
+ *  autoplay (no user gesture yet) so the caller can queue it. */
+function playCashSound(): boolean {
+  if (soundMuted) return true;
+  const a = getCashAudio();
+  if (!a) return false;
+  try {
+    a.currentTime = 0;
+  } catch {
+    /* not yet seekable — play from wherever it is */
+  }
+  const p = a.play();
+  if (p && typeof p.catch === "function") p.catch(() => {});
+  return true;
 }
 
 function relTime(dateStr: string): string {
@@ -179,11 +137,23 @@ export function InsiderActivityToast({
   // A ding that couldn't play (audio still locked) — flushed on first gesture.
   const chimePendingRef = useRef(false);
 
-  // Play now if audio is unlocked, else queue it for the first user gesture.
+  // Play now; if the browser blocks autoplay (no gesture yet), queue it for
+  // the first user interaction.
   function chime() {
-    const ctx = ensureAudio();
-    if (ctx && ctx.state === "running") playCashSound();
-    else chimePendingRef.current = true;
+    if (soundMuted) return;
+    const a = getCashAudio();
+    if (!a) return;
+    try {
+      a.currentTime = 0;
+    } catch {
+      /* ignore */
+    }
+    const p = a.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(() => {
+        chimePendingRef.current = true;
+      });
+    }
   }
 
   // Session-scoped dismissal (the × on the bubble removes it for the session).
@@ -218,8 +188,7 @@ export function InsiderActivityToast({
         chimePendingRef.current = false;
         return;
       }
-      const ctx = ensureAudio();
-      if (ctx && chimePendingRef.current) {
+      if (chimePendingRef.current) {
         chimePendingRef.current = false;
         window.setTimeout(() => playCashSound(), 50);
       }
