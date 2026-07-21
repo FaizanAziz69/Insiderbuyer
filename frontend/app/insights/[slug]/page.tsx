@@ -166,8 +166,7 @@ export default function InsightDetailPage({
                   tags={post.tags}
                   ticker={post.ticker}
                   sector={post.sector}
-                  featuredTickers={post.featuredTickers}
-                  overlay="lg"
+                  overlay="none"
                   loading="eager"
                   style={{ width: "100%", height: "100%" }}
                   className="w-full h-full"
