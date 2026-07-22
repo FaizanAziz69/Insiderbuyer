@@ -14,6 +14,10 @@ import { IqsService } from '../iqs/iqs.service';
 import { MdaSentimentService } from '../iqs/mda-sentiment.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 
+/** Ceiling for a plausible per-share price. BRK-A (~$700k) is the priciest
+ *  real stock ever, so anything above this is a Form 4 parse artifact. */
+const MAX_PLAUSIBLE_PRICE = 1_000_000;
+
 @Injectable()
 export class IngestionService implements OnModuleInit {
   private readonly logger = new Logger(IngestionService.name);
@@ -153,6 +157,17 @@ export class IngestionService implements OnModuleInit {
           let qualifying = 0;
           for (let i = 0; i < parsed.transactions.length; i++) {
             const p = parsed.transactions[i];
+            // Data-quality guard: a price above ~$1M/share (BRK-A, the priciest
+            // real stock, is ~$700k) is a Form 4 XML parse artifact — skip it
+            // so garbage like "$40,000,000/share → $1600T" never gets stored.
+            if (
+              !Number.isFinite(p.pricePerShare) ||
+              p.pricePerShare > MAX_PLAUSIBLE_PRICE ||
+              !Number.isFinite(p.sharesBought) ||
+              p.sharesBought < 0
+            ) {
+              continue;
+            }
             const role = normalizeRole(p.rawTitle, p.isDirector, p.isOfficer);
             const totalValue = p.sharesBought * p.pricePerShare;
             // Buys reduce to post − shares; sells held MORE before disposing.
@@ -605,6 +620,20 @@ export class IngestionService implements OnModuleInit {
       updated,
       remaining: Math.max(0, pending.length - batch.length),
     };
+  }
+
+  /** One-off cleanup: delete insider-transaction rows with an implausible
+   *  per-share price (Form 4 parse artifacts, e.g. "$40,000,000/share" that
+   *  produced the "$1600T bought" bug). Returns how many were removed. */
+  async cleanupBadTransactions(): Promise<{ deleted: number }> {
+    const res = await this.txRepo
+      .createQueryBuilder()
+      .delete()
+      .where('"pricePerShare" > :max', { max: MAX_PLAUSIBLE_PRICE })
+      .execute();
+    const deleted = res.affected ?? 0;
+    this.logger.log(`Cleanup: deleted ${deleted} transactions with implausible price.`);
+    return { deleted };
   }
 
   /** Backfill trailing-12-month dilution (IQ v2 component 5) onto scored US

@@ -75,4 +75,11 @@ export class IngestionController {
       onlyMissing: body?.onlyMissing,
     });
   }
+
+  /** One-off: delete insider transactions with an implausible per-share price
+   *  (parse artifacts behind the "$1600T bought" bug). Rescore afterwards. */
+  @Post('cleanup-bad-trades')
+  async cleanupBadTrades() {
+    return this.ingestion.cleanupBadTransactions();
+  }
 }

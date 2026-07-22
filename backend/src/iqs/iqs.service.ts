@@ -488,6 +488,9 @@ export class IqsService {
     if (typeof opts.minIqs === 'number') {
       qb.andWhere('s.iqs >= :minIqs', { minIqs: opts.minIqs });
     }
+    // Drop companies whose SEC mapping yielded no usable ticker — they can't be
+    // clicked, quoted, or charted, so they shouldn't occupy a ranking slot.
+    qb.andWhere("c.ticker IS NOT NULL AND UPPER(c.ticker) NOT IN ('NONE','N/A','')");
     // "Exchanges" filter: All (no filter) / US / CA / DE. Companies default to
     // 'US'; BaFin ingestion tags German issuers 'DE'. Ranking stays global —
     // a German stock scoring #1 shows #1 unless the user narrows the exchange.
@@ -871,6 +874,9 @@ export class IqsService {
     const qb = this.txRepo
       .createQueryBuilder('t')
       .leftJoinAndSelect('t.company', 'c')
+      // Hide Form 4 parse artifacts (e.g. a "$40,000,000/share" price) so a
+      // single bad filing never shows an absurd multi-trillion-dollar trade.
+      .where('t."pricePerShare" <= :maxPrice', { maxPrice: 1_000_000 })
       .orderBy('t.transactionDate', 'DESC')
       .addOrderBy('t.totalValue', 'DESC');
     // "Exchanges" filter — narrow to a listing venue (US / CA / DE).
