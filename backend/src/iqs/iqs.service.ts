@@ -1360,10 +1360,14 @@ export class IqsService {
       { buyValue: number; sellValue: number; buyCount: number; sellCount: number }
     >();
     for (const t of txs) {
+      const v = Number(t.totalValue);
+      // Skip non-open-market codes (grants/exercises) and implausible parse
+      // artifacts so sector flows show real, sane dollar figures.
+      if (t.transactionCode !== 'P' && t.transactionCode !== 'S') continue;
+      if (!Number.isFinite(v) || v <= 0 || v > MAX_PLAUSIBLE_TX_VALUE) continue;
       const sec = t.company?.sector || 'Other';
       const cur =
         agg.get(sec) || { buyValue: 0, sellValue: 0, buyCount: 0, sellCount: 0 };
-      const v = Number(t.totalValue);
       if (t.transactionCode === 'S') {
         cur.sellValue += v;
         cur.sellCount += 1;
@@ -1396,6 +1400,11 @@ export class IqsService {
       .addSelect('COALESCE(SUM(t."totalValue"), 0)', 'value')
       .addSelect('COUNT(*)', 'count')
       .where('t."transactionDate" >= :start', { start: monthStart.toISOString() })
+      // Data-quality guard: exclude implausible parse artifacts (a single
+      // Form 4 with a bad share count/price can otherwise inflate the total to
+      // absurd figures like "$1600T bought"). Same ceiling the scorer uses.
+      .andWhere('t."totalValue" > 0')
+      .andWhere('t."totalValue" <= :maxTx', { maxTx: MAX_PLAUSIBLE_TX_VALUE })
       .groupBy('t."transactionCode"')
       .getRawMany<{ code: string; value: string; count: string }>();
 
