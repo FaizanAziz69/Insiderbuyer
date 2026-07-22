@@ -1116,6 +1116,12 @@ export class IqsService {
     const qb = this.txRepo
       .createQueryBuilder('t')
       .where(`t."transactionCode" = 'P'`)
+      // Exclude parse artifacts so the leaderboard ranks real buying, not a
+      // bad filing inflating one name to billions.
+      .andWhere('t."pricePerShare" <= :maxPrice', { maxPrice: 1_000_000 })
+      .andWhere('t."totalValue" > 0 AND t."totalValue" <= :maxTx', {
+        maxTx: MAX_PLAUSIBLE_TX_VALUE,
+      })
       .leftJoinAndSelect('t.company', 'c');
     if (country) qb.andWhere('t."insiderCountry" = :country', { country });
     const rows = await qb.getMany();
@@ -1167,6 +1173,10 @@ export class IqsService {
     const rows = await this.txRepo
       .createQueryBuilder('t')
       .where(`t."transactionCode" = 'P'`)
+      .andWhere('t."pricePerShare" <= :maxPrice', { maxPrice: 1_000_000 })
+      .andWhere('t."totalValue" > 0 AND t."totalValue" <= :maxTx', {
+        maxTx: MAX_PLAUSIBLE_TX_VALUE,
+      })
       .leftJoinAndSelect('t.company', 'c')
       .getMany();
 
@@ -1229,6 +1239,11 @@ export class IqsService {
       .where('LOWER(t."insiderName") = LOWER(:name)', { name: clean })
       .andWhere(`t."transactionCode" IN ('P','S')`)
       .andWhere('t."pricePerShare" <= :maxPrice', { maxPrice: 1_000_000 })
+      // Exclude implausible parse artifacts (e.g. billions into a nano-cap) so
+      // a bad filing can't dominate the profile's totals — same cap as scoring.
+      .andWhere('t."totalValue" > 0 AND t."totalValue" <= :maxTx', {
+        maxTx: MAX_PLAUSIBLE_TX_VALUE,
+      })
       .orderBy('t.transactionDate', 'DESC')
       .getMany();
     if (!txs.length) return null;
