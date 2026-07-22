@@ -167,6 +167,15 @@ export class IqsController {
     return { rows: await this.iqs.getInsiderTrackRecords(limit ? Number(limit) : 8) };
   }
 
+  /** Full profile for one insider (by exact name, case-insensitive) —
+   *  powers the insider profile page. Returns null (→ 404-ish) if unknown. */
+  @Get('insiders/profile')
+  async insiderProfile(@Query('name') name?: string) {
+    const profile = name ? await this.iqs.getInsiderProfile(name) : null;
+    if (!profile) return { error: 'Unknown insider', profile: null };
+    return { profile };
+  }
+
   @Get('charts/volume')
   async volumeChart(@Query('days') days?: string) {
     const n = Math.min(365, Math.max(7, Number(days) || 30));

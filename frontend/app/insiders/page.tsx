@@ -222,7 +222,12 @@ function InsiderItem({ row, rank }: { row: InsiderRow; rank: number }) {
         {rank}
       </span>
       <div className="flex-1 min-w-0">
-        <div className="font-semibold text-sm truncate">{row.name}</div>
+        <Link
+          href={`/insiders/${encodeURIComponent(row.name)}`}
+          className="font-semibold text-sm truncate block hover:text-accent transition"
+        >
+          {row.name}
+        </Link>
         <div className="text-xs text-mute truncate">
           {row.company}
           {row.ticker && (

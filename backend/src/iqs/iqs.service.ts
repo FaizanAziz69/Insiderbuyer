@@ -1216,6 +1216,164 @@ export class IqsService {
       .slice(0, limit);
   }
 
+  /** Full profile for ONE insider (keyed by name, case-insensitive) — powers
+   *  the QuiverQuant-style insider profile page: headline stats, buy/sell
+   *  track record vs the live price, top tickers & sectors, and the full trade
+   *  history. Implausible-price parse artifacts are excluded. */
+  async getInsiderProfile(name: string) {
+    const clean = (name || '').trim();
+    if (!clean) return null;
+    const txs = await this.txRepo
+      .createQueryBuilder('t')
+      .leftJoinAndSelect('t.company', 'c')
+      .where('LOWER(t."insiderName") = LOWER(:name)', { name: clean })
+      .andWhere(`t."transactionCode" IN ('P','S')`)
+      .andWhere('t."pricePerShare" <= :maxPrice', { maxPrice: 1_000_000 })
+      .orderBy('t.transactionDate', 'DESC')
+      .getMany();
+    if (!txs.length) return null;
+
+    const displayName = txs[0].insiderName;
+    const roles = new Set<string>();
+    const companies = new Map<string, { ticker: string | null; name: string; trades: number }>();
+    const tickerAgg = new Map<
+      string,
+      { ticker: string; name: string; sector: string | null; buys: number; sells: number; buyValue: number; sellValue: number }
+    >();
+    const sectorAgg = new Map<string, number>();
+
+    let buyCount = 0;
+    let sellCount = 0;
+    let totalBought = 0;
+    let totalSold = 0;
+    let wins = 0;
+    let scored = 0;
+    let firstDate = txs[txs.length - 1].transactionDate;
+    let lastDate = txs[0].transactionDate;
+
+    const trades = txs.map((t) => {
+      const value = Number(t.totalValue) || 0;
+      const buyPx = Number(t.pricePerShare) || 0;
+      const isBuy = t.transactionCode === 'P';
+      const livePrice = t.company?.lastPrice ? Number(t.company.lastPrice) : null;
+      if (t.role) roles.add(t.role);
+      if (t.company) {
+        const cid = t.companyId;
+        const c = companies.get(cid) || {
+          ticker: t.company.ticker || null,
+          name: t.company.name || '',
+          trades: 0,
+        };
+        c.trades += 1;
+        companies.set(cid, c);
+      }
+      const sym = (t.company?.ticker || '').toUpperCase();
+      if (sym) {
+        const ta = tickerAgg.get(sym) || {
+          ticker: sym,
+          name: t.company?.name || sym,
+          sector: t.company?.sector || null,
+          buys: 0,
+          sells: 0,
+          buyValue: 0,
+          sellValue: 0,
+        };
+        if (isBuy) {
+          ta.buys += 1;
+          ta.buyValue += value;
+        } else {
+          ta.sells += 1;
+          ta.sellValue += value;
+        }
+        tickerAgg.set(sym, ta);
+      }
+      const sec = t.company?.sector;
+      if (sec) sectorAgg.set(sec, (sectorAgg.get(sec) || 0) + 1);
+
+      if (isBuy) {
+        buyCount += 1;
+        totalBought += value;
+        // Track record: is this buy currently above its purchase price?
+        if (buyPx > 0 && livePrice && livePrice > 0) {
+          scored += 1;
+          if (livePrice > buyPx) wins += 1;
+        }
+      } else {
+        sellCount += 1;
+        totalSold += value;
+      }
+      if (t.transactionDate < firstDate) firstDate = t.transactionDate;
+      if (t.transactionDate > lastDate) lastDate = t.transactionDate;
+
+      // Per-buy return vs live price (buys only — sells have no forward return).
+      const returnPct =
+        isBuy && buyPx > 0 && livePrice && livePrice > 0
+          ? +(((livePrice - buyPx) / buyPx) * 100).toFixed(2)
+          : null;
+      return {
+        ticker: t.company?.ticker || null,
+        company: t.company?.name || '',
+        sector: t.company?.sector || null,
+        side: isBuy ? 'BUY' : 'SELL',
+        role: t.role,
+        shares: Number(t.sharesBought) || 0,
+        pricePerShare: buyPx,
+        totalValue: value,
+        livePrice,
+        returnPct,
+        transactionDate: t.transactionDate,
+        filingUrl: this.form4Link(t.filingUrl, t.accessionNumber),
+      };
+    });
+
+    const primaryCompany = Array.from(companies.values()).sort(
+      (a, b) => b.trades - a.trades,
+    )[0];
+
+    const topTickers = Array.from(tickerAgg.values())
+      .map((t) => ({ ...t, totalValue: t.buyValue + t.sellValue, trades: t.buys + t.sells }))
+      .sort((a, b) => b.totalValue - a.totalValue)
+      .slice(0, 12);
+
+    const topSectors = Array.from(sectorAgg.entries())
+      .map(([sector, count]) => ({ sector, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+
+    const buyTrades = trades.filter((t) => t.returnPct != null);
+    const bestTrade = buyTrades.length
+      ? [...buyTrades].sort((a, b) => (b.returnPct as number) - (a.returnPct as number))[0]
+      : null;
+    const avgReturn = buyTrades.length
+      ? +(buyTrades.reduce((a, t) => a + (t.returnPct as number), 0) / buyTrades.length).toFixed(2)
+      : null;
+
+    return {
+      name: displayName,
+      roles: Array.from(roles),
+      primaryCompany: primaryCompany
+        ? { ticker: primaryCompany.ticker, name: primaryCompany.name }
+        : null,
+      stats: {
+        totalTrades: trades.length,
+        buyCount,
+        sellCount,
+        totalBought,
+        totalSold,
+        distinctCompanies: companies.size,
+        firstTraded: firstDate,
+        lastTraded: lastDate,
+        winRate: scored >= 2 ? Math.round((wins / scored) * 100) : null,
+        scoredBuys: scored,
+        avgBuyReturnPct: avgReturn,
+      },
+      bestTrade,
+      topTickers,
+      topSectors,
+      trades,
+    };
+  }
+
   /** "Top Stocks" ranking — the site's second branded score. Blends the
    *  analyst pillar (consensus + implied upside), the Insider Score, and the
    *  insiders' historical success rate into one 0–99 conviction score

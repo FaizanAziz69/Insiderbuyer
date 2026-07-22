@@ -69,7 +69,12 @@ export function TradesTable({
       sortValue: (t) => t.insiderName,
       render: (t) => (
         <div className="min-w-0" title={t.rawTitle || t.role}>
-          <div className="font-semibold text-[14px] truncate max-w-[190px]">{t.insiderName}</div>
+          <Link
+            href={`/insiders/${encodeURIComponent(t.insiderName)}`}
+            className="font-semibold text-[14px] truncate max-w-[190px] block hover:text-accent transition"
+          >
+            {t.insiderName}
+          </Link>
           <span
             className={`${ROLE_CLS[t.role] || ROLE_CLS.Other} mt-0.5 inline-block`}
             style={{ fontSize: 10 }}
