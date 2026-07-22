@@ -37,7 +37,7 @@ interface Props {
 
 export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props) {
   const { data, isLoading } = useSWR<{ rows: MarketStatRow[] }>(
-    `${API_BASE}/market-stats/${endpoint}?limit=500`,
+    `${API_BASE}/market-stats/${endpoint}?limit=1000`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );

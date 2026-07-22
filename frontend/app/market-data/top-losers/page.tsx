@@ -7,7 +7,7 @@ export default function TopLosersPage() {
     <MarketDataTable
       endpoint="top-losers"
       title="Today's Top Losers"
-      blurb="Every U.S. stock down 7% or more today. When insiders step in on sharp declines, that's often the strongest contrarian signal in the Insider Score scoring system."
+      blurb="Every U.S. stock down 10% or more today. When insiders step in on sharp declines, that's often the strongest contrarian signal in the Insider Score scoring system."
       Icon={TrendingDown}
     />
   );

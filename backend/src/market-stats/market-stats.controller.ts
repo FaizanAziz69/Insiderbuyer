@@ -13,13 +13,13 @@ export class MarketStatsController {
 
   @Get('top-gainers')
   async gainers(@Query('limit') limit?: string) {
-    const rows = await this.svc.getTopGainers(limit ? Number(limit) : 500);
+    const rows = await this.svc.getTopGainers(limit ? Number(limit) : 1000);
     return { rows };
   }
 
   @Get('top-losers')
   async losers(@Query('limit') limit?: string) {
-    const rows = await this.svc.getTopLosers(limit ? Number(limit) : 500);
+    const rows = await this.svc.getTopLosers(limit ? Number(limit) : 1000);
     return { rows };
   }
 

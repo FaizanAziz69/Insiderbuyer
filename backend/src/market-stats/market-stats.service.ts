@@ -316,7 +316,9 @@ export class MarketStatsService {
       const PAGE = 250;
       const out: MarketStatRow[] = [];
       const seen = new Set<string>();
-      for (let offset = 0; offset < opts.limit && offset < 1000; offset += PAGE) {
+      // Yahoo's screener paginates to ~2000 — pull the whole qualifying set so
+      // volatile days aren't truncated (client wants ALL 10%+ movers).
+      for (let offset = 0; offset < opts.limit && offset < 2000; offset += PAGE) {
         const size = Math.min(PAGE, opts.limit - offset);
         const body = {
           size,
@@ -371,8 +373,9 @@ export class MarketStatsService {
   }
 
   /** Minimum absolute daily move (%) to qualify as a top gainer/loser —
-   *  client spec: show every stock that moved 7%+ on the day. */
-  private readonly MOVER_MIN_PCT = 7;
+   *  client spec: show EVERY stock that moved 10%+ on the day (comprehensive,
+   *  not a curated shortlist). */
+  private readonly MOVER_MIN_PCT = 10;
 
   async getTopGainers(limit = 500) {
     const rows = await this.screenYahoo({
