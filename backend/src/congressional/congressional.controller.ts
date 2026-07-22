@@ -1,9 +1,16 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { CongressionalService } from './congressional.service';
 
 @Controller('congressional-trades')
 export class CongressionalController {
   constructor(private readonly svc: CongressionalService) {}
+
+  /** Re-ingest from FMP (or seed if unavailable). Lets prod repopulate an
+   *  empty table without a redeploy. */
+  @Post('refresh')
+  async refresh() {
+    return this.svc.refresh();
+  }
 
   @Get()
   async list(

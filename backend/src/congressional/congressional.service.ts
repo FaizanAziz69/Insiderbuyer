@@ -1,10 +1,18 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 import { CongressionalTransaction } from '../entities/congressional-transaction.entity';
 import { CONGRESS_SEED } from './congressional-seed';
 import { PhotosService } from './photos.service';
 import { FmpService } from '../fmp/fmp.service';
+
+/** Valid, finite Date or null — guards against FMP rows with missing/garbage
+ *  dates that would otherwise become `Invalid Date` and fail the insert. */
+function safeDate(s: string | null | undefined): Date | null {
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 @Injectable()
 export class CongressionalService implements OnModuleInit {
@@ -13,47 +21,54 @@ export class CongressionalService implements OnModuleInit {
   constructor(
     @InjectRepository(CongressionalTransaction)
     private readonly repo: Repository<CongressionalTransaction>,
+    private readonly dataSource: DataSource,
     private readonly photos: PhotosService,
     private readonly fmp: FmpService,
   ) {}
 
   async onModuleInit() {
+    // Each step is independently guarded so one failure can never leave the
+    // table empty (the original bug: a failed FMP save wiped it with no re-seed).
     try {
-      // Prefer real Senate + House disclosures from FMP; fall back to the
-      // sample seed only when the key is missing / the fetch fails.
-      const ingested = await this.refreshFromFmp();
-      if (!ingested) {
-        const count = await this.repo.count();
-        if (count === 0) {
-          this.logger.log(`Seeding ${CONGRESS_SEED.length} congressional disclosures…`);
-          await this.repo.save(
-            CONGRESS_SEED.map((r) => ({
-              politicianName: r.politicianName,
-              chamber: r.chamber === 'Senate' ? 'Senate' : 'House',
-              party: r.party,
-              ticker: r.ticker,
-              companyName: r.companyName,
-              action: r.action,
-              amountMin: r.amountMin,
-              amountMax: r.amountMax,
-              transactionDate: new Date(r.transactionDate),
-              reportedDate: new Date(r.reportedDate),
-              source: 'sample-seed',
-            })) as any,
-          );
-          this.logger.log('Congressional seed complete.');
-        }
-      }
-      // Backfill photos for any rows missing them — async, swallow errors per-row.
-      void this.backfillPhotos();
+      await this.refreshFromFmp();
     } catch (err: any) {
-      this.logger.warn(`Skipped seeding congressional trades: ${err?.message || err}`);
+      this.logger.warn(`Congressional FMP refresh failed: ${err?.message || err}`);
     }
+    try {
+      await this.ensureSeeded();
+    } catch (err: any) {
+      this.logger.warn(`Congressional seed failed: ${err?.message || err}`);
+    }
+    void this.backfillPhotos();
+  }
+
+  /** Guarantee the table is never empty — seed the sample set if there are no
+   *  rows (self-heal, regardless of what FMP did). */
+  async ensureSeeded(): Promise<number> {
+    if ((await this.repo.count()) > 0) return 0;
+    this.logger.log(`Seeding ${CONGRESS_SEED.length} congressional disclosures…`);
+    const rows = CONGRESS_SEED.map((r) => ({
+      politicianName: r.politicianName,
+      chamber: r.chamber === 'Senate' ? 'Senate' : 'House',
+      party: r.party,
+      ticker: r.ticker,
+      companyName: r.companyName,
+      action: r.action,
+      amountMin: r.amountMin,
+      amountMax: r.amountMax,
+      transactionDate: safeDate(r.transactionDate) ?? new Date(),
+      reportedDate: safeDate(r.reportedDate) ?? new Date(),
+      source: 'sample-seed',
+    }));
+    await this.repo.save(rows as any);
+    this.logger.log('Congressional seed complete.');
+    return rows.length;
   }
 
   /** Pull the latest real Senate + House disclosures from FMP and replace the
    *  table with them. Returns false when FMP is unavailable / returns nothing
-   *  (so the caller can fall back to the seed). */
+   *  (so the caller falls back to the seed). The replace runs in a TRANSACTION
+   *  so a failed insert never wipes the table (the original empty-table bug). */
   async refreshFromFmp(): Promise<boolean> {
     if (!this.fmp.enabled) return false;
     const trades = await this.fmp.getCongressional(2);
@@ -75,14 +90,35 @@ export class CongressionalService implements OnModuleInit {
         action: t.action,
         amountMin: t.amountMin,
         amountMax: t.amountMax,
-        transactionDate: new Date(t.transactionDate),
-        reportedDate: new Date(t.reportedDate),
+        transactionDate: safeDate(t.transactionDate),
+        reportedDate: safeDate(t.reportedDate) ?? safeDate(t.transactionDate),
         source: 'fmp',
-      }));
-    await this.repo.clear();
-    await this.repo.save(rows as any);
+      }))
+      // Drop rows with no usable transaction date — they'd fail the insert and
+      // (pre-fix) roll back / wipe the whole table.
+      .filter((r) => r.transactionDate != null);
+    if (!rows.length) return false;
+    await this.dataSource.transaction(async (m) => {
+      await m.clear(CongressionalTransaction);
+      await m.save(CongressionalTransaction, rows as any);
+    });
     this.logger.log(`Ingested ${rows.length} real congressional disclosures from FMP.`);
     return true;
+  }
+
+  /** Manual re-ingest (FMP → else ensure seeded). Powers a refresh endpoint so
+   *  prod can be repopulated without a redeploy. */
+  async refresh(): Promise<{ source: string; total: number }> {
+    let source = 'existing';
+    try {
+      if (await this.refreshFromFmp()) source = 'fmp';
+    } catch (err: any) {
+      this.logger.warn(`Congressional FMP refresh failed: ${err?.message || err}`);
+    }
+    const seeded = await this.ensureSeeded();
+    if (seeded > 0 && source === 'existing') source = 'sample-seed';
+    void this.backfillPhotos();
+    return { source, total: await this.repo.count() };
   }
 
   private async backfillPhotos() {
