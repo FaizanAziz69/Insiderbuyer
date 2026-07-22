@@ -35,4 +35,12 @@ export class CongressionalController {
     const rows = await this.svc.byTicker(ticker);
     return { total: rows.length, rows };
   }
+
+  /** Full profile for one member of Congress (by exact name). */
+  @Get('profile')
+  async profile(@Query('name') name?: string) {
+    const profile = name ? await this.svc.getPoliticianProfile(name) : null;
+    if (!profile) return { error: 'Unknown politician', profile: null };
+    return { profile };
+  }
 }

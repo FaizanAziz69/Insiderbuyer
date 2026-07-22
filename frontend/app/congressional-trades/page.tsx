@@ -184,9 +184,12 @@ export default function CongressionalPage() {
                       size={36}
                     />
                     <div className="min-w-0">
-                      <div className="text-[15px] font-bold truncate">
+                      <Link
+                        href={`/politicians/${encodeURIComponent(r.politicianName)}`}
+                        className="text-[15px] font-bold truncate block hover:text-accent transition"
+                      >
                         {r.politicianName}
-                      </div>
+                      </Link>
                       <div className="text-[10px] uppercase tracking-wider font-bold text-mute flex items-center gap-1">
                         <span
                           className="px-1.5 py-0.5 rounded"

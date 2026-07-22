@@ -172,4 +172,100 @@ export class CongressionalService implements OnModuleInit {
       take: 50,
     });
   }
+
+  /** Full profile for one member of Congress (by exact name, case-insensitive)
+   *  — powers the politician profile page: headline stats, buy/sell split, most
+   *  -traded stocks, and full disclosure history. Dollar figures use the
+   *  midpoint of each disclosed amount RANGE (STOCK Act reports bands, not
+   *  exact values). */
+  async getPoliticianProfile(name: string) {
+    const clean = (name || '').trim();
+    if (!clean) return null;
+    const txs = await this.repo
+      .createQueryBuilder('t')
+      .where('LOWER(t.politicianName) = LOWER(:name)', { name: clean })
+      .orderBy('t.transactionDate', 'DESC')
+      .getMany();
+    if (!txs.length) return null;
+
+    const mid = (r: CongressionalTransaction): number => {
+      const lo = r.amountMin != null ? Number(r.amountMin) : 0;
+      const hi = r.amountMax != null ? Number(r.amountMax) : lo;
+      return hi > 0 ? (lo + hi) / 2 : lo;
+    };
+
+    const first = txs[0];
+    const tickerAgg = new Map<
+      string,
+      { ticker: string; company: string; buys: number; sells: number; estValue: number }
+    >();
+    let buyCount = 0;
+    let sellCount = 0;
+    let buyValue = 0;
+    let sellValue = 0;
+    let firstDate = first.transactionDate;
+    let lastDate = first.transactionDate;
+
+    const trades = txs.map((t) => {
+      const est = mid(t);
+      const isBuy = t.action === 'Buy';
+      if (isBuy) {
+        buyCount += 1;
+        buyValue += est;
+      } else {
+        sellCount += 1;
+        sellValue += est;
+      }
+      const sym = (t.ticker || '').toUpperCase();
+      if (sym) {
+        const ta = tickerAgg.get(sym) || {
+          ticker: sym,
+          company: t.companyName || sym,
+          buys: 0,
+          sells: 0,
+          estValue: 0,
+        };
+        if (isBuy) ta.buys += 1;
+        else ta.sells += 1;
+        ta.estValue += est;
+        tickerAgg.set(sym, ta);
+      }
+      if (t.transactionDate < firstDate) firstDate = t.transactionDate;
+      if (t.transactionDate > lastDate) lastDate = t.transactionDate;
+      return {
+        ticker: t.ticker || null,
+        company: t.companyName,
+        action: t.action,
+        amountMin: t.amountMin != null ? Number(t.amountMin) : null,
+        amountMax: t.amountMax != null ? Number(t.amountMax) : null,
+        transactionDate: t.transactionDate,
+        reportedDate: t.reportedDate,
+      };
+    });
+
+    const topTickers = Array.from(tickerAgg.values())
+      .map((t) => ({ ...t, trades: t.buys + t.sells }))
+      .sort((a, b) => b.estValue - a.estValue)
+      .slice(0, 12);
+
+    return {
+      name: first.politicianName,
+      chamber: first.chamber,
+      party: first.party,
+      photoUrl: first.photoUrl,
+      stats: {
+        totalTrades: trades.length,
+        buyCount,
+        sellCount,
+        buyValue,
+        sellValue,
+        estTotalVolume: buyValue + sellValue,
+        distinctTickers: tickerAgg.size,
+        firstTraded: firstDate,
+        lastTraded: lastDate,
+      },
+      topTickers,
+      trades,
+    };
+  }
 }
