@@ -234,17 +234,16 @@ export function AiCoverImage({
   } else {
     src = placeholderSvg(ticker || key);
   }
-  // Editorial thumbs are pre-composed cards — show the FULL image (no crop)
-  // on desktop and mobile; sector photos still cover-fill their frame.
-  const isEditorial = src.startsWith("/editorial-thumbs/");
-
   return (
     <div
       className={className}
       style={{
         position: "relative",
         overflow: "hidden",
-        background: "var(--bg-3)",
+        // Match the image's own dark tone rather than a lighter grey, so on the
+        // rare pixel not covered by the (cover-filled) image there's no visible
+        // seam/discolouration in dark mode.
+        background: "#0b1220",
         ...style,
       }}
     >
@@ -267,10 +266,8 @@ export function AiCoverImage({
         onError={() => {
           if (stage < svgStage) setStage((s) => s + 1);
         }}
-        className={`absolute inset-0 w-full h-full transition-opacity duration-500 ${
-          isEditorial ? "object-contain" : "object-cover"
-        }`}
-        style={{ opacity: loaded ? 1 : 0 }}
+        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+        style={{ opacity: loaded ? 1 : 0, objectPosition: "center" }}
       />
       {/* Subtle vignette so logos always read against any background. */}
       {overlay !== "none" && (featuredTickers?.length || ticker) && (
