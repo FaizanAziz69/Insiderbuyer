@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { CongressionalTransaction } from '../entities/congressional-transaction.entity';
+import { Company } from '../entities/company.entity';
 import { CONGRESS_SEED } from './congressional-seed';
 import { PhotosService } from './photos.service';
 import { FmpService } from '../fmp/fmp.service';
@@ -21,6 +22,8 @@ export class CongressionalService implements OnModuleInit {
   constructor(
     @InjectRepository(CongressionalTransaction)
     private readonly repo: Repository<CongressionalTransaction>,
+    @InjectRepository(Company)
+    private readonly companies: Repository<Company>,
     private readonly dataSource: DataSource,
     private readonly photos: PhotosService,
     private readonly fmp: FmpService,
@@ -248,6 +251,68 @@ export class CongressionalService implements OnModuleInit {
       .sort((a, b) => b.estValue - a.estValue)
       .slice(0, 12);
 
+    // Trade Volume by Year (buy vs sell, est. $) — QuiverQuant's bar chart.
+    const yearMap = new Map<number, { buy: number; sell: number }>();
+    for (const t of txs) {
+      const yr = new Date(t.transactionDate).getUTCFullYear();
+      const e = yearMap.get(yr) || { buy: 0, sell: 0 };
+      if (t.action === 'Buy') e.buy += mid(t);
+      else e.sell += mid(t);
+      yearMap.set(yr, e);
+    }
+    const volumeByYear = Array.from(yearMap.entries())
+      .map(([year, v]) => ({ year, buyValue: v.buy, sellValue: v.sell }))
+      .sort((a, b) => a.year - b.year);
+
+    // Top Traded Sectors — sector resolved from our company table by ticker.
+    const symbols = Array.from(tickerAgg.keys());
+    const sectorByTicker = new Map<string, string>();
+    if (symbols.length) {
+      const comps = await this.companies
+        .createQueryBuilder('c')
+        .select(['c.ticker AS ticker', 'c.sector AS sector'])
+        .where('UPPER(c.ticker) IN (:...syms)', { syms: symbols })
+        .getRawMany<{ ticker: string; sector: string | null }>();
+      for (const c of comps) {
+        if (c.ticker && c.sector) sectorByTicker.set(c.ticker.toUpperCase(), c.sector);
+      }
+    }
+    const sectorAgg = new Map<string, { trades: number; estValue: number }>();
+    for (const ta of tickerAgg.values()) {
+      const sec = sectorByTicker.get(ta.ticker) || 'Other';
+      const e = sectorAgg.get(sec) || { trades: 0, estValue: 0 };
+      e.trades += ta.buys + ta.sells;
+      e.estValue += ta.estValue;
+      sectorAgg.set(sec, e);
+    }
+    const topSectors = Array.from(sectorAgg.entries())
+      .map(([sector, v]) => ({ sector, ...v }))
+      .sort((a, b) => b.estValue - a.estValue)
+      .slice(0, 8);
+
+    // Estimated Live Stock Portfolio — net (buys − sells) est. $ per ticker,
+    // positive positions only, as an allocation %. Approximation from disclosed
+    // ranges (QuiverQuant shows a similar disclaimer).
+    const netByTicker = new Map<string, { ticker: string; company: string; net: number }>();
+    for (const t of txs) {
+      const sym = (t.ticker || '').toUpperCase();
+      if (!sym) continue;
+      const e = netByTicker.get(sym) || { ticker: sym, company: t.companyName || sym, net: 0 };
+      e.net += t.action === 'Buy' ? mid(t) : -mid(t);
+      netByTicker.set(sym, e);
+    }
+    const held = Array.from(netByTicker.values()).filter((h) => h.net > 0);
+    const totalNet = held.reduce((a, h) => a + h.net, 0);
+    const portfolio = held
+      .map((h) => ({
+        ticker: h.ticker,
+        company: h.company,
+        estValue: h.net,
+        allocation: totalNet > 0 ? +((h.net / totalNet) * 100).toFixed(2) : 0,
+      }))
+      .sort((a, b) => b.estValue - a.estValue)
+      .slice(0, 15);
+
     return {
       name: first.politicianName,
       chamber: first.chamber,
@@ -265,6 +330,9 @@ export class CongressionalService implements OnModuleInit {
         lastTraded: lastDate,
       },
       topTickers,
+      volumeByYear,
+      topSectors,
+      portfolio,
       trades,
     };
   }
