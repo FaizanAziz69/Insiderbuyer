@@ -106,6 +106,14 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
   const s = p.stats;
   const partyWord = p.party?.startsWith("R") ? "Republican" : p.party?.startsWith("D") ? "Democratic" : null;
   const subtitle = [partyWord, p.chamber].filter(Boolean).join(" / ");
+  // Real "strategy" signal from actual excess returns (no fabricated +900%).
+  const withEx = p.trades.filter((t) => t.excessReturn != null);
+  const avgExcess = withEx.length
+    ? +(withEx.reduce((a, t) => a + (t.excessReturn as number), 0) / withEx.length).toFixed(2)
+    : null;
+  const winRate = withEx.length
+    ? Math.round((withEx.filter((t) => (t.excessReturn as number) > 0).length / withEx.length) * 100)
+    : null;
 
   const tradeCols: Column<PolTrade>[] = [
     {
@@ -173,77 +181,118 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
   ];
 
   return (
-    <div className="w-full space-y-6">
-      <Link href="/congressional-trades" className="text-accent text-[13px] inline-flex items-center gap-1">
+    <div className="w-full">
+      <Link href="/congressional-trades" className="text-accent text-[13px] inline-flex items-center gap-1 mb-4">
         <ArrowLeft className="h-4 w-4" /> Congress Trading
       </Link>
 
-      {/* Header + metrics */}
-      <header className="card p-5 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          {p.photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={p.photoUrl} alt={p.name} className="rounded-full object-cover flex-shrink-0" style={{ width: 72, height: 72 }} />
-          ) : (
-            <div className="flex items-center justify-center rounded-full flex-shrink-0 text-[24px] font-bold" style={{ width: 72, height: 72, background: "var(--accent-soft)", color: "var(--accent)" }}>{initials(p.name)}</div>
-          )}
-          <div className="min-w-0">
-            <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight leading-tight">{p.name}</h1>
-            {subtitle && <div className="text-[13px] text-mute mt-0.5">{subtitle}</div>}
-          </div>
-        </div>
-        <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-px rounded-lg overflow-hidden" style={{ background: "var(--border)" }}>
-          <Metric label="Est. Portfolio Value" value={s.estPortfolioValue != null ? formatCurrency(s.estPortfolioValue) : "—"} />
-          <Metric label="Trade Volume" value={formatCurrency(s.estTotalVolume)} />
-          <Metric label="Total Trades" value={String(s.totalTrades)} />
-          <Metric label="Last Traded" value={formatDate(s.lastTraded)} />
-        </div>
-      </header>
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 items-start">
+        {/* ── LEFT: sticky profile sidebar ─────────────────────────────── */}
+        <aside className="lg:sticky lg:top-4 space-y-5">
+          <div className="card p-5 text-center">
+            {p.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.photoUrl} alt={p.name} className="rounded-full object-cover mx-auto"
+                style={{ width: 120, height: 120, border: "3px solid var(--accent-soft)" }} />
+            ) : (
+              <div className="flex items-center justify-center rounded-full mx-auto text-[38px] font-bold"
+                style={{ width: 120, height: 120, background: "var(--accent-soft)", color: "var(--accent)" }}>
+                {initials(p.name)}
+              </div>
+            )}
+            <h1 className="text-[24px] font-bold tracking-tight leading-tight mt-4">{p.name}</h1>
+            {subtitle && <div className="text-[13px] text-mute mt-1">{subtitle}</div>}
 
-      {/* Section tab bar (sticky) */}
-      <div className="sticky top-2 z-20 -mx-1 px-1">
-        <div className="flex gap-1 overflow-x-auto scrollbar-visible rounded-lg p-1" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          {SECTIONS.map((sec) => (
-            <button key={sec.id} onClick={() => scrollTo(sec.id)}
-              className="px-3 py-1.5 rounded-md text-[12.5px] font-semibold whitespace-nowrap transition"
-              style={{ background: active === sec.id ? "var(--accent)" : "transparent", color: active === sec.id ? "#fff" : "var(--text-soft)" }}>
-              {sec.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Trade Volume by Year + Top Sectors */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-5">
-        <section className="card p-4 sm:p-5">
-          <h2 className="text-[15px] font-bold mb-3">Trade Volume by Year</h2>
-          <VolumeByYear data={p.volumeByYear} />
-          <div className="flex items-center gap-4 mt-3 text-[11px] text-mute">
-            <Legend color="#10B981" label="Purchases" /><Legend color="#EF4444" label="Sales" />
-          </div>
-        </section>
-        <section className="card p-4 sm:p-5">
-          <h2 className="text-[15px] font-bold mb-3">Top Traded Sectors</h2>
-          {p.topSectors.length === 0 ? <p className="text-mute text-sm">No sector data.</p> : (
-            <div className="space-y-2.5">
-              {p.topSectors.map((sec) => {
-                const max = p.topSectors[0].estValue || 1;
-                return (
-                  <div key={sec.sector}>
-                    <div className="flex justify-between text-[12.5px] mb-1">
-                      <span className="font-medium truncate">{sec.sector}</span>
-                      <span className="text-mute font-mono">{formatCurrency(sec.estValue)}</span>
-                    </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-2)" }}>
-                      <div style={{ width: `${(sec.estValue / max) * 100}%`, height: "100%", background: "var(--accent)" }} />
-                    </div>
-                  </div>
-                );
-              })}
+            {/* 2×2 stat grid */}
+            <div className="grid grid-cols-2 gap-y-5 gap-x-3 mt-6 mb-2 text-center">
+              <SideStat label="Est. Portfolio Value" value={s.estPortfolioValue != null ? formatCurrency(s.estPortfolioValue) : "—"} />
+              <SideStat label="Trade Volume" value={formatCurrency(s.estTotalVolume)} />
+              <SideStat label="Total Trades" value={String(s.totalTrades)} />
+              <SideStat label="Last Traded" value={formatDate(s.lastTraded)} />
             </div>
-          )}
-        </section>
-      </div>
+
+            {/* Facts list — only what we actually have */}
+            <div className="mt-4 pt-4 text-left divide-y" style={{ borderTop: "1px solid var(--border)" }}>
+              <FactRow label="Current Member" value="Yes" valueColor="var(--accent)" />
+              <FactRow label="Chamber" value={p.chamber} />
+              {partyWord && <FactRow label="Party" value={partyWord} />}
+            </div>
+          </div>
+
+          {/* Copy-trades / performance card (real excess-return metrics) */}
+          <div className="card p-5">
+            <h3 className="text-[16px] font-bold text-center mb-3">{firstName(p.name)}&rsquo;s Trade Performance</h3>
+            {avgExcess != null ? (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between text-[13px]">
+                  <span className="text-mute">Avg. excess return / trade</span>
+                  <span className="font-bold tabular" style={{ color: avgExcess >= 0 ? "#10B981" : "#EF4444" }}>
+                    {avgExcess >= 0 ? "+" : ""}{avgExcess}%
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[13px]">
+                  <span className="text-mute">Win rate (beat S&amp;P)</span>
+                  <span className="font-bold tabular">{winRate}%</span>
+                </div>
+                <p className="text-[10.5px] text-faint pt-1">
+                  Excess return vs. the S&amp;P 500 since each trade, averaged across {withEx.length} disclosed trades.
+                </p>
+              </div>
+            ) : (
+              <p className="text-[12px] text-mute">Not enough priced trades to compute performance yet.</p>
+            )}
+            <Link href="/premium" className="btn-primary w-full justify-center mt-4 text-[13px]">
+              Track {firstName(p.name)}&rsquo;s trades
+            </Link>
+          </div>
+        </aside>
+
+        {/* ── RIGHT: content ──────────────────────────────────────────── */}
+        <div className="min-w-0 space-y-6">
+          {/* Section tab bar (sticky) */}
+          <div className="sticky top-2 z-20">
+            <div className="flex gap-1 overflow-x-auto scrollbar-visible rounded-lg p-1" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+              {SECTIONS.map((sec) => (
+                <button key={sec.id} onClick={() => scrollTo(sec.id)}
+                  className="px-3 py-1.5 rounded-md text-[12.5px] font-semibold whitespace-nowrap transition"
+                  style={{ background: active === sec.id ? "var(--accent)" : "transparent", color: active === sec.id ? "#fff" : "var(--text-soft)" }}>
+                  {sec.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Trade Volume by Year + Top Sectors */}
+          <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-5">
+            <section className="card p-4 sm:p-5">
+              <h2 className="text-[15px] font-bold mb-3">Trade Volume by Year</h2>
+              <VolumeByYear data={p.volumeByYear} />
+              <div className="flex items-center gap-4 mt-3 text-[11px] text-mute">
+                <Legend color="#10B981" label="Purchases" /><Legend color="#EF4444" label="Sales" />
+              </div>
+            </section>
+            <section className="card p-4 sm:p-5">
+              <h2 className="text-[15px] font-bold mb-3">Top Traded Sectors</h2>
+              {p.topSectors.length === 0 ? <p className="text-mute text-sm">No sector data.</p> : (
+                <div className="space-y-2.5">
+                  {p.topSectors.map((sec) => {
+                    const max = p.topSectors[0].estValue || 1;
+                    return (
+                      <div key={sec.sector}>
+                        <div className="flex justify-between text-[12.5px] mb-1">
+                          <span className="font-medium truncate">{sec.sector}</span>
+                          <span className="text-mute font-mono">{formatCurrency(sec.estValue)}</span>
+                        </div>
+                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-2)" }}>
+                          <div style={{ width: `${(sec.estValue / max) * 100}%`, height: "100%", background: "var(--accent)" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
 
       {/* Trades */}
       <section id="trades" ref={(el) => { refs.current.trades = el; }}>
@@ -291,6 +340,8 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
         note="Requires FEC campaign-finance data (receipts, outside spending, PAC donors). The FEC has a free API — a separate integration, not yet connected." />
       <NeedsData id="legislation" refs={refs} title="Proposed Legislation"
         note="Requires Congress.gov legislative data (sponsored bills, latest action). Free API available — a separate integration, not yet connected." />
+        </div>
+      </div>
     </div>
   );
 }
@@ -308,6 +359,28 @@ function NeedsData({ id, refs, title, note }: { id: string; refs: React.MutableR
       </div>
     </section>
   );
+}
+
+function SideStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[18px] font-bold tracking-tight tabular leading-none">{value}</div>
+      <div className="text-[10.5px] uppercase tracking-wider text-mute font-semibold mt-1.5">{label}</div>
+    </div>
+  );
+}
+
+function FactRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+  return (
+    <div className="flex items-center justify-between py-2.5 text-[13px]">
+      <span className="text-mute">{label}</span>
+      <span className="font-semibold" style={valueColor ? { color: valueColor } : undefined}>{value}</span>
+    </div>
+  );
+}
+
+function firstName(name: string): string {
+  return (name || "").trim().split(/\s+/)[0] || name;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
