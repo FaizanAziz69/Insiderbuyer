@@ -546,38 +546,51 @@ function VolumeByYear({ data }: { data: YearVol[] }) {
   const ticks = [1, 0.75, 0.5, 0.25, 0].map((f) => max * f);
   const H = 170;
   return (
-    <div className="flex gap-2">
-      {/* Y-axis */}
-      <div className="flex flex-col justify-between text-[10px] text-mute font-mono text-right" style={{ height: H, paddingBottom: 18 }}>
-        {ticks.map((t) => <span key={t}>{axisMoney(t)}</span>)}
+    <div className="flex" style={{ gap: 0 }}>
+      {/* Y-axis: labels aligned to each tick, with tick marks on the axis line */}
+      <div className="relative flex flex-col justify-between text-[10px] text-mute font-mono text-right pr-1.5" style={{ height: H }}>
+        {ticks.map((t) => (
+          <span key={t} style={{ transform: "translateY(-50%)", lineHeight: 1 }}>{axisMoney(t)}</span>
+        ))}
       </div>
-      {/* Bars */}
-      <div className="flex-1 relative" style={{ minWidth: 0 }}>
-        {/* gridlines */}
-        <div className="absolute inset-0 flex flex-col justify-between" style={{ height: H }} aria-hidden>
-          {ticks.map((t) => <div key={t} style={{ borderTop: "1px solid var(--border)", opacity: 0.5 }} />)}
-        </div>
-        <div className="flex items-end gap-2 relative" style={{ height: H, overflowX: "auto" }}>
-          {data.map((d) => (
-            <div key={d.year} className="flex flex-col items-center flex-1 min-w-[34px] relative h-full justify-end"
-              onMouseEnter={() => setHover(d.year)} onMouseLeave={() => setHover(null)}>
-              {hover === d.year && (
-                <div className="absolute -top-1 z-10 text-[11px] rounded px-2 py-1 whitespace-nowrap"
-                  style={{ background: "var(--text)", color: "var(--bg-1)", transform: "translateY(-100%)" }}>
-                  Buy {formatCurrency(d.buyValue)} · Sell {formatCurrency(d.sellValue)}
+      {/* Plot area with an L-shaped axis (vertical Y line + horizontal baseline) */}
+      <div className="flex-1 min-w-0">
+        <div
+          className="relative"
+          style={{ height: H, borderLeft: "1.5px solid var(--border-strong)", borderBottom: "1.5px solid var(--border-strong)" }}
+        >
+          {/* Y tick marks on the axis */}
+          <div className="absolute inset-0 flex flex-col justify-between" aria-hidden>
+            {ticks.map((t) => (
+              <div key={t} style={{ width: 5, height: 0, borderTop: "1px solid var(--border-strong)", marginLeft: -5 }} />
+            ))}
+          </div>
+          {/* Bars */}
+          <div className="flex items-end gap-2 h-full px-2" style={{ overflowX: "auto" }}>
+            {data.map((d) => (
+              <div key={d.year} className="flex flex-col items-center flex-1 min-w-[30px] relative h-full justify-end"
+                onMouseEnter={() => setHover(d.year)} onMouseLeave={() => setHover(null)}>
+                {hover === d.year && (
+                  <div className="absolute -top-1 z-10 text-[11px] rounded px-2 py-1 whitespace-nowrap"
+                    style={{ background: "var(--text)", color: "var(--bg-1)", transform: "translateY(-100%)" }}>
+                    Buy {formatCurrency(d.buyValue)} · Sell {formatCurrency(d.sellValue)}
+                  </div>
+                )}
+                <div className="flex items-end gap-[3px] w-full justify-center h-full">
+                  <div style={{ width: 10, height: `${(d.buyValue / max) * 100}%`, background: "#10B981", borderRadius: "2px 2px 0 0", minHeight: d.buyValue > 0 ? 2 : 0 }} />
+                  <div style={{ width: 10, height: `${(d.sellValue / max) * 100}%`, background: "#EF4444", borderRadius: "2px 2px 0 0", minHeight: d.sellValue > 0 ? 2 : 0 }} />
                 </div>
-              )}
-              <div className="flex items-end gap-0.5 w-full justify-center h-full">
-                <div style={{ width: 12, height: `${(d.buyValue / max) * 100}%`, background: "#10B981", borderRadius: "2px 2px 0 0", minHeight: d.buyValue > 0 ? 2 : 0 }} />
-                <div style={{ width: 12, height: `${(d.sellValue / max) * 100}%`, background: "#EF4444", borderRadius: "2px 2px 0 0", minHeight: d.sellValue > 0 ? 2 : 0 }} />
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-        {/* X-axis year labels */}
-        <div className="flex gap-2 mt-1">
+        {/* X-axis year labels — angled like QuiverQuant */}
+        <div className="flex gap-2 px-2 pt-2" style={{ height: 34 }}>
           {data.map((d) => (
-            <span key={d.year} className="flex-1 min-w-[34px] text-center text-[10px] text-mute font-mono">{d.year}</span>
+            <span key={d.year} className="flex-1 min-w-[30px] text-[10px] text-mute font-mono"
+              style={{ transform: "rotate(-40deg)", transformOrigin: "top center", whiteSpace: "nowrap" }}>
+              {d.year}
+            </span>
           ))}
         </div>
       </div>
