@@ -274,37 +274,40 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
             </div>
           </div>
 
-          {/* Trade Volume by Year + Top Sectors */}
-          <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-5">
-            <section className="card p-4 sm:p-5">
-              <h2 className="text-[15px] font-bold mb-3">Trade Volume by Year</h2>
-              <VolumeByYear data={p.volumeByYear} />
-              <div className="flex items-center gap-4 mt-3 text-[11px] text-mute">
-                <Legend color="#10B981" label="Purchases" /><Legend color="#EF4444" label="Sales" />
-              </div>
-            </section>
-            <section className="card p-4 sm:p-5">
-              <h2 className="text-[15px] font-bold mb-3">Top Traded Sectors</h2>
-              {p.topSectors.length === 0 ? <p className="text-mute text-sm">No sector data.</p> : (
-                <div className="space-y-2.5">
-                  {p.topSectors.map((sec) => {
-                    const max = p.topSectors[0].estValue || 1;
-                    return (
-                      <div key={sec.sector}>
-                        <div className="flex justify-between text-[12.5px] mb-1">
-                          <span className="font-medium truncate">{sec.sector}</span>
-                          <span className="text-mute font-mono">{formatCurrency(sec.estValue)}</span>
-                        </div>
-                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-2)" }}>
-                          <div style={{ width: `${(sec.estValue / max) * 100}%`, height: "100%", background: "var(--accent)" }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+          {/* Trade Volume by Year + inline stats + Top Sectors donut */}
+          <section className="card p-4 sm:p-5">
+            <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-6">
+              {/* Left: bar chart with Y-axis */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-[15px] font-bold">Trade Volume by Year</h2>
+                  <div className="flex items-center gap-3 text-[11px] text-mute">
+                    <Legend color="#10B981" label="Buy" /><Legend color="#EF4444" label="Sell" />
+                  </div>
                 </div>
-              )}
-            </section>
-          </div>
+                <VolumeByYear data={p.volumeByYear} />
+              </div>
+              {/* Right: stats + sectors donut */}
+              <div className="xl:border-l xl:pl-6" style={{ borderColor: "var(--border)" }}>
+                <div className="flex gap-8 mb-4">
+                  <div>
+                    <div className="text-[22px] font-bold tracking-tight tabular">{formatCurrency(s.estTotalVolume)}</div>
+                    <div className="text-[11px] uppercase tracking-wider text-mute font-semibold mt-0.5">Trade Volume</div>
+                  </div>
+                  <div>
+                    <div className="text-[22px] font-bold tracking-tight tabular">{s.totalTrades}</div>
+                    <div className="text-[11px] uppercase tracking-wider text-mute font-semibold mt-0.5">Total Trades</div>
+                  </div>
+                </div>
+                <div className="text-[13px] font-bold mb-2">Top Traded Sectors</div>
+                {p.topSectors.length === 0 ? (
+                  <p className="text-mute text-sm">No sector data.</p>
+                ) : (
+                  <SectorDonut data={p.topSectors} />
+                )}
+              </div>
+            </div>
+          </section>
 
       {/* Trades */}
       <section id="trades" ref={(el) => { refs.current.trades = el; }}>
@@ -467,28 +470,97 @@ function Legend({ color, label }: { color: string; label: string }) {
   return <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />{label}</span>;
 }
 
+/** Compact $ axis label (e.g. 40M, 1.2M, 250K). */
+function axisMoney(n: number): string {
+  if (n >= 1e9) return `${+(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `${+(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
+  if (n >= 1e3) return `${Math.round(n / 1e3)}K`;
+  return `${Math.round(n)}`;
+}
+
 function VolumeByYear({ data }: { data: YearVol[] }) {
   const [hover, setHover] = useState<number | null>(null);
   if (!data.length) return <p className="text-mute text-sm">No trade history.</p>;
-  const max = Math.max(1, ...data.map((d) => Math.max(d.buyValue, d.sellValue)));
+  const rawMax = Math.max(1, ...data.map((d) => Math.max(d.buyValue, d.sellValue)));
+  // Round the axis max up to a "nice" number and build 4 evenly-spaced ticks.
+  const pow = Math.pow(10, Math.floor(Math.log10(rawMax)));
+  const max = Math.ceil(rawMax / pow) * pow;
+  const ticks = [1, 0.75, 0.5, 0.25, 0].map((f) => max * f);
+  const H = 170;
   return (
-    <div className="flex items-end gap-3 h-48 pt-4" style={{ overflowX: "auto" }}>
-      {data.map((d) => (
-        <div key={d.year} className="flex flex-col items-center gap-1.5 flex-1 min-w-[44px] relative"
-          onMouseEnter={() => setHover(d.year)} onMouseLeave={() => setHover(null)}>
-          {hover === d.year && (
-            <div className="absolute -top-1 z-10 text-[11px] rounded px-2 py-1 whitespace-nowrap"
-              style={{ background: "var(--text)", color: "var(--bg-1)", transform: "translateY(-100%)" }}>
-              Buy {formatCurrency(d.buyValue)} · Sell {formatCurrency(d.sellValue)}
-            </div>
-          )}
-          <div className="flex items-end gap-1 w-full justify-center" style={{ height: 150 }}>
-            <div style={{ width: 14, height: `${(d.buyValue / max) * 100}%`, background: "#10B981", borderRadius: "3px 3px 0 0", minHeight: d.buyValue > 0 ? 3 : 0 }} />
-            <div style={{ width: 14, height: `${(d.sellValue / max) * 100}%`, background: "#EF4444", borderRadius: "3px 3px 0 0", minHeight: d.sellValue > 0 ? 3 : 0 }} />
-          </div>
-          <span className="text-[11px] text-mute font-mono">{d.year}</span>
+    <div className="flex gap-2">
+      {/* Y-axis */}
+      <div className="flex flex-col justify-between text-[10px] text-mute font-mono text-right" style={{ height: H, paddingBottom: 18 }}>
+        {ticks.map((t) => <span key={t}>{axisMoney(t)}</span>)}
+      </div>
+      {/* Bars */}
+      <div className="flex-1 relative" style={{ minWidth: 0 }}>
+        {/* gridlines */}
+        <div className="absolute inset-0 flex flex-col justify-between" style={{ height: H }} aria-hidden>
+          {ticks.map((t) => <div key={t} style={{ borderTop: "1px solid var(--border)", opacity: 0.5 }} />)}
         </div>
-      ))}
+        <div className="flex items-end gap-2 relative" style={{ height: H, overflowX: "auto" }}>
+          {data.map((d) => (
+            <div key={d.year} className="flex flex-col items-center flex-1 min-w-[34px] relative h-full justify-end"
+              onMouseEnter={() => setHover(d.year)} onMouseLeave={() => setHover(null)}>
+              {hover === d.year && (
+                <div className="absolute -top-1 z-10 text-[11px] rounded px-2 py-1 whitespace-nowrap"
+                  style={{ background: "var(--text)", color: "var(--bg-1)", transform: "translateY(-100%)" }}>
+                  Buy {formatCurrency(d.buyValue)} · Sell {formatCurrency(d.sellValue)}
+                </div>
+              )}
+              <div className="flex items-end gap-0.5 w-full justify-center h-full">
+                <div style={{ width: 12, height: `${(d.buyValue / max) * 100}%`, background: "#10B981", borderRadius: "2px 2px 0 0", minHeight: d.buyValue > 0 ? 2 : 0 }} />
+                <div style={{ width: 12, height: `${(d.sellValue / max) * 100}%`, background: "#EF4444", borderRadius: "2px 2px 0 0", minHeight: d.sellValue > 0 ? 2 : 0 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* X-axis year labels */}
+        <div className="flex gap-2 mt-1">
+          {data.map((d) => (
+            <span key={d.year} className="flex-1 min-w-[34px] text-center text-[10px] text-mute font-mono">{d.year}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** SPDR-style categorical palette for the sector donut. */
+const DONUT_COLORS = ["#6366F1", "#EC4899", "#F97316", "#22C55E", "#EAB308", "#06B6D4", "#A855F7", "#F43F5E"];
+
+/** Donut/pie of top traded sectors (by trade count) + legend. */
+function SectorDonut({ data }: { data: SectorAgg[] }) {
+  const slices = data.slice(0, 8);
+  const total = slices.reduce((a, s) => a + s.trades, 0) || 1;
+  let acc = 0;
+  const R = 42, C = 50, sw = 16;
+  const circ = 2 * Math.PI * R;
+  return (
+    <div className="flex items-center gap-4">
+      <svg viewBox="0 0 100 100" width="104" height="104" className="flex-shrink-0 -rotate-90">
+        {slices.map((s, i) => {
+          const frac = s.trades / total;
+          const dash = frac * circ;
+          const el = (
+            <circle key={s.sector} cx={C} cy={C} r={R} fill="none"
+              stroke={DONUT_COLORS[i % DONUT_COLORS.length]} strokeWidth={sw}
+              strokeDasharray={`${dash} ${circ - dash}`} strokeDashoffset={-acc * circ} />
+          );
+          acc += frac;
+          return el;
+        })}
+      </svg>
+      <div className="min-w-0 flex-1 space-y-1">
+        {slices.map((s, i) => (
+          <div key={s.sector} className="flex items-center gap-2 text-[12px]">
+            <span className="h-2.5 w-2.5 rounded-sm flex-shrink-0" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
+            <span className="truncate flex-1" style={{ color: DONUT_COLORS[i % DONUT_COLORS.length] }}>{s.sector}</span>
+            <span className="font-mono font-semibold tabular flex-shrink-0">{s.trades}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

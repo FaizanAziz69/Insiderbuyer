@@ -150,15 +150,33 @@ export class CivicService {
     if (this.fecIdCache.has(key)) return this.fecIdCache.get(key)!;
     let id: string | null = null;
     try {
+      // FEC's `q` doesn't fuzzy-match a full "First M. Last" string and uses
+      // nicknames (Jim vs James). Search by SURNAME, then score candidates by
+      // surname + first-name/initial + House/Senate office.
+      const tokens = this.norm(name).split(' ').filter((t) => t.length > 1);
+      const surname = tokens[tokens.length - 1] || this.norm(name);
+      const firstTok = tokens[0] || '';
       const data = await this.fec('/candidates/search/', {
-        q: name,
+        q: surname,
         sort: '-first_file_date',
-        per_page: 20,
+        per_page: 30,
       });
       const results = data?.results || [];
-      const hit =
-        results.find((c: any) => this.nameMatches(name, c.name || '')) || results[0];
-      id = hit?.candidate_id ?? null;
+      const scored = results
+        .map((c: any) => {
+          const ct = this.norm(c.name || '').split(' ').filter(Boolean); // "himes jim"
+          const cLast = ct[0]; // FEC "LAST, FIRST" → first token is surname
+          const cFirst = ct[1] || '';
+          let score = 0;
+          if (cLast === surname) score += 3;
+          if (cFirst && firstTok && cFirst === firstTok) score += 3;
+          else if (cFirst && firstTok && cFirst[0] === firstTok[0]) score += 1;
+          if (c.office === 'H' || c.office === 'S') score += 1;
+          return { c, score };
+        })
+        .filter((x: any) => x.score >= 3) // surname must match
+        .sort((a: any, b: any) => b.score - a.score);
+      id = scored[0]?.c?.candidate_id ?? results[0]?.candidate_id ?? null;
     } catch (e: any) {
       this.log.warn(`FEC candidate search failed: ${e?.response?.status || ''} ${e?.message || e}`);
     }
