@@ -248,4 +248,43 @@ export class CivicService {
       return [];
     }
   }
+
+  /** Outside groups' independent expenditures SUPPORTING vs OPPOSING the member
+   *  (FEC Schedule E), aggregated by the spending committee. This is the real
+   *  data behind "Supporters" / "Opponents". Empty when no key / none filed. */
+  async getOutsideSpending(name: string): Promise<{
+    supporters: Array<{ name: string; amount: number }>;
+    opponents: Array<{ name: string; amount: number }>;
+  }> {
+    const empty = { supporters: [], opponents: [] };
+    if (!this.fecEnabled) return empty;
+    const candidateId = await this.resolveFecCandidate(name);
+    if (!candidateId) return empty;
+    const side = async (ind: 'S' | 'O'): Promise<Array<{ name: string; amount: number }>> => {
+      try {
+        const data = await this.fec('/schedules/schedule_e/', {
+          candidate_id: candidateId,
+          support_oppose_indicator: ind,
+          sort: '-expenditure_amount',
+          per_page: 50,
+        });
+        const agg = new Map<string, number>();
+        for (const r of data?.results || []) {
+          const nm = (r.committee?.name || r.committee?.affiliated_committee_name || '').trim();
+          const amt = Number(r.expenditure_amount) || 0;
+          if (!nm || amt <= 0) continue;
+          agg.set(nm, (agg.get(nm) || 0) + amt);
+        }
+        return Array.from(agg.entries())
+          .map(([n, amount]) => ({ name: n, amount }))
+          .sort((a, b) => b.amount - a.amount)
+          .slice(0, 15);
+      } catch (e: any) {
+        this.log.warn(`FEC schedule_e (${ind}) failed: ${e?.message || e}`);
+        return [];
+      }
+    };
+    const [supporters, opponents] = await Promise.all([side('S'), side('O')]);
+    return { supporters, opponents };
+  }
 }

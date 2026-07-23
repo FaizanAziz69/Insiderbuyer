@@ -40,6 +40,8 @@ interface Profile {
   legislation: Legislation[];
   fundraising: Fundraising | null;
   corporateDonors: { name: string; amount: number }[];
+  supporters: { name: string; amount: number }[];
+  opponents: { name: string; amount: number }[];
 }
 interface Legislation {
   title: string; number: string | null;
@@ -350,16 +352,34 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
             </section>
           )}
 
-          {/* ── SUPPORTERS (no data source) ── */}
+          {/* ── SUPPORTERS (FEC independent expenditures — support) ── */}
           {active === "supporters" && (
-            <NeedsData title="Supporters"
-              note="This is a proprietary QuiverQuant relationship dataset (aligned politicians / groups). There is no public data source for it, so it isn't available here." />
+            p.supporters && p.supporters.length > 0 ? (
+              <section>
+                <h2 className="text-[15px] font-bold uppercase tracking-wide mb-1">Supporters</h2>
+                <p className="text-[12px] text-mute mb-3">Outside groups that spent money <span style={{ color: "#10B981" }} className="font-semibold">supporting</span> this member (FEC independent expenditures).</p>
+                <div className="card p-4"><AmountBars rows={p.supporters} color="#10B981" /></div>
+                <p className="text-[11px] text-faint mt-2">Source: FEC (OpenFEC) — Schedule E independent expenditures, by spending committee.</p>
+              </section>
+            ) : (
+              <NeedsData title="Supporters"
+                note="No outside groups have filed independent expenditures supporting this member (FEC Schedule E), or no FEC match. Nothing to show." />
+            )
           )}
 
-          {/* ── OPPONENTS (no data source) ── */}
+          {/* ── OPPONENTS (FEC independent expenditures — oppose) ── */}
           {active === "opponents" && (
-            <NeedsData title="Opponents"
-              note="This is a proprietary QuiverQuant relationship dataset (opposing politicians / groups). There is no public data source for it, so it isn't available here." />
+            p.opponents && p.opponents.length > 0 ? (
+              <section>
+                <h2 className="text-[15px] font-bold uppercase tracking-wide mb-1">Opponents</h2>
+                <p className="text-[12px] text-mute mb-3">Outside groups that spent money <span style={{ color: "#EF4444" }} className="font-semibold">opposing</span> this member (FEC independent expenditures).</p>
+                <div className="card p-4"><AmountBars rows={p.opponents} color="#EF4444" /></div>
+                <p className="text-[11px] text-faint mt-2">Source: FEC (OpenFEC) — Schedule E independent expenditures, by spending committee.</p>
+              </section>
+            ) : (
+              <NeedsData title="Opponents"
+                note="No outside groups have filed independent expenditures opposing this member (FEC Schedule E), or no FEC match. Nothing to show." />
+            )
           )}
 
           {/* ── CORPORATE DONORS (FEC — real) + fundraising totals ── */}
@@ -486,6 +506,26 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 function Legend({ color, label }: { color: string; label: string }) {
   return <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />{label}</span>;
+}
+
+/** Ranked name → $amount bars (donors / supporters / opponents). */
+function AmountBars({ rows, color = "var(--accent)" }: { rows: { name: string; amount: number }[]; color?: string }) {
+  const max = rows[0]?.amount || 1;
+  return (
+    <div className="space-y-2.5">
+      {rows.map((r) => (
+        <div key={r.name}>
+          <div className="flex justify-between text-[12.5px] mb-1">
+            <span className="truncate pr-2">{r.name}</span>
+            <span className="font-mono text-mute flex-shrink-0">{formatCurrency(r.amount)}</span>
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-2)" }}>
+            <div style={{ width: `${(r.amount / max) * 100}%`, height: "100%", background: color }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /** Compact $ axis label (e.g. 40M, 1.2M, 250K). */

@@ -427,10 +427,13 @@ export class CongressionalService implements OnModuleInit {
 
     // Civic data (Congress.gov legislation + FEC fundraising) — both degrade to
     // null/[] when their API key isn't configured, so the UI shows a connect state.
-    const [legislation, fundraising, corporateDonors] = await Promise.all([
+    const [legislation, fundraising, corporateDonors, outsideSpending] = await Promise.all([
       this.civic.getSponsoredLegislation(first.politicianName).catch(() => []),
       this.civic.getFundraising(first.politicianName).catch(() => null),
       this.civic.getCorporateDonors(first.politicianName).catch(() => []),
+      this.civic
+        .getOutsideSpending(first.politicianName)
+        .catch(() => ({ supporters: [], opponents: [] })),
     ]);
 
     return {
@@ -459,6 +462,8 @@ export class CongressionalService implements OnModuleInit {
       legislation,
       fundraising,
       corporateDonors,
+      supporters: outsideSpending.supporters,
+      opponents: outsideSpending.opponents,
     };
   }
 }
