@@ -17,6 +17,26 @@ function safeDate(s: string | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/** Normalize any Yahoo sector / SEC SIC-description string to one of the 11
+ *  clean GICS sectors (so the Top-Traded-Sectors breakdown reads "Information
+ *  Technology", not "Computer Communications Equipment"). */
+function toGicsSector(raw: string | null | undefined): string {
+  const s = (raw || '').toLowerCase();
+  if (!s) return 'Other';
+  if (/tech|software|semiconductor|computer|internet|information technology|electronic|data process|it services/.test(s)) return 'Information Technology';
+  if (/health|pharma|biotech|medical|drug|hospital|life scien|diagnostic|surgical|therapeut/.test(s)) return 'Health Care';
+  if (/communication|media|telecom|entertain|broadcast|publish|advertis|wireless|cable/.test(s)) return 'Communication Services';
+  if (/bank|financ|insurance|capital market|invest|credit|securit|brokerage|asset manage/.test(s)) return 'Financials';
+  if (/energy|oil|gas|petroleum|coal|drilling|pipeline/.test(s)) return 'Energy';
+  if (/aerospace|defense|machinery|transport|airline|railroad|construc|engineer|manufactur|industrial|logistics|freight/.test(s)) return 'Industrials';
+  if (/consumer defensive|consumer staple|food|beverage|household|tobacco|grocery|personal product|drug store/.test(s)) return 'Consumer Staples';
+  if (/consumer cyclical|consumer discretion|retail|auto|apparel|restaurant|travel|leisure|store|hotel|casino|variety|footwear|homebuild|specialty/.test(s)) return 'Consumer Discretionary';
+  if (/util|electric power|electric services|water supply|natural gas distribut/.test(s)) return 'Utilities';
+  if (/material|metal|mining|gold|silver|copper|steel|chemical|paper|forest|aluminum|fertilizer/.test(s)) return 'Materials';
+  if (/real estate|reit|realty/.test(s)) return 'Real Estate';
+  return 'Other';
+}
+
 @Injectable()
 export class CongressionalService implements OnModuleInit {
   private readonly logger = new Logger(CongressionalService.name);
@@ -284,7 +304,7 @@ export class CongressionalService implements OnModuleInit {
     }
     const sectorAgg = new Map<string, { trades: number; estValue: number }>();
     for (const ta of tickerAgg.values()) {
-      const sec = sectorByTicker.get(ta.ticker) || 'Other';
+      const sec = toGicsSector(sectorByTicker.get(ta.ticker));
       const e = sectorAgg.get(sec) || { trades: 0, estValue: 0 };
       e.trades += ta.buys + ta.sells;
       e.estValue += ta.estValue;
@@ -407,9 +427,10 @@ export class CongressionalService implements OnModuleInit {
 
     // Civic data (Congress.gov legislation + FEC fundraising) — both degrade to
     // null/[] when their API key isn't configured, so the UI shows a connect state.
-    const [legislation, fundraising] = await Promise.all([
+    const [legislation, fundraising, corporateDonors] = await Promise.all([
       this.civic.getSponsoredLegislation(first.politicianName).catch(() => []),
       this.civic.getFundraising(first.politicianName).catch(() => null),
+      this.civic.getCorporateDonors(first.politicianName).catch(() => []),
     ]);
 
     return {
@@ -437,6 +458,7 @@ export class CongressionalService implements OnModuleInit {
       trades,
       legislation,
       fundraising,
+      corporateDonors,
     };
   }
 }

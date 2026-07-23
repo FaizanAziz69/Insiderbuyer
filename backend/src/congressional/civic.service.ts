@@ -211,4 +211,41 @@ export class CivicService {
       return null;
     }
   }
+
+  /** Top corporate / PAC donors to the member's principal campaign committee
+   *  (FEC Schedule A, non-individual contributions), aggregated by contributor.
+   *  Real "Corporate Donors" data. Empty when no key / no committee. */
+  async getCorporateDonors(name: string): Promise<Array<{ name: string; amount: number }>> {
+    if (!this.fecEnabled) return [];
+    const candidateId = await this.resolveFecCandidate(name);
+    if (!candidateId) return [];
+    try {
+      const cData = await this.fec(`/candidate/${candidateId}/committees/`, { per_page: 20 });
+      const committees = cData?.results || [];
+      const principal =
+        committees.find((c: any) => c.designation === 'P') || committees[0];
+      if (!principal?.committee_id) return [];
+      const sa = await this.fec('/schedules/schedule_a/', {
+        committee_id: principal.committee_id,
+        is_individual: false,
+        sort: '-contribution_receipt_amount',
+        per_page: 50,
+      });
+      const agg = new Map<string, number>();
+      for (const r of sa?.results || []) {
+        const nm = (r.contributor_name || '').trim();
+        const amt = Number(r.contribution_receipt_amount) || 0;
+        // Skip party/self transfers and refunds — keep real outside PAC money.
+        if (!nm || amt <= 0) continue;
+        agg.set(nm, (agg.get(nm) || 0) + amt);
+      }
+      return Array.from(agg.entries())
+        .map(([n, amount]) => ({ name: n, amount }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 15);
+    } catch (e: any) {
+      this.log.warn(`FEC corporate donors failed: ${e?.message || e}`);
+      return [];
+    }
+  }
 }

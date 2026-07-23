@@ -39,6 +39,7 @@ interface Profile {
   trades: PolTrade[];
   legislation: Legislation[];
   fundraising: Fundraising | null;
+  corporateDonors: { name: string; amount: number }[];
 }
 interface Legislation {
   title: string; number: string | null;
@@ -55,8 +56,9 @@ const SECTIONS = [
   { id: "trades", label: "Trades" },
   { id: "portfolio", label: "Live Stock Portfolio" },
   { id: "networth", label: "Net Worth" },
-  { id: "disclosed", label: "Disclosed Holdings" },
-  { id: "fundraising", label: "Fundraising" },
+  { id: "supporters", label: "Supporters" },
+  { id: "opponents", label: "Opponents" },
+  { id: "donors", label: "Corporate Donors" },
   { id: "legislation", label: "Proposed Legislation" },
 ];
 
@@ -348,30 +350,52 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
             </section>
           )}
 
-          {/* ── DISCLOSED HOLDINGS (needs data) ── */}
-          {active === "disclosed" && (
-            <NeedsData title="Disclosed Holdings"
-              note="Requires annual House/Senate Financial Disclosure statements (assets, real property, options with valuation ranges). No free machine-readable source is wired yet." />
+          {/* ── SUPPORTERS (no data source) ── */}
+          {active === "supporters" && (
+            <NeedsData title="Supporters"
+              note="This is a proprietary QuiverQuant relationship dataset (aligned politicians / groups). There is no public data source for it, so it isn't available here." />
           )}
 
-          {/* ── FUNDRAISING (FEC) ── */}
-          {active === "fundraising" && (
-            p.fundraising ? (
-              <section>
-                <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">
-                  Fundraising{p.fundraising.cycle ? ` · ${p.fundraising.cycle} cycle` : ""}
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* ── OPPONENTS (no data source) ── */}
+          {active === "opponents" && (
+            <NeedsData title="Opponents"
+              note="This is a proprietary QuiverQuant relationship dataset (opposing politicians / groups). There is no public data source for it, so it isn't available here." />
+          )}
+
+          {/* ── CORPORATE DONORS (FEC — real) + fundraising totals ── */}
+          {active === "donors" && (
+            <section>
+              <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Corporate Donors &amp; Fundraising</h2>
+              {p.fundraising && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                   <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Total Receipts</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.totalReceipts != null ? formatCurrency(p.fundraising.totalReceipts) : "—"}</div></div>
                   <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Total Spending</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.totalDisbursements != null ? formatCurrency(p.fundraising.totalDisbursements) : "—"}</div></div>
                   <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Cash on Hand</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.cashOnHand != null ? formatCurrency(p.fundraising.cashOnHand) : "—"}</div></div>
                 </div>
-                <p className="text-[11px] text-faint mt-2">Source: FEC (OpenFEC) — campaign-committee totals for the most recent cycle.</p>
-              </section>
-            ) : (
-              <NeedsData title="Fundraising"
-                note="Live FEC campaign-finance data activates once an FEC_API_KEY (free, from api.data.gov) is set. No match / no key yet." />
-            )
+              )}
+              {p.corporateDonors && p.corporateDonors.length > 0 ? (
+                <div className="card p-4">
+                  <div className="text-[13px] font-bold mb-3">Top PAC / Committee Donors</div>
+                  <div className="space-y-2.5">
+                    {p.corporateDonors.map((c) => {
+                      const max = p.corporateDonors[0].amount || 1;
+                      return (
+                        <div key={c.name}>
+                          <div className="flex justify-between text-[12.5px] mb-1"><span className="truncate pr-2">{c.name}</span><span className="font-mono text-mute flex-shrink-0">{formatCurrency(c.amount)}</span></div>
+                          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-2)" }}><div style={{ width: `${(c.amount / max) * 100}%`, height: "100%", background: "var(--accent)" }} /></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : p.fundraising ? (
+                <p className="text-[12.5px] text-mute">No itemized PAC/committee contributions found for this committee.</p>
+              ) : (
+                <NeedsData title="Corporate Donors"
+                  note="Live FEC campaign-finance data activates once an FEC_API_KEY (free, from api.data.gov) is set. No match / no key yet." />
+              )}
+              <p className="text-[11px] text-faint mt-2">Source: FEC (OpenFEC) — committee totals + itemized non-individual (PAC/committee) contributions.</p>
+            </section>
           )}
 
           {/* ── PROPOSED LEGISLATION (Congress.gov) ── */}
