@@ -140,10 +140,37 @@ export default function InsiderHotStocksPage() {
     },
     {
       key: "iqs",
-      label: "Insider Score",
+      label: "Insider Score (v2)",
       align: "center",
       sortValue: (r) => r.iqs ?? null,
       render: (r) => <IqsScoreCell iqs={r.iqs} />,
+    },
+    {
+      key: "iqsV1",
+      label: "v1 (old)",
+      align: "center",
+      sortValue: (r) => r.iqsV1 ?? null,
+      render: (r) =>
+        r.iqsV1 == null ? (
+          <span className="text-faint">—</span>
+        ) : (
+          <span className="inline-flex flex-col items-center leading-tight">
+            <span className="font-bold tabular text-[15px]" style={{ color: "var(--text-soft)" }}>
+              {Math.round(r.iqsV1)}
+            </span>
+            {(() => {
+              const d = Math.round(r.iqs) - Math.round(r.iqsV1);
+              return (
+                <span
+                  className="text-[10px] font-mono"
+                  style={{ color: d > 0 ? "#10B981" : d < 0 ? "#EF4444" : "var(--text-mute)" }}
+                >
+                  {d > 0 ? "+" : ""}{d}
+                </span>
+              );
+            })()}
+          </span>
+        ),
     },
     {
       key: "upside",

@@ -8,7 +8,8 @@ export interface RankingRow {
   sector: string | null;
   marketCap: number | null;
   lastPrice: number | null;
-  iqs: number; // 0–100 composite Insider Score
+  iqs: number; // 0–100 composite Insider Score (v2)
+  iqsV1?: number | null; // legacy v1 score, for comparison
   insiderWeight: number;
   transactionWeight: number;
   convictionWeight: number;

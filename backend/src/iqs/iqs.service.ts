@@ -38,7 +38,8 @@ export interface RankingRow {
   sector: string | null;
   marketCap: number | null;
   lastPrice: number | null;
-  iqs: number; // 0–100
+  iqs: number; // 0–100 (v2 composite)
+  iqsV1: number | null; // legacy v1 score, for comparison
   insiderWeight: number;
   transactionWeight: number;
   convictionWeight: number;
@@ -380,6 +381,21 @@ export class IqsService {
       const px = Number(liveQ?.price ?? lastPrice);
       if (hi > lo && px > 0) marketTimingWeight = (1 - clamp01((px - lo) / (hi - lo))) * 100;
 
+      // ── Legacy v1 score (insider-only) — kept for A/B comparison. ───────
+      // v1 = log(1 + A + B + C + D) scaled, where A=value/cap, B=log(1+buyers),
+      // C=roleValue/cap, D=avg holding-change %.
+      const vA = safeCap > 0 ? totalPurchaseValue / safeCap : 0;
+      const vB = Math.log(1 + buyers.size);
+      const vC = safeCap > 0 ? roleWeightedValue / safeCap : 0;
+      const vD = holdingChangePcts.length
+        ? holdingChangePcts.reduce((a, b) => a + b, 0) / holdingChangePcts.length
+        : 0;
+      const IQS_V1_LOG_SCALE = 6.5; // original v1 scaling divisor
+      const iqsV1 = +Math.min(
+        99,
+        (Math.log(1 + vA + vB + vC + vD) / IQS_V1_LOG_SCALE) * 100,
+      ).toFixed(2);
+
       const round2 = (x: number | null): number | null =>
         x == null ? null : +x.toFixed(2);
 
@@ -389,6 +405,7 @@ export class IqsService {
       const payload: Partial<IqsScore> = {
         companyId: company.id,
         asOfDate: today,
+        iqsV1,
         // v2 components + sub-factors (explainability)
         buyingScore: round2(buyingScore),
         sectorSentiment: round2(sectorScore),
@@ -453,6 +470,7 @@ export class IqsService {
         'c."marketCap" as "marketCap"',
         'c."lastPrice" as "lastPrice"',
         's.iqs as iqs',
+        's."iqsV1" as "iqsV1"',
         's."insiderWeight" as "insiderWeight"',
         's."transactionWeight" as "transactionWeight"',
         's."convictionWeight" as "convictionWeight"',
@@ -528,6 +546,7 @@ export class IqsService {
       marketCap: sanitizedMarketCap(r.marketCap, Number(r.totalPurchaseValue) || 0),
       lastPrice: r.lastPrice !== null ? Number(r.lastPrice) : null,
       iqs: Number(r.iqs),
+      iqsV1: r.iqsV1 != null ? Number(r.iqsV1) : null,
       insiderWeight: Number(r.insiderWeight),
       transactionWeight: Number(r.transactionWeight),
       convictionWeight: Number(r.convictionWeight),

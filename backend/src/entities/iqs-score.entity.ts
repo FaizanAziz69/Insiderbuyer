@@ -62,6 +62,11 @@ export class IqsScore {
   @Column({ type: 'numeric', precision: 18, scale: 8 })
   iqs: number;
 
+  /** The previous (v1) insider-only score — log(1 + A+B+C+D) scaled to 0–99 —
+   *  kept alongside the v2 composite (`iqs`) for side-by-side comparison. */
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  iqsV1: number | null;
+
   // ── IQ Score v2 components (each 0–100, null when no data) ──────────────
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
   buyingScore: number | null;
