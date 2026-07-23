@@ -4,6 +4,7 @@ import { CongressionalTransaction } from '../entities/congressional-transaction.
 import { Company } from '../entities/company.entity';
 import { CongressionalController } from './congressional.controller';
 import { CongressionalService } from './congressional.service';
+import { CivicService } from './civic.service';
 import { PhotosService } from './photos.service';
 import { FmpModule } from '../fmp/fmp.module';
 import { MarketStatsModule } from '../market-stats/market-stats.module';
@@ -15,7 +16,7 @@ import { MarketStatsModule } from '../market-stats/market-stats.module';
     MarketStatsModule,
   ],
   controllers: [CongressionalController],
-  providers: [CongressionalService, PhotosService],
+  providers: [CongressionalService, CivicService, PhotosService],
   exports: [CongressionalService, PhotosService],
 })
 export class CongressionalModule {}

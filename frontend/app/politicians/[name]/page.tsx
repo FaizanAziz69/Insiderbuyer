@@ -37,6 +37,18 @@ interface Profile {
   portfolio: Holding[];
   portfolioSeries: { date: string; value: number }[];
   trades: PolTrade[];
+  legislation: Legislation[];
+  fundraising: Fundraising | null;
+}
+interface Legislation {
+  title: string; number: string | null;
+  introducedDate: string | null; latestActionDate: string | null;
+  latestAction: string | null; url: string | null;
+}
+interface Fundraising {
+  cycle: number | null; totalReceipts: number | null;
+  totalDisbursements: number | null; cashOnHand: number | null;
+  topContributors: { name: string; amount: number }[];
 }
 
 const SECTIONS = [
@@ -336,10 +348,70 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
       {/* Honest "needs data source" sections */}
       <NeedsData id="disclosed" refs={refs} title="Disclosed Holdings"
         note="Requires annual House/Senate Financial Disclosure statements (assets, real property, options with valuation ranges). No free machine-readable source is wired yet." />
-      <NeedsData id="fundraising" refs={refs} title="Fundraising & Outside Spending"
-        note="Requires FEC campaign-finance data (receipts, outside spending, PAC donors). The FEC has a free API — a separate integration, not yet connected." />
-      <NeedsData id="legislation" refs={refs} title="Proposed Legislation"
-        note="Requires Congress.gov legislative data (sponsored bills, latest action). Free API available — a separate integration, not yet connected." />
+      {/* Fundraising (FEC) */}
+      {p.fundraising ? (
+        <section id="fundraising" ref={(el) => { refs.current.fundraising = el; }}>
+          <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">
+            Fundraising{p.fundraising.cycle ? ` · ${p.fundraising.cycle} cycle` : ""}
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Total Receipts</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.totalReceipts != null ? formatCurrency(p.fundraising.totalReceipts) : "—"}</div></div>
+            <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Total Spending</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.totalDisbursements != null ? formatCurrency(p.fundraising.totalDisbursements) : "—"}</div></div>
+            <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Cash on Hand</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.cashOnHand != null ? formatCurrency(p.fundraising.cashOnHand) : "—"}</div></div>
+          </div>
+          {p.fundraising.topContributors.length > 0 && (
+            <div className="card p-4">
+              <div className="text-[13px] font-bold mb-2">Top Contributors (by employer)</div>
+              <div className="space-y-2">
+                {p.fundraising.topContributors.map((c) => {
+                  const max = p.fundraising!.topContributors[0].amount || 1;
+                  return (
+                    <div key={c.name}>
+                      <div className="flex justify-between text-[12.5px] mb-1"><span className="truncate">{c.name}</span><span className="font-mono text-mute">{formatCurrency(c.amount)}</span></div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-2)" }}><div style={{ width: `${(c.amount / max) * 100}%`, height: "100%", background: "var(--accent)" }} /></div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <p className="text-[11px] text-faint mt-2">Source: FEC (OpenFEC). Campaign-committee totals for the most recent cycle.</p>
+        </section>
+      ) : (
+        <NeedsData id="fundraising" refs={refs} title="Fundraising"
+          note="Live FEC campaign-finance data activates once an FEC_API_KEY (free, from api.data.gov) is set. No match / no key yet." />
+      )}
+
+      {/* Proposed Legislation (Congress.gov) */}
+      {p.legislation && p.legislation.length > 0 ? (
+        <section id="legislation" ref={(el) => { refs.current.legislation = el; }}>
+          <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Proposed Legislation</h2>
+          <div className="card overflow-hidden divide-y" style={{ borderColor: "var(--border)" }}>
+            {p.legislation.map((b, i) => (
+              <a key={i} href={b.url || "#"} target="_blank" rel="noopener noreferrer"
+                className="block p-3.5 hover:bg-[var(--accent-soft)] transition">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[13.5px] font-semibold leading-snug">{b.title}</div>
+                    <div className="text-[11px] text-mute mt-0.5">
+                      {b.number && <span className="font-mono">{b.number}</span>}
+                      {b.introducedDate && <span> · Introduced {formatDate(b.introducedDate)}</span>}
+                    </div>
+                  </div>
+                  {b.latestActionDate && (
+                    <span className="text-[11px] text-mute whitespace-nowrap flex-shrink-0">{formatDate(b.latestActionDate)}</span>
+                  )}
+                </div>
+                {b.latestAction && <div className="text-[11.5px] text-soft mt-1 line-clamp-1">{b.latestAction}</div>}
+              </a>
+            ))}
+          </div>
+          <p className="text-[11px] text-faint mt-2">Source: Congress.gov — sponsored legislation.</p>
+        </section>
+      ) : (
+        <NeedsData id="legislation" refs={refs} title="Proposed Legislation"
+          note="Live Congress.gov sponsored-legislation activates once a CONGRESS_API_KEY (free, from api.congress.gov) is set. No match / no key yet." />
+      )}
         </div>
       </div>
     </div>

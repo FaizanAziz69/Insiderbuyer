@@ -5,6 +5,7 @@ import { CongressionalTransaction } from '../entities/congressional-transaction.
 import { Company } from '../entities/company.entity';
 import { CONGRESS_SEED } from './congressional-seed';
 import { PhotosService } from './photos.service';
+import { CivicService } from './civic.service';
 import { FmpService } from '../fmp/fmp.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 
@@ -29,6 +30,7 @@ export class CongressionalService implements OnModuleInit {
     private readonly photos: PhotosService,
     private readonly fmp: FmpService,
     private readonly marketStats: MarketStatsService,
+    private readonly civic: CivicService,
   ) {}
 
   async onModuleInit() {
@@ -403,6 +405,13 @@ export class CongressionalService implements OnModuleInit {
       allocation: portTotal > 0 ? +((h.estValue / portTotal) * 100).toFixed(2) : 0,
     }));
 
+    // Civic data (Congress.gov legislation + FEC fundraising) — both degrade to
+    // null/[] when their API key isn't configured, so the UI shows a connect state.
+    const [legislation, fundraising] = await Promise.all([
+      this.civic.getSponsoredLegislation(first.politicianName).catch(() => []),
+      this.civic.getFundraising(first.politicianName).catch(() => null),
+    ]);
+
     return {
       name: first.politicianName,
       chamber: first.chamber,
@@ -426,6 +435,8 @@ export class CongressionalService implements OnModuleInit {
       portfolio: portfolioWithAlloc,
       portfolioSeries,
       trades,
+      legislation,
+      fundraising,
     };
   }
 }
