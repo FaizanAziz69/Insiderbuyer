@@ -98,7 +98,9 @@ export class CongressionalService implements OnModuleInit {
    *  so a failed insert never wipes the table (the original empty-table bug). */
   async refreshFromFmp(): Promise<boolean> {
     if (!this.fmp.enabled) return false;
-    const trades = await this.fmp.getCongressional(2);
+    // Pull deep pagination — FMP's latest feed paginates back in time, so more
+    // pages recover older disclosures (multi-year history) for the volume chart.
+    const trades = await this.fmp.getCongressional(40);
     if (!trades.length) return false;
     const seen = new Set<string>();
     const rows = trades
