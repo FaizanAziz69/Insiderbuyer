@@ -537,64 +537,54 @@ function axisMoney(n: number): string {
 }
 
 function VolumeByYear({ data }: { data: YearVol[] }) {
-  const [hover, setHover] = useState<number | null>(null);
   if (!data.length) return <p className="text-mute text-sm">No trade history.</p>;
   const rawMax = Math.max(1, ...data.map((d) => Math.max(d.buyValue, d.sellValue)));
-  // Round the axis max up to a "nice" number and build 4 evenly-spaced ticks.
   const pow = Math.pow(10, Math.floor(Math.log10(rawMax)));
   const max = Math.ceil(rawMax / pow) * pow;
-  const ticks = [1, 0.75, 0.5, 0.25, 0].map((f) => max * f);
-  const H = 170;
+
+  // SVG geometry (crisp axis + labels, no clipping).
+  const W = 760, H = 260;
+  const mL = 52, mR = 10, mT = 10, mB = 48;
+  const plotW = W - mL - mR, plotH = H - mT - mB;
+  const x0 = mL, y0 = mT, yBase = mT + plotH;
+  const n = data.length;
+  const groupW = plotW / n;
+  const barW = Math.min(11, groupW * 0.32);
+  const y = (v: number) => yBase - (v / max) * plotH;
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => max * f);
+
   return (
-    <div className="flex" style={{ gap: 0 }}>
-      {/* Y-axis: labels aligned to each tick, with tick marks on the axis line */}
-      <div className="relative flex flex-col justify-between text-[10px] text-mute font-mono text-right pr-1.5" style={{ height: H }}>
-        {ticks.map((t) => (
-          <span key={t} style={{ transform: "translateY(-50%)", lineHeight: 1 }}>{axisMoney(t)}</span>
-        ))}
-      </div>
-      {/* Plot area with an L-shaped axis (vertical Y line + horizontal baseline) */}
-      <div className="flex-1 min-w-0">
-        <div
-          className="relative"
-          style={{ height: H, borderLeft: "1.5px solid var(--border-strong)", borderBottom: "1.5px solid var(--border-strong)" }}
-        >
-          {/* Y tick marks on the axis */}
-          <div className="absolute inset-0 flex flex-col justify-between" aria-hidden>
-            {ticks.map((t) => (
-              <div key={t} style={{ width: 5, height: 0, borderTop: "1px solid var(--border-strong)", marginLeft: -5 }} />
-            ))}
-          </div>
-          {/* Bars */}
-          <div className="flex items-end gap-2 h-full px-2" style={{ overflowX: "auto" }}>
-            {data.map((d) => (
-              <div key={d.year} className="flex flex-col items-center flex-1 min-w-[30px] relative h-full justify-end"
-                onMouseEnter={() => setHover(d.year)} onMouseLeave={() => setHover(null)}>
-                {hover === d.year && (
-                  <div className="absolute -top-1 z-10 text-[11px] rounded px-2 py-1 whitespace-nowrap"
-                    style={{ background: "var(--text)", color: "var(--bg-1)", transform: "translateY(-100%)" }}>
-                    Buy {formatCurrency(d.buyValue)} · Sell {formatCurrency(d.sellValue)}
-                  </div>
-                )}
-                <div className="flex items-end gap-[3px] w-full justify-center h-full">
-                  <div style={{ width: 10, height: `${(d.buyValue / max) * 100}%`, background: "#10B981", borderRadius: "2px 2px 0 0", minHeight: d.buyValue > 0 ? 2 : 0 }} />
-                  <div style={{ width: 10, height: `${(d.sellValue / max) * 100}%`, background: "#EF4444", borderRadius: "2px 2px 0 0", minHeight: d.sellValue > 0 ? 2 : 0 }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {/* X-axis year labels — angled like QuiverQuant */}
-        <div className="flex gap-2 px-2 pt-2" style={{ height: 34 }}>
-          {data.map((d) => (
-            <span key={d.year} className="flex-1 min-w-[30px] text-[10px] text-mute font-mono"
-              style={{ transform: "rotate(-40deg)", transformOrigin: "top center", whiteSpace: "nowrap" }}>
-              {d.year}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Trade volume by year"
+      style={{ display: "block", fontFamily: "var(--font-mono, monospace)" }}>
+      {/* Y grid ticks + labels */}
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={x0 - 5} x2={x0} y1={y(t)} y2={y(t)} stroke="var(--border-strong)" strokeWidth="1" />
+          <text x={x0 - 9} y={y(t) + 3.5} textAnchor="end" fontSize="12" fill="var(--text-mute)">{axisMoney(t)}</text>
+        </g>
+      ))}
+      {/* Axis lines (L-shape) */}
+      <line x1={x0} x2={x0} y1={y0} y2={yBase} stroke="var(--border-strong)" strokeWidth="1.5" />
+      <line x1={x0} x2={W - mR} y1={yBase} y2={yBase} stroke="var(--border-strong)" strokeWidth="1.5" />
+      {/* Bars + year labels */}
+      {data.map((d, i) => {
+        const cx = x0 + groupW * (i + 0.5);
+        const bH = Math.max(d.buyValue > 0 ? 2 : 0, (d.buyValue / max) * plotH);
+        const sH = Math.max(d.sellValue > 0 ? 2 : 0, (d.sellValue / max) * plotH);
+        return (
+          <g key={d.year}>
+            <rect x={cx - barW - 1.5} y={yBase - bH} width={barW} height={bH} rx="2" fill="#10B981">
+              <title>{`${d.year} · Buy ${formatCurrency(d.buyValue)}`}</title>
+            </rect>
+            <rect x={cx + 1.5} y={yBase - sH} width={barW} height={sH} rx="2" fill="#EF4444">
+              <title>{`${d.year} · Sell ${formatCurrency(d.sellValue)}`}</title>
+            </rect>
+            <text x={cx} y={yBase + 16} textAnchor="end" fontSize="12" fill="var(--text-mute)"
+              transform={`rotate(-40 ${cx} ${yBase + 16})`}>{d.year}</text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 
