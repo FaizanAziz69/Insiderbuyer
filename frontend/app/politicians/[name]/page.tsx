@@ -1,8 +1,8 @@
 "use client";
-import { use, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, Lock } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency, formatDate } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
@@ -15,6 +15,7 @@ interface PolTrade {
   amountMax: number | null;
   transactionDate: string;
   reportedDate: string | null;
+  excessReturn: number | null;
 }
 interface YearVol { year: number; buyValue: number; sellValue: number }
 interface SectorAgg { sector: string; trades: number; estValue: number }
@@ -25,22 +26,27 @@ interface Profile {
   party: string | null;
   photoUrl: string | null;
   stats: {
-    totalTrades: number;
-    buyCount: number;
-    sellCount: number;
-    buyValue: number;
-    sellValue: number;
-    estTotalVolume: number;
-    distinctTickers: number;
-    firstTraded: string;
-    lastTraded: string;
+    totalTrades: number; buyCount: number; sellCount: number;
+    buyValue: number; sellValue: number; estTotalVolume: number;
+    estPortfolioValue: number | null;
+    distinctTickers: number; firstTraded: string; lastTraded: string;
   };
   topTickers: { ticker: string; company: string; buys: number; sells: number; estValue: number; trades: number }[];
   volumeByYear: YearVol[];
   topSectors: SectorAgg[];
   portfolio: Holding[];
+  portfolioSeries: { date: string; value: number }[];
   trades: PolTrade[];
 }
+
+const SECTIONS = [
+  { id: "trades", label: "Trades" },
+  { id: "portfolio", label: "Live Stock Portfolio" },
+  { id: "networth", label: "Net Worth" },
+  { id: "disclosed", label: "Disclosed Holdings" },
+  { id: "fundraising", label: "Fundraising" },
+  { id: "legislation", label: "Proposed Legislation" },
+];
 
 function amountRange(min: number | null, max: number | null): string {
   if (min == null && max == null) return "—";
@@ -57,6 +63,25 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
     { revalidateOnFocus: false },
   );
   const p = data?.profile || null;
+  const [active, setActive] = useState("trades");
+  const refs = useRef<Record<string, HTMLElement | null>>({});
+
+  useEffect(() => {
+    if (!p) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (vis[0]) setActive(vis[0].target.id);
+      },
+      { rootMargin: "-30% 0px -60% 0px", threshold: [0, 0.25, 0.5] },
+    );
+    SECTIONS.forEach((s) => { const el = refs.current[s.id]; if (el) obs.observe(el); });
+    return () => obs.disconnect();
+  }, [p]);
+
+  const scrollTo = (id: string) => {
+    refs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   if (isLoading) {
     return (
@@ -71,7 +96,7 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
     return (
       <div className="w-full">
         <Link href="/congressional-trades" className="text-accent text-sm inline-flex items-center gap-1 mb-6">
-          <ArrowLeft className="h-4 w-4" /> Back to congressional trades
+          <ArrowLeft className="h-4 w-4" /> Back to Congress Trading
         </Link>
         <div className="card p-12 text-center text-mute">No disclosures found for &ldquo;{decoded}&rdquo;.</div>
       </div>
@@ -79,8 +104,8 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
   }
 
   const s = p.stats;
-  const partyWord = p.party?.startsWith("R") ? "Republican" : p.party?.startsWith("D") ? "Democrat" : null;
-  const subtitle = [partyWord, p.chamber].filter(Boolean).join(" · ");
+  const partyWord = p.party?.startsWith("R") ? "Republican" : p.party?.startsWith("D") ? "Democratic" : null;
+  const subtitle = [partyWord, p.chamber].filter(Boolean).join(" / ");
 
   const tradeCols: Column<PolTrade>[] = [
     {
@@ -95,22 +120,13 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
               <span className="block text-[11px] text-mute truncate max-w-[150px]">{r.company}</span>
             </span>
           </Link>
-        ) : (
-          <span className="text-mute">{r.company}</span>
-        ),
+        ) : (<span className="text-mute">{r.company}</span>),
     },
     {
-      key: "transaction",
-      label: "Transaction",
-      align: "center",
+      key: "transaction", label: "Transaction", align: "center",
       render: (r) => (
-        <span
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-bold uppercase"
-          style={{
-            background: r.action === "Buy" ? "rgba(16,185,129,0.14)" : "rgba(239,68,68,0.14)",
-            color: r.action === "Buy" ? "#10B981" : "#EF4444",
-          }}
-        >
+        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-bold uppercase"
+          style={{ background: r.action === "Buy" ? "rgba(16,185,129,0.14)" : "rgba(239,68,68,0.14)", color: r.action === "Buy" ? "#10B981" : "#EF4444" }}>
           {r.action === "Buy" ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
           {r.action === "Buy" ? "Purchase" : "Sale"}
         </span>
@@ -119,12 +135,22 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
     { key: "filed", label: "Filed", align: "right", render: (r) => (r.reportedDate ? formatDate(r.reportedDate) : "—") },
     { key: "traded", label: "Traded", align: "right", sortValue: (r) => new Date(r.transactionDate).getTime(), render: (r) => formatDate(r.transactionDate) },
     { key: "amount", label: "Amount", align: "right", render: (r) => amountRange(r.amountMin, r.amountMax) },
+    {
+      key: "excess", label: "Excess Return", align: "right",
+      sortValue: (r) => r.excessReturn ?? -9999,
+      render: (r) =>
+        r.excessReturn == null ? <span className="text-faint">—</span> : (
+          <span title="Estimated excess return of the underlying stock vs. the S&P 500 since the transaction"
+            className="font-semibold tabular" style={{ color: r.excessReturn >= 0 ? "#10B981" : "#EF4444" }}>
+            {r.excessReturn >= 0 ? "+" : ""}{r.excessReturn.toFixed(1)}%
+          </span>
+        ),
+    },
   ];
 
   const portCols: Column<Holding>[] = [
     {
-      key: "ticker",
-      label: "Ticker",
+      key: "ticker", label: "Ticker",
       render: (r) => (
         <Link href={`/companies/${r.ticker}`} className="flex items-center gap-2 group">
           <CompanyLogo ticker={r.ticker} name={r.company} size={22} />
@@ -132,12 +158,9 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
         </Link>
       ),
     },
-    { key: "holding", label: "Est. Current Holding", align: "right", sortValue: (r) => r.estValue, render: (r) => formatCurrency(r.estValue) },
+    { key: "holding", label: "Current Holding", align: "right", sortValue: (r) => r.estValue, render: (r) => formatCurrency(r.estValue) },
     {
-      key: "alloc",
-      label: "Portfolio Allocation",
-      align: "right",
-      sortValue: (r) => r.allocation,
+      key: "alloc", label: "Portfolio Allocation", align: "right", sortValue: (r) => r.allocation,
       render: (r) => (
         <span className="inline-flex items-center gap-2 justify-end">
           <span className="hidden sm:block h-1.5 w-16 rounded-full overflow-hidden" style={{ background: "var(--bg-2)" }}>
@@ -152,51 +175,56 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
   return (
     <div className="w-full space-y-6">
       <Link href="/congressional-trades" className="text-accent text-[13px] inline-flex items-center gap-1">
-        <ArrowLeft className="h-4 w-4" /> All congressional trades
+        <ArrowLeft className="h-4 w-4" /> Congress Trading
       </Link>
 
-      {/* ── Header + metrics row (QuiverQuant layout) ───────────────────── */}
+      {/* Header + metrics */}
       <header className="card p-5 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           {p.photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={p.photoUrl} alt={p.name} className="rounded-full object-cover flex-shrink-0" style={{ width: 72, height: 72 }} />
           ) : (
-            <div className="flex items-center justify-center rounded-full flex-shrink-0 text-[24px] font-bold" style={{ width: 72, height: 72, background: "var(--accent-soft)", color: "var(--accent)" }}>
-              {initials(p.name)}
-            </div>
+            <div className="flex items-center justify-center rounded-full flex-shrink-0 text-[24px] font-bold" style={{ width: 72, height: 72, background: "var(--accent-soft)", color: "var(--accent)" }}>{initials(p.name)}</div>
           )}
           <div className="min-w-0">
             <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight leading-tight">{p.name}</h1>
             {subtitle && <div className="text-[13px] text-mute mt-0.5">{subtitle}</div>}
           </div>
         </div>
-
-        {/* Metrics row */}
         <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-px rounded-lg overflow-hidden" style={{ background: "var(--border)" }}>
-          <Metric label="Net Worth Est." value="—" />
+          <Metric label="Est. Portfolio Value" value={s.estPortfolioValue != null ? formatCurrency(s.estPortfolioValue) : "—"} />
           <Metric label="Trade Volume" value={formatCurrency(s.estTotalVolume)} />
           <Metric label="Total Trades" value={String(s.totalTrades)} />
           <Metric label="Last Traded" value={formatDate(s.lastTraded)} />
         </div>
       </header>
 
-      {/* ── Trade Volume by Year + Top Traded Sectors ───────────────────── */}
+      {/* Section tab bar (sticky) */}
+      <div className="sticky top-2 z-20 -mx-1 px-1">
+        <div className="flex gap-1 overflow-x-auto scrollbar-visible rounded-lg p-1" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+          {SECTIONS.map((sec) => (
+            <button key={sec.id} onClick={() => scrollTo(sec.id)}
+              className="px-3 py-1.5 rounded-md text-[12.5px] font-semibold whitespace-nowrap transition"
+              style={{ background: active === sec.id ? "var(--accent)" : "transparent", color: active === sec.id ? "#fff" : "var(--text-soft)" }}>
+              {sec.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Trade Volume by Year + Top Sectors */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-5">
         <section className="card p-4 sm:p-5">
           <h2 className="text-[15px] font-bold mb-3">Trade Volume by Year</h2>
           <VolumeByYear data={p.volumeByYear} />
           <div className="flex items-center gap-4 mt-3 text-[11px] text-mute">
-            <Legend color="#10B981" label="Purchases" />
-            <Legend color="#EF4444" label="Sales" />
+            <Legend color="#10B981" label="Purchases" /><Legend color="#EF4444" label="Sales" />
           </div>
         </section>
-
         <section className="card p-4 sm:p-5">
           <h2 className="text-[15px] font-bold mb-3">Top Traded Sectors</h2>
-          {p.topSectors.length === 0 ? (
-            <p className="text-mute text-sm">No sector data.</p>
-          ) : (
+          {p.topSectors.length === 0 ? <p className="text-mute text-sm">No sector data.</p> : (
             <div className="space-y-2.5">
               {p.topSectors.map((sec) => {
                 const max = p.topSectors[0].estValue || 1;
@@ -217,30 +245,68 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
         </section>
       </div>
 
-      {/* ── Trades table ────────────────────────────────────────────────── */}
-      <section>
-        <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Trades</h2>
+      {/* Trades */}
+      <section id="trades" ref={(el) => { refs.current.trades = el; }}>
+        <h2 className="text-[15px] font-bold uppercase tracking-wide mb-1">Trades</h2>
+        <p className="text-[12px] text-mute mb-2">Click a stock for more details.</p>
         <div className="card overflow-hidden">
           <DataTable<PolTrade> rows={p.trades} rowKey={(r, i) => `${r.ticker}-${r.transactionDate}-${i}`} columns={tradeCols} />
         </div>
       </section>
 
-      {/* ── Estimated Live Stock Portfolio ──────────────────────────────── */}
-      <section>
+      {/* Live Stock Portfolio */}
+      <section id="portfolio" ref={(el) => { refs.current.portfolio = el; }}>
         <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Estimated Live Stock Portfolio</h2>
         <div className="card overflow-hidden">
           {p.portfolio.length ? (
             <DataTable<Holding> rows={p.portfolio} rowKey={(r) => r.ticker} columns={portCols} />
-          ) : (
-            <div className="p-8 text-center text-mute text-sm">No net long positions from disclosed trades.</div>
-          )}
+          ) : (<div className="p-8 text-center text-mute text-sm">No net long positions from disclosed trades.</div>)}
         </div>
-        <p className="text-[11px] text-faint mt-2">
-          Holdings are estimated from disclosed buy/sell ranges (STOCK Act reports bands, not exact
-          values or live balances). Informational only — not investment advice.
-        </p>
+        <p className="text-[11px] text-faint mt-2">Holdings estimated from disclosed buy/sell ranges valued at current prices — not live balances.</p>
       </section>
+
+      {/* Net Worth = estimated portfolio value over time (honestly labelled) */}
+      <section id="networth" ref={(el) => { refs.current.networth = el; }}>
+        <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Estimated Portfolio Value</h2>
+        <div className="card p-4 sm:p-5">
+          <div className="text-[28px] sm:text-[34px] font-bold tracking-tight tabular">
+            {s.estPortfolioValue != null ? formatCurrency(s.estPortfolioValue) : "—"}
+          </div>
+          <div className="text-[12px] text-mute mb-3">Estimated value of disclosed-stock holdings (live)</div>
+          {p.portfolioSeries.length > 1 ? (
+            <AreaChart data={p.portfolioSeries} />
+          ) : (<p className="text-mute text-sm py-8 text-center">Not enough trade history to chart.</p>)}
+          <p className="text-[11px] text-faint mt-3">
+            Estimated from disclosed trades (STOCK Act dollar ranges) valued at historical market prices —
+            this is a stock-portfolio estimate, <strong>not total net worth</strong> (which would require annual
+            financial-disclosure asset filings we don&rsquo;t yet ingest).
+          </p>
+        </div>
+      </section>
+
+      {/* Honest "needs data source" sections */}
+      <NeedsData id="disclosed" refs={refs} title="Disclosed Holdings"
+        note="Requires annual House/Senate Financial Disclosure statements (assets, real property, options with valuation ranges). No free machine-readable source is wired yet." />
+      <NeedsData id="fundraising" refs={refs} title="Fundraising & Outside Spending"
+        note="Requires FEC campaign-finance data (receipts, outside spending, PAC donors). The FEC has a free API — a separate integration, not yet connected." />
+      <NeedsData id="legislation" refs={refs} title="Proposed Legislation"
+        note="Requires Congress.gov legislative data (sponsored bills, latest action). Free API available — a separate integration, not yet connected." />
     </div>
+  );
+}
+
+function NeedsData({ id, refs, title, note }: { id: string; refs: React.MutableRefObject<Record<string, HTMLElement | null>>; title: string; note: string }) {
+  return (
+    <section id={id} ref={(el) => { refs.current[id] = el; }}>
+      <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">{title}</h2>
+      <div className="card p-6 flex items-start gap-3" style={{ borderStyle: "dashed" }}>
+        <Lock className="h-5 w-5 flex-shrink-0 mt-0.5 text-mute" />
+        <div>
+          <div className="font-semibold text-[14px]">Data source not yet connected</div>
+          <p className="text-[12.5px] text-mute mt-1 leading-relaxed">{note}</p>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -248,21 +314,14 @@ function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="p-3" style={{ background: "var(--bg-1)" }}>
       <div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">{label}</div>
-      <div className="text-[18px] font-bold tracking-tight mt-1 tabular">{value}</div>
+      <div className="text-[17px] font-bold tracking-tight mt-1 tabular">{value}</div>
     </div>
   );
 }
-
 function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />
-      {label}
-    </span>
-  );
+  return <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />{label}</span>;
 }
 
-/** Grouped bar chart — purchases (green) vs sales (red) est. $ per year. */
 function VolumeByYear({ data }: { data: YearVol[] }) {
   const [hover, setHover] = useState<number | null>(null);
   if (!data.length) return <p className="text-mute text-sm">No trade history.</p>;
@@ -270,33 +329,59 @@ function VolumeByYear({ data }: { data: YearVol[] }) {
   return (
     <div className="flex items-end gap-3 h-48 pt-4" style={{ overflowX: "auto" }}>
       {data.map((d) => (
-        <div
-          key={d.year}
-          className="flex flex-col items-center gap-1.5 flex-1 min-w-[44px] relative"
-          onMouseEnter={() => setHover(d.year)}
-          onMouseLeave={() => setHover(null)}
-        >
+        <div key={d.year} className="flex flex-col items-center gap-1.5 flex-1 min-w-[44px] relative"
+          onMouseEnter={() => setHover(d.year)} onMouseLeave={() => setHover(null)}>
           {hover === d.year && (
-            <div
-              className="absolute -top-1 z-10 text-[11px] rounded px-2 py-1 whitespace-nowrap"
-              style={{ background: "var(--text)", color: "var(--bg-1)", transform: "translateY(-100%)" }}
-            >
+            <div className="absolute -top-1 z-10 text-[11px] rounded px-2 py-1 whitespace-nowrap"
+              style={{ background: "var(--text)", color: "var(--bg-1)", transform: "translateY(-100%)" }}>
               Buy {formatCurrency(d.buyValue)} · Sell {formatCurrency(d.sellValue)}
             </div>
           )}
           <div className="flex items-end gap-1 w-full justify-center" style={{ height: 150 }}>
-            <div
-              title={`Purchases ${formatCurrency(d.buyValue)}`}
-              style={{ width: 14, height: `${(d.buyValue / max) * 100}%`, background: "#10B981", borderRadius: "3px 3px 0 0", minHeight: d.buyValue > 0 ? 3 : 0 }}
-            />
-            <div
-              title={`Sales ${formatCurrency(d.sellValue)}`}
-              style={{ width: 14, height: `${(d.sellValue / max) * 100}%`, background: "#EF4444", borderRadius: "3px 3px 0 0", minHeight: d.sellValue > 0 ? 3 : 0 }}
-            />
+            <div style={{ width: 14, height: `${(d.buyValue / max) * 100}%`, background: "#10B981", borderRadius: "3px 3px 0 0", minHeight: d.buyValue > 0 ? 3 : 0 }} />
+            <div style={{ width: 14, height: `${(d.sellValue / max) * 100}%`, background: "#EF4444", borderRadius: "3px 3px 0 0", minHeight: d.sellValue > 0 ? 3 : 0 }} />
           </div>
           <span className="text-[11px] text-mute font-mono">{d.year}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Full-width area/line chart of the estimated portfolio value over time. */
+function AreaChart({ data }: { data: { date: string; value: number }[] }) {
+  const W = 900, H = 220, pad = 8;
+  const { path, area, max } = useMemo(() => {
+    const vals = data.map((d) => d.value);
+    const max = Math.max(1, ...vals);
+    const n = data.length;
+    const x = (i: number) => pad + (i / (n - 1)) * (W - pad * 2);
+    const y = (v: number) => H - pad - (v / max) * (H - pad * 2);
+    const pts = data.map((d, i) => `${x(i).toFixed(1)},${y(d.value).toFixed(1)}`);
+    return {
+      path: `M ${pts.join(" L ")}`,
+      area: `M ${x(0).toFixed(1)},${(H - pad).toFixed(1)} L ${pts.join(" L ")} L ${x(n - 1).toFixed(1)},${(H - pad).toFixed(1)} Z`,
+      max,
+    };
+  }, [data]);
+  const first = data[0], last = data[data.length - 1];
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" role="img" aria-label="Estimated portfolio value over time">
+        <defs>
+          <linearGradient id="pv" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stopColor="var(--accent)" stopOpacity="0.35" />
+            <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#pv)" />
+        <path d={path} fill="none" stroke="var(--accent)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className="flex justify-between text-[11px] text-mute mt-1">
+        <span>{formatDate(first.date)}</span>
+        <span className="font-mono">peak {formatCurrency(max)}</span>
+        <span>{formatDate(last.date)}</span>
+      </div>
     </div>
   );
 }

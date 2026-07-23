@@ -826,6 +826,47 @@ export class MarketStatsService {
     }
   }
 
+  private closeHistCache = new Map<string, { ts: number; data: Array<{ t: number; c: number }> }>();
+  private readonly CLOSE_HIST_TTL_MS = 6 * 60 * 60_000;
+
+  /** Daily close history for a symbol (cached 6h). Returns ascending
+   *  [{t: epoch-ms, c: close}]. Powers per-trade excess return + estimated
+   *  portfolio value over time on politician/insider profiles. */
+  async getCloseHistory(symbol: string, range = '5y'): Promise<Array<{ t: number; c: number }>> {
+    const key = `${symbol.toUpperCase()}|${range}`;
+    const cached = this.closeHistCache.get(key);
+    if (cached && Date.now() - cached.ts < this.CLOSE_HIST_TTL_MS) return cached.data;
+    let out: Array<{ t: number; c: number }> = [];
+    try {
+      const host = symbol.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
+      const { data } = await this.http.get(
+        `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`,
+      );
+      const result = data?.chart?.result?.[0];
+      const ts: number[] = result?.timestamp || [];
+      const closes: number[] = result?.indicators?.quote?.[0]?.close || [];
+      const adj: number[] = result?.indicators?.adjclose?.[0]?.adjclose || closes;
+      out = ts
+        .map((t, i) => ({ t: t * 1000, c: Number(adj[i] ?? closes[i]) }))
+        .filter((p) => Number.isFinite(p.c) && p.c > 0);
+    } catch {
+      out = [];
+    }
+    this.closeHistCache.set(key, { ts: Date.now(), data: out });
+    return out;
+  }
+
+  /** Close on or just before a target date (ms) from a close-history array. */
+  static closeOn(hist: Array<{ t: number; c: number }>, targetMs: number): number | null {
+    if (!hist.length) return null;
+    let best: number | null = null;
+    for (const p of hist) {
+      if (p.t <= targetMs) best = p.c;
+      else break;
+    }
+    return best ?? (hist[0]?.c ?? null);
+  }
+
   private quoteCache = new Map<string, { ts: number; row: MarketStatRow }>();
   /** Symbols that recently failed live fetch — back off instead of
    *  re-hammering Yahoo on every page load while rate-limited. */

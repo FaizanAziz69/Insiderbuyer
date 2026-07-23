@@ -6,11 +6,13 @@ import { CongressionalController } from './congressional.controller';
 import { CongressionalService } from './congressional.service';
 import { PhotosService } from './photos.service';
 import { FmpModule } from '../fmp/fmp.module';
+import { MarketStatsModule } from '../market-stats/market-stats.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([CongressionalTransaction, Company]),
     FmpModule,
+    MarketStatsModule,
   ],
   controllers: [CongressionalController],
   providers: [CongressionalService, PhotosService],

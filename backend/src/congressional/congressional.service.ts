@@ -6,6 +6,7 @@ import { Company } from '../entities/company.entity';
 import { CONGRESS_SEED } from './congressional-seed';
 import { PhotosService } from './photos.service';
 import { FmpService } from '../fmp/fmp.service';
+import { MarketStatsService } from '../market-stats/market-stats.service';
 
 /** Valid, finite Date or null — guards against FMP rows with missing/garbage
  *  dates that would otherwise become `Invalid Date` and fail the insert. */
@@ -27,6 +28,7 @@ export class CongressionalService implements OnModuleInit {
     private readonly dataSource: DataSource,
     private readonly photos: PhotosService,
     private readonly fmp: FmpService,
+    private readonly marketStats: MarketStatsService,
   ) {}
 
   async onModuleInit() {
@@ -243,6 +245,7 @@ export class CongressionalService implements OnModuleInit {
         amountMax: t.amountMax != null ? Number(t.amountMax) : null,
         transactionDate: t.transactionDate,
         reportedDate: t.reportedDate,
+        excessReturn: null as number | null,
       };
     });
 
@@ -302,16 +305,103 @@ export class CongressionalService implements OnModuleInit {
       netByTicker.set(sym, e);
     }
     const held = Array.from(netByTicker.values()).filter((h) => h.net > 0);
-    const totalNet = held.reduce((a, h) => a + h.net, 0);
+
+    // ── Real price history → per-trade Excess Return + estimated portfolio
+    //    value over time (vs SPY). All from real Yahoo daily closes. ────────
+    const priceSymbols = Array.from(tickerAgg.keys()).slice(0, 25);
+    const histBySym = new Map<string, Array<{ t: number; c: number }>>();
+    let spyHist: Array<{ t: number; c: number }> = [];
+    try {
+      const [spy, ...hists] = await Promise.all([
+        this.marketStats.getCloseHistory('SPY'),
+        ...priceSymbols.map((s) => this.marketStats.getCloseHistory(s)),
+      ]);
+      spyHist = spy;
+      priceSymbols.forEach((s, i) => histBySym.set(s, hists[i]));
+    } catch {
+      /* price history unavailable — excess return / value chart degrade to null */
+    }
+    const nowMs = Date.now();
+    const spyNow = spyHist.length ? spyHist[spyHist.length - 1].c : null;
+
+    // Attach real excess return (stock vs SPY since the trade) to each trade.
+    for (const tr of trades) {
+      const sym = (tr.ticker || '').toUpperCase();
+      const hist = histBySym.get(sym);
+      if (!hist || !hist.length || !spyNow) continue;
+      const tMs = new Date(tr.transactionDate).getTime();
+      const atTrade = MarketStatsService.closeOn(hist, tMs);
+      const stockNow = hist[hist.length - 1].c;
+      const spyAt = MarketStatsService.closeOn(spyHist, tMs);
+      if (atTrade && atTrade > 0 && spyAt && spyAt > 0) {
+        const stockRet = stockNow / atTrade - 1;
+        const spyRet = spyNow / spyAt - 1;
+        tr.excessReturn = +((stockRet - spyRet) * 100).toFixed(2);
+      }
+    }
+
+    // Estimated disclosed-stock portfolio value over time: convert each buy's
+    // midpoint $ into shares at that day's price, accumulate (net of sells),
+    // then value the running share counts at ~monthly sampled closes. This is
+    // an ESTIMATE from disclosed trades — labelled as such in the UI.
+    const sharesBySym = new Map<string, number>();
+    const chrono = [...txs].sort(
+      (a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime(),
+    );
+    const portfolioSeries: Array<{ date: string; value: number }> = [];
+    if (histBySym.size) {
+      // Build monthly sample points from first trade → now.
+      const start = new Date(firstDate);
+      start.setUTCDate(1);
+      const points: number[] = [];
+      for (let d = new Date(start); d.getTime() <= nowMs; d.setUTCMonth(d.getUTCMonth() + 1)) {
+        points.push(d.getTime());
+      }
+      points.push(nowMs);
+      let ti = 0;
+      for (const pt of points) {
+        // Apply all trades up to this sample point.
+        while (ti < chrono.length && new Date(chrono[ti].transactionDate).getTime() <= pt) {
+          const t = chrono[ti];
+          const sym = (t.ticker || '').toUpperCase();
+          const hist = histBySym.get(sym);
+          const px = hist ? MarketStatsService.closeOn(hist, new Date(t.transactionDate).getTime()) : null;
+          if (sym && px && px > 0) {
+            const sh = mid(t) / px;
+            sharesBySym.set(sym, (sharesBySym.get(sym) || 0) + (t.action === 'Buy' ? sh : -sh));
+          }
+          ti++;
+        }
+        let val = 0;
+        for (const [sym, sh] of sharesBySym) {
+          if (sh <= 0) continue;
+          const hist = histBySym.get(sym);
+          const px = hist ? MarketStatsService.closeOn(hist, pt) : null;
+          if (px) val += sh * px;
+        }
+        portfolioSeries.push({ date: new Date(pt).toISOString().slice(0, 10), value: Math.round(val) });
+      }
+    }
+    const estPortfolioValue = portfolioSeries.length
+      ? portfolioSeries[portfolioSeries.length - 1].value
+      : null;
+
+    // Live portfolio (current) valued at latest price where we have shares.
     const portfolio = held
-      .map((h) => ({
-        ticker: h.ticker,
-        company: h.company,
-        estValue: h.net,
-        allocation: totalNet > 0 ? +((h.net / totalNet) * 100).toFixed(2) : 0,
-      }))
+      .map((h) => {
+        const sh = sharesBySym.get(h.ticker);
+        const hist = histBySym.get(h.ticker);
+        const live = sh && sh > 0 && hist?.length ? sh * hist[hist.length - 1].c : h.net;
+        return { ticker: h.ticker, company: h.company, estValue: Math.round(live) };
+      })
+      .filter((h) => h.estValue > 0)
       .sort((a, b) => b.estValue - a.estValue)
       .slice(0, 15);
+    const portTotal = portfolio.reduce((a, h) => a + h.estValue, 0);
+    const portfolioWithAlloc = portfolio.map((h) => ({
+      ...h,
+      allocation: portTotal > 0 ? +((h.estValue / portTotal) * 100).toFixed(2) : 0,
+    }));
 
     return {
       name: first.politicianName,
@@ -325,6 +415,7 @@ export class CongressionalService implements OnModuleInit {
         buyValue,
         sellValue,
         estTotalVolume: buyValue + sellValue,
+        estPortfolioValue,
         distinctTickers: tickerAgg.size,
         firstTraded: firstDate,
         lastTraded: lastDate,
@@ -332,7 +423,8 @@ export class CongressionalService implements OnModuleInit {
       topTickers,
       volumeByYear,
       topSectors,
-      portfolio,
+      portfolio: portfolioWithAlloc,
+      portfolioSeries,
       trades,
     };
   }
