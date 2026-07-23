@@ -1,5 +1,5 @@
 "use client";
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { use, useMemo, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, ArrowDownRight, Lock } from "lucide-react";
@@ -76,24 +76,6 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
   );
   const p = data?.profile || null;
   const [active, setActive] = useState("trades");
-  const refs = useRef<Record<string, HTMLElement | null>>({});
-
-  useEffect(() => {
-    if (!p) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-        if (vis[0]) setActive(vis[0].target.id);
-      },
-      { rootMargin: "-30% 0px -60% 0px", threshold: [0, 0.25, 0.5] },
-    );
-    SECTIONS.forEach((s) => { const el = refs.current[s.id]; if (el) obs.observe(el); });
-    return () => obs.disconnect();
-  }, [p]);
-
-  const scrollTo = (id: string) => {
-    refs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
 
   if (isLoading) {
     return (
@@ -259,171 +241,170 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
           </div>
         </aside>
 
-        {/* ── RIGHT: content ──────────────────────────────────────────── */}
-        <div className="min-w-0 space-y-6">
-          {/* Section tab bar (sticky) */}
-          <div className="sticky top-2 z-20">
-            <div className="flex gap-1 overflow-x-auto scrollbar-visible rounded-lg p-1" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-              {SECTIONS.map((sec) => (
-                <button key={sec.id} onClick={() => scrollTo(sec.id)}
-                  className="px-3 py-1.5 rounded-md text-[12.5px] font-semibold whitespace-nowrap transition"
-                  style={{ background: active === sec.id ? "var(--accent)" : "transparent", color: active === sec.id ? "#fff" : "var(--text-soft)" }}>
-                  {sec.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Trade Volume by Year + inline stats + Top Sectors donut */}
-          <section className="card p-4 sm:p-5">
-            <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-6">
-              {/* Left: bar chart with Y-axis */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-[15px] font-bold">Trade Volume by Year</h2>
-                  <div className="flex items-center gap-3 text-[11px] text-mute">
-                    <Legend color="#10B981" label="Buy" /><Legend color="#EF4444" label="Sell" />
-                  </div>
-                </div>
-                <VolumeByYear data={p.volumeByYear} />
-              </div>
-              {/* Right: stats + sectors donut */}
-              <div className="xl:border-l xl:pl-6" style={{ borderColor: "var(--border)" }}>
-                <div className="flex gap-8 mb-4">
-                  <div>
-                    <div className="text-[22px] font-bold tracking-tight tabular">{formatCurrency(s.estTotalVolume)}</div>
-                    <div className="text-[11px] uppercase tracking-wider text-mute font-semibold mt-0.5">Trade Volume</div>
-                  </div>
-                  <div>
-                    <div className="text-[22px] font-bold tracking-tight tabular">{s.totalTrades}</div>
-                    <div className="text-[11px] uppercase tracking-wider text-mute font-semibold mt-0.5">Total Trades</div>
-                  </div>
-                </div>
-                <div className="text-[13px] font-bold mb-2">Top Traded Sectors</div>
-                {p.topSectors.length === 0 ? (
-                  <p className="text-mute text-sm">No sector data.</p>
-                ) : (
-                  <SectorDonut data={p.topSectors} />
-                )}
-              </div>
-            </div>
-          </section>
-
-      {/* Trades */}
-      <section id="trades" ref={(el) => { refs.current.trades = el; }}>
-        <h2 className="text-[15px] font-bold uppercase tracking-wide mb-1">Trades</h2>
-        <p className="text-[12px] text-mute mb-2">Click a stock for more details.</p>
-        <div className="card overflow-hidden">
-          <DataTable<PolTrade> rows={p.trades} rowKey={(r, i) => `${r.ticker}-${r.transactionDate}-${i}`} columns={tradeCols} />
-        </div>
-      </section>
-
-      {/* Live Stock Portfolio */}
-      <section id="portfolio" ref={(el) => { refs.current.portfolio = el; }}>
-        <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Estimated Live Stock Portfolio</h2>
-        <div className="card overflow-hidden">
-          {p.portfolio.length ? (
-            <DataTable<Holding> rows={p.portfolio} rowKey={(r) => r.ticker} columns={portCols} />
-          ) : (<div className="p-8 text-center text-mute text-sm">No net long positions from disclosed trades.</div>)}
-        </div>
-        <p className="text-[11px] text-faint mt-2">Holdings estimated from disclosed buy/sell ranges valued at current prices — not live balances.</p>
-      </section>
-
-      {/* Net Worth = estimated portfolio value over time (honestly labelled) */}
-      <section id="networth" ref={(el) => { refs.current.networth = el; }}>
-        <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Estimated Portfolio Value</h2>
-        <div className="card p-4 sm:p-5">
-          <div className="text-[28px] sm:text-[34px] font-bold tracking-tight tabular">
-            {s.estPortfolioValue != null ? formatCurrency(s.estPortfolioValue) : "—"}
-          </div>
-          <div className="text-[12px] text-mute mb-3">Estimated value of disclosed-stock holdings (live)</div>
-          {p.portfolioSeries.length > 1 ? (
-            <AreaChart data={p.portfolioSeries} />
-          ) : (<p className="text-mute text-sm py-8 text-center">Not enough trade history to chart.</p>)}
-          <p className="text-[11px] text-faint mt-3">
-            Estimated from disclosed trades (STOCK Act dollar ranges) valued at historical market prices —
-            this is a stock-portfolio estimate, <strong>not total net worth</strong> (which would require annual
-            financial-disclosure asset filings we don&rsquo;t yet ingest).
-          </p>
-        </div>
-      </section>
-
-      {/* Honest "needs data source" sections */}
-      <NeedsData id="disclosed" refs={refs} title="Disclosed Holdings"
-        note="Requires annual House/Senate Financial Disclosure statements (assets, real property, options with valuation ranges). No free machine-readable source is wired yet." />
-      {/* Fundraising (FEC) */}
-      {p.fundraising ? (
-        <section id="fundraising" ref={(el) => { refs.current.fundraising = el; }}>
-          <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">
-            Fundraising{p.fundraising.cycle ? ` · ${p.fundraising.cycle} cycle` : ""}
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-            <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Total Receipts</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.totalReceipts != null ? formatCurrency(p.fundraising.totalReceipts) : "—"}</div></div>
-            <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Total Spending</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.totalDisbursements != null ? formatCurrency(p.fundraising.totalDisbursements) : "—"}</div></div>
-            <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Cash on Hand</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.cashOnHand != null ? formatCurrency(p.fundraising.cashOnHand) : "—"}</div></div>
-          </div>
-          {p.fundraising.topContributors.length > 0 && (
-            <div className="card p-4">
-              <div className="text-[13px] font-bold mb-2">Top Contributors (by employer)</div>
-              <div className="space-y-2">
-                {p.fundraising.topContributors.map((c) => {
-                  const max = p.fundraising!.topContributors[0].amount || 1;
-                  return (
-                    <div key={c.name}>
-                      <div className="flex justify-between text-[12.5px] mb-1"><span className="truncate">{c.name}</span><span className="font-mono text-mute">{formatCurrency(c.amount)}</span></div>
-                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-2)" }}><div style={{ width: `${(c.amount / max) * 100}%`, height: "100%", background: "var(--accent)" }} /></div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          <p className="text-[11px] text-faint mt-2">Source: FEC (OpenFEC). Campaign-committee totals for the most recent cycle.</p>
-        </section>
-      ) : (
-        <NeedsData id="fundraising" refs={refs} title="Fundraising"
-          note="Live FEC campaign-finance data activates once an FEC_API_KEY (free, from api.data.gov) is set. No match / no key yet." />
-      )}
-
-      {/* Proposed Legislation (Congress.gov) */}
-      {p.legislation && p.legislation.length > 0 ? (
-        <section id="legislation" ref={(el) => { refs.current.legislation = el; }}>
-          <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Proposed Legislation</h2>
-          <div className="card overflow-hidden divide-y" style={{ borderColor: "var(--border)" }}>
-            {p.legislation.map((b, i) => (
-              <a key={i} href={b.url || "#"} target="_blank" rel="noopener noreferrer"
-                className="block p-3.5 hover:bg-[var(--accent-soft)] transition">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-[13.5px] font-semibold leading-snug">{b.title}</div>
-                    <div className="text-[11px] text-mute mt-0.5">
-                      {b.number && <span className="font-mono">{b.number}</span>}
-                      {b.introducedDate && <span> · Introduced {formatDate(b.introducedDate)}</span>}
-                    </div>
-                  </div>
-                  {b.latestActionDate && (
-                    <span className="text-[11px] text-mute whitespace-nowrap flex-shrink-0">{formatDate(b.latestActionDate)}</span>
-                  )}
-                </div>
-                {b.latestAction && <div className="text-[11.5px] text-soft mt-1 line-clamp-1">{b.latestAction}</div>}
-              </a>
+        {/* ── RIGHT: content (tab-switched) ───────────────────────────── */}
+        <div className="min-w-0 space-y-5">
+          {/* Tab bar — click switches the panel below (not scroll) */}
+          <div className="flex flex-wrap gap-2">
+            {SECTIONS.map((sec) => (
+              <button key={sec.id} onClick={() => setActive(sec.id)}
+                className="px-4 py-2 rounded-lg text-[13px] font-semibold transition"
+                style={{
+                  background: active === sec.id ? "var(--accent)" : "var(--bg-2)",
+                  color: active === sec.id ? "#fff" : "var(--text-soft)",
+                  border: `1px solid ${active === sec.id ? "var(--accent)" : "var(--border)"}`,
+                }}>
+                {sec.label}
+              </button>
             ))}
           </div>
-          <p className="text-[11px] text-faint mt-2">Source: Congress.gov — sponsored legislation.</p>
-        </section>
-      ) : (
-        <NeedsData id="legislation" refs={refs} title="Proposed Legislation"
-          note="Live Congress.gov sponsored-legislation activates once a CONGRESS_API_KEY (free, from api.congress.gov) is set. No match / no key yet." />
-      )}
+
+          {/* ── TRADES ── */}
+          {active === "trades" && (
+            <div className="space-y-5">
+              <section className="card p-4 sm:p-5">
+                <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-6">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h2 className="text-[15px] font-bold">Trade Volume by Year</h2>
+                      <div className="flex items-center gap-3 text-[11px] text-mute">
+                        <Legend color="#10B981" label="Buy" /><Legend color="#EF4444" label="Sell" />
+                      </div>
+                    </div>
+                    <VolumeByYear data={p.volumeByYear} />
+                  </div>
+                  <div className="xl:border-l xl:pl-6" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex gap-8 mb-4">
+                      <div>
+                        <div className="text-[22px] font-bold tracking-tight tabular">{formatCurrency(s.estTotalVolume)}</div>
+                        <div className="text-[11px] uppercase tracking-wider text-mute font-semibold mt-0.5">Trade Volume</div>
+                      </div>
+                      <div>
+                        <div className="text-[22px] font-bold tracking-tight tabular">{s.totalTrades}</div>
+                        <div className="text-[11px] uppercase tracking-wider text-mute font-semibold mt-0.5">Total Trades</div>
+                      </div>
+                    </div>
+                    <div className="text-[13px] font-bold mb-2">Top Traded Sectors</div>
+                    {p.topSectors.length === 0 ? <p className="text-mute text-sm">No sector data.</p> : <SectorDonut data={p.topSectors} />}
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-[15px] font-bold uppercase tracking-wide">Trades</h2>
+                  <span className="text-[11px] text-mute">Click a stock for details</span>
+                </div>
+                <div className="card overflow-hidden">
+                  <DataTable<PolTrade> rows={p.trades} rowKey={(r, i) => `${r.ticker}-${r.transactionDate}-${i}`} columns={tradeCols} />
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* ── LIVE STOCK PORTFOLIO ── */}
+          {active === "portfolio" && (
+            <section>
+              <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Estimated Live Stock Portfolio</h2>
+              <div className="card overflow-hidden">
+                {p.portfolio.length ? (
+                  <DataTable<Holding> rows={p.portfolio} rowKey={(r) => r.ticker} columns={portCols} />
+                ) : (<div className="p-8 text-center text-mute text-sm">No net long positions from disclosed trades.</div>)}
+              </div>
+              <p className="text-[11px] text-faint mt-2">Holdings estimated from disclosed buy/sell ranges valued at current prices — not live balances.</p>
+            </section>
+          )}
+
+          {/* ── NET WORTH (estimated portfolio value) ── */}
+          {active === "networth" && (
+            <section>
+              <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Estimated Portfolio Value</h2>
+              <div className="card p-4 sm:p-5">
+                <div className="text-[28px] sm:text-[34px] font-bold tracking-tight tabular">
+                  {s.estPortfolioValue != null ? formatCurrency(s.estPortfolioValue) : "—"}
+                </div>
+                <div className="text-[12px] text-mute mb-3">Estimated value of disclosed-stock holdings (live)</div>
+                {p.portfolioSeries.length > 1 ? (
+                  <AreaChart data={p.portfolioSeries} />
+                ) : (<p className="text-mute text-sm py-8 text-center">Not enough trade history to chart.</p>)}
+                <p className="text-[11px] text-faint mt-3">
+                  Estimated from disclosed trades (STOCK Act dollar ranges) valued at historical market prices —
+                  this is a stock-portfolio estimate, <strong>not total net worth</strong> (which would require annual
+                  financial-disclosure asset filings we don&rsquo;t yet ingest).
+                </p>
+              </div>
+            </section>
+          )}
+
+          {/* ── DISCLOSED HOLDINGS (needs data) ── */}
+          {active === "disclosed" && (
+            <NeedsData title="Disclosed Holdings"
+              note="Requires annual House/Senate Financial Disclosure statements (assets, real property, options with valuation ranges). No free machine-readable source is wired yet." />
+          )}
+
+          {/* ── FUNDRAISING (FEC) ── */}
+          {active === "fundraising" && (
+            p.fundraising ? (
+              <section>
+                <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">
+                  Fundraising{p.fundraising.cycle ? ` · ${p.fundraising.cycle} cycle` : ""}
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Total Receipts</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.totalReceipts != null ? formatCurrency(p.fundraising.totalReceipts) : "—"}</div></div>
+                  <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Total Spending</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.totalDisbursements != null ? formatCurrency(p.fundraising.totalDisbursements) : "—"}</div></div>
+                  <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Cash on Hand</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.cashOnHand != null ? formatCurrency(p.fundraising.cashOnHand) : "—"}</div></div>
+                </div>
+                <p className="text-[11px] text-faint mt-2">Source: FEC (OpenFEC) — campaign-committee totals for the most recent cycle.</p>
+              </section>
+            ) : (
+              <NeedsData title="Fundraising"
+                note="Live FEC campaign-finance data activates once an FEC_API_KEY (free, from api.data.gov) is set. No match / no key yet." />
+            )
+          )}
+
+          {/* ── PROPOSED LEGISLATION (Congress.gov) ── */}
+          {active === "legislation" && (
+            p.legislation && p.legislation.length > 0 ? (
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-[15px] font-bold uppercase tracking-wide">Proposed Legislation</h2>
+                  <span className="text-[11px] text-mute">Click a row for details</span>
+                </div>
+                <div className="card overflow-hidden divide-y" style={{ borderColor: "var(--border)" }}>
+                  {p.legislation.map((b, i) => (
+                    <a key={i} href={b.url || "#"} target="_blank" rel="noopener noreferrer"
+                      className="block p-3.5 hover:bg-[var(--accent-soft)] transition">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[13.5px] font-semibold leading-snug">{b.title}</div>
+                          <div className="text-[11px] text-mute mt-0.5">
+                            {b.number && <span className="font-mono">{b.number}</span>}
+                            {b.introducedDate && <span> · Introduced {formatDate(b.introducedDate)}</span>}
+                          </div>
+                        </div>
+                        {b.latestActionDate && (
+                          <span className="text-[11px] text-mute whitespace-nowrap flex-shrink-0">{formatDate(b.latestActionDate)}</span>
+                        )}
+                      </div>
+                      {b.latestAction && <div className="text-[11.5px] text-soft mt-1 line-clamp-1">{b.latestAction}</div>}
+                    </a>
+                  ))}
+                </div>
+                <p className="text-[11px] text-faint mt-2">Source: Congress.gov — sponsored legislation.</p>
+              </section>
+            ) : (
+              <NeedsData title="Proposed Legislation"
+                note="Live Congress.gov sponsored-legislation activates once a CONGRESS_API_KEY (free, from api.congress.gov) is set. No match / no key yet." />
+            )
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function NeedsData({ id, refs, title, note }: { id: string; refs: React.MutableRefObject<Record<string, HTMLElement | null>>; title: string; note: string }) {
+function NeedsData({ title, note }: { title: string; note: string }) {
   return (
-    <section id={id} ref={(el) => { refs.current[id] = el; }}>
+    <section>
       <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">{title}</h2>
       <div className="card p-6 flex items-start gap-3" style={{ borderStyle: "dashed" }}>
         <Lock className="h-5 w-5 flex-shrink-0 mt-0.5 text-mute" />

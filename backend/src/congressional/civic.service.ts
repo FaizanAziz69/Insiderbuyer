@@ -195,27 +195,16 @@ export class CivicService {
       });
       const t = totalsData?.results?.[0];
       if (!t) return null;
-      // Top contributors (employers) — best-effort; empty on error/plan limits.
-      let topContributors: Array<{ name: string; amount: number }> = [];
-      try {
-        const contribData = await this.fec('/schedules/schedule_a/by_employer/', {
-          candidate_id: candidateId,
-          cycle: t.cycle,
-          per_page: 8,
-          sort: '-total',
-        });
-        topContributors = (contribData?.results || [])
-          .map((c: any) => ({ name: c.employer || 'Unknown', amount: Number(c.total) || 0 }))
-          .filter((c: { name: string; amount: number }) => c.amount > 0);
-      } catch {
-        /* contributor breakdown unavailable on this plan — totals still shown */
-      }
+      // Note: FEC's by-employer aggregate isn't candidate-scoped and is
+      // dominated by "RETIRED"/"NOT EMPLOYED" categories with market-wide
+      // totals — not meaningful contributor names — so we omit it and show
+      // only the accurate committee totals.
       return {
         cycle: t.cycle ?? null,
         totalReceipts: t.receipts != null ? Number(t.receipts) : null,
         totalDisbursements: t.disbursements != null ? Number(t.disbursements) : null,
         cashOnHand: t.last_cash_on_hand_end_period != null ? Number(t.last_cash_on_hand_end_period) : null,
-        topContributors,
+        topContributors: [],
       };
     } catch (e: any) {
       this.log.warn(`FEC totals failed: ${e?.message || e}`);
