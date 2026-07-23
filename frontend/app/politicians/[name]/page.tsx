@@ -319,14 +319,27 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
             <section>
               <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Estimated Portfolio Value</h2>
               <div className="card p-4 sm:p-5">
-                <div className="text-[28px] sm:text-[34px] font-bold tracking-tight tabular">
-                  {s.estPortfolioValue != null ? formatCurrency(s.estPortfolioValue) : "—"}
+                <div className="grid grid-cols-1 xl:grid-cols-[1.6fr_1fr] gap-6">
+                  {/* Left: value chart with axes */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-[15px] font-bold">Portfolio Value</span>
+                    </div>
+                    {p.portfolioSeries.length > 1 ? (
+                      <AreaChart data={p.portfolioSeries} />
+                    ) : (<p className="text-mute text-sm py-8 text-center">Not enough trade history to chart.</p>)}
+                  </div>
+                  {/* Right: current value + Top Holdings donut */}
+                  <div className="xl:border-l xl:pl-6" style={{ borderColor: "var(--border)" }}>
+                    <div className="text-[26px] sm:text-[30px] font-bold tracking-tight tabular">
+                      {s.estPortfolioValue != null ? formatCurrency(s.estPortfolioValue) : "—"}
+                    </div>
+                    <div className="text-[11px] uppercase tracking-wider text-mute font-semibold mt-0.5 mb-4">Current Est. (stock)</div>
+                    <div className="text-[13px] font-bold mb-2">Top Holdings</div>
+                    {p.portfolio.length ? <HoldingsDonut data={p.portfolio} /> : <p className="text-mute text-sm">No holdings.</p>}
+                  </div>
                 </div>
-                <div className="text-[12px] text-mute mb-3">Estimated value of disclosed-stock holdings (live)</div>
-                {p.portfolioSeries.length > 1 ? (
-                  <AreaChart data={p.portfolioSeries} />
-                ) : (<p className="text-mute text-sm py-8 text-center">Not enough trade history to chart.</p>)}
-                <p className="text-[11px] text-faint mt-3">
+                <p className="text-[11px] text-faint mt-4">
                   Estimated from disclosed trades (STOCK Act dollar ranges) valued at historical market prices —
                   this is a stock-portfolio estimate, <strong>not total net worth</strong> (which would require annual
                   financial-disclosure asset filings we don&rsquo;t yet ingest).
@@ -546,39 +559,87 @@ function SectorDonut({ data }: { data: SectorAgg[] }) {
   );
 }
 
-/** Full-width area/line chart of the estimated portfolio value over time. */
+/** Area/line chart of the estimated portfolio value over time, with a Y-axis
+ *  (nice-rounded ticks + gridlines) and x-axis date labels — QuiverQuant style. */
 function AreaChart({ data }: { data: { date: string; value: number }[] }) {
   const W = 900, H = 220, pad = 8;
-  const { path, area, max } = useMemo(() => {
-    const vals = data.map((d) => d.value);
-    const max = Math.max(1, ...vals);
+  const { path, area, axisMax } = useMemo(() => {
+    const rawMax = Math.max(1, ...data.map((d) => d.value));
+    const pow = Math.pow(10, Math.floor(Math.log10(rawMax)));
+    const axisMax = Math.ceil(rawMax / pow) * pow;
     const n = data.length;
-    const x = (i: number) => pad + (i / (n - 1)) * (W - pad * 2);
-    const y = (v: number) => H - pad - (v / max) * (H - pad * 2);
+    const x = (i: number) => pad + (i / Math.max(1, n - 1)) * (W - pad * 2);
+    const y = (v: number) => H - pad - (v / axisMax) * (H - pad * 2);
     const pts = data.map((d, i) => `${x(i).toFixed(1)},${y(d.value).toFixed(1)}`);
     return {
       path: `M ${pts.join(" L ")}`,
       area: `M ${x(0).toFixed(1)},${(H - pad).toFixed(1)} L ${pts.join(" L ")} L ${x(n - 1).toFixed(1)},${(H - pad).toFixed(1)} Z`,
-      max,
+      axisMax,
     };
   }, [data]);
-  const first = data[0], last = data[data.length - 1];
+  const ticks = [1, 0.75, 0.5, 0.25, 0].map((f) => axisMax * f);
+  // Up to ~6 evenly-spaced date labels along the x-axis.
+  const step = Math.max(1, Math.ceil(data.length / 6));
+  const xLabels = data.filter((_, i) => i % step === 0 || i === data.length - 1);
   return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" role="img" aria-label="Estimated portfolio value over time">
-        <defs>
-          <linearGradient id="pv" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stopColor="var(--accent)" stopOpacity="0.35" />
-            <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={area} fill="url(#pv)" />
-        <path d={path} fill="none" stroke="var(--accent)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+    <div className="flex gap-2">
+      <div className="flex flex-col justify-between text-[10px] text-mute font-mono text-right" style={{ height: H, paddingBottom: 16 }}>
+        {ticks.map((t) => <span key={t}>{axisMoney(t)}</span>)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="relative">
+          <div className="absolute inset-0 flex flex-col justify-between" aria-hidden>
+            {ticks.map((t) => <div key={t} style={{ borderTop: "1px solid var(--border)", opacity: 0.5 }} />)}
+          </div>
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" className="relative" role="img" aria-label="Estimated portfolio value over time">
+            <defs>
+              <linearGradient id="pv" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stopColor="var(--accent)" stopOpacity="0.35" />
+                <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={area} fill="url(#pv)" />
+            <path d={path} fill="none" stroke="var(--accent)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          </svg>
+        </div>
+        <div className="flex justify-between text-[10px] text-mute font-mono mt-1">
+          {xLabels.map((d) => <span key={d.date}>{formatDate(d.date)}</span>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Donut of top stock holdings (by $ value) + legend — the honest, stock-only
+ *  analogue of QuiverQuant's asset-type "Top Holdings" pie. */
+function HoldingsDonut({ data }: { data: Holding[] }) {
+  const slices = data.slice(0, 8);
+  const total = slices.reduce((a, h) => a + h.estValue, 0) || 1;
+  let acc = 0;
+  const R = 42, C = 50, sw = 16, circ = 2 * Math.PI * R;
+  return (
+    <div className="flex items-center gap-4">
+      <svg viewBox="0 0 100 100" width="104" height="104" className="flex-shrink-0 -rotate-90">
+        {slices.map((h, i) => {
+          const frac = h.estValue / total;
+          const dash = frac * circ;
+          const el = (
+            <circle key={h.ticker} cx={C} cy={C} r={R} fill="none"
+              stroke={DONUT_COLORS[i % DONUT_COLORS.length]} strokeWidth={sw}
+              strokeDasharray={`${dash} ${circ - dash}`} strokeDashoffset={-acc * circ} />
+          );
+          acc += frac;
+          return el;
+        })}
       </svg>
-      <div className="flex justify-between text-[11px] text-mute mt-1">
-        <span>{formatDate(first.date)}</span>
-        <span className="font-mono">peak {formatCurrency(max)}</span>
-        <span>{formatDate(last.date)}</span>
+      <div className="min-w-0 flex-1 space-y-1">
+        {slices.map((h, i) => (
+          <div key={h.ticker} className="flex items-center gap-2 text-[12px]">
+            <span className="h-2.5 w-2.5 rounded-sm flex-shrink-0" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
+            <span className="font-mono font-semibold flex-1 truncate" style={{ color: DONUT_COLORS[i % DONUT_COLORS.length] }}>{h.ticker}</span>
+            <span className="font-mono tabular flex-shrink-0 text-mute">{formatCurrency(h.estValue)}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
