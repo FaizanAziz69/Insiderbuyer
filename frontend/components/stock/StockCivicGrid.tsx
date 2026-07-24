@@ -50,12 +50,12 @@ function RevenueBreakdownCard({ ticker }: { ticker: string }) {
     ? `Q${Math.floor(new Date(data.asOf).getUTCMonth() / 3) + 1} ${new Date(data.asOf).getUTCFullYear()} (${formatDate(data.asOf)})`
     : null;
   return (
-    <div className="card p-5 flex flex-col h-full min-h-[320px] lg:col-span-2">
+    <div className="card p-5 flex flex-col h-full min-h-[320px]">
       <div className="flex items-center gap-2">
         <span className="text-accent"><TrendingUp className="h-4 w-4" /></span>
-        <h3 className="text-[16px] font-bold">Revenue Breakdown</h3>
+        <Link href="/revenue-breakdown" className="text-[16px] font-bold hover:text-accent transition">Revenue Breakdown →</Link>
       </div>
-      <p className="text-[12px] text-mute mt-0.5 mb-3">{ticker} revenue by segment{hasGeo ? " or geography" : ""} — latest {data?.form || "10-Q/10-K"}</p>
+      <p className="text-[12px] text-mute mt-0.5 mb-3">{ticker} Revenue by Segment{hasGeo ? " or Geography" : ""}</p>
       {hasGeo && (
         <div className="flex gap-1.5 mb-3">
           {(["segment", "geography"] as const).map((t) => (
@@ -72,11 +72,11 @@ function RevenueBreakdownCard({ ticker }: { ticker: string }) {
       ) : rows.length === 0 ? (
         <Empty text={`${ticker}'s latest filing doesn't break out revenue by ${tab}.`} />
       ) : (
-        <div className="flex flex-col sm:flex-row gap-6 items-center flex-1 min-h-0">
+        <div className="flex flex-col gap-3 items-center flex-1 min-h-0">
           <RevenueDonut rows={rows} hover={hover} setHover={setHover}
             centerTop={hover != null && rows[hover] ? rows[hover].pct.toFixed(1) + "%" : formatCurrency(rows.reduce((s, r) => s + r.revenue, 0))}
             centerBottom={hover != null && rows[hover] ? rows[hover].name : "Total"} />
-          <div className="flex-1 w-full overflow-auto scrollbar-visible" style={{ maxHeight: 264 }}>
+          <div className="w-full overflow-auto scrollbar-visible" style={{ maxHeight: 190 }}>
             <table className="w-full text-[12.5px]">
               <thead className="sticky top-0 z-10" style={{ background: "var(--bg-2)" }}>
                 <tr className="text-[10px] uppercase tracking-wider text-mute text-left">
@@ -150,7 +150,8 @@ function WhaleActivityCard({ ticker, companyName }: { ticker: string; companyNam
     fetcher, { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 });
   const rows = data?.holdings || [];
   return (
-    <Card icon={<Landmark className="h-4 w-4" />} title="Whale Activity" subtitle={`Recently reported changes in ${ticker} holdings by institutional investors`}>
+    <Card icon={<Landmark className="h-4 w-4" />} title="Whale Activity" href={`/companies/${encodeURIComponent(ticker)}/institutions`}
+      subtitle={`Recently reported changes in ${ticker} holdings by institutional investors`}>
       {isLoading ? (
         <div className="h-full flex items-center justify-center text-[12.5px] text-mute py-8">Scanning latest 13F filings…</div>
       ) : rows.length === 0 ? (
@@ -193,7 +194,12 @@ function WhaleActivityCard({ ticker, companyName }: { ticker: string; companyNam
           </table>
         </div>
       )}
-      <p className="text-[10px] text-faint mt-2">Source: SEC EDGAR (Form 13F)</p>
+      <div className="flex items-center justify-between mt-2">
+        <p className="text-[10px] text-faint">Source: SEC EDGAR (Form 13F)</p>
+        <Link href={`/companies/${encodeURIComponent(ticker)}/institutions`} className="text-[11px] font-bold text-accent hover:underline">
+          View all institutional owners →
+        </Link>
+      </div>
     </Card>
   );
 }
@@ -248,12 +254,16 @@ function BullBearCard({ ticker, companyName, sector, insiderScore }: { ticker: s
   );
 }
 
-function Card({ icon, title, subtitle, children }: { icon: React.ReactNode; title: string; subtitle: string; children: React.ReactNode }) {
+function Card({ icon, title, subtitle, href, children }: { icon: React.ReactNode; title: string; subtitle: string; href?: string; children: React.ReactNode }) {
   return (
     <div className="card p-5 flex flex-col h-full min-h-[320px]">
       <div className="flex items-center gap-2">
         <span className="text-accent">{icon}</span>
-        <h3 className="text-[16px] font-bold">{title}</h3>
+        {href ? (
+          <Link href={href} className="text-[16px] font-bold hover:text-accent transition">{title} →</Link>
+        ) : (
+          <h3 className="text-[16px] font-bold">{title}</h3>
+        )}
       </div>
       <p className="text-[12px] text-mute mt-0.5 mb-3">{subtitle}</p>
       <div className="flex-1 min-h-0">{children}</div>

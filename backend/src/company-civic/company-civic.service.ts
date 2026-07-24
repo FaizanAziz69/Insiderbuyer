@@ -11,6 +11,8 @@ export interface RevenueSegment {
   name: string;
   revenue: number; // USD
   pct: number; // % of all segments
+  prevRevenue: number | null; // same period a year earlier (from the filing's comparative column)
+  yoyPct: number | null;
 }
 
 export interface RevenueBreakdown {
@@ -31,6 +33,19 @@ export interface WhaleHolding {
   reported: string; // filing date
 }
 
+export interface DerivativeHolding {
+  institution: string;
+  type: 'PUT' | 'CALL';
+  shares: number; // principal amount of shares underlying
+  value: number; // USD
+  reported: string;
+}
+
+export interface InstitutionsPage {
+  holdings: WhaleHolding[];
+  derivatives: DerivativeHolding[];
+}
+
 /**
  * Free company-level civic datasets for the stock page:
  *  - Government Contracts (USAspending.gov — free, no key)
@@ -48,7 +63,7 @@ export class CompanyCivicService {
   private contractsCache = new Map<string, { ts: number; data: QuarterPoint[] }>();
   private lobbyCache = new Map<string, { ts: number; data: QuarterPoint[] }>();
   private revenueCache = new Map<string, { ts: number; data: RevenueBreakdown }>();
-  private whaleCache = new Map<string, { ts: number; data: WhaleHolding[] }>();
+  private whaleCache = new Map<string, { ts: number; data: InstitutionsPage }>();
   private cikMap: Map<string, number> | null = null;
   private cikMapTs = 0;
   private readonly TTL = 12 * 60 * 60_000;
@@ -186,7 +201,7 @@ export class CompanyCivicService {
   /** Parse one rendered R##.htm table into (label → latest-period value) rows.
    *  Handles both shapes: rows named by segment directly, and member-header
    *  rows followed by a "Total net sales / Revenue" value row. */
-  private parseRFile(htmlDoc: string): { name: string; value: number }[] {
+  private parseRFile(htmlDoc: string): { name: string; value: number; prev: number | null }[] {
     const scale = /\$\s*in\s*Millions/i.test(htmlDoc)
       ? 1e6
       : /\$\s*in\s*Thousands/i.test(htmlDoc)
@@ -194,7 +209,7 @@ export class CompanyCivicService {
         : /\$\s*in\s*Billions/i.test(htmlDoc)
           ? 1e9
           : 1;
-    const out: { name: string; value: number }[] = [];
+    const out: { name: string; value: number; prev: number | null }[] = [];
     const seen = new Set<string>();
     let member: string | null = null;
     const trs = htmlDoc.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
@@ -211,17 +226,27 @@ export class CompanyCivicService {
       if (!cells.length) continue;
       const label = cells[0];
       if (!label || /line items|axis|\[|abstract|^x$|definition|namespace|reference/i.test(label)) continue;
-      // First numeric cell after the label = latest period.
+      // First numeric cell after the label = latest period; the next numeric
+      // cell is the filing's comparative column (same period a year earlier).
       let value: number | null = null;
-      for (let i = 1; i < cells.length; i++) {
+      let prev: number | null = null;
+      let sawData = false;
+      for (let i = 1; i < cells.length && prev == null; i++) {
         const c = cells[i];
         if (!c) continue;
         const m = c.match(/^\(?\$?\s*\(?\s*([\d,]+(?:\.\d+)?)\)?$/);
-        if (m) {
-          value = Number(m[1].replace(/,/g, '')) * scale;
-          if (/\(/.test(c)) value = -value;
+        if (!m) {
+          if (!sawData) break; // first data cell isn't numeric → not a value row
+          continue;
         }
-        break; // only the FIRST data column (latest period)
+        let n = Number(m[1].replace(/,/g, '')) * scale;
+        if (/\(/.test(c)) n = -n;
+        if (!sawData) {
+          value = n;
+          sawData = true;
+        } else {
+          prev = n;
+        }
       }
       if (value == null) {
         // Standalone label row → a dimension member header ("Online stores").
@@ -233,7 +258,7 @@ export class CompanyCivicService {
       const key = name.toUpperCase();
       if (seen.has(key)) continue; // first occurrence wins (latest period)
       seen.add(key);
-      out.push({ name, value });
+      out.push({ name, value, prev });
       member = null;
     }
     return out;
@@ -242,7 +267,7 @@ export class CompanyCivicService {
   /** Turn parsed rows into segments + total, dropping total/eliminations rows
    *  and hierarchical children ("YouTube ads | Google Services") whose parent
    *  is also present, which would otherwise double-count. */
-  private toSegments(rows: { name: string; value: number }[]): { segments: RevenueSegment[]; total: number | null } {
+  private toSegments(rows: { name: string; value: number; prev: number | null }[]): { segments: RevenueSegment[]; total: number | null } {
     const isTotal = (n: string) => /^total|consolidated|^net sales$|^revenue(s)?$|^operating segments$/i.test(n.trim());
     const isNoise = (n: string) =>
       n.length > 60 ||
@@ -283,7 +308,13 @@ export class CompanyCivicService {
     const denom = sum || total || 1;
     const segments = parts
       .sort((a, b) => b.value - a.value)
-      .map((r) => ({ name: r.name, revenue: r.value, pct: +((r.value / denom) * 100).toFixed(2) }));
+      .map((r) => ({
+        name: r.name,
+        revenue: r.value,
+        pct: +((r.value / denom) * 100).toFixed(2),
+        prevRevenue: r.prev,
+        yoyPct: r.prev != null && r.prev > 0 ? +(((r.value - r.prev) / r.prev) * 100).toFixed(1) : null,
+      }));
     return { segments, total };
   }
 
@@ -400,22 +431,34 @@ export class CompanyCivicService {
       .trim();
   }
 
-  /** Sum an issuer's (shares, value $) across one 13F info-table XML. */
-  private sumInfoTable(xml: string, issuer: string): { shares: number; value: number } | null {
+  /** Sum an issuer's (shares, value $) across one 13F info-table XML —
+   *  common shares and PUT/CALL option rows separately. */
+  private sumInfoTable(
+    xml: string,
+    issuer: string,
+  ): { shares: number; value: number; puts: { shares: number; value: number }; calls: { shares: number; value: number } } | null {
     const rows = xml.match(/<(?:\w+:)?infoTable>[\s\S]*?<\/(?:\w+:)?infoTable>/gi) || [];
-    let shares = 0;
-    let value = 0;
+    const out = { shares: 0, value: 0, puts: { shares: 0, value: 0 }, calls: { shares: 0, value: 0 } };
     let found = false;
     for (const r of rows) {
       const name = r.match(/nameOfIssuer>([\s\S]*?)</i)?.[1]?.toUpperCase().replace(/\s+/g, ' ').trim() || '';
       if (!name.startsWith(issuer) && !issuer.startsWith(name)) continue;
-      // Only count common shares (skip PUT/CALL option rows).
-      if (/putCall>/i.test(r)) continue;
-      shares += Number(r.match(/sshPrnamt>(\d+)</i)?.[1] || 0);
-      value += Number(r.match(/value>(\d+)</i)?.[1] || 0);
+      const sh = Number(r.match(/sshPrnamt>(\d+)</i)?.[1] || 0);
+      const val = Number(r.match(/value>(\d+)</i)?.[1] || 0);
+      const pc = r.match(/putCall>\s*(put|call)/i)?.[1]?.toLowerCase();
+      if (pc === 'put') {
+        out.puts.shares += sh;
+        out.puts.value += val;
+      } else if (pc === 'call') {
+        out.calls.shares += sh;
+        out.calls.value += val;
+      } else {
+        out.shares += sh;
+        out.value += val;
+      }
       found = true;
     }
-    return found ? { shares, value } : null;
+    return found ? out : null;
   }
 
   /** The filer's previous 13F position in this issuer (null = couldn't tell,
@@ -452,12 +495,13 @@ export class CompanyCivicService {
     }
   }
 
-  /** Recently reported institutional positions in a stock (SEC 13F). */
-  async getWhaleActivity(companyName: string, ticker: string): Promise<WhaleHolding[]> {
+  /** Full institutional-ownership dataset for a stock (SEC 13F): recent stock
+   *  positions with QoQ change plus PUT/CALL derivative positions. */
+  async getInstitutions(companyName: string, ticker: string): Promise<InstitutionsPage> {
     const key = ticker.toUpperCase();
     const cached = this.whaleCache.get(key);
     if (cached && Date.now() - cached.ts < this.TTL) return cached.data;
-    let out: WhaleHolding[] = [];
+    const out: InstitutionsPage = { holdings: [], derivatives: [] };
     const issuer = this.toIssuerName(companyName);
     try {
       const end = new Date().toISOString().slice(0, 10);
@@ -476,17 +520,29 @@ export class CompanyCivicService {
         if (!accDashed || !file || !cik || !name || seenFiler.has(cik)) continue;
         seenFiler.add(cik);
         picks.push({ acc: accDashed.replace(/-/g, ''), file, cik, name, date: String(s.file_date || '') });
-        if (picks.length >= 8) break;
+        if (picks.length >= 24) break;
       }
-      const rows = await Promise.all(
-        picks.map(async (p): Promise<WhaleHolding | null> => {
-          try {
-            const url = `https://www.sec.gov/Archives/edgar/data/${Number(p.cik)}/${p.acc}/${p.file}`;
-            const { data: xml } = await this.sec.get(url, { responseType: 'text' });
-            const cur = this.sumInfoTable(String(xml), issuer);
-            if (!cur || cur.shares <= 0) return null;
-            const prev = await this.previousPosition(p.cik, p.acc, issuer);
-            return {
+      // Chunks of 6 keep us inside SEC's ~10 req/s fair-use limit.
+      for (let c = 0; c < picks.length; c += 6) {
+        const rows = await Promise.all(
+          picks.slice(c, c + 6).map(async (p) => {
+            try {
+              const url = `https://www.sec.gov/Archives/edgar/data/${Number(p.cik)}/${p.acc}/${p.file}`;
+              const { data: xml } = await this.sec.get(url, { responseType: 'text' });
+              const cur = this.sumInfoTable(String(xml), issuer);
+              if (!cur) return null;
+              const prev = cur.shares > 0 ? await this.previousPosition(p.cik, p.acc, issuer) : null;
+              return { p, cur, prev };
+            } catch {
+              return null;
+            }
+          }),
+        );
+        for (const r of rows) {
+          if (!r) continue;
+          const { p, cur, prev } = r;
+          if (cur.shares > 0) {
+            out.holdings.push({
               institution: p.name,
               shares: cur.shares,
               value: cur.value,
@@ -494,17 +550,30 @@ export class CompanyCivicService {
               pctChange: prev && prev.shares > 0 ? +(((cur.shares - prev.shares) / prev.shares) * 100).toFixed(1) : null,
               isNew: prev != null && prev.shares === 0,
               reported: p.date,
-            };
-          } catch {
-            return null;
+            });
           }
-        }),
-      );
-      out = rows.filter((r): r is WhaleHolding => !!r);
+          for (const t of ['puts', 'calls'] as const) {
+            if (cur[t].shares > 0) {
+              out.derivatives.push({
+                institution: p.name,
+                type: t === 'puts' ? 'PUT' : 'CALL',
+                shares: cur[t].shares,
+                value: cur[t].value,
+                reported: p.date,
+              });
+            }
+          }
+        }
+      }
     } catch (e: any) {
-      this.log.warn(`Whale activity failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
+      this.log.warn(`Institutions failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
     }
     this.whaleCache.set(key, { ts: Date.now(), data: out });
     return out;
+  }
+
+  /** Compact slice for the stock-page Whale Activity card. */
+  async getWhaleActivity(companyName: string, ticker: string): Promise<WhaleHolding[]> {
+    return (await this.getInstitutions(companyName, ticker)).holdings.slice(0, 8);
   }
 }

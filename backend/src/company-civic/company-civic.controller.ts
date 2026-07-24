@@ -32,4 +32,12 @@ export class CompanyCivicController {
     if (!name || !ticker) return { holdings: [] };
     return { holdings: await this.svc.getWhaleActivity(name, ticker) };
   }
+
+  /** Full institutional ownership page: stock owners + PUT/CALL derivative
+   *  owners from recent 13F filings. */
+  @Get('institutions')
+  async institutions(@Query('name') name?: string, @Query('ticker') ticker?: string) {
+    if (!name || !ticker) return { holdings: [], derivatives: [] };
+    return this.svc.getInstitutions(name, ticker);
+  }
 }
