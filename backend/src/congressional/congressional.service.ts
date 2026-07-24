@@ -160,17 +160,24 @@ export class CongressionalService implements OnModuleInit {
 
   /** Manual re-ingest (FMP → else ensure seeded). Powers a refresh endpoint so
    *  prod can be repopulated without a redeploy. */
-  async refresh(): Promise<{ source: string; total: number }> {
+  async refresh(): Promise<{ source: string; total: number; fmpEnabled: boolean; fmpError: string | null }> {
     let source = 'existing';
+    let err: string | null = null;
     try {
       if (await this.refreshFromFmp()) source = 'fmp';
-    } catch (err: any) {
-      this.logger.warn(`Congressional FMP refresh failed: ${err?.message || err}`);
+    } catch (e: any) {
+      err = String(e?.message || e);
+      this.logger.warn(`Congressional FMP refresh failed: ${err}`);
     }
     const seeded = await this.ensureSeeded();
     if (seeded > 0 && source === 'existing') source = 'sample-seed';
     void this.backfillPhotos();
-    return { source, total: await this.repo.count() };
+    return {
+      source,
+      total: await this.repo.count(),
+      fmpEnabled: this.fmp.enabled,
+      fmpError: err || this.fmp.lastError,
+    };
   }
 
   private async backfillPhotos() {

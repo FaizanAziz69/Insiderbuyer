@@ -54,15 +54,24 @@ export class FmpService {
     return !!this.key;
   }
 
+  /** Last failure seen by get() — surfaced by diagnostics endpoints. */
+  lastError: string | null = null;
+
   private async get(path: string, params: Record<string, any> = {}): Promise<any[]> {
     if (!this.key) return [];
     try {
       const { data } = await this.http.get(`${this.base}/${path}`, {
         params: { ...params, apikey: this.key },
       });
-      return Array.isArray(data) ? data : [];
+      if (!Array.isArray(data)) {
+        this.lastError = `${path}: non-array response ${JSON.stringify(data).slice(0, 160)}`;
+        return [];
+      }
+      return data;
     } catch (e: any) {
-      this.log.warn(`FMP ${path} failed: ${e?.response?.status || ''} ${e?.message || e}`);
+      const body = typeof e?.response?.data === 'string' ? e.response.data.slice(0, 160) : '';
+      this.lastError = `${path}: ${e?.response?.status || ''} ${e?.message || e} ${body}`;
+      this.log.warn(`FMP ${this.lastError}`);
       return [];
     }
   }
