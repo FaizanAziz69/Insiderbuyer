@@ -1144,7 +1144,8 @@ function factorRating(pct: number): { label: string; color: string } {
   if (pct >= 60) return { label: "Strong", color: "var(--good)" };
   if (pct >= 30)
     return { label: "Positive", color: "color-mix(in srgb, var(--good) 65%, var(--warn))" };
-  return { label: "Neutral", color: "var(--text-mute)" };
+  // Neutral still gets a visible amber bar (not an invisible grey sliver).
+  return { label: "Neutral", color: "var(--gold)" };
 }
 
 function ringColorForTier(iqs: number): string {
@@ -1222,7 +1223,7 @@ function SmartScorePanel({ score }: { score: NonNullable<CompanyDetail["score"]>
                 >
                   <div
                     className="h-full rounded-full"
-                    style={{ width: `${pct}%`, background: rt.color }}
+                    style={{ width: `${Math.max(8, pct)}%`, background: rt.color }}
                   />
                 </div>
                 <span
