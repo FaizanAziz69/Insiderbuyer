@@ -107,9 +107,11 @@ export class FmpService {
     if (!this.key) return [];
     const out: FmpCongressTrade[] = [];
     for (let p = 0; p < pages; p++) {
+      // NOTE: `limit` above 25 is a premium parameter, but OMITTING it
+      // returns the full 100-row page on the free tier.
       const [senate, house] = await Promise.all([
-        this.get('senate-latest', { page: p, limit: 100 }),
-        this.get('house-latest', { page: p, limit: 100 }),
+        this.get('senate-latest', { page: p }),
+        this.get('house-latest', { page: p }),
       ]);
       for (const r of senate) {
         const m = this.mapCongress(r, 'Senate');
