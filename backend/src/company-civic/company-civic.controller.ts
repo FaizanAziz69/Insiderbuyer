@@ -18,4 +18,11 @@ export class CompanyCivicController {
     if (!name) return { quarters: [], enabled: this.svc.lobbyingEnabled };
     return { quarters: await this.svc.getLobbying(name), enabled: this.svc.lobbyingEnabled };
   }
+
+  /** Revenue by segment + geography from the latest 10-Q/10-K (SEC EDGAR). */
+  @Get('revenue-segments')
+  async revenueSegments(@Query('ticker') ticker?: string) {
+    if (!ticker) return { segments: [], geography: [], total: null, asOf: null, form: null };
+    return this.svc.getRevenueBreakdown(ticker);
+  }
 }

@@ -101,14 +101,15 @@ export class FmpService {
   }
 
   /** Latest Senate + House disclosures, merged & normalized.
-   *  Free tier caps `limit` at 25 per call, so we paginate. */
-  async getCongressional(pages = 4): Promise<FmpCongressTrade[]> {
+   *  Free tier serves 100 rows on page 0 ONLY (pages 1+ are restricted), so
+   *  ask for the full page; history is accumulated by the caller over time. */
+  async getCongressional(pages = 1): Promise<FmpCongressTrade[]> {
     if (!this.key) return [];
     const out: FmpCongressTrade[] = [];
     for (let p = 0; p < pages; p++) {
       const [senate, house] = await Promise.all([
-        this.get('senate-latest', { page: p, limit: 25 }),
-        this.get('house-latest', { page: p, limit: 25 }),
+        this.get('senate-latest', { page: p, limit: 100 }),
+        this.get('house-latest', { page: p, limit: 100 }),
       ]);
       for (const r of senate) {
         const m = this.mapCongress(r, 'Senate');

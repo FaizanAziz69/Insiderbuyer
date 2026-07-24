@@ -8,38 +8,22 @@ import { API_BASE, fetcher, formatCurrency, formatDate } from "@/lib/api";
 /** QuiverQuant-style grid of equal-sized data cards on the stock page. Each
  *  card is self-contained (its own fetch) and shows a distinct dataset, all
  *  from real free sources. Cards with no data show an honest empty state. */
-interface InsiderTx {
-  insiderName: string;
-  role?: string | null;
-  rawTitle?: string | null;
-  transactionCode: string;
-  sharesBought: number;
-  pricePerShare: number;
-  totalValue: number;
-  previousHoldings?: number | null;
-  postHoldings?: number | null;
-  transactionDate: string;
-  filingUrl?: string | null;
-}
-
 export function StockCivicGrid({
   ticker,
   companyName,
   sector,
   insiderScore,
-  transactions = [],
 }: {
   ticker: string;
   companyName: string;
   sector?: string | null;
   insiderScore?: number | null;
-  transactions?: InsiderTx[];
 }) {
   return (
     <section>
       <h2 className="large-section-h mb-3"><span>Signals & Government Data</span></h2>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
-        <InsiderTradingTableCard ticker={ticker} transactions={transactions} />
+        <RevenueBreakdownCard ticker={ticker} />
         <CongressTradingCard ticker={ticker} />
         <GovContractsCard companyName={companyName} ticker={ticker} />
         <LobbyingCard companyName={companyName} ticker={ticker} />
@@ -49,60 +33,64 @@ export function StockCivicGrid({
   );
 }
 
-/** Insider Trading — scrollable Form 4 filings table (our SEC data). */
-function InsiderTradingTableCard({ ticker, transactions }: { ticker: string; transactions: InsiderTx[] }) {
-  const rows = [...transactions].sort(
-    (a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime(),
-  );
-  const shares = (n: number) => Math.round(n).toLocaleString();
+/** Revenue Breakdown — by segment / geography from the latest 10-Q/10-K
+ *  (SEC EDGAR, free). QuiverQuant-style list with share bars + tabs. */
+interface RevSeg { name: string; revenue: number; pct: number }
+const SEG_COLORS = ["#6366F1", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4", "#EC4899", "#84CC16", "#F97316", "#14B8A6"];
+
+function RevenueBreakdownCard({ ticker }: { ticker: string }) {
+  const [tab, setTab] = useState<"segment" | "geography">("segment");
+  const { data, isLoading } = useSWR<{ segments: RevSeg[]; geography: RevSeg[]; total: number | null; asOf: string | null; form: string | null }>(
+    `${API_BASE}/company-civic/revenue-segments?ticker=${ticker}`, fetcher, { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 });
+  const hasGeo = (data?.geography?.length || 0) > 0;
+  const rows = (tab === "geography" && hasGeo ? data?.geography : data?.segments) || [];
+  const asOfQ = data?.asOf
+    ? `Q${Math.floor(new Date(data.asOf).getUTCMonth() / 3) + 1} ${new Date(data.asOf).getUTCFullYear()} (${formatDate(data.asOf)})`
+    : null;
   return (
-    <Card icon={<TrendingUp className="h-4 w-4" />} title="Insider Trading" subtitle={`Form 4 filings by ${ticker} executives, directors & 10% owners`}>
-      {rows.length === 0 ? (
-        <Empty text={`No Form 4 filings for ${ticker} in our data.`} />
+    <Card icon={<TrendingUp className="h-4 w-4" />} title="Revenue Breakdown" subtitle={`${ticker} revenue by segment${hasGeo ? " or geography" : ""} — latest ${data?.form || "10-Q/10-K"}`}>
+      {hasGeo && (
+        <div className="flex gap-1.5 mb-3">
+          {(["segment", "geography"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              className="px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-wider transition"
+              style={tab === t ? { background: "var(--accent)", color: "#fff" } : { background: "var(--bg-2)", color: "var(--text-mute)" }}>
+              By {t === "segment" ? "Segment" : "Geography"}
+            </button>
+          ))}
+        </div>
+      )}
+      {isLoading ? (
+        <div className="h-full flex items-center justify-center text-[12.5px] text-mute py-8">Reading latest SEC filing…</div>
+      ) : rows.length === 0 ? (
+        <Empty text={`${ticker}'s latest filing doesn't break out revenue by ${tab}.`} />
       ) : (
-        <div className="overflow-auto scrollbar-visible" style={{ maxHeight: 300 }}>
-          <table className="w-full text-[12px]" style={{ minWidth: 640 }}>
+        <div className="overflow-auto scrollbar-visible" style={{ maxHeight: 264 }}>
+          <table className="w-full text-[12.5px]">
             <thead className="sticky top-0 z-10" style={{ background: "var(--bg-2)" }}>
               <tr className="text-[10px] uppercase tracking-wider text-mute text-left">
-                <th className="font-bold px-2.5 py-2">Insider</th>
-                <th className="font-bold px-2.5 py-2 text-center">Action</th>
-                <th className="font-bold px-2.5 py-2 text-right">Shares</th>
-                <th className="font-bold px-2.5 py-2 text-right">Avg Cost</th>
-                <th className="font-bold px-2.5 py-2 text-right">Total</th>
-                <th className="font-bold px-2.5 py-2 text-right">Held After</th>
-                <th className="font-bold px-2.5 py-2 text-right">Date</th>
+                <th className="font-bold px-2.5 py-1.5">{tab === "geography" ? "Region" : "Segment"}</th>
+                <th className="font-bold px-2.5 py-1.5 text-right">Revenue</th>
+                <th className="font-bold px-2.5 py-1.5 text-right">% of All</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((t, i) => {
-                const buy = t.transactionCode === "P";
-                return (
-                  <tr key={i} style={{ borderTop: "1px solid var(--border)" }}>
-                    <td className="px-2.5 py-2">
-                      <span className="font-semibold block truncate max-w-[150px]">{t.insiderName}</span>
-                      {(t.rawTitle || t.role) && (
-                        <span className="block text-[10px] text-mute truncate max-w-[150px]">{t.rawTitle || t.role}</span>
-                      )}
-                    </td>
-                    <td className="px-2.5 py-2 text-center">
-                      <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
-                        style={{ background: buy ? "rgba(16,185,129,0.14)" : "rgba(239,68,68,0.14)", color: buy ? "#10B981" : "#EF4444" }}>
-                        {buy ? "Buy" : "Sell"}
-                      </span>
-                    </td>
-                    <td className="px-2.5 py-2 text-right tabular">{shares(t.sharesBought)}</td>
-                    <td className="px-2.5 py-2 text-right tabular">${Number(t.pricePerShare).toFixed(2)}</td>
-                    <td className="px-2.5 py-2 text-right tabular font-semibold">{formatCurrency(t.totalValue)}</td>
-                    <td className="px-2.5 py-2 text-right tabular text-mute">{t.postHoldings != null ? shares(t.postHoldings) : "—"}</td>
-                    <td className="px-2.5 py-2 text-right text-mute whitespace-nowrap">{formatDate(t.transactionDate)}</td>
-                  </tr>
-                );
-              })}
+              {rows.map((s, i) => (
+                <tr key={s.name} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td className="px-2.5 py-2">
+                    <span className="inline-block h-2.5 w-2.5 rounded-sm mr-2 align-middle" style={{ background: SEG_COLORS[i % SEG_COLORS.length] }} />
+                    <span className="font-semibold align-middle">{s.name}</span>
+                    <span className="block h-1 rounded-full mt-1.5" style={{ width: `${Math.max(3, s.pct)}%`, background: SEG_COLORS[i % SEG_COLORS.length], opacity: 0.75 }} />
+                  </td>
+                  <td className="px-2.5 py-2 text-right tabular font-semibold whitespace-nowrap align-top">{formatCurrency(s.revenue)}</td>
+                  <td className="px-2.5 py-2 text-right tabular text-mute align-top">{s.pct.toFixed(2)}%</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
-      <p className="text-[10px] text-faint mt-2">Source: SEC EDGAR (Form 4)</p>
+      <p className="text-[10px] text-faint mt-2">{asOfQ ? `As of: ${asOfQ} · ` : ""}Source: SEC EDGAR ({data?.form || "10-Q/10-K"})</p>
     </Card>
   );
 }

@@ -259,7 +259,6 @@ export default function CompanyPage({
               companyName={data.company.name}
               sector={profile?.sector || data.company.sector}
               insiderScore={data.score ? Number(data.score.iqs) : null}
-              transactions={data.transactions as never}
             />
 
             {/* About — directly under the key data (client spec). */}

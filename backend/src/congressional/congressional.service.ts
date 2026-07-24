@@ -107,20 +107,30 @@ export class CongressionalService implements OnModuleInit {
     return rows.length;
   }
 
-  /** Pull the latest real Senate + House disclosures from FMP and replace the
-   *  table with them. Returns false when FMP is unavailable / returns nothing
-   *  (so the caller falls back to the seed). The replace runs in a TRANSACTION
-   *  so a failed insert never wipes the table (the original empty-table bug). */
+  /** Pull the latest real Senate + House disclosures from FMP and ACCUMULATE
+   *  them — the free tier only serves the latest ~100 rows per chamber, so we
+   *  upsert new rows and keep everything already stored. Per-ticker history
+   *  builds up with every refresh instead of being wiped each time. */
   async refreshFromFmp(): Promise<boolean> {
     if (!this.fmp.enabled) return false;
-    // Pull deep pagination — FMP's latest feed paginates back in time, so more
-    // pages recover older disclosures (multi-year history) for the volume chart.
-    const trades = await this.fmp.getCongressional(40);
+    const trades = await this.fmp.getCongressional(1);
     if (!trades.length) return false;
-    const seen = new Set<string>();
+    // Keys of everything already stored (so re-served rows aren't duplicated).
+    const dayKey = (d: Date | string | null | undefined) => {
+      const dt = d instanceof Date ? d : safeDate(d as any);
+      return dt ? dt.toISOString().slice(0, 10) : '';
+    };
+    const existing = await this.repo.find({
+      select: ['politicianName', 'ticker', 'transactionDate', 'action', 'amountMin', 'source'],
+    });
+    const seen = new Set(
+      existing
+        .filter((e) => e.source !== 'sample-seed')
+        .map((e) => `${e.politicianName}|${e.ticker}|${dayKey(e.transactionDate)}|${e.action}|${Number(e.amountMin) || 0}`),
+    );
     const rows = trades
       .filter((t) => {
-        const k = `${t.politicianName}|${t.ticker}|${t.transactionDate}|${t.action}|${t.amountMin}`;
+        const k = `${t.politicianName}|${t.ticker}|${dayKey(t.transactionDate)}|${t.action}|${Number(t.amountMin) || 0}`;
         if (seen.has(k)) return false;
         seen.add(k);
         return true;
@@ -138,16 +148,14 @@ export class CongressionalService implements OnModuleInit {
         reportedDate: safeDate(t.reportedDate) ?? safeDate(t.transactionDate),
         source: 'fmp',
       }))
-      // Drop rows with no usable transaction date — they'd fail the insert and
-      // (pre-fix) roll back / wipe the whole table.
+      // Drop rows with no usable transaction date — they'd fail the insert.
       .filter((r) => r.transactionDate != null);
-    if (!rows.length) return false;
-    await this.dataSource.transaction(async (m) => {
-      await m.clear(CongressionalTransaction);
-      await m.save(CongressionalTransaction, rows as any);
-    });
-    this.logger.log(`Ingested ${rows.length} real congressional disclosures from FMP.`);
-    return true;
+    // Once real FMP rows exist, retire the sample seed (real data supersedes it).
+    if (rows.length) await this.repo.save(rows as any);
+    const realCount = await this.repo.count({ where: { source: 'fmp' } });
+    if (realCount > 0) await this.repo.delete({ source: 'sample-seed' });
+    this.logger.log(`Congressional refresh: +${rows.length} new FMP disclosures (total real: ${realCount}).`);
+    return realCount > 0;
   }
 
   /** Manual re-ingest (FMP → else ensure seeded). Powers a refresh endpoint so
