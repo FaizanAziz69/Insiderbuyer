@@ -19,6 +19,7 @@ import { IqsModule } from './iqs/iqs.module';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { NewsModule } from './news/news.module';
 import { CongressionalModule } from './congressional/congressional.module';
+import { CompanyCivicModule } from './company-civic/company-civic.module';
 import { IndicesModule } from './indices/indices.module';
 import { StockListsModule } from './stock-lists/stock-lists.module';
 import { SubscribersModule } from './subscribers/subscribers.module';
@@ -72,6 +73,7 @@ import { SocialModule } from './social/social.module';
     CompaniesModule,
     TransactionsModule,
     CongressionalModule,
+    CompanyCivicModule,
     IqsModule,
     IngestionModule,
     NewsModule,
