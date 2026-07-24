@@ -69,19 +69,15 @@ export class CongressionalService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // Each step is independently guarded so one failure can never leave the
-    // table empty (the original bug: a failed FMP save wiped it with no re-seed).
-    try {
-      await this.refreshFromFmp();
-    } catch (err: any) {
-      this.logger.warn(`Congressional FMP refresh failed: ${err?.message || err}`);
-    }
+    // NO FMP call here — serverless cold starts are frequent and each one
+    // burning 2 requests exhausted the free tier's daily quota (429s all day).
+    // FMP refresh happens via the daily cron (/ingest/cron) and the manual
+    // POST /congressional-trades/refresh; rows accumulate in the DB.
     try {
       await this.ensureSeeded();
     } catch (err: any) {
       this.logger.warn(`Congressional seed failed: ${err?.message || err}`);
     }
-    void this.backfillPhotos();
   }
 
   /** Guarantee the table is never empty — seed the sample set if there are no

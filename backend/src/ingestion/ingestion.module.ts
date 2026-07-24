@@ -10,12 +10,14 @@ import { QuoteClient } from './quote.client';
 import { BafinClient } from './bafin.client';
 import { IqsModule } from '../iqs/iqs.module';
 import { MarketStatsModule } from '../market-stats/market-stats.module';
+import { CongressionalModule } from '../congressional/congressional.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Company, InsiderTransaction, ProcessedFiling]),
     IqsModule,
     MarketStatsModule,
+    CongressionalModule,
   ],
   controllers: [IngestionController],
   providers: [IngestionService, SecClient, QuoteClient, BafinClient],

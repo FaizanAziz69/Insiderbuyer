@@ -1,9 +1,13 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { IngestionService } from './ingestion.service';
+import { CongressionalService } from '../congressional/congressional.service';
 
 @Controller('ingest')
 export class IngestionController {
-  constructor(private readonly ingestion: IngestionService) {}
+  constructor(
+    private readonly ingestion: IngestionService,
+    private readonly congressional: CongressionalService,
+  ) {}
 
   @Post()
   async run(@Body() body: { daysBack?: number }) {
@@ -12,7 +16,16 @@ export class IngestionController {
 
   @Get('cron')
   async cron() {
-    return this.ingestion.runIngestion(2);
+    // Accumulate the day's congressional disclosures first — it's 2 FMP calls
+    // and must not be skipped when SEC ingestion runs long.
+    let congress: unknown = null;
+    try {
+      congress = await this.congressional.refresh();
+    } catch (e: any) {
+      congress = { error: String(e?.message || e) };
+    }
+    const ingest = await this.ingestion.runIngestion(2);
+    return { congress, ingest };
   }
 
   /** Backfill insider filing location onto older transactions. */
