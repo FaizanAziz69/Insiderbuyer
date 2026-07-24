@@ -1,5 +1,5 @@
 "use client";
-import { use } from "react";
+import { use, useMemo } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import {
@@ -19,6 +19,7 @@ import {
 } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
+import { VolumeByYear, SectorDonut } from "@/components/charts/ProfileCharts";
 
 interface TradeRow {
   ticker: string | null;
@@ -81,6 +82,20 @@ export default function InsiderProfilePage({
     { revalidateOnFocus: false },
   );
   const p = data?.profile || null;
+
+  // Buy/sell $ per year from the full trade list (for the volume chart).
+  const volumeByYear = useMemo(() => {
+    const by = new Map<number, { year: number; buyValue: number; sellValue: number }>();
+    for (const t of p?.trades || []) {
+      const y = new Date(t.transactionDate).getUTCFullYear();
+      if (!Number.isFinite(y)) continue;
+      const e = by.get(y) || { year: y, buyValue: 0, sellValue: 0 };
+      if (t.side === "BUY") e.buyValue += Number(t.totalValue) || 0;
+      else e.sellValue += Number(t.totalValue) || 0;
+      by.set(y, e);
+    }
+    return Array.from(by.values()).sort((a, b) => a.year - b.year);
+  }, [p]);
 
   if (isLoading) {
     return (
@@ -296,6 +311,26 @@ export default function InsiderProfilePage({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Trade volume by year + sector donut (hover any bar/slice for values) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-5">
+        <section>
+          <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Trade Volume by Year</h2>
+          <div className="card p-4">
+            <VolumeByYear data={volumeByYear} />
+            <div className="flex items-center gap-4 mt-2 text-[11px] text-mute">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: "#10B981" }} /> Buy</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: "#EF4444" }} /> Sell</span>
+            </div>
+          </div>
+        </section>
+        <section>
+          <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Top Traded Sectors</h2>
+          <div className="card p-4 h-full flex items-center">
+            <SectorDonut data={p.topSectors.map((x) => ({ sector: x.sector, trades: x.count }))} />
+          </div>
+        </section>
       </div>
 
       {/* Top tickers + sectors */}
