@@ -467,7 +467,7 @@ export class CongressionalService implements OnModuleInit {
 
     // Civic data (Congress.gov legislation + FEC fundraising) — both degrade to
     // null/[] when their API key isn't configured, so the UI shows a connect state.
-    const [legislation, fundraising, pacDonors, outsideSpending, memberInfo] = await Promise.all([
+    const [legislation, fundraising, pacDonors, outsideSpending, memberInfo, extras] = await Promise.all([
       this.civic.getSponsoredLegislation(first.politicianName).catch(() => []),
       this.civic.getFundraising(first.politicianName).catch(() => null),
       this.civic.getCorporatePacDonors(first.politicianName).catch(() => []),
@@ -475,7 +475,25 @@ export class CongressionalService implements OnModuleInit {
         .getOutsideSpending(first.politicianName)
         .catch(() => ({ supporters: [], opponents: [] })),
       this.civic.getMemberInfo(first.politicianName).catch(() => null),
+      this.civic
+        .getMemberExtras(first.politicianName)
+        .catch(() => ({ birthYear: null, birthDate: null, bio: null })),
     ]);
+    // Exact age from Wikipedia DOB when present, else approximate from the
+    // official Congress.gov birth year.
+    let age: number | null = null;
+    if (extras.birthDate) {
+      const d = new Date(extras.birthDate);
+      const now = new Date();
+      age = now.getUTCFullYear() - d.getUTCFullYear();
+      if (
+        now.getUTCMonth() < d.getUTCMonth() ||
+        (now.getUTCMonth() === d.getUTCMonth() && now.getUTCDate() < d.getUTCDate())
+      )
+        age--;
+    } else if (extras.birthYear) {
+      age = new Date().getUTCFullYear() - extras.birthYear;
+    }
 
     // Resolve a stock ticker for each corporate PAC donor by matching the PAC
     // name against our company table (strip PAC/legal suffixes → core name).
@@ -513,6 +531,8 @@ export class CongressionalService implements OnModuleInit {
       partyName: memberInfo?.party ?? null,
       servedFrom: memberInfo?.servedFrom ?? null,
       photoUrl: memberInfo?.imageUrl || first.photoUrl || null,
+      age,
+      bio: extras.bio,
       stats: {
         totalTrades: trades.length,
         buyCount,

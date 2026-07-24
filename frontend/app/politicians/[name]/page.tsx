@@ -27,6 +27,8 @@ interface Profile {
   state?: string | null;
   partyName?: string | null;
   servedFrom?: number | null;
+  age?: number | null;
+  bio?: string | null;
   photoUrl: string | null;
   stats: {
     totalTrades: number; buyCount: number; sellCount: number;
@@ -94,6 +96,7 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
   );
   const p = data?.profile || null;
   const [active, setActive] = useState("trades");
+  const [bioOpen, setBioOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -147,16 +150,26 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
     {
       key: "transaction", label: "Transaction", align: "center",
       render: (r) => (
-        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-bold uppercase"
-          style={{ background: r.action === "Buy" ? "rgba(16,185,129,0.14)" : "rgba(239,68,68,0.14)", color: r.action === "Buy" ? "#10B981" : "#EF4444" }}>
-          {r.action === "Buy" ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-          {r.action === "Buy" ? "Purchase" : "Sale"}
+        <span className="inline-block text-center">
+          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-bold uppercase"
+            style={{ background: r.action === "Buy" ? "rgba(16,185,129,0.14)" : "rgba(239,68,68,0.14)", color: r.action === "Buy" ? "#10B981" : "#EF4444" }}>
+            {r.action === "Buy" ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+            {r.action === "Buy" ? "Purchase" : "Sale"}
+          </span>
+          <span className="block text-[11px] text-mute mt-0.5 whitespace-nowrap">{amountRange(r.amountMin, r.amountMax)}</span>
         </span>
       ),
     },
     { key: "filed", label: "Filed", align: "right", render: (r) => (r.reportedDate ? formatDate(r.reportedDate) : "—") },
     { key: "traded", label: "Traded", align: "right", sortValue: (r) => new Date(r.transactionDate).getTime(), render: (r) => formatDate(r.transactionDate) },
-    { key: "amount", label: "Amount", align: "right", render: (r) => amountRange(r.amountMin, r.amountMax) },
+    {
+      key: "description", label: "Description",
+      render: (r) => (
+        <span className="block text-[11.5px] text-mute uppercase truncate max-w-[180px]" title={r.company || undefined}>
+          {r.company || "—"}
+        </span>
+      ),
+    },
     {
       key: "excess", label: "Excess Return", align: "right",
       sortValue: (r) => r.excessReturn ?? -9999,
@@ -229,10 +242,25 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
             <div className="mt-4 pt-4 text-left divide-y" style={{ borderTop: "1px solid var(--border)" }}>
               <FactRow label="Current Member" value="Yes" valueColor="var(--accent)" />
               {yearsActive && <FactRow label="Years Active" value={yearsActive} />}
+              {p.age != null && <FactRow label="Age" value={String(p.age)} />}
               <FactRow label="Chamber" value={p.chamber} />
               {p.state && <FactRow label="State" value={p.state} />}
               {partyWord && <FactRow label="Party" value={partyWord} />}
             </div>
+
+            {/* Bio (Wikipedia) with Show More, like the reference */}
+            {p.bio && (
+              <div className="mt-4 pt-4 text-left" style={{ borderTop: "1px solid var(--border)" }}>
+                <p className="text-[12.5px] leading-relaxed text-mute"
+                  style={bioOpen ? undefined : { display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                  {p.bio}
+                </p>
+                <button onClick={() => setBioOpen((v) => !v)}
+                  className="block mx-auto mt-2 text-[12.5px] font-semibold text-mute hover:text-accent transition">
+                  {bioOpen ? "Show Less ▲" : "Show More ▼"}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Copy-trades / performance card (real excess-return metrics) */}

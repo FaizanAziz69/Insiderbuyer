@@ -167,6 +167,51 @@ export class CivicService {
     return { state: m.state, party: m.party, servedFrom: m.servedFrom, imageUrl: m.imageUrl };
   }
 
+  private extrasCache = new Map<string, { birthYear: number | null; birthDate: string | null; bio: string | null }>();
+
+  /** Age + bio enrichment: birthYear from the Congress.gov member detail,
+   *  bio paragraph (and exact DOB when present) from the Wikipedia summary.
+   *  The Wikipedia result is only accepted when it clearly describes a
+   *  politician — never a same-named businessperson or athlete. */
+  async getMemberExtras(name: string): Promise<{ birthYear: number | null; birthDate: string | null; bio: string | null }> {
+    const key = this.norm(name);
+    const cached = this.extrasCache.get(key);
+    if (cached) return cached;
+    const out = { birthYear: null as number | null, birthDate: null as string | null, bio: null as string | null };
+    // Congress.gov detail → birthYear (official).
+    try {
+      const m = await this.findMember(name);
+      if (m?.bioguideId && this.congressEnabled) {
+        const { data } = await this.http.get(`https://api.congress.gov/v3/member/${m.bioguideId}`, {
+          params: { api_key: this.congressKey },
+        });
+        const by = Number(data?.member?.birthYear);
+        if (Number.isFinite(by) && by > 1900) out.birthYear = by;
+      }
+    } catch (e: any) {
+      this.log.warn(`Congress.gov member detail failed for ${name}: ${e?.response?.status || ''} ${e?.message || e}`);
+    }
+    // Wikipedia summary → bio + exact DOB, with a politician guard.
+    try {
+      const title = encodeURIComponent(name.trim().replace(/\s+/g, '_'));
+      const { data } = await this.http.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, {
+        headers: { 'User-Agent': 'InsiderBuying/1.0 (contact@insiderbuying.com)' },
+      });
+      const isPolitician = /politician|senator|represent|congress|governor|legislat/i.test(
+        `${data?.description || ''} ${data?.extract || ''}`,
+      );
+      if (data?.type === 'standard' && isPolitician && data?.extract) {
+        out.bio = String(data.extract).slice(0, 900);
+        const dob = out.bio.match(/born\s+([A-Z][a-z]+ \d{1,2}, \d{4})/)?.[1];
+        if (dob && !isNaN(new Date(dob).getTime())) out.birthDate = dob;
+      }
+    } catch {
+      // 404 = no article; fine.
+    }
+    this.extrasCache.set(key, out);
+    return out;
+  }
+
   async getSponsoredLegislation(name: string): Promise<Legislation[]> {
     if (!this.congressEnabled) return [];
     const bioguide = await this.resolveBioguide(name);
