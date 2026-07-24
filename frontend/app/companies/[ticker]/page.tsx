@@ -190,6 +190,7 @@ export default function CompanyPage({
               stats={stats}
               profile={profile}
               earningsDate={earningsDate}
+              chart={<PriceChart ticker={sym} bare />}
             />
 
             {/* ── Tabs (StockAnalysis / TipRanks-style): clean Overview by
@@ -236,11 +237,8 @@ export default function CompanyPage({
               <ConversationsSection ticker={sym} />
             ) : (
               <>
-            {/* Stock chart FIRST — directly below the header (client spec),
-                defaults to 1D with the full timeframe toggle. */}
-            <PriceChart ticker={sym} />
-
-            {/* Price performance row — 1D / 5D / 1M / 6M / 1Y (TradingView-style) */}
+            {/* Price performance row — 1D / 5D / 1M / 6M / 1Y (TradingView-style).
+                The chart itself now lives inside the header card above. */}
             <PricePerformanceRow ticker={sym} />
 
             {/* Key data — the 3-column overview (trading ranges | market cap &
@@ -624,12 +622,14 @@ function CompanyHeader({
   stats,
   profile,
   earningsDate,
+  chart,
 }: {
   company: CompanyDetail["company"];
   score: CompanyDetail["score"];
   stats: StockStats | null;
   profile: Profile | null;
   earningsDate: string | null;
+  chart?: React.ReactNode;
 }) {
   const price = stats?.price ?? company.lastPrice;
   const change = stats?.change ?? null;
@@ -738,6 +738,13 @@ function CompanyHeader({
           )}
         </div>
       </div>
+
+      {/* Price chart — merged into the header card so it reads as one box. */}
+      {chart && (
+        <div className="mt-5 pt-5" style={{ borderTop: "1px solid var(--border)" }}>
+          {chart}
+        </div>
+      )}
     </header>
   );
 }
@@ -802,7 +809,7 @@ function Chip({ children }: { children: React.ReactNode }) {
 }
 
 // ── Interactive price chart (timeframe tabs + crosshair, TipRanks-style) ─────
-function PriceChart({ ticker }: { ticker: string }) {
+function PriceChart({ ticker, bare = false }: { ticker: string; bare?: boolean }) {
   const [range, setRange] = useState<string>("1d");
   const [hover, setHover] = useState<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -866,7 +873,7 @@ function PriceChart({ ticker }: { ticker: string }) {
   const hp = hover != null && geo ? geo.pts[hover] : null;
 
   return (
-    <div className="card p-5">
+    <div className={bare ? "" : "card p-5"}>
       {/* Header: price + timeframe tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div className="flex items-baseline gap-3">
