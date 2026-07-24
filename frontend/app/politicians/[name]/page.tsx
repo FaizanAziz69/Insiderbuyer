@@ -251,8 +251,8 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
             {/* Bio (Wikipedia) with Show More, like the reference */}
             {p.bio && (
               <div className="mt-4 pt-4 text-left" style={{ borderTop: "1px solid var(--border)" }}>
-                <p className="text-[12.5px] leading-relaxed text-mute"
-                  style={bioOpen ? undefined : { display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                <p className="text-[14px] leading-relaxed font-medium"
+                  style={{ color: "var(--text)", ...(bioOpen ? {} : { display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }) }}>
                   {p.bio}
                 </p>
                 <button onClick={() => setBioOpen((v) => !v)}

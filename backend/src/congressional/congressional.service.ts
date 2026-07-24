@@ -520,6 +520,44 @@ export class CongressionalService implements OnModuleInit {
           return hit ? { ...d, ticker: hit.ticker, companyName: hit.name } : d;
         });
       } catch { /* company table unavailable — tickers stay blank */ }
+
+      // Yahoo-search fallback for corporate committees our company table
+      // doesn't know (UNH, VZ, STZ…). Strict validation: the committee's
+      // lead word must appear in the matched equity's name, so "Winred" or
+      // "Gt Farm Team" never get a bogus ticker.
+      const cleanPacName = (s: string) =>
+        (s || '')
+          .toLowerCase()
+          .replace(/\(.*?\)/g, ' ')
+          .replace(
+            /\b(political action committee|employees political fund|political fund|leadership fund|victory fund|members trust|employees?|committee|pac|incorporated|inc|corporation|corp|company|co|llc|group|fund|trust|association|assn|of|the)\b/gi,
+            ' ',
+          )
+          .replace(/[^a-z\s]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      const unresolved = Array.from(
+        new Set(corporatePacDonors.filter((d) => !d.ticker).map((d) => d.companyCommittee)),
+      ).slice(0, 20);
+      const found = new Map<string, { ticker: string; name: string }>();
+      await Promise.all(
+        unresolved.map(async (committee) => {
+          const q = cleanPacName(committee);
+          const lead = q.split(' ')[0] || '';
+          if (lead.length < 4) return; // too generic to match safely
+          try {
+            const hits: any[] = await this.marketStats.searchSymbols(q, 5);
+            const hit = hits.find(
+              (h) => h.type === 'EQUITY' && String(h.name || '').toLowerCase().includes(lead),
+            );
+            if (hit) found.set(committee, { ticker: hit.symbol, name: hit.name });
+          } catch { /* leave unresolved */ }
+        }),
+      );
+      corporatePacDonors = corporatePacDonors.map((d) => {
+        const hit = !d.ticker ? found.get(d.companyCommittee) : null;
+        return hit ? { ...d, ticker: hit.ticker, companyName: hit.name } : d;
+      });
     }
 
     return {
