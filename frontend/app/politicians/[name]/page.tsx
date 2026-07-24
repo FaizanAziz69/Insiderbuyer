@@ -263,32 +263,6 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
             )}
           </div>
 
-          {/* Copy-trades / performance card (real excess-return metrics) */}
-          <div className="card p-5">
-            <h3 className="text-[16px] font-bold text-center mb-3">{firstName(p.name)}&rsquo;s Trade Performance</h3>
-            {avgExcess != null ? (
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between text-[13px]">
-                  <span className="text-mute">Avg. excess return / trade</span>
-                  <span className="font-bold tabular" style={{ color: avgExcess >= 0 ? "#10B981" : "#EF4444" }}>
-                    {avgExcess >= 0 ? "+" : ""}{avgExcess}%
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-[13px]">
-                  <span className="text-mute">Win rate (beat S&amp;P)</span>
-                  <span className="font-bold tabular">{winRate}%</span>
-                </div>
-                <p className="text-[10.5px] text-faint pt-1">
-                  Excess return vs. the S&amp;P 500 since each trade, averaged across {withEx.length} disclosed trades.
-                </p>
-              </div>
-            ) : (
-              <p className="text-[12px] text-mute">Not enough priced trades to compute performance yet.</p>
-            )}
-            <Link href="/premium" className="btn-primary w-full justify-center mt-4 text-[13px]">
-              Track {firstName(p.name)}&rsquo;s trades
-            </Link>
-          </div>
         </aside>
 
         {/* ── RIGHT: content (tab-switched) ───────────────────────────── */}
