@@ -34,6 +34,7 @@ import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsTrendChart } from "@/components/IqsTrendChart";
 import { ScorePillarsCard } from "@/components/ScorePillarsCard";
 import { ConversationsSection } from "@/components/stock/ConversationsSection";
+import { StockCivicGrid } from "@/components/stock/StockCivicGrid";
 import { track } from "@/lib/analytics";
 
 // ── Local types for endpoints not modelled in lib/api.ts ──────────────────
@@ -252,6 +253,10 @@ export default function CompanyPage({
               fallbackPrice={data.company.lastPrice}
               earningsDate={earningsDate}
             />
+
+            {/* QuiverQuant-style uniform card grid — Congress Trading,
+                Government Contracts, Insider Trading (quarterly), Lobbying. */}
+            <StockCivicGrid ticker={sym} companyName={data.company.name} />
 
             {/* About — directly under the key data (client spec). */}
             {profile?.description && (
