@@ -136,7 +136,9 @@ export class CivicService {
     } catch (e: any) {
       this.log.warn(`Congress.gov member list failed: ${e?.response?.status || ''} ${e?.message || e}`);
     }
-    this.memberList = out;
+    // Never cache a failed/empty load — one transient error on a cold start
+    // would otherwise leave this instance permanently unenriched.
+    if (out.length > 0) this.memberList = out;
     return out;
   }
 
@@ -151,7 +153,8 @@ export class CivicService {
     const key = this.norm(name);
     if (this.bioguideCache.has(key)) return this.bioguideCache.get(key)!;
     const id = (await this.findMember(name))?.bioguideId ?? null;
-    this.bioguideCache.set(key, id);
+    // Only cache a negative result when the member list actually loaded.
+    if (id != null || this.memberList) this.bioguideCache.set(key, id);
     return id;
   }
 
@@ -205,10 +208,13 @@ export class CivicService {
         const dob = out.bio.match(/born\s+([A-Z][a-z]+ \d{1,2}, \d{4})/)?.[1];
         if (dob && !isNaN(new Date(dob).getTime())) out.birthDate = dob;
       }
-    } catch {
-      // 404 = no article; fine.
+    } catch (e: any) {
+      // 404 = no article; other statuses logged so prod issues are visible.
+      if (e?.response?.status !== 404)
+        this.log.warn(`Wikipedia summary failed for ${name}: ${e?.response?.status || ''} ${e?.message || e}`);
     }
-    this.extrasCache.set(key, out);
+    // Cache only when something was found so transient failures retry.
+    if (out.birthYear != null || out.bio != null) this.extrasCache.set(key, out);
     return out;
   }
 
