@@ -456,13 +456,14 @@ export class CongressionalService implements OnModuleInit {
 
     // Civic data (Congress.gov legislation + FEC fundraising) — both degrade to
     // null/[] when their API key isn't configured, so the UI shows a connect state.
-    const [legislation, fundraising, pacDonors, outsideSpending] = await Promise.all([
+    const [legislation, fundraising, pacDonors, outsideSpending, memberInfo] = await Promise.all([
       this.civic.getSponsoredLegislation(first.politicianName).catch(() => []),
       this.civic.getFundraising(first.politicianName).catch(() => null),
       this.civic.getCorporatePacDonors(first.politicianName).catch(() => []),
       this.civic
         .getOutsideSpending(first.politicianName)
         .catch(() => ({ supporters: [], opponents: [] })),
+      this.civic.getMemberInfo(first.politicianName).catch(() => null),
     ]);
 
     // Resolve a stock ticker for each corporate PAC donor by matching the PAC
@@ -496,7 +497,11 @@ export class CongressionalService implements OnModuleInit {
       name: first.politicianName,
       chamber: first.chamber,
       party: first.party,
-      photoUrl: first.photoUrl,
+      // Enriched from Congress.gov where matched (real data).
+      state: memberInfo?.state ?? null,
+      partyName: memberInfo?.party ?? null,
+      servedFrom: memberInfo?.servedFrom ?? null,
+      photoUrl: memberInfo?.imageUrl || first.photoUrl || null,
       stats: {
         totalTrades: trades.length,
         buyCount,

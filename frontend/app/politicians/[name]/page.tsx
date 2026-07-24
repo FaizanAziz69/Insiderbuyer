@@ -24,6 +24,9 @@ interface Profile {
   name: string;
   chamber: string;
   party: string | null;
+  state?: string | null;
+  partyName?: string | null;
+  servedFrom?: number | null;
   photoUrl: string | null;
   stats: {
     totalTrades: number; buyCount: number; sellCount: number;
@@ -113,8 +116,10 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
   }
 
   const s = p.stats;
-  const partyWord = p.party?.startsWith("R") ? "Republican" : p.party?.startsWith("D") ? "Democratic" : null;
-  const subtitle = [partyWord, p.chamber].filter(Boolean).join(" / ");
+  const partyWord =
+    p.partyName || (p.party?.startsWith("R") ? "Republican" : p.party?.startsWith("D") ? "Democratic" : null);
+  const subtitle = [partyWord, p.chamber, p.state].filter(Boolean).join(" / ");
+  const yearsActive = p.servedFrom ? `${p.servedFrom} - Present` : null;
   // Real "strategy" signal from actual excess returns (no fabricated +900%).
   const withEx = p.trades.filter((t) => t.excessReturn != null);
   const avgExcess = withEx.length
@@ -223,7 +228,9 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
             {/* Facts list — only what we actually have */}
             <div className="mt-4 pt-4 text-left divide-y" style={{ borderTop: "1px solid var(--border)" }}>
               <FactRow label="Current Member" value="Yes" valueColor="var(--accent)" />
+              {yearsActive && <FactRow label="Years Active" value={yearsActive} />}
               <FactRow label="Chamber" value={p.chamber} />
+              {p.state && <FactRow label="State" value={p.state} />}
               {partyWord && <FactRow label="Party" value={partyWord} />}
             </div>
           </div>
@@ -258,11 +265,12 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
 
         {/* ── RIGHT: content (tab-switched) ───────────────────────────── */}
         <div className="min-w-0 space-y-5">
-          {/* Tab bar — click switches the panel below (not scroll) */}
-          <div className="flex flex-wrap gap-2">
-            {SECTIONS.map((sec) => (
+          {/* Tab bar — two rows (Trades/Portfolio/Net Worth · Supporters/
+              Opponents/Corporate Donors/Legislation), like QuiverQuant. */}
+          {(() => {
+            const tab = (sec: { id: string; label: string }) => (
               <button key={sec.id} onClick={() => setActive(sec.id)}
-                className="px-4 py-2 rounded-lg text-[13px] font-semibold transition"
+                className="px-3 py-2.5 rounded-lg text-[13px] font-semibold transition text-center"
                 style={{
                   background: active === sec.id ? "var(--accent)" : "var(--bg-2)",
                   color: active === sec.id ? "#fff" : "var(--text-soft)",
@@ -270,8 +278,14 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
                 }}>
                 {sec.label}
               </button>
-            ))}
-          </div>
+            );
+            return (
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-2">{SECTIONS.slice(0, 3).map(tab)}</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">{SECTIONS.slice(3).map(tab)}</div>
+              </div>
+            );
+          })()}
 
           {/* ── TRADES ── */}
           {active === "trades" && (

@@ -2,6 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
 
+/** A current member of Congress (Congress.gov member list). */
+interface Member {
+  name: string;
+  bioguideId: string;
+  state: string | null;
+  party: string | null;
+  servedFrom: number | null;
+  imageUrl: string | null;
+}
+
 /** One sponsored/proposed bill (Congress.gov). */
 export interface Legislation {
   title: string;
@@ -60,7 +70,7 @@ export class CivicService {
   // name(lower) → resolved id (null = looked up, not found)
   private bioguideCache = new Map<string, string | null>();
   private fecIdCache = new Map<string, string | null>();
-  private memberList: Array<{ name: string; bioguideId: string }> | null = null;
+  private memberList: Member[] | null = null;
 
   constructor() {
     this.http = axios.create({
@@ -98,9 +108,9 @@ export class CivicService {
   }
 
   // ── Congress.gov ──────────────────────────────────────────────────────
-  private async loadMembers(): Promise<Array<{ name: string; bioguideId: string }>> {
+  private async loadMembers(): Promise<Member[]> {
     if (this.memberList) return this.memberList;
-    const out: Array<{ name: string; bioguideId: string }> = [];
+    const out: Member[] = [];
     try {
       for (let offset = 0; offset < 600; offset += 250) {
         const { data } = await this.http.get('https://api.congress.gov/v3/member', {
@@ -108,7 +118,18 @@ export class CivicService {
         });
         const members = data?.members || [];
         for (const m of members) {
-          if (m.name && m.bioguideId) out.push({ name: m.name, bioguideId: m.bioguideId });
+          if (!m.name || !m.bioguideId) continue;
+          const years = (m.terms?.item || [])
+            .map((t: any) => Number(t.startYear))
+            .filter((y: number) => Number.isFinite(y));
+          out.push({
+            name: m.name,
+            bioguideId: m.bioguideId,
+            state: m.state || null,
+            party: m.partyName || null,
+            servedFrom: years.length ? Math.min(...years) : null,
+            imageUrl: m.depiction?.imageUrl || null,
+          });
         }
         if (members.length < 250) break;
       }
@@ -119,15 +140,31 @@ export class CivicService {
     return out;
   }
 
+  private async findMember(name: string): Promise<Member | null> {
+    if (!this.congressEnabled) return null;
+    const members = await this.loadMembers();
+    return members.find((m) => this.nameMatches(name, m.name)) || null;
+  }
+
   async resolveBioguide(name: string): Promise<string | null> {
     if (!this.congressEnabled) return null;
     const key = this.norm(name);
     if (this.bioguideCache.has(key)) return this.bioguideCache.get(key)!;
-    const members = await this.loadMembers();
-    const hit = members.find((m) => this.nameMatches(name, m.name));
-    const id = hit?.bioguideId ?? null;
+    const id = (await this.findMember(name))?.bioguideId ?? null;
     this.bioguideCache.set(key, id);
     return id;
+  }
+
+  /** State / party / years-active / headshot for a member (Congress.gov). */
+  async getMemberInfo(name: string): Promise<{
+    state: string | null;
+    party: string | null;
+    servedFrom: number | null;
+    imageUrl: string | null;
+  } | null> {
+    const m = await this.findMember(name);
+    if (!m) return null;
+    return { state: m.state, party: m.party, servedFrom: m.servedFrom, imageUrl: m.imageUrl };
   }
 
   async getSponsoredLegislation(name: string): Promise<Legislation[]> {
