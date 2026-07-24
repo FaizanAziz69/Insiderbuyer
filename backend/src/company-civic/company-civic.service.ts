@@ -75,29 +75,40 @@ export class CompanyCivicService {
     const key = companyName.toUpperCase();
     const cached = this.lobbyCache.get(key);
     if (cached && Date.now() - cached.ts < this.TTL) return cached.data;
-    const byPeriod = new Map<string, number>();
+    // period code → { short label, within-year order }
+    const P: Record<string, { q: string; o: number }> = {
+      first_quarter: { q: 'Q1', o: 1 },
+      mid_year: { q: 'H1', o: 2 },
+      second_quarter: { q: 'Q2', o: 2 },
+      third_quarter: { q: 'Q3', o: 3 },
+      fourth_quarter: { q: 'Q4', o: 4 },
+      year_end: { q: 'H2', o: 4 },
+    };
+    const agg = new Map<string, { label: string; sort: number; amount: number }>();
     try {
+      // Newest filings first, so we chart recent quarters (not the year-2000 ones).
       const { data } = await this.http.get('https://lda.senate.gov/api/v1/filings/', {
-        params: { client_name: companyName, page_size: 100 },
+        params: { client_name: companyName, page_size: 100, ordering: '-filing_year' },
         headers: { Authorization: `Token ${this.ldaKey}` },
       });
       for (const f of data?.results || []) {
         const amt = Number(f.income ?? f.expenses ?? 0) || 0;
-        const yr = f.filing_year;
-        const period = f.filing_period_display || f.filing_period || '';
+        const yr = Number(f.filing_year);
         if (!yr || amt <= 0) continue;
-        // Map period → quarter label.
-        const qm: Record<string, string> = {
-          first_quarter: 'Q1', second_quarter: 'Q2', third_quarter: 'Q3', fourth_quarter: 'Q4',
-        };
-        const q = qm[f.filing_period] || period;
-        const label = `FY${String(yr).slice(2)} ${q}`;
-        byPeriod.set(label, (byPeriod.get(label) || 0) + amt);
+        const p = P[f.filing_period] || { q: String(f.filing_period || ''), o: 5 };
+        const label = `FY${String(yr).slice(2)} ${p.q}`;
+        const e = agg.get(label) || { label, sort: yr * 10 + p.o, amount: 0 };
+        e.amount += amt;
+        agg.set(label, e);
       }
     } catch (e: any) {
       this.log.warn(`Senate LDA lobbying failed: ${e?.response?.status || ''} ${e?.message || e}`);
     }
-    const out = Array.from(byPeriod.entries()).map(([label, amount]) => ({ label, amount }));
+    // Chronological, most-recent 12 periods.
+    const out = Array.from(agg.values())
+      .sort((a, b) => a.sort - b.sort)
+      .slice(-12)
+      .map(({ label, amount }) => ({ label, amount }));
     this.lobbyCache.set(key, { ts: Date.now(), data: out });
     return out;
   }

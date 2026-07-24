@@ -728,12 +728,12 @@ function CompanyHeader({
               <div className="mt-1.5 flex justify-center">
                 <TierBadge iqs={score.iqs} size="sm" />
               </div>
-              <Link
+              {/* <Link
                 href="/methodology"
                 className="block mt-1.5 text-[10px] font-semibold text-mute hover:text-accent transition"
               >
                 How the score works →
-              </Link>
+              </Link> */}
             </div>
           )}
         </div>
