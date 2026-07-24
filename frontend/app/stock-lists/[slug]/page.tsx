@@ -36,6 +36,7 @@ interface DetailRow {
   sector?: string | null;
   marketCap?: number | null;
   iqs?: number;
+  iqsV1?: number | null;
   /** Insider-sourced (RankingRow) lists only. */
   distinctBuyers?: number;
   totalPurchaseValue?: number;
@@ -350,7 +351,7 @@ export default function StockListDetailPage({
                       filterType: "range",
                       filterLabelText: "Insider Score (0–100)",
                       sortValue: (r) => r.iqs ?? null,
-                      render: (r) => <IqsScoreCell iqs={r.iqs} />,
+                      render: (r) => <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />,
                     },
                   ] as Column<DetailRow>[])
                 : []),

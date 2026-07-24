@@ -24,6 +24,7 @@ interface AnalystRow {
   numAnalysts: number | null;
   /** Insider Score + blended Top Stocks score (from /top-stocks). */
   iqs?: number | null;
+  iqsV1?: number | null;
   insiderSuccess?: number | null;
   topStocksScore?: number | null;
 }
@@ -211,7 +212,7 @@ export default function AnalystRatingsPage() {
                 filterLabelText: "Insider Score (0–100)",
                 align: "center",
                 sortValue: (r) => r.iqs ?? null,
-                render: (r) => <IqsScoreCell iqs={r.iqs} />,
+                render: (r) => <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />,
               },
               {
                 key: "consensus",

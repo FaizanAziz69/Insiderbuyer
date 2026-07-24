@@ -1425,6 +1425,7 @@ export class IqsService {
       recommendation: string | null;
       numAnalysts: number | null;
       iqs: number | null;
+      iqsV1: number | null;
       insiderSuccess: number | null;
       topStocksScore: number | null;
     }>
@@ -1440,6 +1441,7 @@ export class IqsService {
       .map((a) => {
         const rk = bySym.get(a.symbol.toUpperCase());
         const insiderScore = rk?.iqs != null ? Number(rk.iqs) : null;
+        const insiderScoreV1 = rk?.iqsV1 != null ? Number(rk.iqsV1) : null;
         const insiderSuccess =
           rk?.historicalSuccessWeight != null
             ? Number(rk.historicalSuccessWeight)
@@ -1462,6 +1464,7 @@ export class IqsService {
           recommendation: a.recommendation,
           numAnalysts: a.numAnalysts,
           iqs: insiderScore,
+          iqsV1: insiderScoreV1,
           insiderSuccess,
           topStocksScore: score,
         };

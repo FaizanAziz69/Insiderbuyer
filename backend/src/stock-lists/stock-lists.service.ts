@@ -304,11 +304,11 @@ export class StockListsService {
       .sort((a, b) => (b.upsidePct ?? 0) - (a.upsidePct ?? 0))
       .slice(0, 50);
 
-    // Attach Insider Scores (every list carries the column).
-    let iqsByTicker = new Map<string | null, number>();
+    // Attach Insider Scores (every list carries the column) — v2 + v1.
+    let iqsByTicker = new Map<string | null, { iqs: number; iqsV1: number | null }>();
     try {
       const { rows: rankRows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
-      iqsByTicker = new Map(rankRows.map((r) => [r.ticker, r.iqs]));
+      iqsByTicker = new Map(rankRows.map((r) => [r.ticker, { iqs: r.iqs, iqsV1: r.iqsV1 }]));
     } catch { /* scores unavailable */ }
 
     const rows = qualifying.map((r) => ({
@@ -316,7 +316,8 @@ export class StockListsService {
       name: r.name,
       sector: r.sector,
       marketCap: null as number | null,
-      iqs: iqsByTicker.get(r.symbol) ?? undefined,
+      iqs: iqsByTicker.get(r.symbol)?.iqs ?? undefined,
+      iqsV1: iqsByTicker.get(r.symbol)?.iqsV1 ?? undefined,
       upsidePct: r.upsidePct,
       targetMean: r.targetMean,
       recommendation: r.recommendation,
@@ -513,6 +514,7 @@ export class StockListsService {
         return {
           ...h,
           iqs: rk?.iqs ?? undefined,
+          iqsV1: rk?.iqsV1 ?? undefined,
           lastBuyDate: rk?.lastBuyDate ?? h.lastReported ?? null,
           avgCost: rk?.avgCost ?? reportedPerShare,
         };
@@ -531,10 +533,11 @@ export class StockListsService {
       // Every list carries an Insider Score column — cross-reference against
       // the live rankings (U.S. Form 4 data; foreign-only names stay blank).
       const { rows: rankRows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
-      const iqsByTicker = new Map(rankRows.map((r) => [r.ticker, r.iqs]));
+      const iqsByTicker = new Map(rankRows.map((r) => [r.ticker, r]));
       const withIqs = rows.map((h) => ({
         ...h,
-        iqs: iqsByTicker.get(h.ticker) ?? undefined,
+        iqs: iqsByTicker.get(h.ticker)?.iqs ?? undefined,
+        iqsV1: iqsByTicker.get(h.ticker)?.iqsV1 ?? undefined,
       }));
       const live = await this.fetchLiveQuotes(rows.map((r) => r.ticker));
       const enriched = this.enrichRows(withIqs, live) as any[];
@@ -561,13 +564,14 @@ export class StockListsService {
           // Insider Score column on every list — penny names that also appear
           // in our Form 4 rankings get their live score attached.
           const { rows: pennyRank } = await this.iqs.getRankings({ limit: 500, offset: 0 });
-          const pennyIqs = new Map(pennyRank.map((r) => [r.ticker, r.iqs]));
+          const pennyIqs = new Map(pennyRank.map((r) => [r.ticker, r]));
           let pennyRows = penny.map((q) => ({
             ticker: q.symbol,
             name: q.name,
             sector: q.sector,
             marketCap: q.marketCap,
-            iqs: pennyIqs.get(q.symbol) ?? undefined,
+            iqs: pennyIqs.get(q.symbol)?.iqs ?? undefined,
+            iqsV1: pennyIqs.get(q.symbol)?.iqsV1 ?? undefined,
             live: {
               price: q.price,
               changeAbs: q.changeAbs,
@@ -610,7 +614,7 @@ export class StockListsService {
         );
       }
       const { rows: rankRows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
-      const iqsByTicker = new Map(rankRows.map((r) => [r.ticker, r.iqs]));
+      const iqsByTicker = new Map(rankRows.map((r) => [r.ticker, r]));
       const tickers = rows.map((r) => r.ticker);
       const [live, costBasis] = await Promise.all([
         this.fetchLiveQuotes(tickers),
@@ -620,7 +624,8 @@ export class StockListsService {
         const cb = costBasis.get(h.ticker.toUpperCase());
         return {
           ...h,
-          iqs: iqsByTicker.get(h.ticker) ?? undefined,
+          iqs: iqsByTicker.get(h.ticker)?.iqs ?? undefined,
+          iqsV1: iqsByTicker.get(h.ticker)?.iqsV1 ?? undefined,
           avgCost: cb?.avgCost ?? null,
           lastBuyDate: cb?.lastBuyDate ?? null,
         };
@@ -720,6 +725,7 @@ export class StockListsService {
           const hit = bySym.get(row.ticker!);
           if (hit) {
             row.iqs = hit.iqs;
+            (row as any).iqsV1 = hit.iqsV1;
             (row as any).distinctBuyers = hit.distinctBuyers;
             (row as any).totalPurchaseValue = hit.totalPurchaseValue;
             (row as any).avgCost = hit.avgCost ?? null;
