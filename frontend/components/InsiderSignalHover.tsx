@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import useSWR from "swr";
@@ -155,7 +156,8 @@ export function InsiderSignalHover({
                         >
                           {buy ? "BUY" : "SELL"}
                         </span>
-                        <span className="font-semibold truncate max-w-[130px]">{t.insiderName}</span>
+                        <Link href={`/insiders/${encodeURIComponent(t.insiderName)}`}
+                          className="font-semibold truncate max-w-[130px] hover:text-accent transition">{t.insiderName}</Link>
                         <span className="ml-auto tabular">{formatCurrency(t.totalValue)}</span>
                       </li>
                     );

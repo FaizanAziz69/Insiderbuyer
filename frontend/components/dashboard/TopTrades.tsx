@@ -60,7 +60,8 @@ export function TopTrades({ trades, total }: { trades: Trade[]; total: number })
                   {i + 1}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold truncate">{t.insiderName}</div>
+                  <Link href={`/insiders/${encodeURIComponent(t.insiderName)}`}
+                    className="block text-sm font-semibold truncate hover:text-accent transition">{t.insiderName}</Link>
                   <div className="text-[12px] text-mute truncate">
                     {t.companyName}
                     {t.rawTitle ? <> · {t.rawTitle}</> : null}

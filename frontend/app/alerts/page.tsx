@@ -142,7 +142,7 @@ export default function AlertsPage() {
                   ))}
                 </div>
                 <div className="text-[12px] text-soft truncate">
-                  <span className="font-semibold">{t.insiderName}</span>
+                  <Link href={`/insiders/${encodeURIComponent(t.insiderName)}`} className="font-semibold hover:text-accent transition">{t.insiderName}</Link>
                   <span className="text-mute"> · {t.role} · {t.companyName}</span>
                 </div>
               </div>

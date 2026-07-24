@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { ArrowUpRight, ExternalLink } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
 import { rankColumn } from "@/components/tableColumns";
@@ -44,7 +45,8 @@ export function TransactionList({ transactions }: { transactions: Tx[] }) {
       sortValue: (t) => t.insiderName,
       render: (t) => (
         <>
-          <div className="font-bold text-[15px]">{t.insiderName}</div>
+          <Link href={`/insiders/${encodeURIComponent(t.insiderName)}`}
+            className="block font-bold text-[15px] hover:text-accent transition">{t.insiderName}</Link>
           {t.rawTitle && (
             <div className="text-[12px] text-mute truncate max-w-[220px]">
               {t.rawTitle}

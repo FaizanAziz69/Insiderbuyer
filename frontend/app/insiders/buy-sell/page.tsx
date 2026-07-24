@@ -87,7 +87,8 @@ export default function InsiderBuySellPage() {
       sortValue: (r) => r.insiderName,
       render: (r) => (
         <div className="min-w-0">
-          <div className="text-[15px] font-bold truncate max-w-[200px]">{r.insiderName}</div>
+          <Link href={`/insiders/${encodeURIComponent(r.insiderName)}`}
+            className="block text-[15px] font-bold truncate max-w-[200px] hover:text-accent transition">{r.insiderName}</Link>
           <div className="text-[12px] text-mute truncate max-w-[200px]">{r.rawTitle || r.role}</div>
         </div>
       ),

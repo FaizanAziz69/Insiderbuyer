@@ -381,9 +381,10 @@ export default function CompanyPage({
                                 }}
                               >
                                 <td>
-                                  <div className="text-[15px] font-bold">
+                                  <Link href={`/insiders/${encodeURIComponent(t.insiderName)}`}
+                                    className="text-[15px] font-bold hover:text-accent transition">
                                     {t.insiderName}
-                                  </div>
+                                  </Link>
                                   <div className="text-[12px] text-mute">
                                     {t.role || t.rawTitle}
                                   </div>
@@ -531,9 +532,10 @@ export default function CompanyPage({
                                       size={28}
                                     />
                                     <div className="min-w-0">
-                                      <div className="text-[15px] font-bold truncate">
+                                      <Link href={`/politicians/${encodeURIComponent(c.politicianName)}`}
+                                        className="block text-[15px] font-bold truncate hover:text-accent transition">
                                         {c.politicianName}
-                                      </div>
+                                      </Link>
                                       <div className="text-[10px] uppercase tracking-wider font-bold text-mute">
                                         {c.party}
                                       </div>

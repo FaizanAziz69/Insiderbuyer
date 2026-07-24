@@ -229,7 +229,8 @@ function Row({ t, rank }: { t: TradeRow; rank: number }) {
         </span>
       </td>
       <td>
-        <div className="font-semibold text-[14px] truncate max-w-[190px]">{t.insiderName}</div>
+        <Link href={`/insiders/${encodeURIComponent(t.insiderName)}`}
+          className="block font-semibold text-[14px] truncate max-w-[190px] hover:text-accent transition">{t.insiderName}</Link>
         <span className={`${roleCls} mt-0.5 inline-block`} style={{ fontSize: 10 }}>{t.role}</span>
       </td>
       <td>

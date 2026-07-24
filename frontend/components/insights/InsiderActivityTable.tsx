@@ -46,9 +46,10 @@ export function InsiderActivityTable({ ticker, limit = 6 }: Props) {
       filterable: true,
       sortValue: (t) => t.insiderName,
       render: (t) => (
-        <span className="font-bold text-[15px] max-w-[200px] truncate inline-block align-bottom">
+        <Link href={`/insiders/${encodeURIComponent(t.insiderName)}`}
+          className="font-bold text-[15px] max-w-[200px] truncate inline-block align-bottom hover:text-accent transition">
           {t.insiderName}
-        </span>
+        </Link>
       ),
     },
     {
