@@ -149,58 +149,90 @@ function WhaleActivityCard({ ticker, companyName }: { ticker: string; companyNam
     `${API_BASE}/company-civic/whale-activity?ticker=${ticker}&name=${encodeURIComponent(companyName)}`,
     fetcher, { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 });
   const rows = data?.holdings || [];
+  const counts = {
+    increased: rows.filter((w) => !w.isNew && (w.change ?? 0) > 0).length,
+    isNew: rows.filter((w) => w.isNew).length,
+    held: rows.filter((w) => !w.isNew && w.change === 0).length,
+    decreased: rows.filter((w) => (w.change ?? 0) < 0).length,
+  };
+  const known = counts.increased + counts.isNew + counts.held + counts.decreased;
   return (
     <Card icon={<Landmark className="h-4 w-4" />} title="Whale Activity" href={`/companies/${encodeURIComponent(ticker)}/institutions`}
       subtitle={`Recently reported changes in ${ticker} holdings by institutional investors`}>
       {isLoading ? (
         <div className="h-full flex items-center justify-center text-[12.5px] text-mute py-8">Scanning latest 13F filings…</div>
-      ) : rows.length === 0 ? (
+      ) : known === 0 ? (
         <Empty text={`No recent 13F filings reporting ${ticker} positions found.`} />
       ) : (
-        <div className="overflow-auto scrollbar-visible" style={{ maxHeight: 264 }}>
-          <table className="w-full text-[12px]" style={{ minWidth: 420 }}>
-            <thead className="sticky top-0 z-10" style={{ background: "var(--bg-2)" }}>
-              <tr className="text-[10px] uppercase tracking-wider text-mute text-left">
-                <th className="font-bold px-2.5 py-1.5">Institution</th>
-                <th className="font-bold px-2.5 py-1.5 text-right">Shares</th>
-                <th className="font-bold px-2.5 py-1.5 text-right">Change</th>
-                <th className="font-bold px-2.5 py-1.5 text-right">Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((w, i) => (
-                <tr key={i} style={{ borderTop: "1px solid var(--border)" }}>
-                  <td className="px-2.5 py-2">
-                    <span className="font-semibold block truncate max-w-[170px]">{w.institution}</span>
-                    <span className="block text-[10px] text-mute">{formatDate(w.reported)}</span>
-                  </td>
-                  <td className="px-2.5 py-2 text-right tabular">{w.shares.toLocaleString()}</td>
-                  <td className="px-2.5 py-2 text-right tabular font-semibold whitespace-nowrap">
-                    {w.isNew ? (
-                      <span style={{ color: "#10B981" }}>NEW</span>
-                    ) : w.change == null ? (
-                      <span className="text-mute">—</span>
-                    ) : (
-                      <span style={{ color: w.change >= 0 ? "#10B981" : "#EF4444" }}>
-                        {w.change >= 0 ? "+" : ""}{w.change.toLocaleString()}
-                        {w.pctChange != null ? ` (${w.pctChange >= 0 ? "+" : ""}${w.pctChange}%)` : ""}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-2.5 py-2 text-right tabular whitespace-nowrap">{formatCurrency(w.value)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="h-full flex items-center justify-center">
+          <WhaleGauge segments={[
+            { label: "New", count: counts.isNew, color: "#34D399" },
+            { label: "Increased", count: counts.increased, color: "#10B981" },
+            { label: "Held", count: counts.held, color: "#4E8E76" },
+            { label: "Decreased", count: counts.decreased, color: "#C6505C" },
+          ].filter((s) => s.count > 0)} />
         </div>
       )}
       <div className="flex items-center justify-between mt-2">
-        <p className="text-[10px] text-faint">Source: SEC EDGAR (Form 13F)</p>
+        <p className="text-[10px] text-faint">Latest {rows.length} 13F filings · Source: SEC EDGAR</p>
         <Link href={`/companies/${encodeURIComponent(ticker)}/institutions`} className="text-[11px] font-bold text-accent hover:underline">
           View all institutional owners →
         </Link>
       </div>
     </Card>
+  );
+}
+
+/** QuiverQuant-style 270° arc gauge — one colored band per change category
+ *  with the label + count rendered inside each slice. */
+function WhaleGauge({ segments }: { segments: { label: string; count: number; color: string }[] }) {
+  const size = 240, cx = size / 2, cy = size / 2, R = 108, r = 64;
+  const total = segments.reduce((s, x) => s + x.count, 0) || 1;
+  // Sweep 270° clockwise starting at 7:30 (bottom-left), gap at the bottom —
+  // angles measured clockwise from 12 o'clock.
+  const START = 225, SWEEP = 270;
+  const pt = (deg: number, rad: number) => {
+    const a = (deg * Math.PI) / 180;
+    return `${cx + rad * Math.sin(a)},${cy - rad * Math.cos(a)}`;
+  };
+  let a0 = START;
+  const arcs = segments.map((s) => {
+    const sweep = (s.count / total) * SWEEP;
+    const a1 = a0 + sweep;
+    const large = sweep > 180 ? 1 : 0;
+    const d = `M ${pt(a0, R)} A ${R} ${R} 0 ${large} 1 ${pt(a1, R)} L ${pt(a1, r)} A ${r} ${r} 0 ${large} 0 ${pt(a0, r)} Z`;
+    const mid = (a0 + a1) / 2;
+    a0 = a1;
+    return { ...s, d, mid, sweep };
+  });
+  const midR = (R + r) / 2;
+  return (
+    <svg width="100%" viewBox={`0 0 ${size} ${size}`} style={{ maxWidth: 280 }}>
+      {arcs.map((a) => (
+        <path key={a.label} d={a.d} fill={a.color} stroke="var(--bg-1)" strokeWidth="1" />
+      ))}
+      {arcs.map((a) => {
+        const rad = (a.mid * Math.PI) / 180;
+        const x = cx + midR * Math.sin(rad);
+        const y = cy - midR * Math.cos(rad);
+        // Big slices: horizontal 2-line label. Small slices: rotated along the arc.
+        if (a.sweep >= 34) {
+          return (
+            <g key={a.label}>
+              <text x={x} y={y - 3} textAnchor="middle" fontSize="12" fontWeight="700" fill="#fff">{a.label}</text>
+              <text x={x} y={y + 12} textAnchor="middle" fontSize="12" fontWeight="700" fill="#fff">{a.count}</text>
+            </g>
+          );
+        }
+        const rot = a.mid > 180 ? a.mid + 90 : a.mid - 90;
+        return (
+          <text key={a.label} x={x} y={y} textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#fff"
+            transform={`rotate(${rot} ${x} ${y})`}>
+            {a.label} {a.count}
+          </text>
+        );
+      })}
+    </svg>
   );
 }
 
