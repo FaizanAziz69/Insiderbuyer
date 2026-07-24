@@ -20,12 +20,16 @@ export interface OutsideItem {
   filed: string | null;
 }
 
-/** One itemized non-individual receipt to a member's committee (Sched A). */
-export interface Receipt {
-  name: string;
+/** One corporate PAC → committee contribution (FEC Schedule A non-individual).
+ *  `ticker`/`companyName` are resolved downstream from the company table. */
+export interface PacDonor {
+  companyCommittee: string;
+  recipientCommittee: string;
   amount: number;
   date: string | null;
-  loaded: string | null;
+  cycle: number | null;
+  ticker?: string | null;
+  companyName?: string | null;
 }
 
 /** Campaign-finance summary + top contributors (FEC). */
@@ -301,10 +305,10 @@ export class CivicService {
     return { supporters, opponents };
   }
 
-  /** Itemized top receipts (FEC Schedule A non-individual: PAC/committee
-   *  contributions to the member's principal committee) — Name / Amount /
-   *  Date / Loaded, for the "Top Receipts" table. */
-  async getTopReceipts(name: string): Promise<Receipt[]> {
+  /** Corporate PAC donors to the member's principal committee (FEC Schedule A
+   *  non-individual) — Company Committee / Recipient Committee / Amount / Date /
+   *  Cycle. Ticker is resolved downstream from the company table. */
+  async getCorporatePacDonors(name: string): Promise<PacDonor[]> {
     if (!this.fecEnabled) return [];
     const candidateId = await this.resolveFecCandidate(name);
     if (!candidateId) return [];
@@ -313,22 +317,26 @@ export class CivicService {
       const committees = cData?.results || [];
       const principal = committees.find((c: any) => c.designation === 'P') || committees[0];
       if (!principal?.committee_id) return [];
+      const recipient = principal.name || 'Principal Committee';
       const sa = await this.fec('/schedules/schedule_a/', {
         committee_id: principal.committee_id,
         is_individual: false,
         sort: '-contribution_receipt_amount',
-        per_page: 40,
+        per_page: 60,
       });
       return (sa?.results || [])
-        .map((r: any): Receipt => ({
-          name: (r.contributor_name || '').trim(),
+        .map((r: any): PacDonor => ({
+          companyCommittee: (r.contributor_name || '').trim(),
+          recipientCommittee: recipient,
           amount: Number(r.contribution_receipt_amount) || 0,
           date: (r.contribution_receipt_date || '')?.slice(0, 10) || null,
-          loaded: (r.load_date || '')?.slice(0, 10) || null,
+          cycle:
+            r.two_year_transaction_period ??
+            (r.contribution_receipt_date ? Number(r.contribution_receipt_date.slice(0, 4)) : null),
         }))
-        .filter((x: Receipt) => x.name && x.amount > 0);
+        .filter((x: PacDonor) => x.companyCommittee && x.amount > 0);
     } catch (e: any) {
-      this.log.warn(`FEC top receipts failed: ${e?.message || e}`);
+      this.log.warn(`FEC corporate PAC donors failed: ${e?.message || e}`);
       return [];
     }
   }

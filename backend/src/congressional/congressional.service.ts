@@ -17,6 +17,21 @@ function safeDate(s: string | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/** Reduce a company / PAC name to its distinctive core (drop legal + PAC
+ *  suffixes) so "UnitedHealth Group Incorporated" and "UNITEDHEALTH GROUP INC
+ *  PAC" both normalize to "unitedhealth" for ticker matching. */
+function normCompanyName(s: string | null | undefined): string {
+  return (s || '')
+    .toLowerCase()
+    .replace(
+      /\b(inc|incorporated|corp|corporation|company|co|llc|lp|plc|holdings|group|the|political action committee|pac|employees|fund|good government|for better government|committee|international|association|and|of)\b/g,
+      ' ',
+    )
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** Normalize any Yahoo sector / SEC SIC-description string to one of the 11
  *  clean GICS sectors (so the Top-Traded-Sectors breakdown reads "Information
  *  Technology", not "Computer Communications Equipment"). */
@@ -429,14 +444,41 @@ export class CongressionalService implements OnModuleInit {
 
     // Civic data (Congress.gov legislation + FEC fundraising) — both degrade to
     // null/[] when their API key isn't configured, so the UI shows a connect state.
-    const [legislation, fundraising, topReceipts, outsideSpending] = await Promise.all([
+    const [legislation, fundraising, pacDonors, outsideSpending] = await Promise.all([
       this.civic.getSponsoredLegislation(first.politicianName).catch(() => []),
       this.civic.getFundraising(first.politicianName).catch(() => null),
-      this.civic.getTopReceipts(first.politicianName).catch(() => []),
+      this.civic.getCorporatePacDonors(first.politicianName).catch(() => []),
       this.civic
         .getOutsideSpending(first.politicianName)
         .catch(() => ({ supporters: [], opponents: [] })),
     ]);
+
+    // Resolve a stock ticker for each corporate PAC donor by matching the PAC
+    // name against our company table (strip PAC/legal suffixes → core name).
+    const partyLabel = first.party?.startsWith('R')
+      ? 'REP'
+      : first.party?.startsWith('D')
+        ? 'DEM'
+        : first.party || null;
+    let corporatePacDonors = pacDonors.map((d) => ({ ...d, party: partyLabel }));
+    if (pacDonors.length) {
+      try {
+        const comps = await this.companies
+          .createQueryBuilder('c')
+          .select(['c.ticker AS ticker', 'c.name AS name'])
+          .where("c.ticker IS NOT NULL AND c.ticker <> ''")
+          .getRawMany<{ ticker: string; name: string }>();
+        const index = comps
+          .map((c) => ({ ticker: c.ticker, name: c.name, norm: normCompanyName(c.name) }))
+          .filter((c) => c.norm.length >= 4)
+          .sort((a, b) => b.norm.length - a.norm.length); // longest (most specific) first
+        corporatePacDonors = corporatePacDonors.map((d) => {
+          const pacNorm = normCompanyName(d.companyCommittee);
+          const hit = index.find((c) => pacNorm.includes(c.norm));
+          return hit ? { ...d, ticker: hit.ticker, companyName: hit.name } : d;
+        });
+      } catch { /* company table unavailable — tickers stay blank */ }
+    }
 
     return {
       name: first.politicianName,
@@ -463,7 +505,7 @@ export class CongressionalService implements OnModuleInit {
       trades,
       legislation,
       fundraising,
-      topReceipts,
+      corporatePacDonors,
       supporters: outsideSpending.supporters,
       opponents: outsideSpending.opponents,
     };

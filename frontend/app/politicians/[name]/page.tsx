@@ -39,11 +39,21 @@ interface Profile {
   trades: PolTrade[];
   legislation: Legislation[];
   fundraising: Fundraising | null;
-  topReceipts: { name: string; amount: number; date: string | null; loaded: string | null }[];
+  corporatePacDonors: PacDonor[];
   supporters: OutsideItem[];
   opponents: OutsideItem[];
 }
 interface OutsideItem { committee: string; amount: number; date: string | null; filed: string | null }
+interface PacDonor {
+  companyCommittee: string;
+  recipientCommittee: string;
+  amount: number;
+  date: string | null;
+  cycle: number | null;
+  ticker?: string | null;
+  companyName?: string | null;
+  party?: string | null;
+}
 interface Legislation {
   title: string; number: string | null;
   introducedDate: string | null; latestActionDate: string | null;
@@ -384,26 +394,48 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
                   <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Cash on Hand</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.cashOnHand != null ? formatCurrency(p.fundraising.cashOnHand) : "—"}</div></div>
                 </div>
               )}
-              {p.topReceipts && p.topReceipts.length > 0 ? (
+              {p.corporatePacDonors && p.corporatePacDonors.length > 0 ? (
                 <div className="card overflow-hidden">
-                  <div className="p-3.5 text-[13px] font-bold" style={{ borderBottom: "1px solid var(--border)" }}>Top Receipts (PAC / committee)</div>
+                  <div className="p-3.5 text-[13px] font-bold" style={{ borderBottom: "1px solid var(--border)" }}>Corporate PAC Donors</div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-[12.5px]">
+                    <table className="w-full text-[12.5px]" style={{ minWidth: 720 }}>
                       <thead>
                         <tr className="text-[10.5px] uppercase tracking-wider text-mute" style={{ background: "var(--bg-2)" }}>
-                          <th className="text-left font-bold px-3.5 py-2">Name</th>
+                          <th className="text-left font-bold px-3.5 py-2">Ticker</th>
+                          <th className="text-left font-bold px-3.5 py-2">Company Committee</th>
+                          <th className="text-left font-bold px-3.5 py-2">Recipient Committee</th>
                           <th className="text-right font-bold px-3.5 py-2">Amount</th>
                           <th className="text-right font-bold px-3.5 py-2">Date</th>
-                          <th className="text-right font-bold px-3.5 py-2">Loaded</th>
+                          <th className="text-center font-bold px-3.5 py-2">Party</th>
+                          <th className="text-right font-bold px-3.5 py-2">Cycle</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {p.topReceipts.map((r, i) => (
+                        {p.corporatePacDonors.map((d, i) => (
                           <tr key={i} style={{ borderTop: "1px solid var(--border)" }}>
-                            <td className="px-3.5 py-2.5 font-medium">{titleCase(r.name)}</td>
-                            <td className="px-3.5 py-2.5 text-right font-mono tabular">{formatCurrency(r.amount)}</td>
-                            <td className="px-3.5 py-2.5 text-right text-mute">{r.date ? formatDate(r.date) : "—"}</td>
-                            <td className="px-3.5 py-2.5 text-right text-mute">{r.loaded ? formatDate(r.loaded) : "—"}</td>
+                            <td className="px-3.5 py-2.5">
+                              {d.ticker ? (
+                                <Link href={`/companies/${d.ticker}`} className="flex items-center gap-2 group">
+                                  <CompanyLogo ticker={d.ticker} name={d.companyName || d.ticker} size={20} />
+                                  <span className="min-w-0">
+                                    <span className="font-mono font-bold group-hover:text-accent transition">{d.ticker}</span>
+                                    {d.companyName && <span className="block text-[10.5px] text-mute truncate max-w-[120px] uppercase">{d.companyName}</span>}
+                                  </span>
+                                </Link>
+                              ) : (
+                                <span className="text-faint">—</span>
+                              )}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-soft">{titleCase(d.companyCommittee)}</td>
+                            <td className="px-3.5 py-2.5 text-mute truncate max-w-[180px]">{titleCase(d.recipientCommittee)}</td>
+                            <td className="px-3.5 py-2.5 text-right font-mono tabular">{formatCurrency(d.amount)}</td>
+                            <td className="px-3.5 py-2.5 text-right text-mute whitespace-nowrap">{d.date ? formatDate(d.date) : "—"}</td>
+                            <td className="px-3.5 py-2.5 text-center">
+                              {d.party && (
+                                <span className="text-[10.5px] font-bold" style={{ color: d.party === "REP" ? "#EF4444" : d.party === "DEM" ? "#3B82F6" : "var(--text-mute)" }}>{d.party}</span>
+                              )}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-right text-mute font-mono">{d.cycle ?? "—"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -411,14 +443,14 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
                   </div>
                 </div>
               ) : p.fundraising ? (
-                <p className="text-[12.5px] text-mute">No itemized PAC/committee receipts found for this committee.</p>
+                <p className="text-[12.5px] text-mute">No itemized PAC/committee contributions found for this committee.</p>
               ) : (
                 <NeedsData title="Corporate Donors"
                   note="Live FEC campaign-finance data activates once an FEC_API_KEY (free, from api.data.gov) is set. No match / no key yet." />
               )}
               <p className="text-[11px] text-faint mt-2">
-                Source: FEC (OpenFEC) — committee totals + itemized non-individual (PAC/committee) receipts.
-                May include refunds; names hidden for individual donations below $250k.
+                Source: FEC (OpenFEC) — committee totals + itemized non-individual (PAC/committee) contributions.
+                Ticker matched from the company name where identifiable.
               </p>
             </section>
           )}
