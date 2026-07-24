@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { Landmark, FileText, Scale, TrendingUp, Scale3d } from "lucide-react";
@@ -7,28 +8,102 @@ import { API_BASE, fetcher, formatCurrency, formatDate } from "@/lib/api";
 /** QuiverQuant-style grid of equal-sized data cards on the stock page. Each
  *  card is self-contained (its own fetch) and shows a distinct dataset, all
  *  from real free sources. Cards with no data show an honest empty state. */
+interface InsiderTx {
+  insiderName: string;
+  role?: string | null;
+  rawTitle?: string | null;
+  transactionCode: string;
+  sharesBought: number;
+  pricePerShare: number;
+  totalValue: number;
+  previousHoldings?: number | null;
+  postHoldings?: number | null;
+  transactionDate: string;
+  filingUrl?: string | null;
+}
+
 export function StockCivicGrid({
   ticker,
   companyName,
   sector,
   insiderScore,
+  transactions = [],
 }: {
   ticker: string;
   companyName: string;
   sector?: string | null;
   insiderScore?: number | null;
+  transactions?: InsiderTx[];
 }) {
   return (
     <section>
       <h2 className="large-section-h mb-3"><span>Signals & Government Data</span></h2>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+        <InsiderTradingTableCard ticker={ticker} transactions={transactions} />
         <CongressTradingCard ticker={ticker} />
         <GovContractsCard companyName={companyName} ticker={ticker} />
-        <InsiderQuarterlyCard ticker={ticker} />
         <LobbyingCard companyName={companyName} ticker={ticker} />
         <BullBearCard ticker={ticker} companyName={companyName} sector={sector} insiderScore={insiderScore} />
       </div>
     </section>
+  );
+}
+
+/** Insider Trading — scrollable Form 4 filings table (our SEC data). */
+function InsiderTradingTableCard({ ticker, transactions }: { ticker: string; transactions: InsiderTx[] }) {
+  const rows = [...transactions].sort(
+    (a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime(),
+  );
+  const shares = (n: number) => Math.round(n).toLocaleString();
+  return (
+    <Card icon={<TrendingUp className="h-4 w-4" />} title="Insider Trading" subtitle={`Form 4 filings by ${ticker} executives, directors & 10% owners`}>
+      {rows.length === 0 ? (
+        <Empty text={`No Form 4 filings for ${ticker} in our data.`} />
+      ) : (
+        <div className="overflow-auto scrollbar-visible" style={{ maxHeight: 300 }}>
+          <table className="w-full text-[12px]" style={{ minWidth: 640 }}>
+            <thead className="sticky top-0 z-10" style={{ background: "var(--bg-2)" }}>
+              <tr className="text-[10px] uppercase tracking-wider text-mute text-left">
+                <th className="font-bold px-2.5 py-2">Insider</th>
+                <th className="font-bold px-2.5 py-2 text-center">Action</th>
+                <th className="font-bold px-2.5 py-2 text-right">Shares</th>
+                <th className="font-bold px-2.5 py-2 text-right">Avg Cost</th>
+                <th className="font-bold px-2.5 py-2 text-right">Total</th>
+                <th className="font-bold px-2.5 py-2 text-right">Held After</th>
+                <th className="font-bold px-2.5 py-2 text-right">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((t, i) => {
+                const buy = t.transactionCode === "P";
+                return (
+                  <tr key={i} style={{ borderTop: "1px solid var(--border)" }}>
+                    <td className="px-2.5 py-2">
+                      <span className="font-semibold block truncate max-w-[150px]">{t.insiderName}</span>
+                      {(t.rawTitle || t.role) && (
+                        <span className="block text-[10px] text-mute truncate max-w-[150px]">{t.rawTitle || t.role}</span>
+                      )}
+                    </td>
+                    <td className="px-2.5 py-2 text-center">
+                      <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
+                        style={{ background: buy ? "rgba(16,185,129,0.14)" : "rgba(239,68,68,0.14)", color: buy ? "#10B981" : "#EF4444" }}>
+                        {buy ? "Buy" : "Sell"}
+                      </span>
+                    </td>
+                    <td className="px-2.5 py-2 text-right tabular">{shares(t.sharesBought)}</td>
+                    <td className="px-2.5 py-2 text-right tabular">${Number(t.pricePerShare).toFixed(2)}</td>
+                    <td className="px-2.5 py-2 text-right tabular font-semibold">{formatCurrency(t.totalValue)}</td>
+                    <td className="px-2.5 py-2 text-right tabular text-mute">{t.postHoldings != null ? shares(t.postHoldings) : "—"}</td>
+                    <td className="px-2.5 py-2 text-right text-mute whitespace-nowrap">{formatDate(t.transactionDate)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="text-[10px] text-faint mt-2">Source: SEC EDGAR (Form 4)</p>
+    </Card>
   );
 }
 
@@ -167,62 +242,62 @@ function LobbyingCard({ companyName, ticker }: { companyName: string; ticker: st
   );
 }
 
-/** Insider Trading — quarterly net insider shares (our SEC Form 4 feed). */
-function InsiderQuarterlyCard({ ticker }: { ticker: string }) {
-  const { data } = useSWR<{ rows: any[] }>(`${API_BASE}/trades?q=${ticker}&side=all&limit=500`, fetcher, { revalidateOnFocus: false });
-  const rows = (data?.rows || []).filter((r) => (r.ticker || "").toUpperCase() === ticker.toUpperCase());
-  // Net purchase value by quarter (buys +, sells −).
-  const byQ = new Map<string, { label: string; sort: number; amount: number }>();
-  for (const r of rows) {
-    if (!r.transactionDate) continue;
-    const d = new Date(r.transactionDate);
-    if (isNaN(d.getTime())) continue;
-    const qi = Math.floor(d.getUTCMonth() / 3);
-    const key = `${d.getUTCFullYear()}-${qi}`;
-    const e = byQ.get(key) || { label: `FY${String(d.getUTCFullYear()).slice(2)} Q${qi + 1}`, sort: d.getUTCFullYear() * 4 + qi, amount: 0 };
-    e.amount += (r.type === "SELL" ? -1 : 1) * (Number(r.totalValue) || 0);
-    byQ.set(key, e);
-  }
-  const q = Array.from(byQ.values()).sort((a, b) => a.sort - b.sort).slice(-10);
-  return (
-    <Card icon={<TrendingUp className="h-4 w-4" />} title="Insider Trading" subtitle={`Quarterly net insider buying/selling of ${ticker} (SEC Form 4)`}>
-      {q.length === 0 ? <Empty text={`No SEC Form 4 insider trades of ${ticker} in our data.`} /> : <CivicBars data={q} signed />}
-      <p className="text-[10px] text-faint mt-2">Source: SEC EDGAR (Form 4)</p>
-    </Card>
-  );
+function axisMoney(n: number): string {
+  const a = Math.abs(n);
+  return a >= 1e9 ? `$${(n / 1e9).toFixed(1)}B` : a >= 1e6 ? `$${Math.round(n / 1e6)}M` : a >= 1e3 ? `$${Math.round(n / 1e3)}K` : `$${Math.round(n)}`;
 }
 
-/** Compact quarterly bar chart. `signed` = green(+)/red(−) around a baseline. */
+/** Bar chart with a Y-axis (nice ticks + gridlines), angled X labels, and an
+ *  interactive hover tooltip. `signed` = green(+)/red(−) around a zero line. */
 function CivicBars({ data, color = "#6366F1", signed = false }: { data: { label: string; amount: number }[]; color?: string; signed?: boolean }) {
-  const W = 520, H = 190, mL = 46, mR = 6, mT = 8, mB = 40;
+  const [hover, setHover] = useState<number | null>(null);
+  const W = 560, H = 210, mL = 52, mR = 8, mT = 10, mB = 42;
   const plotW = W - mL - mR, plotH = H - mT - mB;
-  const vals = data.map((d) => d.amount);
-  const maxAbs = Math.max(1, ...vals.map((v) => Math.abs(v)));
+  const rawMax = Math.max(1, ...data.map((d) => Math.abs(d.amount)));
+  const pow = Math.pow(10, Math.floor(Math.log10(rawMax)));
+  const max = Math.ceil(rawMax / pow) * pow;
   const groupW = plotW / data.length;
-  const barW = Math.min(18, groupW * 0.6);
+  const barW = Math.min(20, groupW * 0.6);
   const zeroY = signed ? mT + plotH / 2 : mT + plotH;
-  const scale = signed ? (plotH / 2) / maxAbs : plotH / maxAbs;
-  const money = (n: number) => (Math.abs(n) >= 1e9 ? `${(n / 1e9).toFixed(1)}B` : Math.abs(n) >= 1e6 ? `${Math.round(n / 1e6)}M` : Math.abs(n) >= 1e3 ? `${Math.round(n / 1e3)}K` : `${Math.round(n)}`);
+  const scale = signed ? plotH / 2 / max : plotH / max;
+  const ticks = signed ? [max, max / 2, 0, -max / 2, -max] : [max, max * 0.75, max * 0.5, max * 0.25, 0];
+  const tickY = (t: number) => (signed ? zeroY - t * scale : zeroY - t * scale);
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", fontFamily: "var(--font-mono, monospace)" }}>
-      <line x1={mL} x2={W - mR} y1={zeroY} y2={zeroY} stroke="var(--border-strong)" strokeWidth="1" />
-      <text x={mL - 8} y={mT + 4} textAnchor="end" fontSize="10" fill="var(--text-mute)">{money(signed ? maxAbs : maxAbs)}</text>
-      {signed && <text x={mL - 8} y={mT + plotH} textAnchor="end" fontSize="10" fill="var(--text-mute)">-{money(maxAbs)}</text>}
-      {data.map((d, i) => {
-        const cx = mL + groupW * (i + 0.5);
-        const h = Math.abs(d.amount) * scale;
-        const up = d.amount >= 0;
-        const y = signed ? (up ? zeroY - h : zeroY) : zeroY - h;
-        const fill = signed ? (up ? "#10B981" : "#EF4444") : color;
-        return (
-          <g key={d.label}>
-            <rect x={cx - barW / 2} y={y} width={barW} height={Math.max(1, h)} rx="2" fill={fill}>
-              <title>{`${d.label}: ${formatCurrency(d.amount)}`}</title>
-            </rect>
-            <text x={cx} y={H - mB + 14} textAnchor="end" fontSize="9.5" fill="var(--text-mute)" transform={`rotate(-40 ${cx} ${H - mB + 14})`}>{d.label}</text>
+    <div className="relative">
+      {hover != null && data[hover] && (
+        <div className="absolute z-10 text-[11px] rounded px-2 py-1 pointer-events-none whitespace-nowrap"
+          style={{ left: `${(mL + groupW * (hover + 0.5)) / W * 100}%`, top: 0, transform: "translateX(-50%)", background: "var(--text)", color: "var(--bg-1)" }}>
+          {data[hover].label}: {formatCurrency(data[hover].amount)}
+        </div>
+      )}
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", fontFamily: "var(--font-mono, monospace)" }}>
+        {/* Y gridlines + tick labels */}
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={mL} x2={W - mR} y1={tickY(t)} y2={tickY(t)} stroke="var(--border)" strokeWidth="1" opacity="0.5" />
+            <text x={mL - 8} y={tickY(t) + 3.5} textAnchor="end" fontSize="10" fill="var(--text-mute)">{axisMoney(t)}</text>
           </g>
-        );
-      })}
-    </svg>
+        ))}
+        {/* Axis lines */}
+        <line x1={mL} x2={mL} y1={mT} y2={mT + plotH} stroke="var(--border-strong)" strokeWidth="1.5" />
+        <line x1={mL} x2={W - mR} y1={zeroY} y2={zeroY} stroke="var(--border-strong)" strokeWidth="1.5" />
+        {data.map((d, i) => {
+          const cx = mL + groupW * (i + 0.5);
+          const h = Math.abs(d.amount) * scale;
+          const up = d.amount >= 0;
+          const y = signed ? (up ? zeroY - h : zeroY) : zeroY - h;
+          const fill = signed ? (up ? "#10B981" : "#EF4444") : color;
+          return (
+            <g key={d.label} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} style={{ cursor: "pointer" }}>
+              {/* wide invisible hit area so hover is easy */}
+              <rect x={mL + groupW * i} y={mT} width={groupW} height={plotH} fill="transparent" />
+              <rect x={cx - barW / 2} y={y} width={barW} height={Math.max(1, h)} rx="2" fill={fill} opacity={hover == null || hover === i ? 1 : 0.55} />
+              <text x={cx} y={H - mB + 14} textAnchor="end" fontSize="9.5" fill="var(--text-mute)" transform={`rotate(-40 ${cx} ${H - mB + 14})`}>{d.label}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
