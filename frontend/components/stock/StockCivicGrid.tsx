@@ -1,13 +1,23 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { Landmark, FileText, Scale, TrendingUp } from "lucide-react";
+import { Landmark, FileText, Scale, TrendingUp, Scale3d } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency, formatDate } from "@/lib/api";
 
 /** QuiverQuant-style grid of equal-sized data cards on the stock page. Each
  *  card is self-contained (its own fetch) and shows a distinct dataset, all
  *  from real free sources. Cards with no data show an honest empty state. */
-export function StockCivicGrid({ ticker, companyName }: { ticker: string; companyName: string }) {
+export function StockCivicGrid({
+  ticker,
+  companyName,
+  sector,
+  insiderScore,
+}: {
+  ticker: string;
+  companyName: string;
+  sector?: string | null;
+  insiderScore?: number | null;
+}) {
   return (
     <section>
       <h2 className="large-section-h mb-3"><span>Signals & Government Data</span></h2>
@@ -16,8 +26,59 @@ export function StockCivicGrid({ ticker, companyName }: { ticker: string; compan
         <GovContractsCard companyName={companyName} ticker={ticker} />
         <InsiderQuarterlyCard ticker={ticker} />
         <LobbyingCard companyName={companyName} ticker={ticker} />
+        <BullBearCard ticker={ticker} companyName={companyName} sector={sector} insiderScore={insiderScore} />
       </div>
     </section>
+  );
+}
+
+/** AI Bull Case vs Bear Case — our own, generated from the ticker's data. */
+function BullBearCard({ ticker, companyName, sector, insiderScore }: { ticker: string; companyName: string; sector?: string | null; insiderScore?: number | null }) {
+  const params = new URLSearchParams({ name: companyName });
+  if (sector) params.set("sector", sector);
+  if (insiderScore != null) params.set("score", String(Math.round(insiderScore)));
+  const { data, isLoading } = useSWR<{ bullBear: { bull: string[]; bear: string[] } | null }>(
+    `${API_BASE}/content/bull-bear/${ticker}?${params.toString()}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 },
+  );
+  const bb = data?.bullBear;
+  return (
+    <div className="card p-5 flex flex-col h-full min-h-[320px] lg:col-span-2">
+      <div className="flex items-center gap-2">
+        <span className="text-accent"><Scale3d className="h-4 w-4" /></span>
+        <h3 className="text-[16px] font-bold">Bull Case vs Bear Case</h3>
+      </div>
+      <p className="text-[12px] text-mute mt-0.5 mb-3">AI-generated from {ticker}&rsquo;s recent data — informational, not investment advice</p>
+      {isLoading ? (
+        <div className="h-full flex items-center justify-center text-[12.5px] text-mute py-8">Generating analysis…</div>
+      ) : !bb || (!bb.bull.length && !bb.bear.length) ? (
+        <div className="h-full flex items-center justify-center text-center text-[12.5px] text-mute py-8 px-4">AI analysis unavailable right now.</div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 flex-1">
+          <div>
+            <div className="text-[12px] font-bold uppercase tracking-wider mb-2" style={{ color: "#10B981" }}>▲ Bull Case</div>
+            <ul className="space-y-2">
+              {bb.bull.map((p, i) => (
+                <li key={i} className="text-[13px] leading-relaxed flex gap-2">
+                  <span style={{ color: "#10B981" }} className="flex-shrink-0">+</span><span>{p}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <div className="text-[12px] font-bold uppercase tracking-wider mb-2" style={{ color: "#EF4444" }}>▼ Bear Case</div>
+            <ul className="space-y-2">
+              {bb.bear.map((p, i) => (
+                <li key={i} className="text-[13px] leading-relaxed flex gap-2">
+                  <span style={{ color: "#EF4444" }} className="flex-shrink-0">−</span><span>{p}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

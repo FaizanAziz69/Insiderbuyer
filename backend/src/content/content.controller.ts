@@ -55,6 +55,24 @@ export class ContentController {
     return { format: format.key, ref: format.ref, article };
   }
 
+  /** AI Bull Case vs Bear Case for a ticker (our own; grounded in recent news
+   *  + Insider Score). Cached 24h. */
+  @Get('bull-bear/:ticker')
+  async bullBear(
+    @Param('ticker') ticker: string,
+    @Query('name') name?: string,
+    @Query('sector') sector?: string,
+    @Query('score') score?: string,
+  ) {
+    const data = await this.content.getBullBear(
+      ticker,
+      name || ticker,
+      sector || null,
+      score != null && score !== '' ? Number(score) : null,
+    );
+    return { ticker: ticker.toUpperCase(), bullBear: data };
+  }
+
   /** Latest articles, newest first. Filter by kind and/or ticker. */
   @Get('blogs')
   async list(

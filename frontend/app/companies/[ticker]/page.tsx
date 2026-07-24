@@ -254,7 +254,12 @@ export default function CompanyPage({
 
             {/* QuiverQuant-style uniform card grid — Congress Trading,
                 Government Contracts, Insider Trading (quarterly), Lobbying. */}
-            <StockCivicGrid ticker={sym} companyName={data.company.name} />
+            <StockCivicGrid
+              ticker={sym}
+              companyName={data.company.name}
+              sector={profile?.sector || data.company.sector}
+              insiderScore={data.score ? Number(data.score.iqs) : null}
+            />
 
             {/* About — directly under the key data (client spec). */}
             {profile?.description && (

@@ -564,6 +564,70 @@ ${news}`;
     }
   }
 
+  /** AI Bull Case vs Bear Case for a ticker — our own analogue of QuiverQuant's
+   *  gated card. Grounded in the company + recent headlines we pass in; clearly
+   *  an AI opinion, not advice. Returns 3 bull + 3 bear bullet points. */
+  async generateBullBear(opts: {
+    symbol: string;
+    name: string;
+    sector?: string | null;
+    insiderScore?: number | null;
+    headlines: string[];
+  }): Promise<{ bull: string[]; bear: string[] } | null> {
+    if (!this.client) return null;
+    const facts = [
+      `Company: ${opts.name} (${opts.symbol})`,
+      opts.sector ? `Sector: ${opts.sector}` : '',
+      opts.insiderScore != null ? `Our Insider Score: ${Math.round(opts.insiderScore)}/100` : '',
+      opts.headlines.length
+        ? `Recent headlines:\n- ${opts.headlines.slice(0, 8).join('\n- ')}`
+        : 'No recent company-specific headlines available.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    const tool: Anthropic.Messages.Tool = {
+      name: 'publish_bull_bear',
+      description: 'Publish the bull case and bear case.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          bull: { type: 'array', items: { type: 'string' }, description: '3 concise bull-case points' },
+          bear: { type: 'array', items: { type: 'string' }, description: '3 concise bear-case points' },
+        },
+        required: ['bull', 'bear'],
+      },
+    };
+    try {
+      const response = await this.client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 700,
+        system:
+          'You are a balanced equity analyst. Give a fair bull case and bear case for a stock, grounded ONLY in the company facts and headlines provided plus widely-known, durable fundamentals. Do NOT invent specific numbers, prices, or events not supported by the input. Each point is one plain-English sentence. Informational only, never investment advice.',
+        tool_choice: { type: 'tool', name: 'publish_bull_bear' },
+        tools: [tool],
+        messages: [
+          {
+            role: 'user',
+            content: `Write a Bull Case vs Bear Case for ${opts.name} (${opts.symbol}). 3 bullet points each, one sentence each, specific and balanced.\n\n${facts}`,
+          },
+        ],
+      });
+      const block = response.content.find(
+        (b): b is Anthropic.Messages.ToolUseBlock => b.type === 'tool_use',
+      );
+      const input = block?.input as { bull?: string[]; bear?: string[] } | undefined;
+      const clean = (arr?: string[]) =>
+        (arr || []).map((s) => plainExplainer(String(s)).trim()).filter(Boolean).slice(0, 4);
+      const bull = clean(input?.bull);
+      const bear = clean(input?.bear);
+      if (!bull.length && !bear.length) return null;
+      return { bull, bear };
+    } catch (err: any) {
+      this.logger.warn(`Bull/bear failed for ${opts.symbol}: ${err?.message || err}`);
+      return null;
+    }
+  }
+
   /** Batched movement explainers — ONE model call for a whole movers table,
    *  so the page can pre-warm every row on load. Each entry gets a unique,
    *  company-specific 2-3 sentence explanation. */

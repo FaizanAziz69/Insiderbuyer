@@ -101,6 +101,35 @@ export class ContentService {
     return data;
   }
 
+  /** On-demand AI Bull Case vs Bear Case for a ticker, grounded in recent
+   *  headlines + our own Insider Score. Cached 24h. */
+  private bullBearCache = new Map<
+    string,
+    { ts: number; data: { bull: string[]; bear: string[] } | null }
+  >();
+  private readonly BULLBEAR_TTL = 24 * 60 * 60_000;
+
+  async getBullBear(
+    symbol: string,
+    name: string,
+    sector: string | null,
+    insiderScore: number | null,
+  ): Promise<{ bull: string[]; bear: string[] } | null> {
+    const key = symbol.toUpperCase();
+    const cached = this.bullBearCache.get(key);
+    if (cached && Date.now() - cached.ts < this.BULLBEAR_TTL) return cached.data;
+    const headlines = await this.tickerHeadlines(key, name || key);
+    const data = await this.generator.generateBullBear({
+      symbol: key,
+      name: name || key,
+      sector,
+      insiderScore,
+      headlines,
+    });
+    this.bullBearCache.set(key, { ts: Date.now(), data });
+    return data;
+  }
+
   /** Deep per-ticker news sweep for the movement explainer — THREE sources in
    *  parallel (Google News RSS, Yahoo per-ticker RSS, Yahoo search), each
    *  headline stamped with its source and date so the model can anchor the
