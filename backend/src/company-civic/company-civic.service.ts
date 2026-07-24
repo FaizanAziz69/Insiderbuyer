@@ -85,13 +85,22 @@ export class CompanyCivicService {
       year_end: { q: 'H2', o: 4 },
     };
     const agg = new Map<string, { label: string; sort: number; amount: number }>();
+    // The LDA API ignores `ordering`, so query recent years explicitly.
+    const thisYear = new Date().getUTCFullYear();
+    const years = [0, 1, 2, 3, 4, 5].map((d) => thisYear - d);
     try {
-      // Newest filings first, so we chart recent quarters (not the year-2000 ones).
-      const { data } = await this.http.get('https://lda.senate.gov/api/v1/filings/', {
-        params: { client_name: companyName, page_size: 100, ordering: '-filing_year' },
-        headers: { Authorization: `Token ${this.ldaKey}` },
-      });
-      for (const f of data?.results || []) {
+      const pages = await Promise.all(
+        years.map((yr) =>
+          this.http
+            .get('https://lda.senate.gov/api/v1/filings/', {
+              params: { client_name: companyName, filing_year: yr, page_size: 100 },
+              headers: { Authorization: `Token ${this.ldaKey}` },
+            })
+            .then((r) => r.data?.results || [])
+            .catch(() => []),
+        ),
+      );
+      for (const f of pages.flat()) {
         const amt = Number(f.income ?? f.expenses ?? 0) || 0;
         const yr = Number(f.filing_year);
         if (!yr || amt <= 0) continue;
