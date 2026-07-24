@@ -543,13 +543,19 @@ export class CongressionalService implements OnModuleInit {
       await Promise.all(
         unresolved.map(async (committee) => {
           const q = cleanPacName(committee);
-          const lead = q.split(' ')[0] || '';
-          if (lead.length < 4) return; // too generic to match safely
+          const tokens = q.split(' ').filter((t) => t.length >= 3);
+          if (!tokens.length || tokens[0].length < 5) return; // too generic to match safely
+          // Require the lead word AND (when present) a second word to appear
+          // as whole words in the equity's name; US listings only.
+          const needed = Math.min(2, tokens.length);
           try {
             const hits: any[] = await this.marketStats.searchSymbols(q, 5);
-            const hit = hits.find(
-              (h) => h.type === 'EQUITY' && String(h.name || '').toLowerCase().includes(lead),
-            );
+            const hit = hits.find((h) => {
+              if (h.type !== 'EQUITY' || String(h.symbol).includes('.')) return false;
+              const name = String(h.name || '');
+              const matched = tokens.filter((t) => new RegExp(`\\b${t}\\b`, 'i').test(name)).length;
+              return matched >= needed && new RegExp(`\\b${tokens[0]}\\b`, 'i').test(name);
+            });
             if (hit) found.set(committee, { ticker: hit.symbol, name: hit.name });
           } catch { /* leave unresolved */ }
         }),
