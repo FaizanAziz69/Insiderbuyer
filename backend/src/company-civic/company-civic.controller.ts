@@ -25,4 +25,11 @@ export class CompanyCivicController {
     if (!ticker) return { segments: [], geography: [], total: null, asOf: null, form: null };
     return this.svc.getRevenueBreakdown(ticker);
   }
+
+  /** Recently reported institutional positions (SEC 13F filings). */
+  @Get('whale-activity')
+  async whaleActivity(@Query('name') name?: string, @Query('ticker') ticker?: string) {
+    if (!name || !ticker) return { holdings: [] };
+    return { holdings: await this.svc.getWhaleActivity(name, ticker) };
+  }
 }

@@ -21,6 +21,16 @@ export interface RevenueBreakdown {
   form: string | null; // "10-Q" | "10-K"
 }
 
+export interface WhaleHolding {
+  institution: string;
+  shares: number;
+  value: number; // USD
+  change: number | null; // share change vs the filer's previous 13F (null = unknown)
+  pctChange: number | null;
+  isNew: boolean; // issuer absent from the filer's previous 13F
+  reported: string; // filing date
+}
+
 /**
  * Free company-level civic datasets for the stock page:
  *  - Government Contracts (USAspending.gov — free, no key)
@@ -38,6 +48,7 @@ export class CompanyCivicService {
   private contractsCache = new Map<string, { ts: number; data: QuarterPoint[] }>();
   private lobbyCache = new Map<string, { ts: number; data: QuarterPoint[] }>();
   private revenueCache = new Map<string, { ts: number; data: RevenueBreakdown }>();
+  private whaleCache = new Map<string, { ts: number; data: WhaleHolding[] }>();
   private cikMap: Map<string, number> | null = null;
   private cikMapTs = 0;
   private readonly TTL = 12 * 60 * 60_000;
@@ -365,6 +376,135 @@ export class CompanyCivicService {
       this.log.warn(`Revenue breakdown failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
     }
     this.revenueCache.set(key, { ts: Date.now(), data: out });
+    return out;
+  }
+
+  // ── Whale Activity (SEC 13F filings — free, no key) ───────────────────
+  //
+  // Institutions report holdings quarterly on Form 13F. EDGAR full-text
+  // search finds recent 13F-HR info tables naming the issuer; we sum the
+  // issuer's rows in each filer's table and diff against that filer's
+  // previous 13F for the share change.
+
+  /** "Amazon.com, Inc." → "AMAZON COM INC" (how 13F info tables name issuers). */
+  private toIssuerName(companyName: string): string {
+    return companyName
+      .toUpperCase()
+      .replace(/\./g, ' ')
+      .replace(/[,'&()]/g, ' ')
+      .replace(/\bCORPORATION\b/g, 'CORP')
+      .replace(/\bINCORPORATED\b/g, 'INC')
+      .replace(/\bCOMPANY\b/g, 'CO')
+      .replace(/\bLIMITED\b/g, 'LTD')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /** Sum an issuer's (shares, value $) across one 13F info-table XML. */
+  private sumInfoTable(xml: string, issuer: string): { shares: number; value: number } | null {
+    const rows = xml.match(/<(?:\w+:)?infoTable>[\s\S]*?<\/(?:\w+:)?infoTable>/gi) || [];
+    let shares = 0;
+    let value = 0;
+    let found = false;
+    for (const r of rows) {
+      const name = r.match(/nameOfIssuer>([\s\S]*?)</i)?.[1]?.toUpperCase().replace(/\s+/g, ' ').trim() || '';
+      if (!name.startsWith(issuer) && !issuer.startsWith(name)) continue;
+      // Only count common shares (skip PUT/CALL option rows).
+      if (/putCall>/i.test(r)) continue;
+      shares += Number(r.match(/sshPrnamt>(\d+)</i)?.[1] || 0);
+      value += Number(r.match(/value>(\d+)</i)?.[1] || 0);
+      found = true;
+    }
+    return found ? { shares, value } : null;
+  }
+
+  /** The filer's previous 13F position in this issuer (null = couldn't tell,
+   *  {shares:0,...} = previous filing had no rows for it → NEW position). */
+  private async previousPosition(
+    filerCik: string,
+    currentAcc: string,
+    issuer: string,
+  ): Promise<{ shares: number; value: number } | null> {
+    try {
+      const padded = filerCik.padStart(10, '0');
+      const { data: sub } = await this.sec.get(`https://data.sec.gov/submissions/CIK${padded}.json`);
+      const r = sub?.filings?.recent;
+      let prevAcc = '';
+      for (let i = 0; i < (r?.form?.length || 0); i++) {
+        if (!/^13F-HR/.test(r.form[i])) continue;
+        const acc = String(r.accessionNumber[i]);
+        if (acc.replace(/-/g, '') === currentAcc) continue;
+        prevAcc = acc.replace(/-/g, '');
+        break;
+      }
+      if (!prevAcc) return null;
+      const base = `https://www.sec.gov/Archives/edgar/data/${Number(filerCik)}/${prevAcc}`;
+      const { data: idx } = await this.sec.get(`${base}/index.json`);
+      const files: string[] = (idx?.directory?.item || []).map((f: any) => String(f.name));
+      const table =
+        files.find((f) => /info.?table.*\.xml$/i.test(f)) ||
+        files.find((f) => /\.xml$/i.test(f) && !/primary_doc/i.test(f));
+      if (!table) return null;
+      const { data: xml } = await this.sec.get(`${base}/${table}`, { responseType: 'text' });
+      return this.sumInfoTable(String(xml), issuer) ?? { shares: 0, value: 0 };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Recently reported institutional positions in a stock (SEC 13F). */
+  async getWhaleActivity(companyName: string, ticker: string): Promise<WhaleHolding[]> {
+    const key = ticker.toUpperCase();
+    const cached = this.whaleCache.get(key);
+    if (cached && Date.now() - cached.ts < this.TTL) return cached.data;
+    let out: WhaleHolding[] = [];
+    const issuer = this.toIssuerName(companyName);
+    try {
+      const end = new Date().toISOString().slice(0, 10);
+      const start = new Date(Date.now() - 120 * 24 * 60 * 60_000).toISOString().slice(0, 10);
+      const { data: fts } = await this.sec.get('https://efts.sec.gov/LATEST/search-index', {
+        params: { q: `"${issuer}"`, forms: '13F-HR', dateRange: 'custom', startdt: start, enddt: end },
+      });
+      const hits: any[] = fts?.hits?.hits || [];
+      const seenFiler = new Set<string>();
+      const picks: { acc: string; file: string; cik: string; name: string; date: string }[] = [];
+      for (const h of hits.sort((a, b) => String(b._source?.file_date).localeCompare(String(a._source?.file_date)))) {
+        const [accDashed, file] = String(h._id || '').split(':');
+        const s = h._source || {};
+        const cik = String(s.cik || (s.display_names?.[0]?.match(/CIK (\d+)/)?.[1] ?? '')).replace(/^0+/, '');
+        const name = String(s.display_names?.[0] || '').replace(/\s*\(CIK.*$/, '').trim();
+        if (!accDashed || !file || !cik || !name || seenFiler.has(cik)) continue;
+        seenFiler.add(cik);
+        picks.push({ acc: accDashed.replace(/-/g, ''), file, cik, name, date: String(s.file_date || '') });
+        if (picks.length >= 8) break;
+      }
+      const rows = await Promise.all(
+        picks.map(async (p): Promise<WhaleHolding | null> => {
+          try {
+            const url = `https://www.sec.gov/Archives/edgar/data/${Number(p.cik)}/${p.acc}/${p.file}`;
+            const { data: xml } = await this.sec.get(url, { responseType: 'text' });
+            const cur = this.sumInfoTable(String(xml), issuer);
+            if (!cur || cur.shares <= 0) return null;
+            const prev = await this.previousPosition(p.cik, p.acc, issuer);
+            return {
+              institution: p.name,
+              shares: cur.shares,
+              value: cur.value,
+              change: prev ? cur.shares - prev.shares : null,
+              pctChange: prev && prev.shares > 0 ? +(((cur.shares - prev.shares) / prev.shares) * 100).toFixed(1) : null,
+              isNew: prev != null && prev.shares === 0,
+              reported: p.date,
+            };
+          } catch {
+            return null;
+          }
+        }),
+      );
+      out = rows.filter((r): r is WhaleHolding => !!r);
+    } catch (e: any) {
+      this.log.warn(`Whale activity failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
+    }
+    this.whaleCache.set(key, { ts: Date.now(), data: out });
     return out;
   }
 }
