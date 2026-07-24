@@ -306,7 +306,9 @@ export class CongressionalService implements OnModuleInit {
       .map(([year, v]) => ({ year, buyValue: v.buy, sellValue: v.sell }))
       .sort((a, b) => a.year - b.year);
 
-    // Top Traded Sectors — sector resolved from our company table by ticker.
+    // Top Traded Sectors — sector from our company table, with a Yahoo
+    // assetProfile fallback for tickers we haven't ingested (so well-known
+    // names like HD / BAC / XOM resolve to real sectors, not "Other").
     const symbols = Array.from(tickerAgg.keys());
     const sectorByTicker = new Map<string, string>();
     if (symbols.length) {
@@ -317,6 +319,16 @@ export class CongressionalService implements OnModuleInit {
         .getRawMany<{ ticker: string; sector: string | null }>();
       for (const c of comps) {
         if (c.ticker && c.sector) sectorByTicker.set(c.ticker.toUpperCase(), c.sector);
+      }
+      const missing = symbols.filter((s) => !sectorByTicker.has(s));
+      if (missing.length) {
+        try {
+          const profiles = await this.marketStats.getCompanyProfiles(missing);
+          for (const [sym, prof] of profiles) {
+            const sec = prof.sector || prof.industry;
+            if (sec) sectorByTicker.set(sym, sec);
+          }
+        } catch { /* profiles unavailable — those tickers fall to "Other" */ }
       }
     }
     const sectorAgg = new Map<string, { trades: number; estValue: number }>();
