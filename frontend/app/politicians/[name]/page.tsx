@@ -39,10 +39,11 @@ interface Profile {
   trades: PolTrade[];
   legislation: Legislation[];
   fundraising: Fundraising | null;
-  corporateDonors: { name: string; amount: number }[];
-  supporters: { name: string; amount: number }[];
-  opponents: { name: string; amount: number }[];
+  topReceipts: { name: string; amount: number; date: string | null; loaded: string | null }[];
+  supporters: OutsideItem[];
+  opponents: OutsideItem[];
 }
+interface OutsideItem { committee: string; amount: number; date: string | null; filed: string | null }
 interface Legislation {
   title: string; number: string | null;
   introducedDate: string | null; latestActionDate: string | null;
@@ -355,12 +356,7 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
           {/* ── SUPPORTERS (FEC independent expenditures — support) ── */}
           {active === "supporters" && (
             p.supporters && p.supporters.length > 0 ? (
-              <section>
-                <h2 className="text-[15px] font-bold uppercase tracking-wide mb-1">Supporters</h2>
-                <p className="text-[12px] text-mute mb-3">Outside groups that spent money <span style={{ color: "#10B981" }} className="font-semibold">supporting</span> this member (FEC independent expenditures).</p>
-                <div className="card p-4"><AmountBars rows={p.supporters} color="#10B981" /></div>
-                <p className="text-[11px] text-faint mt-2">Source: FEC (OpenFEC) — Schedule E independent expenditures, by spending committee.</p>
-              </section>
+              <OutsideSpendingView items={p.supporters} kind="support" name={p.name} />
             ) : (
               <NeedsData title="Supporters"
                 note="No outside groups have filed independent expenditures supporting this member (FEC Schedule E), or no FEC match. Nothing to show." />
@@ -370,19 +366,14 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
           {/* ── OPPONENTS (FEC independent expenditures — oppose) ── */}
           {active === "opponents" && (
             p.opponents && p.opponents.length > 0 ? (
-              <section>
-                <h2 className="text-[15px] font-bold uppercase tracking-wide mb-1">Opponents</h2>
-                <p className="text-[12px] text-mute mb-3">Outside groups that spent money <span style={{ color: "#EF4444" }} className="font-semibold">opposing</span> this member (FEC independent expenditures).</p>
-                <div className="card p-4"><AmountBars rows={p.opponents} color="#EF4444" /></div>
-                <p className="text-[11px] text-faint mt-2">Source: FEC (OpenFEC) — Schedule E independent expenditures, by spending committee.</p>
-              </section>
+              <OutsideSpendingView items={p.opponents} kind="oppose" name={p.name} />
             ) : (
               <NeedsData title="Opponents"
                 note="No outside groups have filed independent expenditures opposing this member (FEC Schedule E), or no FEC match. Nothing to show." />
             )
           )}
 
-          {/* ── CORPORATE DONORS (FEC — real) + fundraising totals ── */}
+          {/* ── CORPORATE DONORS = fundraising totals + itemized Top Receipts ── */}
           {active === "donors" && (
             <section>
               <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Corporate Donors &amp; Fundraising</h2>
@@ -393,28 +384,42 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
                   <div className="card p-4"><div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">Cash on Hand</div><div className="text-[20px] font-bold tabular mt-1">{p.fundraising.cashOnHand != null ? formatCurrency(p.fundraising.cashOnHand) : "—"}</div></div>
                 </div>
               )}
-              {p.corporateDonors && p.corporateDonors.length > 0 ? (
-                <div className="card p-4">
-                  <div className="text-[13px] font-bold mb-3">Top PAC / Committee Donors</div>
-                  <div className="space-y-2.5">
-                    {p.corporateDonors.map((c) => {
-                      const max = p.corporateDonors[0].amount || 1;
-                      return (
-                        <div key={c.name}>
-                          <div className="flex justify-between text-[12.5px] mb-1"><span className="truncate pr-2">{c.name}</span><span className="font-mono text-mute flex-shrink-0">{formatCurrency(c.amount)}</span></div>
-                          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-2)" }}><div style={{ width: `${(c.amount / max) * 100}%`, height: "100%", background: "var(--accent)" }} /></div>
-                        </div>
-                      );
-                    })}
+              {p.topReceipts && p.topReceipts.length > 0 ? (
+                <div className="card overflow-hidden">
+                  <div className="p-3.5 text-[13px] font-bold" style={{ borderBottom: "1px solid var(--border)" }}>Top Receipts (PAC / committee)</div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[12.5px]">
+                      <thead>
+                        <tr className="text-[10.5px] uppercase tracking-wider text-mute" style={{ background: "var(--bg-2)" }}>
+                          <th className="text-left font-bold px-3.5 py-2">Name</th>
+                          <th className="text-right font-bold px-3.5 py-2">Amount</th>
+                          <th className="text-right font-bold px-3.5 py-2">Date</th>
+                          <th className="text-right font-bold px-3.5 py-2">Loaded</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {p.topReceipts.map((r, i) => (
+                          <tr key={i} style={{ borderTop: "1px solid var(--border)" }}>
+                            <td className="px-3.5 py-2.5 font-medium">{titleCase(r.name)}</td>
+                            <td className="px-3.5 py-2.5 text-right font-mono tabular">{formatCurrency(r.amount)}</td>
+                            <td className="px-3.5 py-2.5 text-right text-mute">{r.date ? formatDate(r.date) : "—"}</td>
+                            <td className="px-3.5 py-2.5 text-right text-mute">{r.loaded ? formatDate(r.loaded) : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               ) : p.fundraising ? (
-                <p className="text-[12.5px] text-mute">No itemized PAC/committee contributions found for this committee.</p>
+                <p className="text-[12.5px] text-mute">No itemized PAC/committee receipts found for this committee.</p>
               ) : (
                 <NeedsData title="Corporate Donors"
                   note="Live FEC campaign-finance data activates once an FEC_API_KEY (free, from api.data.gov) is set. No match / no key yet." />
               )}
-              <p className="text-[11px] text-faint mt-2">Source: FEC (OpenFEC) — committee totals + itemized non-individual (PAC/committee) contributions.</p>
+              <p className="text-[11px] text-faint mt-2">
+                Source: FEC (OpenFEC) — committee totals + itemized non-individual (PAC/committee) receipts.
+                May include refunds; names hidden for individual donations below $250k.
+              </p>
             </section>
           )}
 
@@ -508,23 +513,122 @@ function Legend({ color, label }: { color: string; label: string }) {
   return <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />{label}</span>;
 }
 
-/** Ranked name → $amount bars (donors / supporters / opponents). */
-function AmountBars({ rows, color = "var(--accent)" }: { rows: { name: string; amount: number }[]; color?: string }) {
-  const max = rows[0]?.amount || 1;
+function titleCase(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .replace(/\b([a-z])/g, (m) => m.toUpperCase())
+    .replace(/\bPac\b/g, "PAC")
+    .replace(/\bLlc\b/g, "LLC");
+}
+
+/** QuiverQuant-style outside-spending view: a "Spending in Support/Opposition"
+ *  quarterly bar chart + an itemized Outside Spending table. */
+function OutsideSpendingView({ items, kind, name }: { items: OutsideItem[]; kind: "support" | "oppose"; name: string }) {
+  const color = kind === "support" ? "#10B981" : "#EF4444";
+  const verb = kind === "support" ? "Support" : "Opposition";
+
+  // Quarterly totals (chronological).
+  const qMap = new Map<string, { label: string; sort: number; amount: number }>();
+  for (const it of items) {
+    if (!it.date) continue;
+    const d = new Date(it.date);
+    if (isNaN(d.getTime())) continue;
+    const qi = Math.floor(d.getUTCMonth() / 3);
+    const key = `${d.getUTCFullYear()}-${qi}`;
+    const e = qMap.get(key) || { label: `Q${qi + 1} '${String(d.getUTCFullYear()).slice(2)}`, sort: d.getUTCFullYear() * 4 + qi, amount: 0 };
+    e.amount += it.amount;
+    qMap.set(key, e);
+  }
+  const series = Array.from(qMap.values()).sort((a, b) => a.sort - b.sort);
+  const total = items.reduce((a, i) => a + i.amount, 0);
+  const table = [...items].sort((a, b) => b.amount - a.amount).slice(0, 50);
+
   return (
-    <div className="space-y-2.5">
-      {rows.map((r) => (
-        <div key={r.name}>
-          <div className="flex justify-between text-[12.5px] mb-1">
-            <span className="truncate pr-2">{r.name}</span>
-            <span className="font-mono text-mute flex-shrink-0">{formatCurrency(r.amount)}</span>
-          </div>
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-2)" }}>
-            <div style={{ width: `${(r.amount / max) * 100}%`, height: "100%", background: color }} />
+    <section className="space-y-4">
+      {/* Spending chart */}
+      <div className="card p-4 sm:p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[15px] font-bold">Spending in {verb} of {name}</h2>
+          <span className="text-[13px] font-bold tabular" style={{ color }}>{formatCurrency(total)} total</span>
+        </div>
+        {series.length ? <SingleBarChart data={series} color={color} /> : <p className="text-mute text-sm py-6 text-center">No dated expenditures to chart.</p>}
+      </div>
+
+      {/* Outside Spending itemized table */}
+      <div>
+        <h3 className="text-[15px] font-bold uppercase tracking-wide mb-2">Outside Spending</h3>
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12.5px]">
+              <thead>
+                <tr className="text-[10.5px] uppercase tracking-wider text-mute" style={{ background: "var(--bg-2)" }}>
+                  <th className="text-left font-bold px-3.5 py-2">Contributor</th>
+                  <th className="text-center font-bold px-3.5 py-2">Support / Oppose</th>
+                  <th className="text-right font-bold px-3.5 py-2">Amount</th>
+                  <th className="text-right font-bold px-3.5 py-2">Date</th>
+                  <th className="text-right font-bold px-3.5 py-2">Filed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {table.map((it, i) => (
+                  <tr key={i} style={{ borderTop: "1px solid var(--border)" }}>
+                    <td className="px-3.5 py-2.5 font-medium">{titleCase(it.committee)}</td>
+                    <td className="px-3.5 py-2.5 text-center">
+                      <span className="inline-block rounded px-1.5 py-0.5 text-[10.5px] font-bold uppercase"
+                        style={{ background: kind === "support" ? "rgba(16,185,129,0.14)" : "rgba(239,68,68,0.14)", color }}>
+                        {kind === "support" ? "Support" : "Oppose"}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-2.5 text-right font-mono tabular">{formatCurrency(it.amount)}</td>
+                    <td className="px-3.5 py-2.5 text-right text-mute">{it.date ? formatDate(it.date) : "—"}</td>
+                    <td className="px-3.5 py-2.5 text-right text-mute">{it.filed ? formatDate(it.filed) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
+        <p className="text-[11px] text-faint mt-2">Source: FEC (OpenFEC) — Schedule E independent expenditures.</p>
+      </div>
+    </section>
+  );
+}
+
+/** Single-series SVG bar chart with Y-axis + angled quarter labels. */
+function SingleBarChart({ data, color }: { data: { label: string; amount: number }[]; color: string }) {
+  const rawMax = Math.max(1, ...data.map((d) => d.amount));
+  const pow = Math.pow(10, Math.floor(Math.log10(rawMax)));
+  const max = Math.ceil(rawMax / pow) * pow;
+  const W = 760, H = 240, mL = 52, mR = 10, mT = 10, mB = 48;
+  const plotW = W - mL - mR, plotH = H - mT - mB;
+  const yBase = mT + plotH;
+  const n = data.length;
+  const groupW = plotW / n;
+  const barW = Math.min(16, groupW * 0.6);
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => max * f);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" style={{ display: "block", fontFamily: "var(--font-mono, monospace)" }}>
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={mL - 5} x2={mL} y1={yBase - (t / max) * plotH} y2={yBase - (t / max) * plotH} stroke="var(--border-strong)" strokeWidth="1" />
+          <text x={mL - 9} y={yBase - (t / max) * plotH + 3.5} textAnchor="end" fontSize="12" fill="var(--text-mute)">{axisMoney(t)}</text>
+        </g>
       ))}
-    </div>
+      <line x1={mL} x2={mL} y1={mT} y2={yBase} stroke="var(--border-strong)" strokeWidth="1.5" />
+      <line x1={mL} x2={W - mR} y1={yBase} y2={yBase} stroke="var(--border-strong)" strokeWidth="1.5" />
+      {data.map((d, i) => {
+        const cx = mL + groupW * (i + 0.5);
+        const h = Math.max(d.amount > 0 ? 2 : 0, (d.amount / max) * plotH);
+        return (
+          <g key={d.label}>
+            <rect x={cx - barW / 2} y={yBase - h} width={barW} height={h} rx="2" fill={color}>
+              <title>{`${d.label} · ${formatCurrency(d.amount)}`}</title>
+            </rect>
+            <text x={cx} y={yBase + 16} textAnchor="end" fontSize="11" fill="var(--text-mute)" transform={`rotate(-40 ${cx} ${yBase + 16})`}>{d.label}</text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 

@@ -12,6 +12,22 @@ export interface Legislation {
   url: string | null;
 }
 
+/** One itemized independent expenditure supporting/opposing a member (Sched E). */
+export interface OutsideItem {
+  committee: string;
+  amount: number;
+  date: string | null;
+  filed: string | null;
+}
+
+/** One itemized non-individual receipt to a member's committee (Sched A). */
+export interface Receipt {
+  name: string;
+  amount: number;
+  date: string | null;
+  loaded: string | null;
+}
+
 /** Campaign-finance summary + top contributors (FEC). */
 export interface Fundraising {
   cycle: number | null;
@@ -249,36 +265,33 @@ export class CivicService {
     }
   }
 
-  /** Outside groups' independent expenditures SUPPORTING vs OPPOSING the member
-   *  (FEC Schedule E), aggregated by the spending committee. This is the real
-   *  data behind "Supporters" / "Opponents". Empty when no key / none filed. */
+  /** Itemized outside-group independent expenditures SUPPORTING vs OPPOSING the
+   *  member (FEC Schedule E). Powers the "Spending in Support/Opposition" chart
+   *  (grouped by quarter downstream) AND the itemized Outside Spending table. */
   async getOutsideSpending(name: string): Promise<{
-    supporters: Array<{ name: string; amount: number }>;
-    opponents: Array<{ name: string; amount: number }>;
+    supporters: OutsideItem[];
+    opponents: OutsideItem[];
   }> {
     const empty = { supporters: [], opponents: [] };
     if (!this.fecEnabled) return empty;
     const candidateId = await this.resolveFecCandidate(name);
     if (!candidateId) return empty;
-    const side = async (ind: 'S' | 'O'): Promise<Array<{ name: string; amount: number }>> => {
+    const side = async (ind: 'S' | 'O'): Promise<OutsideItem[]> => {
       try {
         const data = await this.fec('/schedules/schedule_e/', {
           candidate_id: candidateId,
           support_oppose_indicator: ind,
           sort: '-expenditure_amount',
-          per_page: 50,
+          per_page: 100,
         });
-        const agg = new Map<string, number>();
-        for (const r of data?.results || []) {
-          const nm = (r.committee?.name || r.committee?.affiliated_committee_name || '').trim();
-          const amt = Number(r.expenditure_amount) || 0;
-          if (!nm || amt <= 0) continue;
-          agg.set(nm, (agg.get(nm) || 0) + amt);
-        }
-        return Array.from(agg.entries())
-          .map(([n, amount]) => ({ name: n, amount }))
-          .sort((a, b) => b.amount - a.amount)
-          .slice(0, 15);
+        return (data?.results || [])
+          .map((r: any): OutsideItem => ({
+            committee: (r.committee?.name || r.committee?.affiliated_committee_name || 'Unknown').trim(),
+            amount: Number(r.expenditure_amount) || 0,
+            date: (r.expenditure_date || r.dissemination_date || '')?.slice(0, 10) || null,
+            filed: (r.receipt_date || r.expenditure_date || '')?.slice(0, 10) || null,
+          }))
+          .filter((x: OutsideItem) => x.amount > 0);
       } catch (e: any) {
         this.log.warn(`FEC schedule_e (${ind}) failed: ${e?.message || e}`);
         return [];
@@ -286,5 +299,37 @@ export class CivicService {
     };
     const [supporters, opponents] = await Promise.all([side('S'), side('O')]);
     return { supporters, opponents };
+  }
+
+  /** Itemized top receipts (FEC Schedule A non-individual: PAC/committee
+   *  contributions to the member's principal committee) — Name / Amount /
+   *  Date / Loaded, for the "Top Receipts" table. */
+  async getTopReceipts(name: string): Promise<Receipt[]> {
+    if (!this.fecEnabled) return [];
+    const candidateId = await this.resolveFecCandidate(name);
+    if (!candidateId) return [];
+    try {
+      const cData = await this.fec(`/candidate/${candidateId}/committees/`, { per_page: 20 });
+      const committees = cData?.results || [];
+      const principal = committees.find((c: any) => c.designation === 'P') || committees[0];
+      if (!principal?.committee_id) return [];
+      const sa = await this.fec('/schedules/schedule_a/', {
+        committee_id: principal.committee_id,
+        is_individual: false,
+        sort: '-contribution_receipt_amount',
+        per_page: 40,
+      });
+      return (sa?.results || [])
+        .map((r: any): Receipt => ({
+          name: (r.contributor_name || '').trim(),
+          amount: Number(r.contribution_receipt_amount) || 0,
+          date: (r.contribution_receipt_date || '')?.slice(0, 10) || null,
+          loaded: (r.load_date || '')?.slice(0, 10) || null,
+        }))
+        .filter((x: Receipt) => x.name && x.amount > 0);
+    } catch (e: any) {
+      this.log.warn(`FEC top receipts failed: ${e?.message || e}`);
+      return [];
+    }
   }
 }
