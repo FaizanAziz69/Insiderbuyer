@@ -177,7 +177,8 @@ export class FmpService {
     if (!this.key) return [];
     const out: FmpInsiderTrade[] = [];
     for (let p = 0; p < pages; p++) {
-      const rows = await this.get('insider-trading/latest', { page: p, limit: 100 });
+      // No `limit` param — free tier rejects limit>25 but serves 100 without it.
+      const rows = await this.get('insider-trading/latest', { page: p });
       if (!rows.length) break;
       for (const r of rows) {
         const shares = Number(r.securitiesTransacted) || 0;
