@@ -186,7 +186,7 @@ export function WhaleActivityCard({ ticker, companyName }: { ticker: string; com
 /** QuiverQuant-style 270° arc gauge — one colored band per change category
  *  with the label + count rendered inside each slice. */
 export function WhaleGauge({ segments }: { segments: { label: string; count: number; color: string }[] }) {
-  const size = 240, cx = size / 2, cy = size / 2, R = 108, r = 64;
+  const size = 290, cx = size / 2, cy = size / 2, R = 118, r = 66;
   const total = segments.reduce((s, x) => s + x.count, 0) || 1;
   // Sweep 270° clockwise starting at 7:30 (bottom-left), gap at the bottom —
   // angles measured clockwise from 12 o'clock.
@@ -219,8 +219,8 @@ export function WhaleGauge({ segments }: { segments: { label: string; count: num
         if (a.sweep >= 34) {
           return (
             <g key={a.label}>
-              <text x={x} y={y - 3} textAnchor="middle" fontSize="12" fontWeight="700" fill="#fff">{a.label}</text>
-              <text x={x} y={y + 12} textAnchor="middle" fontSize="12" fontWeight="700" fill="#fff">{a.count}</text>
+              <text x={x} y={y - 3.5} textAnchor="middle" fontSize="11.5" fontWeight="700" fill="#fff">{a.label}</text>
+              <text x={x} y={y + 11.5} textAnchor="middle" fontSize="11.5" fontWeight="700" fill="#fff">{a.count}</text>
             </g>
           );
         }
