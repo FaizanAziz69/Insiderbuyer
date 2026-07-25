@@ -7,6 +7,7 @@ import {
   BadgeDollarSign, Users, TrendingUp, Gauge,
 } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency, formatDate, formatNumber } from "@/lib/api";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { Card, Empty, CongressTradingCard, RevenueBreakdownCard, WhaleActivityCard, BullBearCard } from "@/components/stock/StockCivicGrid";
 import { StackedYearBars, NetSharesBars, PriceBubbleChart, InstitutionsTreemap } from "@/components/charts/StockCharts";
 
@@ -190,25 +191,21 @@ export function PatentsCard({ ticker, companyName }: { ticker: string; companyNa
   );
 }
 
-/** News — OUR AI insight articles first (clickable → /insights/slug), with
- *  real wire headlines listed beneath them. */
+/** News — OUR AI insight articles only, each row led by the company logo,
+ *  clicking opens the full article (/insights/slug). */
 interface AiPost { slug: string; title: string; summary?: string | null; eyebrow?: string | null; imageUrl?: string | null; generatedAt: string }
 
 export function NewsCard({ ticker, name, tall = false }: { ticker: string; name: string; tall?: boolean }) {
-  const { data: ai, isLoading: aiLoading } = useSWR<{ items: AiPost[] }>(
-    `${API_BASE}/content/by-ticker/${encodeURIComponent(ticker)}?limit=${tall ? 12 : 6}`,
-    fetcher, { revalidateOnFocus: false, dedupingInterval: 15 * 60_000 });
-  const { data: wire } = useSWR<{ items: { title: string; source: string; date: number }[] }>(
-    `${API_BASE}/content/news/${encodeURIComponent(ticker)}?name=${encodeURIComponent(name)}`,
+  const { data: ai, isLoading } = useSWR<{ items: AiPost[] }>(
+    `${API_BASE}/content/by-ticker/${encodeURIComponent(ticker)}?limit=${tall ? 15 : 8}`,
     fetcher, { revalidateOnFocus: false, dedupingInterval: 15 * 60_000 });
   const posts = ai?.items || [];
-  const headlines = wire?.items || [];
   return (
     <Card icon={<Newspaper className="h-4 w-4" />} title={`${ticker} News`} subtitle={`Recent insights relating to ${ticker}`}>
-      {aiLoading ? (
+      {isLoading ? (
         <div className="h-full flex items-center justify-center text-[12.5px] text-mute py-8">Loading insights…</div>
-      ) : posts.length === 0 && headlines.length === 0 ? (
-        <Empty text={`No recent coverage found for ${ticker}.`} />
+      ) : posts.length === 0 ? (
+        <Empty text={`No ${ticker} insight articles yet — they generate with the daily refresh.`} />
       ) : (
         <div className="overflow-auto scrollbar-visible space-y-2 pr-1" style={{ maxHeight: tall ? 680 : 300 }}>
           {posts.map((p) => (
@@ -216,13 +213,7 @@ export function NewsCard({ ticker, name, tall = false }: { ticker: string; name:
               className="block rounded-lg px-3 py-2.5 transition hover:border-[var(--border-strong)]"
               style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
               <div className="flex items-start gap-3">
-                {p.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.imageUrl} alt="" className="flex-shrink-0 h-10 w-10 rounded object-cover" style={{ background: "#0b1220" }} />
-                ) : (
-                  <span className="flex-shrink-0 h-10 w-10 rounded flex items-center justify-center text-[13px] font-extrabold"
-                    style={{ background: "var(--bg-3)", color: "var(--accent)" }}>AI</span>
-                )}
+                <span className="flex-shrink-0"><CompanyLogo ticker={ticker} name={name} size={40} /></span>
                 <div className="min-w-0">
                   {p.eyebrow && <div className="text-[10px] uppercase tracking-wider font-bold text-accent">{p.eyebrow}</div>}
                   <div className="text-[13px] font-semibold leading-snug hover:text-accent transition"
@@ -233,26 +224,6 @@ export function NewsCard({ ticker, name, tall = false }: { ticker: string; name:
                 </div>
               </div>
             </Link>
-          ))}
-          {headlines.length > 0 && (
-            <div className="text-[10px] uppercase tracking-wider font-bold text-mute pt-2 pb-0.5">Wire headlines</div>
-          )}
-          {headlines.slice(0, tall ? 20 : 6).map((n, i) => (
-            <div key={i} className="rounded-lg px-3 py-2.5 flex items-start gap-3"
-              style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-              <span className="flex-shrink-0 h-9 w-9 rounded flex items-center justify-center text-[13px] font-extrabold"
-                style={{ background: "var(--bg-3)", color: "var(--accent)" }}>
-                {(n.source || "?").slice(0, 1).toUpperCase()}
-              </span>
-              <div className="min-w-0">
-                <div className="text-[13px] font-semibold leading-snug" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                  {n.title}
-                </div>
-                <div className="text-[11px] text-mute mt-0.5">
-                  {n.source}{n.date ? ` · ${new Date(n.date).toLocaleString()}` : ""}
-                </div>
-              </div>
-            </div>
           ))}
         </div>
       )}
