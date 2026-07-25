@@ -106,6 +106,24 @@ export class MarketStatsController {
     return { rows: await this.svc.getAnalystRatings(syms.length ? syms : undefined) };
   }
 
+  @Get('statements')
+  async statements(@Query('symbol') symbol?: string) {
+    if (!symbol) return { income: [], balance: [], cashflow: [] };
+    return this.svc.getQuarterlyStatements(symbol);
+  }
+
+  @Get('forecast')
+  async forecast(@Query('symbol') symbol?: string) {
+    if (!symbol) return null;
+    return this.svc.getForecast(symbol);
+  }
+
+  @Get('etf-holders')
+  async etfHolders(@Query('symbol') symbol?: string) {
+    if (!symbol) return { rows: [] };
+    return { rows: await this.svc.getEtfHolders(symbol) };
+  }
+
   @Get('dividends')
   async dividends() {
     return { rows: await this.svc.getDividends() };

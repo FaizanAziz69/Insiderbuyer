@@ -1582,6 +1582,126 @@ export class MarketStatsService {
     return data;
   }
 
+  /** Quarterly income/balance/cash-flow statements — period-per-column table
+   *  data for the Financials tab (newest first, up to 7 quarters + YoY). */
+  async getQuarterlyStatements(symbolRaw: string): Promise<any> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    const cacheKey = `stmtq:${symbol}`;
+    const c = this.detailCache.get(cacheKey);
+    if (c && Date.now() - c.ts < this.DETAIL_TTL_MS) return c.data;
+    const Q = (names: string[]) => names.map((n) => `quarterly${n}`);
+    const incomeTypes = Q([
+      'TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration',
+      'ResearchAndDevelopment', 'OperatingExpense', 'OperatingIncome', 'PretaxIncome',
+      'TaxProvision', 'NetIncome', 'BasicEPS', 'DilutedEPS', 'BasicAverageShares',
+    ]);
+    const balanceTypes = Q([
+      'TotalAssets', 'CurrentAssets', 'CashAndCashEquivalents', 'TotalLiabilitiesNetMinorityInterest',
+      'CurrentLiabilities', 'TotalDebt', 'LongTermDebt', 'StockholdersEquity', 'RetainedEarnings',
+    ]);
+    const cashflowTypes = Q([
+      'OperatingCashFlow', 'CapitalExpenditure', 'FreeCashFlow', 'InvestingCashFlow',
+      'FinancingCashFlow', 'RepurchaseOfCapitalStock', 'EndCashPosition',
+    ]);
+    const [inc, bal, cf] = await Promise.all([
+      this.fetchTimeseries(symbol, incomeTypes),
+      this.fetchTimeseries(symbol, balanceTypes),
+      this.fetchTimeseries(symbol, cashflowTypes),
+    ]);
+    const build = (map: Record<string, Record<string, number>>) => {
+      const set = new Set<string>();
+      for (const t of Object.keys(map)) for (const d of Object.keys(map[t])) set.add(d);
+      // Newest first, keep 9 so the frontend can compute YoY for 5 shown.
+      const dates = Array.from(set).sort().reverse().slice(0, 9);
+      return dates.map((date) => {
+        const values: Record<string, number | null> = {};
+        for (const t of Object.keys(map)) values[t.replace(/^quarterly/, '')] = map[t]?.[date] ?? null;
+        return { date, values };
+      });
+    };
+    const data = { symbol, income: build(inc), balance: build(bal), cashflow: build(cf) };
+    this.detailCache.set(cacheKey, { ts: Date.now(), data });
+    return data;
+  }
+
+  /** Analyst forecast block: price targets + recommendation trend counts. */
+  async getForecast(symbolRaw: string): Promise<any> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    const cacheKey = `fcast:${symbol}`;
+    const c = this.detailCache.get(cacheKey);
+    if (c && Date.now() - c.ts < this.DETAIL_TTL_MS) return c.data;
+    const r = await this.fetchModules(symbol, 'financialData,recommendationTrend,price');
+    const fd = r?.financialData ?? {};
+    const price = r?.price ?? {};
+    const num = (v: any) => (typeof v === 'number' ? v : (v?.raw ?? null));
+    const t0 = (r?.recommendationTrend?.trend || []).find((t: any) => t.period === '0m') ||
+      (r?.recommendationTrend?.trend || [])[0] || {};
+    const data = {
+      symbol,
+      lastPrice: num(price.regularMarketPrice),
+      targetMean: num(fd.targetMeanPrice),
+      targetHigh: num(fd.targetHighPrice),
+      targetLow: num(fd.targetLowPrice),
+      targetMedian: num(fd.targetMedianPrice),
+      analysts: num(fd.numberOfAnalystOpinions),
+      recommendationKey: fd.recommendationKey ?? null,
+      trend: {
+        strongBuy: Number(t0.strongBuy) || 0,
+        buy: Number(t0.buy) || 0,
+        hold: Number(t0.hold) || 0,
+        sell: Number(t0.sell) || 0,
+        strongSell: Number(t0.strongSell) || 0,
+      },
+    };
+    this.detailCache.set(cacheKey, { ts: Date.now(), data });
+    return data;
+  }
+
+  // ── Top ETF holders (reverse index over major ETFs' top-10 holdings) ──
+  private etfIndex: { ts: number; map: Map<string, { etf: string; name: string; est: number | null; pct: number }[]> } | null = null;
+  private readonly ETF_UNIVERSE = [
+    'SPY', 'VOO', 'IVV', 'VTI', 'QQQ', 'SCHD', 'VUG', 'VTV', 'IWM', 'DIA',
+    'XLK', 'XLF', 'XLV', 'XLE', 'XLY', 'XLP', 'XLI', 'XLU', 'XLC', 'SMH',
+    'VIG', 'VYM', 'RSP', 'MGK',
+  ];
+
+  /** ETFs with the largest estimated position in a stock. Estimate = the
+   *  fund's disclosed top-10 weight × fund AUM (Yahoo). Only stocks inside a
+   *  major ETF's top 10 appear — honest empty state otherwise. */
+  async getEtfHolders(symbolRaw: string): Promise<{ etf: string; name: string; est: number | null; pct: number }[]> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.etfIndex || Date.now() - this.etfIndex.ts > 24 * 60 * 60_000) {
+      const map = new Map<string, { etf: string; name: string; est: number | null; pct: number }[]>();
+      // Small batches to stay friendly with Yahoo.
+      for (let i = 0; i < this.ETF_UNIVERSE.length; i += 6) {
+        await Promise.all(
+          this.ETF_UNIVERSE.slice(i, i + 6).map(async (etf) => {
+            try {
+              const r = await this.fetchModules(etf, 'topHoldings,summaryDetail,price');
+              const holdings = r?.topHoldings?.holdings || [];
+              const aum =
+                (typeof r?.summaryDetail?.totalAssets === 'number'
+                  ? r.summaryDetail.totalAssets
+                  : r?.summaryDetail?.totalAssets?.raw) ?? null;
+              const etfName = r?.price?.longName || r?.price?.shortName || etf;
+              for (const h of holdings) {
+                const sym = String(h.symbol || '').toUpperCase();
+                if (!sym) continue;
+                const pct =
+                  (typeof h.holdingPercent === 'number' ? h.holdingPercent : h.holdingPercent?.raw) ?? 0;
+                const list = map.get(sym) || [];
+                list.push({ etf, name: etfName, est: aum ? Math.round(aum * pct) : null, pct: +(pct * 100).toFixed(2) });
+                map.set(sym, list);
+              }
+            } catch { /* skip ETF */ }
+          }),
+        );
+      }
+      this.etfIndex = { ts: Date.now(), map };
+    }
+    return (this.etfIndex.map.get(symbol) || []).sort((a, b) => (b.est ?? 0) - (a.est ?? 0)).slice(0, 10);
+  }
+
   /** Daily OHLCV history for the history tab + chart. */
   async getPriceHistory(symbolRaw: string, range = '1y'): Promise<any> {
     const symbol = (symbolRaw || '').toUpperCase();

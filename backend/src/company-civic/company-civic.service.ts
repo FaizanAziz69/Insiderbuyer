@@ -173,6 +173,156 @@ export class CompanyCivicService {
     return out;
   }
 
+  /** Individual lobbying filings (amount + issue areas) for the Government
+   *  tab's instance list — same LDA source as the quarterly chart. */
+  async getLobbyingInstances(companyName: string): Promise<{ amount: number; date: string | null; period: string; issues: string }[]> {
+    if (!this.ldaKey) return [];
+    const key = `inst:${companyName.toUpperCase()}`;
+    const cached = this.lobbyCache.get(key);
+    if (cached && Date.now() - cached.ts < this.TTL) return cached.data as any;
+    const out: { amount: number; date: string | null; period: string; issues: string }[] = [];
+    try {
+      const thisYear = new Date().getUTCFullYear();
+      const pages = await Promise.all(
+        [0, 1, 2].map((d) =>
+          this.http
+            .get('https://lda.senate.gov/api/v1/filings/', {
+              params: { client_name: companyName, filing_year: thisYear - d, page_size: 25 },
+              headers: { Authorization: `Token ${this.ldaKey}` },
+            })
+            .then((r) => r.data?.results || [])
+            .catch(() => []),
+        ),
+      );
+      for (const f of pages.flat()) {
+        const amt = Number(f.income ?? f.expenses ?? 0) || 0;
+        if (amt <= 0) continue;
+        const issues = Array.from(
+          new Set((f.lobbying_activities || []).map((a: any) => String(a.general_issue_code_display || '')).filter(Boolean)),
+        ).join(' ');
+        out.push({
+          amount: amt,
+          date: f.dt_posted ? String(f.dt_posted).slice(0, 10) : null,
+          period: `${f.filing_period_display || ''} ${f.filing_year || ''}`.trim(),
+          issues,
+        });
+      }
+      out.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    } catch (e: any) {
+      this.log.warn(`LDA instances failed: ${e?.response?.status || ''} ${e?.message || e}`);
+    }
+    const top = out.slice(0, 20);
+    this.lobbyCache.set(key, { ts: Date.now(), data: top as any });
+    return top;
+  }
+
+  // ── U.S. Patents (PatentsView — free API key via PATENTSVIEW_API_KEY) ──
+  private patentsCache = new Map<string, { ts: number; data: { title: string; date: string }[] }>();
+  private readonly pvKey = process.env.PATENTSVIEW_API_KEY || '';
+
+  get patentsEnabled(): boolean {
+    return !!this.pvKey;
+  }
+
+  /** Recent patent grants assigned to the company (PatentsView). */
+  async getPatents(companyName: string): Promise<{ title: string; date: string }[]> {
+    if (!this.pvKey) return [];
+    const key = companyName.toUpperCase();
+    const cached = this.patentsCache.get(key);
+    if (cached && Date.now() - cached.ts < this.TTL) return cached.data;
+    let out: { title: string; date: string }[] = [];
+    const base = companyName.replace(/[.,]/g, '').replace(/\b(inc|corp|corporation|company|co|ltd|plc|llc)\b/gi, '').trim();
+    try {
+      const { data } = await this.http.post(
+        'https://search.patentsview.org/api/v1/patent/',
+        {
+          q: { _and: [{ _contains: { 'assignees.assignee_organization': base || companyName } }] },
+          f: ['patent_id', 'patent_title', 'patent_date', 'assignees.assignee_organization'],
+          o: { size: 40 },
+          s: [{ patent_date: 'desc' }],
+        },
+        { headers: { 'X-Api-Key': this.pvKey } },
+      );
+      const lead = (base || companyName).split(/\s+/)[0].toLowerCase();
+      out = (data?.patents || [])
+        .filter((p: any) =>
+          (p.assignees || []).some((a: any) => String(a.assignee_organization || '').toLowerCase().includes(lead)),
+        )
+        .map((p: any) => ({ title: String(p.patent_title || ''), date: String(p.patent_date || '') }))
+        .filter((p: any) => p.title && p.date);
+    } catch (e: any) {
+      this.log.warn(`PatentsView failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
+    }
+    this.patentsCache.set(key, { ts: Date.now(), data: out });
+    return out;
+  }
+
+  // ── Executive compensation (SEC DEF 14A — Pay vs Performance table) ───
+  private compCache = new Map<string, { ts: number; data: any }>();
+
+  /** Best-effort executive-comp summary parsed from the company's latest
+   *  DEF 14A "Pay versus Performance" XBRL table (CEO total + avg other
+   *  NEOs per year). Returns empty rows when the proxy can't be parsed —
+   *  the UI shows an honest empty state, never invented numbers. */
+  async getCompensation(ticker: string): Promise<{ rows: { year: number; peoTotal: number | null; avgNeoTotal: number | null }[]; source: string | null }> {
+    const key = ticker.toUpperCase();
+    const cached = this.compCache.get(key);
+    if (cached && Date.now() - cached.ts < this.TTL) return cached.data;
+    const empty = { rows: [] as { year: number; peoTotal: number | null; avgNeoTotal: number | null }[], source: null as string | null };
+    let out = empty;
+    try {
+      const cik = await this.getCik(key);
+      if (!cik) throw new Error('no CIK');
+      const padded = String(cik).padStart(10, '0');
+      const { data: sub } = await this.sec.get(`https://data.sec.gov/submissions/CIK${padded}.json`);
+      const r = sub?.filings?.recent;
+      let acc = '';
+      for (let i = 0; i < (r?.form?.length || 0); i++) {
+        if (String(r.form[i]).startsWith('DEF 14A')) {
+          acc = String(r.accessionNumber[i]).replace(/-/g, '');
+          break;
+        }
+      }
+      if (!acc) throw new Error('no DEF 14A');
+      const base = `https://www.sec.gov/Archives/edgar/data/${cik}/${acc}`;
+      const { data: fs } = await this.sec.get(`${base}/FilingSummary.xml`, { responseType: 'text' });
+      let file = '';
+      for (const rep of String(fs).match(/<Report[^>]*>[\s\S]*?<\/Report>/g) || []) {
+        const ln = rep.match(/<LongName>([\s\S]*?)<\/LongName>/)?.[1] || '';
+        if (/pay (versus|vs) performance/i.test(ln)) {
+          file = rep.match(/<HtmlFileName>([\s\S]*?)<\/HtmlFileName>/)?.[1] || '';
+          if (file) break;
+        }
+      }
+      if (!file) throw new Error('no PvP table');
+      const { data: html } = await this.sec.get(`${base}/${file}`, { responseType: 'text' });
+      const rows: { year: number; peoTotal: number | null; avgNeoTotal: number | null }[] = [];
+      for (const tr of String(html).match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || []) {
+        const cells = (tr.match(/<t[dh][^>]*>[\s\S]*?<\/t[dh]>/gi) || []).map((c) =>
+          c.replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#\d+;/g, ' ').replace(/\s+/g, ' ').trim(),
+        );
+        if (!cells.length) continue;
+        const year = Number(cells[0]);
+        if (!Number.isInteger(year) || year < 2015 || year > 2030) continue;
+        const nums = cells
+          .slice(1)
+          .map((c) => c.match(/^\$?\s*\(?([\d,]{4,})\)?$/)?.[1])
+          .filter(Boolean)
+          .map((n) => Number(String(n).replace(/,/g, '')));
+        if (!nums.length) continue;
+        if (!rows.some((x) => x.year === year)) {
+          rows.push({ year, peoTotal: nums[0] ?? null, avgNeoTotal: nums[2] ?? nums[1] ?? null });
+        }
+      }
+      rows.sort((a, b) => b.year - a.year);
+      if (rows.length) out = { rows: rows.slice(0, 5), source: 'SEC DEF 14A (Pay vs Performance disclosure)' };
+    } catch (e: any) {
+      this.log.warn(`Compensation parse failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
+    }
+    this.compCache.set(key, { ts: Date.now(), data: out });
+    return out;
+  }
+
   // ── Revenue Breakdown (SEC EDGAR — free, no key) ──────────────────────
   //
   // Companies disclose "Disaggregation of Revenue" (ASC 606) and revenue by

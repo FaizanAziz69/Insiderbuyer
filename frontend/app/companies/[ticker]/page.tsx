@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ArrowDown,
   ArrowUp,
+  ArrowUpRight,
   FileText,
   Calendar,
   ExternalLink,
@@ -34,7 +35,13 @@ import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsTrendChart } from "@/components/IqsTrendChart";
 import { ScorePillarsCard } from "@/components/ScorePillarsCard";
 import { ConversationsSection } from "@/components/stock/ConversationsSection";
-import { StockCivicGrid } from "@/components/stock/StockCivicGrid";
+import { CongressTradingCard, WhaleActivityCard, RevenueBreakdownCard, BullBearCard } from "@/components/stock/StockCivicGrid";
+import {
+  StrategyBanner, InsiderNetSharesCard, LobbyingStackedCard, ContractsStackedCard,
+  PatentsCard, NewsCard, CnbcCard, EtfHoldersCard, ScoreCardQQ, AboutQQ,
+  FinancialsTab, ForecastTab, InsidersIntro, InstitutionsTab, CompensationTab,
+  GovernmentTab, OwnershipTab, NewsTab,
+} from "@/components/stock/QQTabs";
 import { track } from "@/lib/analytics";
 
 // ── Local types for endpoints not modelled in lib/api.ts ──────────────────
@@ -131,7 +138,10 @@ const RATING_LABEL: Record<string, string> = {
   sell: "Sell",
 };
 
-type ProfileTab = "overview" | "financials" | "conversations";
+type ProfileTab =
+  | "overview" | "financials" | "forecast" | "insiders" | "institutions"
+  | "compensation" | "government" | "ownership" | "news";
+const TAB_KEYS: ProfileTab[] = ["overview", "financials", "forecast", "insiders", "institutions", "compensation", "government", "ownership", "news"];
 
 export default function CompanyPage({
   params,
@@ -140,7 +150,18 @@ export default function CompanyPage({
 }) {
   const { ticker } = use(params);
   const sym = ticker.toUpperCase();
-  const [tab, setTab] = useState<ProfileTab>("overview");
+  const [tab, setTabState] = useState<ProfileTab>("overview");
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("tab") as ProfileTab | null;
+    if (q && TAB_KEYS.includes(q)) setTabState(q);
+  }, []);
+  const setTab = (t: ProfileTab) => {
+    setTabState(t);
+    const url = new URL(window.location.href);
+    if (t === "overview") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", t);
+    window.history.replaceState(null, "", url.toString());
+  };
 
   const { data, isLoading } = useSWR<
     CompanyDetail & { congressionalTrades?: CongressTrade[] }
@@ -193,138 +214,55 @@ export default function CompanyPage({
               chart={<PriceChart ticker={sym} bare />}
             />
 
-            {/* ── Tabs (StockAnalysis / TipRanks-style): clean Overview by
-                default; Financials focuses on the analyst forecast view. ── */}
-            <div
-              className="flex items-center gap-1 rounded-lg p-1 w-fit"
-              style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}
-              role="tablist"
-              aria-label="Stock profile sections"
-            >
-              {(
-                [
-                  ["overview", "Overview"],
-                  ["financials", "Financials & Forecast"],
-                  ["conversations", "Conversations"],
-                ] as [ProfileTab, string][]
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  role="tab"
-                  aria-selected={tab === key}
-                  onClick={() => setTab(key)}
-                  className="px-4 py-1.5 rounded-md text-[13px] font-bold transition"
-                  style={{
-                    background: tab === key ? "var(--bg-2)" : "transparent",
-                    color: tab === key ? "var(--accent)" : "var(--text-mute)",
-                    boxShadow: tab === key ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
+            {/* ── 9-tab nav (reference layout) ── */}
+            <div className="w-full" style={{ borderBottom: "1px solid var(--border)" }}>
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-2" role="tablist" aria-label="Stock profile sections">
+                {(
+                  [
+                    ["overview", "Overview"],
+                    ["financials", "Financials"],
+                    ["forecast", "Forecast"],
+                    ["insiders", "Insiders"],
+                    ["institutions", "Institutions"],
+                    ["compensation", "Compensation"],
+                    ["government", "Government"],
+                    ["ownership", "Ownership"],
+                    ["news", "News"],
+                  ] as [ProfileTab, string][]
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    role="tab"
+                    aria-selected={tab === key}
+                    onClick={() => setTab(key)}
+                    className="px-4 py-2 rounded-lg text-[13.5px] font-bold whitespace-nowrap transition"
+                    style={{
+                      background: tab === key ? "var(--bg-2)" : "transparent",
+                      color: tab === key ? "var(--text)" : "var(--text-mute)",
+                      boxShadow: tab === key ? "0 1px 5px rgba(0,0,0,0.10)" : "none",
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {tab === "financials" ? (
-              /* ── Financials & Forecast: forecast chart, consensus buy meter,
-                    and analyst coverage — nothing else. ── */
+              <FinancialsTab sym={sym} />
+            ) : tab === "forecast" ? (
+              <ForecastTab
+                sym={sym}
+                coverage={
+                  <div className="space-y-6">
+                    <AnalystRatingSection ticker={sym} price={stats?.price ?? data.company.lastPrice} />
+                    <AnalystCoverageCard ticker={sym} />
+                  </div>
+                }
+              />
+            ) : tab === "insiders" ? (
               <div className="space-y-6">
-                <AnalystRatingSection ticker={sym} price={stats?.price ?? data.company.lastPrice} />
-                <AnalystCoverageCard ticker={sym} />
-              </div>
-            ) : tab === "conversations" ? (
-              /* ── Conversations: community posts mentioning this ticker ── */
-              <ConversationsSection ticker={sym} />
-            ) : (
-              <>
-            {/* Price performance row — 1D / 5D / 1M / 6M / 1Y (TradingView-style).
-                The chart itself now lives inside the header card above. */}
-            <PricePerformanceRow ticker={sym} />
-
-            {/* Key data — the 3-column overview (trading ranges | market cap &
-                financials | other data). */}
-            <StockOverviewGrid
-              ticker={sym}
-              stats={stats}
-              profile={profile}
-              fallbackMarketCap={data.company.marketCap}
-              fallbackPrice={data.company.lastPrice}
-              earningsDate={earningsDate}
-            />
-
-            {/* QuiverQuant-style uniform card grid — Congress Trading,
-                Government Contracts, Insider Trading (quarterly), Lobbying. */}
-            <StockCivicGrid
-              ticker={sym}
-              companyName={data.company.name}
-              sector={profile?.sector || data.company.sector}
-              insiderScore={data.score ? Number(data.score.iqs) : null}
-            />
-
-            {/* About — directly under the key data (client spec). */}
-            {profile?.description && (
-              <section className="card p-5">
-                <h2 className="text-[16px] font-semibold mb-2">
-                  About {data.company.name}
-                </h2>
-                <p className="text-[14px] text-soft leading-relaxed">
-                  {profile.description}
-                </p>
-                <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-[13px] text-mute">
-                  {(profile.sector || data.company.sector) && (
-                    <span>
-                      Sector: <span className="font-bold text-[var(--text)]">{profile.sector || data.company.sector}</span>
-                    </span>
-                  )}
-                  {profile.industry && (
-                    <span>
-                      Industry: <span className="font-bold text-[var(--text)]">{profile.industry}</span>
-                    </span>
-                  )}
-                  {profile.employees != null && (
-                    <span>
-                      Employees: <span className="font-bold text-[var(--text)]">{formatNumber(profile.employees)}</span>
-                    </span>
-                  )}
-                  {profile.country && (
-                    <span>
-                      Country: <span className="font-bold text-[var(--text)]">{profile.country}</span>
-                    </span>
-                  )}
-                  {profile.website && (
-                    <a
-                      href={profile.website}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-accent hover:underline inline-flex items-center gap-1"
-                    >
-                      {profile.website.replace(/^https?:\/\//, "")}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </div>
-              </section>
-            )}
-
-
-            {/* ── Overview ───────────────────────────────────────────── */}
-            <div className="space-y-6">
-                {data.score && <SmartScorePanel score={data.score} />}
-
-                {/* Composite pillars — insider + analyst + news sentiment */}
-                <ScorePillarsCard ticker={sym} />
-
-                {/* Recent insider-buy summary */}
-                <InsiderSummary transactions={data.transactions} />
-
-                {/* Insider Score trend over time */}
-                {data.scoreHistory && data.scoreHistory.length > 1 && (
-                  <IqsTrendChart history={data.scoreHistory} />
-                )}
-
-                <AdSlot slot="leaderboard" seed={`stock-${ticker}`} />
-              </div>
-
+                <InsidersIntro sym={sym} transactions={data.transactions as never} />
             {/* ── Insider Trades (live Form 4 table) ──────────────────── */}
             <div className="space-y-4">
                 <section>
@@ -484,6 +422,14 @@ export default function CompanyPage({
                 </div>
               </div>
 
+              </div>
+            ) : tab === "institutions" ? (
+              <InstitutionsTab sym={sym} name={data.company.name} />
+            ) : tab === "compensation" ? (
+              <CompensationTab sym={sym} name={data.company.name} />
+            ) : tab === "government" ? (
+              <div className="space-y-6">
+                <GovernmentTab sym={sym} name={data.company.name} />
             {/* ── Congressional Trades ────────────────────────────────── */}
             <div className="space-y-4">
                 <section>
@@ -571,6 +517,12 @@ export default function CompanyPage({
                 </div>
               </div>
 
+              </div>
+            ) : tab === "ownership" ? (
+              <OwnershipTab sym={sym} name={data.company.name} />
+            ) : tab === "news" ? (
+              <div className="space-y-6">
+                <NewsTab sym={sym} name={data.company.name} />
             {/* ── Company News & Press Releases ───────────────────────── */}
             <section>
               <h2
@@ -581,6 +533,90 @@ export default function CompanyPage({
               </h2>
               <RecentNews ticker={sym} />
             </section>
+                <ConversationsSection ticker={sym} />
+              </div>
+            ) : (
+              <>
+            {/* Price performance row — 1D / 5D / 1M / 6M / 1Y (TradingView-style).
+                The chart itself now lives inside the header card above. */}
+            <PricePerformanceRow ticker={sym} />
+
+            {/* Key data — the 3-column overview (trading ranges | market cap &
+                financials | other data). */}
+            <StockOverviewGrid
+              ticker={sym}
+              stats={stats}
+              profile={profile}
+              fallbackMarketCap={data.company.marketCap}
+              fallbackPrice={data.company.lastPrice}
+              earningsDate={earningsDate}
+            />
+
+            {/* Featured-in strip (our own datasets; no external links) */}
+            <StrategyBanner
+              ticker={sym}
+              hasScore={!!data.score}
+              hasCongress={(data.congressionalTrades || []).length > 0}
+            />
+
+            {/* Reference-layout 2-column card grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+              <CongressTradingCard ticker={sym} />
+              <WhaleActivityCard ticker={sym} companyName={data.company.name} />
+              <InsiderNetSharesCard ticker={sym} transactions={data.transactions as never} />
+              <LobbyingStackedCard ticker={sym} companyName={data.company.name} />
+              <RevenueBreakdownCard ticker={sym} />
+              <PatentsCard ticker={sym} companyName={data.company.name} />
+              <ContractsStackedCard ticker={sym} companyName={data.company.name} />
+              <NewsCard ticker={sym} name={data.company.name} />
+              <CnbcCard ticker={sym} />
+              <EtfHoldersCard ticker={sym} />
+              <ScoreCardQQ
+                ticker={sym}
+                iqs={data.score ? Number(data.score.iqs) : null}
+                iqsV1={data.score && (data.score as { iqsV1?: number | null }).iqsV1 != null ? Number((data.score as { iqsV1?: number | null }).iqsV1) : null}
+              />
+              <BullBearCard
+                ticker={sym}
+                companyName={data.company.name}
+                sector={profile?.sector || data.company.sector}
+                insiderScore={data.score ? Number(data.score.iqs) : null}
+              />
+            </div>
+
+
+
+
+            {/* ── Overview ───────────────────────────────────────────── */}
+            <div className="space-y-6">
+                {data.score && <SmartScorePanel score={data.score} />}
+
+                {/* Composite pillars — insider + analyst + news sentiment */}
+                <ScorePillarsCard ticker={sym} />
+
+                {/* Recent insider-buy summary */}
+                <InsiderSummary transactions={data.transactions} />
+
+                {/* Insider Score trend over time */}
+                {data.scoreHistory && data.scoreHistory.length > 1 && (
+                  <IqsTrendChart history={data.scoreHistory} />
+                )}
+
+                <AdSlot slot="leaderboard" seed={`stock-${ticker}`} />
+              </div>
+
+
+
+            {/* About — reference-style full-width block */}
+            <AboutQQ
+              ticker={sym}
+              name={data.company.name}
+              description={profile?.description ?? null}
+              address={(profile as { address?: string | null } | null)?.address ?? null}
+              marketCap={stats?.marketCap ?? data.company.marketCap ?? null}
+              employees={profile?.employees ?? null}
+              industry={profile?.industry ?? null}
+            />
 
             {/* ── FAQ (auto-generated from this company's data) ────────── */}
             <StockFAQSection
@@ -659,15 +695,17 @@ function CompanyHeader({
             size={56}
           />
           <div className="min-w-0">
-            <div className="text-mute text-[11px] uppercase tracking-wider font-mono font-bold">
-              {tickerLabel}
-            </div>
             <h1
               className="text-[24px] sm:text-[30px] font-semibold tracking-tight leading-tight"
               style={{ letterSpacing: "-0.5px" }}
             >
               {company.name}
             </h1>
+            <div className="text-mute text-[12px] font-semibold mt-0.5">
+              {company.ticker || company.cik} <span className="opacity-50">•</span> Real Time Price{" "}
+              <span className="opacity-50">•</span> USD{exchange ? <> <span className="opacity-50">•</span> {exchange}</> : null}
+            </div>
+            <MarketStateLine />
             <div className="flex flex-wrap gap-2 mt-2 text-[12px] text-mute">
               {(profile?.sector || company.sector) && (
                 <Chip>{profile?.sector || company.sector}</Chip>
@@ -681,8 +719,15 @@ function CompanyHeader({
               )}
             </div>
             {company.ticker && (
-              <div className="mt-3">
+              <div className="mt-3 flex items-center gap-2">
                 <WatchlistButton ticker={company.ticker} variant="button" />
+                <Link
+                  href={`/trades?q=${encodeURIComponent(company.ticker)}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-bold transition hover:text-accent"
+                  style={{ border: "1px solid var(--border-strong)", background: "var(--bg-2)" }}
+                >
+                  Trade {company.ticker} <ArrowUpRight className="h-3.5 w-3.5" />
+                </Link>
               </div>
             )}
           </div>
@@ -1436,4 +1481,28 @@ function formatShortDate(s: string | null | undefined): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+/** "As of today at 18:46 UTC-04:00 (Market Open/Closed)" — US market hours
+ *  computed client-side (Mon–Fri 9:30–16:00 ET, holidays not modeled). */
+function MarketStateLine() {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  if (!now) return null;
+  const et = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const mins = et.getHours() * 60 + et.getMinutes();
+  const isWeekday = et.getDay() >= 1 && et.getDay() <= 5;
+  const open = isWeekday && mins >= 9 * 60 + 30 && mins < 16 * 60;
+  const hh = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const offMin = -now.getTimezoneOffset();
+  const off = `UTC${offMin >= 0 ? "+" : "-"}${String(Math.floor(Math.abs(offMin) / 60)).padStart(2, "0")}:${String(Math.abs(offMin) % 60).padStart(2, "0")}`;
+  return (
+    <div className="text-[11.5px] text-mute mt-1">
+      As of today at {hh} {off} ({open ? "Market Open" : "Market Closed"})
+    </div>
+  );
 }

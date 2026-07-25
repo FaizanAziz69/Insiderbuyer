@@ -114,6 +114,12 @@ export class ContentController {
     return { items: await this.content.byTicker(ticker, n) };
   }
 
+  /** Real recent headlines (publisher + timestamp) for the stock News card. */
+  @Get('news/:ticker')
+  async news(@Param('ticker') ticker: string, @Query('name') name?: string) {
+    return { items: await this.content.getTickerNews(ticker, name || ticker) };
+  }
+
   /** On-demand AI "movement explainer" for any ticker (cached server-side). */
   @Get('explain')
   async explain(

@@ -206,6 +206,63 @@ export class ContentService {
       .map((i) => `[${i.source} · ${fmtAge(i.date)}] ${i.title}`);
   }
 
+  private newsCache = new Map<string, { ts: number; data: { title: string; source: string; date: number }[] }>();
+
+  /** Rich recent-headline list for the stock page News card/tab (real
+   *  publishers via Google News + Yahoo feeds; deduped, newest first). */
+  async getTickerNews(symbol: string, name: string): Promise<{ title: string; source: string; date: number }[]> {
+    const key = symbol.toUpperCase();
+    const cached = this.newsCache.get(key);
+    if (cached && Date.now() - cached.ts < 15 * 60_000) return cached.data;
+    const UA = { 'User-Agent': 'Mozilla/5.0' };
+    type Item = { title: string; source: string; date: number };
+    const items: Item[] = [];
+    const parseRss = (xml: string, fallbackSource: string): Item[] => {
+      try {
+        const parsed = this.rssParser.parse(xml);
+        const raw = parsed?.rss?.channel?.item || [];
+        const list = Array.isArray(raw) ? raw : [raw];
+        return list.filter(Boolean).map((it: any) => {
+          let title = String(it.title?.['#text'] ?? it.title ?? '').trim();
+          let source = String(it.source?.['#text'] ?? '').trim() || fallbackSource;
+          const m = title.match(/^(.*)\s-\s([^-]{2,40})$/);
+          if (m && !it.source) { title = m[1].trim(); source = m[2].trim(); }
+          return { title, source, date: Date.parse(String(it.pubDate || '')) || 0 };
+        });
+      } catch { return []; }
+    };
+    const q = encodeURIComponent(`"${key}" OR "${(name || key).split(/[,(]/)[0].trim()}" stock`);
+    await Promise.allSettled([
+      axios.get(`https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`, { headers: UA, timeout: 6000, responseType: 'text' })
+        .then((r) => { items.push(...parseRss(r.data, 'Google News')); }),
+      axios.get(`https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(key)}&region=US&lang=en-US`, { headers: UA, timeout: 6000, responseType: 'text' })
+        .then((r) => { items.push(...parseRss(r.data, 'Yahoo Finance')); }),
+      axios.get('https://query1.finance.yahoo.com/v1/finance/search', { params: { q: key, newsCount: 12, quotesCount: 0 }, headers: UA, timeout: 6000 })
+        .then((r) => {
+          const arr: any[] = Array.isArray(r.data?.news) ? r.data.news : [];
+          items.push(...arr.map((n) => ({
+            title: String(n?.title || '').trim(),
+            source: String(n?.publisher || 'Yahoo Finance').trim(),
+            date: (Number(n?.providerPublishTime) || 0) * 1000,
+          })));
+        }),
+    ]);
+    const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    const seen = new Set<string>();
+    const out = items
+      .filter((i) => i.title && (!i.date || i.date >= cutoff))
+      .sort((a, b) => b.date - a.date)
+      .filter((i) => {
+        const k = i.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 70);
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .slice(0, 25);
+    this.newsCache.set(key, { ts: Date.now(), data: out });
+    return out;
+  }
+
   /** Pre-warm movement explainers for a page of movers in ONE model call —
    *  the top-gainers page posts its visible tickers on load so every hover
    *  resolves instantly from cache. Returns whatever is ready (cached +

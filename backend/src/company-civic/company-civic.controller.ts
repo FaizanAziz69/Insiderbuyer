@@ -40,4 +40,25 @@ export class CompanyCivicController {
     if (!name || !ticker) return { holdings: [], derivatives: [] };
     return this.svc.getInstitutions(name, ticker);
   }
+
+  /** Individual lobbying filings with issue areas (Government tab list). */
+  @Get('lobbying-instances')
+  async lobbyingInstances(@Query('name') name?: string) {
+    if (!name) return { items: [], enabled: this.svc.lobbyingEnabled };
+    return { items: await this.svc.getLobbyingInstances(name), enabled: this.svc.lobbyingEnabled };
+  }
+
+  /** Recent U.S. patent grants (PatentsView; needs PATENTSVIEW_API_KEY). */
+  @Get('patents')
+  async patents(@Query('name') name?: string) {
+    if (!name) return { items: [], enabled: this.svc.patentsEnabled };
+    return { items: await this.svc.getPatents(name), enabled: this.svc.patentsEnabled };
+  }
+
+  /** Executive-comp summary parsed from the latest DEF 14A (best effort). */
+  @Get('compensation')
+  async compensation(@Query('ticker') ticker?: string) {
+    if (!ticker) return { rows: [], source: null };
+    return this.svc.getCompensation(ticker);
+  }
 }

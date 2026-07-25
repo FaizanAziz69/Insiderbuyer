@@ -39,7 +39,7 @@ export function StockCivicGrid({
 interface RevSeg { name: string; revenue: number; pct: number }
 const SEG_COLORS = ["#6366F1", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4", "#EC4899", "#84CC16", "#F97316", "#14B8A6"];
 
-function RevenueBreakdownCard({ ticker }: { ticker: string }) {
+export function RevenueBreakdownCard({ ticker }: { ticker: string }) {
   const [tab, setTab] = useState<"segment" | "geography">("segment");
   const [hover, setHover] = useState<number | null>(null);
   const { data, isLoading } = useSWR<{ segments: RevSeg[]; geography: RevSeg[]; total: number | null; asOf: string | null; form: string | null }>(
@@ -108,7 +108,7 @@ function RevenueBreakdownCard({ ticker }: { ticker: string }) {
 }
 
 /** Donut (circle) breakdown — hover a slice or table row to highlight. */
-function RevenueDonut({ rows, hover, setHover, centerTop, centerBottom }: {
+export function RevenueDonut({ rows, hover, setHover, centerTop, centerBottom }: {
   rows: RevSeg[]; hover: number | null; setHover: (i: number | null) => void; centerTop: string; centerBottom: string;
 }) {
   const size = 190, cx = size / 2, cy = size / 2, R = 82, r = 52;
@@ -144,7 +144,7 @@ function RevenueDonut({ rows, hover, setHover, centerTop, centerBottom }: {
 /** Whale Activity — recently reported 13F institutional positions. */
 interface Whale { institution: string; shares: number; value: number; change: number | null; pctChange: number | null; isNew: boolean; reported: string }
 
-function WhaleActivityCard({ ticker, companyName }: { ticker: string; companyName: string }) {
+export function WhaleActivityCard({ ticker, companyName }: { ticker: string; companyName: string }) {
   const { data, isLoading } = useSWR<{ holdings: Whale[] }>(
     `${API_BASE}/company-civic/whale-activity?ticker=${ticker}&name=${encodeURIComponent(companyName)}`,
     fetcher, { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 });
@@ -185,7 +185,7 @@ function WhaleActivityCard({ ticker, companyName }: { ticker: string; companyNam
 
 /** QuiverQuant-style 270° arc gauge — one colored band per change category
  *  with the label + count rendered inside each slice. */
-function WhaleGauge({ segments }: { segments: { label: string; count: number; color: string }[] }) {
+export function WhaleGauge({ segments }: { segments: { label: string; count: number; color: string }[] }) {
   const size = 240, cx = size / 2, cy = size / 2, R = 108, r = 64;
   const total = segments.reduce((s, x) => s + x.count, 0) || 1;
   // Sweep 270° clockwise starting at 7:30 (bottom-left), gap at the bottom —
@@ -237,7 +237,7 @@ function WhaleGauge({ segments }: { segments: { label: string; count: number; co
 }
 
 /** AI Bull Case vs Bear Case — our own, generated from the ticker's data. */
-function BullBearCard({ ticker, companyName, sector, insiderScore }: { ticker: string; companyName: string; sector?: string | null; insiderScore?: number | null }) {
+export function BullBearCard({ ticker, companyName, sector, insiderScore }: { ticker: string; companyName: string; sector?: string | null; insiderScore?: number | null }) {
   const params = new URLSearchParams({ name: companyName });
   if (sector) params.set("sector", sector);
   if (insiderScore != null) params.set("score", String(Math.round(insiderScore)));
@@ -286,7 +286,7 @@ function BullBearCard({ ticker, companyName, sector, insiderScore }: { ticker: s
   );
 }
 
-function Card({ icon, title, subtitle, href, children }: { icon: React.ReactNode; title: string; subtitle: string; href?: string; children: React.ReactNode }) {
+export function Card({ icon, title, subtitle, href, children }: { icon: React.ReactNode; title: string; subtitle: string; href?: string; children: React.ReactNode }) {
   return (
     <div className="card p-5 flex flex-col h-full min-h-[320px]">
       <div className="flex items-center gap-2">
@@ -303,12 +303,12 @@ function Card({ icon, title, subtitle, href, children }: { icon: React.ReactNode
   );
 }
 
-function Empty({ text }: { text: string }) {
+export function Empty({ text }: { text: string }) {
   return <div className="h-full flex items-center justify-center text-center text-[12.5px] text-mute px-4 py-8">{text}</div>;
 }
 
 /** Congress Trading — recent trades of this ticker by members of Congress. */
-function CongressTradingCard({ ticker }: { ticker: string }) {
+export function CongressTradingCard({ ticker }: { ticker: string }) {
   const { data } = useSWR<{ rows: any[] }>(`${API_BASE}/congressional-trades?ticker=${ticker}&limit=8`, fetcher, { revalidateOnFocus: false });
   const rows = data?.rows || [];
   return (
@@ -348,7 +348,7 @@ function CongressTradingCard({ ticker }: { ticker: string }) {
 }
 
 /** Government Contracts — quarterly federal contract $ awarded (USAspending). */
-function GovContractsCard({ companyName, ticker }: { companyName: string; ticker: string }) {
+export function GovContractsCard({ companyName, ticker }: { companyName: string; ticker: string }) {
   const { data } = useSWR<{ quarters: { label: string; amount: number }[] }>(
     `${API_BASE}/company-civic/contracts?name=${encodeURIComponent(companyName)}`, fetcher, { revalidateOnFocus: false });
   const q = (data?.quarters || []).slice(-12);
@@ -361,7 +361,7 @@ function GovContractsCard({ companyName, ticker }: { companyName: string; ticker
 }
 
 /** Corporate Lobbying — quarterly lobbying spend (Senate LDA; needs key). */
-function LobbyingCard({ companyName, ticker }: { companyName: string; ticker: string }) {
+export function LobbyingCard({ companyName, ticker }: { companyName: string; ticker: string }) {
   const { data } = useSWR<{ quarters: { label: string; amount: number }[]; enabled: boolean }>(
     `${API_BASE}/company-civic/lobbying?name=${encodeURIComponent(companyName)}`, fetcher, { revalidateOnFocus: false });
   const q = (data?.quarters || []).slice(-12);
@@ -382,7 +382,7 @@ function axisMoney(n: number): string {
 
 /** Bar chart with a Y-axis (nice ticks + gridlines), angled X labels, and an
  *  interactive hover tooltip. `signed` = green(+)/red(−) around a zero line. */
-function CivicBars({ data, color = "#6366F1", signed = false }: { data: { label: string; amount: number }[]; color?: string; signed?: boolean }) {
+export function CivicBars({ data, color = "#6366F1", signed = false }: { data: { label: string; amount: number }[]; color?: string; signed?: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 560, H = 210, mL = 52, mR = 8, mT = 10, mB = 42;
   const plotW = W - mL - mR, plotH = H - mT - mB;
