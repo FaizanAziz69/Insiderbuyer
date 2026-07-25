@@ -328,7 +328,13 @@ export function AboutQQ({ ticker, name, description, address, marketCap, employe
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 max-w-4xl">
         {[
           { label: "Address", val: address || "—" },
-          { label: "Market Cap", val: marketCap ? abbr(marketCap).replace(" B", " billion").replace(" M", " million") : "—" },
+          {
+            label: "Market Cap",
+            val: marketCap == null ? "—"
+              : marketCap >= 1e12 ? `${(marketCap / 1e12).toFixed(2)} trillion`
+              : marketCap >= 1e9 ? `${(marketCap / 1e9).toFixed(2)} billion`
+              : `${(marketCap / 1e6).toFixed(0)} million`,
+          },
           { label: "Employees", val: employees != null ? formatNumber(employees) : "—" },
           { label: "Industrial Classification", val: industry || "—" },
         ].map((m) => (

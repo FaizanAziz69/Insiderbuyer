@@ -214,6 +214,17 @@ export default function CompanyPage({
               chart={<PriceChart ticker={sym} bare />}
             />
 
+            {/* About — reference-style full-width block */}
+            <AboutQQ
+              ticker={sym}
+              name={data.company.name}
+              description={profile?.description ?? null}
+              address={(profile as { address?: string | null } | null)?.address ?? null}
+              marketCap={stats?.marketCap ?? data.company.marketCap ?? null}
+              employees={profile?.employees ?? null}
+              industry={profile?.industry ?? null}
+            />
+
             {/* ── 9-tab nav (reference layout) ── */}
             <div className="w-full" style={{ borderBottom: "1px solid var(--border)" }}>
               <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-2" role="tablist" aria-label="Stock profile sections">
@@ -607,16 +618,7 @@ export default function CompanyPage({
 
 
 
-            {/* About — reference-style full-width block */}
-            <AboutQQ
-              ticker={sym}
-              name={data.company.name}
-              description={profile?.description ?? null}
-              address={(profile as { address?: string | null } | null)?.address ?? null}
-              marketCap={stats?.marketCap ?? data.company.marketCap ?? null}
-              employees={profile?.employees ?? null}
-              industry={profile?.industry ?? null}
-            />
+
 
             {/* ── FAQ (auto-generated from this company's data) ────────── */}
             <StockFAQSection
