@@ -167,7 +167,7 @@ export function PatentsCard({ ticker, companyName }: { ticker: string; companyNa
         <div className="h-full flex items-center justify-center text-[12.5px] text-mute py-8">Loading patent grants…</div>
       ) : items.length === 0 ? (
         <Empty text={data && !data.enabled
-          ? "Patent data activates once a free PatentsView API key (PATENTSVIEW_API_KEY) is set."
+          ? "Patent data activates once a free USPTO Open Data Portal key (USPTO_API_KEY) is set."
           : `No recent patent grants found for ${ticker}.`} />
       ) : (
         <div className="overflow-auto scrollbar-visible space-y-2.5 pr-1" style={{ maxHeight: 300 }}>
@@ -185,7 +185,7 @@ export function PatentsCard({ ticker, companyName }: { ticker: string; companyNa
           ))}
         </div>
       )}
-      <p className="text-[10px] text-faint mt-2">Source: PatentsView (USPTO)</p>
+      <p className="text-[10px] text-faint mt-2">Source: USPTO Open Data Portal</p>
     </Card>
   );
 }

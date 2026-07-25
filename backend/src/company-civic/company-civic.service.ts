@@ -216,42 +216,50 @@ export class CompanyCivicService {
     return top;
   }
 
-  // ── U.S. Patents (PatentsView — free API key via PATENTSVIEW_API_KEY) ──
+  // ── U.S. Patents (USPTO Open Data Portal — free key via USPTO_API_KEY) ──
+  // PatentsView was retired into USPTO's ODP (api.uspto.gov); the Patent
+  // File Wrapper search covers grants when filtered to rows with grantDate.
   private patentsCache = new Map<string, { ts: number; data: { title: string; date: string }[] }>();
-  private readonly pvKey = process.env.PATENTSVIEW_API_KEY || '';
+  private readonly usptoKey = process.env.USPTO_API_KEY || process.env.PATENTSVIEW_API_KEY || '';
 
   get patentsEnabled(): boolean {
-    return !!this.pvKey;
+    return !!this.usptoKey;
   }
 
-  /** Recent patent grants assigned to the company (PatentsView). */
+  /** Recent patent grants for the company (USPTO Open Data Portal). */
   async getPatents(companyName: string): Promise<{ title: string; date: string }[]> {
-    if (!this.pvKey) return [];
+    if (!this.usptoKey) return [];
     const key = companyName.toUpperCase();
     const cached = this.patentsCache.get(key);
     if (cached && Date.now() - cached.ts < this.TTL) return cached.data;
     let out: { title: string; date: string }[] = [];
-    const base = companyName.replace(/[.,]/g, '').replace(/\b(inc|corp|corporation|company|co|ltd|plc|llc)\b/gi, '').trim();
+    const base = companyName.replace(/[.,]/g, '').replace(/\b(inc|corp|corporation|company|co|ltd|plc|llc)\b/gi, '').trim() || companyName;
+    const lead = base.split(/\s+/)[0].toLowerCase();
     try {
-      const { data } = await this.http.post(
-        'https://search.patentsview.org/api/v1/patent/',
-        {
-          q: { _and: [{ _contains: { 'assignees.assignee_organization': base || companyName } }] },
-          f: ['patent_id', 'patent_title', 'patent_date', 'assignees.assignee_organization'],
-          o: { size: 40 },
-          s: [{ patent_date: 'desc' }],
+      const { data } = await this.http.get('https://api.uspto.gov/api/v1/patent/applications/search', {
+        params: {
+          q: `applicationMetaData.firstNamedApplicant:"${base}" AND applicationMetaData.grantDate:[2015-01-01 TO *]`,
+          sort: 'applicationMetaData.grantDate desc',
+          limit: 50,
         },
-        { headers: { 'X-Api-Key': this.pvKey } },
-      );
-      const lead = (base || companyName).split(/\s+/)[0].toLowerCase();
-      out = (data?.patents || [])
-        .filter((p: any) =>
-          (p.assignees || []).some((a: any) => String(a.assignee_organization || '').toLowerCase().includes(lead)),
-        )
-        .map((p: any) => ({ title: String(p.patent_title || ''), date: String(p.patent_date || '') }))
-        .filter((p: any) => p.title && p.date);
+        headers: { 'X-API-KEY': this.usptoKey },
+      });
+      const bag: any[] = data?.patentFileWrapperDataBag || data?.results || [];
+      out = bag
+        .map((r: any) => {
+          const m = r?.applicationMetaData || r;
+          return {
+            title: String(m?.inventionTitle || ''),
+            date: String(m?.grantDate || ''),
+            applicant: String(m?.firstNamedApplicant || ''),
+          };
+        })
+        .filter((p) => p.title && p.date && p.applicant.toLowerCase().includes(lead))
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 40)
+        .map(({ title, date }) => ({ title, date }));
     } catch (e: any) {
-      this.log.warn(`PatentsView failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
+      this.log.warn(`USPTO ODP patents failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
     }
     this.patentsCache.set(key, { ts: Date.now(), data: out });
     return out;
