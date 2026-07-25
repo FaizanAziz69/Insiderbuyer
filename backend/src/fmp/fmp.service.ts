@@ -140,7 +140,7 @@ export class FmpService {
     ts: number;
     map: Map<string, { val: number; sh: number; last: string }>;
   } | null = null;
-  private readonly INSIDER_TTL_MS = 30 * 60_000;
+  private readonly INSIDER_TTL_MS = 6 * 60 * 60_000; // 6h — free tier is 250 calls/DAY
 
   /** Volume-weighted insider BUY cost + last buy date per ticker, derived from
    *  FMP's market-wide latest insider feed (cached 30 min). Covers any stock
@@ -151,7 +151,7 @@ export class FmpService {
     const out = new Map<string, { avgCost: number | null; lastBuyDate: string | null }>();
     if (!this.key) return out;
     if (!this.insiderCache || Date.now() - this.insiderCache.ts > this.INSIDER_TTL_MS) {
-      const trades = await this.getInsiderLatest(5);
+      const trades = await this.getInsiderLatest(1); // free tier serves page 0 only
       const agg = new Map<string, { val: number; sh: number; last: string }>();
       for (const t of trades) {
         if (!t.isBuy || t.shares <= 0 || t.price <= 0) continue;
