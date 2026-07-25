@@ -261,7 +261,7 @@ export class CompanyCivicService {
     } catch (e: any) {
       this.log.warn(`USPTO ODP patents failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
     }
-    this.patentsCache.set(key, { ts: Date.now(), data: out });
+    if (out.length) this.patentsCache.set(key, { ts: Date.now(), data: out });
     return out;
   }
 
@@ -327,7 +327,7 @@ export class CompanyCivicService {
     } catch (e: any) {
       this.log.warn(`Compensation parse failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
     }
-    this.compCache.set(key, { ts: Date.now(), data: out });
+    if (out.rows.length) this.compCache.set(key, { ts: Date.now(), data: out });
     return out;
   }
 
@@ -564,7 +564,9 @@ export class CompanyCivicService {
     } catch (e: any) {
       this.log.warn(`Revenue breakdown failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
     }
-    this.revenueCache.set(key, { ts: Date.now(), data: out });
+    // Cache only real results — a transient SEC failure must retry on the
+    // next request instead of pinning an empty card for the TTL.
+    if (out.segments.length || out.geography.length) this.revenueCache.set(key, { ts: Date.now(), data: out });
     return out;
   }
 
@@ -726,7 +728,7 @@ export class CompanyCivicService {
     } catch (e: any) {
       this.log.warn(`Institutions failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
     }
-    this.whaleCache.set(key, { ts: Date.now(), data: out });
+    if (out.holdings.length || out.derivatives.length) this.whaleCache.set(key, { ts: Date.now(), data: out });
     return out;
   }
 
