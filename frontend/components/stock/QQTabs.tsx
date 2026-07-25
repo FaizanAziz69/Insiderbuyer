@@ -190,21 +190,54 @@ export function PatentsCard({ ticker, companyName }: { ticker: string; companyNa
   );
 }
 
-/** News — real recent headlines (publisher + timestamp). */
+/** News — OUR AI insight articles first (clickable → /insights/slug), with
+ *  real wire headlines listed beneath them. */
+interface AiPost { slug: string; title: string; summary?: string | null; eyebrow?: string | null; imageUrl?: string | null; generatedAt: string }
+
 export function NewsCard({ ticker, name, tall = false }: { ticker: string; name: string; tall?: boolean }) {
-  const { data, isLoading } = useSWR<{ items: { title: string; source: string; date: number }[] }>(
+  const { data: ai, isLoading: aiLoading } = useSWR<{ items: AiPost[] }>(
+    `${API_BASE}/content/by-ticker/${encodeURIComponent(ticker)}?limit=${tall ? 12 : 6}`,
+    fetcher, { revalidateOnFocus: false, dedupingInterval: 15 * 60_000 });
+  const { data: wire } = useSWR<{ items: { title: string; source: string; date: number }[] }>(
     `${API_BASE}/content/news/${encodeURIComponent(ticker)}?name=${encodeURIComponent(name)}`,
     fetcher, { revalidateOnFocus: false, dedupingInterval: 15 * 60_000 });
-  const items = data?.items || [];
+  const posts = ai?.items || [];
+  const headlines = wire?.items || [];
   return (
     <Card icon={<Newspaper className="h-4 w-4" />} title={`${ticker} News`} subtitle={`Recent insights relating to ${ticker}`}>
-      {isLoading ? (
-        <div className="h-full flex items-center justify-center text-[12.5px] text-mute py-8">Loading headlines…</div>
-      ) : items.length === 0 ? (
-        <Empty text={`No recent headlines found for ${ticker}.`} />
+      {aiLoading ? (
+        <div className="h-full flex items-center justify-center text-[12.5px] text-mute py-8">Loading insights…</div>
+      ) : posts.length === 0 && headlines.length === 0 ? (
+        <Empty text={`No recent coverage found for ${ticker}.`} />
       ) : (
-        <div className="overflow-auto scrollbar-visible space-y-2 pr-1" style={{ maxHeight: tall ? 640 : 300 }}>
-          {items.slice(0, tall ? 25 : 10).map((n, i) => (
+        <div className="overflow-auto scrollbar-visible space-y-2 pr-1" style={{ maxHeight: tall ? 680 : 300 }}>
+          {posts.map((p) => (
+            <Link key={p.slug} href={`/insights/${p.slug}`}
+              className="block rounded-lg px-3 py-2.5 transition hover:border-[var(--border-strong)]"
+              style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+              <div className="flex items-start gap-3">
+                {p.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.imageUrl} alt="" className="flex-shrink-0 h-10 w-10 rounded object-cover" style={{ background: "#0b1220" }} />
+                ) : (
+                  <span className="flex-shrink-0 h-10 w-10 rounded flex items-center justify-center text-[13px] font-extrabold"
+                    style={{ background: "var(--bg-3)", color: "var(--accent)" }}>AI</span>
+                )}
+                <div className="min-w-0">
+                  {p.eyebrow && <div className="text-[10px] uppercase tracking-wider font-bold text-accent">{p.eyebrow}</div>}
+                  <div className="text-[13px] font-semibold leading-snug hover:text-accent transition"
+                    style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                    {p.title}
+                  </div>
+                  <div className="text-[11px] text-mute mt-0.5">InsiderBuying Insights · {formatDate(p.generatedAt)}</div>
+                </div>
+              </div>
+            </Link>
+          ))}
+          {headlines.length > 0 && (
+            <div className="text-[10px] uppercase tracking-wider font-bold text-mute pt-2 pb-0.5">Wire headlines</div>
+          )}
+          {headlines.slice(0, tall ? 20 : 6).map((n, i) => (
             <div key={i} className="rounded-lg px-3 py-2.5 flex items-start gap-3"
               style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
               <span className="flex-shrink-0 h-9 w-9 rounded flex items-center justify-center text-[13px] font-extrabold"

@@ -213,7 +213,10 @@ export function WhaleGauge({ segments }: { segments: { label: string; count: num
       ))}
       {arcs.map((a) => {
         const rad = (a.mid * Math.PI) / 180;
-        const x = cx + midR * Math.sin(rad);
+        // Clamp the label's x so its text box always stays inside the canvas,
+        // even when a slice midpoint lands at the extreme left/right.
+        const halfW = Math.max(a.label.length, String(a.count).length) * 11.5 * 0.31;
+        const x = Math.min(size - halfW - 4, Math.max(halfW + 4, cx + midR * Math.sin(rad)));
         const y = cy - midR * Math.cos(rad);
         // Big slices: horizontal 2-line label. Small slices: rotated along the arc.
         if (a.sweep >= 34) {

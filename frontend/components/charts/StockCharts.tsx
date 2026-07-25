@@ -240,8 +240,12 @@ export function InstitutionsTreemap({ rows }: {
   const [hover, setHover] = useState<number | null>(null);
   const W = 980, H = 430;
   const tiles = useMemo(() => {
-    const top = rows.slice(0, 18);
-    const otherShares = rows.slice(18).reduce((s, r) => s + r.shares, 0);
+    // Largest positions first — otherwise a giant filer that happened to file
+    // later lands in "Other" and swallows the whole map.
+    const sorted = rows.slice().sort((a, b) => b.shares - a.shares);
+    const top = sorted.slice(0, 18);
+    const otherShares = sorted.slice(18).reduce((s, r) => s + r.shares, 0);
+    const rest = sorted.slice(18);
     const items = [
       ...top.map((r) => ({ ...r, label: r.institution })),
       ...(otherShares > 0
