@@ -34,6 +34,8 @@ export interface Column<T> {
    *  "marketCapPreset" = preset cap-band dropdown; "preset" = a custom
    *  dropdown of predicate-based presets supplied via `filterPresets`. */
   filterType?: "select" | "range" | "marketCapPreset" | "preset";
+  /** Override the auto-detected preset bands for a "range" column. */
+  filterBands?: Band[];
   /** Predicate-based preset options for filterType "preset" (e.g. insider
    *  type: Cluster / CEO / CFO / Hedge Funds). */
   filterPresets?: { key: string; label: string; test: (row: T) => boolean }[];
@@ -59,6 +61,78 @@ export const CAP_PRESETS: { key: string; label: string; min: number; max: number
   { key: "nano", label: "Nano ( < $50M )", min: 0, max: 50e6 },
 ];
 const CAP_BY_KEY = new Map(CAP_PRESETS.map((p) => [p.key, p]));
+
+/** A preset numeric band. `max` is exclusive. */
+export type Band = { key: string; label: string; min: number; max: number };
+
+/** Preset bands per metric family — the round numbers screeners conventionally
+ *  use, so a filter is one tap instead of typing two numbers. */
+const PRICE_BANDS: Band[] = [
+  { key: "p-1", label: "Under $1", min: -Infinity, max: 1 },
+  { key: "p-5", label: "$1 – $5", min: 1, max: 5 },
+  { key: "p-10", label: "$5 – $10", min: 5, max: 10 },
+  { key: "p-25", label: "$10 – $25", min: 10, max: 25 },
+  { key: "p-50", label: "$25 – $50", min: 25, max: 50 },
+  { key: "p-100", label: "$50 – $100", min: 50, max: 100 },
+  { key: "p-250", label: "$100 – $250", min: 100, max: 250 },
+  { key: "p-inf", label: "Over $250", min: 250, max: Infinity },
+];
+const PCT_BANDS: Band[] = [
+  { key: "up20", label: "Up 20% or more", min: 20, max: Infinity },
+  { key: "up10", label: "Up 10% – 20%", min: 10, max: 20 },
+  { key: "up5", label: "Up 5% – 10%", min: 5, max: 10 },
+  { key: "up0", label: "Up 0% – 5%", min: 0, max: 5 },
+  { key: "dn5", label: "Down 0% – 5%", min: -5, max: 0 },
+  { key: "dn10", label: "Down 5% – 10%", min: -10, max: -5 },
+  { key: "dn20", label: "Down 10% – 20%", min: -20, max: -10 },
+  { key: "dn99", label: "Down 20% or more", min: -Infinity, max: -20 },
+];
+const VOLUME_BANDS: Band[] = [
+  { key: "v-100k", label: "Under 100K", min: -Infinity, max: 100e3 },
+  { key: "v-500k", label: "100K – 500K", min: 100e3, max: 500e3 },
+  { key: "v-1m", label: "500K – 1M", min: 500e3, max: 1e6 },
+  { key: "v-5m", label: "1M – 5M", min: 1e6, max: 5e6 },
+  { key: "v-20m", label: "5M – 20M", min: 5e6, max: 20e6 },
+  { key: "v-inf", label: "Over 20M", min: 20e6, max: Infinity },
+];
+const MONEY_BANDS: Band[] = [
+  { key: "m-10k", label: "Under $10K", min: -Infinity, max: 10e3 },
+  { key: "m-100k", label: "$10K – $100K", min: 10e3, max: 100e3 },
+  { key: "m-500k", label: "$100K – $500K", min: 100e3, max: 500e3 },
+  { key: "m-1m", label: "$500K – $1M", min: 500e3, max: 1e6 },
+  { key: "m-10m", label: "$1M – $10M", min: 1e6, max: 10e6 },
+  { key: "m-inf", label: "Over $10M", min: 10e6, max: Infinity },
+];
+const SCORE_BANDS: Band[] = [
+  { key: "s-80", label: "80 – 100", min: 80, max: Infinity },
+  { key: "s-60", label: "60 – 80", min: 60, max: 80 },
+  { key: "s-40", label: "40 – 60", min: 40, max: 60 },
+  { key: "s-20", label: "20 – 40", min: 20, max: 40 },
+  { key: "s-0", label: "Under 20", min: -Infinity, max: 20 },
+];
+const COUNT_BANDS: Band[] = [
+  { key: "c-1", label: "1", min: 1, max: 2 },
+  { key: "c-2", label: "2 – 4", min: 2, max: 5 },
+  { key: "c-5", label: "5 – 9", min: 5, max: 10 },
+  { key: "c-10", label: "10 or more", min: 10, max: Infinity },
+];
+
+/** Pick the band family for a column from its key + label — so existing
+ *  `filterType: "range"` columns become preset dropdowns with no call-site
+ *  changes. */
+function bandsForColumn<T>(c: Column<T>): Band[] {
+  if (c.filterBands?.length) return c.filterBands;
+  const text = `${c.key} ${c.filterLabelText ?? (typeof c.label === "string" ? c.label : "")}`
+    .toLowerCase();
+  if (/market\s*cap|mktcap|\bcap\b/.test(text)) return CAP_PRESETS;
+  if (/score|iqs|rating/.test(text)) return SCORE_BANDS;
+  if (/%|pct|percent|change|return|upside|yield|margin|growth/.test(text)) return PCT_BANDS;
+  if (/volume|\bvol\b|shares/.test(text)) return VOLUME_BANDS;
+  if (/price|cost|close|target/.test(text)) return PRICE_BANDS;
+  if (/value|amount|total|spend|paid|revenue|income/.test(text)) return MONEY_BANDS;
+  if (/count|buyers|trades|filings|insiders/.test(text)) return COUNT_BANDS;
+  return PRICE_BANDS;
+}
 
 interface Props<T> {
   columns: Column<T>[];
@@ -165,6 +239,26 @@ export function DataTable<T>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, columns]);
 
+  // Bands that actually contain rows, with their counts — empty bands are
+  // never offered, so picking one can't produce an empty table.
+  const bandsByCol = useMemo(() => {
+    const m: Record<string, { band: Band; count: number }[]> = {};
+    for (const c of filterCols) {
+      if (c.filterType !== "range") continue;
+      const nums: number[] = [];
+      rows.forEach((r, i) => {
+        const raw = cellValue(c, r, i);
+        const n = typeof raw === "number" ? raw : Number(raw);
+        if (raw != null && !Number.isNaN(n)) nums.push(n);
+      });
+      m[c.key] = bandsForColumn(c)
+        .map((band) => ({ band, count: nums.filter((n) => n >= band.min && n < band.max).length }))
+        .filter((b) => b.count > 0);
+    }
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, columns]);
+
   const filtered = useMemo(() => {
     const active = Object.entries(filters).filter(([, v]) => isActive(v));
     if (active.length === 0) return rows;
@@ -183,6 +277,14 @@ export function DataTable<T>({
           const n = typeof raw === "number" ? raw : Number(raw);
           if (raw == null || Number.isNaN(n)) return false;
           return n >= preset.min && n < preset.max;
+        }
+        if (col.filterType === "range" && typeof v === "string") {
+          const band = bandsForColumn(col).find((b) => b.key === v);
+          if (!band) return true;
+          const raw = cellValue(col, row, i);
+          const n = typeof raw === "number" ? raw : Number(raw);
+          if (raw == null || Number.isNaN(n)) return false;
+          return n >= band.min && n < band.max;
         }
         if (typeof v === "string") return filterText(col, row, i) === v;
         const raw = cellValue(col, row, i);
@@ -246,128 +348,125 @@ export function DataTable<T>({
 
   return (
     <div>
-      {/* Filters — always visible above the table (no toggle button). */}
+      {/* Filters — ONE horizontal bar on every screen size. Preset bands
+          only (no min/max typing); scrolls sideways rather than stacking. */}
       {filterCols.length > 0 && (
         <div
-          className="mb-3 p-3 rounded-lg"
-          style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+          className="mb-3 rounded-lg flex items-center gap-2 px-2.5 py-2 overflow-x-auto"
+          style={{
+            background: "var(--bg-2)",
+            border: "1px solid var(--border)",
+            scrollbarWidth: "none",
+          }}
         >
-          <div className="flex items-center justify-between mb-2.5">
-            <span className="inline-flex items-center gap-1.5 text-[11px] uppercase font-bold tracking-wider text-mute">
-              <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
-            </span>
-            {activeCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setFilters({})}
-                className="inline-flex items-center gap-1 text-[12px] font-semibold text-mute hover:text-[var(--bad)] transition"
+          <span className="inline-flex items-center gap-1.5 text-[10.5px] uppercase font-bold tracking-wider text-mute flex-none pl-0.5 pr-1">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Filters</span>
+          </span>
+
+          {filterCols.map((c) => {
+            const title = c.filterLabelText ?? (typeof c.label === "string" ? c.label : c.key);
+            const cur = (filters[c.key] as string) ?? "";
+            const on = cur !== "";
+            const selStyle: React.CSSProperties = {
+              ...numInput,
+              borderColor: on ? "var(--accent)" : "var(--border-strong)",
+              color: on ? "var(--accent)" : "var(--text)",
+              fontWeight: on ? 700 : 600,
+            };
+
+            // Preset bands (was Min/Max) ─────────────────────────────
+            if (c.filterType === "range") {
+              const opts = bandsByCol[c.key] ?? [];
+              if (opts.length < 2) return null;
+              return (
+                <select
+                  key={c.key}
+                  aria-label={`${title} filter`}
+                  value={cur}
+                  onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
+                  className="flex-none text-[12.5px] rounded-md px-2.5 py-1.5"
+                  style={selStyle}
+                >
+                  <option value="">{title}: Any</option>
+                  {opts.map(({ band, count }) => (
+                    <option key={band.key} value={band.key}>
+                      {band.label} ({count})
+                    </option>
+                  ))}
+                </select>
+              );
+            }
+
+            if (c.filterType === "marketCapPreset") {
+              return (
+                <select
+                  key={c.key}
+                  aria-label={`${title} filter`}
+                  value={cur}
+                  onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
+                  className="flex-none text-[12.5px] rounded-md px-2.5 py-1.5"
+                  style={selStyle}
+                >
+                  <option value="">All Market Caps</option>
+                  {CAP_PRESETS.map((cap) => (
+                    <option key={cap.key} value={cap.key}>
+                      {cap.label}
+                    </option>
+                  ))}
+                </select>
+              );
+            }
+
+            if (c.filterType === "preset") {
+              return (
+                <select
+                  key={c.key}
+                  aria-label={`${title} filter`}
+                  value={cur}
+                  onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
+                  className="flex-none text-[12.5px] rounded-md px-2.5 py-1.5"
+                  style={selStyle}
+                >
+                  <option value="">All {title}</option>
+                  {c.filterPresets?.map((pr) => (
+                    <option key={pr.key} value={pr.key}>
+                      {pr.label}
+                    </option>
+                  ))}
+                </select>
+              );
+            }
+
+            // Distinct-value select
+            return (
+              <select
+                key={c.key}
+                aria-label={`${title} filter`}
+                value={cur}
+                onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
+                className="flex-none text-[12.5px] rounded-md px-2.5 py-1.5"
+                style={selStyle}
               >
-                <X className="h-3.5 w-3.5" /> Clear ({activeCount})
-              </button>
-            )}
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
-            {filterCols.map((c) => {
-                const title = c.filterLabelText ?? (typeof c.label === "string" ? c.label : c.key);
-                if (c.filterType === "range") {
-                  const fv = (filters[c.key] as { min?: string; max?: string }) || {};
-                  return (
-                    <div key={c.key} className="flex flex-col gap-1">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-mute">
-                        {title}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          value={fv.min ?? ""}
-                          onChange={(e) =>
-                            setFilters((f) => ({ ...f, [c.key]: { ...fv, min: e.target.value } }))
-                          }
-                          placeholder="Min"
-                          className="text-[13px] rounded-md px-2 py-1.5 w-24"
-                          style={numInput}
-                        />
-                        <span className="text-mute text-[12px]">–</span>
-                        <input
-                          type="number"
-                          value={fv.max ?? ""}
-                          onChange={(e) =>
-                            setFilters((f) => ({ ...f, [c.key]: { ...fv, max: e.target.value } }))
-                          }
-                          placeholder="Max"
-                          className="text-[13px] rounded-md px-2 py-1.5 w-24"
-                          style={numInput}
-                        />
-                      </div>
-                    </div>
-                  );
-                }
-                if (c.filterType === "marketCapPreset") {
-                  return (
-                    <label key={c.key} className="flex flex-col gap-1">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-mute">
-                        {title}
-                      </span>
-                      <select
-                        value={(filters[c.key] as string) ?? ""}
-                        onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
-                        className="text-[13px] font-semibold rounded-md px-2.5 py-1.5 min-w-[170px]"
-                        style={numInput}
-                      >
-                        <option value="">All Market Caps</option>
-                        {CAP_PRESETS.map((p) => (
-                          <option key={p.key} value={p.key}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  );
-                }
-                if (c.filterType === "preset") {
-                  return (
-                    <label key={c.key} className="flex flex-col gap-1">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-mute">
-                        {title}
-                      </span>
-                      <select
-                        value={(filters[c.key] as string) ?? ""}
-                        onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
-                        className="text-[13px] font-semibold rounded-md px-2.5 py-1.5 min-w-[170px]"
-                        style={numInput}
-                      >
-                        <option value="">All {title}</option>
-                        {c.filterPresets?.map((p) => (
-                          <option key={p.key} value={p.key}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  );
-                }
-                return (
-                  <label key={c.key} className="flex flex-col gap-1">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-mute">
-                      {title}
-                    </span>
-                    <select
-                      value={(filters[c.key] as string) ?? ""}
-                      onChange={(e) => setFilters((f) => ({ ...f, [c.key]: e.target.value }))}
-                      className="text-[13px] font-semibold rounded-md px-2.5 py-1.5 min-w-[140px]"
-                      style={numInput}
-                    >
-                      <option value="">All {title}</option>
-                      {optionsByCol[c.key]?.map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                );
-              })}
-            </div>
+                <option value="">All {title}</option>
+                {optionsByCol[c.key]?.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            );
+          })}
+
+          {activeCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilters({})}
+              className="flex-none inline-flex items-center gap-1 text-[12px] font-bold ml-auto pl-2 pr-1 text-mute hover:text-[var(--bad)] transition"
+            >
+              <X className="h-3.5 w-3.5" /> Clear ({activeCount})
+            </button>
+          )}
         </div>
       )}
 
