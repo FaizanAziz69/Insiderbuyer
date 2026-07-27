@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, CheckCircle2 } from "lucide-react";
+import { Check, CheckCircle2 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -183,8 +183,6 @@ function SignupForm({ plan, stacked = false, cta }: { plan: string; stacked?: bo
 }
 
 export default function PremiumPage() {
-  const [selected, setSelected] = useState<string>("pro");
-  const plan = PLANS.find((p) => p.id === selected)!;
 
   return (
     <div className="w-full pb-10">
@@ -259,7 +257,7 @@ export default function PremiumPage() {
         </div>
       </section>
 
-      {/* ─── Paid plans ─── */}
+      {/* ─── Paid plans — each card subscribes on its own ─── */}
       <section id="plans" className="mt-16 scroll-mt-6">
         <h2 className="prm-h text-[26px] sm:text-[32px]">Go further with Premium</h2>
         <p className="text-[15px] mt-3 max-w-xl" style={{ color: "var(--text-soft)" }}>
@@ -267,32 +265,33 @@ export default function PremiumPage() {
           it you can hold at once.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-7 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-8 items-stretch">
           {PLANS.map((p, i) => {
-            const isSel = selected === p.id;
+            const featured = p.id === "pro";
             return (
-              <motion.button
+              <motion.div
                 key={p.id}
-                type="button"
-                onClick={() => setSelected(p.id)}
-                aria-pressed={isSel}
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 14 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.25 }}
-                transition={{ duration: 0.35, delay: i * 0.05 }}
-                className="prm-panel card p-6 text-left h-full flex flex-col transition"
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.38, delay: i * 0.06 }}
+                className="prm-panel card p-7 sm:p-8 h-full flex flex-col"
                 style={{
-                  ["--tick" as string]: isSel ? p.accent : "var(--border-strong)",
+                  ["--tick" as string]: p.accent,
                   background: "var(--bg-2)",
-                  borderColor: isSel ? `color-mix(in srgb, ${p.accent} 55%, var(--border))` : "var(--border)",
-                  boxShadow: isSel ? `0 10px 34px color-mix(in srgb, ${p.accent} 14%, transparent)` : undefined,
+                  borderColor: featured
+                    ? `color-mix(in srgb, ${p.accent} 50%, var(--border))`
+                    : "var(--border)",
+                  boxShadow: featured
+                    ? `0 14px 42px color-mix(in srgb, ${p.accent} 15%, transparent)`
+                    : undefined,
                 }}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[18px] font-bold tracking-tight">{p.name}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[22px] font-bold tracking-tight">{p.name}</span>
                   {p.badge && (
                     <span
-                      className="prm-num text-[9.5px] font-bold uppercase px-2 py-0.5 rounded"
+                      className="prm-num text-[10px] font-bold uppercase px-2.5 py-1 rounded"
                       style={{
                         letterSpacing: ".08em",
                         background: `color-mix(in srgb, ${p.accent} 16%, transparent)`,
@@ -304,52 +303,43 @@ export default function PremiumPage() {
                   )}
                 </div>
 
-                <div className="flex items-baseline gap-1.5 mt-4">
-                  <span className="prm-num text-[36px] font-bold leading-none" style={{ letterSpacing: "-.03em" }}>
+                <div className="flex items-baseline gap-2 mt-5">
+                  <span
+                    className="prm-num text-[46px] font-bold leading-none"
+                    style={{ letterSpacing: "-.035em" }}
+                  >
                     ${p.monthly}
                   </span>
-                  <span className="text-[13px] font-semibold" style={{ color: "var(--text-mute)" }}>/ month</span>
+                  <span className="text-[14.5px] font-semibold" style={{ color: "var(--text-mute)" }}>
+                    / month
+                  </span>
                 </div>
 
-                <div className="h-px my-4" style={{ background: "var(--border)" }} />
+                <div className="h-px my-6" style={{ background: "var(--border)" }} />
 
-                <ul className="flex flex-col gap-2 flex-1">
+                <ul className="flex flex-col gap-3 flex-1">
                   {p.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-[13px]">
-                      <Check className="h-3.5 w-3.5 flex-shrink-0 mt-[3px]" strokeWidth={3} style={{ color: p.accent }} />
+                    <li key={f} className="flex items-start gap-2.5 text-[14px]">
+                      <Check
+                        className="h-4 w-4 flex-shrink-0 mt-[3px]"
+                        strokeWidth={3}
+                        style={{ color: p.accent }}
+                      />
                       <span style={{ color: "var(--text-soft)" }}>{f}</span>
                     </li>
                   ))}
                 </ul>
 
-                <span
-                  className="inline-flex items-center gap-1.5 text-[12.5px] font-bold mt-5"
-                  style={{ color: isSel ? p.accent : "var(--text-mute)" }}
-                >
-                  {isSel ? (
-                    <>
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Selected
-                    </>
-                  ) : (
-                    <>
-                      Select {p.name} <ArrowRight className="h-3.5 w-3.5" />
-                    </>
-                  )}
-                </span>
-              </motion.button>
+                {/* this card's own subscribe control */}
+                <div className="mt-7">
+                  <SignupForm plan={p.id} stacked cta={`Subscribe to ${p.name}`} />
+                  <p className="text-[11.5px] mt-3 text-center" style={{ color: "var(--text-mute)" }}>
+                    Cancel anytime
+                  </p>
+                </div>
+              </motion.div>
             );
           })}
-        </div>
-
-        <div className="card p-6 sm:p-7 mt-4 text-center" style={{ background: "var(--bg-2)" }}>
-          <p className="text-[14px] mb-4" style={{ color: "var(--text-soft)" }}>
-            Continue with <strong style={{ color: "var(--text)" }}>{plan.name}</strong> at{" "}
-            <span className="prm-num font-bold" style={{ color: "var(--text)" }}>${plan.monthly}/month</span>.
-          </p>
-          <SignupForm plan={selected} />
-          <p className="text-[11.5px] mt-3.5" style={{ color: "var(--text-mute)" }}>
-            Cancel anytime · prices in USD
-          </p>
         </div>
       </section>
 
