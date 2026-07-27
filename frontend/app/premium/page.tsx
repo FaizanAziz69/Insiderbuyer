@@ -188,6 +188,44 @@ function SignupForm({ plan, stacked = false, cta }: { plan: string; stacked?: bo
   );
 }
 
+/* Paid-plan button. No email field — checkout collects everything.
+   TO WIRE STRIPE: replace the body of startCheckout() with a POST to your
+   /checkout endpoint and `window.location.href = session.url`. */
+function PlanCta({ planId, planName, accent }: { planId: string; planName: string; accent: string }) {
+  const [note, setNote] = useState(false);
+
+  function startCheckout() {
+    // Stripe Checkout goes here — until then, tell the visitor the truth.
+    setNote(true);
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={startCheckout}
+        className="w-full inline-flex items-center justify-center rounded-lg py-3.5 text-[15px] font-bold transition"
+        style={{
+          background: accent,
+          color: "var(--on-accent, #fff)",
+          border: `1px solid ${accent}`,
+        }}
+      >
+        Subscribe to {planName}
+      </button>
+      {note && (
+        <p className="text-[12px] mt-2.5 text-center leading-relaxed" style={{ color: "var(--text-soft)" }}>
+          Card payments open shortly. Create a free account above and we&rsquo;ll email you the
+          moment {planName} goes live.
+        </p>
+      )}
+      <p className="text-[11.5px] mt-3 text-center" style={{ color: "var(--text-mute)" }}>
+        Cancel anytime · billed monthly
+      </p>
+    </div>
+  );
+}
+
 export default function PremiumPage() {
 
   return (
@@ -338,10 +376,7 @@ export default function PremiumPage() {
 
                 {/* this card's own subscribe control */}
                 <div className="mt-7">
-                  <SignupForm plan={p.id} stacked cta={`Subscribe to ${p.name}`} />
-                  <p className="text-[11.5px] mt-3 text-center" style={{ color: "var(--text-mute)" }}>
-                    Cancel anytime
-                  </p>
+                  <PlanCta planId={p.id} planName={p.name} accent={p.accent} />
                 </div>
               </motion.div>
             );
