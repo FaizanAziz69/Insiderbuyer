@@ -2,7 +2,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, CheckCircle2 } from "lucide-react";
+import {
+  Bell, Building2, Check, CheckCircle2, Gauge, Landmark,
+  SlidersHorizontal, Users,
+} from "lucide-react";
 import { API_BASE } from "@/lib/api";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -24,11 +27,17 @@ const PLANS = [
     accent: "var(--sig)",
     badge: "Most popular",
     features: [
-      "The complete ranking and full screener",
-      "Insider & politician profiles with track records",
-      "Institutional 13F owners, whale activity, treemaps",
-      "Unlimited watchlists · 100 alerts · daily CSV export",
-      "No ads",
+      "The complete Insider Score ranking — every scored company, no cap",
+      "Full screener plus every curated stock list and hot-sector list",
+      "Nine-tab stock profiles: financials, forecast, compensation, government",
+      "Insider profiles with buy track records and return vs the S&P",
+      "Politician profiles: trades, donors, legislation, live portfolio",
+      "Institutional 13F owners, whale activity and ownership treemaps",
+      "Revenue breakdown by segment and geography",
+      "Market, sector and confidence heatmaps · rotation & volume charts",
+      "Short interest, squeeze candidates, dividends, earnings and IPO calendars",
+      "AI insight articles and monthly research reports",
+      "Unlimited watchlists (100 stocks each) · 100 alerts · daily CSV export",
     ],
   },
   {
@@ -38,13 +47,49 @@ const PLANS = [
     accent: "var(--gold)",
     badge: null as string | null,
     features: [
-      "Everything in Pro, every limit removed",
-      "Unlimited alerts and watchlist size",
-      "Unlimited exports",
+      "Everything in Pro, with every limit removed",
+      "Unlimited alerts across stocks, insiders and politicians",
+      "Unlimited watchlists and unlimited stocks in each",
+      "Unlimited CSV exports of any table on the site",
       "Priority email support",
+      "First access to new datasets as they ship",
     ],
   },
 ] as const;
+
+/* What a subscription opens up — every card maps to live sections. */
+const BENEFITS = [
+  {
+    icon: Gauge,
+    title: "Insider Score Rankings",
+    desc: "Every company we cover scored 0–100 from its own filings and re-ranked daily. Open any score to see its five components and the arithmetic behind them.",
+  },
+  {
+    icon: Users,
+    title: "Insider Track Records",
+    desc: "Every Form 4 filer gets a profile — what they bought, at what price, and how those buys performed against the S&P since. Find the executives whose buying has meant something.",
+  },
+  {
+    icon: Landmark,
+    title: "Congress & Political Money",
+    desc: "Congressional trades with filing delays, plus politician profiles carrying sponsored legislation, corporate PAC donors, outside spending and disclosed holdings.",
+  },
+  {
+    icon: Building2,
+    title: "Institutional Ownership",
+    desc: "13F filings diffed quarter over quarter so you see who added, trimmed, opened or closed — as an owners table, an options-owners table and an ownership treemap.",
+  },
+  {
+    icon: SlidersHorizontal,
+    title: "Screener, Lists & Heatmaps",
+    desc: "Filter by score, sector, exchange, market cap and cluster buying. Curated lists, sector rotation, volume and sentiment charts, squeeze candidates and earnings calendars.",
+  },
+  {
+    icon: Bell,
+    title: "Alerts & Watchlists",
+    desc: "Track the tickers, insiders and politicians you care about, and get told when a CEO buys, a cluster forms or a score crosses your threshold.",
+  },
+];
 
 /* The five real score components and their weights (scoring-config.ts). */
 const COMPOSITION = [
@@ -298,6 +343,46 @@ export default function PremiumPage() {
               No payment details required.
             </p>
           </div>
+        </div>
+      </section>
+
+      {/* ─── What you get ─── */}
+      <section className="mt-16">
+        <h2 className="prm-h text-[26px] sm:text-[32px]">Everything a subscription opens up</h2>
+        <p className="text-[15px] mt-3 max-w-2xl" style={{ color: "var(--text-soft)" }}>
+          Whether you trade professionally or check in once a week, these are the tools that turn raw
+          filings into something you can act on:
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
+          {BENEFITS.map((b, i) => {
+            const Icon = b.icon;
+            return (
+              <motion.div
+                key={b.title}
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.35, delay: (i % 3) * 0.06 }}
+                className="card p-6 h-full flex flex-col text-center items-center"
+                style={{ background: "var(--bg-2)" }}
+              >
+                <span
+                  className="h-12 w-12 rounded-xl flex items-center justify-center"
+                  style={{
+                    background: "color-mix(in srgb, var(--sig) 12%, transparent)",
+                    color: "var(--sig)",
+                  }}
+                >
+                  <Icon className="h-6 w-6" strokeWidth={1.75} />
+                </span>
+                <h3 className="text-[17px] font-bold tracking-tight mt-4">{b.title}</h3>
+                <p className="text-[13.5px] leading-relaxed mt-2.5" style={{ color: "var(--text-soft)" }}>
+                  {b.desc}
+                </p>
+              </motion.div>
+            );
+          })}
         </div>
       </section>
 
