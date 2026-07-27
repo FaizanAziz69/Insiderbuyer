@@ -1,30 +1,38 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
-import { motion } from "framer-motion";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
   Bell,
+  Building2,
   Check,
   CheckCircle2,
-  Crown,
+  Download,
+  FileText,
   Gauge,
   Landmark,
-  LineChart,
+  Minus,
+  ShieldCheck,
   Sparkles,
+  TrendingUp,
+  Users,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 
-// Shared client-side email check: require a local part, a domain, and a TLD.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
 
 /* ────────────────────────────────────────────────────────────
-   Subscribe/premium landing page.
-   Section order mirrors newsfailures.com, content adapted to
-   InsiderBuying.com (Form 4 + Insider Score insider-buying analytics).
-   1. Hero  2. In Action  3. Why Investors  4. Testimonials
-   5. Conversion band  6. Pricing  7. From the Blog
+   Premium / subscribe page.
+
+   Structure follows the pricing-page conventions investors expect
+   (free tier → plan rack → comparison matrix → FAQ), but the
+   treatment is our own: an instrument-console look built entirely
+   from existing theme tokens, with --premium (cyan) as the signal
+   accent and --font-mono carrying every figure.
+
+   PRICES live in PLANS below — edit them in one place.
    The global Footer is rendered by AppShell — no footer here.
    ──────────────────────────────────────────────────────────── */
 
@@ -138,579 +146,684 @@ function TrialCapture({
   );
 }
 
-// ─── Data ─────────────────────────────────────────────────────
-const STATS = [
-  { value: "10,000+", label: "Form 4 filings tracked" },
-  { value: "500", label: "Companies scored" },
-  { value: "Daily", label: "AI insider briefings" },
-  { value: "Live", label: "Market data & heatmaps" },
+/* ─── Plans ──────────────────────────────────────────────────
+   Edit prices here only. `annual` is the total billed per year;
+   the card shows the per-month equivalent automatically.        */
+const PLANS = [
+  {
+    id: "free",
+    name: "Free",
+    tagline: "See the signal",
+    monthly: 0,
+    annual: 0,
+    accent: "var(--text-mute)",
+    badge: null as string | null,
+    features: [
+      "Top 25 of the Insider Score ranking",
+      "Every stock profile — all nine tabs",
+      "Congress trades & politician profiles",
+      "AI insight articles and daily briefings",
+      "One watchlist, up to 10 stocks",
+    ],
+    cta: "Create free account",
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    tagline: "The full research desk",
+    monthly: 29,
+    annual: 279,
+    accent: "var(--premium)",
+    badge: "Most popular",
+    features: [
+      "The complete Insider Score ranking — no cap",
+      "Screener: score, sector, exchange, market cap, cluster buys",
+      "Old vs new score side by side on every table",
+      "Insider & politician profiles with excess-return metrics",
+      "Institutional 13F owners, whale activity & treemaps",
+      "Unlimited watchlists, 100 stocks each",
+      "100 active price & filing alerts",
+      "Daily CSV export of any table",
+      "No ads, anywhere",
+    ],
+    cta: "Start 30-day free trial",
+  },
+  {
+    id: "unlimited",
+    name: "Unlimited",
+    tagline: "No ceilings",
+    monthly: 79,
+    annual: 759,
+    accent: "var(--gold)",
+    badge: "Power users",
+    features: [
+      "Everything in Pro, with every limit removed",
+      "Unlimited alerts",
+      "Unlimited stocks per watchlist",
+      "Unlimited CSV exports",
+      "Priority email support",
+    ],
+    cta: "Start 30-day free trial",
+  },
+] as const;
+
+/* Comparison matrix — true / false / string per plan. */
+const MATRIX: { group: string; rows: { label: string; free: boolean | string; pro: boolean | string; unl: boolean | string }[] }[] = [
+  {
+    group: "Insider Score engine",
+    rows: [
+      { label: "Ranked stocks visible", free: "Top 25", pro: "All", unl: "All" },
+      { label: "Five-component score breakdown", free: false, pro: true, unl: true },
+      { label: "Old score vs new score comparison", free: false, pro: true, unl: true },
+      { label: "Score history trend per stock", free: false, pro: true, unl: true },
+    ],
+  },
+  {
+    group: "Filings & disclosure data",
+    rows: [
+      { label: "SEC Form 4 insider trades", free: true, pro: true, unl: true },
+      { label: "Insider profiles & track records", free: false, pro: true, unl: true },
+      { label: "Institutional 13F owners & treemap", free: false, pro: true, unl: true },
+      { label: "Executive compensation (DEF 14A)", free: false, pro: true, unl: true },
+      { label: "Revenue by segment & geography", free: true, pro: true, unl: true },
+    ],
+  },
+  {
+    group: "Government & political",
+    rows: [
+      { label: "Congress trading feed", free: true, pro: true, unl: true },
+      { label: "Politician profiles, donors, legislation", free: false, pro: true, unl: true },
+      { label: "Corporate lobbying & federal contracts", free: false, pro: true, unl: true },
+    ],
+  },
+  {
+    group: "Tools & limits",
+    rows: [
+      { label: "Screener filters", free: "Basic", pro: "All", unl: "All" },
+      { label: "Watchlists", free: "1 list · 10 stocks", pro: "Unlimited · 100 each", unl: "Unlimited · no cap" },
+      { label: "Active alerts", free: "3", pro: "100", unl: "Unlimited" },
+      { label: "CSV export", free: false, pro: "1 / day", unl: "Unlimited" },
+      { label: "Ad-free experience", free: false, pro: true, unl: true },
+      { label: "Priority support", free: false, pro: false, unl: true },
+    ],
+  },
 ];
 
-const FEATURES = [
+/* The five score components — real weights from scoring-config.ts. */
+const COMPONENTS = [
+  { w: 50, name: "Insider buying", desc: "Purchase size against market cap, buying clusters, seniority of the buyer, cost basis vs today's price, and stake growth — six sub-factors.", icon: TrendingUp },
+  { w: 25, name: "Sector sentiment", desc: "Whether the money is flowing into this corner of the market or out of it.", icon: Landmark },
+  { w: 10, name: "Filing tone", desc: "How management writes about its own business in the MD&A section of its filings.", icon: FileText },
+  { w: 10, name: "Volume momentum", desc: "Recent trading demand measured against the stock's own 90-day baseline.", icon: Gauge },
+  { w: 5, name: "Dilution", desc: "A penalty when the share count is quietly growing underneath you.", icon: ShieldCheck },
+];
+
+/* Provenance — every one of these is a live source in production. */
+const SOURCES = [
+  { name: "SEC EDGAR", detail: "Form 4 insider filings" },
+  { name: "SEC 13F", detail: "Institutional holdings" },
+  { name: "SEC 10-Q / 10-K", detail: "Segment revenue" },
+  { name: "SEC DEF 14A", detail: "Executive pay" },
+  { name: "Congress.gov", detail: "Members & legislation" },
+  { name: "FEC", detail: "Campaign finance" },
+  { name: "Senate LDA", detail: "Lobbying spend" },
+  { name: "USAspending", detail: "Federal contracts" },
+  { name: "BaFin", detail: "German directors' dealings" },
+];
+
+const FAQS = [
   {
-    icon: Gauge,
-    title: "Insider Score — 4-Factor Scoring",
-    desc: "Every company gets a proprietary 0–100 Insider Score from purchase volume, cluster effect, role weighting, and holding-change magnitude.",
+    q: "Is there an annual option?",
+    a: "Yes — choose annual at checkout. Pro is $279 a year and Unlimited is $759 a year, which works out to two months free on either plan compared with paying monthly.",
   },
   {
-    icon: Bell,
-    title: "Cluster-Buy Alerts",
-    desc: "Get notified the moment multiple distinct insiders buy the same stock in a short window — the strongest conviction signal in the data.",
+    q: "What is the difference between Pro and Unlimited?",
+    a: "Only the limits. Pro gives you every dataset and tool on the site with generous caps — 100 alerts, 100 stocks per watchlist, one export a day. Unlimited removes those caps and adds priority support. Nothing is hidden from Pro users.",
   },
   {
-    icon: Crown,
-    title: "CEO / CFO Conviction Buys",
-    desc: "Role-weighted scoring surfaces purchases by the executives who know the business best — CEO, CFO and COO buys carry the most weight.",
+    q: "What exactly is the Insider Score?",
+    a: "A 0–100 composite that starts with open-market insider buying and blends in sector strength, trading momentum, the tone of the company's own filings, and a dilution penalty. Every input is inspectable on the stock page — you can see each component and its weight, not just the headline number.",
   },
   {
-    icon: LineChart,
-    title: "Live Market Data & Heatmaps",
-    desc: "Real-time quotes, sector performance, top movers and earnings — paired with Insider Score heatmaps so you see where the smart money is concentrated.",
+    q: "Where does the data come from?",
+    a: "Official filings and government sources, not a black-box vendor: SEC EDGAR for insider and institutional filings, Congress.gov and the FEC for political data, the Senate lobbying database, USAspending for federal contracts, and BaFin for German disclosures. Every card on the site names its source.",
   },
   {
-    icon: Landmark,
-    title: "Congressional & Famous-Investor Tracking",
-    desc: "Follow congressional trades and the 13F portfolios of legendary investors alongside corporate-insider activity in one view.",
+    q: "Which markets are covered?",
+    a: "US listings (NYSE, Nasdaq) and German exchanges today, with more markets added as reliable disclosure feeds become available. Coverage is labelled per stock, so you always know what stands behind a score.",
   },
   {
-    icon: Sparkles,
-    title: "Daily AI Briefings",
-    desc: "Every morning, an AI digest synthesises the latest filings into plain-language briefings on the day's most notable insider buying.",
+    q: "Do I need a card to try it?",
+    a: "No. Start the 30-day trial with an email address. We will only ask for payment details if you decide to stay.",
+  },
+  {
+    q: "Can I cancel whenever I want?",
+    a: "Yes, in one click from your account, and you keep access until the end of the period you have already paid for.",
+  },
+  {
+    q: "Is any of this investment advice?",
+    a: "No. The Insider Score is a research signal built from public filings, and past insider behaviour does not predict future returns. Every number is there to inform your own decision, not to replace it.",
   },
 ];
 
-const TESTIMONIALS = [
-  {
-    quote:
-      "Insiders might sell their shares for any number of reasons, but they buy them for only one: they think the price will rise.",
-    name: "Peter Lynch",
-    source: "One Up on Wall Street",
-  },
-  {
-    quote:
-      "Be fearful when others are greedy, and greedy when others are fearful. Conviction shows when insiders put their own capital on the line.",
-    name: "Warren Buffett",
-    source: "Chairman, Berkshire Hathaway",
-  },
-  {
-    quote:
-      "When the people who know a company best are buying with their own money, pay attention — that signal is hard to fake.",
-    name: "The InsiderBuying thesis",
-    source: "Why open-market Form 4 buys matter",
-  },
-];
+const CSS = `
+.prm-wrap { position: relative; }
+.prm-grid {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--accent) 12%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--accent) 12%, transparent) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(120% 90% at 50% 0%, #000 25%, transparent 78%);
+  -webkit-mask-image: radial-gradient(120% 90% at 50% 0%, #000 25%, transparent 78%);
+}
+.prm-sweep {
+  position: absolute; left: 0; right: 0; height: 220px; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--premium) 10%, transparent), transparent);
+  animation: prm-sweep 9s linear infinite;
+}
+@keyframes prm-sweep { 0% { top: -220px; } 100% { top: 100%; } }
+@media (prefers-reduced-motion: reduce) { .prm-sweep { display: none; } }
 
-const PLAN_FEATURES = [
-  "Insider Score rankings & cluster-buy alerts",
-  "Full insider + congressional feeds",
-  "Live heatmaps & top movers",
-  "Famous-investor 13F portfolios",
-  "Daily AI briefings",
-  "CSV exports",
-];
+/* instrument corner ticks */
+.prm-panel { position: relative; }
+.prm-panel::before, .prm-panel::after {
+  content: ""; position: absolute; width: 12px; height: 12px; pointer-events: none;
+  border-color: var(--tick, var(--border-strong));
+}
+.prm-panel::before { top: -1px; left: -1px; border-top: 2px solid; border-left: 2px solid; }
+.prm-panel::after { bottom: -1px; right: -1px; border-bottom: 2px solid; border-right: 2px solid; }
 
-const BLOG_POSTS = [
-  {
-    category: "Insider Score Methodology",
-    title: "How the Insider Score Reads Insider Conviction",
-    read: "8 min read",
-    desc: "A breakdown of the four factors — volume, clusters, role weighting and holding change — and why each one matters.",
-  },
-  {
-    category: "Cluster Buys",
-    title: "What a Cluster Buy Really Tells You",
-    read: "6 min read",
-    desc: "When several distinct insiders buy the same stock in days, the signal strengthens. Here's how we surface it.",
-  },
-  {
-    category: "Smart Money",
-    title: "Following CEO & CFO Purchases the Right Way",
-    read: "7 min read",
-    desc: "Not all insider buys are equal. Why executive open-market purchases carry the heaviest weight in our model.",
-  },
-];
+.prm-eyebrow {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--premium);
+}
+.prm-h {
+  font-family: var(--font-display); font-weight: 800; letter-spacing: -.03em;
+  line-height: 1.08; text-wrap: balance; margin: 0;
+}
+.prm-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.prm-matrix { width: 100%; border-collapse: collapse; }
+.prm-matrix th, .prm-matrix td { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+.prm-matrix thead th {
+  position: sticky; top: 0; z-index: 2; background: var(--bg-2);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--text-mute); font-weight: 500; text-align: center;
+}
+.prm-matrix thead th:first-child { text-align: left; }
+.prm-matrix td:not(:first-child) { text-align: center; }
+.prm-matrix tbody th {
+  text-align: left; font-weight: 500; color: var(--text-soft);
+  position: sticky; left: 0; background: var(--bg-2); z-index: 1;
+}
+.prm-matrix tr.prm-grouprow th {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--premium); font-weight: 600;
+  background: var(--bg-3); border-bottom: 1px solid var(--border-strong);
+}
+.prm-matrix tr.prm-grouprow td { background: var(--bg-3); border-bottom: 1px solid var(--border-strong); }
+
+.prm-faq summary { cursor: pointer; list-style: none; }
+.prm-faq summary::-webkit-details-marker { display: none; }
+.prm-faq details[open] .prm-chev { transform: rotate(45deg); }
+`;
+
+/* Counts up to `to` once on mount (skipped when reduced-motion is set). */
+function useCountUp(to: number, ms = 1100) {
+  const reduce = useReducedMotion();
+  const [v, setV] = useState(reduce ? to : 0);
+  const started = useRef(false);
+  useEffect(() => {
+    if (reduce || started.current) return;
+    started.current = true;
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / ms);
+      // easeOutCubic
+      setV(Math.round(to * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [to, ms, reduce]);
+  return v;
+}
+
+function ScoreRing({ value }: { value: number }) {
+  const shown = useCountUp(value);
+  const R = 74;
+  const circ = 2 * Math.PI * R;
+  return (
+    <div className="relative flex-shrink-0" style={{ width: 190, height: 190 }}>
+      <svg viewBox="0 0 190 190" width="190" height="190" className="-rotate-90">
+        <circle cx="95" cy="95" r={R} fill="none" stroke="var(--bg-3)" strokeWidth="12" />
+        <circle
+          cx="95"
+          cy="95"
+          r={R}
+          fill="none"
+          stroke="var(--premium)"
+          strokeWidth="12"
+          strokeLinecap="round"
+          strokeDasharray={`${(shown / 100) * circ} ${circ}`}
+          style={{ filter: "drop-shadow(0 0 10px color-mix(in srgb, var(--premium) 55%, transparent))" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="prm-num text-[46px] font-bold leading-none" style={{ letterSpacing: "-.03em" }}>
+          {shown}
+        </span>
+        <span className="prm-eyebrow mt-1.5">Insider Score</span>
+      </div>
+    </div>
+  );
+}
+
+function Cell({ v }: { v: boolean | string }) {
+  if (v === true)
+    return (
+      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full" style={{ background: "color-mix(in srgb, var(--premium) 18%, transparent)" }}>
+        <Check className="h-3 w-3" strokeWidth={3} style={{ color: "var(--premium)" }} />
+      </span>
+    );
+  if (v === false) return <Minus className="h-4 w-4 mx-auto" style={{ color: "var(--text-faint)" }} />;
+  return <span className="prm-num text-[12.5px]" style={{ color: "var(--text-soft)" }}>{v}</span>;
+}
 
 export default function PremiumPage() {
+  const [annual, setAnnual] = useState(true);
+
   return (
-    <div className="space-y-20 sm:space-y-28">
-      {/* ───────────────────────── 1. HERO ───────────────────────── */}
-      <section
-        className="relative overflow-hidden -mx-2 sm:-mx-3 lg:-mx-4 -mt-6 sm:-mt-8"
-        style={{
-          background:
-            "linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--bg-2)) 0%, color-mix(in srgb, var(--accent-2) 14%, var(--bg-2)) 100%)",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        <div className="hero-orb hero-orb-a" aria-hidden />
-        <div className="hero-orb hero-orb-b" aria-hidden />
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <div
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider text-white mb-6"
-              style={{
-                background: "linear-gradient(90deg, var(--accent), var(--accent-2))",
-              }}
-            >
-              <Sparkles className="h-3 w-3" />
-              Insider-buying intelligence
-            </div>
-            <h1
-              className="text-[40px] sm:text-[58px] font-bold tracking-tight leading-[1.05]"
-              style={{ letterSpacing: "-1px" }}
-            >
-              Follow the Smart Money.
-            </h1>
-            <p
-              className="mt-4 text-[17px] sm:text-[21px] font-semibold"
-              style={{ color: "var(--accent)" }}
-            >
-              Insider-buying intelligence with a quantitative edge.
-            </p>
-            <p className="text-soft mt-5 text-[15px] sm:text-[17px] max-w-2xl mx-auto leading-relaxed">
-              Insiders buy their own stock for one reason — they expect the price to
-              rise. InsiderBuying.com tracks every open-market SEC Form 4 purchase and
-              scores it with our proprietary 0–100 Insider Score engine, so you can catch
-              executive conviction the moment it shows up in the filings — before the
-              crowd does.
-            </p>
-            <div className="mt-8 flex flex-col items-center justify-center gap-3">
-              <TrialCapture source="premium-hero" />
-              <a
-                href="#why"
-                className="btn-secondary whitespace-nowrap"
-                style={{ padding: "12px 20px", fontSize: 14 }}
-              >
-                Learn more
-              </a>
-            </div>
-            <p className="text-mute text-[12px] mt-4">
-              30-day free trial · No card required · Cancel anytime
-            </p>
-          </motion.div>
-        </div>
-      </section>
+    <div className="w-full space-y-24 sm:space-y-32 pb-8">
+      <style>{CSS}</style>
 
-      {/* ──────────────── 2. SEE INSIDERBUYING IN ACTION ──────────────── */}
-      <section className="max-w-6xl mx-auto px-2">
-        <SectionHeading
-          eyebrow="Product tour"
-          title="See InsiderBuying in Action"
-          blurb="A live analytics layer on top of the SEC Form 4 firehose — rankings, heatmaps and the raw insider feed, all scored by Insider Score."
-        />
+      {/* ─────────────── 1. HERO ─────────────── */}
+      <section className="prm-wrap -mt-2 pt-10 sm:pt-16">
+        <div className="prm-grid" aria-hidden />
+        <div className="prm-sweep" aria-hidden />
+        <div className="relative max-w-6xl mx-auto px-2">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_auto] gap-12 lg:gap-16 items-center">
+            <div>
+              <p className="prm-eyebrow">InsiderBuying Premium</p>
+              <h1 className="prm-h text-[38px] sm:text-[54px] mt-4">
+                Follow the people who
+                <br />
+                <span style={{ color: "var(--premium)" }}>know the business best.</span>
+              </h1>
+              <p className="text-[17px] leading-relaxed mt-6 max-w-xl" style={{ color: "var(--text-soft)" }}>
+                Executives sell for a hundred reasons and buy for one. We read every SEC Form 4 the
+                moment it lands, score it against sector strength, trading momentum, filing tone and
+                dilution, and rank the whole market so conviction buying is impossible to miss.
+              </p>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-10">
-          <FauxLeaderboard />
-          <FauxHeatmap />
-          <FauxTradesTable />
-        </div>
-
-        {/* Stat callouts */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-          {STATS.map((s, i) => (
-            <motion.div
-              key={s.label}
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{ duration: 0.35, delay: i * 0.06 }}
-              className="card p-5 text-center"
-            >
-              <div
-                className="text-[26px] sm:text-[32px] font-bold tracking-tight"
-                style={{ color: "var(--accent)", letterSpacing: "-0.5px" }}
-              >
-                {s.value}
+              <div className="flex flex-wrap items-center gap-3 mt-8">
+                <Link href="#plans" className="btn-primary" style={{ padding: "13px 24px", fontSize: 14.5, fontWeight: 700 }}>
+                  See the plans <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/stocks"
+                  className="inline-flex items-center gap-2 rounded-lg px-5 py-3 text-[14.5px] font-bold transition hover:text-accent"
+                  style={{ border: "1px solid var(--border-strong)", background: "var(--bg-2)" }}
+                >
+                  Browse the live ranking
+                </Link>
               </div>
-              <div className="text-mute text-[12px] mt-1 leading-snug">{s.label}</div>
-            </motion.div>
-          ))}
+
+              <div className="flex flex-wrap gap-x-8 gap-y-3 mt-9">
+                {[
+                  { n: "8,500+", l: "Form 4 filings parsed" },
+                  { n: "400+", l: "Companies scored daily" },
+                  { n: "9", l: "Official data sources" },
+                ].map((s) => (
+                  <div key={s.l}>
+                    <div className="prm-num text-[21px] font-bold" style={{ color: "var(--premium)" }}>{s.n}</div>
+                    <div className="text-[12px]" style={{ color: "var(--text-mute)" }}>{s.l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* free-tier console card */}
+            <div
+              className="prm-panel card p-7 w-full lg:w-[330px]"
+              style={{ ["--tick" as string]: "var(--premium)", background: "var(--bg-2)" }}
+            >
+              <div className="flex items-baseline gap-2">
+                <span className="prm-num text-[52px] font-bold leading-none" style={{ letterSpacing: "-.035em" }}>$0</span>
+                <span className="prm-eyebrow" style={{ color: "var(--text-mute)" }}>forever</span>
+              </div>
+              <p className="text-[13.5px] mt-3 mb-5" style={{ color: "var(--text-soft)" }}>
+                Create an account and keep the essentials free for as long as you like — the ranking,
+                every stock profile, and the congress feed.
+              </p>
+              <TrialCapture source="premium-hero-free" cta="Get started free" align="left" />
+              <p className="text-[11.5px] mt-4" style={{ color: "var(--text-mute)" }}>
+                No payment details required.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ──────────────── 3. WHY INVESTORS USE INSIDERBUYING ──────────────── */}
-      <section id="why" className="max-w-6xl mx-auto px-2 scroll-mt-24">
-        <SectionHeading
-          eyebrow="The edge"
-          title="Why Investors Use InsiderBuying"
-          blurb="Insiders buy for one reason — they expect the price to rise. We turn that signal into a measurable, rankable score so you can act on conviction, not noise."
-        />
+      {/* ─────────────── 2. THE SCORE ENGINE ─────────────── */}
+      <section className="max-w-6xl mx-auto px-2">
+        <p className="prm-eyebrow">Under the hood</p>
+        <h2 className="prm-h text-[30px] sm:text-[38px] mt-3">Five signals, one number</h2>
+        <p className="text-[16px] leading-relaxed mt-4 max-w-2xl" style={{ color: "var(--text-soft)" }}>
+          Most scores are a black box. Ours shows its work: each component is measured on its own
+          0&ndash;100 scale, then weighted. Missing data counts as neutral rather than zero, and no
+          stock is ever awarded a perfect 100.
+        </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-10">
-          {FEATURES.map((f, i) => {
-            const Icon = f.icon;
+        <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-12 items-center mt-12">
+          <ScoreRing value={78} />
+          <div className="flex flex-col gap-3 w-full">
+            {COMPONENTS.map((c) => {
+              const Icon = c.icon;
+              return (
+                <div
+                  key={c.name}
+                  className="card p-4 flex items-start gap-4"
+                  style={{ background: "var(--bg-2)" }}
+                >
+                  <span
+                    className="flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center"
+                    style={{ background: "color-mix(in srgb, var(--premium) 14%, transparent)", color: "var(--premium)" }}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[15px] font-bold">{c.name}</span>
+                      <span className="prm-num text-[13px] font-bold" style={{ color: "var(--premium)" }}>{c.w}%</span>
+                    </div>
+                    <p className="text-[13px] leading-relaxed mt-1" style={{ color: "var(--text-mute)" }}>{c.desc}</p>
+                    <div className="h-[3px] rounded-full mt-2.5" style={{ background: "var(--bg-3)" }}>
+                      <div className="h-full rounded-full" style={{ width: `${c.w}%`, background: "var(--premium)" }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ─────────────── 3. PLANS ─────────────── */}
+      <section id="plans" className="prm-wrap max-w-6xl mx-auto px-2 scroll-mt-8">
+        <div className="text-center">
+          <p className="prm-eyebrow">Plans</p>
+          <h2 className="prm-h text-[30px] sm:text-[40px] mt-3">Pick your altitude</h2>
+          <p className="text-[16px] mt-4 mx-auto max-w-xl" style={{ color: "var(--text-soft)" }}>
+            Every paid plan includes every dataset on the site. The only thing that changes is how
+            much of it you can hold at once.
+          </p>
+
+          {/* billing toggle */}
+          <div
+            className="inline-flex items-center gap-1 rounded-full p-1 mt-8"
+            style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}
+            role="group"
+            aria-label="Billing period"
+          >
+            {([
+              ["Monthly", false],
+              ["Annual · save 2 months", true],
+            ] as const).map(([label, val]) => (
+              <button
+                key={label}
+                onClick={() => setAnnual(val)}
+                aria-pressed={annual === val}
+                className="px-4 py-2 rounded-full text-[13px] font-bold transition"
+                style={
+                  annual === val
+                    ? { background: "var(--premium)", color: "var(--premium-ink, #04202f)" }
+                    : { color: "var(--text-mute)" }
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-12 items-start">
+          {PLANS.map((p, i) => {
+            const paid = p.monthly > 0;
+            const perMonth = annual && paid ? Math.round((p.annual / 12) * 100) / 100 : p.monthly;
+            const featured = p.id === "pro";
             return (
               <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 12 }}
+                key={p.id}
+                initial={{ opacity: 0, y: 14 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.2 }}
-                transition={{ duration: 0.4, delay: (i % 3) * 0.06 }}
-                className="card card-lift p-6"
+                transition={{ duration: 0.4, delay: i * 0.06 }}
+                className="prm-panel card p-6 h-full flex flex-col"
+                style={{
+                  ["--tick" as string]: p.accent,
+                  background: "var(--bg-2)",
+                  borderColor: featured ? "color-mix(in srgb, var(--premium) 45%, var(--border))" : "var(--border)",
+                  boxShadow: featured
+                    ? "0 14px 44px color-mix(in srgb, var(--premium) 16%, transparent)"
+                    : undefined,
+                }}
               >
-                <div
-                  className="h-11 w-11 rounded-xl flex items-center justify-center mb-4"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, color-mix(in srgb, var(--accent-2) 22%, var(--bg-3)), color-mix(in srgb, var(--accent) 18%, var(--bg-3)))",
-                    border: "1px solid color-mix(in srgb, var(--accent-2) 30%, var(--border))",
-                  }}
-                >
-                  <Icon className="h-5 w-5" style={{ color: "var(--accent-2)" }} strokeWidth={2} />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[19px] font-bold tracking-tight">{p.name}</span>
+                  {p.badge && (
+                    <span
+                      className="prm-num text-[10px] font-bold uppercase px-2 py-1 rounded"
+                      style={{
+                        letterSpacing: ".08em",
+                        background: `color-mix(in srgb, ${p.accent} 16%, transparent)`,
+                        color: p.accent,
+                      }}
+                    >
+                      {p.badge}
+                    </span>
+                  )}
                 </div>
-                <h3 className="text-[17px] font-bold tracking-tight mb-2">{f.title}</h3>
-                <p className="text-soft text-[14px] leading-relaxed">{f.desc}</p>
+                <p className="text-[13px] mt-1" style={{ color: "var(--text-mute)" }}>{p.tagline}</p>
+
+                <div className="flex items-baseline gap-1.5 mt-5">
+                  <span className="prm-num text-[40px] font-bold leading-none" style={{ letterSpacing: "-.03em" }}>
+                    ${paid ? perMonth : 0}
+                  </span>
+                  <span className="text-[13.5px] font-semibold" style={{ color: "var(--text-mute)" }}>
+                    {paid ? "/ month" : "forever"}
+                  </span>
+                </div>
+                <p className="prm-num text-[11.5px] mt-2" style={{ color: annual && paid ? "var(--good)" : "var(--text-mute)" }}>
+                  {paid
+                    ? annual
+                      ? `$${p.annual} billed yearly — two months free`
+                      : `$${p.monthly} billed monthly · or $${p.annual}/yr`
+                    : "No card, no expiry"}
+                </p>
+
+                <div className="h-px my-5" style={{ background: "var(--border)" }} />
+
+                <ul className="flex flex-col gap-2.5 flex-1">
+                  {p.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2.5 text-[13.5px]">
+                      <Check
+                        className="h-4 w-4 flex-shrink-0 mt-[3px]"
+                        strokeWidth={3}
+                        style={{ color: paid ? p.accent : "var(--text-mute)" }}
+                      />
+                      <span style={{ color: "var(--text-soft)" }}>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-6">
+                  {featured ? (
+                    <TrialCapture source={`premium-plan-${p.id}`} cta={p.cta} align="left" />
+                  ) : (
+                    <Link
+                      href="#final"
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 text-[14px] font-bold transition"
+                      style={
+                        p.id === "unlimited"
+                          ? { background: "var(--bg-3)", border: `1px solid ${p.accent}`, color: "var(--text)" }
+                          : { background: "var(--bg-3)", border: "1px solid var(--border-strong)", color: "var(--text)" }
+                      }
+                    >
+                      {p.cta} <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  )}
+                </div>
               </motion.div>
+            );
+          })}
+        </div>
+
+        <p className="text-center text-[12.5px] mt-7 inline-flex items-center gap-2 justify-center w-full" style={{ color: "var(--text-mute)" }}>
+          <ShieldCheck className="h-4 w-4" style={{ color: "var(--good)" }} />
+          30-day money-back guarantee · cancel in one click · prices in USD
+        </p>
+      </section>
+
+      {/* ─────────────── 4. COMPARISON MATRIX ─────────────── */}
+      <section className="max-w-6xl mx-auto px-2">
+        <p className="prm-eyebrow">Side by side</p>
+        <h2 className="prm-h text-[30px] sm:text-[38px] mt-3">Everything, compared</h2>
+
+        <div className="card mt-9 overflow-x-auto" style={{ background: "var(--bg-2)" }}>
+          <table className="prm-matrix" style={{ minWidth: 660 }}>
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>Free</th>
+                <th style={{ color: "var(--premium)" }}>Pro</th>
+                <th style={{ color: "var(--gold)" }}>Unlimited</th>
+              </tr>
+            </thead>
+            <tbody>
+              {MATRIX.map((g) => (
+                <Fragment key={g.group}>
+                  <tr className="prm-grouprow">
+                    <th scope="row">{g.group}</th>
+                    <td /><td /><td />
+                  </tr>
+                  {g.rows.map((r) => (
+                    <tr key={r.label}>
+                      <th scope="row">{r.label}</th>
+                      <td><Cell v={r.free} /></td>
+                      <td><Cell v={r.pro} /></td>
+                      <td><Cell v={r.unl} /></td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* ─────────────── 5. PROVENANCE ─────────────── */}
+      <section className="prm-wrap max-w-6xl mx-auto px-2">
+        <div className="text-center">
+          <p className="prm-eyebrow">Provenance</p>
+          <h2 className="prm-h text-[30px] sm:text-[38px] mt-3">Sourced from filings, not opinions</h2>
+          <p className="text-[16px] mt-4 mx-auto max-w-2xl" style={{ color: "var(--text-soft)" }}>
+            Every figure on the site traces back to a public filing or an official government
+            database, and each card names the source it came from. Where a number cannot be sourced,
+            we say so instead of estimating it.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-10">
+          {SOURCES.map((s) => (
+            <div
+              key={s.name}
+              className="prm-panel card p-4"
+              style={{ background: "var(--bg-2)", ["--tick" as string]: "var(--border-strong)" }}
+            >
+              <div className="prm-num text-[13px] font-bold">{s.name}</div>
+              <div className="text-[11.5px] mt-1" style={{ color: "var(--text-mute)" }}>{s.detail}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10">
+          {[
+            { icon: Users, t: "Insider profiles", d: "Every filer gets a page: what they bought, when, and how those buys performed against the S&P." },
+            { icon: Building2, t: "Institutional flow", d: "13F filings diffed quarter over quarter, so you see who added, trimmed, opened or closed." },
+            { icon: Bell, t: "Alerts that matter", d: "Get told when a CEO buys, a cluster forms, or a score crosses your threshold." },
+          ].map((f) => {
+            const Icon = f.icon;
+            return (
+              <div key={f.t} className="card p-5" style={{ background: "var(--bg-2)" }}>
+                <Icon className="h-5 w-5" style={{ color: "var(--premium)" }} />
+                <div className="text-[15.5px] font-bold mt-3">{f.t}</div>
+                <p className="text-[13px] leading-relaxed mt-1.5" style={{ color: "var(--text-mute)" }}>{f.d}</p>
+              </div>
             );
           })}
         </div>
       </section>
 
-      {/* ──────────────── 4. TESTIMONIALS — WHAT THE LEGENDS SAY ──────────────── */}
-      <section className="max-w-6xl mx-auto px-2">
-        <SectionHeading
-          eyebrow="Conviction, in their words"
-          title="What the Legends Say"
-          blurb="The case for following insider buying isn't new — the greatest investors have made it for decades."
-        />
+      {/* ─────────────── 6. FAQ ─────────────── */}
+      <section className="max-w-4xl mx-auto px-2 prm-faq">
+        <p className="prm-eyebrow">Common questions</p>
+        <h2 className="prm-h text-[30px] sm:text-[38px] mt-3">Before you subscribe</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-10">
-          {TESTIMONIALS.map((t, i) => (
-            <motion.div
-              key={t.name}
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.4, delay: i * 0.08 }}
-              className="card p-6 flex flex-col"
-            >
-              <div
-                className="text-[40px] leading-none font-bold mb-3"
-                style={{ color: "color-mix(in srgb, var(--accent) 45%, transparent)" }}
-                aria-hidden
-              >
-                &ldquo;
-              </div>
-              <p
-                className="text-[15px] leading-relaxed flex-1"
-                style={{ color: "var(--text)", fontWeight: 500 }}
-              >
-                {t.quote}
-              </p>
-              <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
-                <div className="text-[14px] font-bold" style={{ color: "var(--text)" }}>
-                  {t.name}
-                </div>
-                <div className="text-mute text-[12px] mt-0.5">{t.source}</div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* ──────────────── 5. CONVERSION BAND ──────────────── */}
-      <section className="max-w-5xl mx-auto px-2">
-        <div
-          className="rounded-2xl p-8 sm:p-12 text-center relative overflow-hidden"
-          style={{
-            background:
-              "linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, var(--bg-2)) 0%, color-mix(in srgb, var(--accent-2) 16%, var(--bg-2)) 100%)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <div className="hero-orb hero-orb-b" aria-hidden />
-          <div className="relative">
-            <h2
-              className="text-[28px] sm:text-[38px] font-bold tracking-tight leading-tight"
-              style={{ letterSpacing: "-0.6px" }}
-            >
-              Start tracking insider conviction today
-            </h2>
-            <p className="text-soft mt-4 text-[15px] sm:text-[17px] max-w-2xl mx-auto leading-relaxed">
-              Join the investors who follow the smart money. Get full access to Insider Score
-              rankings, cluster-buy alerts, live heatmaps and daily AI briefings — free
-              for 30 days.
-            </p>
-            <div className="mt-7">
-              <TrialCapture source="premium-conversion-band" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ──────────────── 6. SIMPLE PRICING ──────────────── */}
-      <section className="max-w-3xl mx-auto px-2">
-        <SectionHeading
-          eyebrow="Pricing"
-          title="Simple Pricing"
-          blurb="One plan. Full access. No hidden fees. Cancel anytime."
-        />
-
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="card p-7 sm:p-9 mt-10 mx-auto max-w-md"
-          style={{
-            borderColor: "color-mix(in srgb, var(--accent) 40%, var(--border))",
-            boxShadow: "0 10px 32px color-mix(in srgb, var(--accent) 16%, transparent)",
-          }}
-        >
-          <div className="flex items-baseline justify-between gap-3 mb-1">
-            <div className="text-[20px] font-bold tracking-tight">All-Access</div>
-            <span className="badge badge-premium">Best value</span>
-          </div>
-          <div className="flex items-baseline gap-1.5 mb-5">
-            <span className="text-[44px] font-bold tracking-tight" style={{ letterSpacing: "-1px" }}>
-              $29
-            </span>
-            <span className="text-mute text-[15px] font-semibold">/ month</span>
-          </div>
-
-          <div className="h-px mb-5" style={{ background: "var(--border)" }} />
-
-          <ul className="space-y-3 mb-7">
-            {PLAN_FEATURES.map((f) => (
-              <li key={f} className="flex items-start gap-3 text-[14px]">
+        <div className="flex flex-col gap-2.5 mt-9">
+          {FAQS.map((f) => (
+            <details key={f.q} className="card px-5 py-4" style={{ background: "var(--bg-2)" }}>
+              <summary className="flex items-center justify-between gap-4">
+                <span className="text-[15.5px] font-bold">{f.q}</span>
                 <span
-                  className="h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+                  className="prm-chev flex-shrink-0 transition-transform"
+                  style={{ color: "var(--premium)", fontSize: 18, lineHeight: 1 }}
+                  aria-hidden
                 >
-                  <Check className="h-3 w-3" strokeWidth={3} />
+                  +
                 </span>
-                <span className="text-soft">{f}</span>
-              </li>
-            ))}
-          </ul>
-
-          <TrialCapture source="premium-pricing" align="left" />
-          <p className="text-mute text-[12px] mt-4 text-center">
-            30-day free trial · No card required · Cancel anytime
-          </p>
-        </motion.div>
-      </section>
-
-      {/* ──────────────── 7. FROM THE BLOG ──────────────── */}
-      <section className="max-w-6xl mx-auto px-2">
-        <SectionHeading
-          eyebrow="From the blog"
-          title="Insider-Buying Insights"
-          blurb="Editorial briefings synthesised from the live Form 4 feed and our Insider Score scoring engine."
-          action={{ label: "View all articles", href: "/insights" }}
-        />
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-10">
-          {BLOG_POSTS.map((p, i) => (
-            <motion.div
-              key={p.title}
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.4, delay: i * 0.07 }}
-            >
-              <Link
-                href="/insights"
-                className="card card-lift p-6 h-full flex flex-col group"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="badge badge-neutral">{p.category}</span>
-                  <span className="text-mute text-[12px]">{p.read}</span>
-                </div>
-                <h3 className="text-[17px] font-bold tracking-tight leading-snug mb-2 group-hover:text-accent transition">
-                  {p.title}
-                </h3>
-                <p className="text-soft text-[14px] leading-relaxed flex-1">{p.desc}</p>
-                <span className="inline-flex items-center gap-1 text-[13px] font-bold text-accent mt-4">
-                  Read article <ArrowRight className="h-3.5 w-3.5" />
-                </span>
-              </Link>
-            </motion.div>
+              </summary>
+              <p className="text-[14px] leading-relaxed mt-3" style={{ color: "var(--text-soft)" }}>{f.a}</p>
+            </details>
           ))}
         </div>
       </section>
-    </div>
-  );
-}
 
-// ─── Section heading helper ───────────────────────────────────
-function SectionHeading({
-  eyebrow,
-  title,
-  blurb,
-  action,
-}: {
-  eyebrow: string;
-  title: string;
-  blurb: string;
-  action?: { label: string; href: string };
-}) {
-  return (
-    <div className="text-center max-w-2xl mx-auto">
-      <div
-        className="eyebrow mb-3"
-        style={{ color: "var(--accent)", letterSpacing: "0.12em" }}
-      >
-        {eyebrow}
-      </div>
-      <h2
-        className="text-[30px] sm:text-[40px] font-bold tracking-tight leading-tight"
-        style={{ letterSpacing: "-0.6px" }}
-      >
-        {title}
-      </h2>
-      <p className="text-soft mt-4 text-[15px] sm:text-[16px] leading-relaxed">{blurb}</p>
-      {action && (
-        <Link
-          href={action.href}
-          className="inline-flex items-center gap-1 text-[13px] font-bold text-accent mt-4 hover:underline"
+      {/* ─────────────── 7. FINAL CTA ─────────────── */}
+      <section id="final" className="prm-wrap max-w-4xl mx-auto px-2 scroll-mt-8">
+        <div
+          className="prm-panel card p-8 sm:p-12 text-center"
+          style={{
+            ["--tick" as string]: "var(--premium)",
+            background: "var(--bg-2)",
+            borderColor: "color-mix(in srgb, var(--premium) 40%, var(--border))",
+            boxShadow: "0 16px 50px color-mix(in srgb, var(--premium) 14%, transparent)",
+          }}
         >
-          {action.label} <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-      )}
+          <Sparkles className="h-6 w-6 mx-auto" style={{ color: "var(--premium)" }} />
+          <h2 className="prm-h text-[28px] sm:text-[36px] mt-4">Try it for 30 days, risk free</h2>
+          <p className="text-[15.5px] mt-4 mx-auto max-w-lg" style={{ color: "var(--text-soft)" }}>
+            Full access from the first minute. No card up front, and a 30-day money-back guarantee
+            if you decide it is not for you.
+          </p>
+          <div className="mt-7">
+            <TrialCapture source="premium-final" cta="Start your free trial" />
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-2 mt-7 text-[12.5px]" style={{ color: "var(--text-mute)" }}>
+            <span className="inline-flex items-center gap-1.5"><Check className="h-3.5 w-3.5" style={{ color: "var(--good)" }} /> No card required</span>
+            <span className="inline-flex items-center gap-1.5"><Check className="h-3.5 w-3.5" style={{ color: "var(--good)" }} /> Cancel in one click</span>
+            <span className="inline-flex items-center gap-1.5"><Download className="h-3.5 w-3.5" style={{ color: "var(--good)" }} /> Export your data anytime</span>
+          </div>
+        </div>
+
+        <p className="text-center text-[12px] mt-8 mx-auto max-w-2xl leading-relaxed" style={{ color: "var(--text-faint)" }}>
+          Informational only — not investment advice. Insider transaction data is sourced from public
+          regulatory filings and may be delayed. The Insider Score is a research signal and does not
+          predict future performance.
+        </p>
+      </section>
     </div>
-  );
-}
-
-// ─── Faux dashboard preview panels (illustrative, no data fetch) ──────────────
-function PanelChrome({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="card overflow-hidden">
-      <div
-        className="flex items-center justify-between px-4 py-2.5 border-b"
-        style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
-      >
-        <h3 className="text-[12px] font-bold uppercase tracking-wider truncate">{title}</h3>
-        <span className="live-dot live-dot-good">Live</span>
-      </div>
-      <div className="p-3">{children}</div>
-    </div>
-  );
-}
-
-function iqsColor(iqs: number) {
-  if (iqs >= 70) return "var(--good)";
-  if (iqs >= 55) return "var(--accent)";
-  if (iqs >= 40) return "var(--accent-2)";
-  return "var(--text-mute)";
-}
-
-function FauxLeaderboard() {
-  const rows = [
-    { rank: 1, ticker: "NVDA", iqs: 88 },
-    { rank: 2, ticker: "AXON", iqs: 81 },
-    { rank: 3, ticker: "CELH", iqs: 74 },
-    { rank: 4, ticker: "DKNG", iqs: 66 },
-    { rank: 5, ticker: "RKLB", iqs: 58 },
-    { rank: 6, ticker: "PLTR", iqs: 52 },
-  ];
-  return (
-    <PanelChrome title="Insider Score Leaderboard">
-      <div className="space-y-1.5">
-        {rows.map((r) => (
-          <div
-            key={r.ticker}
-            className="flex items-center gap-3 rounded-md px-2.5 py-2"
-            style={{ background: "var(--bg-1)", border: "1px solid var(--border)" }}
-          >
-            <span className="text-mute text-[12px] font-mono w-4">{r.rank}</span>
-            <span className="text-[13px] font-bold font-mono flex-1">{r.ticker}</span>
-            <div
-              className="h-1.5 rounded-full flex-1 max-w-[80px] overflow-hidden"
-              style={{ background: "var(--bg-3)" }}
-            >
-              <div
-                className="h-full rounded-full"
-                style={{ width: `${r.iqs}%`, background: iqsColor(r.iqs) }}
-              />
-            </div>
-            <span
-              className="text-[13px] font-bold font-mono w-7 text-right"
-              style={{ color: iqsColor(r.iqs) }}
-            >
-              {r.iqs}
-            </span>
-          </div>
-        ))}
-      </div>
-    </PanelChrome>
-  );
-}
-
-function FauxHeatmap() {
-  // Deterministic tile values so colors are stable across renders.
-  const tiles = [
-    72, 88, 41, 63, 55, 34, 81, 49, 66, 58, 77, 38, 60, 92, 45, 51, 69, 43, 84, 53, 47,
-    74, 36, 62,
-  ];
-  return (
-    <PanelChrome title="Insider Score Heatmap">
-      <div className="grid grid-cols-6 gap-1.5">
-        {tiles.map((v, i) => (
-          <div
-            key={i}
-            className="rounded-md flex items-center justify-center"
-            style={{
-              aspectRatio: "1",
-              background: `color-mix(in srgb, ${iqsColor(v)} ${Math.round(
-                25 + (v / 100) * 55,
-              )}%, var(--bg-1))`,
-            }}
-          >
-            <span className="text-[10px] font-bold font-mono text-white/90">{v}</span>
-          </div>
-        ))}
-      </div>
-      <div className="flex items-center justify-between mt-3 text-[10px] text-mute font-mono uppercase tracking-wider">
-        <span>Low Insider Score</span>
-        <span>High Insider Score</span>
-      </div>
-    </PanelChrome>
-  );
-}
-
-function FauxTradesTable() {
-  const trades = [
-    { who: "CEO", ticker: "AXON", val: "$2.4M", buy: true },
-    { who: "CFO", ticker: "CELH", val: "$890K", buy: true },
-    { who: "Dir.", ticker: "DKNG", val: "$1.1M", buy: true },
-    { who: "CEO", ticker: "RKLB", val: "$640K", buy: true },
-    { who: "COO", ticker: "PLTR", val: "$420K", buy: true },
-    { who: "Dir.", ticker: "NVDA", val: "$3.7M", buy: true },
-  ];
-  return (
-    <PanelChrome title="Latest Insider Buys">
-      <div className="space-y-1.5">
-        {trades.map((t, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-2.5 rounded-md px-2.5 py-2"
-            style={{ background: "var(--bg-1)", border: "1px solid var(--border)" }}
-          >
-            <span
-              className="text-[10px] font-bold uppercase rounded px-1.5 py-0.5"
-              style={{ background: "var(--bg-3)", color: "var(--text-mute)" }}
-            >
-              {t.who}
-            </span>
-            <span className="text-[13px] font-bold font-mono flex-1">{t.ticker}</span>
-            <span className="text-[13px] font-mono font-semibold" style={{ color: "var(--text)" }}>
-              {t.val}
-            </span>
-            <span className="badge badge-buy">BUY</span>
-          </div>
-        ))}
-      </div>
-    </PanelChrome>
   );
 }
