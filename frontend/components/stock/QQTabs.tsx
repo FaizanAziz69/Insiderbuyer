@@ -309,9 +309,7 @@ export function ScoreCardQQ({ ticker, iqs, iqsV1 }: { ticker: string; iqs: numbe
           <div className="min-w-0">
             <div className="text-[17px] font-bold" style={{ color }}>{tier}</div>
             {iqsV1 != null && <div className="text-[12px] text-mute mt-0.5">v1 score: {Math.round(iqsV1)}</div>}
-            <Link href="/stocks" className="text-[12.5px] font-bold text-accent hover:underline mt-1.5 inline-block">
-              Score Breakdown & Rankings →
-            </Link>
+           
           </div>
         </div>
       )}

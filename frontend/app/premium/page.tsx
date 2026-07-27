@@ -18,24 +18,9 @@ const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
 
 const PLANS = [
   {
-    id: "free",
-    name: "Free",
-    monthly: 0,
-    annual: 0,
-    accent: "var(--text-mute)",
-    badge: null as string | null,
-    features: [
-      "Top 25 of the Insider Score ranking",
-      "Every stock profile — all nine tabs",
-      "Congress trades & daily AI briefings",
-      "One watchlist, 10 stocks",
-    ],
-  },
-  {
     id: "pro",
     name: "Pro",
     monthly: 29,
-    annual: 279,
     accent: "var(--premium)",
     badge: "Most popular",
     features: [
@@ -50,9 +35,8 @@ const PLANS = [
     id: "unlimited",
     name: "Unlimited",
     monthly: 59,
-    annual: 569,
     accent: "var(--gold)",
-    badge: null,
+    badge: null as string | null,
     features: [
       "Everything in Pro, every limit removed",
       "Unlimited alerts and watchlist size",
@@ -71,24 +55,10 @@ const COMPOSITION = [
   { w: 5, name: "Dilution" },
 ];
 
-const SOURCES = [
-  "SEC Form 4",
-  "SEC 13F",
-  "10-Q / 10-K",
-  "DEF 14A",
-  "Congress.gov",
-  "FEC",
-  "Senate LDA",
-  "USAspending",
-  "BaFin",
-];
+
 
 const FAQS = [
-  {
-    q: "Is there an annual option?",
-    a: "Yes — pick annual at checkout. Pro is $279 a year and Unlimited is $569 a year, which is two months free versus paying monthly.",
-  },
-  {
+    {
     q: "What separates Pro from Unlimited?",
     a: "Only the limits. Pro includes every dataset and tool on the site with generous caps — 100 alerts, 100 stocks per watchlist, one export a day. Unlimited removes the caps and adds priority support. Nothing is withheld from Pro.",
   },
@@ -140,7 +110,7 @@ const CSS = `
 `;
 
 /* Email capture — POSTs to the existing /subscribers endpoint. */
-function SignupForm({ plan }: { plan: string }) {
+function SignupForm({ plan, stacked = false, cta }: { plan: string; stacked?: boolean; cta?: string }) {
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -179,8 +149,8 @@ function SignupForm({ plan }: { plan: string }) {
   }
 
   return (
-    <form onSubmit={submit} noValidate className="w-full max-w-lg mx-auto">
-      <div className="flex flex-col sm:flex-row gap-2.5">
+    <form onSubmit={submit} noValidate className={stacked ? "w-full" : "w-full max-w-lg mx-auto"}>
+      <div className={stacked ? "flex flex-col gap-2.5" : "flex flex-col sm:flex-row gap-2.5"}>
         <input
           type="email"
           required
@@ -199,10 +169,12 @@ function SignupForm({ plan }: { plan: string }) {
         <button
           type="submit"
           disabled={submitting}
-          className="btn-primary whitespace-nowrap"
-          style={{ padding: "12px 22px", fontSize: 14, fontWeight: 700 }}
+          className={`btn-primary whitespace-nowrap ${stacked ? "w-full justify-center" : ""}`}
+          style={{ padding: stacked ? "13px 22px" : "12px 22px", fontSize: stacked ? 15 : 14, fontWeight: 700 }}
         >
-          {submitting ? "Submitting…" : plan === "free" ? "Create free account" : `Continue with ${plan === "pro" ? "Pro" : "Unlimited"}`}
+          {submitting
+            ? "Submitting…"
+            : cta || (plan === "free" ? "Create free account" : `Continue with ${plan === "pro" ? "Pro" : "Unlimited"}`)}
         </button>
       </div>
       {err && <p className="text-[12px] mt-1.5" style={{ color: "var(--bad)" }}>{err}</p>}
@@ -211,15 +183,15 @@ function SignupForm({ plan }: { plan: string }) {
 }
 
 export default function PremiumPage() {
-  const [annual, setAnnual] = useState(true);
   const [selected, setSelected] = useState<string>("pro");
+  const plan = PLANS.find((p) => p.id === selected)!;
 
   return (
     <div className="w-full pb-10">
       <style>{CSS}</style>
 
       {/* ─── Hero ─── */}
-      <section className="relative pt-8 sm:pt-12 pb-14">
+      <section className="relative pt-8 sm:pt-12 pb-12">
         <div className="prm-grid" aria-hidden />
         <div className="relative max-w-3xl">
           <p className="prm-eyebrow">InsiderBuying Premium</p>
@@ -240,11 +212,7 @@ export default function PremiumPage() {
               {COMPOSITION.map((c, i) => (
                 <div
                   key={c.name}
-                  style={{
-                    width: `${c.w}%`,
-                    background: "var(--premium)",
-                    opacity: 1 - i * 0.16,
-                  }}
+                  style={{ width: `${c.w}%`, background: "var(--premium)", opacity: 1 - i * 0.16 }}
                 />
               ))}
             </div>
@@ -259,38 +227,48 @@ export default function PremiumPage() {
         </div>
       </section>
 
-      {/* ─── Plans ─── */}
-      <section id="plans" className="scroll-mt-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <h2 className="prm-h text-[26px] sm:text-[32px]">Plans</h2>
+      {/* ─── Free to get started ─── */}
+      <section
+        className="rounded-xl px-6 sm:px-10 py-9 sm:py-12"
+        style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8 lg:gap-14 items-center">
+          <div>
+            <h2 className="prm-h text-[30px] sm:text-[40px]">Free to get started</h2>
+            <p className="text-[16px] leading-relaxed mt-4 max-w-md" style={{ color: "var(--text-soft)" }}>
+              Create an account and keep the essentials for as long as you like — the top of the
+              Insider Score ranking, every stock profile, the congress feed and the daily briefings.
+            </p>
+          </div>
+
           <div
-            className="inline-flex items-center gap-1 rounded-full p-1"
-            style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}
-            role="group"
-            aria-label="Billing period"
+            className="prm-panel card p-6"
+            style={{ ["--tick" as string]: "var(--premium)", background: "var(--bg-2)" }}
           >
-            {([["Monthly", false], ["Annual · 2 months free", true]] as const).map(([label, val]) => (
-              <button
-                key={label}
-                onClick={() => setAnnual(val)}
-                aria-pressed={annual === val}
-                className="px-3.5 py-1.5 rounded-full text-[12.5px] font-bold transition"
-                style={
-                  annual === val
-                    ? { background: "var(--premium)", color: "var(--premium-ink, #04202f)" }
-                    : { color: "var(--text-mute)" }
-                }
-              >
-                {label}
-              </button>
-            ))}
+            <div className="flex items-baseline justify-center gap-2">
+              <span className="prm-num text-[50px] font-bold leading-none" style={{ letterSpacing: "-.035em" }}>$0</span>
+              <span className="text-[14px] font-semibold" style={{ color: "var(--text-mute)" }}>forever</span>
+            </div>
+            <div className="mt-5">
+              <SignupForm plan="free" stacked cta="Sign up" />
+            </div>
+            <p className="text-[11.5px] mt-3 text-center" style={{ color: "var(--text-mute)" }}>
+              No payment details required.
+            </p>
           </div>
         </div>
+      </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-7 items-stretch">
+      {/* ─── Paid plans ─── */}
+      <section id="plans" className="mt-16 scroll-mt-6">
+        <h2 className="prm-h text-[26px] sm:text-[32px]">Go further with Premium</h2>
+        <p className="text-[15px] mt-3 max-w-xl" style={{ color: "var(--text-soft)" }}>
+          Both plans include every dataset and tool on the site. The only difference is how much of
+          it you can hold at once.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-7 items-stretch">
           {PLANS.map((p, i) => {
-            const paid = p.monthly > 0;
-            const perMonth = annual && paid ? Math.round((p.annual / 12) * 100) / 100 : p.monthly;
             const isSel = selected === p.id;
             return (
               <motion.button
@@ -302,18 +280,16 @@ export default function PremiumPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.25 }}
                 transition={{ duration: 0.35, delay: i * 0.05 }}
-                className="prm-panel card p-5 text-left h-full flex flex-col transition"
+                className="prm-panel card p-6 text-left h-full flex flex-col transition"
                 style={{
                   ["--tick" as string]: isSel ? p.accent : "var(--border-strong)",
                   background: "var(--bg-2)",
-                  borderColor: isSel
-                    ? `color-mix(in srgb, ${p.accent} 55%, var(--border))`
-                    : "var(--border)",
+                  borderColor: isSel ? `color-mix(in srgb, ${p.accent} 55%, var(--border))` : "var(--border)",
                   boxShadow: isSel ? `0 10px 34px color-mix(in srgb, ${p.accent} 14%, transparent)` : undefined,
                 }}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[17px] font-bold tracking-tight">{p.name}</span>
+                  <span className="text-[18px] font-bold tracking-tight">{p.name}</span>
                   {p.badge && (
                     <span
                       className="prm-num text-[9.5px] font-bold uppercase px-2 py-0.5 rounded"
@@ -328,17 +304,12 @@ export default function PremiumPage() {
                   )}
                 </div>
 
-                <div className="flex items-baseline gap-1.5 mt-3.5">
-                  <span className="prm-num text-[34px] font-bold leading-none" style={{ letterSpacing: "-.03em" }}>
-                    ${paid ? perMonth : 0}
+                <div className="flex items-baseline gap-1.5 mt-4">
+                  <span className="prm-num text-[36px] font-bold leading-none" style={{ letterSpacing: "-.03em" }}>
+                    ${p.monthly}
                   </span>
-                  <span className="text-[12.5px] font-semibold" style={{ color: "var(--text-mute)" }}>
-                    {paid ? "/ mo" : "forever"}
-                  </span>
+                  <span className="text-[13px] font-semibold" style={{ color: "var(--text-mute)" }}>/ month</span>
                 </div>
-                <p className="prm-num text-[11px] mt-1.5" style={{ color: "var(--text-mute)" }}>
-                  {paid ? (annual ? `$${p.annual} billed yearly` : `or $${p.annual}/yr`) : "No card needed"}
-                </p>
 
                 <div className="h-px my-4" style={{ background: "var(--border)" }} />
 
@@ -352,7 +323,7 @@ export default function PremiumPage() {
                 </ul>
 
                 <span
-                  className="inline-flex items-center gap-1.5 text-[12.5px] font-bold mt-4"
+                  className="inline-flex items-center gap-1.5 text-[12.5px] font-bold mt-5"
                   style={{ color: isSel ? p.accent : "var(--text-mute)" }}
                 >
                   {isSel ? (
@@ -370,27 +341,10 @@ export default function PremiumPage() {
           })}
         </div>
 
-        {/* signup for the selected plan */}
         <div className="card p-6 sm:p-7 mt-4 text-center" style={{ background: "var(--bg-2)" }}>
           <p className="text-[14px] mb-4" style={{ color: "var(--text-soft)" }}>
-            {selected === "free" ? (
-              <>Create a free account — no card, no expiry.</>
-            ) : (
-              <>
-                Continue with{" "}
-                <strong style={{ color: "var(--text)" }}>
-                  {selected === "pro" ? "Pro" : "Unlimited"}
-                </strong>{" "}
-                at{" "}
-                <span className="prm-num font-bold" style={{ color: "var(--text)" }}>
-                  ${annual
-                    ? Math.round((PLANS.find((p) => p.id === selected)!.annual / 12) * 100) / 100
-                    : PLANS.find((p) => p.id === selected)!.monthly}
-                  /mo
-                </span>
-                {annual ? " billed yearly." : "."}
-              </>
-            )}
+            Continue with <strong style={{ color: "var(--text)" }}>{plan.name}</strong> at{" "}
+            <span className="prm-num font-bold" style={{ color: "var(--text)" }}>${plan.monthly}/month</span>.
           </p>
           <SignupForm plan={selected} />
           <p className="text-[11.5px] mt-3.5" style={{ color: "var(--text-mute)" }}>
@@ -399,31 +353,8 @@ export default function PremiumPage() {
         </div>
       </section>
 
-      {/* ─── Sources ─── */}
-      <section className="mt-14">
-        <div className="card p-5 sm:p-6" style={{ background: "var(--bg-2)" }}>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8">
-            <p className="text-[13.5px] leading-relaxed sm:max-w-xs flex-shrink-0" style={{ color: "var(--text-soft)" }}>
-              <span className="font-bold" style={{ color: "var(--text)" }}>Sourced from filings, not opinions.</span>{" "}
-              Every figure traces back to a public disclosure.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {SOURCES.map((s) => (
-                <span
-                  key={s}
-                  className="prm-num text-[11.5px] px-2.5 py-1 rounded"
-                  style={{ background: "var(--bg-3)", color: "var(--text-mute)", border: "1px solid var(--border)" }}
-                >
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ─── FAQ ─── */}
-      <section className="mt-14 prm-faq max-w-3xl">
+      <section className="mt-16 prm-faq max-w-3xl">
         <h2 className="prm-h text-[26px] sm:text-[30px]">Common questions</h2>
         <div className="flex flex-col gap-2 mt-6">
           {FAQS.map((f) => (
