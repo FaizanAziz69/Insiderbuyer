@@ -21,7 +21,7 @@ const PLANS = [
     id: "pro",
     name: "Pro",
     monthly: 29,
-    accent: "var(--premium)",
+    accent: "var(--sig)",
     badge: "Most popular",
     features: [
       "The complete ranking and full screener",
@@ -77,6 +77,12 @@ const FAQS = [
 ];
 
 const CSS = `
+/* Signal colour: the navbar petrol on light grounds (the bright cyan is too
+   pale on white), the cyan on dark grounds where it reads correctly. */
+.prm-scope { --sig: var(--accent); }
+@media (prefers-color-scheme: dark) { .prm-scope { --sig: var(--premium); } }
+:root[data-theme="dark"] .prm-scope { --sig: var(--premium); }
+:root[data-theme="light"] .prm-scope { --sig: var(--accent); }
 .prm-grid {
   position: absolute; inset: 0; pointer-events: none;
   background-image:
@@ -95,7 +101,7 @@ const CSS = `
 .prm-panel::after { bottom: -1px; right: -1px; border-bottom: 2px solid; border-right: 2px solid; }
 .prm-eyebrow {
   font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em;
-  text-transform: uppercase; color: var(--premium);
+  text-transform: uppercase; color: var(--sig);
 }
 .prm-h {
   font-family: var(--font-display); font-weight: 800; letter-spacing: -.03em;
@@ -185,7 +191,7 @@ function SignupForm({ plan, stacked = false, cta }: { plan: string; stacked?: bo
 export default function PremiumPage() {
 
   return (
-    <div className="w-full pb-10">
+    <div className="w-full pb-10 prm-scope">
       <style>{CSS}</style>
 
       {/* ─── Hero ─── */}
@@ -196,7 +202,7 @@ export default function PremiumPage() {
           <h1 className="prm-h text-[34px] sm:text-[46px] mt-3.5">
             Follow the people who know
             <br />
-            <span style={{ color: "var(--premium)" }}>the business best.</span>
+            <span style={{ color: "var(--sig)" }}>the business best.</span>
           </h1>
           <p className="text-[16.5px] leading-relaxed mt-5" style={{ color: "var(--text-soft)" }}>
             Every SEC Form 4 is read the moment it lands, scored against sector strength, trading
@@ -210,7 +216,7 @@ export default function PremiumPage() {
               {COMPOSITION.map((c, i) => (
                 <div
                   key={c.name}
-                  style={{ width: `${c.w}%`, background: "var(--premium)", opacity: 1 - i * 0.16 }}
+                  style={{ width: `${c.w}%`, background: "var(--sig)", opacity: 1 - i * 0.16 }}
                 />
               ))}
             </div>
@@ -241,7 +247,7 @@ export default function PremiumPage() {
 
           <div
             className="prm-panel card p-6"
-            style={{ ["--tick" as string]: "var(--premium)", background: "var(--bg-2)" }}
+            style={{ ["--tick" as string]: "var(--sig)", background: "var(--bg-2)" }}
           >
             <div className="flex items-baseline justify-center gap-2">
               <span className="prm-num text-[50px] font-bold leading-none" style={{ letterSpacing: "-.035em" }}>$0</span>
@@ -351,7 +357,7 @@ export default function PremiumPage() {
             <details key={f.q} className="card px-5 py-3.5" style={{ background: "var(--bg-2)" }}>
               <summary className="flex items-center justify-between gap-4">
                 <span className="text-[14.5px] font-bold">{f.q}</span>
-                <span className="prm-chev flex-shrink-0" style={{ color: "var(--premium)", fontSize: 17, lineHeight: 1 }} aria-hidden>
+                <span className="prm-chev flex-shrink-0" style={{ color: "var(--sig)", fontSize: 17, lineHeight: 1 }} aria-hidden>
                   +
                 </span>
               </summary>
