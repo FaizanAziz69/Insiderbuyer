@@ -146,10 +146,42 @@ const CSS = `
   font-size: 14px; line-height: 1.55; margin: 0;
 }
 .prm-row:first-child { border-top: none; }
+
+/* Futuristic CTA: gradient drawn from the signal colour, soft glow, and a
+   thin inner highlight so it reads as a lit surface rather than a flat fill. */
+.prm-cta {
+  position: relative;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--sig) 88%, #000 0%),
+    color-mix(in srgb, var(--sig) 52%, #6fd0ff));
+  box-shadow:
+    0 8px 24px color-mix(in srgb, var(--sig) 30%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.22);
+  color: #fff;
+  transition: filter .16s, transform .16s;
+}
+.prm-cta:hover { filter: brightness(1.07); }
+.prm-cta:active { transform: translateY(1px); }
+.prm-cta:disabled { filter: saturate(.6); }
+
+/* The $0 hero card */
+.prm-free {
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 90% at 50% -10%, color-mix(in srgb, var(--sig) 9%, transparent), transparent 70%),
+    var(--bg-2);
+  border: 1px solid color-mix(in srgb, var(--sig) 22%, var(--border));
+  box-shadow: 0 12px 36px color-mix(in srgb, var(--sig) 10%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .prm-cta { transition: none; }
+}
 `;
 
-/* Email capture for the free plan — POSTs to the existing /subscribers endpoint. */
+/* Free-plan signup. Shows one prominent button; the email field appears only
+   after the visitor commits, so the card reads as cleanly as the reference. */
 function SignupForm() {
+  const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -180,10 +212,22 @@ function SignupForm() {
 
   if (done) {
     return (
-      <div className="flex items-center justify-center gap-2 text-[14px] font-semibold text-good py-2">
+      <div className="flex items-center justify-center gap-2 text-[14.5px] font-semibold text-good py-3">
         <CheckCircle2 className="h-5 w-5" />
         Check your inbox to finish setting up.
       </div>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="prm-cta w-full inline-flex items-center justify-center rounded-xl py-4 text-[17px] font-bold"
+      >
+        Sign Up
+      </button>
     );
   }
 
@@ -192,12 +236,13 @@ function SignupForm() {
       <input
         type="email"
         required
+        autoFocus
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@example.com"
         aria-label="Email address"
         aria-invalid={!!err}
-        className="w-full px-4 py-3 rounded-lg text-[14px]"
+        className="w-full px-4 py-3.5 rounded-xl text-[14.5px] text-center"
         style={{
           background: "var(--bg-1)",
           border: err ? "1px solid var(--bad)" : "1px solid var(--border-strong)",
@@ -207,12 +252,11 @@ function SignupForm() {
       <button
         type="submit"
         disabled={submitting}
-        className="w-full inline-flex items-center justify-center rounded-lg py-3 text-[15px] font-bold transition"
-        style={{ background: "var(--sig)", color: "var(--on-accent, #fff)" }}
+        className="prm-cta w-full inline-flex items-center justify-center rounded-xl py-4 text-[17px] font-bold"
       >
-        {submitting ? "Submitting…" : "Sign Up"}
+        {submitting ? "Submitting…" : "Create free account"}
       </button>
-      {err && <p className="text-[12px]" style={{ color: "var(--bad)" }}>{err}</p>}
+      {err && <p className="text-[12px] text-center" style={{ color: "var(--bad)" }}>{err}</p>}
     </form>
   );
 }
@@ -227,8 +271,7 @@ function PlanButton({ planName, label }: { planName: string; label: string }) {
       <button
         type="button"
         onClick={() => setNote(true)}
-        className="w-full inline-flex items-center justify-center py-3.5 text-[15px] font-bold transition"
-        style={{ background: "var(--sig)", color: "var(--on-accent, #fff)" }}
+        className="prm-cta w-full inline-flex items-center justify-center py-4 text-[15.5px] font-bold"
       >
         {label}
       </button>
@@ -248,25 +291,25 @@ export default function PremiumPage() {
       <style>{CSS}</style>
 
       {/* ─── Free to get started ─── */}
-      <section className="pt-6 sm:pt-10">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 lg:gap-16 items-center">
+      <section className="pt-8 sm:pt-14">
+        <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_392px] gap-10 lg:gap-12 items-center">
           <div>
-            <h1 className="prm-h text-[34px] sm:text-[46px]">Free to get started</h1>
-            <p className="text-[16.5px] leading-relaxed mt-4 max-w-md" style={{ color: "var(--text-soft)" }}>
+            <h1 className="prm-h text-[36px] sm:text-[52px]">Free to get started</h1>
+            <p className="text-[17px] leading-relaxed mt-5 max-w-lg" style={{ color: "var(--text-soft)" }}>
               Join the insider-buying platform built entirely on SEC filings and official government
               disclosure — no vendor black boxes.
             </p>
           </div>
 
-          <div className="prm-card p-6">
-            <div className="flex items-baseline justify-center gap-2 mb-4">
-              <span className="prm-num text-[48px] font-bold leading-none" style={{ letterSpacing: "-.035em" }}>
+          <div className="prm-free p-8">
+            <div className="flex items-baseline justify-center gap-2.5 mb-6">
+              <span className="prm-num text-[68px] font-bold leading-none" style={{ letterSpacing: "-.04em" }}>
                 $0
               </span>
-              <span className="text-[14px] font-semibold" style={{ color: "var(--text-mute)" }}>forever</span>
+              <span className="text-[17px] font-semibold" style={{ color: "var(--text-mute)" }}>forever</span>
             </div>
             <SignupForm />
-            <p className="text-[12px] mt-3 text-center" style={{ color: "var(--text-mute)" }}>
+            <p className="text-[12.5px] mt-4 text-center" style={{ color: "var(--text-mute)" }}>
               No payment details required
             </p>
           </div>
