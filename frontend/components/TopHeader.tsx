@@ -98,15 +98,14 @@ export function TopHeader() {
           </Link>
           <Link
             href="/premium"
-            className="hidden sm:inline-flex items-center justify-center gap-1.5 px-5 h-10 rounded-md text-[14px] font-semibold"
+            className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-5 h-9 sm:h-10 rounded-md text-[13px] sm:text-[14px] font-semibold whitespace-nowrap"
             style={{
               background: "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
               color: "#ffffff",
               boxShadow: "0 4px 12px rgba(0,88,130,0.28)",
-              minWidth: 120,
             }}
           >
-            <Sparkles className="h-4 w-4" style={{ color: "#ffffff" }} />
+            <Sparkles className="h-4 w-4 flex-shrink-0" style={{ color: "#ffffff" }} />
             <span style={{ color: "#ffffff" }}>Subscribe</span>
           </Link>
           {!user && (
@@ -232,9 +231,41 @@ export function TopHeader() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="mb-6">
+            <div className="mb-4">
               <StockSearch dark={false} onNavigate={() => setMobileOpen(false)} />
             </div>
+
+            {/* Premium CTA — the only route to /premium on a phone. */}
+            <Link
+              href="/premium"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center justify-center gap-2 w-full h-11 rounded-lg text-[15px] font-bold mb-3"
+              style={{
+                background: "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
+                color: "#ffffff",
+                boxShadow: "0 4px 14px rgba(0,88,130,0.28)",
+              }}
+            >
+              <Sparkles className="h-4 w-4" style={{ color: "#ffffff" }} />
+              Subscribe to Premium
+            </Link>
+            {!user && (
+              <button
+                onClick={() => {
+                  setMobileOpen(false);
+                  setLoginOpen(true);
+                }}
+                className="flex items-center justify-center gap-2 w-full h-11 rounded-lg text-[15px] font-bold mb-6"
+                style={{
+                  background: "var(--bg-3)",
+                  border: "1px solid var(--border-strong)",
+                  color: "var(--text)",
+                }}
+              >
+                <LogIn className="h-4 w-4" /> Log in
+              </button>
+            )}
+            {user && <div className="mb-6" />}
             {NAV_GROUPS.map((g) => (
               <div key={g.label} className="mb-6">
                 <div className="text-[10px] uppercase tracking-[0.18em] font-bold text-accent mb-3">

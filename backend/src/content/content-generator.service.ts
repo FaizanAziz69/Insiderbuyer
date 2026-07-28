@@ -517,6 +517,9 @@ tags: include "${opts.ticker}" and the topic.`;
     name: string;
     changePct: number;
     headlines: string[];
+    /** Market context (volume, float, 52-week position, insider buying) so the
+     *  explainer can always name a real mechanism instead of "no news". */
+    context?: string[];
   }): Promise<{ title: string; explainer: string }> {
     const dir = opts.changePct >= 0 ? 'up' : 'down';
     const pct = Math.abs(opts.changePct).toFixed(2);
@@ -528,17 +531,20 @@ tags: include "${opts.ticker}" and the topic.`;
     }
     const news = opts.headlines.length
       ? `Recent headlines mentioning the company:\n- ${opts.headlines.slice(0, 6).join('\n- ')}`
-      : 'No recent company-specific headlines are available.';
+      : 'No dated company headline was retrieved for today.';
+    const context = opts.context?.length
+      ? `\nMarket context measured from live data (use this to explain the mechanism):\n- ${opts.context.join('\n- ')}`
+      : '';
     const prompt = `You are explaining why ${opts.name || opts.symbol} (${opts.symbol}) stock is ${dir} ${pct}% today, for a retail investor. 2-4 sentences.
 
-METHOD — find the real catalyst:
-1. Scan the dated headlines below (freshest first). Look for a CONCRETE catalyst: merger/acquisition, earnings or guidance, offering/dilution, FDA or regulatory news, major contract, analyst action, index inclusion, short squeeze, exchange notice.
-2. If you find one, LEAD with it and name it specifically (e.g. "after announcing a $400M share-swap merger with EnChem America"). Weight the FRESHEST headlines most — today's move needs recent news, not last week's.
-3. If NO company-specific catalyst appears in the headlines, say that plainly: "No company-specific news appears to explain today's move" — then note it looks like momentum/volume-driven trading. NEVER invent or imply a reason that isn't in the headlines. A wrong reason destroys user trust; "no clear catalyst" is an acceptable, honest answer.
+METHOD — always explain the move. There is always a mechanism; find the best-supported one.
+1. FIRST scan the dated headlines (freshest first) for a CONCRETE catalyst: merger/acquisition, earnings or guidance, offering/dilution, FDA or regulatory news, a major contract or subsidiary announcement, analyst action, index inclusion, short squeeze, exchange notice. If you find one, LEAD with it and name it specifically. Weight the freshest headlines most.
+2. If the headlines carry no dated company announcement, DO NOT write "no news" or "no catalyst". Instead explain the move through the market context supplied below — that IS the explanation. Say which mechanism fits, for example: an unusually heavy volume day relative to its own average; a thin float or small market cap where modest dollar flow moves the price hard; a bounce off the 52-week low or a breakout to new highs; continued follow-through from a recent announcement; or recent insider buying on record. Name the numbers you were given.
+3. Be precise about certainty: "the move is tracking X" or "consistent with X" when inferring from context, versus "after announcing X" when a headline confirms it. NEVER invent a specific event, deal, contract or figure that is not in the input — a fabricated catalyst is worse than an inferred mechanism.
 - Mention what the company actually does in passing.
 - Cautious, factual, no buy/sell advice.
 
-${news}`;
+${news}${context}`;
     try {
       const response = await this.client.messages.create({
         model: 'claude-haiku-4-5-20251001',
@@ -756,7 +762,7 @@ ${news}`;
                 explainer: {
                   type: 'string',
                   description:
-                    "2-3 sentences. LEAD with the concrete catalyst found in that stock's dated headlines (merger, earnings, offering, FDA, contract, analyst action...), named specifically. If its headlines show no company-specific catalyst, say plainly that no clear news explains the move and it looks momentum/volume-driven — NEVER invent a reason. Mention what the company does. Cautious, factual, no advice.",
+                    "2-3 sentences. LEAD with the concrete catalyst found in that stock's dated headlines (merger, earnings, offering, FDA, contract, analyst action...), named specifically. If its headlines carry no dated announcement, do NOT write 'no news' or 'no clear catalyst' — explain the mechanism instead: unusual volume for that stock, a thin float or small market cap where modest dollar flow moves price hard, a bounce off the 52-week low, a breakout to new highs, follow-through from an earlier announcement, or recent insider buying. Never invent a specific event or figure. Mention what the company does. Cautious, factual, no advice.",
                 },
               },
               required: ['symbol', 'explainer'],
@@ -771,7 +777,7 @@ ${news}`;
         const dir = i.changePct >= 0 ? 'up' : 'down';
         const news = i.headlines.length
           ? ` Recent headlines: ${i.headlines.join(' | ')}`
-          : ' No company-specific headlines available.';
+          : ' No dated company headline retrieved — explain the move through its own volume, float size and 52-week range position instead.';
         return `- ${i.symbol} (${i.name || 'unknown name'}): ${dir} ${Math.abs(i.changePct).toFixed(2)}% today.${news}`;
       })
       .join('\n');
@@ -780,7 +786,7 @@ ${news}`;
         model: 'claude-haiku-4-5-20251001',
         max_tokens: Math.min(8000, 250 * items.length + 500),
         system:
-          'You are a rigorous financial-news analyst. For EACH stock: identify the REAL catalyst from its own dated headlines (weight the freshest most) and lead with it, named specifically. If no company-specific catalyst appears in its headlines, say so honestly and describe the move as momentum/volume-driven — NEVER fabricate a reason; a wrong reason destroys user trust. Every explanation must be distinct and grounded in that company. No investment advice.',
+          'You are a rigorous financial-news analyst. For EACH stock: identify the REAL catalyst from its own dated headlines (weight the freshest most) and lead with it, named specifically. Every stock moves for a reason — when its headlines hold no dated announcement, explain the MECHANISM (unusual volume, thin float, range breakout or bounce, follow-through from earlier news, insider buying) rather than writing that no news explains it. Distinguish \'after announcing X\' (headline-confirmed) from \'consistent with X\' (inferred from the move). Never fabricate a specific event, deal or figure. Every explanation must be distinct and grounded in that company. No investment advice.',
         tools: [tool],
         tool_choice: { type: 'tool', name: 'publish_explainers' },
         messages: [

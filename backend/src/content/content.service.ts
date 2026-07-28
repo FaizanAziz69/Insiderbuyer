@@ -90,15 +90,86 @@ export class ContentService {
     const cached = this.explainerCache.get(key);
     if (cached && Date.now() - cached.ts < this.EXPLAINER_TTL) return cached.data;
 
-    const headlines = await this.tickerHeadlines(key, name);
+    const [headlines, context] = await Promise.all([
+      this.tickerHeadlines(key, name),
+      this.moveContext(key),
+    ]);
     const data = await this.generator.generateMovementExplainer({
       symbol: key,
       name,
       changePct,
       headlines,
+      context,
     });
     if (data.explainer) this.explainerCache.set(key, { ts: Date.now(), data });
     return data;
+  }
+
+  /** Measurable facts about today's move so the explainer can always name a
+   *  real mechanism (volume vs its own average, float size, 52-week position,
+   *  recent insider buying) instead of falling back to "no news". */
+  private async moveContext(symbol: string): Promise<string[]> {
+    const out: string[] = [];
+    try {
+      const q = (await this.marketStats.getQuoteBatch([symbol])).get(symbol);
+      if (q) {
+        const relVol =
+          q.avgVolume > 0 && q.volume > 0 ? q.volume / q.avgVolume : null;
+        if (relVol != null) {
+          out.push(
+            relVol >= 1.5
+              ? `Today's volume is ${relVol.toFixed(1)}x its 3-month average — an unusually heavy session.`
+              : relVol <= 0.6
+                ? `Today's volume is only ${relVol.toFixed(2)}x its 3-month average — a thin session, so small orders move the price more.`
+                : `Volume is roughly normal at ${relVol.toFixed(1)}x its 3-month average.`,
+          );
+        }
+        if (q.marketCap != null) {
+          const cap = q.marketCap;
+          const tier =
+            cap < 50e6
+              ? 'nano-cap (under $50M) with a very thin float'
+              : cap < 300e6
+                ? 'micro-cap (under $300M) with a thin float'
+                : cap < 2e9
+                  ? 'small-cap'
+                  : cap < 10e9
+                    ? 'mid-cap'
+                    : 'large-cap';
+          out.push(`Market capitalisation is $${(cap / 1e6).toFixed(0)}M — a ${tier}.`);
+        }
+        if (q.price > 0 && q.fiftyTwoWeekHigh && q.fiftyTwoWeekLow && q.fiftyTwoWeekHigh > q.fiftyTwoWeekLow) {
+          const pos = (q.price - q.fiftyTwoWeekLow) / (q.fiftyTwoWeekHigh - q.fiftyTwoWeekLow);
+          out.push(
+            pos >= 0.95
+              ? `The price is at or near its 52-week high ($${q.fiftyTwoWeekHigh.toFixed(2)}) — a breakout.`
+              : pos <= 0.1
+                ? `The price is close to its 52-week low ($${q.fiftyTwoWeekLow.toFixed(2)}) — a bounce off the bottom of its range.`
+                : `The price sits ${Math.round(pos * 100)}% of the way up its 52-week range.`,
+          );
+        }
+        if (q.price > 0 && q.price < 5) {
+          out.push(`It trades under $5 a share, where percentage swings are naturally larger.`);
+        }
+      }
+    } catch { /* quote unavailable — context stays shorter */ }
+
+    // Our own Form 4 record — recent insider buying is often the real story.
+    try {
+      const recent = await this.iqs.getAllTrades({ q: symbol, side: 'buy', limit: 5 });
+      const rows = (recent?.rows || []).filter(
+        (r) => (r.ticker || '').toUpperCase() === symbol,
+      );
+      if (rows.length) {
+        const total = rows.reduce((a, r) => a + (Number(r.totalValue) || 0), 0);
+        const last = rows[0];
+        out.push(
+          `Our SEC Form 4 record shows ${rows.length} recent insider purchase(s) totalling $${(total / 1e6).toFixed(2)}M, most recently by ${last.insiderName}${last.role ? ` (${last.role})` : ''}.`,
+        );
+      }
+    } catch { /* insider data optional */ }
+
+    return out;
   }
 
   /** On-demand AI Bull Case vs Bear Case for a ticker, grounded in recent
