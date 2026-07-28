@@ -331,41 +331,21 @@ export default function InsiderProfilePage({
         </section>
         <section>
           <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Top Traded Sectors</h2>
-          <div className="card p-4 h-full flex items-center">
-            <SectorDonut data={p.topSectors.map((x) => ({ sector: x.sector, trades: x.count }))} />
+          <div className="card p-4 h-full flex items-center justify-center">
+            <div className="w-full max-w-[380px]">
+              <SectorDonut data={p.topSectors.map((x) => ({ sector: x.sector, trades: x.count }))} />
+            </div>
           </div>
         </section>
       </div>
 
-      {/* Top tickers + sectors */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-5">
-        <section>
-          <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Most-Traded Stocks</h2>
-          <div className="card overflow-hidden">
-            <DataTable<TickerAgg> rows={p.topTickers} rowKey={(r) => r.ticker} columns={tickerCols} />
-          </div>
-        </section>
-        <section>
-          <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Top Sectors</h2>
-          <div className="card p-4 space-y-2.5">
-            {p.topSectors.length === 0 && <p className="text-mute text-sm">No sector data.</p>}
-            {p.topSectors.map((sec) => {
-              const max = p.topSectors[0].count || 1;
-              return (
-                <div key={sec.sector}>
-                  <div className="flex justify-between text-[12.5px] mb-1">
-                    <span className="font-medium truncate">{sec.sector}</span>
-                    <span className="text-mute font-mono">{sec.count}</span>
-                  </div>
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-2)" }}>
-                    <div style={{ width: `${(sec.count / max) * 100}%`, height: "100%", background: "var(--accent)" }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      </div>
+      {/* Most-traded stocks — full width (sector split lives in the donut above) */}
+      <section>
+        <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Most-Traded Stocks</h2>
+        <div className="card overflow-hidden">
+          <DataTable<TickerAgg> rows={p.topTickers} rowKey={(r) => r.ticker} columns={tickerCols} />
+        </div>
+      </section>
 
       {/* Full trade history */}
       <section>
