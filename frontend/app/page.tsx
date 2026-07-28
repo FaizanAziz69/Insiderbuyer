@@ -5,7 +5,6 @@ import { ChevronRight } from "lucide-react";
 import { API_BASE, HeatQuote, heatToRanking, fetcher } from "@/lib/api";
 import { MonthlyBuySellMeter } from "@/components/home/MonthlyBuySellMeter";
 import { TopStoriesSection } from "@/components/home/TopStoriesSection";
-import { PredictionOfTheDay } from "@/components/home/PredictionOfTheDay";
 import { HomeDatasets } from "@/components/home/HomeDatasets";
 import { EarningsCalendar } from "@/components/home/EarningsCalendar";
 import { SidebarListsAndTools } from "@/components/home/SidebarListsAndTools";
@@ -51,12 +50,7 @@ export default function HomePage() {
       </div>
 
       {/* STOCK IDEAS — AI-generated trade-idea cards refreshed daily */}
-      <div className="grid grid-cols-1 xl:grid-cols-[2.5fr_1fr] gap-6 xl:gap-10">
-        <AiStockIdeasSection />
-        <aside className="space-y-4">
-          <PredictionOfTheDay />
-        </aside>
-      </div>
+      <AiStockIdeasSection />
 
       {/* Three datasets side-by-side */}
       <HomeDatasets />
