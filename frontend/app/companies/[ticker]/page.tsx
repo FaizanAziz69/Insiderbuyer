@@ -212,8 +212,23 @@ export default function CompanyPage({
             stats={stats}
             profile={profile}
             earningsDate={earningsDate}
-            chart={<PriceChart ticker={sym} bare />}
           />
+
+          {/* Half-and-half: price chart beside the key-data card, both spanning
+              the full page width above the two-column region. */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch [&>*]:min-w-0 [&_.card]:h-full">
+            <div className="card p-4">
+              <PriceChart ticker={sym} bare />
+            </div>
+            <StockOverviewGrid
+              ticker={sym}
+              stats={stats}
+              profile={profile}
+              fallbackMarketCap={data.company.marketCap}
+              fallbackPrice={data.company.lastPrice}
+              earningsDate={earningsDate}
+            />
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">
             <main className="space-y-6 min-w-0">
@@ -555,17 +570,6 @@ export default function CompanyPage({
             {/* Price performance row — 1D / 5D / 1M / 6M / 1Y (TradingView-style).
                 The chart itself now lives inside the header card above. */}
             <PricePerformanceRow ticker={sym} />
-
-            {/* Key data — the 3-column overview (trading ranges | market cap &
-                financials | other data). */}
-            <StockOverviewGrid
-              ticker={sym}
-              stats={stats}
-              profile={profile}
-              fallbackMarketCap={data.company.marketCap}
-              fallbackPrice={data.company.lastPrice}
-              earningsDate={earningsDate}
-            />
 
             {/* Featured-in strip (our own datasets; no external links) */}
             <StrategyBanner
