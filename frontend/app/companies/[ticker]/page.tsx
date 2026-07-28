@@ -214,12 +214,9 @@ export default function CompanyPage({
             earningsDate={earningsDate}
           />
 
-          {/* Half-and-half: price chart beside the key-data card, both spanning
-              the full page width above the two-column region. */}
+          {/* Half-and-half: key-data card on the left, price chart on the right,
+              both spanning the full page width above the two-column region. */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch [&>*]:min-w-0 [&_.card]:h-full">
-            <div className="card p-4">
-              <PriceChart ticker={sym} bare />
-            </div>
             <StockOverviewGrid
               ticker={sym}
               stats={stats}
@@ -228,6 +225,9 @@ export default function CompanyPage({
               fallbackPrice={data.company.lastPrice}
               earningsDate={earningsDate}
             />
+            <div className="card p-4">
+              <PriceChart ticker={sym} bare />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">
