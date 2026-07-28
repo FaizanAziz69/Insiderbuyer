@@ -567,6 +567,107 @@ ${news}`;
   /** AI Bull Case vs Bear Case for a ticker — our own analogue of QuiverQuant's
    *  gated card. Grounded in the company + recent headlines we pass in; clearly
    *  an AI opinion, not advice. Returns 3 bull + 3 bear bullet points. */
+  /** Plain-English description of WHO an insider is — strictly derived from the
+   *  Form 4 record we hold (entity vs person, roles filed under, which
+   *  companies, and how long). Deliberately grounded: the model is forbidden
+   *  from adding biography, employment history or anything not in the facts,
+   *  because these are real named people. */
+  async generateInsiderBio(opts: {
+    name: string;
+    kind: 'person' | 'entity';
+    roles: string[];
+    companies: { ticker: string | null; name: string }[];
+    firstTraded: string | null;
+    lastTraded: string | null;
+    yearsActive: number | null;
+    buyCount: number;
+    sellCount: number;
+    totalBought: number;
+    totalSold: number;
+  }): Promise<{ label: string; description: string } | null> {
+    if (!this.client) return null;
+    const money = (n: number) =>
+      n >= 1e9 ? `$${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : `$${Math.round(n).toLocaleString()}`;
+    const facts = [
+      `Filer name: ${opts.name}`,
+      `Filer type (already determined from the name — do not contradict): ${
+        opts.kind === 'entity'
+          ? 'an organisation (fund, trust, holding company or corporate entity), NOT an individual person'
+          : 'an individual person'
+      }`,
+      opts.roles.length
+        ? `Roles this filer has reported on SEC Form 4: ${opts.roles.join(', ')}`
+        : 'No role was stated on the filings.',
+      opts.companies.length
+        ? `Companies they are an insider of: ${opts.companies
+            .slice(0, 6)
+            .map((c) => (c.ticker ? `${c.name} (${c.ticker})` : c.name))
+            .join('; ')}`
+        : '',
+      opts.firstTraded ? `First reported transaction: ${opts.firstTraded}` : '',
+      opts.lastTraded ? `Most recent reported transaction: ${opts.lastTraded}` : '',
+      opts.yearsActive != null
+        ? `Span of reported filings: ${opts.yearsActive < 1 ? 'under a year' : `about ${opts.yearsActive} year(s)`}`
+        : '',
+      `Open-market purchases on record: ${opts.buyCount} (${money(opts.totalBought)})`,
+      `Sales on record: ${opts.sellCount} (${money(opts.totalSold)})`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const tool: Anthropic.Messages.Tool = {
+      name: 'publish_insider_bio',
+      description: 'Publish a short factual description of this SEC filer.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          label: {
+            type: 'string',
+            description:
+              'A short descriptor, max 60 chars, e.g. "Chief Executive Officer at Acme Corp" or "Institutional holder — 10% owner".',
+          },
+          description: {
+            type: 'string',
+            description:
+              '2 to 3 plain sentences: whether this is a person or an organisation, how they became an insider (the role they file under), at which company, and how long they have been filing.',
+          },
+        },
+        required: ['label', 'description'],
+      },
+    };
+
+    try {
+      const response = await this.client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 450,
+        system:
+          'You describe SEC Form 4 filers for a research site. These are REAL named people and organisations, so you must state ONLY what the supplied filing facts support. ' +
+          'Absolutely do not invent or infer biography: no employment history, education, age, net worth, nationality, motives, or any company detail that is not in the facts. ' +
+          'Do not speculate about why they bought or sold, and never give investment advice. ' +
+          'If the facts are thin, say plainly that the filing record is limited. Write in neutral third person, plain English, no marketing language.',
+        tool_choice: { type: 'tool', name: 'publish_insider_bio' },
+        tools: [tool],
+        messages: [
+          {
+            role: 'user',
+            content: `Describe this SEC Form 4 filer using only these facts.\n\n${facts}`,
+          },
+        ],
+      });
+      const block = response.content.find(
+        (b): b is Anthropic.Messages.ToolUseBlock => b.type === 'tool_use',
+      );
+      const input = block?.input as { label?: string; description?: string } | undefined;
+      const label = plainExplainer(String(input?.label || '')).trim().slice(0, 80);
+      const description = plainExplainer(String(input?.description || '')).trim();
+      if (!description) return null;
+      return { label, description };
+    } catch (err: any) {
+      this.logger.warn(`Insider bio failed for ${opts.name}: ${err?.message || err}`);
+      return null;
+    }
+  }
+
   async generateBullBear(opts: {
     symbol: string;
     name: string;

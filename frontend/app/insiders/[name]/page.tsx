@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Building2,
+  UserRound,
   TrendingUp,
   Trophy,
 } from "lucide-react";
@@ -266,6 +267,9 @@ export default function InsiderProfilePage({
         </div>
       </header>
 
+      {/* Who is this insider — AI, grounded in our filing record */}
+      <InsiderBioCard p={p} />
+
       {/* Stat tiles */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Stat label="Total Trades" value={String(s.totalTrades)} sub={`${s.buyCount} buys · ${s.sellCount} sells`} />
@@ -379,6 +383,72 @@ export default function InsiderProfilePage({
         </p>
       </section>
     </div>
+  );
+}
+
+/** AI description of who this filer is — generated from OUR Form 4 record
+ *  only (entity vs person, roles, companies, tenure). Renders nothing until
+ *  the model returns, so the page never shows an empty box. */
+function InsiderBioCard({ p }: { p: Profile }) {
+  const companies = p.topTickers
+    .slice(0, 6)
+    .map((t) => `${t.ticker}|${t.name}`)
+    .join(",");
+  const qs = new URLSearchParams({
+    name: p.name,
+    roles: p.roles.join(","),
+    companies,
+    first: p.stats.firstTraded ?? "",
+    last: p.stats.lastTraded ?? "",
+    buys: String(p.stats.buyCount),
+    sells: String(p.stats.sellCount),
+    bought: String(Math.round(p.stats.totalBought)),
+    sold: String(Math.round(p.stats.totalSold)),
+  });
+  const { data, isLoading } = useSWR<{ bio: { label: string; description: string; kind: string } | null }>(
+    `${API_BASE}/content/insider-bio?${qs.toString()}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 },
+  );
+
+  if (isLoading) {
+    return (
+      <section className="card p-5">
+        <div className="shimmer h-4 w-40 rounded mb-3" />
+        <div className="shimmer h-3.5 w-full rounded mb-2" />
+        <div className="shimmer h-3.5 w-4/5 rounded" />
+      </section>
+    );
+  }
+  const bio = data?.bio;
+  if (!bio) return null;
+
+  return (
+    <section className="card p-5">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-accent">
+          {bio.kind === "entity" ? <Building2 className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
+        </span>
+        <h2 className="text-[15px] font-bold">About {p.name}</h2>
+        <span
+          className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded"
+          style={{ background: "var(--bg-3)", color: "var(--text-mute)" }}
+        >
+          {bio.kind === "entity" ? "Organisation" : "Individual"}
+        </span>
+      </div>
+      {bio.label && (
+        <p className="text-[12.5px] font-semibold mb-2" style={{ color: "var(--text-mute)" }}>
+          {bio.label}
+        </p>
+      )}
+      <p className="text-[14px] leading-relaxed" style={{ color: "var(--text-soft)" }}>
+        {bio.description}
+      </p>
+      <p className="text-[10.5px] mt-3" style={{ color: "var(--text-faint)" }}>
+        AI-written from this filer&rsquo;s SEC Form 4 record only — no outside biography.
+      </p>
+    </section>
   );
 }
 

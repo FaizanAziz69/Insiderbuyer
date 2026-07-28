@@ -206,6 +206,53 @@ export class ContentService {
       .map((i) => `[${i.source} · ${fmtAge(i.date)}] ${i.title}`);
   }
 
+  private bioCache = new Map<string, { ts: number; data: { label: string; description: string; kind: string } | null }>();
+
+  /** Is this filer name an organisation rather than a person? Decided in code
+   *  (not by the model) so the classification is deterministic. */
+  static classifyFiler(name: string): 'person' | 'entity' {
+    const n = ` ${name.toLowerCase().replace(/[.,]/g, ' ')} `;
+    const ORG =
+      /\s(inc|incorporated|corp|corporation|co|company|llc|llp|lp|ltd|limited|plc|gmbh|ag|nv|sa|trust|fund|funds|capital|partners|holdings?|group|management|advisors?|advisers?|ventures?|associates|investments?|equity|asset|bancorp|bank|systems|technologies|labs|foundation|society|committee|pac)\s/;
+    return ORG.test(n) ? 'entity' : 'person';
+  }
+
+  /** AI description of who an insider is, grounded only in our filing record.
+   *  Cached 24h per filer. */
+  async getInsiderBio(opts: {
+    name: string;
+    roles: string[];
+    companies: { ticker: string | null; name: string }[];
+    firstTraded: string | null;
+    lastTraded: string | null;
+    buyCount: number;
+    sellCount: number;
+    totalBought: number;
+    totalSold: number;
+  }): Promise<{ label: string; description: string; kind: string } | null> {
+    const key = opts.name.trim().toLowerCase();
+    const cached = this.bioCache.get(key);
+    if (cached && Date.now() - cached.ts < 24 * 60 * 60_000) return cached.data;
+
+    const kind = ContentService.classifyFiler(opts.name);
+    let yearsActive: number | null = null;
+    if (opts.firstTraded && opts.lastTraded) {
+      const a = new Date(opts.firstTraded).getTime();
+      const b = new Date(opts.lastTraded).getTime();
+      if (Number.isFinite(a) && Number.isFinite(b) && b >= a) {
+        yearsActive = +((b - a) / (365.25 * 86400000)).toFixed(1);
+      }
+    }
+
+    const gen = await this.generator
+      .generateInsiderBio({ ...opts, kind, yearsActive })
+      .catch(() => null);
+    const data = gen ? { ...gen, kind } : null;
+    // Only cache successes, so a transient model failure retries.
+    if (data) this.bioCache.set(key, { ts: Date.now(), data });
+    return data;
+  }
+
   private newsCache = new Map<string, { ts: number; data: { title: string; source: string; date: number }[] }>();
 
   /** Rich recent-headline list for the stock page News card/tab (real

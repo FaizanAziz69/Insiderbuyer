@@ -114,6 +114,43 @@ export class ContentController {
     return { items: await this.content.byTicker(ticker, n) };
   }
 
+  /** AI description of who an insider is — grounded only in our Form 4 record.
+   *  The caller passes the filer's aggregates from /insiders/profile. */
+  @Get('insider-bio')
+  async insiderBio(
+    @Query('name') name?: string,
+    @Query('roles') roles?: string,
+    @Query('companies') companies?: string,
+    @Query('first') first?: string,
+    @Query('last') last?: string,
+    @Query('buys') buys?: string,
+    @Query('sells') sells?: string,
+    @Query('bought') bought?: string,
+    @Query('sold') sold?: string,
+  ) {
+    if (!name) return { bio: null };
+    const bio = await this.content.getInsiderBio({
+      name,
+      roles: (roles || '').split(',').map((r) => r.trim()).filter(Boolean),
+      companies: (companies || '')
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean)
+        .map((c) => {
+          // "TICKER|Company Name" or just a name
+          const [a, b] = c.split('|');
+          return b ? { ticker: a || null, name: b } : { ticker: null, name: a };
+        }),
+      firstTraded: first || null,
+      lastTraded: last || null,
+      buyCount: Number(buys) || 0,
+      sellCount: Number(sells) || 0,
+      totalBought: Number(bought) || 0,
+      totalSold: Number(sold) || 0,
+    });
+    return { bio };
+  }
+
   /** Real recent headlines (publisher + timestamp) for the stock News card. */
   @Get('news/:ticker')
   async news(@Param('ticker') ticker: string, @Query('name') name?: string) {
