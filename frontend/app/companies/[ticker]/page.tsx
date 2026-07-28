@@ -203,7 +203,7 @@ export default function CompanyPage({
       ) : !data.company ? (
         <div className="card p-12 text-center text-mute">Company not found.</div>
       ) : (
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">
           <main className="space-y-6 min-w-0">
             <CompanyHeader
               company={data.company}
@@ -211,26 +211,8 @@ export default function CompanyPage({
               stats={stats}
               profile={profile}
               earningsDate={earningsDate}
+              chart={<PriceChart ticker={sym} bare />}
             />
-
-            {/* Key data (compact, left) + full-width price chart (right) */}
-            <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-5 items-stretch">
-              <StockOverviewGrid
-                ticker={sym}
-                stats={stats}
-                profile={profile}
-                fallbackMarketCap={data.company.marketCap}
-                fallbackPrice={data.company.lastPrice}
-                earningsDate={earningsDate}
-                compact
-              />
-              <div className="card p-4 min-w-0">
-                <PriceChart ticker={sym} bare />
-              </div>
-            </div>
-
-            {/* 1D / 5D / 1M / 6M / 1Y performance */}
-            <PricePerformanceRow ticker={sym} />
 
             {/* About — reference-style full-width block */}
             <AboutQQ
@@ -566,6 +548,21 @@ export default function CompanyPage({
               </div>
             ) : (
               <>
+            {/* Price performance row — 1D / 5D / 1M / 6M / 1Y (TradingView-style).
+                The chart itself now lives inside the header card above. */}
+            <PricePerformanceRow ticker={sym} />
+
+            {/* Key data — the 3-column overview (trading ranges | market cap &
+                financials | other data). */}
+            <StockOverviewGrid
+              ticker={sym}
+              stats={stats}
+              profile={profile}
+              fallbackMarketCap={data.company.marketCap}
+              fallbackPrice={data.company.lastPrice}
+              earningsDate={earningsDate}
+            />
+
             {/* Featured-in strip (our own datasets; no external links) */}
             <StrategyBanner
               ticker={sym}
@@ -650,16 +647,13 @@ export default function CompanyPage({
             </div>
           </main>
 
-          {/* Articles / lists / ads — below everything so the chart can run
-              the full page width. */}
-          <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 items-start pt-2">
+          {/* Right rail */}
+          <aside className="space-y-5">
+            <AdSlot slot="rail-top" seed={`stock-${ticker}-rail`} />
             <RightRailArticles tag="insider-trades" />
             <RightRailStockLists />
-            <div className="space-y-5">
-              <AdSlot slot="rail-top" seed={`stock-${ticker}-rail`} />
-              <AdSlot slot="rail-bottom" seed={`stock-${ticker}-rail-bottom`} />
-            </div>
-          </section>
+            <AdSlot slot="rail-bottom" seed={`stock-${ticker}-rail-bottom`} />
+          </aside>
         </div>
       )}
     </div>
@@ -1073,7 +1067,6 @@ function StockOverviewGrid({
   fallbackMarketCap,
   fallbackPrice,
   earningsDate,
-  compact = false,
 }: {
   ticker: string;
   stats: StockStats | null;
@@ -1081,8 +1074,6 @@ function StockOverviewGrid({
   fallbackMarketCap: number | null;
   fallbackPrice: number | null;
   earningsDate: string | null;
-  /** Narrow single-column layout for sitting beside the chart. */
-  compact?: boolean;
 }) {
   // Shared with FinancialsSection — SWR dedupes the identical key so this is free.
   const { data: finData } = useSWR<{ financials: FinStatement }>(
@@ -1158,9 +1149,7 @@ function StockOverviewGrid({
   const Col = ({ title, rows }: { title: string; rows: [string, string][] }) => (
     <div>
       <div
-        className={`font-bold uppercase tracking-wider text-mute inline-block ${
-          compact ? "text-[10px] mb-1 pb-0.5" : "text-[11px] mb-2 pb-1"
-        }`}
+        className="text-[11px] font-bold uppercase tracking-wider text-mute mb-2 pb-1 inline-block"
         style={{ borderBottom: "2px solid var(--accent)" }}
       >
         {title}
@@ -1169,28 +1158,16 @@ function StockOverviewGrid({
         {rows.map(([l, v]) => (
           <div
             key={l}
-            className={`flex items-center justify-between gap-3 ${
-              compact ? "py-[3px] text-[11.5px]" : "py-1.5 text-[13px]"
-            }`}
+            className="flex items-center justify-between py-1.5 text-[13px]"
             style={{ borderBottom: "1px solid var(--border)" }}
           >
-            <dt className="text-mute truncate">{l}</dt>
-            <dd className="font-bold tabular text-right whitespace-nowrap">{v}</dd>
+            <dt className="text-mute">{l}</dt>
+            <dd className="font-bold tabular text-right">{v}</dd>
           </div>
         ))}
       </dl>
     </div>
   );
-
-  if (compact) {
-    return (
-      <div className="card p-4 h-full flex flex-col gap-3.5">
-        <Col title="Trading" rows={trading} />
-        <Col title="Market Cap & Financials" rows={financials} />
-        <Col title="Other Data" rows={other} />
-      </div>
-    );
-  }
 
   return (
     <div className="card p-5">
