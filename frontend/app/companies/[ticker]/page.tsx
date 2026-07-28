@@ -203,7 +203,7 @@ export default function CompanyPage({
       ) : !data.company ? (
         <div className="card p-12 text-center text-mute">Company not found.</div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">
+        <div className="space-y-6">
           <main className="space-y-6 min-w-0">
             <CompanyHeader
               company={data.company}
@@ -647,13 +647,16 @@ export default function CompanyPage({
             </div>
           </main>
 
-          {/* Right rail */}
-          <aside className="space-y-5">
-            <AdSlot slot="rail-top" seed={`stock-${ticker}-rail`} />
+          {/* Below the fold — articles, lists and ads sit under the data now
+              so the chart and key-data grid can use the full page width. */}
+          <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 items-start pt-2">
             <RightRailArticles tag="insider-trades" />
             <RightRailStockLists />
-            <AdSlot slot="rail-bottom" seed={`stock-${ticker}-rail-bottom`} />
-          </aside>
+            <div className="space-y-5">
+              <AdSlot slot="rail-top" seed={`stock-${ticker}-rail`} />
+              <AdSlot slot="rail-bottom" seed={`stock-${ticker}-rail-bottom`} />
+            </div>
+          </section>
         </div>
       )}
     </div>
