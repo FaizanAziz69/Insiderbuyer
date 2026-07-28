@@ -17,13 +17,15 @@ import { AdSlot } from "@/components/AdSlot";
 import { DataTable, Column } from "@/components/DataTable";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { WatchlistButton } from "@/components/WatchlistButton";
-import { PremiumGate } from "@/components/PremiumGate";
 
 /**
  * Insider strategy signal — how strong/clustered the recent insider buying is,
  * mirroring TipRanks' "Insider Signal" (Very Positive / Positive / Neutral).
  * Driven by the Insider Score composite and the number of distinct insiders buying.
  */
+
+/** A ranking row plus the 50→1 display number shown in the # column. */
+type Row50 = RankingRow & { displayRank: number };
 
 export default function InsiderHotStocksPage() {
   // "Exchanges" filter — narrows the ranking by listing venue (ranking stays
@@ -56,19 +58,24 @@ export default function InsiderHotStocksPage() {
   const upsideBySym = new Map<string, number | null>();
   (analystData?.rows || []).forEach((r) => upsideBySym.set(r.symbol.toUpperCase(), r.upsidePct));
 
-  // TipRanks-style ascending scale: the list counts DOWN (#N → #6) with the
-  // top 5 (#5 → #1) locked as a premium block at the bottom.
-  const top5Desc = [...rows.slice(0, 5)].reverse();
-  const restDesc = [...rows.slice(5)].reverse();
+  // Top 50 only, on one page. The list counts DOWN — #50 first, #1 last — so
+  // the strongest Insider Score sits at the bottom. Display rank is attached
+  // per row (not derived from position) so it survives column sorting.
+  const top50: Row50[] = rows
+    .slice(0, 50)
+    .map((r, i) => ({ ...r, displayRank: i + 1 }))
+    .reverse();
 
-  const columns: Column<RankingRow>[] = [
+  const columns: Column<Row50>[] = [
     {
       key: "rank",
       label: "#",
       align: "center",
-      sortValue: (r) => r.rank,
+      sortValue: (r) => r.displayRank,
       render: (r) => (
-        <span className="tabular text-[15px] font-bold" style={{ color: "var(--text)" }}>#{r.rank}</span>
+        <span className="tabular text-[15px] font-bold" style={{ color: "var(--text)" }}>
+          #{r.displayRank}
+        </span>
       ),
     },
     {
@@ -222,7 +229,7 @@ export default function InsiderHotStocksPage() {
           U.S. companies ranked by Insider Score <em>quality</em> — not by raw
           dollar volume of buying. The list counts down to #1: a higher score
           means stronger, more bullish insider conviction, even when the share
-          price is falling. The top 5 ranks are premium.
+          price is falling.
         </p>
       </header>
 
@@ -231,37 +238,24 @@ export default function InsiderHotStocksPage() {
       {/* Exchanges filter — All / U.S. / Canada / Germany */}
       <ExchangeFilter value={exchange} onChange={setExchange} />
 
-      {/* Free ranks — counts down from #N to #6 */}
+      {/* Top 50 — one page, counting down #50 → #1 */}
       <div className="card overflow-hidden">
         {isLoading ? (
           <div className="p-12 text-center text-mute">Loading insider data…</div>
-        ) : rows.length === 0 ? (
+        ) : top50.length === 0 ? (
           <div className="p-12 text-center text-mute">
             No insider buying data available.
           </div>
         ) : (
-          <DataTable<RankingRow>
-            rows={restDesc}
+          <DataTable<Row50>
+            rows={top50}
             rowKey={(r, i) => (r.ticker || r.companyId || r.name || "") + i}
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={columns}
+            pageSize={50}
           />
         )}
       </div>
-
-      {/* Premium-gated top 5 (#5 → #1) — blurred but visibly present. */}
-      {/* TODO: Stripe paywall — replace PREMIUM_UNLOCKED bypass with real entitlement check. */}
-      {top5Desc.length > 0 && (
-        <PremiumGate label="Insider Score ranks" count={5} cta="Unlock the top 5 ranks">
-          <div className="card overflow-hidden m-0" style={{ border: "none" }}>
-            <DataTable<RankingRow>
-              rows={top5Desc}
-              rowKey={(r, i) => (r.ticker || r.companyId || r.name || "") + i}
-              columns={columns}
-            />
-          </div>
-        </PremiumGate>
-      )}
 
       {/* How we rank */}
       <section className="card p-5 sm:p-6 max-w-4xl">

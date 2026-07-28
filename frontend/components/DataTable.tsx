@@ -138,6 +138,9 @@ interface Props<T> {
   columns: Column<T>[];
   rows: T[];
   rowKey: (row: T, index: number) => string;
+  /** Rows per page (default 25). Set to the row count to show one page with
+   *  no pagination controls. */
+  pageSize?: number;
   initialSort?: { key: string; dir: "asc" | "desc" };
   /** Default active filter values, keyed by column key (e.g. { marketCap: "large" }). */
   initialFilters?: Record<string, FilterVal>;
@@ -182,6 +185,7 @@ export function DataTable<T>({
   columns,
   rows,
   rowKey,
+  pageSize,
   initialSort,
   initialFilters,
   empty = "No data.",
@@ -313,12 +317,13 @@ export function DataTable<T>({
     });
   }, [filtered, sort, columns]);
 
-  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const perPage = Math.max(1, pageSize ?? PAGE_SIZE);
+  const pageCount = Math.max(1, Math.ceil(sorted.length / perPage));
   useEffect(() => {
     setPage(0);
   }, [filters, sort, rows.length]);
   const safePage = Math.min(page, pageCount - 1);
-  const pageRows = sorted.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+  const pageRows = sorted.slice(safePage * perPage, safePage * perPage + perPage);
 
   function toggle(key: string, sortable: boolean) {
     if (sortable === false) return;
@@ -569,10 +574,10 @@ export function DataTable<T>({
       </div>
 
       {/* Pagination — 25 per page, buttons in the nav-bar color */}
-      {sorted.length > PAGE_SIZE && (
+      {sorted.length > perPage && (
         <div className="flex items-center justify-between gap-3 mt-3 flex-wrap">
           <span className="text-[12px] text-mute tabular">
-            {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, sorted.length)} of{" "}
+            {safePage * perPage + 1}–{Math.min((safePage + 1) * perPage, sorted.length)} of{" "}
             {sorted.length}
           </span>
           <div className="flex items-center gap-2">
