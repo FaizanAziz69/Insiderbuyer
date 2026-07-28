@@ -6,124 +6,80 @@ import {
   SlidersHorizontal, Users,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
+import { Logo } from "@/components/Logo";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
 
 /* ────────────────────────────────────────────────────────────
-   Premium / subscribe page.
-   Free band → plan cards → guarantee → what's included → FAQ.
+   Subscribe / Insider Premium page.
+   Hero → $0 free → pricing → sector playbooks → what's in it → FAQ.
 
-   PRICES live in PLANS; the reassurance line is GUARANTEE below.
+   PRICING is the single source of truth for every figure shown.
    The global Footer is rendered by AppShell — no footer here.
    ──────────────────────────────────────────────────────────── */
 
-/** Edit or blank this to match the policy you actually offer. */
-const GUARANTEE = "Cancel anytime — no long-term contract";
+const PRICING = {
+  monthly: 39.99,
+  annual: 199,
+  annualWas: 479.88, // 12 × monthly
+};
+const SAVED = +(PRICING.annualWas - PRICING.annual).toFixed(2);
+const SAVED_PCT = Math.round((SAVED / PRICING.annualWas) * 100);
+const ANNUAL_PER_MONTH = +(PRICING.annual / 12).toFixed(2);
 
-const PLANS = [
-  {
-    id: "pro",
-    name: "Pro",
-    monthly: 29,
-    badge: "Most Popular",
-    features: [
-      "Unlimited access to the complete Insider Score ranking and the full screener.",
-      "Nine-tab stock profiles: financials, forecast, insiders, institutions, compensation, government, ownership.",
-      "Insider profiles with buy track records and return against the S&P.",
-      "Politician profiles: trades, corporate donors, legislation and disclosed holdings.",
-      "Institutional 13F owners, whale activity and ownership treemaps.",
-      "Revenue breakdown by segment and geography.",
-      "Heatmaps, sector rotation, volume and sentiment charts.",
-      "Short interest, squeeze candidates, dividends, earnings and IPO calendars.",
-      "AI insight articles and monthly research reports.",
-      "Unlimited watchlists with 100 stocks each, 100 active alerts, and one CSV export per day.",
-    ],
-    priceNote: "$29 a month, billed monthly.",
-    cta: "Get Started Now",
-  },
-  {
-    id: "unlimited",
-    name: "Unlimited",
-    monthly: 59,
-    badge: null as string | null,
-    features: [
-      "Everything in Pro, plus…",
-      "Unlimited CSV exports.",
-      "Unlimited stocks per watchlist.",
-      "Unlimited alerts across stocks, insiders and politicians.",
-      "Priority email support.",
-      "First access to new datasets as they ship.",
-    ],
-    priceNote: "$59 a month, billed monthly.",
-    cta: "Choose Plan",
-  },
-] as const;
+/** The five sector playbooks included with Insider Premium. */
+const PLAYBOOKS = [
+  { sector: "AI", title: "Top Stocks AI Insiders Are Buying", from: "#4338ca", to: "#7c3aed" },
+  { sector: "Mining", title: "Top Stocks Mining Insiders Are Buying", from: "#92400e", to: "#d97706" },
+  { sector: "Defense", title: "Top Stocks Defense Insiders Are Buying", from: "#0f2942", to: "#1d4ed8" },
+  { sector: "Biotech", title: "Top Stocks Biotech Insiders Are Buying", from: "#065f46", to: "#10b981" },
+  { sector: "Energy", title: "Top Stocks Energy Insiders Are Buying", from: "#9a3412", to: "#f97316" },
+];
 
-/* What a subscription opens up — every card maps to live sections. */
+/** Short lines only — the page is meant to be scanned, not read. */
+const INCLUDED = [
+  "Complete Insider Score ranking",
+  "Full screener and every stock list",
+  "Insider profiles with track records",
+  "Politician trades, donors and legislation",
+  "Institutional 13F ownership and treemaps",
+  "Nine-tab stock profiles",
+  "Lobbying and federal contract data",
+  "Unlimited watchlists and alerts",
+  "Daily CSV exports",
+  "All five sector playbooks",
+];
+
 const BENEFITS = [
-  {
-    icon: Gauge,
-    title: "Insider Score Rankings",
-    desc: "Every company we cover scored 0–100 from its own filings and re-ranked daily. Open any score to see its five components and the arithmetic behind them.",
-  },
-  {
-    icon: Users,
-    title: "Insider Track Records",
-    desc: "Every Form 4 filer gets a profile — what they bought, at what price, and how those buys performed against the S&P since.",
-  },
-  {
-    icon: Landmark,
-    title: "Congress & Political Money",
-    desc: "Congressional trades with filing delays, plus politician profiles carrying legislation, corporate PAC donors, outside spending and disclosed holdings.",
-  },
-  {
-    icon: Building2,
-    title: "Institutional Ownership",
-    desc: "13F filings diffed quarter over quarter so you see who added, trimmed, opened or closed — owners table, options owners and an ownership treemap.",
-  },
-  {
-    icon: SlidersHorizontal,
-    title: "Screener, Lists & Heatmaps",
-    desc: "Filter by score, sector, exchange, market cap and cluster buying. Curated lists, rotation and volume charts, squeeze candidates and earnings calendars.",
-  },
-  {
-    icon: Bell,
-    title: "Alerts & Watchlists",
-    desc: "Track the tickers, insiders and politicians you care about, and get told when a CEO buys, a cluster forms or a score crosses your threshold.",
-  },
+  { icon: Gauge, title: "Insider Score", desc: "Every company scored 0–100 from its filings, re-ranked daily." },
+  { icon: Users, title: "Track Records", desc: "How each insider's past buys actually performed." },
+  { icon: Landmark, title: "Political Money", desc: "Congress trades, donors, lobbying and contracts." },
+  { icon: Building2, title: "13F Ownership", desc: "Who added, trimmed, opened or closed each quarter." },
+  { icon: SlidersHorizontal, title: "Screener", desc: "Filter by score, sector, cap and cluster buying." },
+  { icon: Bell, title: "Alerts", desc: "Told the moment a CEO buys or a cluster forms." },
 ];
 
 const FAQS = [
   {
-    q: "What's the difference between Pro and Unlimited?",
-    a: "The only differences are the limits. Pro allows one CSV export per day, 100 stocks per watchlist and 100 active alerts, while the Unlimited plan has no such limits and adds priority support. Every dataset and tool on the site is included in both.",
+    q: "What do I get with Insider Premium?",
+    a: "Every dataset and tool on the site with no caps, plus all five sector playbooks.",
   },
   {
-    q: "How to sign up",
-    a: "Click “Get Started Now” above and enter your details. Then you will get access right away.",
-  },
-  {
-    q: "What is the Insider Score?",
-    a: "A 0–100 composite that begins with open-market insider buying, then weighs sector strength, trading momentum, the tone of the company’s own filings, and a dilution penalty. Every component and its weight is shown on the stock page, so you can check the arithmetic yourself.",
+    q: "Is the annual price really 58% off?",
+    a: `Yes. Monthly is $${PRICING.monthly} — $${PRICING.annualWas} over a year. The annual plan is $${PRICING.annual}, so you save $${SAVED}. It is a limited-time launch price.`,
   },
   {
     q: "Where does the data come from?",
-    a: "Public filings and official government databases — SEC EDGAR for insider and institutional filings, Congress.gov and the FEC for political data, the Senate lobbying database, USAspending for federal contracts, and BaFin for German disclosures. Each card on the site names its own source.",
-  },
-  {
-    q: "How to get support?",
-    a: "Send an email directly to support@insiderbuying.com. You can also go to the contact page and send a message via the form.",
+    a: "Public filings only — SEC EDGAR, Congress.gov, the FEC, the Senate lobbying database, USAspending and BaFin. Every card names its source.",
   },
   {
     q: "Can I cancel at any time?",
-    a: "Of course. There is a cancel button in your account area that you get access to after signing up. You can also send us a message and we will cancel it for you — you keep access until the end of the period you have already paid for.",
+    a: "Yes, in one click from your account. You keep access until the end of the period you have paid for.",
   },
 ];
 
 const CSS = `
-/* Signal colour: the navbar petrol on light grounds, the brighter cyan on
-   dark grounds where the petrol would disappear. */
 .prm-scope { --sig: var(--accent); }
 @media (prefers-color-scheme: dark) { .prm-scope { --sig: var(--premium); } }
 :root[data-theme="dark"] .prm-scope { --sig: var(--premium); }
@@ -131,61 +87,80 @@ const CSS = `
 
 .prm-h {
   font-family: var(--font-display); font-weight: 800; letter-spacing: -.03em;
-  line-height: 1.1; text-wrap: balance; margin: 0;
+  line-height: 1.08; text-wrap: balance; margin: 0;
 }
 .prm-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-/* Plan card built as stacked rows, like the reference. */
-.prm-card {
-  border: 1px solid var(--border); border-radius: 10px;
-  overflow: hidden; background: var(--bg-2);
+/* Inverted hero — deliberately dark in both themes, like the reference. */
+.prm-hero {
+  background: radial-gradient(120% 130% at 50% -20%, #1b2432 0%, #101722 45%, #0b1017 100%);
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.07);
 }
-.prm-card--featured { border-color: color-mix(in srgb, var(--sig) 45%, var(--border)); }
-.prm-row {
-  padding: 14px 20px; border-top: 1px solid var(--border);
-  font-size: 14px; line-height: 1.55; margin: 0;
+.prm-mint {
+  background: linear-gradient(180deg, #8ee0bd, #6ecfa6);
+  color: #06281c;
+  box-shadow: 0 8px 24px rgba(110,207,166,.28);
+  transition: filter .16s, transform .16s;
 }
-.prm-row:first-child { border-top: none; }
+.prm-mint:hover { filter: brightness(1.06); }
+.prm-mint:active { transform: translateY(1px); }
 
-/* Futuristic CTA: gradient drawn from the signal colour, soft glow, and a
-   thin inner highlight so it reads as a lit surface rather than a flat fill. */
+/* Price + content cards */
+.prm-card {
+  border: 1px solid var(--border); border-radius: 14px; background: var(--bg-2);
+}
+.prm-card--best {
+  border-color: color-mix(in srgb, var(--sig) 50%, var(--border));
+  box-shadow: 0 14px 40px color-mix(in srgb, var(--sig) 14%, transparent);
+}
 .prm-cta {
-  position: relative;
-  background: linear-gradient(135deg,
-    color-mix(in srgb, var(--sig) 88%, #000 0%),
-    color-mix(in srgb, var(--sig) 52%, #6fd0ff));
-  box-shadow:
-    0 8px 24px color-mix(in srgb, var(--sig) 30%, transparent),
-    inset 0 1px 0 rgba(255,255,255,.22);
+  background: linear-gradient(135deg, var(--sig), color-mix(in srgb, var(--sig) 52%, #6fd0ff));
   color: #fff;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--sig) 28%, transparent),
+              inset 0 1px 0 rgba(255,255,255,.22);
   transition: filter .16s, transform .16s;
 }
 .prm-cta:hover { filter: brightness(1.07); }
 .prm-cta:active { transform: translateY(1px); }
-.prm-cta:disabled { filter: saturate(.6); }
 
-/* The $0 hero card */
-.prm-free {
-  border-radius: 16px;
-  background:
-    radial-gradient(120% 90% at 50% -10%, color-mix(in srgb, var(--sig) 9%, transparent), transparent 70%),
-    var(--bg-2);
-  border: 1px solid color-mix(in srgb, var(--sig) 22%, var(--border));
-  box-shadow: 0 12px 36px color-mix(in srgb, var(--sig) 10%, transparent);
+/* E-book style playbook covers */
+.prm-book {
+  position: relative; aspect-ratio: 3 / 4; border-radius: 4px 10px 10px 4px;
+  overflow: hidden; display: flex; flex-direction: column;
+  align-items: center; justify-content: space-between;
+  padding: 20px 16px 18px;
+  box-shadow: 0 14px 28px rgba(0,0,0,.30), 0 2px 6px rgba(0,0,0,.22);
+  transition: transform .22s, box-shadow .22s;
 }
+.prm-book::before { /* spine */
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 13px;
+  background: linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.10) 60%, transparent);
+}
+.prm-book::after { /* gloss */
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(118deg, rgba(255,255,255,.16) 0%, transparent 42%);
+  pointer-events: none;
+}
+.prm-book:hover { transform: translateY(-6px) rotate(-.6deg); box-shadow: 0 22px 40px rgba(0,0,0,.38); }
 @media (prefers-reduced-motion: reduce) {
-  .prm-cta { transition: none; }
+  .prm-book, .prm-mint, .prm-cta { transition: none; }
+  .prm-book:hover { transform: none; }
 }
+.prm-faq summary { cursor: pointer; list-style: none; }
+.prm-faq summary::-webkit-details-marker { display: none; }
+.prm-faq details[open] .prm-chev { transform: rotate(45deg); }
+.prm-chev { transition: transform .18s; }
 `;
 
-/* Free-plan signup. Shows one prominent button; the email field appears only
-   after the visitor commits, so the card reads as cleanly as the reference. */
-function SignupForm() {
+/* Email capture — POSTs to the existing /subscribers endpoint. */
+function SignupForm({ cta, tone = "cta" }: { cta: string; tone?: "cta" | "mint" }) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const btn = tone === "mint" ? "prm-mint" : "prm-cta";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -212,9 +187,8 @@ function SignupForm() {
 
   if (done) {
     return (
-      <div className="flex items-center justify-center gap-2 text-[14.5px] font-semibold text-good py-3">
-        <CheckCircle2 className="h-5 w-5" />
-        Check your inbox to finish setting up.
+      <div className="flex items-center justify-center gap-2 text-[14.5px] font-semibold text-good py-2">
+        <CheckCircle2 className="h-5 w-5" /> Check your inbox to finish setting up.
       </div>
     );
   }
@@ -224,9 +198,9 @@ function SignupForm() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="prm-cta w-full inline-flex items-center justify-center rounded-xl py-4 text-[17px] font-bold"
+        className={`${btn} w-full inline-flex items-center justify-center rounded-xl py-3.5 text-[16px] font-bold`}
       >
-        Sign Up
+        {cta}
       </button>
     );
   }
@@ -242,7 +216,7 @@ function SignupForm() {
         placeholder="you@example.com"
         aria-label="Email address"
         aria-invalid={!!err}
-        className="w-full px-4 py-3.5 rounded-xl text-[14.5px] text-center"
+        className="w-full px-4 py-3 rounded-xl text-[14.5px] text-center"
         style={{
           background: "var(--bg-1)",
           border: err ? "1px solid var(--bad)" : "1px solid var(--border-strong)",
@@ -252,177 +226,239 @@ function SignupForm() {
       <button
         type="submit"
         disabled={submitting}
-        className="prm-cta w-full inline-flex items-center justify-center rounded-xl py-4 text-[17px] font-bold"
+        className={`${btn} w-full inline-flex items-center justify-center rounded-xl py-3.5 text-[16px] font-bold`}
       >
-        {submitting ? "Submitting…" : "Create free account"}
+        {submitting ? "Submitting…" : cta}
       </button>
       {err && <p className="text-[12px] text-center" style={{ color: "var(--bad)" }}>{err}</p>}
     </form>
   );
 }
 
-/* Paid-plan button — no email field, checkout collects everything.
-   TO WIRE STRIPE: replace the onClick body with a POST to your /checkout
-   endpoint and `window.location.href = session.url`. */
-function PlanButton({ planName, label }: { planName: string; label: string }) {
+/* Paid button. TO WIRE STRIPE: replace the onClick with a POST to /checkout
+   and `window.location.href = session.url`. */
+function BuyButton({ plan, label }: { plan: string; label: string }) {
   const [note, setNote] = useState(false);
   return (
     <div>
       <button
         type="button"
         onClick={() => setNote(true)}
-        className="prm-cta w-full inline-flex items-center justify-center py-4 text-[15.5px] font-bold"
+        className="prm-cta w-full inline-flex items-center justify-center rounded-xl py-3.5 text-[15.5px] font-bold"
       >
         {label}
       </button>
       {note && (
-        <p className="text-[12.5px] px-5 py-3 text-center leading-relaxed" style={{ color: "var(--text-soft)" }}>
-          Card payments open shortly. Sign up free above and we&rsquo;ll email you the moment{" "}
-          {planName} goes live.
+        <p className="text-[12.5px] mt-2.5 text-center leading-relaxed" style={{ color: "var(--text-soft)" }}>
+          Card payments open shortly — create a free account and we&rsquo;ll email you when {plan} billing goes live.
         </p>
       )}
     </div>
   );
 }
 
+function BookCover({ sector, from, to }: { sector: string; from: string; to: string }) {
+  return (
+    <div className="prm-book" style={{ background: `linear-gradient(150deg, ${from}, ${to})` }}>
+      <Logo size="sm" tone="light" className="opacity-95" />
+      <div className="text-center">
+        <div
+          className="font-extrabold text-white leading-none"
+          style={{ fontFamily: "var(--font-display)", fontSize: 30, letterSpacing: "-.02em" }}
+        >
+          {sector}
+        </div>
+        <div
+          className="prm-num text-white/85 mt-1.5"
+          style={{ fontSize: 11, letterSpacing: ".22em" }}
+        >
+          INSIDER
+        </div>
+      </div>
+      <div className="prm-num text-white/70" style={{ fontSize: 9, letterSpacing: ".16em" }}>
+        2026 PLAYBOOK
+      </div>
+    </div>
+  );
+}
+
 export default function PremiumPage() {
   return (
-    <div className="w-full pb-14 prm-scope">
+    <div className="w-full pb-16 prm-scope">
       <style>{CSS}</style>
 
-      {/* ─── Free to get started ─── */}
-      <section className="pt-8 sm:pt-14">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_392px] gap-10 lg:gap-12 items-center">
+      {/* ─── Hero (above the fold) ─── */}
+      <section className="prm-hero px-6 sm:px-10 py-14 sm:py-20 text-center">
+        <h1 className="prm-h text-[36px] sm:text-[58px] text-white max-w-4xl mx-auto">
+          Tap Into The Power of Insider Data
+        </h1>
+        <p className="text-[17px] sm:text-[19px] leading-relaxed mt-5 max-w-xl mx-auto" style={{ color: "#a9b4c4" }}>
+          Make more well-informed trading decisions with our next-generation stock research platform.
+        </p>
+        <div className="mt-9 w-full max-w-[300px] mx-auto">
+          <SignupForm cta="Create Free Account" tone="mint" />
+        </div>
+      </section>
+
+      {/* ─── $0 forever ─── */}
+      <section className="mt-16">
+        <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-9 lg:gap-12 items-center">
           <div>
-            <h1 className="prm-h text-[36px] sm:text-[52px]">Free to get started</h1>
-            <p className="text-[17px] leading-relaxed mt-5 max-w-lg" style={{ color: "var(--text-soft)" }}>
-              Join the insider-buying platform built entirely on SEC filings and official government
-              disclosure — no vendor black boxes.
+            <h2 className="prm-h text-[32px] sm:text-[42px]">Free to get started</h2>
+            <p className="text-[16.5px] leading-relaxed mt-4 max-w-md" style={{ color: "var(--text-soft)" }}>
+              Create an account and keep the essentials free for as long as you like.
             </p>
           </div>
-
-          <div className="prm-free p-8">
-            <div className="flex items-baseline justify-center gap-2.5 mb-6">
-              <span className="prm-num text-[68px] font-bold leading-none" style={{ letterSpacing: "-.04em" }}>
-                $0
-              </span>
-              <span className="text-[17px] font-semibold" style={{ color: "var(--text-mute)" }}>forever</span>
+          <div className="prm-card p-7">
+            <div className="flex items-baseline justify-center gap-2.5 mb-5">
+              <span className="prm-num text-[60px] font-bold leading-none" style={{ letterSpacing: "-.04em" }}>$0</span>
+              <span className="text-[16px] font-semibold" style={{ color: "var(--text-mute)" }}>forever</span>
             </div>
-            <SignupForm />
-            <p className="text-[12.5px] mt-4 text-center" style={{ color: "var(--text-mute)" }}>
+            <SignupForm cta="Sign Up" />
+            <p className="text-[12px] mt-3.5 text-center" style={{ color: "var(--text-mute)" }}>
               No payment details required
             </p>
           </div>
         </div>
       </section>
 
-      {/* ─── Plans ─── */}
-      <section id="plans" className="mt-20 scroll-mt-6">
+      {/* ─── Insider Premium pricing ─── */}
+      <section id="plans" className="mt-24 scroll-mt-6">
         <div className="text-center max-w-2xl mx-auto">
-          <h2 className="prm-h text-[34px] sm:text-[46px]">InsiderBuying Premium</h2>
-          <p className="text-[16px] leading-relaxed mt-4" style={{ color: "var(--text-soft)" }}>
-            Get unlimited access to every dataset and tool on the site, and help fund the work of
-            turning raw filings into a signal you can actually use.
+          <h2 className="prm-h text-[34px] sm:text-[46px]">Insider Premium</h2>
+          <p className="text-[16.5px] leading-relaxed mt-4" style={{ color: "var(--text-soft)" }}>
+            Every dataset, every tool, no caps — plus five sector playbooks.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-10 max-w-4xl mx-auto items-start">
-          {PLANS.map((p) => {
-            const featured = p.id === "pro";
-            return (
-              <div key={p.id} className={`prm-card ${featured ? "prm-card--featured" : ""}`}>
-                <div className="prm-row flex items-center justify-between gap-3">
-                  <span className="text-[17px] font-bold tracking-tight">{p.name}</span>
-                  {p.badge && (
-                    <span
-                      className="text-[11.5px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap"
-                      style={{
-                        background: "color-mix(in srgb, var(--sig) 13%, transparent)",
-                        color: "var(--sig)",
-                      }}
-                    >
-                      {p.badge}
-                    </span>
-                  )}
-                </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-10 max-w-3xl mx-auto">
+          {/* Monthly */}
+          <div className="prm-card p-7 flex flex-col text-center">
+            <span className="text-[13px] font-bold uppercase tracking-wider" style={{ color: "var(--text-mute)" }}>
+              Monthly
+            </span>
+            <div className="flex items-baseline justify-center gap-1.5 mt-4">
+              <span className="prm-num text-[46px] font-bold leading-none" style={{ letterSpacing: "-.035em" }}>
+                ${PRICING.monthly}
+              </span>
+              <span className="text-[14px] font-semibold" style={{ color: "var(--text-mute)" }}>/ mo</span>
+            </div>
+            <p className="text-[13px] mt-3 mb-6" style={{ color: "var(--text-mute)" }}>
+              Billed monthly. Cancel anytime.
+            </p>
+            <div className="mt-auto">
+              <BuyButton plan="monthly" label="Get Insider Premium" />
+            </div>
+          </div>
 
-                {p.features.map((f) => (
-                  <p key={f} className="prm-row" style={{ color: "var(--text-soft)" }}>
-                    {f}
-                  </p>
-                ))}
-
-                <p className="prm-row font-semibold">{p.priceNote}</p>
-
-                <PlanButton planName={p.name} label={p.cta} />
-              </div>
-            );
-          })}
+          {/* Annual — the offer */}
+          <div className="prm-card prm-card--best p-7 flex flex-col text-center relative">
+            <span
+              className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10.5px] font-bold uppercase tracking-wider px-3 py-1 rounded-full whitespace-nowrap"
+              style={{ background: "var(--sig)", color: "#fff" }}
+            >
+              Limited time · Save {SAVED_PCT}%
+            </span>
+            <span className="text-[13px] font-bold uppercase tracking-wider" style={{ color: "var(--sig)" }}>
+              Annual
+            </span>
+            <div className="flex items-baseline justify-center gap-2 mt-4">
+              <span className="prm-num text-[46px] font-bold leading-none" style={{ letterSpacing: "-.035em" }}>
+                ${PRICING.annual}
+              </span>
+              <span className="prm-num text-[17px] line-through" style={{ color: "var(--text-faint)" }}>
+                ${PRICING.annualWas}
+              </span>
+            </div>
+            <p className="text-[13px] mt-3 mb-6" style={{ color: "var(--text-mute)" }}>
+              Just <span className="prm-num font-bold" style={{ color: "var(--text)" }}>${ANNUAL_PER_MONTH}</span>/mo —
+              you save <span className="prm-num font-bold" style={{ color: "var(--good)" }}>${SAVED}</span>.
+            </p>
+            <div className="mt-auto">
+              <BuyButton plan="annual" label="Get Insider Premium" />
+            </div>
+          </div>
         </div>
 
-        {GUARANTEE && (
-          <p
-            className="flex items-center justify-center gap-2 text-[13px] font-bold mt-6"
-            style={{ color: "var(--text-soft)" }}
-          >
-            <Check className="h-4 w-4" strokeWidth={3} style={{ color: "var(--good)" }} />
-            {GUARANTEE}
-          </p>
-        )}
+        {/* Compact included list — two columns, short lines */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2.5 mt-10 max-w-3xl mx-auto">
+          {INCLUDED.map((f) => (
+            <div key={f} className="flex items-start gap-2.5 text-[14px]">
+              <Check className="h-4 w-4 flex-shrink-0 mt-[3px]" strokeWidth={3} style={{ color: "var(--sig)" }} />
+              <span style={{ color: "var(--text-soft)" }}>{f}</span>
+            </div>
+          ))}
+        </div>
       </section>
 
-      {/* ─── What's included ─── */}
-      <section className="mt-20">
+      {/* ─── Sector playbooks ─── */}
+      <section className="mt-24">
         <div className="text-center max-w-2xl mx-auto">
-          <h2 className="prm-h text-[28px] sm:text-[34px]">What&rsquo;s included</h2>
-          <p className="text-[15.5px] mt-3" style={{ color: "var(--text-soft)" }}>
-            Whether you trade professionally or check in once a week, these are the tools that turn
-            raw filings into something you can act on.
+          <span className="prm-num text-[11px] uppercase tracking-[.14em]" style={{ color: "var(--sig)" }}>
+            Included free with Premium
+          </span>
+          <h2 className="prm-h text-[30px] sm:text-[40px] mt-3">Five sector playbooks</h2>
+          <p className="text-[16px] mt-4" style={{ color: "var(--text-soft)" }}>
+            Where insiders are putting their own money, sector by sector — refreshed each quarter.
           </p>
         </div>
 
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5 sm:gap-6 mt-10">
+          {PLAYBOOKS.map((b) => (
+            <div key={b.sector}>
+              <BookCover sector={b.sector} from={b.from} to={b.to} />
+              <p className="text-[13px] font-semibold leading-snug mt-3.5 text-center">{b.title}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ─── What you get ─── */}
+      <section className="mt-24">
+        <h2 className="prm-h text-[30px] sm:text-[38px] text-center">What you get</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-9">
           {BENEFITS.map((b) => {
             const Icon = b.icon;
             return (
-              <div key={b.title} className="prm-card p-6 text-center flex flex-col items-center h-full">
+              <div key={b.title} className="prm-card p-5 flex items-start gap-3.5">
                 <span
-                  className="h-12 w-12 rounded-xl flex items-center justify-center"
-                  style={{
-                    background: "color-mix(in srgb, var(--sig) 12%, transparent)",
-                    color: "var(--sig)",
-                  }}
+                  className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "color-mix(in srgb, var(--sig) 12%, transparent)", color: "var(--sig)" }}
                 >
-                  <Icon className="h-6 w-6" strokeWidth={1.75} />
+                  <Icon className="h-5 w-5" strokeWidth={1.9} />
                 </span>
-                <h3 className="text-[17px] font-bold tracking-tight mt-4">{b.title}</h3>
-                <p className="text-[13.5px] leading-relaxed mt-2.5" style={{ color: "var(--text-soft)" }}>
-                  {b.desc}
-                </p>
+                <div className="min-w-0">
+                  <h3 className="text-[15.5px] font-bold tracking-tight">{b.title}</h3>
+                  <p className="text-[13px] leading-relaxed mt-1" style={{ color: "var(--text-mute)" }}>
+                    {b.desc}
+                  </p>
+                </div>
               </div>
             );
           })}
         </div>
       </section>
 
-      {/* ─── Common Questions ─── */}
-      <section className="mt-20 max-w-3xl">
-        <h2 className="prm-h text-[30px] sm:text-[38px]">Common Questions</h2>
-        <div className="mt-8 flex flex-col gap-7">
+      {/* ─── FAQ ─── */}
+      <section className="mt-24 max-w-3xl mx-auto prm-faq">
+        <h2 className="prm-h text-[28px] sm:text-[34px] text-center">Common questions</h2>
+        <div className="flex flex-col gap-2.5 mt-8">
           {FAQS.map((f) => (
-            <div key={f.q}>
-              <h3 className="text-[17px] font-bold tracking-tight">{f.q}</h3>
-              <p className="text-[15px] leading-relaxed mt-2" style={{ color: "var(--text-soft)" }}>
-                {f.a}
-              </p>
-            </div>
+            <details key={f.q} className="prm-card px-5 py-4">
+              <summary className="flex items-center justify-between gap-4">
+                <span className="text-[15px] font-bold">{f.q}</span>
+                <span className="prm-chev flex-shrink-0" style={{ color: "var(--sig)", fontSize: 18, lineHeight: 1 }} aria-hidden>
+                  +
+                </span>
+              </summary>
+              <p className="text-[14px] leading-relaxed mt-3" style={{ color: "var(--text-soft)" }}>{f.a}</p>
+            </details>
           ))}
         </div>
 
-        <p className="text-[12px] mt-12 leading-relaxed" style={{ color: "var(--text-faint)" }}>
-          Informational only — not investment advice. Insider transaction data comes from public
-          regulatory filings and may be delayed. The Insider Score is a research signal and does not
-          predict future performance.{" "}
+        <p className="text-[11.5px] mt-10 text-center leading-relaxed" style={{ color: "var(--text-faint)" }}>
+          Informational only — not investment advice. Insider data comes from public regulatory filings
+          and may be delayed.{" "}
           <Link href="/stocks" className="text-accent">Browse the live ranking</Link>.
         </p>
       </section>
