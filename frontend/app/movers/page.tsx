@@ -12,6 +12,7 @@ import {
   formatCurrency,
 } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
+import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { TierBadge } from "@/components/TierBadge";
 import { DataTable } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
@@ -158,7 +159,7 @@ export default function MoversPage() {
                 label: "Insider Score",
                 align: "center",
                 sortValue: (r) => r.iqs,
-                render: (r) => <TierBadge iqs={r.iqs} size="sm" />,
+                render: (r) => <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />,
               },
             ]}
           />

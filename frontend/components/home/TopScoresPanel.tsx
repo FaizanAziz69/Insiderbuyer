@@ -28,11 +28,18 @@ function Row({
           {r.name}
         </div>
       </div>
-      <span
-        className="text-[12px] font-bold tabular"
-        style={{ color: r.iqs >= 50 ? "var(--good)" : "var(--bad)" }}
-      >
-        {r.iqs.toFixed(1)}
+      <span className="text-right leading-tight">
+        <span
+          className="block text-[12px] font-bold tabular"
+          style={{ color: r.iqs >= 50 ? "var(--good)" : "var(--bad)" }}
+        >
+          {r.iqs.toFixed(1)}
+        </span>
+        {typeof r.iqsV1 === "number" && (
+          <span className="block text-[9.5px] tabular" style={{ color: "var(--text-faint)" }}>
+            v1 {Math.min(99, r.iqsV1).toFixed(0)}
+          </span>
+        )}
       </span>
     </div>
   );

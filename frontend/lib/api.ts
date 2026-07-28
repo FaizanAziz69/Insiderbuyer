@@ -342,6 +342,7 @@ export interface IdeaRow {
   sector: string | null;
   marketCap: number | null;
   iqs: number;
+  iqsV1?: number | null; // legacy v1 score, shown beside v2 for comparison
   distinctBuyers: number;
   transactionCount: number;
   totalPurchaseValue: number;

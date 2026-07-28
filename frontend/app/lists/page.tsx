@@ -34,6 +34,11 @@ function IdeaItem({ r, rank }: { r: IdeaRow; rank: number }) {
       <div className="text-right hidden sm:block">
         <div className="text-[11px] label-mini">Insider Score</div>
         <div className="text-sm font-bold tabular">{r.iqs.toFixed(1)}</div>
+        {typeof r.iqsV1 === "number" && (
+          <div className="text-[10px] tabular" style={{ color: "var(--text-faint)" }}>
+            v1 {Math.min(99, r.iqsV1).toFixed(0)}
+          </div>
+        )}
       </div>
       <div className="text-right hidden md:block">
         <div className="text-[11px] label-mini">Bought</div>
