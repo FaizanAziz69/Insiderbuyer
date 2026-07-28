@@ -80,10 +80,54 @@ const FAQS = [
 ];
 
 const CSS = `
-.prm-scope { --sig: var(--accent); }
-@media (prefers-color-scheme: dark) { .prm-scope { --sig: var(--premium); } }
-:root[data-theme="dark"] .prm-scope { --sig: var(--premium); }
-:root[data-theme="light"] .prm-scope { --sig: var(--accent); }
+/* Everything on this page derives from the site tokens. In light mode the hero
+   wears the navbar petrol; in dark mode it wears the app's own navy. */
+.prm-scope {
+  --sig: var(--accent);
+  --hero-a: var(--accent);
+  --hero-b: color-mix(in srgb, var(--accent) 62%, #00131d);
+  --hero-ink: #ffffff;
+  --hero-sub: rgba(255,255,255,.80);
+  --hero-edge: rgba(255,255,255,.14);
+  --cta-bg: var(--good);
+  --cta-b: color-mix(in srgb, var(--good) 70%, #0a3a26);
+  --cta-ink: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  .prm-scope {
+    --sig: var(--premium);
+    --hero-a: var(--bg-3);
+    --hero-b: var(--bg-1);
+    --hero-ink: var(--text);
+    --hero-sub: var(--text-soft);
+    --hero-edge: var(--border-strong);
+    --cta-bg: var(--good);
+    --cta-b: color-mix(in srgb, var(--good) 72%, #05231a);
+    --cta-ink: #04221a;
+  }
+}
+:root[data-theme="dark"] .prm-scope {
+  --sig: var(--premium);
+  --hero-a: var(--bg-3);
+  --hero-b: var(--bg-1);
+  --hero-ink: var(--text);
+  --hero-sub: var(--text-soft);
+  --hero-edge: var(--border-strong);
+  --cta-bg: var(--good);
+  --cta-b: color-mix(in srgb, var(--good) 72%, #05231a);
+  --cta-ink: #04221a;
+}
+:root[data-theme="light"] .prm-scope {
+  --sig: var(--accent);
+  --hero-a: var(--accent);
+  --hero-b: color-mix(in srgb, var(--accent) 62%, #00131d);
+  --hero-ink: #ffffff;
+  --hero-sub: rgba(255,255,255,.80);
+  --hero-edge: rgba(255,255,255,.14);
+  --cta-bg: var(--good);
+  --cta-b: color-mix(in srgb, var(--good) 70%, #0a3a26);
+  --cta-ink: #ffffff;
+}
 
 .prm-h {
   font-family: var(--font-display); font-weight: 800; letter-spacing: -.03em;
@@ -91,19 +135,27 @@ const CSS = `
 }
 .prm-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-/* Inverted hero — deliberately dark in both themes, like the reference. */
 .prm-hero {
-  background: radial-gradient(120% 130% at 50% -20%, #1b2432 0%, #101722 45%, #0b1017 100%);
+  background: radial-gradient(125% 135% at 50% -25%,
+    color-mix(in srgb, var(--hero-a) 88%, #fff 12%) 0%,
+    var(--hero-a) 42%,
+    var(--hero-b) 100%);
   border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.07);
+  border: 1px solid var(--hero-edge);
 }
+/* Heading colour lives on the CLASS, not a Tailwind utility: globals.css has
+   an unlayered h1 colour rule, and unlayered CSS beats layered utilities, so
+   text-white silently lost against it. */
+.prm-hero-h { color: var(--hero-ink); }
+.prm-hero-sub { color: var(--hero-sub); }
+
 .prm-mint {
-  background: linear-gradient(180deg, #8ee0bd, #6ecfa6);
-  color: #06281c;
-  box-shadow: 0 8px 24px rgba(110,207,166,.28);
+  background: linear-gradient(180deg, var(--cta-bg), var(--cta-b));
+  color: var(--cta-ink);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--cta-bg) 30%, transparent);
   transition: filter .16s, transform .16s;
 }
-.prm-mint:hover { filter: brightness(1.06); }
+.prm-mint:hover { filter: brightness(1.08); }
 .prm-mint:active { transform: translateY(1px); }
 
 /* Price + content cards */
@@ -289,10 +341,10 @@ export default function PremiumPage() {
 
       {/* ─── Hero (above the fold) ─── */}
       <section className="prm-hero px-6 sm:px-10 py-14 sm:py-20 text-center">
-        <h1 className="prm-h text-[36px] sm:text-[58px] text-white max-w-4xl mx-auto">
+        <h1 className="prm-h prm-hero-h text-[36px] sm:text-[58px] max-w-4xl mx-auto">
           Tap Into The Power of Insider Data
         </h1>
-        <p className="text-[17px] sm:text-[19px] leading-relaxed mt-5 max-w-xl mx-auto" style={{ color: "#a9b4c4" }}>
+        <p className="prm-hero-sub text-[17px] sm:text-[19px] leading-relaxed mt-5 max-w-xl mx-auto">
           Make more well-informed trading decisions with our next-generation stock research platform.
         </p>
         <div className="mt-9 w-full max-w-[300px] mx-auto">
