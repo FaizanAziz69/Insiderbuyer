@@ -203,16 +203,20 @@ export default function CompanyPage({
       ) : !data.company ? (
         <div className="card p-12 text-center text-mute">Company not found.</div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">
-          <main className="space-y-6 min-w-0">
-            <CompanyHeader
-              company={data.company}
-              score={data.score}
-              stats={stats}
-              profile={profile}
-              earningsDate={earningsDate}
-              chart={<PriceChart ticker={sym} bare />}
-            />
+        <div className="space-y-6">
+          {/* Header + price chart run the FULL page width; everything else
+              keeps the two-column layout with the side rail. */}
+          <CompanyHeader
+            company={data.company}
+            score={data.score}
+            stats={stats}
+            profile={profile}
+            earningsDate={earningsDate}
+            chart={<PriceChart ticker={sym} bare />}
+          />
+
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">
+            <main className="space-y-6 min-w-0">
 
             {/* About — reference-style full-width block */}
             <AboutQQ
@@ -653,7 +657,8 @@ export default function CompanyPage({
             <RightRailArticles tag="insider-trades" />
             <RightRailStockLists />
             <AdSlot slot="rail-bottom" seed={`stock-${ticker}-rail-bottom`} />
-          </aside>
+            </aside>
+          </div>
         </div>
       )}
     </div>
