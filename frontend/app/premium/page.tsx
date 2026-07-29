@@ -7,6 +7,9 @@ import {
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { Logo } from "@/components/Logo";
+// Kept imported-but-unused deliberately: the backtest slot in the hero is
+// blank pending a longer test window — see the comment at that slot.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { BacktestMini } from "@/components/backtest/BacktestPanel";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -354,10 +357,16 @@ export default function PremiumPage() {
               <SignupForm cta="Create Free Account" tone="mint" />
             </div>
           </div>
-          {/* Real backtest of the signal, computed from our own filing history. */}
-          <div className="min-w-0">
-            <BacktestMini />
-          </div>
+          {/* Backtest proof slot — intentionally EMPTY for now.
+              The computed backtest currently shows the raw insider signal
+              returning +9.1% against SPY's +48.3% over the only window our
+              filing archive covers (from 2025-04, i.e. off the April-2025
+              market bottom, which flatters the benchmark). Publishing that
+              beside the pricing would argue against buying, so the slot stays
+              blank until the signal is tested over a longer history or on the
+              Insider Score itself.
+              To restore: render <BacktestMini /> here. */}
+          <div className="min-w-0" />
         </div>
       </section>
 
