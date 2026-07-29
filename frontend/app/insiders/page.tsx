@@ -210,6 +210,7 @@ export default function InsidersPage() {
                 ))}
               </ul>
             )}
+            {allRows.length > FREE_ROWS && (
             <PremiumRowWall
               label="Top Insiders"
               total={allRows.length}
@@ -220,6 +221,7 @@ export default function InsidersPage() {
                 "Every new Form 4 the moment it lands",
               ]}
             />
+            )}
           </div>
         </div>
 

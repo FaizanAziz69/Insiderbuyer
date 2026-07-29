@@ -334,7 +334,9 @@ export function DataTable<T>({
   const gateFree = gate ? gate.freeRows ?? FREE_ROWS : 0;
   // When gated we ignore paging entirely: the free slice plus one faded teaser
   // row is all that renders until the wall is dismissed.
-  const locked = !!gate && !premiumUnlocked;
+  // Only wall a table that actually has more rows than the free allowance —
+  // otherwise a short or empty result would show a wall hiding nothing.
+  const locked = !!gate && !premiumUnlocked && sorted.length > gateFree;
   const pageRows = locked
     ? sorted.slice(0, gateFree + 1)
     : sorted.slice(safePage * perPage, safePage * perPage + perPage);

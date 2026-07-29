@@ -273,12 +273,14 @@ export default function AnalystRatingsPage() {
           </div>
         )}
 
+        {total > FREE_ROWS && (
         <PremiumRowWall label="Top Analyst Stocks" total={total} bullets={[
           "The full ranked list of Wall Street research firms",
           "Success rate and average return on every firm",
           "Insider Scores and potential upside site-wide",
           "Every insider filing the moment it hits EDGAR",
         ]} />
+        )}
       </div>
 
       {filling && (
