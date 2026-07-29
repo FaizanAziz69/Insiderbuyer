@@ -1084,11 +1084,20 @@ function StockOverviewGrid({
   fallbackPrice: number | null;
   earningsDate: string | null;
 }) {
-  // Shared with FinancialsSection — SWR dedupes the identical key so this is free.
-  const { data: finData } = useSWR<{ financials: FinStatement }>(
-    `${API_BASE}/market-stats/financials?symbol=${encodeURIComponent(ticker)}`,
+  // Quarterly statements — 9 periods, so TTM (q0–q3) can be compared with the
+  // prior TTM (q4–q7) for real year-over-year growth.
+  const { data: stmt } = useSWR<{
+    income: { date: string; values: Record<string, number | null> }[];
+  }>(
+    `${API_BASE}/market-stats/statements?symbol=${encodeURIComponent(ticker)}`,
     fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+    { revalidateOnFocus: false, dedupingInterval: 30 * 60_000 },
+  );
+  // 1-year price return — the honest proxy for market-cap growth.
+  const { data: perf } = useSWR<{ returns: Record<string, PeriodReturns> }>(
+    `${API_BASE}/market-stats/performance?symbols=${encodeURIComponent(ticker)}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 5 * 60_000 },
   );
 
   const dec = (n: number | null | undefined, dp = 2) =>
@@ -1099,97 +1108,145 @@ function StockOverviewGrid({
     n === null || n === undefined ? "—" : formatCurrency(n);
   const num = (n: number | null | undefined) =>
     n === null || n === undefined ? "—" : formatNumber(n);
-  const range = (a: number | null | undefined, b: number | null | undefined) =>
-    a == null || b == null ? "—" : `${dec(a)} – ${dec(b)}`;
+  const range = (lo: number | null | undefined, hi: number | null | undefined) =>
+    lo == null || hi == null ? "—" : `${Number(lo).toFixed(2)} - ${Number(hi).toFixed(2)}`;
 
+  /** Sum a metric over `n` quarters starting at `from`; null if any is missing. */
+  const ttm = (key: string, from: number, n = 4): number | null => {
+    const rows = stmt?.income || [];
+    if (rows.length < from + n) return null;
+    let total = 0;
+    for (let i = from; i < from + n; i++) {
+      const v = rows[i]?.values?.[key];
+      if (v == null) return null;
+      total += Number(v);
+    }
+    return total;
+  };
+  const growth = (key: string): number | null => {
+    const nowV = ttm(key, 0);
+    const prevV = ttm(key, 4);
+    if (nowV == null || prevV == null || prevV === 0) return null;
+    return ((nowV - prevV) / Math.abs(prevV)) * 100;
+  };
+
+  const revenueTtm = ttm("TotalRevenue", 0) ?? stats?.revenue ?? null;
+  const netIncomeTtm = ttm("NetIncome", 0) ?? stats?.netIncome ?? null;
+  const epsTtm = ttm("BasicEPS", 0) ?? stats?.eps ?? null;
   const marketCap = stats?.marketCap ?? fallbackMarketCap;
 
-  // Latest annual statement values for derived ratios.
-  const fin = finData?.financials;
-  const last = <T,>(arr: T[] | undefined): T | undefined => (arr && arr.length ? arr[arr.length - 1] : undefined);
-  const inc = last(fin?.income);
-  const n = (r: Record<string, number | string | null> | undefined, k: string): number | null =>
-    r && typeof r[k] === "number" ? (r[k] as number) : null;
+  const gRevenue = growth("TotalRevenue");
+  const gNetIncome = growth("NetIncome");
+  const gEps = growth("BasicEPS");
+  const gMarketCap = perf?.returns?.[ticker.toUpperCase()]?.y1 ?? null;
 
-  const revenue = stats?.revenue ?? n(inc, "revenue");
-  const netIncome = stats?.netIncome ?? n(inc, "netIncome");
+  /** A row value with an optional green/red growth figure beside it. */
+  const Val = ({ v, g }: { v: string; g?: number | null }) => (
+    <span className="inline-flex items-baseline gap-1.5 justify-end">
+      <span className="font-bold tabular">{v}</span>
+      {g != null && Number.isFinite(g) && (
+        <span
+          className="font-bold tabular text-[12px]"
+          style={{ color: g >= 0 ? "var(--good)" : "var(--bad)" }}
+        >
+          {g >= 0 ? "+" : ""}
+          {g.toFixed(1)}%
+        </span>
+      )}
+    </span>
+  );
 
-  const trading: [string, string][] = [
-    ["Price", usd(stats?.price ?? fallbackPrice)],
-    ["Day Range", range(stats?.dayLow, stats?.dayHigh)],
-    ["52-Week Range", range(stats?.week52Low, stats?.week52High)],
-    ["Open", usd(stats?.open)],
-    ["Previous Close", usd(stats?.previousClose)],
-    ["Volume", num(stats?.volume)],
-  ];
-  const financials: [string, string][] = [
-    ["Market Cap", cur(marketCap)],
-    ["P/E Ratio", dec(stats?.peRatio)],
-    ["Forward P/E", dec(stats?.forwardPE)],
-    ["EPS (ttm)", dec(stats?.eps)],
-    ["Revenue (ttm)", cur(revenue)],
-    ["Net Income (ttm)", cur(netIncome)],
-    ["Shares Out", num(stats?.sharesOut)],
-  ];
-  const other: [string, string][] = [
-    ["Beta", dec(stats?.beta)],
-    ["Dividend Yield", stats?.dividendYield != null ? `${dec(stats.dividendYield)}%` : "—"],
-    ["Dividend Rate", usd(stats?.dividendRate)],
-    ["Ex-Dividend", stats?.exDividendDate ? formatShortDate(stats.exDividendDate) : "—"],
-    ["Earnings Date", earningsDate ? formatShortDate(earningsDate) : "—"],
-    [
-      "Analyst Rating",
-      stats?.analystRating ? RATING_LABEL[stats.analystRating] || stats.analystRating : "—",
-    ],
-    [
-      "Price Target",
-      stats?.priceTarget != null
-        ? `$${Number(stats.priceTarget).toFixed(2)}${
-            stats.priceTargetUpsidePct != null
-              ? ` (${stats.priceTargetUpsidePct >= 0 ? "+" : ""}${Number(stats.priceTargetUpsidePct).toFixed(1)}%)`
-              : ""
-          }`
-        : "—",
-    ],
-    ["Industry", profile?.industry || "—"],
-    ["Employees", profile?.employees != null ? num(profile.employees) : "—"],
+  type Row = { label: string; value: React.ReactNode };
+
+  const left: Row[] = [
+    { label: "Market Cap", value: <Val v={cur(marketCap)} g={gMarketCap} /> },
+    { label: "Revenue (ttm)", value: <Val v={cur(revenueTtm)} g={gRevenue} /> },
+    { label: "Net Income (ttm)", value: <Val v={cur(netIncomeTtm)} g={gNetIncome} /> },
+    { label: "EPS (ttm)", value: <Val v={dec(epsTtm)} g={gEps} /> },
+    { label: "Shares Out", value: <Val v={num(stats?.sharesOut)} /> },
+    { label: "PE Ratio", value: <Val v={dec(stats?.peRatio)} /> },
+    { label: "Forward PE", value: <Val v={dec(stats?.forwardPE)} /> },
+    {
+      label: "Dividend",
+      value: (
+        <Val
+          v={
+            stats?.dividendRate != null
+              ? `${usd(stats.dividendRate)}${
+                  stats.dividendYield != null ? ` (${dec(stats.dividendYield)}%)` : ""
+                }`
+              : "—"
+          }
+        />
+      ),
+    },
+    {
+      label: "Ex-Dividend Date",
+      value: <Val v={stats?.exDividendDate ? formatShortDate(stats.exDividendDate) : "—"} />,
+    },
   ];
 
-  const Col = ({ title, rows }: { title: string; rows: [string, string][] }) => (
-    <div>
-      <div
-        className="text-[11px] font-bold uppercase tracking-wider text-mute mb-2 pb-1 inline-block"
-        style={{ borderBottom: "2px solid var(--accent)" }}
-      >
-        {title}
-      </div>
-      <dl>
-        {rows.map(([l, v]) => (
-          <div
-            key={l}
-            className="flex items-center justify-between py-1.5 text-[13px]"
-            style={{ borderBottom: "1px solid var(--border)" }}
-          >
-            <dt className="text-mute">{l}</dt>
-            <dd className="font-bold tabular text-right">{v}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
+  const right: Row[] = [
+    { label: "Volume", value: <Val v={num(stats?.volume)} /> },
+    { label: "Open", value: <Val v={dec(stats?.open)} /> },
+    { label: "Previous Close", value: <Val v={dec(stats?.previousClose)} /> },
+    { label: "Day's Range", value: <Val v={range(stats?.dayLow, stats?.dayHigh)} /> },
+    { label: "52-Week Range", value: <Val v={range(stats?.week52Low, stats?.week52High)} /> },
+    { label: "Beta", value: <Val v={dec(stats?.beta)} /> },
+    {
+      label: "Analysts",
+      value: (
+        <Val
+          v={stats?.analystRating ? RATING_LABEL[stats.analystRating] || stats.analystRating : "—"}
+        />
+      ),
+    },
+    {
+      label: "Price Target",
+      value: (
+        <Val
+          v={
+            stats?.priceTarget != null
+              ? `${Number(stats.priceTarget).toFixed(2)}${
+                  stats.priceTargetUpsidePct != null
+                    ? ` (${stats.priceTargetUpsidePct >= 0 ? "+" : ""}${Number(
+                        stats.priceTargetUpsidePct,
+                      ).toFixed(2)}%)`
+                    : ""
+                }`
+              : "—"
+          }
+        />
+      ),
+    },
+    { label: "Earnings Date", value: <Val v={earningsDate ? formatShortDate(earningsDate) : "—"} /> },
+  ];
+
+  const Col = ({ rows }: { rows: Row[] }) => (
+    <dl>
+      {rows.map((r) => (
+        <div
+          key={r.label}
+          className="flex items-center justify-between gap-3 py-2 text-[13.5px]"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
+          <dt className="text-mute whitespace-nowrap">{r.label}</dt>
+          <dd className="text-right whitespace-nowrap">{r.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 
   return (
     <div className="card p-5">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-5">
-        <Col title="Trading" rows={trading} />
-        <Col title="Market Cap & Financials" rows={financials} />
-        <Col title="Other Data" rows={other} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+        <Col rows={left} />
+        <Col rows={right} />
       </div>
     </div>
   );
 }
 
-// ── Insider Score panel (gauge + factor breakdown) ──────────────
 const SCORE_FACTORS: {
   key: keyof NonNullable<CompanyDetail["score"]>;
   label: string;
