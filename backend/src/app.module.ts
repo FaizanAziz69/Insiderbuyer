@@ -24,6 +24,7 @@ import { IndicesModule } from './indices/indices.module';
 import { StockListsModule } from './stock-lists/stock-lists.module';
 import { SubscribersModule } from './subscribers/subscribers.module';
 import { MarketStatsModule } from './market-stats/market-stats.module';
+import { BacktestModule } from './backtest/backtest.module';
 import { EarningsModule } from './earnings/earnings.module';
 import { IpoModule } from './ipo/ipo.module';
 import { EarningsPerfModule } from './earnings-perf/earnings-perf.module';
@@ -79,6 +80,7 @@ import { SocialModule } from './social/social.module';
     NewsModule,
     IndicesModule,
     MarketStatsModule,
+    BacktestModule,
     EarningsModule,
     IpoModule,
     EarningsPerfModule,

@@ -1,8 +1,10 @@
 "use client";
 import Link from "next/link";
+import { BacktestPanel } from "@/components/backtest/BacktestPanel";
 import {
   ArrowLeft,
   BookOpen,
+  LineChart,
   Eye,
   Search,
   Scale,
@@ -95,6 +97,29 @@ export default function LearnInsiderBuyingPage() {
           within two business days. Those filings are public, which is what
           makes this activity possible to track at all.
         </p>
+      </section>
+
+      {/* Backtest — the premise tested on our own filing history */}
+      <section className="mt-10">
+        <div className="flex items-center gap-3 mb-3">
+          <span
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg flex-shrink-0"
+            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+          >
+            <LineChart className="h-5 w-5" />
+          </span>
+          <h2 className="font-bold tracking-tight" style={{ fontSize: 22 }}>
+            Does it actually work? A backtest
+          </h2>
+        </div>
+        <p className="text-[15px] text-soft leading-relaxed mb-5">
+          Rather than take the premise on trust, we tested it on our own filing
+          archive. The rules are deliberately crude — no scoring model, no
+          discretion — so the result reflects the raw signal: each week, buy the
+          ten companies with the most insider buying behind them, equally
+          weighted, and hold for a week.
+        </p>
+        <BacktestPanel />
       </section>
 
       {/* Why it matters */}

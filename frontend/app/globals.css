@@ -39,6 +39,12 @@
   --warn: #f36d45;
   --gold: #ffc700;
   --gold-soft: rgba(255, 199, 0, 0.14);
+
+  /* Backtest equity-curve series. Validated as a 2-slot categorical palette
+     against the light surface (lightness band, chroma floor, CVD separation,
+     contrast). Re-run scripts/validate_palette.js before changing these. */
+  --bt-strategy: #2f6f9f;
+  --bt-benchmark: #c1762a;
   /* Premium / paygated feature accent — light blue (client spec). */
   --premium: #38bdf8;
   --premium-strong: #0ea5e9;
@@ -81,6 +87,11 @@
   --warn: #f36d45;
   --gold: #ffc700;
   --gold-soft: rgba(255, 199, 0, 0.18);
+
+  /* Dark steps chosen for the dark surface (not a flip of the light pair) and
+     validated against it — L inside 0.48–0.67 with CVD separation intact. */
+  --bt-strategy: #4590c6;
+  --bt-benchmark: #b87a22;
   /* Premium / paygated feature accent — light blue (client spec). */
   --premium: #5ad0ff;
   --premium-strong: #22b8f0;

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { Logo } from "@/components/Logo";
+import { BacktestMini } from "@/components/backtest/BacktestPanel";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
@@ -339,16 +340,24 @@ export default function PremiumPage() {
     <div className="w-full pb-16 prm-scope">
       <style>{CSS}</style>
 
-      {/* ─── Hero (above the fold) ─── */}
-      <section className="prm-hero px-6 sm:px-10 py-14 sm:py-20 text-center">
-        <h1 className="prm-h prm-hero-h text-[36px] sm:text-[58px] max-w-4xl mx-auto">
-          Tap Into The Power of Insider Data
-        </h1>
-        <p className="prm-hero-sub text-[17px] sm:text-[19px] leading-relaxed mt-5 max-w-xl mx-auto">
-          Make more well-informed trading decisions with our next-generation stock research platform.
-        </p>
-        <div className="mt-9 w-full max-w-[300px] mx-auto">
-          <SignupForm cta="Create Free Account" tone="mint" />
+      {/* ─── Hero (above the fold) — copy left, backtest proof right ─── */}
+      <section className="prm-hero px-6 sm:px-10 py-14 sm:py-20">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-10 lg:gap-14 items-center">
+          <div className="text-center lg:text-left">
+            <h1 className="prm-h prm-hero-h text-[36px] sm:text-[58px]">
+              Tap Into The Power of Insider Data
+            </h1>
+            <p className="prm-hero-sub text-[17px] sm:text-[19px] leading-relaxed mt-5 max-w-xl mx-auto lg:mx-0">
+              Make more well-informed trading decisions with our next-generation stock research platform.
+            </p>
+            <div className="mt-9 w-full max-w-[300px] mx-auto lg:mx-0">
+              <SignupForm cta="Create Free Account" tone="mint" />
+            </div>
+          </div>
+          {/* Real backtest of the signal, computed from our own filing history. */}
+          <div className="min-w-0">
+            <BacktestMini />
+          </div>
         </div>
       </section>
 
