@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { Lock } from "lucide-react";
+import { Lock, X } from "lucide-react";
+import { usePremium } from "./premium/PremiumContext";
 
 /**
  * Insider Score paygate for stock profiles (client spec): score content is
@@ -18,6 +19,8 @@ export function ScoreGate({
   label?: string;
   compact?: boolean;
 }) {
+  const { unlocked, unlock } = usePremium();
+  if (unlocked) return <>{children}</>;
   return (
     <div className="relative rounded-lg overflow-hidden">
       <div style={{ filter: "blur(7px)" }} className="select-none pointer-events-none" aria-hidden>
@@ -30,6 +33,18 @@ export function ScoreGate({
             "linear-gradient(180deg, color-mix(in srgb, var(--bg-2) 45%, transparent) 0%, color-mix(in srgb, var(--bg-2) 82%, transparent) 100%)",
         }}
       >
+        <button
+          onClick={unlock}
+          aria-label="Close"
+          className="absolute top-2 right-2 inline-flex items-center justify-center h-7 w-7 rounded-full"
+          style={{
+            background: "var(--bg-3)",
+            border: "1px solid var(--border-strong)",
+            color: "var(--text-soft)",
+          }}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
         <span
           className={`inline-flex rounded-xl items-center justify-center ${compact ? "h-8 w-8 mb-1.5" : "h-11 w-11 mb-3"}`}
           style={{

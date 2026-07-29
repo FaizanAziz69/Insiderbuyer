@@ -8,6 +8,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { PremiumValue } from "@/components/premium/PremiumValue";
 import { StockSearch } from "@/components/nav/StockSearch";
 import { rankColumn } from "@/components/tableColumns";
 import { useWatchlist } from "@/lib/watchlist";
@@ -234,7 +235,11 @@ export default function WatchlistPage() {
       label: "Insider Score",
       align: "center",
       sortValue: (r) => r.iqs,
-      render: (r) => <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />,
+      render: (r) => (
+                  <PremiumValue label="Insider Score">
+                    <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />
+                  </PremiumValue>
+                ),
     },
     {
       key: "remove",

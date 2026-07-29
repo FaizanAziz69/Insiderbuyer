@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
 import { Lock, X } from "lucide-react";
+import { usePremium } from "./premium/PremiumContext";
 
 interface Props {
   children: React.ReactNode;
@@ -34,7 +34,7 @@ export function PaywallOverlay({
   href = "/premium",
   peekHeight = 560,
 }: Props) {
-  const [unlocked, setUnlocked] = useState(false);
+  const { unlocked, unlock } = usePremium();
   if (unlocked) return <>{children}</>;
 
   return (
@@ -60,7 +60,7 @@ export function PaywallOverlay({
         }}
       >
         <button
-          onClick={() => setUnlocked(true)}
+          onClick={unlock}
           aria-label="Close"
           className="absolute top-3 right-3 inline-flex items-center justify-center h-8 w-8 rounded-full"
           style={{

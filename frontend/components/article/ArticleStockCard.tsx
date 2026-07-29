@@ -6,6 +6,7 @@ import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { Sparkline } from "@/components/Sparkline";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { PremiumValue } from "@/components/premium/PremiumValue";
 
 interface Quote {
   symbol: string;
@@ -128,7 +129,9 @@ export function ArticleStockCard({ ticker }: { ticker: string }) {
           <div className="text-[10px] uppercase tracking-wider font-bold text-mute mb-0.5">
             Insider Score
           </div>
-          <IqsScoreCell iqs={iqs} />
+          <PremiumValue label="Insider Score">
+            <IqsScoreCell iqs={iqs} />
+          </PremiumValue>
         </div>
 
         {/* Analyst consensus */}

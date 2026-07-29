@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
-import { Lock, Sparkles } from "lucide-react";
-import { PREMIUM_UNLOCKED } from "@/lib/premium";
+import { Lock, Sparkles, X } from "lucide-react";
+import { usePremium } from "./premium/PremiumContext";
 
 interface Props {
   children: React.ReactNode;
@@ -15,11 +15,13 @@ export function PremiumGate({
   children,
   label = "picks",
   count = 3,
-  cta = "Unlock top picks",
+  cta = "Unlock Insider Score",
   compact = false,
 }: Props) {
-  // Testing/unlocked mode — render the real content with no blur or overlay.
-  if (PREMIUM_UNLOCKED) return <>{children}</>;
+  // Unlocked (either by the env switch or by dismissing a wall in this view) —
+  // render the real content with no blur or overlay.
+  const { unlocked, unlock } = usePremium();
+  if (unlocked) return <>{children}</>;
   return (
     <div
       className="relative rounded-lg overflow-hidden"
@@ -40,6 +42,20 @@ export function PremiumGate({
           backdropFilter: "blur(2px)",
         }}
       >
+        {/* Temporary bypass while Stripe is pending — remove with the cross on
+            every other wall once checkout is live. */}
+        <button
+          onClick={unlock}
+          aria-label="Close"
+          className="absolute top-2 right-2 inline-flex items-center justify-center h-7 w-7 rounded-full"
+          style={{
+            background: "var(--bg-3)",
+            border: "1px solid var(--border-strong)",
+            color: "var(--text-soft)",
+          }}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
         <div
           className={`inline-flex rounded-xl items-center justify-center ${
             compact ? "h-8 w-8 mb-2" : "h-11 w-11 mb-3"

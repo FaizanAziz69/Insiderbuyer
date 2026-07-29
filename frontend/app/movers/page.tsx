@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { PremiumValue } from "@/components/premium/PremiumValue";
 import { TierBadge } from "@/components/TierBadge";
 import { DataTable } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
@@ -159,7 +160,11 @@ export default function MoversPage() {
                 label: "Insider Score",
                 align: "center",
                 sortValue: (r) => r.iqs,
-                render: (r) => <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />,
+                render: (r) => (
+                  <PremiumValue label="Insider Score">
+                    <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />
+                  </PremiumValue>
+                ),
               },
             ]}
           />

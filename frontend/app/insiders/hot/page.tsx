@@ -253,6 +253,15 @@ export default function InsiderHotStocksPage() {
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={columns}
             pageSize={50}
+            gate={{
+              label: "Insider Score",
+              bullets: [
+                "All 50 ranked names, not just the preview",
+                "The Insider Score and its v1 comparison",
+                "Potential upside and analyst price targets",
+                "Every new Form 4 the moment it lands",
+              ],
+            }}
           />
         )}
       </div>

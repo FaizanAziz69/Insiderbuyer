@@ -1,17 +1,18 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   BarChart3,
   CheckCircle2,
   Clock,
   Calculator,
   Star,
-  X,
 } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { FREE_ROWS, PremiumRowWall } from "@/components/premium/PremiumRowWall";
 
 interface FirmRow {
   firm: string;
@@ -30,10 +31,6 @@ interface FirmResponse {
   rows: FirmRow[];
   coverage: { symbols: number; universe: number; ratings: number };
 }
-
-/** Rows visible before the upgrade wall. The row straight after fades out, the
- *  way stockanalysis.com teases the next one. */
-const FREE_ROWS = 6;
 
 const fmtDate = (ms: number | null) =>
   ms == null
@@ -114,10 +111,7 @@ export default function AnalystRatingsPage() {
     { refreshInterval: 15 * 60_000, revalidateOnFocus: false },
   );
 
-  // The wall is dismissible with the cross until Stripe is wired up, but the
-  // dismissal is deliberately NOT persisted — every page load puts it back.
-  const [unlocked, setUnlocked] = useState(false);
-  const dismiss = () => setUnlocked(true);
+  const { unlocked } = usePremium();
 
   const rows = data?.rows || [];
   const total = rows.length;
@@ -279,63 +273,12 @@ export default function AnalystRatingsPage() {
           </div>
         )}
 
-        {/* Upgrade wall — dismissible with the cross while Stripe is pending. */}
-        {!unlocked && total > FREE_ROWS && (
-          <div
-            className="relative px-6 py-10 text-center"
-            style={{ background: "var(--bg-2)", borderTop: "1px solid var(--border)" }}
-          >
-            <button
-              onClick={dismiss}
-              aria-label="Close"
-              className="absolute top-3 right-3 inline-flex items-center justify-center h-8 w-8 rounded-full"
-              style={{
-                background: "var(--bg-3)",
-                border: "1px solid var(--border-strong)",
-                color: "var(--text-soft)",
-              }}
-            >
-              <X className="h-4 w-4" />
-            </button>
-
-            <h2 className="text-[22px] font-bold" style={{ color: "var(--text)" }}>
-              Upgrade to Premium
-            </h2>
-            <p className="text-mute text-[14px] mt-1.5">
-              See all {total} top-ranked firms and their real forward performance
-            </p>
-
-            <p
-              className="text-[15px] font-bold mt-6"
-              style={{ color: "var(--text)" }}
-            >
-              Get much more with Insider Premium
-            </p>
-            <div className="mt-3 flex justify-center">
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-2 text-left text-[14px] text-mute max-w-[560px]">
-                {[
-                  "The full ranked list of Wall Street research firms",
-                  "Unlimited access to all data and tools",
-                  "Advanced analyst filtering and sorting options",
-                  "Every insider filing the moment it hits EDGAR",
-                ].map((b) => (
-                  <li key={b} className="flex gap-2">
-                    <span style={{ color: "var(--accent)" }}>•</span>
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <Link
-              href="/premium"
-              className="inline-flex items-center justify-center mt-7 px-6 py-2.5 rounded-lg font-bold text-[14px]"
-              style={{ background: "var(--accent)", color: "#fff" }}
-            >
-              Sign Up Today
-            </Link>
-          </div>
-        )}
+        <PremiumRowWall label="Top Analyst Stocks" total={total} bullets={[
+          "The full ranked list of Wall Street research firms",
+          "Success rate and average return on every firm",
+          "Insider Scores and potential upside site-wide",
+          "Every insider filing the moment it hits EDGAR",
+        ]} />
       </div>
 
       {filling && (

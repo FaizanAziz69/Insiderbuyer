@@ -3,6 +3,7 @@ import { Barlow, Barlow_Condensed, Figtree, Libre_Franklin } from "next/font/goo
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import { PostHogProvider } from "@/components/PostHogProvider";
+import { PremiumProvider } from "@/components/premium/PremiumContext";
 
 const barlow = Barlow({
   subsets: ["latin"],
@@ -61,7 +62,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="antialiased">
         <PostHogProvider />
-        <AppShell>{children}</AppShell>
+        <PremiumProvider>
+          <AppShell>{children}</AppShell>
+        </PremiumProvider>
       </body>
     </html>
   );

@@ -9,6 +9,8 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
+import { usePremium } from "./premium/PremiumContext";
+import { FREE_ROWS, PremiumRowWall } from "./premium/PremiumRowWall";
 
 const PAGE_SIZE = 25;
 
@@ -146,6 +148,10 @@ interface Props<T> {
   initialFilters?: Record<string, FilterVal>;
   empty?: React.ReactNode;
   rowClassName?: string;
+  /** Turns the table into a freemium leaderboard: only `freeRows` rows show,
+   *  the next one fades as a teaser, pagination is suppressed and the shared
+   *  unlock wall renders underneath. */
+  gate?: { label: string; freeRows?: number; bullets?: string[] };
 }
 
 const alignClass: Record<Align, string> = {
@@ -188,9 +194,11 @@ export function DataTable<T>({
   pageSize,
   initialSort,
   initialFilters,
+  gate,
   empty = "No data.",
   rowClassName = "",
 }: Props<T>) {
+  const { unlocked: premiumUnlocked } = usePremium();
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(
     initialSort ?? null,
   );
@@ -323,7 +331,13 @@ export function DataTable<T>({
     setPage(0);
   }, [filters, sort, rows.length]);
   const safePage = Math.min(page, pageCount - 1);
-  const pageRows = sorted.slice(safePage * perPage, safePage * perPage + perPage);
+  const gateFree = gate ? gate.freeRows ?? FREE_ROWS : 0;
+  // When gated we ignore paging entirely: the free slice plus one faded teaser
+  // row is all that renders until the wall is dismissed.
+  const locked = !!gate && !premiumUnlocked;
+  const pageRows = locked
+    ? sorted.slice(0, gateFree + 1)
+    : sorted.slice(safePage * perPage, safePage * perPage + perPage);
 
   function toggle(key: string, sortable: boolean) {
     if (sortable === false) return;
@@ -556,7 +570,15 @@ export function DataTable<T>({
               </tr>
             ) : (
               pageRows.map((row, i) => (
-                <tr key={rowKey(row, safePage * PAGE_SIZE + i)} className={rowClassName}>
+                <tr
+                  key={rowKey(row, safePage * PAGE_SIZE + i)}
+                  className={rowClassName}
+                  style={
+                    locked && i === gateFree
+                      ? { opacity: 0.28, pointerEvents: "none" }
+                      : undefined
+                  }
+                >
                   {columns.map((c) => (
                     <td
                       key={c.key}
@@ -573,8 +595,16 @@ export function DataTable<T>({
         </table>
       </div>
 
+      {locked && gate && (
+        <PremiumRowWall
+          label={gate.label}
+          total={sorted.length}
+          bullets={gate.bullets}
+        />
+      )}
+
       {/* Pagination — 25 per page, buttons in the nav-bar color */}
-      {sorted.length > perPage && (
+      {!locked && sorted.length > perPage && (
         <div className="flex items-center justify-between gap-3 mt-3 flex-wrap">
           <span className="text-[12px] text-mute tabular">
             {safePage * perPage + 1}–{Math.min((safePage + 1) * perPage, sorted.length)} of{" "}

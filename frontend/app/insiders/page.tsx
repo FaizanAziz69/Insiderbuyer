@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { MapPin, Target } from "lucide-react";
 import { API_BASE, InsiderRow, fetcher, formatCurrency } from "@/lib/api";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { FREE_ROWS, PremiumRowWall } from "@/components/premium/PremiumRowWall";
 
 interface TrackRecord {
   name: string;
@@ -57,7 +59,12 @@ export default function InsidersPage() {
   );
   const trackRows = trackData?.rows || [];
 
-  const rows = data || [];
+  const { unlocked } = usePremium();
+  const allRows = data || [];
+  // Same freemium shape as the other leaderboards: ranked best-first so rank 1
+  // is the biggest buyer, but listed bottom-up so the page counts down to it.
+  const ordered = allRows.map((r, i) => ({ row: r, rank: i + 1 })).reverse();
+  const rows = unlocked ? ordered : ordered.slice(0, FREE_ROWS + 1);
 
   // Show the priority countries from the spec (US / Canada / UK) first — always
   // visible — then merge in any other countries the SEC data actually contains
@@ -173,7 +180,7 @@ export default function InsidersPage() {
             </div>
             {isLoading || !data ? (
               <div className="px-5 py-10 text-center text-mute">Loading…</div>
-            ) : rows.length === 0 ? (
+            ) : allRows.length === 0 ? (
               <div className="px-5 py-10 text-center text-mute">
                 {country && country !== "United States" ? (
                   <>
@@ -193,11 +200,26 @@ export default function InsidersPage() {
               </div>
             ) : (
               <ul className="divide-y divide-[var(--border)]">
-                {rows.map((row, i) => (
-                  <InsiderItem key={`${row.name}-${row.ticker}-${i}`} row={row} rank={i + 1} />
+                {rows.map(({ row, rank }, i) => (
+                  <InsiderItem
+                    key={`${row.name}-${row.ticker}-${rank}`}
+                    row={row}
+                    rank={rank}
+                    teaser={!unlocked && i === FREE_ROWS}
+                  />
                 ))}
               </ul>
             )}
+            <PremiumRowWall
+              label="Top Insiders"
+              total={allRows.length}
+              bullets={[
+                "Every ranked insider, not just the preview",
+                "Track-record accuracy on each buyer",
+                "CEO, CFO, politician and fund presets in full",
+                "Every new Form 4 the moment it lands",
+              ]}
+            />
           </div>
         </div>
 
@@ -274,15 +296,51 @@ export default function InsidersPage() {
   );
 }
 
-function InsiderItem({ row, rank }: { row: InsiderRow; rank: number }) {
+function InsiderItem({
+  row,
+  rank,
+  teaser = false,
+}: {
+  row: InsiderRow;
+  rank: number;
+  teaser?: boolean;
+}) {
   return (
-    <li className="px-5 py-4 flex items-center gap-4 hover:bg-[color-mix(in_srgb,var(--accent)_6%,transparent)]">
+    <li
+      className="px-5 py-4 flex items-center gap-4 hover:bg-[color-mix(in_srgb,var(--accent)_6%,transparent)]"
+      style={{ opacity: teaser ? 0.28 : 1, pointerEvents: teaser ? "none" : undefined }}
+    >
       <span
         className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
         style={{ background: "var(--bg-3)", color: "var(--text-soft)" }}
       >
         {rank}
       </span>
+      {/* Politicians show their official headshot (client spec). */}
+      {row.kind === "politician" && (
+        <span
+          className="h-10 w-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-[11px] font-bold"
+          style={{ background: "var(--bg-3)", color: "var(--text-mute)" }}
+        >
+          {row.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={row.photoUrl}
+              alt={row.name}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            row.name
+              .split(/\s+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((w) => w[0])
+              .join("")
+              .toUpperCase()
+          )}
+        </span>
+      )}
       <div className="flex-1 min-w-0">
         <Link
           href={

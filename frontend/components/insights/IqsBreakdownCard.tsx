@@ -1,6 +1,8 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
+import { ScoreGate } from "@/components/ScoreGate";
+import { PremiumValue } from "@/components/premium/PremiumValue";
 import { motion } from "framer-motion";
 import { API_BASE, CompanyDetail, fetcher } from "@/lib/api";
 
@@ -79,14 +81,17 @@ export function IqsBreakdownCard({ ticker }: Props) {
         <h3 className="text-[12px] font-bold uppercase tracking-wider">
           Insider Score Breakdown
         </h3>
-        <span
-          className="tabular font-bold px-2 py-0.5 rounded text-[13px]"
-          style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
-        >
-          {Number(s.iqs).toFixed(1)} / 100
-        </span>
+        <PremiumValue label="Insider Score">
+          <span
+            className="tabular font-bold px-2 py-0.5 rounded text-[13px]"
+            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+          >
+            {Number(s.iqs).toFixed(1)} / 100
+          </span>
+        </PremiumValue>
       </div>
 
+      <ScoreGate label="Insider Score" compact>
       <div className="px-4 py-3.5 space-y-3.5">
         {factors.map((f, i) => {
           const pct = Math.max(4, Math.round((f.value / max) * 100));
@@ -122,6 +127,7 @@ export function IqsBreakdownCard({ ticker }: Props) {
           );
         })}
       </div>
+      </ScoreGate>
 
       <div
         className="px-4 py-2.5 border-t text-[11px] text-mute"

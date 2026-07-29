@@ -16,6 +16,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { Indicators } from "@/components/Indicators";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { PremiumValue } from "@/components/premium/PremiumValue";
 import { rankColumn } from "@/components/tableColumns";
 import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
 
@@ -351,7 +352,11 @@ export default function StockListDetailPage({
                       filterType: "range",
                       filterLabelText: "Insider Score (0–100)",
                       sortValue: (r) => r.iqs ?? null,
-                      render: (r) => <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />,
+                      render: (r) => (
+                  <PremiumValue label="Insider Score">
+                    <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />
+                  </PremiumValue>
+                ),
                     },
                   ] as Column<DetailRow>[])
                 : []),

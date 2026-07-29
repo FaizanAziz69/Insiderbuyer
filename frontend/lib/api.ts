@@ -198,6 +198,9 @@ export interface InsiderRow {
   /** Set to "politician" when the row came from congressional disclosures
    *  rather than Form 4, so it links to the politician profile instead. */
   kind?: "politician";
+  /** Official headshot, politicians only. */
+  photoUrl?: string | null;
+  party?: string | null;
 }
 
 export type NewsCategory = "Market" | "Economy" | "Funds" | "Regulatory";

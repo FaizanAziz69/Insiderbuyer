@@ -241,21 +241,26 @@ export class CongressionalService implements OnModuleInit {
       .where(`t.action = 'Buy'`)
       .getMany();
 
-    const agg = new Map<
-      string,
-      {
-        name: string;
-        role: string;
-        ticker: string | null;
-        company: string;
-        city: string | null;
-        state: string | null;
-        country: string | null;
-        totalValue: number;
-        trades: number;
-        kind: 'politician';
-      }
-    >();
+    interface Acc {
+      name: string;
+      role: string;
+      ticker: string | null;
+      company: string;
+      city: string | null;
+      state: string | null;
+      country: string | null;
+      totalValue: number;
+      trades: number;
+      photoUrl: string | null;
+      party: string | null;
+      kind: 'politician';
+      /** Per-ticker value, so the headline holding is the biggest one. */
+      byTicker: Map<string, { value: number; company: string }>;
+    }
+    // Aggregated per PERSON, not per person+ticker: this is a leaderboard of
+    // members, so one member must occupy exactly one row however many tickers
+    // they traded.
+    const agg = new Map<string, Acc>();
 
     for (const t of rows) {
       const min = t.amountMin == null ? null : Number(t.amountMin);
@@ -264,25 +269,58 @@ export class CongressionalService implements OnModuleInit {
         min != null && max != null ? (min + max) / 2 : (max ?? min ?? 0);
       if (!Number.isFinite(value) || value <= 0) continue;
 
-      const key = `${t.politicianName.toLowerCase()}|${(t.ticker || '').toUpperCase()}`;
-      const cur = agg.get(key) || {
-        name: t.politicianName,
-        role: t.chamber,
-        ticker: t.ticker ? t.ticker.toUpperCase() : null,
-        company: t.companyName || '',
-        city: null,
-        state: null,
-        country: 'United States',
-        totalValue: 0,
-        trades: 0,
-        kind: 'politician' as const,
-      };
+      const key = t.politicianName.trim().toLowerCase();
+      const cur: Acc =
+        agg.get(key) ||
+        ({
+          name: t.politicianName.trim(),
+          role: t.chamber,
+          ticker: null,
+          company: '',
+          city: null,
+          state: null,
+          country: 'United States',
+          totalValue: 0,
+          trades: 0,
+          photoUrl: null,
+          party: null,
+          kind: 'politician',
+          byTicker: new Map(),
+        } as Acc);
+
       cur.totalValue += value;
       cur.trades += 1;
+      if (!cur.photoUrl && t.photoUrl) cur.photoUrl = t.photoUrl;
+      if (!cur.party && t.party) cur.party = t.party;
+      const tk = (t.ticker || '').toUpperCase();
+      if (tk) {
+        const slot = cur.byTicker.get(tk) || { value: 0, company: t.companyName || '' };
+        slot.value += value;
+        if (!slot.company && t.companyName) slot.company = t.companyName;
+        cur.byTicker.set(tk, slot);
+      }
       agg.set(key, cur);
     }
 
     return Array.from(agg.values())
+      .map((a) => {
+        const top = Array.from(a.byTicker.entries()).sort(
+          (x, y) => y[1].value - x[1].value,
+        )[0];
+        const others = a.byTicker.size - 1;
+        const { byTicker, ...rest } = a;
+        return {
+          ...rest,
+          ticker: top?.[0] ?? null,
+          // The list shows one company line, so name the biggest position and
+          // say how many other holdings the total covers.
+          company: top
+            ? others > 0
+              ? `${top[1].company || top[0]} + ${others} more`
+              : top[1].company || top[0]
+            : '',
+        };
+      })
       .sort((a, b) => b.totalValue - a.totalValue)
       .slice(0, limit);
   }

@@ -168,6 +168,15 @@ export default function CongressionalPage() {
             rowKey={(r) => r.id}
             initialSort={{ key: "marketCap", dir: "desc" }}
             empty="No congressional trades match these filters."
+            gate={{
+              label: "Congress Trading",
+              bullets: [
+                "Every disclosed trade, not just the preview",
+                "Full politician profiles and holdings",
+                "Insider Scores on every ticker traded",
+                "New STOCK Act filings as they publish",
+              ],
+            }}
             columns={[
               rankColumn<CongressTrade>(),
               {
