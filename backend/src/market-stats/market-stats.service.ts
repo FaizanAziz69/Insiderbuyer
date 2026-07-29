@@ -4,6 +4,13 @@ import * as https from 'https';
 import { REFERENCE_QUOTES, ReferenceQuote } from './reference-quotes';
 import { MARKET_UNIVERSE } from './market-universe';
 import { SECTOR_BY_TICKER } from './market-sectors';
+import {
+  AnalystFirmRow,
+  RatingOutcome,
+  aggregateFirms,
+  classifyGrade,
+  scoreRating,
+} from './analyst-firms';
 
 export interface AnalystRow {
   symbol: string;
@@ -1966,5 +1973,131 @@ export class MarketStatsService {
       }
     }
     return [];
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // Wall Street research-firm league table.
+  //
+  // Yahoo's upgradeDowngradeHistory gives us every rating action on a ticker
+  // attributed to a FIRM (no analyst name is published anywhere free), and
+  // getCloseHistory gives the forward prices to score it. Sweeping the whole
+  // universe is ~2 calls per ticker, which is far too slow for one request on
+  // a cold instance — so a request serves whatever is already gathered and
+  // kicks the rest off in the background, filling in over subsequent loads.
+  // ──────────────────────────────────────────────────────────────────
+  private firmRatings = new Map<string, RatingOutcome[]>();
+  private firmSweepAt = 0;
+  private firmSweeping = false;
+  private readonly FIRM_TTL_MS = 12 * 60 * 60_000;
+  /** Symbols pulled before the first response returns — keeps cold starts fast. */
+  private readonly FIRM_EAGER = 30;
+  private readonly FIRM_CONCURRENCY = 6;
+
+  /** Ratings for one ticker, joined to forward returns. Cached via the
+   *  underlying quoteSummary + close-history caches. */
+  private async ratingsForSymbol(symbol: string): Promise<RatingOutcome[]> {
+    const sym = symbol.toUpperCase();
+    const summary = await this.fetchQuoteSummary(sym, 'upgradeDowngradeHistory');
+    const history: any[] = summary?.upgradeDowngradeHistory?.history || [];
+    if (!history.length) return [];
+
+    const closes = await this.getCloseHistory(sym, '5y');
+    if (!closes.length) return [];
+    const priceAt = (ms: number) => MarketStatsService.closeOn(closes, ms);
+    const now = Date.now();
+
+    const out: RatingOutcome[] = [];
+    for (const h of history) {
+      const firm = String(h?.firm || '').trim();
+      const epoch = Number(h?.epochGradeDate);
+      if (!firm || !Number.isFinite(epoch) || epoch <= 0) continue;
+      // Yahoo mixes seconds and milliseconds across records.
+      const dateMs = epoch > 1e12 ? epoch : epoch * 1000;
+      if (dateMs > now) continue;
+      const direction = classifyGrade(String(h?.toGrade || ''));
+      out.push({
+        firm,
+        symbol: sym,
+        dateMs,
+        direction,
+        directionalReturn: scoreRating(direction, dateMs, now, priceAt),
+      });
+    }
+    return out;
+  }
+
+  /** Walk the universe filling `firmRatings`. Fire-and-forget. */
+  private async sweepFirmRatings(symbols: string[]): Promise<void> {
+    if (this.firmSweeping) return;
+    this.firmSweeping = true;
+    try {
+      for (let i = 0; i < symbols.length; i += this.FIRM_CONCURRENCY) {
+        const chunk = symbols.slice(i, i + this.FIRM_CONCURRENCY);
+        const results = await Promise.all(
+          chunk.map((s) => this.ratingsForSymbol(s).catch(() => [])),
+        );
+        results.forEach((rows, j) => {
+          if (rows.length) this.firmRatings.set(chunk[j], rows);
+        });
+      }
+      this.firmSweepAt = Date.now();
+    } finally {
+      this.firmSweeping = false;
+    }
+  }
+
+  /**
+   * Ranked research firms, best first. `coverage` reports how much of the
+   * universe has been gathered so the UI can say the table is still filling in
+   * rather than presenting a partial sweep as final.
+   */
+  async getAnalystFirms(
+    limit = 100,
+  ): Promise<{
+    rows: AnalystFirmRow[];
+    coverage: { symbols: number; universe: number; ratings: number };
+  }> {
+    const universe = this.universe();
+    const stale = Date.now() - this.firmSweepAt > this.FIRM_TTL_MS;
+
+    // Nothing gathered yet → pull a small slice inline so the first paint has
+    // real rows, then let the background sweep finish the rest.
+    if (!this.firmRatings.size) {
+      const eager = universe.slice(0, this.FIRM_EAGER);
+      const results = await Promise.all(
+        eager.map((s) => this.ratingsForSymbol(s).catch(() => [])),
+      );
+      results.forEach((rows, j) => {
+        if (rows.length) this.firmRatings.set(eager[j], rows);
+      });
+    }
+
+    if ((stale || this.firmRatings.size < universe.length) && !this.firmSweeping) {
+      const remaining = universe.filter((s) => !this.firmRatings.has(s));
+      const todo = stale ? universe : remaining;
+      if (todo.length) {
+        void this.sweepFirmRatings(todo).catch((err) =>
+          this.logger.warn(`firm rating sweep failed: ${err?.message || err}`),
+        );
+      }
+    }
+
+    const outcomes: RatingOutcome[] = [];
+    for (const rows of this.firmRatings.values()) outcomes.push(...rows);
+
+    const rows = aggregateFirms(
+      outcomes,
+      (sym) => SECTOR_BY_TICKER[sym] ?? null,
+      Date.now(),
+    ).slice(0, limit);
+
+    return {
+      rows,
+      coverage: {
+        symbols: this.firmRatings.size,
+        universe: universe.length,
+        ratings: outcomes.length,
+      },
+    };
   }
 }

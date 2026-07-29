@@ -106,6 +106,12 @@ export class MarketStatsController {
     return { rows: await this.svc.getAnalystRatings(syms.length ? syms : undefined) };
   }
 
+  @Get('analyst-firms')
+  async analystFirms(@Query('limit') limit?: string) {
+    const n = Number(limit);
+    return this.svc.getAnalystFirms(Number.isFinite(n) && n > 0 ? Math.min(n, 250) : 100);
+  }
+
   @Get('statements')
   async statements(@Query('symbol') symbol?: string) {
     if (!symbol) return { income: [], balance: [], cashflow: [] };

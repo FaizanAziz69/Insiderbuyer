@@ -1,306 +1,397 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { useState } from "react";
-import { ShieldCheck } from "lucide-react";
-import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
-import { CompanyLogo } from "@/components/CompanyLogo";
+import { useEffect, useMemo, useState } from "react";
+import {
+  BarChart3,
+  CheckCircle2,
+  Clock,
+  Calculator,
+  Star,
+  X,
+} from "lucide-react";
+import { API_BASE, fetcher } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
-import { DataTable } from "@/components/DataTable";
-import { WatchlistButton } from "@/components/WatchlistButton";
-import { rankColumn } from "@/components/tableColumns";
-import { IqsScoreCell } from "@/components/IqsScoreCell";
 
-interface AnalystRow {
-  symbol: string;
-  name: string;
-  sector: string | null;
-  price: number;
-  targetMean: number | null;
-  targetHigh: number | null;
-  targetLow: number | null;
-  upsidePct: number | null;
-  recommendation: string | null;
-  numAnalysts: number | null;
-  /** Insider Score + blended Top Stocks score (from /top-stocks). */
-  iqs?: number | null;
-  iqsV1?: number | null;
-  insiderSuccess?: number | null;
-  topStocksScore?: number | null;
+interface FirmRow {
+  firm: string;
+  slug: string;
+  mainSector: string | null;
+  successRate: number | null;
+  avgReturn: number | null;
+  ratings: number;
+  scoredRatings: number;
+  lastRatingMs: number | null;
+  stars: number;
+  topSymbols: string[];
 }
 
-const REC_LABEL: Record<string, { label: string; color: string }> = {
-  strong_buy: { label: "Strong Buy", color: "var(--good)" },
-  buy: { label: "Buy", color: "var(--good)" },
-  hold: { label: "Hold", color: "var(--gold)" },
-  underperform: { label: "Underperform", color: "var(--bad)" },
-  sell: { label: "Sell", color: "var(--bad)" },
-};
+interface FirmResponse {
+  rows: FirmRow[];
+  coverage: { symbols: number; universe: number; ratings: number };
+}
+
+/** Rows visible before the upgrade wall. The row straight after fades out, the
+ *  way stockanalysis.com teases the next one. */
+const FREE_ROWS = 6;
+const DISMISS_KEY = "ib_analysts_paywall_dismissed";
+
+const fmtDate = (ms: number | null) =>
+  ms == null
+    ? "—"
+    : new Date(ms).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+
+function Stars({ value }: { value: number }) {
+  // 0–5 → five glyphs, the partial one clipped to its exact fraction.
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="inline-flex items-center" aria-hidden>
+        {[0, 1, 2, 3, 4].map((i) => {
+          const fill = Math.max(0, Math.min(1, value - i));
+          return (
+            <span key={i} className="relative inline-block h-[13px] w-[13px]">
+              <Star
+                className="absolute inset-0 h-[13px] w-[13px]"
+                style={{ color: "color-mix(in srgb, var(--gold) 28%, var(--border))" }}
+                fill="currentColor"
+                strokeWidth={0}
+              />
+              {fill > 0 && (
+                <span
+                  className="absolute inset-0 overflow-hidden"
+                  style={{ width: `${fill * 100}%` }}
+                >
+                  <Star
+                    className="h-[13px] w-[13px]"
+                    style={{ color: "var(--gold)" }}
+                    fill="currentColor"
+                    strokeWidth={0}
+                  />
+                </span>
+              )}
+            </span>
+          );
+        })}
+      </span>
+      <span className="text-[12px] text-mute tabular">({value.toFixed(2)})</span>
+      <span className="sr-only">{value.toFixed(2)} out of 5</span>
+    </span>
+  );
+}
+
+const FACTORS = [
+  {
+    icon: CheckCircle2,
+    title: "Success Rate",
+    body: "The percentage of ratings that are profitable.",
+  },
+  {
+    icon: BarChart3,
+    title: "Average Return",
+    body: "The average percentage return within one year of the rating.",
+  },
+  {
+    icon: Calculator,
+    title: "Rating Count",
+    body: "The more ratings the firm has provided, the higher the score.",
+  },
+  {
+    icon: Clock,
+    title: "Recency",
+    body: "Ratings provided within the past year contribute to a higher score.",
+  },
+];
 
 export default function AnalystRatingsPage() {
-  const [q, setQ] = useState("");
-  const { data, isLoading } = useSWR<{ rows: AnalystRow[] }>(
-    `${API_BASE}/top-stocks`,
+  const { data, isLoading } = useSWR<FirmResponse>(
+    `${API_BASE}/market-stats/analyst-firms?limit=100`,
     fetcher,
-    { refreshInterval: 10 * 60_000, revalidateOnFocus: false },
-  );
-  const rows = (data?.rows || []).filter(
-    (r) =>
-      !q ||
-      r.symbol.toLowerCase().includes(q.toLowerCase()) ||
-      r.name.toLowerCase().includes(q.toLowerCase()),
+    { refreshInterval: 15 * 60_000, revalidateOnFocus: false },
   );
 
-  // Live quotes for the tickers shown in the table.
-  const tickerKey = rows
-    .map((r) => (r.symbol || "").toUpperCase())
-    .filter(Boolean)
-    .slice(0, 250)
-    .join(",");
-  const { data: quoteData } = useSWR<{ rows: { symbol: string; price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null; marketCap?: number | null }[] }>(
-    tickerKey ? `${API_BASE}/market-stats/quotes?symbols=${encodeURIComponent(tickerKey)}` : null,
-    fetcher,
-    { refreshInterval: 60_000, revalidateOnFocus: false },
+  // The wall is dismissible until Stripe is wired up; remember the choice so it
+  // doesn't nag on every visit.
+  const [unlocked, setUnlocked] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(DISMISS_KEY) === "1") setUnlocked(true);
+    } catch {
+      /* private mode — wall just stays up */
+    }
+  }, []);
+  const dismiss = () => {
+    setUnlocked(true);
+    try {
+      localStorage.setItem(DISMISS_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const rows = data?.rows || [];
+  const total = rows.length;
+  const visible = useMemo(
+    () => (unlocked ? rows : rows.slice(0, FREE_ROWS + 1)),
+    [rows, unlocked],
   );
-  const quoteBySym = new Map<string, { price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null; marketCap?: number | null }>();
-  (quoteData?.rows || []).forEach((q) => quoteBySym.set(q.symbol.toUpperCase(), q));
+  const filling =
+    data != null && data.coverage.symbols < data.coverage.universe;
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-8">
       <header>
-        <div className="flex items-center gap-2 text-mute text-sm mb-1">
-          <ShieldCheck className="h-4 w-4" />
-          <span className="font-mono uppercase tracking-wider text-[11px]">
-            Analyst Ratings
-          </span>
-        </div>
         <h1
-          className="text-[32px] sm:text-[40px] font-semibold tracking-tight"
-          style={{ letterSpacing: "-0.6px" }}
+          className="text-[30px] sm:text-[34px] font-bold tracking-tight"
+          style={{ letterSpacing: "-0.5px" }}
         >
-          Wall Street Analyst Ratings
+          Top Wall Street Analysts
         </h1>
-        <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
-          Live consensus recommendations and 12-month price targets across the
-          most widely-covered U.S. stocks — ranked by our{" "}
-          <strong style={{ color: "var(--text)" }}>Top Stocks Score</strong>, a 0–99
-          blend of the analyst consensus and implied upside, each name&rsquo;s{" "}
-          <strong style={{ color: "var(--text)" }}>Insider Score</strong> (the quality
-          of its insider buying), and the insiders&rsquo; historical success rate.
-          Two different signals: the Insider Score grades the insider buying alone;
-          the Top Stocks Score is the combined conviction view. Data refreshed
-          throughout the trading day.
+        <p className="text-[14px] sm:text-[15px] font-semibold text-mute mt-1.5">
+          A list of Wall Street research firms, ranked by their performance
         </p>
+        <div
+          className="mt-4"
+          style={{ borderBottom: "3px solid var(--accent)" }}
+        />
       </header>
 
       <AdSlot slot="leaderboard" seed="analyst-top" />
 
-      <div
-        className="card p-4"
-        style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
-      >
-        <label className="block text-[11px] uppercase tracking-wider font-bold text-mute mb-1">
-          Search
-        </label>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Ticker or company…"
-          className="w-full sm:max-w-xs px-3 py-2 rounded-md text-[13px]"
-          style={{
-            background: "var(--bg-1)",
-            border: "1px solid var(--border-strong)",
-            color: "var(--text)",
-          }}
-        />
-      </div>
-
       <div className="card overflow-hidden">
-        {isLoading ? (
-          <div className="text-center text-mute py-10">Loading live analyst data…</div>
+        {isLoading && !total ? (
+          <div className="text-center text-mute py-12 text-[14px]">
+            Scoring every sell-side rating against its forward one-year return…
+          </div>
+        ) : !total ? (
+          <div className="text-center text-mute py-12 text-[14px]">
+            No rating history available right now. Check back shortly.
+          </div>
         ) : (
-          <DataTable<AnalystRow>
-            rows={rows}
-            rowKey={(r) => r.symbol}
-            initialSort={{ key: "topStocksScore", dir: "desc" }}
-            empty="No matches."
-            columns={[
-              rankColumn<AnalystRow>(),
-              {
-                key: "company",
-                label: "Company",
-                sortValue: (r) => r.symbol,
-                render: (r) => (
-                  <span className="inline-flex items-center gap-2">
-                    <WatchlistButton ticker={r.symbol} variant="icon" size="sm" />
-                    <Link
-                      href={`/companies/${encodeURIComponent(r.symbol)}`}
-                      className="flex items-center gap-2.5"
-                    >
-                      <CompanyLogo ticker={r.symbol} name={r.name} size={28} />
-                      <div className="min-w-0">
-                        <div className="font-mono text-[15px] font-bold text-accent">
-                          {r.symbol}
-                        </div>
-                        <div className="text-[13px] font-medium truncate max-w-[170px]" style={{ color: "var(--text)" }}>
-                          {r.name}
-                        </div>
-                      </div>
-                    </Link>
-                  </span>
-                ),
-              },
-              {
-                key: "price",
-                label: "Price",
-                filterable: true,
-                filterType: "range",
-                align: "right",
-                sortValue: (r) => r.price,
-                render: (r) => <span className="tabular text-[14px] font-bold">${r.price.toFixed(2)}</span>,
-              },
-              {
-                key: "changePct",
-                label: "Change %",
-                align: "right",
-                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.changePct ?? null,
-                render: (r) => {
-                  const q = quoteBySym.get((r.symbol || "").toUpperCase());
-                  if (!q || q.changePct == null) return <span className="text-faint text-[13px]">—</span>;
-                  const up = q.changePct >= 0;
-                  return <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>{up ? "+" : ""}{q.changePct.toFixed(2)}%</span>;
-                },
-              },
-              {
-                key: "topStocksScore",
-                label: "Top Stocks Score",
-                filterable: true,
-                filterType: "range",
-                filterLabelText: "Top Stocks Score (0–99)",
-                align: "center",
-                sortValue: (r) => r.topStocksScore ?? null,
-                render: (r) =>
-                  r.topStocksScore != null ? (
-                    <span
-                      className="inline-flex items-center justify-center h-8 w-8 rounded-full text-[13px] font-bold tabular"
+          <div className="overflow-x-auto">
+            <table className="w-full text-[14px]" style={{ minWidth: 860 }}>
+              <thead>
+                <tr
+                  style={{
+                    borderBottom: "1px solid var(--border-strong)",
+                    background: "var(--bg-2)",
+                  }}
+                >
+                  {[
+                    { k: "#", a: "left" },
+                    { k: "Research Firm", a: "left" },
+                    { k: "Top Coverage", a: "left" },
+                    { k: "Main Sector", a: "left" },
+                    { k: "Success Rate", a: "right" },
+                    { k: "Average Return", a: "right" },
+                    { k: "Ratings", a: "right" },
+                    { k: "Last Rating", a: "right" },
+                  ].map((h) => (
+                    <th
+                      key={h.k}
+                      className="px-3 py-2.5 text-[13px] font-bold whitespace-nowrap"
                       style={{
-                        background:
-                          r.topStocksScore >= 70
-                            ? "color-mix(in srgb, var(--good) 16%, transparent)"
-                            : r.topStocksScore >= 50
-                            ? "color-mix(in srgb, var(--gold) 18%, transparent)"
-                            : "color-mix(in srgb, var(--bad) 14%, transparent)",
-                        color:
-                          r.topStocksScore >= 70
-                            ? "var(--good)"
-                            : r.topStocksScore >= 50
-                            ? "var(--gold)"
-                            : "var(--bad)",
+                        textAlign: h.a as "left" | "right",
+                        color: "var(--text)",
                       }}
                     >
-                      {r.topStocksScore}
-                    </span>
-                  ) : (
-                    <span className="text-mute">—</span>
-                  ),
-              },
-              {
-                key: "iqs",
-                label: "Insider Score",
-                filterable: true,
-                filterType: "range",
-                filterLabelText: "Insider Score (0–100)",
-                align: "center",
-                sortValue: (r) => r.iqs ?? null,
-                render: (r) => <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />,
-              },
-              {
-                key: "consensus",
-                label: "Consensus",
-                filterable: true,
-                sortValue: (r) => r.recommendation ?? "",
-                render: (r) => {
-                  const rec = r.recommendation
-                    ? REC_LABEL[r.recommendation] || {
-                        label: r.recommendation,
-                        color: "var(--text-soft)",
-                      }
-                    : null;
-                  return rec ? (
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
+                      {h.k}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((r, i) => {
+                  // Ranked best-first, but numbered backward — the top row
+                  // carries the highest number and counts down to 1.
+                  const num = total - i;
+                  const teaser = !unlocked && i === FREE_ROWS;
+                  return (
+                    <tr
+                      key={r.slug || r.firm}
                       style={{
-                        background: `color-mix(in srgb, ${rec.color} 16%, transparent)`,
-                        color: rec.color,
+                        borderBottom: "1px solid var(--border)",
+                        opacity: teaser ? 0.28 : 1,
+                        pointerEvents: teaser ? "none" : undefined,
                       }}
                     >
-                      {rec.label}
-                    </span>
-                  ) : (
-                    "—"
+                      <td className="px-3 py-2.5 text-mute tabular text-[13px]">
+                        {num}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div
+                          className="font-bold text-[14px]"
+                          style={{ color: "var(--accent)" }}
+                        >
+                          {r.firm}
+                        </div>
+                        <Stars value={r.stars} />
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="inline-flex items-center gap-1.5">
+                          {r.topSymbols.map((s) => (
+                            <Link
+                              key={s}
+                              href={`/companies/${encodeURIComponent(s)}`}
+                              className="font-mono text-[12px] font-bold px-1.5 py-0.5 rounded"
+                              style={{
+                                background: "var(--bg-3)",
+                                color: "var(--text-soft)",
+                              }}
+                            >
+                              {s}
+                            </Link>
+                          ))}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-[13px]" style={{ color: "var(--text)" }}>
+                        {r.mainSector || "—"}
+                      </td>
+                      <td
+                        className="px-3 py-2.5 text-right tabular font-bold"
+                        style={{
+                          color:
+                            (r.successRate ?? 0) >= 50 ? "var(--good)" : "var(--bad)",
+                        }}
+                      >
+                        {r.successRate != null ? `${r.successRate.toFixed(2)}%` : "—"}
+                      </td>
+                      <td
+                        className="px-3 py-2.5 text-right tabular font-bold"
+                        style={{
+                          color:
+                            (r.avgReturn ?? 0) >= 0 ? "var(--good)" : "var(--bad)",
+                        }}
+                      >
+                        {r.avgReturn != null
+                          ? `${r.avgReturn >= 0 ? "" : ""}${r.avgReturn.toFixed(2)}%`
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular text-[13px]">
+                        {r.ratings}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular text-[13px] whitespace-nowrap text-mute">
+                        {fmtDate(r.lastRatingMs)}
+                      </td>
+                    </tr>
                   );
-                },
-              },
-              {
-                key: "targetMean",
-                label: "Avg Target",
-                filterable: true,
-                filterType: "range",
-                align: "right",
-                sortValue: (r) => r.targetMean,
-                render: (r) => (
-                  <span className="tabular font-bold text-[14px]">
-                    {r.targetMean ? `$${r.targetMean.toFixed(2)}` : "—"}
-                  </span>
-                ),
-              },
-              {
-                key: "upsidePct",
-                label: "Upside",
-                filterable: true,
-                filterType: "range",
-                align: "right",
-                sortValue: (r) => r.upsidePct,
-                render: (r) => {
-                  const up = (r.upsidePct ?? 0) >= 0;
-                  return (
-                    <span
-                      className="tabular font-bold text-[14px]"
-                      style={{ color: up ? "var(--good)" : "var(--bad)" }}
-                    >
-                      {r.upsidePct != null
-                        ? `${up ? "+" : ""}${r.upsidePct.toFixed(1)}%`
-                        : "—"}
-                    </span>
-                  );
-                },
-              },
-              {
-                key: "marketCap",
-                label: "Market Cap",
-                filterable: true,
-                filterType: "marketCapPreset",
-                filterLabelText: "Market Cap",
-                align: "right",
-                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null,
-                render: (r) => {
-                  const mc = quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null;
-                  return (
-                    <span className="tabular text-mute text-[14px] font-bold">
-                      {mc ? formatCurrency(mc) : "—"}
-                    </span>
-                  );
-                },
-              },
-            ]}
-          />
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Upgrade wall — dismissible with the cross while Stripe is pending. */}
+        {!unlocked && total > FREE_ROWS && (
+          <div
+            className="relative px-6 py-10 text-center"
+            style={{ background: "var(--bg-2)", borderTop: "1px solid var(--border)" }}
+          >
+            <button
+              onClick={dismiss}
+              aria-label="Close"
+              className="absolute top-3 right-3 inline-flex items-center justify-center h-8 w-8 rounded-full"
+              style={{
+                background: "var(--bg-3)",
+                border: "1px solid var(--border-strong)",
+                color: "var(--text-soft)",
+              }}
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <h2 className="text-[22px] font-bold" style={{ color: "var(--text)" }}>
+              Upgrade to Premium
+            </h2>
+            <p className="text-mute text-[14px] mt-1.5">
+              See all {total} firms ranked by their real forward performance
+            </p>
+
+            <p
+              className="text-[15px] font-bold mt-6"
+              style={{ color: "var(--text)" }}
+            >
+              Get much more with Insider Premium
+            </p>
+            <div className="mt-3 flex justify-center">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-2 text-left text-[14px] text-mute max-w-[560px]">
+                {[
+                  "The full ranked list of Wall Street research firms",
+                  "Unlimited access to all data and tools",
+                  "Advanced analyst filtering and sorting options",
+                  "Every insider filing the moment it hits EDGAR",
+                ].map((b) => (
+                  <li key={b} className="flex gap-2">
+                    <span style={{ color: "var(--accent)" }}>•</span>
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <Link
+              href="/premium"
+              className="inline-flex items-center justify-center mt-7 px-6 py-2.5 rounded-lg font-bold text-[14px]"
+              style={{ background: "var(--accent)", color: "#fff" }}
+            >
+              Sign Up Today
+            </Link>
+          </div>
         )}
       </div>
 
+      {filling && (
+        <p className="text-[12px] text-faint">
+          Table is still filling in — {data!.coverage.symbols} of{" "}
+          {data!.coverage.universe} covered tickers scored so far (
+          {data!.coverage.ratings.toLocaleString()} ratings). Refresh in a moment
+          for the complete ranking.
+        </p>
+      )}
+
+      <section
+        className="pt-8"
+        style={{ borderTop: "1px solid var(--border)" }}
+      >
+        <h2
+          className="text-[26px] sm:text-[30px] font-bold text-center tracking-tight"
+          style={{ letterSpacing: "-0.5px" }}
+        >
+          Analyst Star Rankings
+        </h2>
+        <p className="text-center text-mute text-[15px] mt-2">
+          Our analyst star rankings are based on these four factors
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mt-9">
+          {FACTORS.map((f) => (
+            <div key={f.title}>
+              <div
+                className="inline-flex items-center justify-center h-10 w-10 rounded-lg mb-3"
+                style={{ background: "var(--accent)", color: "#fff" }}
+              >
+                <f.icon className="h-5 w-5" />
+              </div>
+              <div className="font-bold text-[15px]" style={{ color: "var(--text)" }}>
+                {f.title}
+              </div>
+              <p className="text-mute text-[14px] mt-1.5 leading-relaxed">{f.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <p className="text-[11px] text-faint">
-        Source: aggregated sell-side analyst coverage via live market data feed.
-        Consensus and price targets are informational only and not a
-        recommendation to buy or sell any security.
+        Ratings are sourced from published sell-side upgrade and downgrade
+        actions and attributed to the research firm — individual analyst names
+        are not disclosed in free data, so no analyst is named here. Success rate
+        and average return are measured from each rating&rsquo;s date to one year
+        later (or to today for ratings less than a year old), in the direction of
+        the call. Ratings less than 30 days old are listed but not yet scored.
+        Firms with fewer than 6 scored ratings are excluded. Informational only,
+        not a recommendation to buy or sell any security.
       </p>
     </div>
   );
