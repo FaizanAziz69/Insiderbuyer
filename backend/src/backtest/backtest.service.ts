@@ -2,6 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InsiderTransaction } from '../entities/insider-transaction.entity';
+import {
+  BacktestCache,
+  PriceHistoryCache,
+} from '../entities/backtest-cache.entity';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 
 export interface EquityPoint {
@@ -43,8 +47,10 @@ export interface BacktestResult {
     lookbackDays: number;
     benchmark: string;
   };
-  /** Set while the first computation is still running. */
+  /** Set while price history is still being gathered. */
   note?: string;
+  /** Symbols cached / needed, so the UI can show it filling in. */
+  progress?: { have: number; need: number };
 }
 
 const DAY = 86_400_000;
@@ -74,51 +80,119 @@ const MAX_TX_VALUE = 5_000_000_000;
 @Injectable()
 export class BacktestService {
   private readonly logger = new Logger(BacktestService.name);
-  private cache: BacktestResult | null = null;
-  private cachedAt = 0;
-  private computing = false;
-  private readonly TTL_MS = 24 * 60 * 60_000;
+  private readonly RESULT_TTL_MS = 24 * 60 * 60_000;
+  private readonly PRICE_TTL_MS = 7 * 24 * 60 * 60_000;
+  /** Symbols fetched per request — kept small so we stay well inside the
+   *  60s function limit; the next request picks up where this one stopped. */
+  private readonly SLICE = 45;
+  private readonly CONCURRENCY = 6;
+  private readonly CACHE_KEY = 'insider-strategy-v1';
 
   constructor(
     @InjectRepository(InsiderTransaction)
     private readonly txRepo: Repository<InsiderTransaction>,
+    @InjectRepository(PriceHistoryCache)
+    private readonly priceRepo: Repository<PriceHistoryCache>,
+    @InjectRepository(BacktestCache)
+    private readonly resultRepo: Repository<BacktestCache>,
     private readonly market: MarketStatsService,
   ) {}
 
-  async get(): Promise<BacktestResult> {
-    const fresh = this.cache && Date.now() - this.cachedAt < this.TTL_MS;
-    if (!fresh && !this.computing) {
-      // The sweep needs one price history per name ever held, far too slow for
-      // a single request — compute in the background and serve the last result.
-      this.computing = true;
-      void this.compute()
-        .then((r) => {
-          this.cache = r;
-          this.cachedAt = Date.now();
-        })
-        .catch((err) =>
-          this.logger.warn(`backtest failed: ${err?.message || err}`),
-        )
-        .finally(() => {
-          this.computing = false;
-        });
-    }
-    if (this.cache) return this.cache;
+  private emptyRules() {
     return {
-      ready: false,
-      curve: [],
-      stats: null,
-      rules: {
-        holdings: HOLDINGS,
-        rebalance: 'Weekly',
-        lookbackDays: LOOKBACK_DAYS,
-        benchmark: BENCHMARK,
-      },
-      note: 'Backtest is being computed from our filing history — check back in a moment.',
+      holdings: HOLDINGS,
+      rebalance: 'Weekly',
+      lookbackDays: LOOKBACK_DAYS,
+      benchmark: BENCHMARK,
     };
   }
 
-  private async compute(): Promise<BacktestResult> {
+  async get(): Promise<BacktestResult> {
+    // 1. A fresh persisted result serves immediately, even on a cold instance.
+    const stored = await this.resultRepo.findOne({ where: { key: this.CACHE_KEY } });
+    if (
+      stored &&
+      Date.now() - new Date(stored.computedAt).getTime() < this.RESULT_TTL_MS
+    ) {
+      return stored.payload as BacktestResult;
+    }
+
+    // 2. Work out which symbols the backtest needs.
+    const plan = await this.buildPlan();
+    if (!plan) {
+      return {
+        ready: false,
+        curve: [],
+        stats: null,
+        rules: this.emptyRules(),
+        note: 'Not enough filing history to backtest yet.',
+      };
+    }
+
+    // 3. Fill in missing price history a slice at a time.
+    const symbols = plan.symbols;
+    const cached = await this.priceRepo.find({
+      select: ['symbol', 'updatedAt'],
+      where: symbols.map((symbol) => ({ symbol })),
+    });
+    const freshSet = new Set(
+      cached
+        .filter(
+          (c) => Date.now() - new Date(c.updatedAt).getTime() < this.PRICE_TTL_MS,
+        )
+        .map((c) => c.symbol),
+    );
+    const missing = symbols.filter((s) => !freshSet.has(s));
+
+    if (missing.length) {
+      const slice = missing.slice(0, this.SLICE);
+      for (let i = 0; i < slice.length; i += this.CONCURRENCY) {
+        const chunk = slice.slice(i, i + this.CONCURRENCY);
+        const got = await Promise.all(
+          chunk.map((sym) =>
+            this.market.getCloseHistory(sym, '5y').catch(() => []),
+          ),
+        );
+        await Promise.all(
+          got.map((points, j) =>
+            points.length
+              ? this.priceRepo.save({ symbol: chunk[j], points })
+              : // Remember the empty result too, so a delisted or unquoted
+                // symbol isn't retried on every single request.
+                this.priceRepo.save({ symbol: chunk[j], points: [] }),
+          ),
+        );
+      }
+      const have = symbols.length - missing.length + slice.length;
+      return {
+        ready: false,
+        curve: [],
+        stats: null,
+        rules: this.emptyRules(),
+        note: `Gathering price history — ${have} of ${symbols.length} symbols ready. Refresh in a moment.`,
+        progress: { have, need: symbols.length },
+      };
+    }
+
+    // 4. Everything is cached — compute and persist.
+    const rows = await this.priceRepo.find({
+      where: symbols.map((symbol) => ({ symbol })),
+    });
+    const hist = new Map<string, Array<{ t: number; c: number }>>();
+    rows.forEach((r) => hist.set(r.symbol, r.points || []));
+
+    const result = this.runBacktest(plan, hist);
+    await this.resultRepo.save({ key: this.CACHE_KEY, payload: result });
+    return result;
+  }
+
+  /** Weekly rebalance dates, the point-in-time top-10 for each, and every
+   *  symbol whose price history the backtest will need. */
+  private async buildPlan(): Promise<{
+    weeks: number[];
+    picksByWeek: string[][];
+    symbols: string[];
+  } | null> {
     // 1. Every qualifying open-market buy, oldest first.
     const buys = await this.txRepo
       .createQueryBuilder('t')
@@ -141,7 +215,8 @@ export class BacktestService {
       .filter((e) => e.ticker && Number.isFinite(e.ms) && Number.isFinite(e.value));
 
     if (events.length < 100) {
-      throw new Error(`not enough filings to backtest (${events.length})`);
+      this.logger.warn(`not enough filings to backtest (${events.length})`);
+      return null;
     }
 
     // 2. Weekly rebalance dates. Start one lookback window in, so the first
@@ -151,7 +226,10 @@ export class BacktestService {
     const start = firstMs + LOOKBACK_DAYS * DAY;
     const weeks: number[] = [];
     for (let t = start; t <= lastMs; t += WEEK) weeks.push(t);
-    if (weeks.length < 8) throw new Error('backtest window too short');
+    if (weeks.length < 8) {
+      this.logger.warn(`backtest window too short (${weeks.length} weeks)`);
+      return null;
+    }
 
     // 3. Point-in-time top-10 per week.
     const picksByWeek: string[][] = weeks.map((wk) => {
@@ -168,21 +246,20 @@ export class BacktestService {
         .map(([tk]) => tk);
     });
 
-    // 4. Price history for every name ever held, plus the benchmark.
+    // 4. Every name ever held, plus the benchmark — the price history the
+    //    caller has to have cached before the walk can run.
     const needed = new Set<string>([BENCHMARK]);
     picksByWeek.forEach((p) => p.forEach((tk) => needed.add(tk)));
-    const symbols = Array.from(needed);
-    const hist = new Map<string, Array<{ t: number; c: number }>>();
-    const CONC = 6;
-    for (let i = 0; i < symbols.length; i += CONC) {
-      const chunk = symbols.slice(i, i + CONC);
-      const got = await Promise.all(
-        chunk.map((s) => this.market.getCloseHistory(s, '5y').catch(() => [])),
-      );
-      got.forEach((h, j) => {
-        if (h.length) hist.set(chunk[j], h);
-      });
-    }
+
+    return { weeks, picksByWeek, symbols: Array.from(needed) };
+  }
+
+  /** Pure walk over the weeks — no I/O, all history supplied by the caller. */
+  private runBacktest(
+    plan: { weeks: number[]; picksByWeek: string[][]; symbols: string[] },
+    hist: Map<string, Array<{ t: number; c: number }>>,
+  ): BacktestResult {
+    const { weeks, picksByWeek } = plan;
 
     const priceOn = (tk: string, ms: number): number | null => {
       const h = hist.get(tk);

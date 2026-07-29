@@ -34,13 +34,19 @@ interface BacktestResponse {
     benchmark: string;
   };
   note?: string;
+  progress?: { have: number; need: number };
 }
 
 export function useBacktest() {
   return useSWR<BacktestResponse>(
     `${API_BASE}/backtest/insider-strategy`,
     fetcher,
-    { revalidateOnFocus: false, refreshInterval: 60 * 60_000 },
+    {
+      revalidateOnFocus: false,
+      // Price history is gathered a slice per request, so poll while it fills
+      // and back off to hourly once the result is in.
+      refreshInterval: (latest) => (latest && !latest.ready ? 6_000 : 60 * 60_000),
+    },
   );
 }
 
@@ -92,8 +98,24 @@ export function BacktestPanel() {
         className="rounded-xl p-6 text-center text-mute text-[14px]"
         style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
       >
-        {data?.note ||
-          "Computing the backtest from our filing history — this takes a moment on first load."}
+        <div>
+          {data?.note ||
+            "Computing the backtest from our filing history — this takes a moment on first load."}
+        </div>
+        {data?.progress && (
+          <div
+            className="mt-3 mx-auto h-1.5 rounded-full overflow-hidden"
+            style={{ background: "var(--bg-3)", maxWidth: 260 }}
+          >
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${Math.round((data.progress.have / Math.max(1, data.progress.need)) * 100)}%`,
+                background: "var(--accent)",
+              }}
+            />
+          </div>
+        )}
       </div>
     );
   }

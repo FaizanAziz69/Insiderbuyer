@@ -12,6 +12,10 @@ import { BlogPost } from './entities/blog-post.entity';
 import { EarningsEvent } from './entities/earnings-event.entity';
 import { User } from './entities/user.entity';
 import { SentimentScore } from './entities/sentiment-score.entity';
+import {
+  BacktestCache,
+  PriceHistoryCache,
+} from './entities/backtest-cache.entity';
 import { AuthModule } from './auth/auth.module';
 import { CompaniesModule } from './companies/companies.module';
 import { TransactionsModule } from './transactions/transactions.module';
@@ -66,6 +70,8 @@ import { SocialModule } from './social/social.module';
           EarningsEvent,
           User,
           SentimentScore,
+          PriceHistoryCache,
+          BacktestCache,
         ],
         synchronize: true,
         logging: false,
