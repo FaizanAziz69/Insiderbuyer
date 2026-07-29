@@ -21,6 +21,7 @@ import {
   formatNumber,
 } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
+import { PaywallOverlay } from "@/components/PaywallOverlay";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import {
   AnalystRatingSection,
@@ -278,6 +279,11 @@ export default function CompanyPage({
               </div>
             </div>
 
+            {/* Everything below the tab nav is gated. The nav itself stays live
+                so visitors can see what each section holds. */}
+            <PaywallOverlay
+              subtitle={`Unlock the full ${sym} breakdown — financials, forecasts, insiders, institutions and more`}
+            >
             {tab === "financials" ? (
               <FinancialsTab sym={sym} />
             ) : tab === "forecast" ? (
@@ -638,6 +644,7 @@ export default function CompanyPage({
             />
               </>
             )}
+            </PaywallOverlay>
 
             {/* Disclaimer */}
             <div
