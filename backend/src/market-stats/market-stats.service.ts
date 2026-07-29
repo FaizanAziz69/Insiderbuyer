@@ -2061,9 +2061,17 @@ export class MarketStatsService {
     const stale = Date.now() - this.firmSweepAt > this.FIRM_TTL_MS;
 
     // Nothing gathered yet → pull a small slice inline so the first paint has
-    // real rows, then let the background sweep finish the rest.
+    // real rows, then let the background sweep finish the rest. The slice is
+    // STRIDED across the universe, not the first N: the universe is grouped by
+    // sector, so taking the head would make every firm's "main sector" look
+    // like tech until the background sweep caught up (and on a serverless
+    // instance that may never happen before it's frozen).
     if (!this.firmRatings.size) {
-      const eager = universe.slice(0, this.FIRM_EAGER);
+      const stride = Math.max(1, Math.floor(universe.length / this.FIRM_EAGER));
+      const eager: string[] = [];
+      for (let i = 0; i < universe.length && eager.length < this.FIRM_EAGER; i += stride) {
+        eager.push(universe[i]);
+      }
       const results = await Promise.all(
         eager.map((s) => this.ratingsForSymbol(s).catch(() => [])),
       );
