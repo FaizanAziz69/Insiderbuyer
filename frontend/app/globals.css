@@ -54,6 +54,21 @@
   --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
   --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.10), 0 0 0 1px rgba(0, 0, 0, 0.04);
   --shadow-glow: 0 0 20px rgba(0, 88, 130, 0.18);
+
+  /* ── Futuristic surface kit ──────────────────────────────────────────
+     Glass needs its own tokens because --bg-1 and --bg-2 are BOTH #ffffff
+     in light mode, so there is no translucent elevation step to borrow.
+     Mesh/glow/grid stops derive from the accent family so no component
+     ever hardcodes a colour. */
+  --glass-bg: rgba(255, 255, 255, 0.58);
+  --glass-border: rgba(255, 255, 255, 0.72);
+  --mesh-1: rgba(0, 88, 130, 0.22);
+  --mesh-2: rgba(0, 119, 180, 0.16);
+  --mesh-3: rgba(56, 189, 248, 0.14);
+  /* A COLOUR, not a finished shadow — so hover can ramp its intensity. */
+  --glow-primary: rgba(0, 88, 130, 0.34);
+  --grid-line: rgba(255, 255, 255, 0.10);
+  --noise-opacity: 0.022;
 }
 
 /* Dark theme — same navy/gold relationship inverted */
@@ -101,6 +116,18 @@
   --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04);
   --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04);
   --shadow-glow: 0 0 24px rgba(32, 208, 255, 0.28);
+
+  /* ── Futuristic surface kit — dark steps CHOSEN for the dark surface, not
+     an inversion of the light pair: the mesh and glow carry the visual
+     weight here, and noise reads lighter on a deep surface so it can go up. */
+  --glass-bg: rgba(12, 20, 40, 0.62);
+  --glass-border: rgba(47, 62, 92, 0.9);
+  --mesh-1: rgba(32, 208, 255, 0.20);
+  --mesh-2: rgba(77, 139, 255, 0.17);
+  --mesh-3: rgba(90, 208, 255, 0.13);
+  --glow-primary: rgba(32, 208, 255, 0.42);
+  --grid-line: rgba(255, 255, 255, 0.06);
+  --noise-opacity: 0.045;
 }
 
 html {
@@ -1319,4 +1346,227 @@ h1, h2, h3 {
 }
 :root[data-theme="dark"] .ai-catalyst-btn:hover {
   background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+/* ============ FUTURISTIC SURFACE KIT ============
+   Shared keyframes + layer utilities for the glass/mesh/grid treatment.
+   Every animation moves ONLY transform/opacity so it stays on the GPU and
+   cannot cause layout shift. All of them are switched off wholesale in the
+   reduced-motion block at the bottom of this section. */
+
+/* Slow mesh drift — the animated gradient behind a glass surface. */
+@keyframes fx-mesh-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(2.5%, -2%, 0) scale(1.08); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes fx-mesh-drift-alt {
+  0%   { transform: translate3d(0, 0, 0) scale(1.05); }
+  50%  { transform: translate3d(-3%, 2.5%, 0) scale(1); }
+  100% { transform: translate3d(0, 0, 0) scale(1.05); }
+}
+/* Scanline sweeping down the hero. */
+@keyframes fx-scan {
+  0%   { transform: translate3d(0, -120%, 0); }
+  100% { transform: translate3d(0, 220%, 0); }
+}
+/* Conic border sweep — rotates a gradient ring behind a masked surface. */
+@keyframes fx-spin {
+  to { transform: rotate(1turn); }
+}
+/* Floating orb drift. */
+@keyframes fx-float {
+  0%   { transform: translate3d(0, 0, 0); }
+  50%  { transform: translate3d(0, -14px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+/* ── Layers ────────────────────────────────────────────────────────────── */
+
+/* Animated gradient mesh. Sits behind content; never intercepts pointers. */
+.fx-mesh,
+.fx-grid,
+.fx-scan,
+.fx-noise,
+.fx-orb {
+  position: absolute;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.fx-mesh {
+  inset: -25%;
+  background:
+    radial-gradient(38% 44% at 22% 28%, var(--mesh-1) 0%, transparent 68%),
+    radial-gradient(34% 40% at 78% 22%, var(--mesh-2) 0%, transparent 66%),
+    radial-gradient(44% 48% at 62% 82%, var(--mesh-3) 0%, transparent 70%);
+  animation: fx-mesh-drift 18s ease-in-out infinite;
+  will-change: transform;
+}
+.fx-mesh--alt {
+  animation: fx-mesh-drift-alt 14s ease-in-out infinite;
+}
+
+/* Grid, masked so it fades out at every edge instead of stopping hard. */
+.fx-grid {
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px 64px);
+  -webkit-mask-image: radial-gradient(72% 62% at 50% 42%, #000 30%, transparent 100%);
+          mask-image: radial-gradient(72% 62% at 50% 42%, #000 30%, transparent 100%);
+}
+
+/* Scanline — a soft bright band travelling down the surface. */
+.fx-scan {
+  inset: 0;
+  overflow: hidden;
+}
+.fx-scan::after {
+  content: "";
+  position: absolute;
+  inset: -40% 0 auto 0;
+  height: 34%;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--grid-line) 45%,
+    transparent 100%
+  );
+  animation: fx-scan 9s linear infinite;
+  will-change: transform;
+}
+
+/* Faint film grain. Inline SVG turbulence — no network request. */
+.fx-noise {
+  inset: 0;
+  opacity: var(--noise-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Low-opacity floating orb. */
+.fx-orb {
+  border-radius: 999px;
+  filter: blur(38px);
+  animation: fx-float 11s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ── Glass surface ─────────────────────────────────────────────────────── */
+.fx-glass {
+  position: relative;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ── Conic sweep border (pricing card + CTA) ──────────────────────────── */
+.fx-sweep {
+  position: relative;
+  isolation: isolate;
+}
+.fx-sweep::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -1px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    var(--accent) 70deg,
+    var(--premium) 130deg,
+    transparent 200deg,
+    transparent 360deg
+  );
+  opacity: 0;
+  transition: opacity 0.28s ease;
+  animation: fx-spin 5.5s linear infinite;
+  will-change: transform;
+}
+/* Mask the ring down to a hairline so only the border glows, not the fill. */
+.fx-sweep::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--bg-2);
+}
+.fx-sweep:hover::before,
+.fx-sweep:focus-within::before { opacity: 1; }
+
+/* ── Primary CTA glow that ramps on hover ─────────────────────────────── */
+.fx-glow {
+  box-shadow: 0 0 0 0 transparent, 0 8px 22px -6px var(--glow-primary);
+  transition: box-shadow 0.2s ease-out, transform 0.2s ease-out;
+}
+.fx-glow:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 28px -2px var(--glow-primary), 0 12px 30px -8px var(--glow-primary);
+}
+.fx-glow:active { transform: scale(0.995); }
+
+/* ── Focus-visible — there were no focus rules in this stylesheet at all,
+   so add a real one rather than relying on the UA outline being visible
+   against a glass/gradient surface. ─────────────────────────────────────── */
+.fx-focus:focus-visible,
+.fx-glass a:focus-visible,
+.fx-glass button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
+/* ── Entrance: fade + rise, staggered by an inline --i index ───────────── */
+@keyframes fx-rise {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.fx-in > * {
+  opacity: 0;
+  animation: fx-rise 0.62s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+/* Only run once the section has been seen (class toggled by the observer). */
+.fx-in:not(.fx-seen) > * { animation-play-state: paused; }
+
+/* Blur-in for the headline figure. */
+@keyframes fx-blur-in {
+  from { opacity: 0; filter: blur(12px); transform: translate3d(0, 6px, 0); }
+  to   { opacity: 1; filter: blur(0); transform: translate3d(0, 0, 0); }
+}
+.fx-blur-in { animation: fx-blur-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* ============ REDUCED MOTION — final state, instantly, no loops ============
+   MANDATORY fallback: every looping layer is stilled and every entrance
+   animation resolves to its finished state so nothing is left invisible. */
+@media (prefers-reduced-motion: reduce) {
+  .fx-mesh,
+  .fx-mesh--alt,
+  .fx-scan::after,
+  .fx-orb,
+  .fx-sweep::before {
+    animation: none !important;
+  }
+  /* The scanline only reads as motion — drop it entirely. */
+  .fx-scan { display: none; }
+  /* Sweep border becomes a static ring so the card keeps its accent edge. */
+  .fx-sweep::before { opacity: 1; }
+  .fx-glow,
+  .fx-glow:hover { transform: none; }
+  .fx-in > *,
+  .fx-in:not(.fx-seen) > * {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+  .fx-blur-in {
+    animation: none !important;
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
 }

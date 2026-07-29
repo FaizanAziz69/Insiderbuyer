@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import useSWR from "swr";
 import Link from "next/link";
 import {
   Bell, Building2, Check, CheckCircle2, Gauge, Landmark,
@@ -7,8 +8,10 @@ import {
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { Logo } from "@/components/Logo";
-// Kept imported-but-unused deliberately: the backtest slot in the hero is
-// blank pending a longer test window — see the comment at that slot.
+// Imported but not rendered on purpose. The hero shows LiveDataPanel instead:
+// the computed backtest returns +9.1% against SPY's +48.3% over the only window
+// our filing archive supports, which argues against subscribing. Swap this in
+// once the signal is tested over a longer history.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { BacktestMini } from "@/components/backtest/BacktestPanel";
 
@@ -39,6 +42,13 @@ const PLAYBOOKS = [
   { sector: "Defense", title: "Top Stocks Defense Insiders Are Buying", from: "#0f2942", to: "#1d4ed8" },
   { sector: "Biotech", title: "Top Stocks Biotech Insiders Are Buying", from: "#065f46", to: "#10b981" },
   { sector: "Energy", title: "Top Stocks Energy Insiders Are Buying", from: "#9a3412", to: "#f97316" },
+];
+
+/** What the free tier actually covers — no premium features listed here. */
+const FREE_INCLUDES = [
+  "Live insider filings as they hit EDGAR",
+  "Company profiles, charts and fundamentals",
+  "Congress trading and politician profiles",
 ];
 
 /** Short lines only — the page is meant to be scanned, not read. */
@@ -91,7 +101,7 @@ const CSS = `
   --hero-a: var(--accent);
   --hero-b: color-mix(in srgb, var(--accent) 62%, #00131d);
   --hero-ink: #ffffff;
-  --hero-sub: rgba(255,255,255,.80);
+  --hero-sub: rgba(255,255,255,.88);
   --hero-edge: rgba(255,255,255,.14);
   --cta-bg: var(--good);
   --cta-b: color-mix(in srgb, var(--good) 70%, #0a3a26);
@@ -126,7 +136,7 @@ const CSS = `
   --hero-a: var(--accent);
   --hero-b: color-mix(in srgb, var(--accent) 62%, #00131d);
   --hero-ink: #ffffff;
-  --hero-sub: rgba(255,255,255,.80);
+  --hero-sub: rgba(255,255,255,.88);
   --hero-edge: rgba(255,255,255,.14);
   --cta-bg: var(--good);
   --cta-b: color-mix(in srgb, var(--good) 70%, #0a3a26);
@@ -152,6 +162,106 @@ const CSS = `
    text-white silently lost against it. */
 .prm-hero-h { color: var(--hero-ink); }
 .prm-hero-sub { color: var(--hero-sub); }
+
+/* ── Hero eyebrow ─────────────────────────────────────────────────────── */
+.prm-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase;
+  padding: 6px 12px; border-radius: 999px;
+  color: var(--hero-ink);
+  background: rgba(255,255,255,.10);
+  border: 1px solid var(--hero-edge);
+  backdrop-filter: blur(8px);
+}
+.prm-eyebrow-dot {
+  width: 6px; height: 6px; border-radius: 999px;
+  background: var(--cta-bg);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cta-bg) 28%, transparent);
+}
+
+/* ── Hero live-data glass panel. The hero surface is DARK in both themes, so
+   this panel's ink is hero-ink either way — it is not a theme inversion. ── */
+.prm-live { color: var(--hero-ink); }
+/* A white-tinted glass failed contrast in light mode (.88 white label text hit
+   4.32:1 against the gradient's lightest point). A DARK scrim instead keeps the
+   glass read while lifting every label to ~6:1. */
+.prm-live.fx-glass {
+  background: color-mix(in srgb, #00131d 16%, transparent);
+  border-color: var(--hero-edge);
+}
+:root[data-theme="dark"] .prm-live.fx-glass {
+  background: color-mix(in srgb, var(--bg-1) 55%, transparent);
+}
+.prm-live-strong { color: var(--hero-ink); }
+.prm-live-dim { color: var(--hero-sub); }
+.prm-live-label {
+  font-size: 11px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--hero-sub);
+}
+.prm-live-live {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--hero-ink);
+}
+.prm-live-divide { border-top: 1px solid var(--hero-edge); }
+
+/* Daily-filing bars. flex-1 with a min-width keeps 30 bars inside 375px. */
+.prm-bar {
+  flex: 1 1 0; min-width: 3px; border-radius: 2px 2px 0 0;
+  background: linear-gradient(to top,
+    color-mix(in srgb, var(--cta-bg) 85%, transparent),
+    color-mix(in srgb, var(--hero-ink) 55%, transparent));
+  transition: opacity .18s ease;
+}
+.prm-bar:hover { opacity: .75; }
+
+.prm-chip {
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 700;
+  padding: 2px 7px; border-radius: 5px;
+  color: var(--hero-ink);
+  background: rgba(255,255,255,.12);
+  border: 1px solid var(--hero-edge);
+}
+
+/* ── Free card: gradient sweep border + lift ──────────────────────────── */
+.prm-free-card {
+  position: relative; isolation: isolate;
+  border-radius: 16px; padding: 28px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .25s ease;
+}
+.prm-free-card::before {
+  content: ""; position: absolute; z-index: -1; inset: -1.5px;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg,
+    transparent 0deg,
+    color-mix(in srgb, var(--sig) 90%, transparent) 60deg,
+    var(--premium) 120deg,
+    transparent 190deg, transparent 360deg);
+  opacity: 0; transition: opacity .3s ease;
+  animation: fx-spin 6s linear infinite;
+  will-change: transform;
+}
+.prm-free-card::after {
+  content: ""; position: absolute; z-index: -1; inset: 0;
+  border-radius: inherit; background: var(--bg-2);
+}
+.prm-free-card:hover,
+.prm-free-card:focus-within {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+.prm-free-card:hover::before,
+.prm-free-card:focus-within::before { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .prm-free-card::before { animation: none; opacity: 1; }
+  .prm-free-card:hover, .prm-free-card:focus-within { transform: none; }
+  .prm-mint:hover { filter: none; }
+}
 
 .prm-mint {
   background: linear-gradient(180deg, var(--cta-bg), var(--cta-b));
@@ -210,6 +320,153 @@ const CSS = `
 `;
 
 /* Email capture — POSTs to the existing /subscribers endpoint. */
+/**
+ * Fade + rise entrance, staggered 80ms per child via the `--i` index each child
+ * sets. IntersectionObserver-driven and runs ONCE. The animation itself lives in
+ * globals.css (.fx-in), including its reduced-motion fallback, so a user with
+ * that preference sees the finished state immediately and no observer matters.
+ */
+function Reveal({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [seen, setSeen] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || seen) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setSeen(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.15 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [seen]);
+
+  return (
+    <div ref={ref} className={`fx-in ${seen ? "fx-seen" : ""} ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+/** Compact currency for the hero tiles — $1.8B, $847M, $12.4K. */
+function shortMoney(v: number): string {
+  const a = Math.abs(v);
+  if (a >= 1e12) return `$${(v / 1e12).toFixed(1)}T`;
+  if (a >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
+  if (a >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
+  if (a >= 1e3) return `$${(v / 1e3).toFixed(0)}K`;
+  return `$${Math.round(v)}`;
+}
+
+interface DashboardLite {
+  metrics: { totalRecentValue: number; topSector: { name: string; value: number } };
+  activity: Array<{ date: string; count: number; value: number }>;
+  topTrades: Array<{
+    id: string;
+    insiderName: string;
+    role: string;
+    ticker: string | null;
+    companyName: string;
+    totalValue: number;
+  }>;
+}
+
+/**
+ * Glass panel of REAL platform data for the hero — 30 days of Form 4 flow as a
+ * bar chart plus headline totals and the largest recent buys. Everything comes
+ * from /dashboard; nothing here is illustrative.
+ *
+ * Note it deliberately shows 30-day aggregates rather than a 24h count: the
+ * feed legitimately reads zero early in the day, and a hero that says "0" is
+ * worse than no hero at all.
+ */
+function LiveDataPanel() {
+  const { data } = useSWR<DashboardLite>(`${API_BASE}/dashboard`, (u: string) =>
+    fetch(u).then((r) => r.json()),
+  );
+
+  const activity = data?.activity ?? [];
+  const filings = activity.reduce((a, d) => a + (d.count || 0), 0);
+  const maxCount = Math.max(1, ...activity.map((d) => d.count || 0));
+  const trades = (data?.topTrades ?? []).slice(0, 3);
+
+  return (
+    <Reveal>
+      <div className="prm-live fx-glass p-5" style={{ ["--i" as string]: 0 }}>
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <span className="prm-live-label">Insider buying · last 30 days</span>
+          <span className="prm-live-live">
+            <span className="prm-eyebrow-dot" aria-hidden />
+            Live
+          </span>
+        </div>
+
+        {/* Headline totals */}
+        <div className="flex items-baseline gap-3 flex-wrap mt-3">
+          <span className="prm-num text-[34px] font-bold leading-none prm-live-strong">
+            {data ? shortMoney(data.metrics.totalRecentValue) : "—"}
+          </span>
+          <span className="text-[13px] prm-live-dim">
+            {data ? `${filings.toLocaleString()} filings tracked` : "loading…"}
+          </span>
+        </div>
+
+        {/* 30-day flow — one bar per day, height = filings that day.
+            Pure CSS bars: no layout shift, scales to any width. */}
+        <div
+          className="flex items-end gap-[3px] mt-4"
+          style={{ height: 68 }}
+          role="img"
+          aria-label={`Daily insider filings over the last 30 days, ${filings} in total`}
+        >
+          {activity.map((d) => (
+            <span
+              key={d.date}
+              className="prm-bar"
+              style={{ height: `${Math.max(6, ((d.count || 0) / maxCount) * 100)}%` }}
+              title={`${d.date}: ${d.count} filings`}
+            />
+          ))}
+          {!activity.length &&
+            Array.from({ length: 30 }, (_, i) => (
+              <span key={i} className="prm-bar" style={{ height: "18%", opacity: 0.35 }} />
+            ))}
+        </div>
+
+        {/* Largest recent buys */}
+        <div className="mt-4 pt-3.5 prm-live-divide space-y-2">
+          {trades.length
+            ? trades.map((t) => (
+                <div key={t.id} className="flex items-center gap-2.5 text-[13px]">
+                  <span className="prm-chip">{t.ticker || "—"}</span>
+                  <span className="truncate prm-live-dim flex-1 min-w-0">
+                    {t.insiderName}
+                  </span>
+                  <span className="prm-num font-bold prm-live-strong">
+                    {shortMoney(t.totalValue)}
+                  </span>
+                </div>
+              ))
+            : Array.from({ length: 3 }, (_, i) => (
+                <div key={i} className="shimmer rounded" style={{ height: 18 }} />
+              ))}
+        </div>
+      </div>
+    </Reveal>
+  );
+}
+
 function SignupForm({ cta, tone = "cta" }: { cta: string; tone?: "cta" | "mint" }) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
@@ -343,52 +600,103 @@ export default function PremiumPage() {
     <div className="w-full pb-16 prm-scope">
       <style>{CSS}</style>
 
-      {/* ─── Hero (above the fold) — copy left, backtest proof right ─── */}
-      <section className="prm-hero px-6 sm:px-10 py-14 sm:py-20">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-10 lg:gap-14 items-center">
-          <div className="text-center lg:text-left">
-            <h1 className="prm-h prm-hero-h text-[36px] sm:text-[58px]">
+      {/* ─── Hero (above the fold) — copy left, live data right ───
+          Layered depth: base gradient → drifting mesh → masked grid → scanline
+          → grain → orbs, all pointer-events:none and all behind the content,
+          so nothing can collide with the text at any width. */}
+      <section className="prm-hero relative overflow-hidden px-6 sm:px-10 py-14 sm:py-20">
+        <div className="fx-mesh" aria-hidden />
+        <div className="fx-grid" aria-hidden />
+        <div className="fx-scan" aria-hidden />
+        <div className="fx-noise" aria-hidden />
+        <div
+          className="fx-orb"
+          aria-hidden
+          style={{ width: 260, height: 260, top: "-8%", right: "6%", background: "var(--mesh-2)" }}
+        />
+        <div
+          className="fx-orb"
+          aria-hidden
+          style={{ width: 190, height: 190, bottom: "-12%", left: "4%", background: "var(--mesh-3)", animationDelay: "2.5s" }}
+        />
+
+        <div className="relative max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-10 lg:gap-14 items-center">
+          <Reveal className="text-center lg:text-left">
+            <div style={{ ["--i" as string]: 0 }}>
+              <span className="prm-eyebrow">
+                <span className="prm-eyebrow-dot" aria-hidden />
+                Live SEC Form 4 intelligence
+              </span>
+            </div>
+            <h1
+              className="prm-h prm-hero-h text-[36px] sm:text-[58px] mt-4"
+              style={{ ["--i" as string]: 1, letterSpacing: "-0.035em" }}
+            >
               Tap Into The Power of Insider Data
             </h1>
-            <p className="prm-hero-sub text-[17px] sm:text-[19px] leading-relaxed mt-5 max-w-xl mx-auto lg:mx-0">
+            <p
+              className="prm-hero-sub text-[17px] sm:text-[19px] leading-relaxed mt-5 max-w-xl mx-auto lg:mx-0"
+              style={{ ["--i" as string]: 2 }}
+            >
               Make more well-informed trading decisions with our next-generation stock research platform.
             </p>
-            <div className="mt-9 w-full max-w-[300px] mx-auto lg:mx-0">
+            <div
+              className="mt-9 w-full max-w-[300px] mx-auto lg:mx-0"
+              style={{ ["--i" as string]: 3 }}
+            >
               <SignupForm cta="Create Free Account" tone="mint" />
             </div>
+          </Reveal>
+
+          {/* Real platform data — 30 days of live Form 4 flow. */}
+          <div className="min-w-0">
+            <LiveDataPanel />
           </div>
-          {/* Backtest proof slot — intentionally EMPTY for now.
-              The computed backtest currently shows the raw insider signal
-              returning +9.1% against SPY's +48.3% over the only window our
-              filing archive covers (from 2025-04, i.e. off the April-2025
-              market bottom, which flatters the benchmark). Publishing that
-              beside the pricing would argue against buying, so the slot stays
-              blank until the signal is tested over a longer history or on the
-              Insider Score itself.
-              To restore: render <BacktestMini /> here. */}
-          <div className="min-w-0" />
         </div>
       </section>
 
       {/* ─── $0 forever ─── */}
-      <section className="mt-16">
+      <section className="relative mt-16">
         <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-9 lg:gap-12 items-center">
-          <div>
-            <h2 className="prm-h text-[32px] sm:text-[42px]">Free to get started</h2>
-            <p className="text-[16.5px] leading-relaxed mt-4 max-w-md" style={{ color: "var(--text-soft)" }}>
+          <Reveal>
+            <h2 className="prm-h text-[32px] sm:text-[42px]" style={{ ["--i" as string]: 0 }}>
+              Free to get started
+            </h2>
+            <p
+              className="text-[16.5px] leading-relaxed mt-4 max-w-md"
+              style={{ ["--i" as string]: 1, color: "var(--text-soft)" }}
+            >
               Create an account and keep the essentials free for as long as you like.
             </p>
-          </div>
-          <div className="prm-card p-7">
-            <div className="flex items-baseline justify-center gap-2.5 mb-5">
-              <span className="prm-num text-[60px] font-bold leading-none" style={{ letterSpacing: "-.04em" }}>$0</span>
-              <span className="text-[16px] font-semibold" style={{ color: "var(--text-mute)" }}>forever</span>
+            <ul className="mt-6 space-y-2" style={{ ["--i" as string]: 2 }}>
+              {FREE_INCLUDES.map((f) => (
+                <li key={f} className="flex items-start gap-2.5 text-[14.5px]" style={{ color: "var(--text-soft)" }}>
+                  <Check className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: "var(--good)" }} />
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+
+          <Reveal>
+            <div className="prm-free-card" style={{ ["--i" as string]: 0 }}>
+              <div className="flex items-baseline justify-center gap-2.5 mb-5">
+                <span
+                  className="prm-num text-[60px] font-bold leading-none fx-blur-in"
+                  style={{ letterSpacing: "-.04em", color: "var(--text)" }}
+                >
+                  $0
+                </span>
+                <span className="text-[16px] font-semibold" style={{ color: "var(--text-mute)" }}>
+                  forever
+                </span>
+              </div>
+              <SignupForm cta="Sign Up" />
+              <p className="text-[12px] mt-3.5 text-center" style={{ color: "var(--text-mute)" }}>
+                No payment details required
+              </p>
             </div>
-            <SignupForm cta="Sign Up" />
-            <p className="text-[12px] mt-3.5 text-center" style={{ color: "var(--text-mute)" }}>
-              No payment details required
-            </p>
-          </div>
+          </Reveal>
         </div>
       </section>
 
