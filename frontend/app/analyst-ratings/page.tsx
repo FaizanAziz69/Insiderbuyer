@@ -1,7 +1,7 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   BarChart3,
   CheckCircle2,
@@ -34,7 +34,6 @@ interface FirmResponse {
 /** Rows visible before the upgrade wall. The row straight after fades out, the
  *  way stockanalysis.com teases the next one. */
 const FREE_ROWS = 6;
-const DISMISS_KEY = "ib_analysts_paywall_dismissed";
 
 const fmtDate = (ms: number | null) =>
   ms == null
@@ -115,30 +114,26 @@ export default function AnalystRatingsPage() {
     { refreshInterval: 15 * 60_000, revalidateOnFocus: false },
   );
 
-  // The wall is dismissible until Stripe is wired up; remember the choice so it
-  // doesn't nag on every visit.
+  // The wall is dismissible with the cross until Stripe is wired up, but the
+  // dismissal is deliberately NOT persisted — every page load puts it back.
   const [unlocked, setUnlocked] = useState(false);
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(DISMISS_KEY) === "1") setUnlocked(true);
-    } catch {
-      /* private mode — wall just stays up */
-    }
-  }, []);
-  const dismiss = () => {
-    setUnlocked(true);
-    try {
-      localStorage.setItem(DISMISS_KEY, "1");
-    } catch {
-      /* ignore */
-    }
-  };
+  const dismiss = () => setUnlocked(true);
 
   const rows = data?.rows || [];
   const total = rows.length;
+  // The API returns firms best-first, so rank 1 is the highest rated and rank
+  // `total` the lowest. The page then lists them the other way up — worst at the
+  // top, counting down to the number 1 firm at the bottom.
+  const ordered = useMemo(
+    () =>
+      rows
+        .map((r, i) => ({ ...r, rank: i + 1 }))
+        .reverse(),
+    [rows],
+  );
   const visible = useMemo(
-    () => (unlocked ? rows : rows.slice(0, FREE_ROWS + 1)),
-    [rows, unlocked],
+    () => (unlocked ? ordered : ordered.slice(0, FREE_ROWS + 1)),
+    [ordered, unlocked],
   );
   const filling =
     data != null && data.coverage.symbols < data.coverage.universe;
@@ -207,9 +202,7 @@ export default function AnalystRatingsPage() {
               </thead>
               <tbody>
                 {visible.map((r, i) => {
-                  // Ranked best-first, but numbered backward — the top row
-                  // carries the highest number and counts down to 1.
-                  const num = total - i;
+                  const num = r.rank;
                   const teaser = !unlocked && i === FREE_ROWS;
                   return (
                     <tr
