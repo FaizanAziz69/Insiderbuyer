@@ -293,7 +293,7 @@ export function EtfHoldersCard({ ticker }: { ticker: string }) {
 }
 
 /** Smart-Score slot — our REAL Insider Score (no fake sign-up gate). */
-export function ScoreCardQQ({ ticker, iqs, iqsV1 }: { ticker: string; iqs: number | null; iqsV1?: number | null }) {
+export function ScoreCardQQ({ ticker, iqs }: { ticker: string; iqs: number | null }) {
   const tier = iqs == null ? null : iqs >= 80 ? "Strong" : iqs >= 60 ? "Positive" : iqs >= 40 ? "Neutral" : "Weak";
   const color = iqs == null ? "var(--text-mute)" : iqs >= 80 ? "var(--good)" : iqs >= 60 ? "var(--accent)" : iqs >= 40 ? "var(--gold)" : "var(--bad)";
   return (
@@ -308,7 +308,6 @@ export function ScoreCardQQ({ ticker, iqs, iqsV1 }: { ticker: string; iqs: numbe
           </div>
           <div className="min-w-0">
             <div className="text-[17px] font-bold" style={{ color }}>{tier}</div>
-            {iqsV1 != null && <div className="text-[12px] text-mute mt-0.5">v1 score: {Math.round(iqsV1)}</div>}
            
           </div>
         </div>

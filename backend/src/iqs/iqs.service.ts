@@ -39,7 +39,6 @@ export interface RankingRow {
   marketCap: number | null;
   lastPrice: number | null;
   iqs: number; // 0–100 (v2 composite)
-  iqsV1: number | null; // legacy v1 score, for comparison
   insiderWeight: number;
   transactionWeight: number;
   convictionWeight: number;
@@ -470,7 +469,6 @@ export class IqsService {
         'c."marketCap" as "marketCap"',
         'c."lastPrice" as "lastPrice"',
         's.iqs as iqs',
-        's."iqsV1" as "iqsV1"',
         's."insiderWeight" as "insiderWeight"',
         's."transactionWeight" as "transactionWeight"',
         's."convictionWeight" as "convictionWeight"',
@@ -546,7 +544,6 @@ export class IqsService {
       marketCap: sanitizedMarketCap(r.marketCap, Number(r.totalPurchaseValue) || 0),
       lastPrice: r.lastPrice !== null ? Number(r.lastPrice) : null,
       iqs: Number(r.iqs),
-      iqsV1: r.iqsV1 != null ? Number(r.iqsV1) : null,
       insiderWeight: Number(r.insiderWeight),
       transactionWeight: Number(r.transactionWeight),
       convictionWeight: Number(r.convictionWeight),
@@ -1067,7 +1064,6 @@ export class IqsService {
         'c.sector as sector',
         'c."marketCap" as "marketCap"',
         's.iqs as iqs',
-        's."iqsV1" as "iqsV1"',
         's."distinctBuyers" as "distinctBuyers"',
         's."transactionCount" as "transactionCount"',
         's."totalPurchaseValue" as "totalPurchaseValue"',
@@ -1081,7 +1077,6 @@ export class IqsService {
       sector: r.sector,
       marketCap: r.marketCap !== null ? Number(r.marketCap) : null,
       iqs: Number(r.iqs),
-      iqsV1: r.iqsV1 != null ? Number(r.iqsV1) : null,
       distinctBuyers: Number(r.distinctBuyers),
       transactionCount: Number(r.transactionCount),
       totalPurchaseValue: Number(r.totalPurchaseValue),
@@ -1451,7 +1446,6 @@ export class IqsService {
       recommendation: string | null;
       numAnalysts: number | null;
       iqs: number | null;
-      iqsV1: number | null;
       insiderSuccess: number | null;
       topStocksScore: number | null;
     }>
@@ -1467,7 +1461,6 @@ export class IqsService {
       .map((a) => {
         const rk = bySym.get(a.symbol.toUpperCase());
         const insiderScore = rk?.iqs != null ? Number(rk.iqs) : null;
-        const insiderScoreV1 = rk?.iqsV1 != null ? Number(rk.iqsV1) : null;
         const insiderSuccess =
           rk?.historicalSuccessWeight != null
             ? Number(rk.historicalSuccessWeight)
@@ -1490,7 +1483,6 @@ export class IqsService {
           recommendation: a.recommendation,
           numAnalysts: a.numAnalysts,
           iqs: insiderScore,
-          iqsV1: insiderScoreV1,
           insiderSuccess,
           topStocksScore: score,
         };

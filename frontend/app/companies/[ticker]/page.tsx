@@ -599,7 +599,6 @@ export default function CompanyPage({
               <ScoreCardQQ
                 ticker={sym}
                 iqs={data.score ? Number(data.score.iqs) : null}
-                iqsV1={data.score && (data.score as { iqsV1?: number | null }).iqsV1 != null ? Number((data.score as { iqsV1?: number | null }).iqsV1) : null}
               />
               <BullBearCard
                 ticker={sym}

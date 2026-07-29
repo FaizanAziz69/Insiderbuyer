@@ -305,10 +305,10 @@ export class StockListsService {
       .slice(0, 50);
 
     // Attach Insider Scores (every list carries the column) — v2 + v1.
-    let iqsByTicker = new Map<string | null, { iqs: number; iqsV1: number | null }>();
+    let iqsByTicker = new Map<string | null, { iqs: number }>();
     try {
       const { rows: rankRows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
-      iqsByTicker = new Map(rankRows.map((r) => [r.ticker, { iqs: r.iqs, iqsV1: r.iqsV1 }]));
+      iqsByTicker = new Map(rankRows.map((r) => [r.ticker, { iqs: r.iqs }]));
     } catch { /* scores unavailable */ }
 
     const rows = qualifying.map((r) => ({
@@ -317,7 +317,6 @@ export class StockListsService {
       sector: r.sector,
       marketCap: null as number | null,
       iqs: iqsByTicker.get(r.symbol)?.iqs ?? undefined,
-      iqsV1: iqsByTicker.get(r.symbol)?.iqsV1 ?? undefined,
       upsidePct: r.upsidePct,
       targetMean: r.targetMean,
       recommendation: r.recommendation,
@@ -514,7 +513,6 @@ export class StockListsService {
         return {
           ...h,
           iqs: rk?.iqs ?? undefined,
-          iqsV1: rk?.iqsV1 ?? undefined,
           lastBuyDate: rk?.lastBuyDate ?? h.lastReported ?? null,
           avgCost: rk?.avgCost ?? reportedPerShare,
         };
@@ -537,7 +535,6 @@ export class StockListsService {
       const withIqs = rows.map((h) => ({
         ...h,
         iqs: iqsByTicker.get(h.ticker)?.iqs ?? undefined,
-        iqsV1: iqsByTicker.get(h.ticker)?.iqsV1 ?? undefined,
       }));
       const live = await this.fetchLiveQuotes(rows.map((r) => r.ticker));
       const enriched = this.enrichRows(withIqs, live) as any[];
@@ -571,7 +568,6 @@ export class StockListsService {
             sector: q.sector,
             marketCap: q.marketCap,
             iqs: pennyIqs.get(q.symbol)?.iqs ?? undefined,
-            iqsV1: pennyIqs.get(q.symbol)?.iqsV1 ?? undefined,
             live: {
               price: q.price,
               changeAbs: q.changeAbs,
@@ -625,7 +621,6 @@ export class StockListsService {
         return {
           ...h,
           iqs: iqsByTicker.get(h.ticker)?.iqs ?? undefined,
-          iqsV1: iqsByTicker.get(h.ticker)?.iqsV1 ?? undefined,
           avgCost: cb?.avgCost ?? null,
           lastBuyDate: cb?.lastBuyDate ?? null,
         };
@@ -725,7 +720,6 @@ export class StockListsService {
           const hit = bySym.get(row.ticker!);
           if (hit) {
             row.iqs = hit.iqs;
-            (row as any).iqsV1 = hit.iqsV1;
             (row as any).distinctBuyers = hit.distinctBuyers;
             (row as any).totalPurchaseValue = hit.totalPurchaseValue;
             (row as any).avgCost = hit.avgCost ?? null;

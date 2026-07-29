@@ -162,7 +162,7 @@ export default function MoversPage() {
                 sortValue: (r) => r.iqs,
                 render: (r) => (
                   <PremiumValue label="Insider Score">
-                    <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />
+                    <IqsScoreCell iqs={r.iqs} />
                   </PremiumValue>
                 ),
               },

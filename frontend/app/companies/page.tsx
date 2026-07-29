@@ -67,7 +67,7 @@ const iqsCol: Column<RankingRow> = {
   label: "Insider Score",
   align: "center",
   sortValue: (r) => r.iqs ?? null,
-  render: (r) => <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />,
+  render: (r) => <IqsScoreCell iqs={r.iqs} />,
 };
 
 // Categorized preset filter for the "Insiders Buying" column. Cluster = 2+

@@ -9,7 +9,6 @@ export interface RankingRow {
   marketCap: number | null;
   lastPrice: number | null;
   iqs: number; // 0–100 composite Insider Score (v2)
-  iqsV1?: number | null; // legacy v1 score, for comparison
   insiderWeight: number;
   transactionWeight: number;
   convictionWeight: number;
@@ -348,7 +347,6 @@ export interface IdeaRow {
   sector: string | null;
   marketCap: number | null;
   iqs: number;
-  iqsV1?: number | null; // legacy v1 score, shown beside v2 for comparison
   distinctBuyers: number;
   transactionCount: number;
   totalPurchaseValue: number;

@@ -33,7 +33,6 @@ interface WRow {
   volume: number | null;
   insiderTrades: number | null;
   iqs: number | null;
-  iqsV1?: number | null;
 }
 
 /** Compact volume formatter (no currency sign): 1.2M, 940K, 3.1B. */
@@ -64,7 +63,7 @@ export default function WatchlistPage() {
   // covers ANY watchlist ticker that has Form 4 activity — buys and sells,
   // live-fetched from SEC when we haven't ingested it.
   const detailsKey = tickers.length ? `wl-insider:${tickers.join(",")}` : null;
-  const { data: insiderData } = useSWR<Record<string, { iqs: number | null; iqsV1: number | null; trades: number | null }>>(
+  const { data: insiderData } = useSWR<Record<string, { iqs: number | null; trades: number | null }>>(
     detailsKey,
     async () => {
       const entries = await Promise.all(
@@ -79,7 +78,6 @@ export default function WatchlistPage() {
             // open-market buys (so no formal score), derive a 0–100 insider
             // sentiment from its Form 4 buys vs sells, weighted by role — so the
             // column is populated for every stock with insider activity.
-            const iqsV1 = typeof d?.score?.iqsV1 === "number" ? d.score.iqsV1 : null;
             let iqs = typeof d?.score?.iqs === "number" ? d.score.iqs : null;
             if (iqs == null && txs.length) {
               const roleMult = (role: string) =>
@@ -95,9 +93,9 @@ export default function WatchlistPage() {
               const denom = buy + sell;
               if (denom > 0) iqs = Math.round((buy / denom) * 100);
             }
-            return [t.toUpperCase(), { iqs, iqsV1, trades }] as const;
+            return [t.toUpperCase(), { iqs, trades }] as const;
           } catch {
-            return [t.toUpperCase(), { iqs: null, iqsV1: null, trades: null }] as const;
+            return [t.toUpperCase(), { iqs: null, trades: null }] as const;
           }
         }),
       );
@@ -106,7 +104,7 @@ export default function WatchlistPage() {
     { revalidateOnFocus: false, dedupingInterval: 5 * 60_000 },
   );
   const insiderBySym = useMemo(() => {
-    const m = new Map<string, { iqs: number | null; iqsV1: number | null; trades: number | null }>();
+    const m = new Map<string, { iqs: number | null; trades: number | null }>();
     Object.entries(insiderData || {}).forEach(([k, v]) => m.set(k, v));
     return m;
   }, [insiderData]);
@@ -128,7 +126,6 @@ export default function WatchlistPage() {
         volume: q?.volume ?? null,
         insiderTrades: ins?.trades ?? null,
         iqs: ins?.iqs ?? null,
-        iqsV1: ins?.iqsV1 ?? null,
       };
     });
   }, [tickers, data, insiderBySym]);
@@ -237,7 +234,7 @@ export default function WatchlistPage() {
       sortValue: (r) => r.iqs,
       render: (r) => (
                   <PremiumValue label="Insider Score">
-                    <IqsScoreCell iqs={r.iqs} iqsV1={r.iqsV1} />
+                    <IqsScoreCell iqs={r.iqs} />
                   </PremiumValue>
                 ),
     },
