@@ -108,7 +108,9 @@ const FACTORS = [
 
 export default function AnalystRatingsPage() {
   const { data, isLoading } = useSWR<FirmResponse>(
-    `${API_BASE}/market-stats/analyst-firms?limit=100`,
+    // Top 50 only — the tail is weak firms nobody ranks by, and the table is a
+    // single page numbered 50 down to 1.
+    `${API_BASE}/market-stats/analyst-firms?limit=50`,
     fetcher,
     { refreshInterval: 15 * 60_000, revalidateOnFocus: false },
   );
@@ -307,7 +309,7 @@ export default function AnalystRatingsPage() {
               Upgrade to Premium
             </h2>
             <p className="text-mute text-[14px] mt-1.5">
-              See all {total} firms ranked by their real forward performance
+              See all {total} top-ranked firms and their real forward performance
             </p>
 
             <p
