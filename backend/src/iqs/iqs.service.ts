@@ -1133,7 +1133,22 @@ export class IqsService {
     };
   }
 
-  async getTopInsiders(limit = 20, country?: string) {
+  /** Names that read as an investment vehicle rather than a natural person —
+   *  funds, advisers and partnerships that file Form 4 as 10% owners. We can't
+   *  tell a hedge fund from a PE firm or family office by name alone, so this is
+   *  the whole fund/institution class, not strictly hedge funds. */
+  private static readonly FUND_NAME =
+    /\b(capital|partners?|management|advisors?|advisers?|asset|fund|funds|holdings?|ventures?|equity|investments?|lp|llc|l\.p|l\.l\.c|trust|group)\b/i;
+
+  async getTopInsiders(
+    limit = 20,
+    country?: string,
+    group?: 'ceo' | 'cfo' | 'hedge-fund' | 'politician',
+  ) {
+    // Politicians aren't corporate insiders and never appear in Form 4 — this
+    // preset reads the congressional disclosure dataset instead.
+    if (group === 'politician') return this.congress.topBuyers(limit);
+
     const qb = this.txRepo
       .createQueryBuilder('t')
       .where(`t."transactionCode" = 'P'`)
@@ -1145,6 +1160,13 @@ export class IqsService {
       })
       .leftJoinAndSelect('t.company', 'c');
     if (country) qb.andWhere('t."insiderCountry" = :country', { country });
+    if (group === 'ceo') qb.andWhere(`t."role" = 'CEO'`);
+    if (group === 'cfo') qb.andWhere(`t."role" = 'CFO'`);
+    if (group === 'hedge-fund') {
+      // Funds file as 10% owners, so they land in the catch-all roles rather
+      // than an officer title; the name is what identifies them.
+      qb.andWhere(`t."role" NOT IN ('CEO','CFO','COO')`);
+    }
     const rows = await qb.getMany();
     const agg = new Map<
       string,
@@ -1181,9 +1203,11 @@ export class IqsService {
       cur.trades += 1;
       agg.set(key, cur);
     }
-    return Array.from(agg.values())
-      .sort((a, b) => b.totalValue - a.totalValue)
-      .slice(0, limit);
+    let out = Array.from(agg.values());
+    if (group === 'hedge-fund') {
+      out = out.filter((r) => IqsService.FUND_NAME.test(r.name));
+    }
+    return out.sort((a, b) => b.totalValue - a.totalValue).slice(0, limit);
   }
 
   /** Per-insider track record: the share of an insider's open-market buys that

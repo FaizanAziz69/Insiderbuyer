@@ -228,6 +228,65 @@ export class CongressionalService implements OnModuleInit {
     });
   }
 
+  /**
+   * Members of Congress ranked by disclosed purchase value, in the same row
+   * shape as the Form 4 insider leaderboard — this backs the "Politicians"
+   * preset on /insiders, which cannot come from Form 4 data (corporate insiders
+   * only). The STOCK Act discloses amount BANDS rather than exact values, so
+   * each trade is valued at the midpoint of its band.
+   */
+  async topBuyers(limit = 50) {
+    const rows = await this.repo
+      .createQueryBuilder('t')
+      .where(`t.action = 'Buy'`)
+      .getMany();
+
+    const agg = new Map<
+      string,
+      {
+        name: string;
+        role: string;
+        ticker: string | null;
+        company: string;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+        totalValue: number;
+        trades: number;
+        kind: 'politician';
+      }
+    >();
+
+    for (const t of rows) {
+      const min = t.amountMin == null ? null : Number(t.amountMin);
+      const max = t.amountMax == null ? null : Number(t.amountMax);
+      const value =
+        min != null && max != null ? (min + max) / 2 : (max ?? min ?? 0);
+      if (!Number.isFinite(value) || value <= 0) continue;
+
+      const key = `${t.politicianName.toLowerCase()}|${(t.ticker || '').toUpperCase()}`;
+      const cur = agg.get(key) || {
+        name: t.politicianName,
+        role: t.chamber,
+        ticker: t.ticker ? t.ticker.toUpperCase() : null,
+        company: t.companyName || '',
+        city: null,
+        state: null,
+        country: 'United States',
+        totalValue: 0,
+        trades: 0,
+        kind: 'politician' as const,
+      };
+      cur.totalValue += value;
+      cur.trades += 1;
+      agg.set(key, cur);
+    }
+
+    return Array.from(agg.values())
+      .sort((a, b) => b.totalValue - a.totalValue)
+      .slice(0, limit);
+  }
+
   /** Full profile for one member of Congress (by exact name, case-insensitive)
    *  — powers the politician profile page: headline stats, buy/sell split, most
    *  -traded stocks, and full disclosure history. Dollar figures use the

@@ -153,8 +153,18 @@ export class IqsController {
   }
 
   @Get('insiders')
-  async insiders(@Query('limit') limit?: string, @Query('country') country?: string) {
-    return this.iqs.getTopInsiders(limit ? Number(limit) : 20, country || undefined);
+  async insiders(
+    @Query('limit') limit?: string,
+    @Query('country') country?: string,
+    @Query('group') group?: string,
+  ) {
+    const allowed = ['ceo', 'cfo', 'hedge-fund', 'politician'] as const;
+    const g = allowed.find((a) => a === (group || '').toLowerCase());
+    return this.iqs.getTopInsiders(
+      limit ? Number(limit) : 20,
+      country || undefined,
+      g,
+    );
   }
 
   @Get('insiders/countries')

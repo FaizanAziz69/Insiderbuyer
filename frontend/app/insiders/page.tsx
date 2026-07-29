@@ -15,11 +15,33 @@ interface TrackRecord {
   totalValue: number;
 }
 
+/** Preset groups. Politicians come from congressional disclosures rather than
+ *  Form 4 — members of Congress aren't corporate insiders — so that preset
+ *  swaps the data source behind the same table. */
+const GROUPS: { key: string; label: string; hint: string }[] = [
+  { key: "", label: "All insiders", hint: "Every Form 4 open-market buyer" },
+  { key: "ceo", label: "CEOs", hint: "Filings where the insider's role is CEO" },
+  { key: "cfo", label: "CFOs", hint: "Filings where the insider's role is CFO" },
+  {
+    key: "politician",
+    label: "Politicians",
+    hint: "Members of Congress, from STOCK Act disclosures",
+  },
+  {
+    key: "hedge-fund",
+    label: "Hedge Funds",
+    hint: "Funds, advisers and partnerships filing as 10% owners",
+  },
+];
+
 export default function InsidersPage() {
   const [country, setCountry] = useState<string>("");
+  const [group, setGroup] = useState<string>("");
 
   const { data, isLoading } = useSWR<InsiderRow[]>(
-    `${API_BASE}/insiders?limit=50${country ? `&country=${encodeURIComponent(country)}` : ""}`,
+    `${API_BASE}/insiders?limit=50${country ? `&country=${encodeURIComponent(country)}` : ""}${
+      group ? `&group=${group}` : ""
+    }`,
     fetcher,
     { refreshInterval: 120000 },
   );
@@ -63,9 +85,39 @@ export default function InsidersPage() {
         </p>
       </header>
 
-      {/* Country filter — data-driven. Location is the SEC filing address
-          (≈ company HQ); non-US countries appear as those feeds come online. */}
+      {/* Preset group filter — one bar across the page. */}
       <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] uppercase tracking-wider font-bold text-mute mr-1">
+          Filter
+        </span>
+        {GROUPS.map((g) => {
+          const active = group === g.key;
+          return (
+            <button
+              key={g.key || "all"}
+              onClick={() => setGroup(g.key)}
+              title={g.hint}
+              className="px-3 py-1.5 rounded-full text-[12px] font-semibold transition"
+              style={{
+                background: active ? "var(--accent)" : "var(--bg-2)",
+                color: active ? "#fff" : "var(--text-soft)",
+                border: "1px solid var(--border-strong)",
+              }}
+            >
+              {g.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Country filter — data-driven. Location is the SEC filing address
+          (≈ company HQ); non-US countries appear as those feeds come online.
+          Hidden for Politicians, whose disclosures are US-only and carry no
+          filing address to filter on. */}
+      <div
+        className="flex flex-wrap items-center gap-2"
+        style={{ display: group === "politician" ? "none" : undefined }}
+      >
         <span className="text-[11px] uppercase tracking-wider font-bold text-mute mr-1">
           Country
         </span>
@@ -107,8 +159,16 @@ export default function InsidersPage() {
           <div className="card overflow-hidden">
             <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
               <div>
-                <div className="text-[15px] font-semibold">Ranked by buying volume</div>
-                <div className="text-xs text-mute mt-0.5">Last 90 days · descending</div>
+                <div className="text-[15px] font-semibold">
+                  {group === "politician"
+                    ? "Ranked by disclosed purchase value"
+                    : "Ranked by buying volume"}
+                </div>
+                <div className="text-xs text-mute mt-0.5">
+                  {group === "politician"
+                    ? "STOCK Act disclosures · amount-band midpoints · descending"
+                    : "Last 90 days · descending"}
+                </div>
               </div>
             </div>
             {isLoading || !data ? (
@@ -125,6 +185,8 @@ export default function InsidersPage() {
                       : ""}{" "}
                     are being added. US coverage is live now.
                   </>
+                ) : group ? (
+                  `No ${GROUPS.find((g) => g.key === group)?.label.toLowerCase() ?? "matching"} buyers in the current data.`
                 ) : (
                   "No insiders ranked yet."
                 )}
@@ -223,7 +285,11 @@ function InsiderItem({ row, rank }: { row: InsiderRow; rank: number }) {
       </span>
       <div className="flex-1 min-w-0">
         <Link
-          href={`/insiders/${encodeURIComponent(row.name)}`}
+          href={
+            row.kind === "politician"
+              ? `/politicians/${encodeURIComponent(row.name)}`
+              : `/insiders/${encodeURIComponent(row.name)}`
+          }
           className="font-semibold text-sm truncate block hover:text-accent transition"
         >
           {row.name}

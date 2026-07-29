@@ -195,6 +195,9 @@ export interface InsiderRow {
   country: string | null;
   totalValue: number;
   trades: number;
+  /** Set to "politician" when the row came from congressional disclosures
+   *  rather than Form 4, so it links to the politician profile instead. */
+  kind?: "politician";
 }
 
 export type NewsCategory = "Market" | "Economy" | "Funds" | "Regulatory";
