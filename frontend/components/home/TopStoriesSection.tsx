@@ -81,7 +81,7 @@ export function TopStoriesSection() {
             className="group rounded-lg overflow-hidden flex flex-col sm:flex-row flex-1"
             style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
           >
-            <div className="relative sm:w-[62%] flex-shrink-0 min-h-[240px] sm:min-h-[380px] overflow-hidden">
+            <div className="relative sm:w-[62%] flex-shrink-0 min-h-[210px] sm:min-h-[300px] overflow-hidden">
               <AiCoverImage
                 primary={lead.imageUrl}
                 seed={lead.slug}
