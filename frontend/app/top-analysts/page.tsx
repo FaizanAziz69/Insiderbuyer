@@ -150,12 +150,12 @@ export default function AnalystRatingsPage() {
         />
       </header>
 
-      <Link
+      {/* <Link
         href="/analyst-ratings"
         className="inline-flex items-center gap-1.5 text-[13px] font-semibold"
       >
         ← Analyst ratings and price targets by stock
-      </Link>
+      </Link> */}
 
       <AdSlot slot="leaderboard" seed="top-analysts" />
 
