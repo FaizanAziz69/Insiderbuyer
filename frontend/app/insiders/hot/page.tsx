@@ -290,21 +290,41 @@ export default function InsiderHotStocksPage() {
         <div className="card p-4 sm:p-5">
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-5">
             <div className="min-w-0">
-              <BacktestChart curve={bt.curve} height={280} />
+              <BacktestChart
+                curve={bt.curve}
+                height={300}
+                tipranks
+                strategyLabel="Top Insider Buying Stocks"
+                benchmarkLabel="S&P-500"
+              />
             </div>
             <div
               className="rounded-lg p-4 flex flex-col justify-center gap-4"
               style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
             >
-              <div className="text-[14px] font-bold" style={{ color: "var(--text)" }}>
-                Insider Signal Performance
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[13px] font-extrabold flex-shrink-0"
+                  style={{
+                    border: "2px solid var(--good)",
+                    color: "var(--good)",
+                    background: "color-mix(in srgb, var(--good) 10%, transparent)",
+                  }}
+                >
+                  IQ
+                </span>
+                <div className="text-[15px] font-bold leading-tight" style={{ color: "var(--text)" }}>
+                  Top Insider Buying
+                  <br />
+                  Stocks Performance
+                </div>
               </div>
               {[
                 { label: "Total Return", value: bt.stats.totalReturn },
                 { label: "Alpha Over S&P 500", value: bt.stats.alpha },
                 { label: "Average Annualized Return", value: bt.stats.cagr },
               ].map((m) => (
-                <div key={m.label} style={{ borderLeft: "3px solid var(--accent)", paddingLeft: 10 }}>
+                <div key={m.label} style={{ borderLeft: "3px solid var(--good)", paddingLeft: 10 }}>
                   <div className="text-[11.5px] font-semibold text-mute">{m.label}</div>
                   <div
                     className="text-[24px] font-bold tabular leading-tight"
@@ -321,14 +341,15 @@ export default function InsiderHotStocksPage() {
             </div>
           </div>
           <p className="text-[12px] text-mute mt-3 leading-relaxed max-w-4xl">
-            The chart compares a weekly-rebalanced basket of the ten U.S.
-            companies with the most open-market insider buying against the S&amp;P
-            500, both indexed to 100 at the start. It backtests the{" "}
-            <strong style={{ color: "var(--text)" }}>raw insider-buying signal</strong>,
-            not the IQ Score — scores are stored as-of-today, so ranking past
-            weeks by them would leak future information and inflate the result.
-            Returns are gross of costs. Past performance does not predict future
-            results.
+            The chart compares the performance of US stocks with the heaviest
+            open-market insider buying to the S&amp;P 500, starting{" "}
+            {bt.stats.startDate}: each week the ten US-listed companies with the
+            most purchases by individual officers and directors (institutional
+            10%-owner filings excluded) are held equally weighted. It backtests
+            the raw insider-buying signal, not the IQ Score — scores are stored
+            as-of-today, so ranking past weeks by them would leak future
+            information. Returns are gross of costs. Past performance does not
+            predict future results.
           </p>
         </div>
       )}

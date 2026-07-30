@@ -13,6 +13,11 @@ export interface EquityPoint {
    re-running the palette validator. */
 const STRATEGY = "var(--bt-strategy)";
 const BENCHMARK = "var(--bt-benchmark)";
+/* TipRanks-style variant: green strategy over a gray index — the industry
+   convention for a strategy-vs-benchmark chart. Identity is never colour-alone
+   here (legend + end dots + the fill itself). */
+const TR_STRATEGY = "var(--good)";
+const TR_BENCH = "var(--text-mute)";
 
 const PAD = { top: 14, right: 14, bottom: 26, left: 44 };
 
@@ -25,14 +30,27 @@ export function BacktestChart({
   curve,
   height = 300,
   compact = false,
+  tipranks = false,
+  strategyLabel = "Insider strategy",
+  benchmarkLabel = "S&P 500 (SPY)",
 }: {
   curve: EquityPoint[];
   height?: number;
   compact?: boolean;
+  /** TipRanks-style rendering: %-change axis, green strategy line with a
+   *  gradient area fill, gray benchmark. */
+  tipranks?: boolean;
+  strategyLabel?: string;
+  benchmarkLabel?: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 760;
   const H = height;
+  const cStrategy = tipranks ? TR_STRATEGY : STRATEGY;
+  const cBench = tipranks ? TR_BENCH : BENCHMARK;
+  /** Axis/tooltip number: index (100 = start) or % change from start. */
+  const fmtVal = (v: number) =>
+    tipranks ? `${v - 100 >= 0 ? "+" : ""}${Math.round(v - 100)}%` : `${Math.round(v)}`;
 
   const geom = useMemo(() => {
     if (curve.length < 2) return null;
@@ -53,12 +71,16 @@ export function BacktestChart({
 
     const line = (key: "s" | "b") =>
       curve.map((p, i) => `${i ? "L" : "M"}${px(p.t).toFixed(1)},${py(p[key]).toFixed(1)}`).join(" ");
+    const areaS =
+      line("s") +
+      ` L${px(curve[curve.length - 1].t).toFixed(1)},${(H - PAD.bottom).toFixed(1)}` +
+      ` L${px(curve[0].t).toFixed(1)},${(H - PAD.bottom).toFixed(1)} Z`;
 
     // 4 gridlines, rounded to readable index values.
     const ticks: number[] = [];
     for (let i = 0; i <= 4; i++) ticks.push(lo + ((hi - lo) * i) / 4);
 
-    return { x0, x1, lo, hi, px, py, sPath: line("s"), bPath: line("b"), ticks };
+    return { x0, x1, lo, hi, px, py, sPath: line("s"), bPath: line("b"), areaS, ticks };
   }, [curve, H]);
 
   if (!geom) return null;
@@ -90,12 +112,12 @@ export function BacktestChart({
       {/* Legend — always present for two series, so identity is never colour-alone. */}
       <div className="flex items-center gap-4 mb-2 flex-wrap">
         <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold">
-          <span className="inline-block h-[3px] w-4 rounded" style={{ background: STRATEGY }} />
-          <span style={{ color: "var(--text)" }}>Insider strategy</span>
+          <span className="inline-block h-[3px] w-4 rounded" style={{ background: cStrategy }} />
+          <span style={{ color: "var(--text)" }}>{strategyLabel}</span>
         </span>
         <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold">
-          <span className="inline-block h-[3px] w-4 rounded" style={{ background: BENCHMARK }} />
-          <span style={{ color: "var(--text)" }}>S&amp;P 500 (SPY)</span>
+          <span className="inline-block h-[3px] w-4 rounded" style={{ background: cBench }} />
+          <span style={{ color: "var(--text)" }}>{benchmarkLabel}</span>
         </span>
       </div>
 
@@ -126,7 +148,7 @@ export function BacktestChart({
               style={{ fontSize: 10, fill: "var(--text-mute)" }}
               className="tabular"
             >
-              {Math.round(v)}
+              {fmtVal(v)}
             </text>
           </g>
         ))}
@@ -149,14 +171,25 @@ export function BacktestChart({
         </text>
 
         {/* Benchmark under the strategy so the headline series reads on top */}
-        <path d={geom.bPath} fill="none" stroke={BENCHMARK} strokeWidth={2} />
-        <path d={geom.sPath} fill="none" stroke={STRATEGY} strokeWidth={2} />
+        {tipranks && (
+          <>
+            <defs>
+              <linearGradient id="bt-area" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--good)" stopOpacity="0.28" />
+                <stop offset="100%" stopColor="var(--good)" stopOpacity="0.02" />
+              </linearGradient>
+            </defs>
+            <path d={geom.areaS} fill="url(#bt-area)" stroke="none" />
+          </>
+        )}
+        <path d={geom.bPath} fill="none" stroke={cBench} strokeWidth={2} />
+        <path d={geom.sPath} fill="none" stroke={cStrategy} strokeWidth={2} />
 
         {/* End-of-series direct labels (secondary encoding beside the legend) */}
         {!compact && (
           <>
-            <circle cx={geom.px(last.t)} cy={geom.py(last.s)} r={4} fill={STRATEGY} stroke="var(--bg-1)" strokeWidth={2} />
-            <circle cx={geom.px(last.t)} cy={geom.py(last.b)} r={4} fill={BENCHMARK} stroke="var(--bg-1)" strokeWidth={2} />
+            <circle cx={geom.px(last.t)} cy={geom.py(last.s)} r={4} fill={cStrategy} stroke="var(--bg-1)" strokeWidth={2} />
+            <circle cx={geom.px(last.t)} cy={geom.py(last.b)} r={4} fill={cBench} stroke="var(--bg-1)" strokeWidth={2} />
           </>
         )}
 
@@ -171,8 +204,8 @@ export function BacktestChart({
               stroke="var(--border-strong)"
               strokeWidth={1}
             />
-            <circle cx={geom.px(active.t)} cy={geom.py(active.s)} r={4.5} fill={STRATEGY} stroke="var(--bg-1)" strokeWidth={2} />
-            <circle cx={geom.px(active.t)} cy={geom.py(active.b)} r={4.5} fill={BENCHMARK} stroke="var(--bg-1)" strokeWidth={2} />
+            <circle cx={geom.px(active.t)} cy={geom.py(active.s)} r={4.5} fill={cStrategy} stroke="var(--bg-1)" strokeWidth={2} />
+            <circle cx={geom.px(active.t)} cy={geom.py(active.b)} r={4.5} fill={cBench} stroke="var(--bg-1)" strokeWidth={2} />
           </>
         )}
       </svg>
@@ -192,12 +225,12 @@ export function BacktestChart({
               })}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-[3px] w-3 rounded" style={{ background: STRATEGY }} />
-              Strategy <span className="tabular font-bold" style={{ color: "var(--text)" }}>{active.s.toFixed(1)}</span>
+              <span className="inline-block h-[3px] w-3 rounded" style={{ background: cStrategy }} />
+              Strategy <span className="tabular font-bold" style={{ color: "var(--text)" }}>{tipranks ? fmtVal(active.s) : active.s.toFixed(1)}</span>
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-[3px] w-3 rounded" style={{ background: BENCHMARK }} />
-              SPY <span className="tabular font-bold" style={{ color: "var(--text)" }}>{active.b.toFixed(1)}</span>
+              <span className="inline-block h-[3px] w-3 rounded" style={{ background: cBench }} />
+              SPY <span className="tabular font-bold" style={{ color: "var(--text)" }}>{tipranks ? fmtVal(active.b) : active.b.toFixed(1)}</span>
             </span>
           </>
         ) : (

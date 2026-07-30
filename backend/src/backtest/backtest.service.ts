@@ -86,7 +86,7 @@ export class BacktestService {
    *  60s function limit; the next request picks up where this one stopped. */
   private readonly SLICE = 45;
   private readonly CONCURRENCY = 6;
-  private readonly CACHE_KEY = 'insider-strategy-v1';
+  private readonly CACHE_KEY = 'insider-strategy-v2';
 
   constructor(
     @InjectRepository(InsiderTransaction)
@@ -193,26 +193,52 @@ export class BacktestService {
     picksByWeek: string[][];
     symbols: string[];
   } | null> {
-    // 1. Every qualifying open-market buy, oldest first.
+    // 1. Every qualifying open-market buy by a PERSON at a US-listed company,
+    //    oldest first. Spec v2: the v1 basket ranked raw dollars and was
+    //    dominated by 10%-owner institutions (Sumitomo, TPG, Prudential,
+    //    Apollo, Blackstone block purchases), foreign BaFin lines and junk
+    //    tickers — none of which is the "officers and directors buying their
+    //    own stock" premise this page describes. Those are excluded now.
     const buys = await this.txRepo
       .createQueryBuilder('t')
       .select(['t.transactionDate', 't.totalValue'])
       .addSelect('c.ticker', 'ticker')
+      .addSelect('t."insiderName"', 'insiderName')
       .leftJoin('t.company', 'c')
       .where(`t."transactionCode" = 'P'`)
       .andWhere('t."totalValue" > 0 AND t."totalValue" <= :max', {
         max: MAX_TX_VALUE,
       })
+      .andWhere(`c.exchange = 'US'`)
+      .andWhere(`c.ticker IS NOT NULL AND c.ticker NOT LIKE '%.%'`)
+      .andWhere(`UPPER(c.ticker) NOT IN ('N/A', 'NONE', '')`)
       .orderBy('t."transactionDate"', 'ASC')
-      .getRawMany<{ t_transactionDate: string; t_totalValue: string; ticker: string | null }>();
+      .getRawMany<{
+        t_transactionDate: string;
+        t_totalValue: string;
+        ticker: string | null;
+        insiderName: string | null;
+      }>();
+
+    // Corporate filers (funds, banks, holding companies) buy as 10% owners —
+    // real filings, but not the insider-conviction signal being tested.
+    const ORG =
+      /\b(inc|incorporated|corp|corporation|co|company|llc|llp|lp|ltd|limited|plc|gmbh|ag|nv|sa|trust|fund|funds|capital|partners?|holdings?|group|management|advisors?|advisers?|ventures?|associates|investments?|equity|asset|bancorp|bank|financial|insurance|life|principal)\b/i;
 
     const events = buys
       .map((r) => ({
         ms: new Date(r.t_transactionDate).getTime(),
         value: Number(r.t_totalValue),
         ticker: (r.ticker || '').toUpperCase(),
+        insiderName: String(r.insiderName || ''),
       }))
-      .filter((e) => e.ticker && Number.isFinite(e.ms) && Number.isFinite(e.value));
+      .filter(
+        (e) =>
+          e.ticker &&
+          Number.isFinite(e.ms) &&
+          Number.isFinite(e.value) &&
+          !ORG.test(e.insiderName.replace(/[.,]/g, ' ')),
+      );
 
     if (events.length < 100) {
       this.logger.warn(`not enough filings to backtest (${events.length})`);
