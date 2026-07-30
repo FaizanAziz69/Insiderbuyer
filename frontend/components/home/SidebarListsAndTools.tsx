@@ -37,6 +37,7 @@ const CHIPS = [
 
 const TOOLS = [
   { name: "Analyst Ratings", icon: Star, href: "/analyst-ratings" },
+  { name: "Top Analysts", icon: Star, href: "/top-analysts" },
   { name: "Dividends", icon: DollarSign, href: "/dividends" },
   { name: "Congressional Trading", icon: Landmark, href: "/congressional-trades" },
   { name: "Earnings", icon: Calendar, href: "/earnings" },

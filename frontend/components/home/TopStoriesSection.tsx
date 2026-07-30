@@ -81,7 +81,7 @@ export function TopStoriesSection() {
             className="group rounded-lg overflow-hidden flex flex-col sm:flex-row flex-1"
             style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
           >
-            <div className="relative sm:w-[40%] flex-shrink-0 min-h-[170px] sm:min-h-[200px] overflow-hidden">
+            <div className="relative sm:w-[56%] flex-shrink-0 min-h-[210px] sm:min-h-[300px] overflow-hidden">
               <AiCoverImage
                 primary={lead.imageUrl}
                 seed={lead.slug}
@@ -104,14 +104,14 @@ export function TopStoriesSection() {
                 </span>
               )}
             </div>
-            <div className="p-4 sm:p-5 flex flex-col justify-center min-w-0">
-              <h3 className="text-[18px] sm:text-[22px] font-bold leading-tight group-hover:text-accent transition">
+            <div className="p-4 sm:p-5 flex flex-col justify-center min-w-0 flex-1">
+              <h3 className="text-[19px] sm:text-[25px] font-bold leading-tight group-hover:text-accent transition">
                 {lead.title}
               </h3>
-              <p className="mt-2 text-[13.5px] leading-relaxed text-soft line-clamp-2">
+              <p className="mt-2.5 text-[14.5px] leading-relaxed text-soft line-clamp-3">
                 {lead.summary}
               </p>
-              <p className="mt-2 text-[12px] text-mute">
+              <p className="mt-3 text-[12.5px] text-mute">
                 {bylineFor(lead.kind, lead.slug)} · {timeAgo(lead.generatedAt)}
               </p>
             </div>

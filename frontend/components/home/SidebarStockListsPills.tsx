@@ -25,6 +25,7 @@ const LIST_PILLS = [
 
 const TOOL_PILLS = [
   { href: "/analyst-ratings", label: "Analyst Ratings" },
+  { href: "/top-analysts", label: "Top Analysts" },
   { href: "/dividends", label: "Dividends" },
   { href: "/congressional-trades", label: "Congressional Trading" },
   { href: "/earnings", label: "Earnings" },
