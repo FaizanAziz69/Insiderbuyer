@@ -316,6 +316,40 @@ export class ContentService {
     return ORG.test(n) ? 'entity' : 'person';
   }
 
+  /** "What Are Insiders Doing?" for a stock profile. Cached 12h per ticker. */
+  private activityCache = new Map<
+    string,
+    { ts: number; data: { summary: string; bullets: string[] } | null }
+  >();
+
+  async getInsiderActivity(tickerRaw: string) {
+    const ticker = (tickerRaw || '').trim().toUpperCase();
+    if (!ticker) return null;
+    const cached = this.activityCache.get(ticker);
+    if (cached && Date.now() - cached.ts < 12 * 60 * 60_000) return cached.data;
+
+    const facts = await this.iqs.getInsiderActivityFacts(ticker);
+    if (!facts) {
+      this.activityCache.set(ticker, { ts: Date.now(), data: null });
+      return null;
+    }
+
+    let sharesOutstanding: number | null = null;
+    try {
+      const stats = await this.marketStats.getStockStats(ticker);
+      sharesOutstanding = stats?.sharesOut ?? null;
+    } catch {
+      sharesOutstanding = null;
+    }
+
+    const data = await this.generator.generateInsiderActivity({
+      ...facts,
+      sharesOutstanding,
+    });
+    this.activityCache.set(ticker, { ts: Date.now(), data });
+    return data;
+  }
+
   /** AI description of who an insider is, grounded only in our filing record.
    *  Cached 24h per filer. */
   async getInsiderBio(opts: {

@@ -675,6 +675,129 @@ ${news}${context}`;
     }
   }
 
+  /**
+   * "What Are Insiders Doing?" — the plain-English answer at the top of a stock
+   * profile, grounded ONLY in the Form 4 record we hold for that company.
+   *
+   * The facts block states explicitly which activity types we track and which
+   * we have no data for, because the difference matters: "no option exercises
+   * on file" and "we do not track option exercises" are very different claims,
+   * and the model must never turn missing data into a negative finding.
+   */
+  async generateInsiderActivity(opts: {
+    symbol: string;
+    name: string;
+    buyCount: number;
+    buyValue: number;
+    buyShares: number;
+    sellCount: number;
+    sellValue: number;
+    sellShares: number;
+    distinctBuyers: number;
+    distinctSellers: number;
+    topRoles: string[];
+    firstDate: string | null;
+    lastDate: string | null;
+    insiderShares: number | null;
+    sharesOutstanding: number | null;
+    awardCount: number;
+    optionExerciseCount: number;
+    taxWithholdCount: number;
+    giftCount: number;
+    otherCount: number;
+    /** False when this company's filings predate the wider ingestion, so the
+     *  compensation/option/private-placement categories are simply unknown. */
+    nonTradeDataAvailable: boolean;
+  }): Promise<{ summary: string; bullets: string[] } | null> {
+    if (!this.client) return null;
+    const money = (v: number) =>
+      v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v).toLocaleString()}`;
+    const netShares = opts.buyShares - opts.sellShares;
+    const ownPct =
+      opts.insiderShares != null && opts.sharesOutstanding
+        ? (opts.insiderShares / opts.sharesOutstanding) * 100
+        : null;
+
+    const facts = [
+      `Company: ${opts.name} (${opts.symbol})`,
+      `Open-market PURCHASES on file: ${opts.buyCount} totalling ${money(opts.buyValue)} across ${opts.buyShares.toLocaleString()} shares, by ${opts.distinctBuyers} distinct insider(s).`,
+      `Open-market SALES on file: ${opts.sellCount} totalling ${money(opts.sellValue)} across ${opts.sellShares.toLocaleString()} shares, by ${opts.distinctSellers} distinct insider(s).`,
+      `Net open-market position change: ${netShares >= 0 ? '+' : ''}${netShares.toLocaleString()} shares (${netShares >= 0 ? 'net buying' : 'net selling'}).`,
+      opts.topRoles.length ? `Roles of those transacting: ${opts.topRoles.join(', ')}.` : '',
+      opts.firstDate && opts.lastDate
+        ? `Filing record spans ${opts.firstDate} to ${opts.lastDate}.`
+        : '',
+      ownPct != null
+        ? `Shares still held by insiders who appear in these filings: ${Math.round(opts.insiderShares as number).toLocaleString()}, about ${ownPct.toFixed(2)}% of ${Math.round(opts.sharesOutstanding as number).toLocaleString()} shares outstanding. NOTE: this counts only insiders who have filed a transaction, so it is a FLOOR on total insider ownership, not the full beneficial-ownership figure from the proxy statement.`
+        : 'Insider ownership percentage: not computable — shares outstanding or post-transaction holdings are missing.',
+      opts.nonTradeDataAvailable
+        ? [
+            `Stock awarded as compensation (code A): ${opts.awardCount} filing(s).`,
+            `Option/derivative exercises (codes M, X): ${opts.optionExerciseCount} filing(s).`,
+            `Shares surrendered to cover tax or exercise cost (code F): ${opts.taxWithholdCount} filing(s).`,
+            `Gifts (code G): ${opts.giftCount} filing(s).`,
+            `Other acquisitions or disposals (code J) — this is how PRIVATE PLACEMENTS and private financings usually appear: ${opts.otherCount} filing(s).`,
+          ].join('\n')
+        : 'IMPORTANT: for this company we currently hold ONLY open-market purchases and sales. Stock awards, option exercises, tax withholdings, gifts and private-placement participation are NOT in our data for it. You must say these are not tracked yet — do NOT state that none occurred.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const tool: Anthropic.Messages.Tool = {
+      name: 'publish_insider_activity',
+      description: 'Publish the plain-English answer to "What are insiders doing?"',
+      input_schema: {
+        type: 'object',
+        properties: {
+          summary: {
+            type: 'string',
+            description:
+              '2 to 4 plain sentences answering what the insider filings actually show for this company: the balance of buying versus selling, who is doing it, and over what period. Lead with the most decision-useful fact.',
+          },
+          bullets: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Exactly 4 short lines, each ≤120 chars, in this order: (1) what the filings say overall, (2) how much insiders own, (3) net buying vs selling, (4) whether the activity is open-market conviction or routine compensation/option/private-placement activity — saying plainly when a category is not tracked rather than implying it did not happen.',
+          },
+        },
+        required: ['summary', 'bullets'],
+      },
+    };
+
+    try {
+      const response = await this.client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 700,
+        system:
+          'You summarise SEC Form 4 insider activity for a stock research page. State ONLY what the supplied facts support. ' +
+          'Never invent transactions, names, dates, prices or ownership figures, and never estimate a number that is not given. ' +
+          'Critically: if the facts say a category is NOT TRACKED, say it is not tracked — never report it as zero, none, or "no evidence of". ' +
+          'Distinguish clearly between open-market purchases (a personal decision to invest) and routine compensation such as grants, option exercises and tax withholding. ' +
+          'Do not speculate about motive and never give investment advice. Plain English, neutral third person, no hype.',
+        tool_choice: { type: 'tool', name: 'publish_insider_activity' },
+        tools: [tool],
+        messages: [
+          { role: 'user', content: `Answer "What are insiders doing?" using only these facts.\n\n${facts}` },
+        ],
+      });
+      const block = response.content.find(
+        (b): b is Anthropic.Messages.ToolUseBlock => b.type === 'tool_use',
+      );
+      const input = block?.input as { summary?: string; bullets?: string[] } | undefined;
+      const summary = plainExplainer(String(input?.summary || '')).trim();
+      const bullets = (input?.bullets || [])
+        .map((b) => plainExplainer(String(b)).trim())
+        .filter(Boolean)
+        .slice(0, 4);
+      if (!summary) return null;
+      return { summary, bullets };
+    } catch (err: any) {
+      this.logger.warn(`Insider activity summary failed for ${opts.symbol}: ${err?.message || err}`);
+      return null;
+    }
+  }
+
   async generateBullBear(opts: {
     symbol: string;
     name: string;

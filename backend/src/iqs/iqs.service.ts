@@ -1210,6 +1210,70 @@ export class IqsService {
     return out.sort((a, b) => b.totalValue - a.totalValue).slice(0, limit);
   }
 
+  /**
+   * Raw Form 4 activity facts for one company — the grounding for the
+   * "What Are Insiders Doing?" summary. Counts every code we store, split into
+   * the categories a reader actually cares about, and estimates insider
+   * ownership from the latest post-transaction holding of each filer.
+   */
+  async getInsiderActivityFacts(tickerRaw: string) {
+    const ticker = (tickerRaw || '').toUpperCase();
+    const company = await this.companies.findOne({ where: { ticker } });
+    if (!company) return null;
+
+    const tx = await this.txRepo
+      .createQueryBuilder('t')
+      .where('t.company_id = :id', { id: company.id })
+      .orderBy('t."transactionDate"', 'DESC')
+      .getMany();
+    if (!tx.length) return null;
+
+    const num = (v: unknown) => Number(v) || 0;
+    const isCode = (c: string, codes: string[]) => codes.includes((c || '').toUpperCase());
+
+    const buys = tx.filter((t) => isCode(t.transactionCode, ['P']));
+    const sells = tx.filter((t) => isCode(t.transactionCode, ['S']));
+
+    // Latest post-transaction holding per filer — a FLOOR on insider ownership,
+    // since it only counts insiders who have actually filed a transaction.
+    const latestByInsider = new Map<string, number>();
+    for (const t of tx) {
+      const key = t.insiderName.trim().toLowerCase();
+      if (!latestByInsider.has(key)) latestByInsider.set(key, num(t.postHoldings));
+    }
+    const insiderShares = Array.from(latestByInsider.values()).reduce((a, b) => a + b, 0);
+
+    const dates = tx.map((t) => new Date(t.transactionDate).toISOString().slice(0, 10)).sort();
+    const roles = Array.from(new Set(tx.map((t) => t.role).filter(Boolean)));
+
+    // Anything outside P/S only exists for filings ingested after the parser
+    // was widened, so report whether we actually have that view for this name.
+    const nonTrade = tx.filter((t) => !isCode(t.transactionCode, ['P', 'S']));
+
+    return {
+      symbol: ticker,
+      name: company.name,
+      buyCount: buys.length,
+      buyValue: buys.reduce((a, t) => a + num(t.totalValue), 0),
+      buyShares: buys.reduce((a, t) => a + num(t.sharesBought), 0),
+      sellCount: sells.length,
+      sellValue: sells.reduce((a, t) => a + num(t.totalValue), 0),
+      sellShares: sells.reduce((a, t) => a + num(t.sharesBought), 0),
+      distinctBuyers: new Set(buys.map((t) => t.insiderName.toLowerCase())).size,
+      distinctSellers: new Set(sells.map((t) => t.insiderName.toLowerCase())).size,
+      topRoles: roles.slice(0, 5),
+      firstDate: dates[0] ?? null,
+      lastDate: dates[dates.length - 1] ?? null,
+      insiderShares,
+      awardCount: tx.filter((t) => isCode(t.transactionCode, ['A'])).length,
+      optionExerciseCount: tx.filter((t) => isCode(t.transactionCode, ['M', 'X'])).length,
+      taxWithholdCount: tx.filter((t) => isCode(t.transactionCode, ['F'])).length,
+      giftCount: tx.filter((t) => isCode(t.transactionCode, ['G'])).length,
+      otherCount: tx.filter((t) => isCode(t.transactionCode, ['J', 'C'])).length,
+      nonTradeDataAvailable: nonTrade.length > 0,
+    };
+  }
+
   /** Per-insider track record: the share of an insider's open-market buys that
    *  are currently trading ABOVE their purchase price (i.e. "in profit" vs the
    *  live price). Accuracy = winning buys ÷ total buys. Only insiders with a

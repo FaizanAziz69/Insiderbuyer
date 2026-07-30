@@ -116,6 +116,12 @@ export class ContentController {
 
   /** AI description of who an insider is — grounded only in our Form 4 record.
    *  The caller passes the filer's aggregates from /insiders/profile. */
+  @Get('insider-activity')
+  async insiderActivity(@Query('ticker') ticker?: string) {
+    if (!ticker) return { activity: null };
+    return { activity: await this.content.getInsiderActivity(ticker) };
+  }
+
   @Get('insider-bio')
   async insiderBio(
     @Query('name') name?: string,

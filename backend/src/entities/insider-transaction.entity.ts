@@ -53,6 +53,11 @@ export class InsiderTransaction {
   @Column({ type: 'varchar', length: 8 })
   transactionCode: string;
 
+  /** 'A' acquired / 'D' disposed, straight from the filing. Needed because
+   *  code J (other) can go either way. */
+  @Column({ type: 'varchar', length: 2, nullable: true })
+  acquiredDisposed: string | null;
+
   @Column({ type: 'numeric', precision: 24, scale: 4 })
   sharesBought: number;
 

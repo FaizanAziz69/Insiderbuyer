@@ -13,6 +13,21 @@ export interface SecFilingHit {
   primaryDoc: string;
 }
 
+/**
+ * Form 4 transaction codes we persist.
+ *
+ * P/S (open-market buy/sell) drive every score and leaderboard — everything
+ * else is kept so the "What Are Insiders Doing?" summary can distinguish a
+ * conviction purchase from a routine grant or an option exercise:
+ *   A  award / grant of stock as compensation
+ *   M  exercise of a derivative (options) · X exercise of an in-the-money one
+ *   F  shares surrendered to cover tax or the exercise price
+ *   C  conversion of a derivative
+ *   G  gift
+ *   J  other acquisition or disposition — how private placements usually appear
+ */
+const KEPT_CODES = new Set(['P', 'S', 'A', 'M', 'X', 'F', 'C', 'G', 'J']);
+
 export interface ParsedTransaction {
   insiderName: string;
   rawTitle: string;
@@ -20,6 +35,9 @@ export interface ParsedTransaction {
   isOfficer: boolean;
   transactionDate: string;
   transactionCode: string;
+  /** 'A' acquired or 'D' disposed — the only reliable direction signal for
+   *  ambiguous codes like J (other acquisition/disposition). */
+  acquiredDisposed: string;
   sharesBought: number;
   pricePerShare: number;
   postHoldings: number;
@@ -215,14 +233,14 @@ export class SecClient {
       const date = tx?.transactionDate?.value;
       const post = Number(tx?.postTransactionAmounts?.sharesOwnedFollowingTransaction?.value || 0);
 
-      if (!shares || !price) continue;
-      // P/A = open-market purchase, S/D = open-market sale. Everything else
-      // (grants, awards, option exercises, gifts) is noise for our purposes.
       const codeU = String(codeStr).toUpperCase();
       const acqDispU = String(acqDisp).toUpperCase();
-      const isBuy = codeU === 'P' && acqDispU === 'A';
-      const isSell = codeU === 'S' && acqDispU === 'D';
-      if (!isBuy && !isSell) continue;
+      // Grants, option exercises and tax withholdings routinely report a $0
+      // price, so price may be zero for anything that isn't an open-market
+      // trade — only the share count is genuinely required.
+      if (!shares) continue;
+      if (!KEPT_CODES.has(codeU)) continue;
+      if ((codeU === 'P' || codeU === 'S') && !price) continue;
 
       results.push({
         insiderName,
@@ -230,7 +248,8 @@ export class SecClient {
         isDirector: !!isDirector,
         isOfficer: !!isOfficer,
         transactionDate: String(date),
-        transactionCode: String(codeStr).toUpperCase(),
+        transactionCode: codeU,
+        acquiredDisposed: acqDispU === 'D' ? 'D' : 'A',
         sharesBought: shares,
         pricePerShare: price,
         postHoldings: post,

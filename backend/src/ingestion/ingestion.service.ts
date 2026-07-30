@@ -170,11 +170,13 @@ export class IngestionService implements OnModuleInit {
             }
             const role = normalizeRole(p.rawTitle, p.isDirector, p.isOfficer);
             const totalValue = p.sharesBought * p.pricePerShare;
-            // Buys reduce to post − shares; sells held MORE before disposing.
-            const previousHoldings =
-              p.transactionCode === 'S'
-                ? p.postHoldings + p.sharesBought
-                : Math.max(0, p.postHoldings - p.sharesBought);
+            // Acquisitions reduce to post − shares; disposals held MORE before
+            // the transaction. Keyed off the filing's acquired/disposed flag
+            // rather than the code, since J can be either.
+            const disposed = p.acquiredDisposed === 'D';
+            const previousHoldings = disposed
+              ? p.postHoldings + p.sharesBought
+              : Math.max(0, p.postHoldings - p.sharesBought);
             await this.txRepo.save(
               this.txRepo.create({
                 companyId: company.id,
@@ -186,6 +188,7 @@ export class IngestionService implements OnModuleInit {
                 insiderCountry,
                 transactionDate: new Date(p.transactionDate),
                 transactionCode: p.transactionCode,
+                acquiredDisposed: p.acquiredDisposed,
                 sharesBought: p.sharesBought,
                 pricePerShare: p.pricePerShare,
                 totalValue,

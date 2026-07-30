@@ -22,6 +22,7 @@ import {
 } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
 import { PaywallOverlay } from "@/components/PaywallOverlay";
+import { InsiderActivitySummary } from "@/components/stock/InsiderActivitySummary";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import {
   AnalystRatingSection,
@@ -233,6 +234,9 @@ export default function CompanyPage({
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">
             <main className="space-y-6 min-w-0">
+
+            {/* Answers "what are insiders doing?" before any dataset below. */}
+            <InsiderActivitySummary ticker={sym} />
 
             {/* About — reference-style full-width block */}
             <AboutQQ
