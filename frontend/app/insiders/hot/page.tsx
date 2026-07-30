@@ -2,7 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
-import { Flame, Activity, ArrowUp, ArrowDown } from "lucide-react";
+import { Flame, Activity, ArrowUp, ArrowDown, ChevronDown } from "lucide-react";
 import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
 import {
   API_BASE,
@@ -17,12 +17,37 @@ import { AdSlot } from "@/components/AdSlot";
 import { DataTable, Column } from "@/components/DataTable";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { WatchlistButton } from "@/components/WatchlistButton";
+import { BacktestChart } from "@/components/backtest/BacktestChart";
+import { useBacktest } from "@/components/backtest/BacktestPanel";
 
 /**
  * Insider strategy signal — how strong/clustered the recent insider buying is,
  * mirroring TipRanks' "Insider Signal" (Very Positive / Positive / Neutral).
  * Driven by the Insider Score composite and the number of distinct insiders buying.
  */
+
+/** Minimum analysts behind a price target for a stock to qualify for this
+ *  list. Client spec: only names with real analyst coverage and upside. */
+const MIN_ANALYSTS = 2;
+
+const FAQS = [
+  {
+    q: "How does the IQ Score work?",
+    a: "It is a 0–99 composite of five weighted parts: the quality of the insider buying itself (50%), how strong the company's sector is right now (25%), the tone of management's own discussion in their latest filing (10%), how busy the stock's trading is versus normal (10%), and how much the company is diluting shareholders (5%). The buying half looks at purchase size against market cap, how many separate insiders bought, how senior they are, how much they grew their own stake, and whether the stock now trades below what they paid.",
+  },
+  {
+    q: "Why do some stocks with insider buying not appear here?",
+    a: `This list only includes companies with genuine analyst coverage — a published price target from at least ${MIN_ANALYSTS} analysts. Plenty of scored companies have insider buying but no sell-side coverage, so there is no price target or upside to show. Those still appear in the full rankings, just not on this list.`,
+  },
+  {
+    q: "Does a high IQ Score mean the stock will go up?",
+    a: "No. The score measures the quality and conviction of insider buying, not price direction. A company can score highly while its share price falls — that is by design, since insiders often buy into weakness. It is one input for research, not a recommendation to buy or sell.",
+  },
+  {
+    q: "How often is the list updated?",
+    a: "Insider filings are ingested from SEC EDGAR continuously — companies must report an open-market purchase within two business days — and scores are recalculated daily. Prices and analyst targets refresh throughout the trading day.",
+  },
+];
 
 /** A ranking row plus the 50→1 display number shown in the # column. */
 type Row50 = RankingRow & { displayRank: number };
@@ -31,6 +56,7 @@ export default function InsiderHotStocksPage() {
   // "Exchanges" filter — narrows the ranking by listing venue (ranking stays
   // global; sent to the API as &exchange=).
   const [exchange, setExchange] = useState<ExchangeValue>("all");
+  const { data: bt } = useBacktest();
 
   const { data, isLoading } = useSWR<RankingsResponse>(
     `${API_BASE}/rankings?limit=1000&live=1${exchange !== "all" ? `&exchange=${exchange}` : ""}`,
@@ -40,15 +66,24 @@ export default function InsiderHotStocksPage() {
 
   const rows: RankingRow[] = data?.rows || [];
 
-  // 7-day price sparklines — "recent stock behaviour" for each ticker.
+  // Analyst coverage is a HARD requirement for this list, so we have to ask
+  // about far more names than we display: only ~half of the ranked US names
+  // carry a price target, so 150 candidates comfortably yields a top 50.
   const tickerKey = rows
     .map((r) => (r.ticker || "").toUpperCase())
-    .filter(Boolean)
-    .slice(0, 60)
+    .filter((t) => t && !t.includes("."))
+    .slice(0, 150)
     .join(",");
 
   // Analyst-implied potential upside % — rendered next to the Insider Score.
-  const { data: analystData } = useSWR<{ rows: { symbol: string; upsidePct: number | null }[] }>(
+  const { data: analystData } = useSWR<{
+    rows: {
+      symbol: string;
+      upsidePct: number | null;
+      targetMean: number | null;
+      numAnalysts: number | null;
+    }[];
+  }>(
     tickerKey
       ? `${API_BASE}/market-stats/analyst-ratings?symbols=${encodeURIComponent(tickerKey)}`
       : null,
@@ -56,12 +91,22 @@ export default function InsiderHotStocksPage() {
     { refreshInterval: 10 * 60_000, revalidateOnFocus: false },
   );
   const upsideBySym = new Map<string, number | null>();
-  (analystData?.rows || []).forEach((r) => upsideBySym.set(r.symbol.toUpperCase(), r.upsidePct));
+  /** Symbols with genuine sell-side coverage: a published price target from at
+   *  least two analysts. One-analyst micro-cap targets produce nonsense upsides
+   *  (4,800%+) that would discredit the whole list, so they are excluded. */
+  const coveredSyms = new Set<string>();
+  (analystData?.rows || []).forEach((r) => {
+    const sym = r.symbol.toUpperCase();
+    upsideBySym.set(sym, r.upsidePct);
+    if (r.targetMean != null && (r.numAnalysts ?? 0) >= MIN_ANALYSTS) coveredSyms.add(sym);
+  });
+  const coverageReady = (analystData?.rows || []).length > 0;
 
   // Top 50 only, on one page. The list counts DOWN — #50 first, #1 last — so
   // the strongest Insider Score sits at the bottom. Display rank is attached
   // per row (not derived from position) so it survives column sorting.
   const top50: Row50[] = rows
+    .filter((r) => coveredSyms.has((r.ticker || "").toUpperCase()))
     .slice(0, 50)
     .map((r, i) => ({ ...r, displayRank: i + 1 }))
     .reverse();
@@ -225,13 +270,68 @@ export default function InsiderHotStocksPage() {
         >
           Top Insider Scores
         </h1>
-        <p className="text-mute text-[14px] sm:text-[15px] mt-2 max-w-3xl leading-relaxed">
-          U.S. companies ranked by Insider Score <em>quality</em> — not by raw
-          dollar volume of buying. The list counts down to #1: a higher score
-          means stronger, more bullish insider conviction, even when the share
-          price is falling.
+        <p className="text-mute text-[14px] sm:text-[15px] mt-2 max-w-4xl leading-relaxed">
+          Top Insider Scores displays the best stocks according to our{" "}
+          <strong style={{ color: "var(--text)" }}>IQ Score</strong> — a 0–99
+          measure of how strong and meaningful a company&rsquo;s insider buying
+          is, built from five factors: the buying itself, sector strength,
+          management&rsquo;s own outlook, trading momentum and share dilution.
+          Only stocks with real analyst coverage appear here: every name below
+          carries a published price target from at least {MIN_ANALYSTS}{" "}
+          analysts. The list counts down to #1.
         </p>
       </header>
+
+      {/* Performance — our own backtest of the insider signal against the
+          S&P 500. Honest caveat in the caption: this tests the RAW insider
+          buying signal, not the IQ Score itself, because stored scores are
+          as-of-today and would leak future information into past weeks. */}
+      {bt?.ready && bt.stats && bt.curve.length > 0 && (
+        <div className="card p-4 sm:p-5">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-5">
+            <div className="min-w-0">
+              <BacktestChart curve={bt.curve} height={280} />
+            </div>
+            <div
+              className="rounded-lg p-4 flex flex-col justify-center gap-4"
+              style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+            >
+              <div className="text-[14px] font-bold" style={{ color: "var(--text)" }}>
+                Insider Signal Performance
+              </div>
+              {[
+                { label: "Total Return", value: bt.stats.totalReturn },
+                { label: "Alpha Over S&P 500", value: bt.stats.alpha },
+                { label: "Average Annualized Return", value: bt.stats.cagr },
+              ].map((m) => (
+                <div key={m.label} style={{ borderLeft: "3px solid var(--accent)", paddingLeft: 10 }}>
+                  <div className="text-[11.5px] font-semibold text-mute">{m.label}</div>
+                  <div
+                    className="text-[24px] font-bold tabular leading-tight"
+                    style={{ color: m.value >= 0 ? "var(--good)" : "var(--bad)" }}
+                  >
+                    {m.value >= 0 ? "+" : ""}
+                    {m.value.toFixed(1)}%
+                  </div>
+                </div>
+              ))}
+              <div className="text-[11px] text-faint pt-1" style={{ borderTop: "1px solid var(--border)" }}>
+                Backtested results since {bt.stats.startDate}
+              </div>
+            </div>
+          </div>
+          <p className="text-[12px] text-mute mt-3 leading-relaxed max-w-4xl">
+            The chart compares a weekly-rebalanced basket of the ten U.S.
+            companies with the most open-market insider buying against the S&amp;P
+            500, both indexed to 100 at the start. It backtests the{" "}
+            <strong style={{ color: "var(--text)" }}>raw insider-buying signal</strong>,
+            not the IQ Score — scores are stored as-of-today, so ranking past
+            weeks by them would leak future information and inflate the result.
+            Returns are gross of costs. Past performance does not predict future
+            results.
+          </p>
+        </div>
+      )}
 
       <AdSlot slot="leaderboard" seed="insider-hot-top" />
 
@@ -282,6 +382,39 @@ export default function InsiderHotStocksPage() {
           measures buying quality, not price momentum. Informational, not a
           trade recommendation.
         </p>
+      </section>
+
+      {/* FAQ — plain <details> so it works without JS and stays accessible. */}
+      <section className="max-w-4xl">
+        <h2
+          className="text-[20px] font-bold tracking-tight pb-2 mb-0"
+          style={{ borderBottom: "3px solid var(--accent)", display: "inline-block" }}
+        >
+          FAQ
+        </h2>
+        <div
+          className="rounded-lg mt-4 overflow-hidden"
+          style={{ border: "1px solid var(--border)", background: "var(--bg-2)" }}
+        >
+          {FAQS.map((f, i) => (
+            <details
+              key={f.q}
+              className="group"
+              style={{ borderTop: i ? "1px solid var(--border)" : undefined }}
+            >
+              <summary
+                className="flex items-center justify-between gap-3 cursor-pointer list-none px-4 py-3.5 text-[15px] font-bold"
+                style={{ color: "var(--text)" }}
+              >
+                {f.q}
+                <ChevronDown className="h-4 w-4 flex-shrink-0 transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="px-4 pb-4 text-[14.5px] leading-relaxed text-soft">
+                {f.a}
+              </div>
+            </details>
+          ))}
+        </div>
       </section>
     </div>
   );
