@@ -1152,7 +1152,7 @@ function StockOverviewGrid({
       <span className="font-bold tabular">{v}</span>
       {g != null && Number.isFinite(g) && (
         <span
-          className="font-bold tabular text-[12px]"
+          className="font-bold tabular text-[13.5px]"
           style={{ color: g >= 0 ? "var(--good)" : "var(--bad)" }}
         >
           {g >= 0 ? "+" : ""}
@@ -1233,10 +1233,12 @@ function StockOverviewGrid({
       {rows.map((r) => (
         <div
           key={r.label}
-          className="flex items-center justify-between gap-3 py-2 text-[13.5px]"
+          className="flex items-center justify-between gap-3 py-3 text-[15.5px]"
           style={{ borderBottom: "1px solid var(--border)" }}
         >
-          <dt className="text-mute whitespace-nowrap">{r.label}</dt>
+          <dt className="whitespace-nowrap" style={{ color: "var(--text-soft)" }}>
+            {r.label}
+          </dt>
           <dd className="text-right whitespace-nowrap">{r.value}</dd>
         </div>
       ))}

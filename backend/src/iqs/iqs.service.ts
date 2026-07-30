@@ -38,6 +38,9 @@ export interface RankingRow {
   sector: string | null;
   marketCap: number | null;
   lastPrice: number | null;
+  /** Listing group: 'US' | 'CA' | 'DE' … — drives the Exchanges filter and
+   *  gates which companies are eligible for generated articles. */
+  exchange: string | null;
   iqs: number; // 0–100 (v2 composite)
   insiderWeight: number;
   transactionWeight: number;
@@ -468,6 +471,7 @@ export class IqsService {
         'c.industry as industry',
         'c."marketCap" as "marketCap"',
         'c."lastPrice" as "lastPrice"',
+        'c.exchange as exchange',
         's.iqs as iqs',
         's."insiderWeight" as "insiderWeight"',
         's."transactionWeight" as "transactionWeight"',
@@ -543,6 +547,7 @@ export class IqsService {
       // contains is bad reference data — show "—" rather than nonsense.
       marketCap: sanitizedMarketCap(r.marketCap, Number(r.totalPurchaseValue) || 0),
       lastPrice: r.lastPrice !== null ? Number(r.lastPrice) : null,
+      exchange: r.exchange ?? null,
       iqs: Number(r.iqs),
       insiderWeight: Number(r.insiderWeight),
       transactionWeight: Number(r.transactionWeight),

@@ -703,17 +703,17 @@ body {
 
 .table-base {
   width: 100%;
-  font-size: 14px;
+  font-size: 15.5px;
   border-collapse: collapse;
 }
 .table-base thead th {
   background: var(--bg-1);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.4px;
   text-transform: uppercase;
   color: var(--text-mute);
-  padding: 9px 10px;
+  padding: 11px 12px;
   text-align: left;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
@@ -726,7 +726,7 @@ body {
 .table-base thead th.text-right { text-align: right; }
 .table-base thead th.text-center { text-align: center; }
 .table-base tbody td {
-  padding: 10px 10px;
+  padding: 13px 12px;
   border-bottom: 1px solid var(--border);
   color: var(--text-soft);
   transition: background 0.15s ease;

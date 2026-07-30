@@ -32,6 +32,34 @@ const SECTOR_ROTATION = [
   'Communication Services',
 ];
 
+/**
+ * Articles are written ONLY for NASDAQ / NYSE / Canadian-listed companies.
+ *
+ * The Insider Score leaderboard also carries German lines ingested from BaFin
+ * (LEOW.F, GXI.DE, LSNA.MU, DE000A460Q50.SG …), which were producing deep-dive
+ * articles for tickers our readers can't trade and whose fundamentals are thin
+ * or stale. Two gates, because a row can fail either one:
+ *   • the company's exchange group must be US or CA
+ *   • a suffixed ticker must be a CANADIAN suffix — bare tickers are US-listed,
+ *     .TO/.V/.CN/.NE are Canadian, anything else (.F/.DE/.MU/.SG/.L) is foreign
+ */
+const ARTICLE_EXCHANGES = new Set(['US', 'CA']);
+const CANADIAN_SUFFIX = /\.(TO|V|CN|NE)$/i;
+const HAS_SUFFIX = /\./;
+
+export function isArticleEligible(
+  ticker: string | null | undefined,
+  exchange: string | null | undefined,
+): boolean {
+  const t = (ticker || '').trim().toUpperCase();
+  if (!t) return false;
+  // Exchange is authoritative when we have it; a missing value falls back to
+  // the ticker shape rather than silently letting foreign lines through.
+  if (exchange && !ARTICLE_EXCHANGES.has(exchange.toUpperCase())) return false;
+  if (HAS_SUFFIX.test(t) && !CANADIAN_SUFFIX.test(t)) return false;
+  return true;
+}
+
 @Injectable()
 export class ContentService {
   private readonly logger = new Logger(ContentService.name);
@@ -526,7 +554,8 @@ export class ContentService {
       marketCap: r.marketCap,
       totalPurchaseValue: Number(r.totalPurchaseValue) || 0,
       distinctBuyers: r.distinctBuyers,
-    })).filter((r) => r.ticker);
+      exchange: r.exchange ?? null,
+    })).filter((r) => isArticleEligible(r.ticker, r.exchange));
 
     if (rows.length === 0) {
       errors.push('No Insider Score rankings available to generate content from.');
@@ -1082,7 +1111,10 @@ export class ContentService {
     let skipped = 0;
     const errors: string[] = [];
 
-    const { rows: rankings } = await this.iqs.getRankings({ limit: 300, offset: 0 });
+    // Same NASDAQ / NYSE / Canada gate as the daily articles — the topic
+    // roundups below draw from this pool too.
+    const { rows: allRankings } = await this.iqs.getRankings({ limit: 300, offset: 0 });
+    const rankings = allRankings.filter((r) => isArticleEligible(r.ticker, r.exchange));
     const { rows: trades } = await this.iqs.getAllTrades({ limit: 400, offset: 0 });
     const weekAgo = Date.now() - 7 * 86400000;
     const buys7d = trades.filter(
