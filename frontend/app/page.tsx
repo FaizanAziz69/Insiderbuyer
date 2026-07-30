@@ -21,11 +21,15 @@ export default function HomePage() {
     <div className="space-y-10">
       {/* TOP — Benzinga-style Top Stories (left) with the Top Gainers rail +
           buy/sell meter on the right side, same split as the old hero. */}
-      <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4 items-stretch xl:h-[540px]">
-        <div className="min-h-0 xl:h-[540px]">
+      {/* No fixed row height: the old xl:h-[540px] clamp was SHORTER than the
+          Top Stories content, so the section overflowed and the Market Heat
+          Map heading rendered on top of it. The row now sizes to the stories;
+          the gainers list on the right scrolls inside whatever height it gets. */}
+      <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4 items-stretch">
+        <div className="min-h-0">
           <TopStoriesSection />
         </div>
-        <div className="flex flex-col gap-4 h-full min-h-0 xl:h-[540px]">
+        <div className="flex flex-col gap-4 h-full min-h-0 xl:max-h-[720px]">
           <TopGainersPanel />
           <MonthlyBuySellMeter />
         </div>

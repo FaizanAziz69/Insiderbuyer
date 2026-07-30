@@ -559,9 +559,17 @@ ${news}${context}`;
         .map((b) => b.text)
         .join(' ')
         .trim();
+      const cleaned = scrubAbsence(plainExplainer(explainer));
       return {
         title: `Why ${opts.symbol} is ${dir} ${pct}% today`,
-        explainer: plainExplainer(explainer) || 'No explanation available right now.',
+        // If the scrub removed everything, fall back to the measured facts we
+        // supplied (volume vs average, float, 52-week position) — real
+        // mechanisms, not an apology.
+        explainer:
+          cleaned ||
+          (opts.context && opts.context.length
+            ? opts.context.slice(0, 2).join(' ')
+            : ''),
       };
     } catch (err: any) {
       this.logger.warn(
@@ -928,7 +936,7 @@ ${news}${context}`;
       if (Array.isArray(arr)) {
         for (const e of arr) {
           const sym = String(e?.symbol || '').toUpperCase();
-          const text = plainExplainer(String(e?.explainer || ''));
+          const text = scrubAbsence(plainExplainer(String(e?.explainer || '')));
           if (sym && text) out[sym] = text;
         }
       }
@@ -1103,6 +1111,34 @@ function sanitiseBody(html: string): string {
 
 /** Explainers render as plain text in a popover — strip any markdown the
  *  model sneaks in (headings, bold, bullets). */
+/**
+ * Hard output guard for movement explainers. The prompts already forbid
+ * "no news" phrasing, but the model still slips it through occasionally and a
+ * cached copy then shows it for hours — so absence-sentences are stripped
+ * server-side before anything is cached or served. Prompt rules alone are not
+ * enforcement; this is.
+ */
+function scrubAbsence(text: string): string {
+  const BANNED: RegExp[] = [
+    /\b(no|not any|without a?|lacks?)\s+(a\s+)?(clear\s+)?(company[- ]specific\s+)?(catalyst|news|announcement|headline|driver)/i,
+    /\brather than (fundamental|company|any)\b/i,
+    /\bheadlines? only reference/i,
+    /\bmovement itself\b/i,
+    /\bno (dated|company|specific|obvious|identifiable)\b[^.!?]*\b(news|announcement|catalyst|headline)/i,
+    /\b(couldn'?t|could not|unable to|failed to) (identify|find|locate)\b/i,
+    /\bin the absence of\b/i,
+  ];
+  const kept = text
+    .split(/(?<=[.!?])\s+/)
+    .filter((sent) => !BANNED.some((re) => re.test(sent)))
+    .join(' ')
+    .trim();
+  // Sentence-splitting on "Inc." etc. can leave a dangling stub once the
+  // banned sentences are gone — treat anything that short as nothing, so the
+  // caller falls back to the measured facts instead.
+  return kept.length < 30 ? '' : kept;
+}
+
 function plainExplainer(text: string): string {
   return text
     .replace(/^#+\s*[^\n]*\n?/gm, (m) => (m.includes('%') || m.length > 60 ? '' : ''))
