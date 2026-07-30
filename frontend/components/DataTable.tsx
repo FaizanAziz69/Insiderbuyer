@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -271,10 +271,10 @@ export function DataTable<T>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, columns]);
 
-  const filtered = useMemo(() => {
+  const matchesFilters = useMemo(() => {
     const active = Object.entries(filters).filter(([, v]) => isActive(v));
-    if (active.length === 0) return rows;
-    return rows.filter((row, i) =>
+    if (active.length === 0) return null; // null = "everything passes"
+    return (row: T, i: number) =>
       active.every(([key, v]) => {
         const col = columns.find((c) => c.key === key);
         if (!col) return true;
@@ -305,25 +305,43 @@ export function DataTable<T>({
         if ((v.min ?? "") !== "" && n < Number(v.min)) return false;
         if ((v.max ?? "") !== "" && n > Number(v.max)) return false;
         return true;
-      }),
-    );
-  }, [rows, filters, columns]);
+      });
+  }, [filters, columns]);
 
-  const sorted = useMemo(() => {
-    if (!sort) return filtered;
-    const col = columns.find((c) => c.key === sort.key);
-    if (!col) return filtered;
-    const dir = sort.dir === "asc" ? 1 : -1;
-    return [...filtered].sort((a, b) => {
-      const va = cellValue(col, a, 0);
-      const vb = cellValue(col, b, 0);
-      if (va == null && vb == null) return 0;
-      if (va == null) return 1;
-      if (vb == null) return -1;
-      if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
-      return String(va).localeCompare(String(vb)) * dir;
-    });
-  }, [filtered, sort, columns]);
+  const filtered = useMemo(
+    () => (matchesFilters ? rows.filter(matchesFilters) : rows),
+    [rows, matchesFilters],
+  );
+
+  const sortRows = useCallback(
+    (list: T[], spec: { key: string; dir: "asc" | "desc" } | null) => {
+      if (!spec) return list;
+      const col = columns.find((c) => c.key === spec.key);
+      if (!col) return list;
+      const dir = spec.dir === "asc" ? 1 : -1;
+      return [...list].sort((a, b) => {
+        const va = cellValue(col, a, 0);
+        const vb = cellValue(col, b, 0);
+        if (va == null && vb == null) return 0;
+        if (va == null) return 1;
+        if (vb == null) return -1;
+        if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
+        return String(va).localeCompare(String(vb)) * dir;
+      });
+    },
+    [columns],
+  );
+
+  const sorted = useMemo(() => sortRows(filtered, sort), [filtered, sort, sortRows]);
+  /** The table's DEFAULT ranking, unfiltered — the free window is cut from
+   *  this and nothing else. Pinning it to `initialSort` rather than the user's
+   *  current sort matters: otherwise re-sorting by another column would swap a
+   *  different six rows into the free slots, and cycling sorts and filters
+   *  would walk the whole locked list. */
+  const sortedAll = useMemo(
+    () => sortRows(rows, initialSort ?? null),
+    [rows, initialSort, sortRows],
+  );
 
   const perPage = Math.max(1, pageSize ?? PAGE_SIZE);
   const pageCount = Math.max(1, Math.ceil(sorted.length / perPage));
@@ -336,9 +354,20 @@ export function DataTable<T>({
   // row is all that renders until the wall is dismissed.
   // Only wall a table that actually has more rows than the free allowance —
   // otherwise a short or empty result would show a wall hiding nothing.
-  const locked = !!gate && !premiumUnlocked && sorted.length > gateFree;
+  const locked = !!gate && !premiumUnlocked && sortedAll.length > gateFree;
+  // Free users see the top `gateFree` of the UNFILTERED ranking plus one faded
+  // teaser. Filters then narrow that window — they can never widen it, so
+  // cycling filters cannot be used to page through the locked rows.
+  const freeWindow = useMemo(
+    () => (locked ? sortedAll.slice(0, gateFree + 1) : []),
+    [locked, sortedAll, gateFree],
+  );
+  const teaserRow = locked ? freeWindow[gateFree] : undefined;
   const pageRows = locked
-    ? sorted.slice(0, gateFree + 1)
+    ? sortRows(
+        matchesFilters ? freeWindow.filter((r, i) => matchesFilters(r, i)) : freeWindow,
+        sort,
+      )
     : sorted.slice(safePage * perPage, safePage * perPage + perPage);
 
   function toggle(key: string, sortable: boolean) {
@@ -576,7 +605,7 @@ export function DataTable<T>({
                   key={rowKey(row, safePage * PAGE_SIZE + i)}
                   className={rowClassName}
                   style={
-                    locked && i === gateFree
+                    locked && teaserRow !== undefined && row === teaserRow
                       ? { opacity: 0.28, pointerEvents: "none" }
                       : undefined
                   }
@@ -600,7 +629,7 @@ export function DataTable<T>({
       {locked && gate && (
         <PremiumRowWall
           label={gate.label}
-          total={sorted.length}
+          total={sortedAll.length}
           bullets={gate.bullets}
         />
       )}
