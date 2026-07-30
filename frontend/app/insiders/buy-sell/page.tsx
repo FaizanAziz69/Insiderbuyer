@@ -159,7 +159,10 @@ export default function InsiderBuySellPage() {
       key: "date",
       label: "Date",
       align: "right",
-      sortValue: (r) => r.transactionDate,
+      sortValue: (r) => {
+        const ms = new Date(r.transactionDate).getTime();
+        return Number.isFinite(ms) ? ms : 0;
+      },
       render: (r) => (
         <span className="tabular text-[14px] text-soft whitespace-nowrap">
           {formatDate(r.transactionDate)}
@@ -222,7 +225,7 @@ export default function InsiderBuySellPage() {
           <DataTable<TradeRow>
             rows={rows}
             rowKey={(r) => r.id}
-            initialSort={{ key: "marketCap", dir: "desc" }}
+            initialSort={{ key: "date", dir: "desc" }}
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={columns}
           />
