@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Lock } from "lucide-react";
+import { Lock, X } from "lucide-react";
 import { usePremium } from "./PremiumContext";
 
 /**
@@ -8,6 +8,11 @@ import { usePremium } from "./PremiumContext";
  * figure, a top-stocks score — while keeping the column and its header visible
  * so visitors can see the data exists. Used on the stock lists that aren't full
  * freemium leaderboards; those use PaywallOverlay / PremiumRowWall instead.
+ *
+ * Until Stripe lands, a small × sits above the lock: clicking it opens the
+ * premium data for the current view (shared session unlock — the same one the
+ * big walls use, so one dismissal opens everything; nothing is persisted and a
+ * refresh restores the locks). Remove the × when checkout goes live.
  */
 export function PremiumValue({
   children,
@@ -17,7 +22,7 @@ export function PremiumValue({
   /** What the unlock CTA offers, e.g. "Insider Score". */
   label?: string;
 }) {
-  const { unlocked } = usePremium();
+  const { unlocked, unlock } = usePremium();
   if (unlocked) return <>{children}</>;
   return (
     <span
@@ -39,6 +44,20 @@ export function PremiumValue({
       >
         <Lock className="h-3.5 w-3.5" style={{ color: "var(--premium)" }} />
       </Link>
+      {/* Temporary Stripe-less bypass — small × above the lock. */}
+      <button
+        type="button"
+        onClick={unlock}
+        aria-label="Show without subscribing (temporary)"
+        className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full"
+        style={{
+          background: "var(--bg-3)",
+          border: "1px solid var(--border-strong)",
+          color: "var(--text-soft)",
+        }}
+      >
+        <X className="h-2.5 w-2.5" />
+      </button>
     </span>
   );
 }
