@@ -11,6 +11,7 @@ import { BafinClient } from './bafin.client';
 import { IqsModule } from '../iqs/iqs.module';
 import { MarketStatsModule } from '../market-stats/market-stats.module';
 import { CongressionalModule } from '../congressional/congressional.module';
+import { AnalystsModule } from '../analysts/analysts.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CongressionalModule } from '../congressional/congressional.module';
     IqsModule,
     MarketStatsModule,
     CongressionalModule,
+    AnalystsModule,
   ],
   controllers: [IngestionController],
   providers: [IngestionService, SecClient, QuoteClient, BafinClient],

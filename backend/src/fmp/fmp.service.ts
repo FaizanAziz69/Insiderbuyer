@@ -76,6 +76,36 @@ export class FmpService {
     }
   }
 
+  // ── Analyst price targets ────────────────────────────────────────────
+  /** The 10 most recent price-target notes market-wide — the only per-analyst
+   *  (named) data on the free tier: page 0 only, limit capped at 10. */
+  async priceTargetLatest(): Promise<
+    Array<{
+      symbol: string;
+      analystName: string;
+      analystCompany: string | null;
+      priceTarget: number | null;
+      priceWhenPosted: number | null;
+      publishedDate: string;
+      newsURL: string | null;
+      newsPublisher: string | null;
+    }>
+  > {
+    const rows = await this.get('price-target-latest-news', { limit: 10, page: 0 });
+    return rows
+      .map((r: any) => ({
+        symbol: String(r?.symbol || '').toUpperCase(),
+        analystName: String(r?.analystName || '').trim(),
+        analystCompany: String(r?.analystCompany || '').trim() || null,
+        priceTarget: r?.priceTarget != null ? Number(r.priceTarget) : null,
+        priceWhenPosted: r?.priceWhenPosted != null ? Number(r.priceWhenPosted) : null,
+        publishedDate: String(r?.publishedDate || ''),
+        newsURL: String(r?.newsURL || '').trim() || null,
+        newsPublisher: String(r?.newsPublisher || '').trim() || null,
+      }))
+      .filter((r) => r.symbol && r.analystName && r.publishedDate);
+  }
+
   // ── Congressional ────────────────────────────────────────────────────
   private parseAmount(a: string): { min: number | null; max: number | null } {
     if (!a) return { min: null, max: null };

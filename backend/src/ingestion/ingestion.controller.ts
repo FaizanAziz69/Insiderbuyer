@@ -1,12 +1,14 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { IngestionService } from './ingestion.service';
 import { CongressionalService } from '../congressional/congressional.service';
+import { AnalystsService } from '../analysts/analysts.service';
 
 @Controller('ingest')
 export class IngestionController {
   constructor(
     private readonly ingestion: IngestionService,
     private readonly congressional: CongressionalService,
+    private readonly analysts: AnalystsService,
   ) {}
 
   @Post()
@@ -24,8 +26,15 @@ export class IngestionController {
     } catch (e: any) {
       congress = { error: String(e?.message || e) };
     }
+    // Analyst price-target notes accumulate the same way (1 FMP call).
+    let analysts: unknown = null;
+    try {
+      analysts = await this.analysts.refresh();
+    } catch (e: any) {
+      analysts = { error: String(e?.message || e) };
+    }
     const ingest = await this.ingestion.runIngestion(2);
-    return { congress, ingest };
+    return { congress, analysts, ingest };
   }
 
   /** Backfill insider filing location onto older transactions. */

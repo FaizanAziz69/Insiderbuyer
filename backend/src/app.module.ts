@@ -16,6 +16,7 @@ import {
   BacktestCache,
   PriceHistoryCache,
 } from './entities/backtest-cache.entity';
+import { AnalystPriceTarget } from './entities/analyst-target.entity';
 import { AuthModule } from './auth/auth.module';
 import { CompaniesModule } from './companies/companies.module';
 import { TransactionsModule } from './transactions/transactions.module';
@@ -29,6 +30,7 @@ import { StockListsModule } from './stock-lists/stock-lists.module';
 import { SubscribersModule } from './subscribers/subscribers.module';
 import { MarketStatsModule } from './market-stats/market-stats.module';
 import { BacktestModule } from './backtest/backtest.module';
+import { AnalystsModule } from './analysts/analysts.module';
 import { EarningsModule } from './earnings/earnings.module';
 import { IpoModule } from './ipo/ipo.module';
 import { EarningsPerfModule } from './earnings-perf/earnings-perf.module';
@@ -72,6 +74,7 @@ import { SocialModule } from './social/social.module';
           SentimentScore,
           PriceHistoryCache,
           BacktestCache,
+          AnalystPriceTarget,
         ],
         synchronize: true,
         logging: false,
@@ -87,6 +90,7 @@ import { SocialModule } from './social/social.module';
     IndicesModule,
     MarketStatsModule,
     BacktestModule,
+    AnalystsModule,
     EarningsModule,
     IpoModule,
     EarningsPerfModule,

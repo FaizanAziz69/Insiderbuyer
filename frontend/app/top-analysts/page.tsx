@@ -32,6 +32,26 @@ interface FirmResponse {
   coverage: { symbols: number; universe: number; ratings: number };
 }
 
+interface AnalystRow {
+  analyst: string;
+  firm: string | null;
+  slug: string;
+  ratings: number;
+  scoredRatings: number;
+  successRate: number | null;
+  avgReturn: number | null;
+  avgImpliedUpside: number | null;
+  lastRatingMs: number | null;
+  topSymbols: string[];
+  stars: number;
+  latest: { symbol: string; priceTarget: number | null; publishedDate: string } | null;
+}
+
+interface AnalystsResponse {
+  rows: AnalystRow[];
+  coverage: { ratings: number; analysts: number; since: string | null };
+}
+
 const fmtDate = (ms: number | null) =>
   ms == null
     ? "—"
@@ -103,6 +123,11 @@ const FACTORS = [
 ];
 
 export default function AnalystRatingsPage() {
+  const { data: analystData, isLoading: analystsLoading } = useSWR<AnalystsResponse>(
+    `${API_BASE}/analysts/top?limit=50`,
+    fetcher,
+    { refreshInterval: 15 * 60_000, revalidateOnFocus: false },
+  );
   const { data, isLoading } = useSWR<FirmResponse>(
     // Top 50 only — the tail is weak firms nobody ranks by, and the table is a
     // single page numbered 50 down to 1.
@@ -112,6 +137,17 @@ export default function AnalystRatingsPage() {
   );
 
   const { unlocked } = usePremium();
+
+  const aRows = analystData?.rows || [];
+  const aTotal = aRows.length;
+  const aOrdered = useMemo(
+    () => aRows.map((r, i) => ({ ...r, rank: i + 1 })).reverse(),
+    [aRows],
+  );
+  const aVisible = useMemo(
+    () => (unlocked ? aOrdered : aOrdered.slice(0, FREE_ROWS + 1)),
+    [aOrdered, unlocked],
+  );
 
   const rows = data?.rows || [];
   const total = rows.length;
@@ -142,7 +178,7 @@ export default function AnalystRatingsPage() {
           Top Wall Street Analysts
         </h1>
         <p className="text-[14px] sm:text-[15px] font-semibold text-mute mt-1.5">
-          A list of Wall Street research firms, ranked by their performance
+          A list of Wall Street analysts, ranked by their performance
         </p>
         <div
           className="mt-4"
@@ -158,6 +194,182 @@ export default function AnalystRatingsPage() {
       </Link> */}
 
       <AdSlot slot="leaderboard" seed="top-analysts" />
+
+      {/* ── Individual analysts — the primary ranking. Ratings are issued by
+          named people, and it is the person who carries the track record. ── */}
+      <div className="card overflow-hidden">
+        {analystsLoading && !aTotal ? (
+          <div className="text-center text-mute py-12 text-[14px]">
+            Loading analyst calls…
+          </div>
+        ) : !aTotal ? (
+          <div className="text-center text-mute py-12 text-[14px]">
+            Analyst tracking has just started — named calls are being collected
+            from the live price-target feed and will appear here shortly.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[14px]" style={{ minWidth: 900 }}>
+              <thead>
+                <tr
+                  style={{
+                    borderBottom: "1px solid var(--border-strong)",
+                    background: "var(--bg-2)",
+                  }}
+                >
+                  {[
+                    { k: "#", a: "left" },
+                    { k: "Analyst", a: "left" },
+                    { k: "Top Coverage", a: "left" },
+                    { k: "Latest Call", a: "left" },
+                    { k: "Avg Implied Upside", a: "right" },
+                    { k: "Success Rate", a: "right" },
+                    { k: "Average Return", a: "right" },
+                    { k: "Ratings", a: "right" },
+                    { k: "Last Rating", a: "right" },
+                  ].map((h) => (
+                    <th
+                      key={h.k}
+                      className="px-3 py-2.5 text-[13px] font-bold whitespace-nowrap"
+                      style={{ textAlign: h.a as "left" | "right", color: "var(--text)" }}
+                    >
+                      {h.k}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {aVisible.map((r, i) => {
+                  const teaser = !unlocked && i === FREE_ROWS;
+                  return (
+                    <tr
+                      key={r.slug || r.analyst}
+                      style={{
+                        borderBottom: "1px solid var(--border)",
+                        opacity: teaser ? 0.28 : 1,
+                        pointerEvents: teaser ? "none" : undefined,
+                      }}
+                    >
+                      <td className="px-3 py-2.5 text-mute tabular text-[13px]">{r.rank}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-bold text-[14px]" style={{ color: "var(--accent)" }}>
+                          {r.analyst}
+                        </div>
+                        {r.firm && (
+                          <div className="text-[12px] text-mute">{r.firm}</div>
+                        )}
+                        {r.stars > 0 && <Stars value={r.stars} />}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="inline-flex items-center gap-1.5">
+                          {r.topSymbols.map((sym) => (
+                            <Link
+                              key={sym}
+                              href={`/companies/${encodeURIComponent(sym)}`}
+                              className="font-mono text-[12px] font-bold px-1.5 py-0.5 rounded"
+                              style={{ background: "var(--bg-3)", color: "var(--text-soft)" }}
+                            >
+                              {sym}
+                            </Link>
+                          ))}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-[13px] whitespace-nowrap">
+                        {r.latest ? (
+                          <>
+                            <span className="font-mono font-bold">{r.latest.symbol}</span>
+                            {r.latest.priceTarget != null && (
+                              <span className="tabular text-mute">
+                                {" "}→ ${Number(r.latest.priceTarget).toFixed(2)}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td
+                        className="px-3 py-2.5 text-right tabular font-bold"
+                        style={{
+                          color:
+                            (r.avgImpliedUpside ?? 0) >= 0 ? "var(--good)" : "var(--bad)",
+                        }}
+                      >
+                        {r.avgImpliedUpside != null
+                          ? `${r.avgImpliedUpside >= 0 ? "+" : ""}${r.avgImpliedUpside.toFixed(1)}%`
+                          : "—"}
+                      </td>
+                      <td
+                        className="px-3 py-2.5 text-right tabular font-bold"
+                        style={{
+                          color:
+                            r.successRate == null
+                              ? "var(--text-faint)"
+                              : r.successRate >= 50
+                              ? "var(--good)"
+                              : "var(--bad)",
+                        }}
+                      >
+                        {r.successRate != null ? `${r.successRate.toFixed(1)}%` : "Pending"}
+                      </td>
+                      <td
+                        className="px-3 py-2.5 text-right tabular font-bold"
+                        style={{
+                          color:
+                            r.avgReturn == null
+                              ? "var(--text-faint)"
+                              : r.avgReturn >= 0
+                              ? "var(--good)"
+                              : "var(--bad)",
+                        }}
+                      >
+                        {r.avgReturn != null
+                          ? `${r.avgReturn >= 0 ? "+" : ""}${r.avgReturn.toFixed(1)}%`
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular text-[13px]">{r.ratings}</td>
+                      <td className="px-3 py-2.5 text-right tabular text-[13px] whitespace-nowrap text-mute">
+                        {fmtDate(r.lastRatingMs)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {aTotal > FREE_ROWS && (
+          <PremiumRowWall
+            label="Top Analyst Stocks"
+            total={aTotal}
+            bullets={[
+              "Every named analyst and their firm",
+              "Success rate and average return per analyst",
+              "Their latest price targets and coverage",
+              "Every new call the moment it publishes",
+            ]}
+          />
+        )}
+      </div>
+
+      {analystData && (
+        <p className="text-[12px] text-faint">
+          Tracking {analystData.coverage.ratings.toLocaleString()} named analyst
+          calls{analystData.coverage.since ? ` since ${analystData.coverage.since}` : ""}.
+          A success rate appears once an analyst has at least 3 calls that are 30+
+          days old — it is measured, never estimated, so new coverage shows
+          &ldquo;Pending&rdquo; until their calls have had time to play out.
+        </p>
+      )}
+
+      {/* ── Research-firm track records (historical, from rating actions) ── */}
+      <h2
+        className="text-[22px] font-bold tracking-tight pt-2"
+        style={{ letterSpacing: "-0.4px" }}
+      >
+        Research Firm Track Records
+      </h2>
 
       <div className="card overflow-hidden">
         {isLoading && !total ? (
@@ -280,14 +492,6 @@ export default function AnalystRatingsPage() {
           </div>
         )}
 
-        {total > FREE_ROWS && (
-        <PremiumRowWall label="Top Analyst Stocks" total={total} bullets={[
-          "The full ranked list of Wall Street research firms",
-          "Success rate and average return on every firm",
-          "Insider Scores and potential upside site-wide",
-          "Every insider filing the moment it hits EDGAR",
-        ]} />
-        )}
       </div>
 
       {filling && (
