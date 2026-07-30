@@ -40,9 +40,9 @@ import { ConversationsSection } from "@/components/stock/ConversationsSection";
 import { CongressTradingCard, WhaleActivityCard, RevenueBreakdownCard, BullBearCard } from "@/components/stock/StockCivicGrid";
 import {
   StrategyBanner, InsiderNetSharesCard, LobbyingStackedCard, ContractsStackedCard,
-  PatentsCard, NewsCard, CnbcCard, EtfHoldersCard, ScoreCardQQ, AboutQQ,
+  PatentsCard, CnbcCard, EtfHoldersCard, ScoreCardQQ, AboutQQ,
   FinancialsTab, ForecastTab, InsidersIntro, InstitutionsTab, CompensationTab,
-  GovernmentTab, OwnershipTab, NewsTab,
+  GovernmentTab, OwnershipTab,
 } from "@/components/stock/QQTabs";
 import { track } from "@/lib/analytics";
 
@@ -562,7 +562,6 @@ export default function CompanyPage({
               <OwnershipTab sym={sym} name={data.company.name} />
             ) : tab === "news" ? (
               <div className="space-y-6">
-                <NewsTab sym={sym} name={data.company.name} />
             {/* ── Company News & Press Releases ───────────────────────── */}
             <section>
               <h2
@@ -571,7 +570,7 @@ export default function CompanyPage({
               >
                 Company News &amp; Press Releases
               </h2>
-              <RecentNews ticker={sym} />
+              <RecentNews ticker={sym} name={data.company.name} />
             </section>
                 <ConversationsSection ticker={sym} />
               </div>
@@ -597,7 +596,6 @@ export default function CompanyPage({
               <RevenueBreakdownCard ticker={sym} />
               <PatentsCard ticker={sym} companyName={data.company.name} />
               <ContractsStackedCard ticker={sym} companyName={data.company.name} />
-              <NewsCard ticker={sym} name={data.company.name} />
               <CnbcCard ticker={sym} />
               <EtfHoldersCard ticker={sym} />
               <ScoreCardQQ
@@ -1434,72 +1432,152 @@ function Stat({
 }
 
 // ── News ─────────────────────────────────────────────────────────────────────
+interface PressItem {
+  title: string;
+  source: string;
+  date: number;
+  link: string;
+}
+
+/**
+ * Company News & Press Releases — real published coverage (Google News and
+ * Yahoo Finance feeds) merged with our own InsiderBuying articles for the same
+ * ticker, newest first. Our pieces are badged so a reader can always tell our
+ * analysis apart from third-party reporting.
+ */
 function RecentNews({
   ticker,
+  name,
   compact = false,
 }: {
   ticker: string;
+  name?: string;
   compact?: boolean;
 }) {
-  const { data, isLoading } = useSWR<{ items: NewsItem[] }>(
-    `${API_BASE}/content/by-ticker/${encodeURIComponent(ticker)}?limit=${compact ? 3 : 12}`,
+  const { data: press, isLoading } = useSWR<{ items: PressItem[] }>(
+    `${API_BASE}/content/news/${encodeURIComponent(ticker)}${
+      name ? `?name=${encodeURIComponent(name)}` : ""
+    }`,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
   );
-  const items = data?.items || [];
+  const { data: ours } = useSWR<{ items: NewsItem[] }>(
+    `${API_BASE}/content/by-ticker/${encodeURIComponent(ticker)}?limit=6`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
 
-  if (isLoading) return <div className="card p-5 h-40 shimmer rounded-lg" />;
-  if (items.length === 0) {
+  type Row = {
+    key: string;
+    title: string;
+    source: string;
+    date: number;
+    href: string;
+    external: boolean;
+    summary?: string | null;
+  };
+
+  const rows: Row[] = [
+    ...(ours?.items || []).map((it) => ({
+      key: `own-${it.slug}`,
+      title: it.title,
+      source: "InsiderBuying",
+      date: Date.parse(it.generatedAt) || 0,
+      href: `/insights/${it.slug}`,
+      external: false,
+      summary: it.summary,
+    })),
+    ...(press?.items || [])
+      .filter((p) => p.title && p.link)
+      .map((p) => ({
+        key: `ext-${p.link}`,
+        title: p.title,
+        source: p.source || "Newswire",
+        date: p.date || 0,
+        href: p.link,
+        external: true,
+      })),
+  ]
+    .sort((a, b) => b.date - a.date)
+    .slice(0, compact ? 4 : 20);
+
+  if (isLoading && rows.length === 0)
+    return <div className="card p-5 h-40 shimmer rounded-lg" />;
+  if (rows.length === 0) {
     if (compact) return null;
     return (
       <div className="card p-8 text-center text-mute text-sm">
-        No news available for {ticker}.
+        No recent news or press releases found for {ticker}.
       </div>
     );
   }
 
   return (
     <section>
-      <h2 className="text-[16px] font-semibold mb-3">
-        {compact ? "Latest News" : `${ticker} News & Analysis`}
-      </h2>
+      {compact && <h2 className="text-[16px] font-semibold mb-3">Latest News</h2>}
       <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
-        {items.map((it) => (
-          <Link
-            key={it.slug}
-            href={`/insights/${it.slug}`}
-            className="flex gap-3 p-4 hover:bg-[var(--bg-3)] transition"
-            style={{ borderColor: "var(--border)" }}
-          >
-            {/* Small thumbnail on the left (company logo) */}
-            <span
-              className="flex-shrink-0 rounded-md overflow-hidden bg-white flex items-center justify-center"
-              style={{ width: 52, height: 52, padding: 4, border: "1px solid var(--border)" }}
-            >
-              <CompanyLogo ticker={ticker} name={ticker} size={44} />
-            </span>
-            <span className="min-w-0 flex-1">
-              {it.eyebrow && (
-                <span className="block text-[10px] uppercase tracking-wider font-bold text-accent mb-1">
-                  {it.eyebrow}
-                </span>
-              )}
-              <span className="block text-[15px] font-semibold leading-snug">{it.title}</span>
-              {it.summary && (
-                <span className="block text-[13px] text-mute mt-1 line-clamp-2">{it.summary}</span>
-              )}
-              <span className="block text-[11px] text-faint mt-1.5 tabular">
-                {formatDate(it.generatedAt)}
+        {rows.map((it) => {
+          const inner = (
+            <>
+              <span
+                className="flex-shrink-0 rounded-md overflow-hidden bg-white flex items-center justify-center"
+                style={{ width: 52, height: 52, padding: 4, border: "1px solid var(--border)" }}
+              >
+                <CompanyLogo ticker={ticker} name={ticker} size={44} />
               </span>
-            </span>
-          </Link>
-        ))}
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2 mb-1">
+                  <span
+                    className="text-[10px] uppercase tracking-wider font-bold"
+                    style={{ color: it.external ? "var(--text-mute)" : "var(--accent)" }}
+                  >
+                    {it.source}
+                  </span>
+                  {!it.external && (
+                    <span
+                      className="text-[9.5px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                      style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+                    >
+                      Our analysis
+                    </span>
+                  )}
+                </span>
+                <span className="block text-[15px] font-semibold leading-snug">{it.title}</span>
+                {it.summary && (
+                  <span className="block text-[13px] text-mute mt-1 line-clamp-2">{it.summary}</span>
+                )}
+                <span className="block text-[11px] text-faint mt-1.5 tabular">
+                  {it.date ? formatDate(new Date(it.date).toISOString()) : ""}
+                </span>
+              </span>
+              {it.external && (
+                <ExternalLink className="h-3.5 w-3.5 flex-shrink-0 mt-1" style={{ color: "var(--text-faint)" }} />
+              )}
+            </>
+          );
+          const cls = "flex gap-3 p-4 hover:bg-[var(--bg-3)] transition";
+          return it.external ? (
+            <a
+              key={it.key}
+              href={it.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cls}
+              style={{ borderColor: "var(--border)" }}
+            >
+              {inner}
+            </a>
+          ) : (
+            <Link key={it.key} href={it.href} className={cls} style={{ borderColor: "var(--border)" }}>
+              {inner}
+            </Link>
+          );
+        })}
       </div>
     </section>
   );
 }
 
-// ── Analyst coverage (Financials tab) — who covers the stock ────────────────
 interface CoverageRow {
   symbol: string;
   recommendation: string | null;
@@ -1509,6 +1587,7 @@ interface CoverageRow {
   targetLow: number | null;
   upsidePct: number | null;
 }
+
 function AnalystCoverageCard({ ticker }: { ticker: string }) {
   const { data } = useSWR<{ rows: CoverageRow[] }>(
     `${API_BASE}/market-stats/analyst-ratings?symbols=${encodeURIComponent(ticker)}`,

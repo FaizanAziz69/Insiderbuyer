@@ -239,7 +239,7 @@ export class ContentService {
   private async tickerHeadlines(symbol: string, name: string): Promise<string[]> {
     const sym = symbol.toUpperCase();
     const UA = { 'User-Agent': 'Mozilla/5.0' };
-    type Item = { title: string; source: string; date: number };
+    type Item = { title: string; source: string; date: number; link: string };
     const items: Item[] = [];
 
     const parseRss = (xml: string, fallbackSource: string): Item[] => {
@@ -253,7 +253,8 @@ export class ContentService {
           // Google News titles end with " - Publisher"
           const m = title.match(/^(.*)\s-\s([^-]{2,40})$/);
           if (m && !it.source) { title = m[1].trim(); source = m[2].trim(); }
-          return { title, source, date: Date.parse(String(it.pubDate || '')) || 0 };
+          const link = String(it.link?.['#text'] ?? it.link ?? '').trim();
+          return { title, source, date: Date.parse(String(it.pubDate || '')) || 0, link };
         });
       } catch { return []; }
     };
@@ -277,6 +278,7 @@ export class ContentService {
             title: String(n?.title || '').trim(),
             source: String(n?.publisher || 'Yahoo Finance').trim(),
             date: (Number(n?.providerPublishTime) || 0) * 1000,
+            link: String(n?.link || '').trim(),
           })));
         })
         .catch(() => undefined),
@@ -386,16 +388,22 @@ export class ContentService {
     return data;
   }
 
-  private newsCache = new Map<string, { ts: number; data: { title: string; source: string; date: number }[] }>();
+  private newsCache = new Map<
+    string,
+    { ts: number; data: { title: string; source: string; date: number; link: string }[] }
+  >();
 
   /** Rich recent-headline list for the stock page News card/tab (real
    *  publishers via Google News + Yahoo feeds; deduped, newest first). */
-  async getTickerNews(symbol: string, name: string): Promise<{ title: string; source: string; date: number }[]> {
+  async getTickerNews(
+    symbol: string,
+    name: string,
+  ): Promise<{ title: string; source: string; date: number; link: string }[]> {
     const key = symbol.toUpperCase();
     const cached = this.newsCache.get(key);
     if (cached && Date.now() - cached.ts < 15 * 60_000) return cached.data;
     const UA = { 'User-Agent': 'Mozilla/5.0' };
-    type Item = { title: string; source: string; date: number };
+    type Item = { title: string; source: string; date: number; link: string };
     const items: Item[] = [];
     const parseRss = (xml: string, fallbackSource: string): Item[] => {
       try {
@@ -407,9 +415,10 @@ export class ContentService {
           let source = String(it.source?.['#text'] ?? '').trim() || fallbackSource;
           const m = title.match(/^(.*)\s-\s([^-]{2,40})$/);
           if (m && !it.source) { title = m[1].trim(); source = m[2].trim(); }
-          return { title, source, date: Date.parse(String(it.pubDate || '')) || 0 };
+          const link = String(it.link?.['#text'] ?? it.link ?? '').trim();
+          return { title, source, date: Date.parse(String(it.pubDate || '')) || 0, link };
         });
-      } catch { return []; }
+      } catch { return [] as Item[]; }
     };
     const q = encodeURIComponent(`"${key}" OR "${(name || key).split(/[,(]/)[0].trim()}" stock`);
     await Promise.allSettled([
@@ -424,6 +433,7 @@ export class ContentService {
             title: String(n?.title || '').trim(),
             source: String(n?.publisher || 'Yahoo Finance').trim(),
             date: (Number(n?.providerPublishTime) || 0) * 1000,
+            link: String(n?.link || '').trim(),
           })));
         }),
     ]);

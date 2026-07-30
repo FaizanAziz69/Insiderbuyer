@@ -191,47 +191,6 @@ export function PatentsCard({ ticker, companyName }: { ticker: string; companyNa
   );
 }
 
-/** News — OUR AI insight articles only, each row led by the company logo,
- *  clicking opens the full article (/insights/slug). */
-interface AiPost { slug: string; title: string; summary?: string | null; eyebrow?: string | null; imageUrl?: string | null; generatedAt: string }
-
-export function NewsCard({ ticker, name, tall = false }: { ticker: string; name: string; tall?: boolean }) {
-  const { data: ai, isLoading } = useSWR<{ items: AiPost[] }>(
-    `${API_BASE}/content/by-ticker/${encodeURIComponent(ticker)}?limit=${tall ? 15 : 8}`,
-    fetcher, { revalidateOnFocus: false, dedupingInterval: 15 * 60_000 });
-  const posts = ai?.items || [];
-  return (
-    <Card icon={<Newspaper className="h-4 w-4" />} title={`${ticker} News`} subtitle={`Recent insights relating to ${ticker}`}>
-      {isLoading ? (
-        <div className="h-full flex items-center justify-center text-[12.5px] text-mute py-8">Loading insights…</div>
-      ) : posts.length === 0 ? (
-        <Empty text={`No ${ticker} insight articles yet — they generate with the daily refresh.`} />
-      ) : (
-        <div className="overflow-auto scrollbar-visible space-y-2 pr-1" style={{ maxHeight: tall ? 680 : 300 }}>
-          {posts.map((p) => (
-            <Link key={p.slug} href={`/insights/${p.slug}`}
-              className="block rounded-lg px-3 py-2.5 transition hover:border-[var(--border-strong)]"
-              style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-              <div className="flex items-start gap-3">
-                <span className="flex-shrink-0"><CompanyLogo ticker={ticker} name={name} size={40} /></span>
-                <div className="min-w-0">
-                  {p.eyebrow && <div className="text-[10px] uppercase tracking-wider font-bold text-accent">{p.eyebrow}</div>}
-                  <div className="text-[13px] font-semibold leading-snug hover:text-accent transition"
-                    style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                    {p.title}
-                  </div>
-                  <div className="text-[11px] text-mute mt-0.5">InsiderBuying Insights · {formatDate(p.generatedAt)}</div>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-/** CNBC Recommendations — no free data source exists; honest empty state. */
 export function CnbcCard({ ticker }: { ticker: string }) {
   return (
     <Card icon={<Tv className="h-4 w-4" />} title="CNBC Recommendations" subtitle={`Recent picks made for ${ticker} stock on CNBC`}>
@@ -944,10 +903,3 @@ export function OwnershipTab({ sym, name }: { sym: string; name: string }) {
  * News tab
  * ──────────────────────────────────────────────────────────────────────── */
 
-export function NewsTab({ sym, name }: { sym: string; name: string }) {
-  return (
-    <div className="max-w-3xl">
-      <NewsCard ticker={sym} name={name} tall />
-    </div>
-  );
-}
