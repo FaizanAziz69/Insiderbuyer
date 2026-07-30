@@ -78,10 +78,10 @@ export function TopStoriesSection() {
           {/* Featured story — image left, content card right (Benzinga style) */}
           <Link
             href={`/insights/${lead.slug}`}
-            className="group rounded-lg overflow-hidden flex flex-col sm:flex-row flex-1"
+            className="group rounded-lg overflow-hidden flex flex-col flex-1"
             style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
           >
-            <div className="relative sm:w-[62%] flex-shrink-0 min-h-[210px] sm:min-h-[300px] overflow-hidden">
+            <div className="relative w-full flex-shrink-0 h-[220px] sm:h-[320px] overflow-hidden">
               <AiCoverImage
                 primary={lead.imageUrl}
                 seed={lead.slug}
@@ -104,7 +104,7 @@ export function TopStoriesSection() {
                 </span>
               )}
             </div>
-            <div className="p-4 sm:p-5 flex flex-col justify-center min-w-0 flex-1">
+            <div className="p-4 sm:p-5 min-w-0">
               <h3 className="text-[19px] sm:text-[25px] font-bold leading-tight group-hover:text-accent transition">
                 {lead.title}
               </h3>
