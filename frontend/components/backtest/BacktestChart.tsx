@@ -80,7 +80,13 @@ export function BacktestChart({
     const ticks: number[] = [];
     for (let i = 0; i <= 4; i++) ticks.push(lo + ((hi - lo) * i) / 4);
 
-    return { x0, x1, lo, hi, px, py, sPath: line("s"), bPath: line("b"), areaS, ticks };
+    // Evenly spaced time ticks across the axis (reference style), endpoints
+    // included; interior count adapts to the window length.
+    const xTicks: number[] = [];
+    const N = 5;
+    for (let i = 0; i <= N; i++) xTicks.push(x0 + ((x1 - x0) * i) / N);
+
+    return { x0, x1, lo, hi, px, py, sPath: line("s"), bPath: line("b"), areaS, ticks, xTicks };
   }, [curve, H]);
 
   if (!geom) return null;
@@ -110,14 +116,16 @@ export function BacktestChart({
   return (
     <div className="w-full">
       {/* Legend — always present for two series, so identity is never colour-alone. */}
-      <div className="flex items-center gap-4 mb-2 flex-wrap">
-        <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold">
+      <div
+        className={`flex items-center flex-wrap ${tipranks ? "gap-6 mb-1.5" : "gap-4 mb-2"}`}
+      >
+        <span className={`inline-flex items-center gap-1.5 ${tipranks ? "text-[11.5px]" : "text-[12px]"} font-semibold`}>
           <span className="inline-block h-[3px] w-4 rounded" style={{ background: cStrategy }} />
-          <span style={{ color: "var(--text)" }}>{strategyLabel}</span>
+          <span style={{ color: tipranks ? "var(--text-soft)" : "var(--text)" }}>{strategyLabel}</span>
         </span>
-        <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold">
+        <span className={`inline-flex items-center gap-1.5 ${tipranks ? "text-[11.5px]" : "text-[12px]"} font-semibold`}>
           <span className="inline-block h-[3px] w-4 rounded" style={{ background: cBench }} />
-          <span style={{ color: "var(--text)" }}>{benchmarkLabel}</span>
+          <span style={{ color: tipranks ? "var(--text-soft)" : "var(--text)" }}>{benchmarkLabel}</span>
         </span>
       </div>
 
@@ -153,22 +161,18 @@ export function BacktestChart({
           </g>
         ))}
 
-        {/* x labels — first and last only, so nothing collides */}
-        <text
-          x={PAD.left}
-          y={H - 8}
-          style={{ fontSize: 10, fill: "var(--text-mute)" }}
-        >
-          {fmtDate(geom.x0)}
-        </text>
-        <text
-          x={W - PAD.right}
-          y={H - 8}
-          textAnchor="end"
-          style={{ fontSize: 10, fill: "var(--text-mute)" }}
-        >
-          {fmtDate(geom.x1)}
-        </text>
+        {/* x labels — evenly spaced, anchored so the ends stay inside */}
+        {geom.xTicks.map((t, i) => (
+          <text
+            key={`x${i}`}
+            x={geom.px(t)}
+            y={H - 8}
+            textAnchor={i === 0 ? "start" : i === geom.xTicks.length - 1 ? "end" : "middle"}
+            style={{ fontSize: 10, fill: "var(--text-mute)" }}
+          >
+            {fmtDate(t)}
+          </text>
+        ))}
 
         {/* Benchmark under the strategy so the headline series reads on top */}
         {tipranks && (

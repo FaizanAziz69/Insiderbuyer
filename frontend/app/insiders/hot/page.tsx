@@ -302,18 +302,33 @@ export default function InsiderHotStocksPage() {
               className="rounded-lg p-4 flex flex-col justify-center gap-4"
               style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
             >
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-3">
+                {/* Octagon badge, reference-style: green ring, ink center. */}
                 <span
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[13px] font-extrabold flex-shrink-0"
+                  className="inline-flex items-center justify-center flex-shrink-0"
                   style={{
-                    border: "2px solid var(--good)",
-                    color: "var(--good)",
-                    background: "color-mix(in srgb, var(--good) 10%, transparent)",
+                    width: 42,
+                    height: 42,
+                    background: "var(--good)",
+                    clipPath:
+                      "polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)",
                   }}
                 >
-                  IQ
+                  <span
+                    className="inline-flex items-center justify-center text-[13px] font-extrabold"
+                    style={{
+                      width: 36,
+                      height: 36,
+                      background: "var(--bg-2)",
+                      color: "var(--good)",
+                      clipPath:
+                        "polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)",
+                    }}
+                  >
+                    IQ
+                  </span>
                 </span>
-                <div className="text-[15px] font-bold leading-tight" style={{ color: "var(--text)" }}>
+                <div className="text-[16px] font-bold leading-snug" style={{ color: "var(--text)" }}>
                   Top Insider Buying
                   <br />
                   Stocks Performance
@@ -324,10 +339,12 @@ export default function InsiderHotStocksPage() {
                 { label: "Alpha Over S&P 500", value: bt.stats.alpha },
                 { label: "Average Annualized Return", value: bt.stats.cagr },
               ].map((m) => (
-                <div key={m.label} style={{ borderLeft: "3px solid var(--good)", paddingLeft: 10 }}>
-                  <div className="text-[11.5px] font-semibold text-mute">{m.label}</div>
+                <div key={m.label} style={{ borderLeft: "4px solid var(--good)", paddingLeft: 12 }}>
+                  <div className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>
+                    {m.label}
+                  </div>
                   <div
-                    className="text-[24px] font-bold tabular leading-tight"
+                    className="text-[27px] font-extrabold tabular leading-tight mt-0.5"
                     style={{ color: m.value >= 0 ? "var(--good)" : "var(--bad)" }}
                   >
                     {m.value >= 0 ? "+" : ""}
@@ -335,8 +352,11 @@ export default function InsiderHotStocksPage() {
                   </div>
                 </div>
               ))}
-              <div className="text-[11px] text-faint pt-1" style={{ borderTop: "1px solid var(--border)" }}>
-                Backtested results since {bt.stats.startDate}
+              <div
+                className="text-[12px] text-mute pt-2.5 text-center"
+                style={{ borderTop: "1px solid var(--border)" }}
+              >
+                Backtested results since {bt.stats.startDate.slice(0, 4)}
               </div>
             </div>
           </div>
@@ -351,6 +371,14 @@ export default function InsiderHotStocksPage() {
             information. Returns are gross of costs. Past performance does not
             predict future results.
           </p>
+          <div className="flex justify-end mt-1">
+            <Link
+              href="/methodology"
+              className="text-[13px] font-semibold inline-flex items-center gap-1"
+            >
+              About the IQ Score &amp; Performance <span aria-hidden>›</span>
+            </Link>
+          </div>
         </div>
       )}
 
