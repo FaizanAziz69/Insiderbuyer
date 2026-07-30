@@ -15,6 +15,7 @@ interface HotSectorRow {
   insiderBuys: number;
   insiderSells: number;
   netInsider: number;
+  mtd: number | null;
   ytd: number | null;
   vsSp500: number | null;
   hotScore: number;
@@ -104,6 +105,7 @@ export default function HotSectorsPage() {
                   <th className="text-left">Heat Score</th>
                   <th className="text-right">10%+ Gainers</th>
                   <th className="text-right">Insider Buys / Sells</th>
+                  <th className="text-right">MTD</th>
                   <th className="text-right">YTD</th>
                   <th className="text-right">vs S&amp;P 500</th>
                 </tr>
@@ -174,6 +176,21 @@ export default function HotSectorsPage() {
                           className="text-[14px] font-bold tabular"
                           style={{
                             color:
+                              s.mtd == null
+                                ? "var(--text-mute)"
+                                : s.mtd >= 0
+                                  ? "var(--good)"
+                                  : "var(--bad)",
+                          }}
+                        >
+                          {pct(s.mtd, true)}
+                        </span>
+                      </td>
+                        <td className="text-right">
+                        <span
+                          className="text-[14px] font-bold tabular"
+                          style={{
+                            color:
                               s.ytd == null
                                 ? "var(--text-mute)"
                                 : s.ytd >= 0
@@ -217,11 +234,17 @@ export default function HotSectorsPage() {
         style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
       >
         <span className="font-bold text-[var(--text)]">How the ranking works:</span>{" "}
-        Each sector&rsquo;s <strong>Heat Score</strong> (0–100) combines the share
-        of its stocks up more than 10% month-to-date with the intensity of
-        open-market insider buying across the basket this month. YTD return is the
-        equal-weighted average of member stocks, shown against the S&amp;P 500 in
-        percentage points (pp). Informational only — not investment advice.
+        Each sector&rsquo;s <strong>Heat Score</strong> (0–100) is a weighted
+        blend of three things measured on absolute scales, not against whichever
+        peer happens to lead: <strong>breadth</strong> (40%) — the share of
+        members up more than 10% month-to-date; <strong>momentum</strong> (30%)
+        — the equal-weighted average member return this month; and{" "}
+        <strong>insider pressure</strong> (30%) — the open-market buy/sell skew
+        across the basket, scaled by how many buys stand behind it so one or two
+        lone purchases cannot max out the component. MTD and YTD are
+        equal-weighted averages of member stocks; YTD is also shown against the
+        S&amp;P 500 in percentage points (pp). Informational only — not
+        investment advice.
       </div>
 
       <AdSlot slot="leaderboard" seed="hot-sectors-bottom" />

@@ -30,6 +30,8 @@ export interface HotSectorRow {
   insiderBuys: number;
   insiderSells: number;
   netInsider: number;
+  /** Equal-weighted average member MTD % (null when no data). */
+  mtd: number | null;
   /** Equal-weighted average member YTD % (null when no data). */
   ytd: number | null;
   /** Sector YTD minus S&P 500 YTD (percentage points). */
@@ -47,8 +49,24 @@ export interface HotSectorsResponse {
 
 // Hot Sectors ranking weights: how much the >10% gainer ratio vs. the insider
 // buying intensity each contribute to the composite heat score.
-const HOT_GAINER_WEIGHT = 0.6;
-const HOT_INSIDER_WEIGHT = 0.4;
+/**
+ * Heat Score weights. The old model was 0.6·gainerRatio + 0.4·(buys ÷ maxBuys),
+ * which broke in two ways:
+ *   • maxBuys is tiny in a quiet month (it was 2), so a sector with two insider
+ *     buys took the FULL insider component and outranked a sector with 36% of
+ *     its members up 10%+ — the worst-performing basket sat at #1.
+ *   • sells were ignored entirely, so 0 buys / 656 sells scored the same as a
+ *     basket with no insider activity at all.
+ * The model now scores breadth, magnitude and insider pressure separately, each
+ * on an ABSOLUTE scale rather than relative to the busiest peer.
+ */
+const HOT_BREADTH_WEIGHT = 0.4;
+const HOT_MOMENTUM_WEIGHT = 0.3;
+const HOT_INSIDER_WEIGHT = 0.3;
+/** Average member MTD % mapped to 0–1 across this band. */
+const HOT_MOMENTUM_BAND: [number, number] = [-10, 15];
+/** Buy count at which the insider component reaches full confidence. */
+const HOT_BUYS_FOR_FULL_WEIGHT = 10;
 
 export interface LiveQuote {
   price: number;
@@ -345,6 +363,8 @@ export class StockListsService {
       let gainers10 = 0;
       let ytdSum = 0;
       let ytdCount = 0;
+      let mtdSum = 0;
+      let mtdCount = 0;
       let insiderBuys = 0;
       let insiderSells = 0;
       for (const t of b.tickers) {
@@ -353,6 +373,8 @@ export class StockListsService {
         if (r && r.mtd != null) {
           companies++;
           if (r.mtd > 10) gainers10++;
+          mtdSum += r.mtd;
+          mtdCount++;
         }
         if (r && r.ytd != null) {
           ytdSum += r.ytd;
@@ -366,6 +388,7 @@ export class StockListsService {
       }
       const gainerRatio = companies > 0 ? gainers10 / companies : 0;
       const ytd = ytdCount > 0 ? +(ytdSum / ytdCount).toFixed(2) : null;
+      const mtd = mtdCount > 0 ? +(mtdSum / mtdCount).toFixed(2) : null;
       return {
         key: b.key,
         label: b.label,
@@ -376,23 +399,39 @@ export class StockListsService {
         insiderSells,
         netInsider: insiderBuys - insiderSells,
         ytd,
+        mtd,
         vsSp500:
           ytd != null && sp500Ytd != null ? +(ytd - sp500Ytd).toFixed(2) : null,
       };
     });
 
-    // Insider buying is scaled relative to the busiest sector so it combines
-    // cleanly with the 0–1 gainer ratio into a 0–100 composite heat score.
-    const maxBuys = Math.max(1, ...raw.map((r) => r.insiderBuys));
+    const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+    const [mLo, mHi] = HOT_MOMENTUM_BAND;
     const scored: HotSectorRow[] = raw
-      .map((r) => ({
-        ...r,
-        hotScore: Math.round(
-          (HOT_GAINER_WEIGHT * r.gainerRatio +
-            HOT_INSIDER_WEIGHT * (r.insiderBuys / maxBuys)) *
-            100,
-        ),
-      }))
+      .map((r) => {
+        // Breadth — how much of the basket is participating.
+        const breadth = r.gainerRatio;
+        // Magnitude — the average move, so a basket that is broadly down can
+        // never rank as "hot" on breadth alone.
+        const momentum = r.mtd == null ? 0 : clamp01((r.mtd - mLo) / (mHi - mLo));
+        // Insider pressure — the buy/sell SKEW, scaled by how much activity
+        // stands behind it, so two lone buys can't max out the component.
+        const flow = r.insiderBuys + r.insiderSells;
+        const skew = flow > 0 ? r.insiderBuys / flow : 0;
+        const confidence = clamp01(
+          Math.log1p(r.insiderBuys) / Math.log1p(HOT_BUYS_FOR_FULL_WEIGHT),
+        );
+        const insider = skew * confidence;
+        return {
+          ...r,
+          hotScore: Math.round(
+            (HOT_BREADTH_WEIGHT * breadth +
+              HOT_MOMENTUM_WEIGHT * momentum +
+              HOT_INSIDER_WEIGHT * insider) *
+              100,
+          ),
+        };
+      })
       .sort(
         (a, b) =>
           b.hotScore - a.hotScore ||

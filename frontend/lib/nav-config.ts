@@ -65,6 +65,7 @@ export const NAV_GROUPS: NavGroup[] = [
         links: [
           { label: "Top Insider Scores", href: "/insiders/hot", description: "Ranked by Insider Score quality — the strongest insider-buying signals", icon: Flame, badge: "popular" },
           { label: "Top Stock Ratings", href: "/analyst-ratings", description: "Analyst-rated top stocks — consensus & price targets", icon: ShieldCheck },
+          { label: "Top Analysts", href: "/top-analysts", description: "Wall Street research firms ranked by success rate & average return", icon: Star },
           { label: "Insider Trades", href: "/trades", description: "All open-market Form 4 buys & sells", icon: Activity },
           { label: "Upcoming Earnings", href: "/earnings", description: "Live earnings calendar, next 7 days", icon: Calendar },
         ],
