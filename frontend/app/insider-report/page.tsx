@@ -761,7 +761,14 @@ export default function InsiderReportLanding() {
   );
 
   return (
-    <div style={{ background: PAGE, color: INK }} className="min-h-screen">
+    <div
+      style={{
+        background: PAGE,
+        color: INK,
+        fontFamily: "var(--font-figtree), var(--font-sans), system-ui, sans-serif",
+      }}
+      className="min-h-screen"
+    >
       {/* futuristic motion — every effect is disabled under prefers-reduced-motion */}
       <style>{`
         @keyframes ir-glow-pulse {
