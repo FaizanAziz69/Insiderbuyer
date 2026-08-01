@@ -1,4 +1,5 @@
 "use client";
+import { usePathname } from "next/navigation";
 import { TopHeader } from "./TopHeader";
 import { Footer } from "./Footer";
 import { TopTickerBar } from "./TopTickerBar";
@@ -7,7 +8,14 @@ import { PREMIUM_UNLOCKED } from "@/lib/premium";
 import { AuthProvider } from "@/lib/auth";
 import { InsiderActivityToast } from "@/components/home/InsiderActivityToast";
 
+/** Standalone funnel pages that render without the site chrome. */
+const BARE_ROUTES = ["/insider-report"];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  if (BARE_ROUTES.some((r) => pathname?.startsWith(r))) {
+    return <AuthProvider>{children}</AuthProvider>;
+  }
   return (
     <AuthProvider>
       <div

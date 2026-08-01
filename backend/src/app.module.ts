@@ -38,6 +38,8 @@ import { CtaModule } from './cta/cta.module';
 import { ChatModule } from './chat/chat.module';
 import { ContentModule } from './content/content.module';
 import { SocialModule } from './social/social.module';
+import { ReportsModule } from './reports/reports.module';
+import { ReportLead } from './entities/report-lead.entity';
 
 @Module({
   imports: [
@@ -75,6 +77,7 @@ import { SocialModule } from './social/social.module';
           PriceHistoryCache,
           BacktestCache,
           AnalystPriceTarget,
+          ReportLead,
         ],
         synchronize: true,
         logging: false,
@@ -100,6 +103,7 @@ import { SocialModule } from './social/social.module';
     ChatModule,
     ContentModule,
     SocialModule,
+    ReportsModule,
     AuthModule,
   ],
 })
