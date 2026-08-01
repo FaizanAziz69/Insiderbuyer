@@ -23,6 +23,7 @@ import {
   useState,
 } from "react";
 import { API_BASE } from "@/lib/api";
+import { Logo } from "@/components/Logo";
 
 /* ── site theme palette ───────────────────────────────────────────── */
 const INK = "var(--text)";
@@ -188,12 +189,11 @@ function LookupCard() {
   return (
     <div
       id="lookup"
-      className="w-full max-w-[720px] rounded-xl overflow-hidden scroll-mt-24"
+      className="ir-glow w-full max-w-[720px] rounded-xl scroll-mt-24"
       style={{
         background: CARD,
         border: `1px solid ${RULE}`,
         borderTop: `4px solid ${HILITE}`,
-        boxShadow: "var(--shadow-md, 0 16px 40px rgba(16,26,43,.1))",
       }}
     >
       <div className="px-7 pt-6 text-center">
@@ -244,30 +244,46 @@ function LookupCard() {
           />
           {open && (
             <ul
-              className="absolute z-10 left-0 right-0 rounded-b-lg max-h-60 overflow-auto list-none m-0 p-0"
-              style={{ background: CARD, border: `1px solid ${RULE}`, borderTop: "none" }}
+              className="absolute z-30 left-0 right-0 mt-1.5 rounded-lg max-h-72 overflow-auto list-none m-0 p-0"
+              style={{
+                background: CARD,
+                border: `1px solid var(--border-strong)`,
+                boxShadow: "var(--shadow-lg, 0 18px 44px rgba(16,26,43,.22))",
+              }}
               role="listbox"
             >
               {hits.length === 0 ? (
-                <li className="px-4 py-3 text-[14px] text-center" style={{ color: SOFT }}>
+                <li className="px-4 py-3.5 text-[15px] text-center" style={{ color: SOFT }}>
                   No matches — try a ticker like AAPL or NVDA…
                 </li>
               ) : (
-                hits.map((s) => (
+                hits.map((s, i) => (
                   <li
                     key={`${s.symbol}-${s.exchange}`}
                     role="option"
                     aria-selected={false}
                     onClick={() => choose(s)}
-                    className="px-4 py-3 flex justify-between gap-3 cursor-pointer text-[15px] hover:bg-[var(--accent-soft)] border-t border-[var(--border)]"
+                    className={`px-4 py-3 flex items-center gap-3.5 cursor-pointer text-[15px] hover:bg-[var(--accent-soft)] ${
+                      i > 0 ? "border-t border-[var(--border)]" : ""
+                    }`}
                   >
-                    <span className="font-mono font-semibold" style={{ color: INK }}>
+                    <span
+                      className="font-mono font-bold text-[15px] shrink-0 min-w-[64px]"
+                      style={{ color: "var(--accent)" }}
+                    >
                       {s.symbol}
                     </span>
-                    <span className="truncate text-right" style={{ color: SOFT }}>
+                    <span className="flex-1 truncate text-left" style={{ color: INK }}>
                       {s.name}
-                      {s.exchange ? ` · ${s.exchange}` : ""}
                     </span>
+                    {s.exchange && (
+                      <span
+                        className="shrink-0 font-mono text-[11.5px] uppercase tracking-wide px-2 py-0.5 rounded"
+                        style={{ color: SOFT, border: `1px solid ${RULE}` }}
+                      >
+                        {s.exchange}
+                      </span>
+                    )}
                   </li>
                 ))
               )}
@@ -292,11 +308,11 @@ function LookupCard() {
               </div>
               <div className="text-right">
                 <div
-                  className="font-heading font-extrabold text-[32px] select-none"
-                  style={{ color: INK, filter: "blur(9px)" }}
+                  className="ir-shimmer font-heading font-extrabold text-[32px] select-none rounded-md"
+                  style={{ color: INK }}
                   aria-hidden="true"
                 >
-                  87.1
+                  <span style={{ filter: "blur(9px)" }}>87.1</span>
                 </div>
                 <div
                   className="text-[11px] uppercase tracking-wider font-mono"
@@ -599,7 +615,7 @@ function LiveFeed() {
 function IndexChart() {
   return (
     <div
-      className="rounded-xl px-6 sm:px-8 pt-8 pb-6"
+      className="ir-lift rounded-xl px-6 sm:px-8 pt-8 pb-6"
       style={{
         background: CARD,
         border: `1px solid ${RULE}`,
@@ -712,18 +728,64 @@ export default function InsiderReportLanding() {
 
   return (
     <div style={{ background: PAGE, color: INK }} className="min-h-screen">
+      {/* futuristic motion — every effect is disabled under prefers-reduced-motion */}
+      <style>{`
+        @keyframes ir-glow-pulse {
+          0%, 100% { box-shadow: 0 16px 40px rgba(16,26,43,.12), 0 0 0 0 var(--gold-soft, rgba(255,199,0,.18)); }
+          50%      { box-shadow: 0 16px 40px rgba(16,26,43,.12), 0 0 34px 4px var(--gold-soft, rgba(255,199,0,.18)); }
+        }
+        .ir-glow { box-shadow: 0 16px 40px rgba(16,26,43,.12); }
+        @keyframes ir-gradient-move {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 200% 50%; }
+        }
+        .ir-gradient-text {
+          background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--gold), var(--accent));
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+        }
+        @keyframes ir-orb-drift {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33%      { transform: translate(34px, -26px) scale(1.08); }
+          66%      { transform: translate(-26px, 20px) scale(0.94); }
+        }
+        .ir-orb {
+          position: absolute; border-radius: 9999px; filter: blur(70px);
+          opacity: .5; pointer-events: none;
+        }
+        @keyframes ir-shimmer {
+          0% { transform: translateX(-160%) skewX(-18deg); }
+          100% { transform: translateX(260%) skewX(-18deg); }
+        }
+        .ir-shimmer { position: relative; overflow: hidden; }
+        .ir-shimmer::after {
+          content: ""; position: absolute; top: 0; bottom: 0; width: 45%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+        }
+        @keyframes ir-float {
+          0%, 100% { transform: translateY(0); }
+          50%      { transform: translateY(-8px); }
+        }
+        .ir-lift { transition: transform .3s ease, box-shadow .3s ease; }
+        .ir-lift:hover { transform: translateY(-4px); }
+        @media (prefers-reduced-motion: no-preference) {
+          .ir-glow { animation: ir-glow-pulse 3.4s ease-in-out infinite; }
+          .ir-gradient-text { animation: ir-gradient-move 5s linear infinite; }
+          .ir-orb { animation: ir-orb-drift 14s ease-in-out infinite; }
+          .ir-shimmer::after { animation: ir-shimmer 2.8s ease-in-out infinite; }
+          .ir-float { animation: ir-float 6s ease-in-out infinite; }
+        }
+      `}</style>
       {/* header */}
       <header
         className="sticky top-0 z-20"
         style={{ background: CARD, borderBottom: `1px solid ${RULE}` }}
       >
         <div className="max-w-[1120px] mx-auto px-6 h-16 flex items-center justify-between">
-          <Link
-            href="/insider-report"
-            className="font-heading font-black uppercase tracking-[.06em] text-[18px] no-underline"
-            style={{ color: INK }}
-          >
-            Insider&nbsp;Buying
+          <Link href="/insider-report" className="no-underline shrink-0" aria-label="Insider Buying">
+            <Logo size="sm" />
           </Link>
           <nav
             className="hidden md:flex gap-7 text-[15px] font-medium"
@@ -744,15 +806,29 @@ export default function InsiderReportLanding() {
       </header>
 
       {/* hero */}
-      <section className="py-14 sm:py-16" style={{ borderBottom: `1px solid ${RULE}` }}>
-        <div className="max-w-[1120px] mx-auto px-6 flex flex-col items-center gap-10">
+      <section
+        className="relative overflow-hidden py-14 sm:py-16"
+        style={{ borderBottom: `1px solid ${RULE}` }}
+      >
+        {/* drifting accent orbs behind the hero */}
+        <div
+          className="ir-orb w-[420px] h-[420px] -top-40 -left-24"
+          style={{ background: "var(--accent-soft)" }}
+          aria-hidden="true"
+        />
+        <div
+          className="ir-orb w-[360px] h-[360px] top-24 -right-28"
+          style={{ background: "var(--gold-soft, rgba(255,199,0,.18))", animationDelay: "-7s" }}
+          aria-hidden="true"
+        />
+        <div className="relative max-w-[1120px] mx-auto px-6 flex flex-col items-center gap-10">
           <div className="text-center max-w-[760px]">
             <div className={`${eyebrow} flex items-center justify-center gap-2.5`}>
               Built on SEC Form 4 filings
             </div>
             <h1 className="font-heading font-extrabold text-[clamp(36px,4.6vw,56px)] leading-[1.08] tracking-tight mb-5">
               Thousands of stocks. Pick the right ones, and you can be{" "}
-              <em className="not-italic" style={{ color: ACCENT }}>wealthy</em>.
+              <em className="not-italic ir-gradient-text">wealthy</em>.
             </h1>
             <p className="text-[18px] sm:text-[19px] max-w-[52ch] mx-auto" style={{ color: SOFT }}>
               For over 30 years, corporate insiders buying their own stock have outperformed
@@ -848,7 +924,7 @@ export default function InsiderReportLanding() {
             ].map((card) => (
               <Reveal key={card.tag}>
                 <div
-                  className="rounded-xl p-7 h-full"
+                  className="ir-lift rounded-xl p-7 h-full"
                   style={{
                     background: CARD,
                     border: `1px solid ${RULE}`,
@@ -968,7 +1044,7 @@ export default function InsiderReportLanding() {
             </div>
             <Reveal>
               <div
-                className="rounded-xl px-8 py-9 text-center"
+                className="ir-float rounded-xl px-8 py-9 text-center"
                 style={{ background: DARK_CARD, border: `1px solid ${DARK_RULE}` }}
               >
                 <ScoreGauge />
