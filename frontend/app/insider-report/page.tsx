@@ -9,8 +9,9 @@
  * server-side until an email/SMS provider key is configured — leads are kept
  * as 'pending' and the report renders at /report-requests/:id/preview.
  *
- * Light-committed design (marketing funnel page), ported from the approved
- * static mock.
+ * Colors come from the site theme variables (globals.css), so the page
+ * follows the light/dark toggle like every other page. The Quality Score
+ * section sits on --brand-surface, which stays dark in both themes.
  */
 
 import Link from "next/link";
@@ -23,14 +24,26 @@ import {
 } from "react";
 import { API_BASE } from "@/lib/api";
 
-/* ── palette (from the approved mock) ─────────────────────────────── */
-const INK = "#0E1F35";
-const SOFT = "#5B6B7E";
-const RULE = "#DEE4EC";
-const BUY = "#3E9B5F";
-const SELL = "#C0503C";
-const SPX = "#93A1B3";
-const HILITE = "#E8B54D";
+/* ── site theme palette ───────────────────────────────────────────── */
+const INK = "var(--text)";
+const SOFT = "var(--text-mute)";
+const RULE = "var(--border)";
+const CARD = "var(--bg-elevated)";
+const PAGE = "var(--bg-3)";
+const WELL = "var(--bg-3)";
+const ACCENT = "var(--accent)";
+const ON_ACCENT = "var(--on-accent)";
+const BUY = "var(--good)";
+const BUY_SOFT = "var(--good-soft)";
+const BUY_STRONG = "var(--good-strong)";
+const SELL = "var(--bad)";
+const SELL_SOFT = "var(--bad-soft)";
+const SPX = "var(--text-faint)";
+const HILITE = "var(--gold)";
+/* Always-dark Quality Score section (sits on the brand chrome surface). */
+const DARK_CARD = "rgba(255,255,255,0.07)";
+const DARK_RULE = "rgba(255,255,255,0.18)";
+const DARK_TEXT = "rgba(255,255,255,0.75)";
 
 /* ── tiny scroll-reveal helper ────────────────────────────────────── */
 function Reveal({
@@ -175,11 +188,12 @@ function LookupCard() {
   return (
     <div
       id="lookup"
-      className="w-full max-w-[720px] rounded-xl overflow-hidden scroll-mt-24 bg-white"
+      className="w-full max-w-[720px] rounded-xl overflow-hidden scroll-mt-24"
       style={{
+        background: CARD,
         border: `1px solid ${RULE}`,
         borderTop: `4px solid ${HILITE}`,
-        boxShadow: "0 16px 40px rgba(16,26,43,.1)",
+        boxShadow: "var(--shadow-md, 0 16px 40px rgba(16,26,43,.1))",
       }}
     >
       <div className="px-7 pt-6 text-center">
@@ -188,7 +202,7 @@ function LookupCard() {
           style={{ color: INK }}
         >
           Find out what insiders are{" "}
-          <em className="not-italic" style={{ color: "#3B7FB0" }}>
+          <em className="not-italic" style={{ color: ACCENT }}>
             really
           </em>{" "}
           doing.
@@ -221,13 +235,17 @@ function LookupCard() {
             placeholder="Search any stock — ticker or company name"
             aria-label="Search for a stock"
             autoComplete="off"
-            className="w-full rounded-lg pl-12 pr-4 py-4 text-[16px] font-semibold uppercase placeholder:normal-case placeholder:font-medium placeholder:text-[#9AA3B4] focus:outline-none focus:ring-2 focus:ring-[#3E9B5F]"
-            style={{ border: `2px solid ${INK}`, background: "#F5F7FA", color: INK }}
+            className="w-full rounded-lg pl-12 pr-4 py-4 text-[16px] font-semibold uppercase placeholder:normal-case placeholder:font-medium placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            style={{
+              border: "2px solid var(--border-strong)",
+              background: WELL,
+              color: INK,
+            }}
           />
           {open && (
             <ul
-              className="absolute z-10 left-0 right-0 bg-white rounded-b-lg max-h-60 overflow-auto list-none m-0 p-0"
-              style={{ border: `1px solid ${RULE}`, borderTop: "none" }}
+              className="absolute z-10 left-0 right-0 rounded-b-lg max-h-60 overflow-auto list-none m-0 p-0"
+              style={{ background: CARD, border: `1px solid ${RULE}`, borderTop: "none" }}
               role="listbox"
             >
               {hits.length === 0 ? (
@@ -241,7 +259,7 @@ function LookupCard() {
                     role="option"
                     aria-selected={false}
                     onClick={() => choose(s)}
-                    className="px-4 py-3 flex justify-between gap-3 cursor-pointer text-[15px] hover:bg-[#EDF7F0] border-t border-[#ECF0F5]"
+                    className="px-4 py-3 flex justify-between gap-3 cursor-pointer text-[15px] hover:bg-[var(--accent-soft)] border-t border-[var(--border)]"
                   >
                     <span className="font-mono font-semibold" style={{ color: INK }}>
                       {s.symbol}
@@ -262,7 +280,7 @@ function LookupCard() {
           <div className="mt-5">
             <div
               className="flex items-center justify-between gap-4 rounded-xl px-5 py-4"
-              style={{ border: `1px solid ${RULE}`, background: "#F5F7FA" }}
+              style={{ border: `1px solid ${RULE}`, background: WELL }}
             >
               <div>
                 <div className="font-mono font-semibold text-[20px]" style={{ color: INK }}>
@@ -311,8 +329,8 @@ function LookupCard() {
                       className="px-5 py-2 text-[14px] font-semibold"
                       style={
                         channel === m
-                          ? { background: INK, color: "#fff" }
-                          : { background: "#fff", color: SOFT }
+                          ? { background: ACCENT, color: ON_ACCENT }
+                          : { background: CARD, color: SOFT }
                       }
                     >
                       {m === "email" ? "Email" : "SMS"}
@@ -327,15 +345,19 @@ function LookupCard() {
                     onKeyDown={(e) => e.key === "Enter" && submit()}
                     placeholder={channel === "email" ? "you@example.com" : "(555) 123-4567"}
                     aria-label="Email address or phone number"
-                    className="flex-1 rounded-lg px-4 py-3.5 text-[16px] focus:outline-none focus:ring-2 focus:ring-[#3E9B5F]"
-                    style={{ border: `1px solid ${INK}`, background: "#fff", color: INK }}
+                    className="flex-1 rounded-lg px-4 py-3.5 text-[16px] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                    style={{
+                      border: "1px solid var(--border-strong)",
+                      background: CARD,
+                      color: INK,
+                    }}
                   />
                   <button
                     type="button"
                     onClick={submit}
                     disabled={phase === "sending"}
-                    className="whitespace-nowrap rounded-lg px-7 py-3.5 text-[16px] font-semibold text-white transition-colors disabled:opacity-60"
-                    style={{ background: INK }}
+                    className="whitespace-nowrap rounded-lg px-7 py-3.5 text-[16px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
+                    style={{ background: ACCENT, color: ON_ACCENT }}
                   >
                     {phase === "sending" ? "Sending…" : "Get the insider report"}
                   </button>
@@ -387,7 +409,7 @@ function LookupCard() {
   );
 }
 
-/* ── animated score gauge ─────────────────────────────────────────── */
+/* ── animated score gauge (always-dark section) ───────────────────── */
 function ScoreGauge() {
   const ref = useRef<HTMLDivElement>(null);
   const [val, setVal] = useState(0);
@@ -434,7 +456,7 @@ function ScoreGauge() {
         <path
           d="M15 120 A100 100 0 0 1 215 120"
           fill="none"
-          stroke="#2A3650"
+          stroke="rgba(255,255,255,0.22)"
           strokeWidth="14"
           strokeLinecap="round"
         />
@@ -453,7 +475,10 @@ function ScoreGauge() {
           <span className="font-heading text-[58px] font-extrabold text-white leading-none">
             {val.toFixed(1)}
           </span>
-          <div className="font-mono text-[12px] tracking-wider uppercase text-[#A9B2C2] mt-1">
+          <div
+            className="font-mono text-[12px] tracking-wider uppercase mt-1"
+            style={{ color: DARK_TEXT }}
+          >
             Insider Quality Score
           </div>
         </div>
@@ -487,8 +512,12 @@ function LiveFeed() {
 
   return (
     <div
-      className="max-w-[680px] mx-auto rounded-xl overflow-hidden bg-white"
-      style={{ border: `1px solid ${RULE}`, boxShadow: "0 12px 32px rgba(16,26,43,.08)" }}
+      className="max-w-[680px] mx-auto rounded-xl overflow-hidden"
+      style={{
+        background: CARD,
+        border: `1px solid ${RULE}`,
+        boxShadow: "var(--shadow-md, 0 12px 32px rgba(16,26,43,.08))",
+      }}
     >
       <div
         className="flex justify-between items-center px-5 py-3 font-mono text-[12px] uppercase tracking-wider"
@@ -528,7 +557,7 @@ function LiveFeed() {
             rows.map((r) => {
               const isBuy = r.type !== "SELL";
               return (
-                <tr key={r.id} className="border-t border-[#ECF0F5]">
+                <tr key={r.id} className="border-t border-[var(--border)]">
                   <td className="px-5 py-3 font-mono font-semibold" style={{ color: INK }}>
                     {r.ticker || "—"}
                   </td>
@@ -540,8 +569,8 @@ function LiveFeed() {
                       className="font-mono text-[12px] font-semibold px-2 py-1 rounded-md"
                       style={
                         isBuy
-                          ? { background: "#E9F6EE", color: BUY }
-                          : { background: "#F8ECE8", color: SELL }
+                          ? { background: BUY_SOFT, color: BUY }
+                          : { background: SELL_SOFT, color: SELL }
                       }
                     >
                       {isBuy ? "P — Purchase" : "S — Sale"}
@@ -570,8 +599,12 @@ function LiveFeed() {
 function IndexChart() {
   return (
     <div
-      className="rounded-xl bg-white px-6 sm:px-8 pt-8 pb-6"
-      style={{ border: `1px solid ${RULE}`, boxShadow: "0 12px 32px rgba(16,26,43,.06)" }}
+      className="rounded-xl px-6 sm:px-8 pt-8 pb-6"
+      style={{
+        background: CARD,
+        border: `1px solid ${RULE}`,
+        boxShadow: "var(--shadow-sm, 0 12px 32px rgba(16,26,43,.06))",
+      }}
     >
       <div className="flex justify-between items-baseline flex-wrap gap-3 mb-5">
         <div className="font-semibold text-[16px]" style={{ color: INK }}>
@@ -596,12 +629,12 @@ function IndexChart() {
         aria-label="Line chart: Insider Buying Index rising well above the S&P 500, Insider Selling Index trailing below it"
         className="w-full h-auto"
       >
-        <g stroke="#E7ECF2" strokeWidth="1">
+        <g stroke="var(--border)" strokeWidth="1">
           {[40, 110, 180, 250, 320].map((y) => (
             <line key={y} x1="60" y1={y} x2="880" y2={y} />
           ))}
         </g>
-        <g fill={SPX} fontSize="12" fontFamily="monospace">
+        <g fill="var(--text-faint)" fontSize="12" fontFamily="monospace">
           <text x="50" y="44" textAnchor="end">+160%</text>
           <text x="50" y="114" textAnchor="end">+120%</text>
           <text x="50" y="184" textAnchor="end">+80%</text>
@@ -616,28 +649,28 @@ function IndexChart() {
         <path
           d="M60,320 C140,318 190,330 260,326 C340,322 400,336 470,328 C560,318 640,324 720,314 C790,306 840,304 880,298"
           fill="none"
-          stroke={SELL}
+          stroke="var(--bad)"
           strokeWidth="2.5"
           strokeLinecap="round"
         />
         <path
           d="M60,320 C150,300 200,312 270,290 C350,264 410,286 480,258 C570,224 650,232 730,204 C800,182 840,176 880,166"
           fill="none"
-          stroke={SPX}
+          stroke="var(--text-faint)"
           strokeWidth="2.5"
           strokeLinecap="round"
         />
         <path
           d="M60,320 C150,288 210,296 280,258 C360,216 420,232 490,186 C580,132 650,138 730,96 C800,62 840,56 880,44"
           fill="none"
-          stroke={BUY}
+          stroke="var(--good)"
           strokeWidth="3.5"
           strokeLinecap="round"
         />
         <g fontSize="12" fontWeight="600" fontFamily="monospace">
-          <text x="886" y="48" fill={BUY}>+158%</text>
-          <text x="886" y="170" fill={SPX}>+89%</text>
-          <text x="886" y="302" fill={SELL}>+13%</text>
+          <text x="886" y="48" fill="var(--good)">+158%</text>
+          <text x="886" y="170" fill="var(--text-faint)">+89%</text>
+          <text x="886" y="302" fill="var(--bad)">+13%</text>
         </g>
       </svg>
       <p className="font-mono text-[12.5px] mt-4" style={{ color: SOFT }}>
@@ -678,11 +711,11 @@ export default function InsiderReportLanding() {
   );
 
   return (
-    <div style={{ background: "#F5F7FA", color: INK }} className="min-h-screen">
+    <div style={{ background: PAGE, color: INK }} className="min-h-screen">
       {/* header */}
       <header
-        className="sticky top-0 z-20 bg-white"
-        style={{ borderBottom: `1px solid ${RULE}` }}
+        className="sticky top-0 z-20"
+        style={{ background: CARD, borderBottom: `1px solid ${RULE}` }}
       >
         <div className="max-w-[1120px] mx-auto px-6 h-16 flex items-center justify-between">
           <Link
@@ -696,14 +729,14 @@ export default function InsiderReportLanding() {
             className="hidden md:flex gap-7 text-[15px] font-medium"
             style={{ color: SOFT }}
           >
-            <a href="#buying" className="hover:text-[#0E1F35]">Buying index</a>
-            <a href="#rookie" className="hover:text-[#0E1F35]">The rookie mistake</a>
-            <a href="#score" className="hover:text-[#0E1F35]">Quality Score</a>
+            <a href="#buying" className="hover:text-[var(--text)]">Buying index</a>
+            <a href="#rookie" className="hover:text-[var(--text)]">The rookie mistake</a>
+            <a href="#score" className="hover:text-[var(--text)]">Quality Score</a>
           </nav>
           <a
             href="#lookup"
-            className="rounded-lg px-5 py-2.5 text-[15px] font-semibold text-white no-underline hover:opacity-90"
-            style={{ background: INK }}
+            className="rounded-lg px-5 py-2.5 text-[15px] font-semibold no-underline hover:opacity-90"
+            style={{ background: ACCENT, color: ON_ACCENT }}
           >
             Check a stock
           </a>
@@ -719,14 +752,19 @@ export default function InsiderReportLanding() {
             </div>
             <h1 className="font-heading font-extrabold text-[clamp(36px,4.6vw,56px)] leading-[1.08] tracking-tight mb-5">
               Thousands of stocks. Pick the right ones, and you can be{" "}
-              <em className="not-italic" style={{ color: "#3B7FB0" }}>wealthy</em>.
+              <em className="not-italic" style={{ color: ACCENT }}>wealthy</em>.
             </h1>
             <p className="text-[18px] sm:text-[19px] max-w-[52ch] mx-auto" style={{ color: SOFT }}>
               For over 30 years, corporate insiders buying their own stock have outperformed
               the market by <strong style={{ color: INK }}>7%+ per year</strong>.{" "}
               <span
                 className="rounded-full px-3 py-0.5 font-bold"
-                style={{ background: "#E9F6EE", border: `1px solid ${BUY}`, color: "#2E7D4C", boxDecorationBreak: "clone" }}
+                style={{
+                  background: BUY_SOFT,
+                  border: `1px solid ${BUY}`,
+                  color: BUY_STRONG,
+                  boxDecorationBreak: "clone",
+                }}
               >
                 It pays to know what stocks insiders are buying, right now.
               </span>
@@ -764,7 +802,7 @@ export default function InsiderReportLanding() {
                 ["Selling index vs S&P 500", "−76 pts", SELL, "Cumulative underperformance, 5-yr illustration"],
                 ["Filings tracked", "40k+/yr", INK, "Every Form 4, parsed within minutes"],
               ].map(([label, value, color, sub]) => (
-                <div key={label as string} className="bg-white px-6 py-6">
+                <div key={label as string} className="px-6 py-6" style={{ background: CARD }}>
                   <div
                     className="font-mono text-[11.5px] uppercase tracking-wider mb-2"
                     style={{ color: SOFT }}
@@ -794,7 +832,7 @@ export default function InsiderReportLanding() {
             <div className={eyebrow}>Not all insider buying is equal</div>
             <h2 className="font-heading font-extrabold text-[clamp(28px,3.4vw,40px)] leading-[1.12] tracking-tight mb-4">
               Copying every insider buy is a{" "}
-              <em className="not-italic" style={{ color: "#3B7FB0" }}>rookie mistake</em>.
+              <em className="not-italic" style={{ color: ACCENT }}>rookie mistake</em>.
             </h2>
             <p className="text-[17px]" style={{ color: SOFT }}>
               Most insider transactions are noise — routine, scheduled, or too small to mean
@@ -810,8 +848,9 @@ export default function InsiderReportLanding() {
             ].map((card) => (
               <Reveal key={card.tag}>
                 <div
-                  className="rounded-xl bg-white p-7 h-full"
+                  className="rounded-xl p-7 h-full"
                   style={{
+                    background: CARD,
                     border: `1px solid ${RULE}`,
                     borderTop: `4px solid ${card.good ? BUY : SELL}`,
                   }}
@@ -820,8 +859,8 @@ export default function InsiderReportLanding() {
                     className="inline-block font-mono text-[12px] font-semibold tracking-wider uppercase px-2.5 py-1 rounded-md mb-4"
                     style={
                       card.good
-                        ? { background: "#E9F6EE", color: BUY }
-                        : { background: "#F8ECE8", color: SELL }
+                        ? { background: BUY_SOFT, color: BUY }
+                        : { background: SELL_SOFT, color: SELL }
                     }
                   >
                     {card.tag}
@@ -833,7 +872,7 @@ export default function InsiderReportLanding() {
                     {card.items.map(([b, rest]) => (
                       <li
                         key={b}
-                        className="py-3 border-t border-[#ECF0F5] text-[15px] flex gap-3"
+                        className="py-3 border-t border-[var(--border)] text-[15px] flex gap-3"
                         style={{ color: SOFT }}
                       >
                         <span
@@ -862,15 +901,22 @@ export default function InsiderReportLanding() {
         </div>
       </section>
 
-      {/* quality score */}
-      <section id="score" className="py-16 sm:py-20" style={{ background: INK }}>
+      {/* quality score — sits on the brand chrome surface, dark in both themes */}
+      <section
+        id="score"
+        className="py-16 sm:py-20"
+        style={{
+          background: "var(--brand-surface)",
+          borderTop: "1px solid var(--brand-surface-border)",
+        }}
+      >
         <div className="max-w-[1120px] mx-auto px-6">
           <Reveal className="max-w-[680px] mb-12">
             <div className={`${eyebrow}`} style={{ color: HILITE }}>New</div>
             <h2 className="font-heading font-extrabold text-white text-[clamp(28px,3.4vw,40px)] leading-[1.12] tracking-tight mb-4">
               The Insider Quality Score. Every stock, rated 0–99.
             </h2>
-            <p className="text-[17px] text-[#A9B2C2]">
+            <p className="text-[17px]" style={{ color: DARK_TEXT }}>
               One number that measures the size, intensity, and significance of insider
               buying — so you never mistake noise for conviction again.
             </p>
@@ -882,25 +928,33 @@ export default function InsiderReportLanding() {
                 {FACTORS.map(([id, title, desc]) => (
                   <div
                     key={id}
-                    className={`rounded-xl px-5 py-4 flex gap-4 items-start ${
-                      id === "+" ? "border-dashed bg-transparent" : "bg-[#16213A]"
-                    } border border-[#2A3650]`}
+                    className="rounded-xl px-5 py-4 flex gap-4 items-start"
+                    style={{
+                      background: id === "+" ? "transparent" : DARK_CARD,
+                      border: `1px ${id === "+" ? "dashed" : "solid"} ${DARK_RULE}`,
+                    }}
                   >
                     <span
-                      className="font-mono font-semibold text-[13px] rounded-md w-7 h-7 grid place-items-center shrink-0 mt-0.5 border border-[#3A4966]"
-                      style={{ color: HILITE }}
+                      className="font-mono font-semibold text-[13px] rounded-md w-7 h-7 grid place-items-center shrink-0 mt-0.5"
+                      style={{ color: HILITE, border: `1px solid ${DARK_RULE}` }}
                     >
                       {id}
                     </span>
                     <div>
                       <h4 className="text-[15.5px] font-semibold text-white mb-0.5">{title}</h4>
-                      <p className="text-[13.5px] leading-relaxed text-[#A9B2C2]">{desc}</p>
+                      <p className="text-[13.5px] leading-relaxed" style={{ color: DARK_TEXT }}>
+                        {desc}
+                      </p>
                     </div>
                   </div>
                 ))}
               </div>
             </Reveal>
-            <div className="grid place-items-center text-[#3A4966] py-3 rotate-90 lg:rotate-0" aria-hidden="true">
+            <div
+              className="grid place-items-center py-3 rotate-90 lg:rotate-0"
+              style={{ color: DARK_RULE }}
+              aria-hidden="true"
+            >
               <svg width="40" height="40" viewBox="0 0 40 40">
                 <path
                   d="M4 20h26M22 10l10 10-10 10"
@@ -913,7 +967,10 @@ export default function InsiderReportLanding() {
               </svg>
             </div>
             <Reveal>
-              <div className="rounded-xl border border-[#2A3650] bg-[#16213A] px-8 py-9 text-center">
+              <div
+                className="rounded-xl px-8 py-9 text-center"
+                style={{ background: DARK_CARD, border: `1px solid ${DARK_RULE}` }}
+              >
                 <ScoreGauge />
                 <div className="font-mono text-[13px] mb-5" style={{ color: HILITE }}>
                   STRONG INSIDER CONVICTION
@@ -922,12 +979,13 @@ export default function InsiderReportLanding() {
                   {[
                     ["92.3", "Elite", "#5ED49A"],
                     ["87.5", "Strong", "#5ED49A"],
-                    ["61.0", "Mixed", HILITE],
+                    ["61.0", "Mixed", "var(--gold)"],
                     ["28.4", "Weak", "#E98A78"],
                   ].map(([n, label, color]) => (
                     <span
                       key={label as string}
-                      className="font-mono text-[13px] font-semibold px-3 py-1.5 rounded-md border border-[#2A3650] text-[#A9B2C2]"
+                      className="font-mono text-[13px] font-semibold px-3 py-1.5 rounded-md"
+                      style={{ border: `1px solid ${DARK_RULE}`, color: DARK_TEXT }}
                     >
                       <b style={{ color: color as string }}>{n}</b> {label}
                     </span>
@@ -938,7 +996,7 @@ export default function InsiderReportLanding() {
           </div>
 
           <Reveal>
-            <p className="mt-7 text-center text-[13px] text-[#A9B2C2]">
+            <p className="mt-7 text-center text-[13px]" style={{ color: DARK_TEXT }}>
               Higher score = stronger insider conviction — even if the share price is falling.
               Scores update continuously as new Form 4 filings arrive.{" "}
               <Link href="/methodology" style={{ color: HILITE }}>
@@ -971,8 +1029,8 @@ export default function InsiderReportLanding() {
           <Reveal className="text-center mt-10">
             <a
               href="#lookup"
-              className="inline-block rounded-lg px-8 py-4 text-[16px] font-semibold text-white no-underline hover:opacity-90"
-              style={{ background: INK }}
+              className="inline-block rounded-lg px-8 py-4 text-[16px] font-semibold no-underline hover:opacity-90"
+              style={{ background: ACCENT, color: ON_ACCENT }}
             >
               Check your stock&apos;s Insider Score →
             </a>
