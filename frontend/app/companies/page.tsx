@@ -262,10 +262,7 @@ export default function CompaniesPage() {
           <strong>How to read the score:</strong> a higher Insider Score = more
           bullish insider conviction — even if the share price is falling. The
           score measures the <em>quality</em> of insider buying (who is buying,
-          how large, and how clustered), not price momentum.{" "}
-          <Link href="/methodology" className="text-accent font-semibold hover:underline">
-            How the score works →
-          </Link>
+          how large, and how clustered), not price momentum.
         </p>
       </header>
 

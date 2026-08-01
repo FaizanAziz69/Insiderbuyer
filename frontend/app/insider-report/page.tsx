@@ -22,6 +22,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { motion } from "framer-motion";
 import { API_BASE } from "@/lib/api";
 import { Logo } from "@/components/Logo";
 
@@ -30,7 +31,7 @@ const INK = "var(--text)";
 const SOFT = "var(--text-mute)";
 const RULE = "var(--border)";
 const CARD = "var(--bg-elevated)";
-const PAGE = "var(--bg-3)";
+const PAGE = "var(--bg-1)";
 const WELL = "var(--bg-3)";
 const ACCENT = "var(--accent)";
 const ON_ACCENT = "var(--on-accent)";
@@ -41,10 +42,6 @@ const SELL = "var(--bad)";
 const SELL_SOFT = "var(--bad-soft)";
 const SPX = "var(--text-faint)";
 const HILITE = "var(--gold)";
-/* Always-dark Quality Score section (sits on the brand chrome surface). */
-const DARK_CARD = "rgba(255,255,255,0.07)";
-const DARK_RULE = "rgba(255,255,255,0.18)";
-const DARK_TEXT = "rgba(255,255,255,0.75)";
 
 /* ── tiny scroll-reveal helper ────────────────────────────────────── */
 function Reveal({
@@ -425,8 +422,8 @@ function LookupCard() {
   );
 }
 
-/* ── animated score gauge (always-dark section) ───────────────────── */
-function ScoreGauge() {
+/* ── animated score ring (futuristic gauge) ───────────────────────── */
+function ScoreRing() {
   const ref = useRef<HTMLDivElement>(null);
   const [val, setVal] = useState(0);
   const target = 87.1;
@@ -444,7 +441,7 @@ function ScoreGauge() {
             return;
           }
           const t0 = performance.now();
-          const dur = 1200;
+          const dur = 1500;
           const step = (t: number) => {
             const p = Math.min((t - t0) / dur, 1);
             setVal(target * (1 - Math.pow(1 - p, 3)));
@@ -459,43 +456,60 @@ function ScoreGauge() {
     return () => io.disconnect();
   }, []);
 
-  const full = 314;
+  const R = 84;
+  const full = 2 * Math.PI * R;
   const offset = full - (full * val) / 100;
   return (
-    <div ref={ref} className="relative w-[230px] mx-auto mb-2.5">
+    <div ref={ref} className="relative w-[220px] h-[220px] mx-auto mb-4">
+      {/* slow-spinning halo behind the ring */}
+      <div
+        className="ir-spin absolute inset-[-14px] rounded-full pointer-events-none"
+        style={{
+          background:
+            "conic-gradient(from 0deg, transparent 0deg, var(--accent-soft) 80deg, transparent 160deg, var(--good-soft) 260deg, transparent 340deg)",
+          filter: "blur(10px)",
+        }}
+        aria-hidden="true"
+      />
       <svg
-        viewBox="0 0 230 130"
-        className="w-full h-auto"
+        viewBox="0 0 220 220"
+        className="relative w-full h-auto -rotate-90"
         role="img"
-        aria-label={`Gauge showing an Insider Quality Score of ${target} out of 100`}
+        aria-label={`Ring gauge showing an Insider Quality Score of ${target} out of 99`}
       >
-        <path
-          d="M15 120 A100 100 0 0 1 215 120"
+        <defs>
+          <linearGradient id="irRing" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="var(--accent)" />
+            <stop offset="55%" stopColor="var(--accent-2)" />
+            <stop offset="100%" stopColor="var(--good)" />
+          </linearGradient>
+        </defs>
+        <circle cx="110" cy="110" r={R} fill="none" stroke="var(--border)" strokeWidth="13" />
+        <circle
+          cx="110"
+          cy="110"
+          r={R}
           fill="none"
-          stroke="rgba(255,255,255,0.22)"
-          strokeWidth="14"
-          strokeLinecap="round"
-        />
-        <path
-          d="M15 120 A100 100 0 0 1 215 120"
-          fill="none"
-          stroke="#5ED49A"
-          strokeWidth="14"
+          stroke="url(#irRing)"
+          strokeWidth="13"
           strokeLinecap="round"
           strokeDasharray={full}
           strokeDashoffset={offset}
         />
       </svg>
-      <div className="absolute inset-0 grid place-items-center pt-8 text-center">
+      <div className="absolute inset-0 grid place-items-center text-center">
         <div>
-          <span className="font-heading text-[58px] font-extrabold text-white leading-none">
+          <span
+            className="font-heading text-[54px] font-extrabold leading-none tabular-nums"
+            style={{ color: INK }}
+          >
             {val.toFixed(1)}
           </span>
           <div
-            className="font-mono text-[12px] tracking-wider uppercase mt-1"
-            style={{ color: DARK_TEXT }}
+            className="font-mono text-[11px] tracking-[.14em] uppercase mt-1.5"
+            style={{ color: SOFT }}
           >
-            Insider Quality Score
+            IQ Score / 99
           </div>
         </div>
       </div>
@@ -516,11 +530,13 @@ interface FeedRow {
 
 function LiveFeed() {
   const [rows, setRows] = useState<FeedRow[]>([]);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     fetch(`${API_BASE}/trades?limit=5&side=all&month=1`)
       .then((r) => r.json())
       .then((d) => setRows(Array.isArray(d?.rows) ? d.rows.slice(0, 5) : []))
-      .catch(() => setRows([]));
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
   }, []);
 
   const money = (n: number) =>
@@ -563,10 +579,28 @@ function LiveFeed() {
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 ? (
+          {loading ? (
+            [0, 1, 2, 3, 4].map((i) => (
+              <tr key={i} className="border-t border-[var(--border)]">
+                {[52, 150, 96, 68].map((w, j) => (
+                  <td key={j} className="px-5 py-[15px]">
+                    <div
+                      className="h-3.5 rounded-md animate-pulse"
+                      style={{
+                        width: w,
+                        maxWidth: "100%",
+                        background: WELL,
+                        animationDelay: `${i * 120}ms`,
+                      }}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : rows.length === 0 ? (
             <tr>
               <td colSpan={4} className="px-5 py-6 text-center" style={{ color: SOFT }}>
-                Loading the latest filings…
+                No filings available right now — check back shortly.
               </td>
             </tr>
           ) : (
@@ -770,35 +804,43 @@ export default function InsiderReportLanding() {
         }
         .ir-lift { transition: transform .3s ease, box-shadow .3s ease; }
         .ir-lift:hover { transform: translateY(-4px); }
+        @keyframes ir-spin-slow {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
         @media (prefers-reduced-motion: no-preference) {
           .ir-glow { animation: ir-glow-pulse 3.4s ease-in-out infinite; }
           .ir-gradient-text { animation: ir-gradient-move 5s linear infinite; }
           .ir-orb { animation: ir-orb-drift 14s ease-in-out infinite; }
           .ir-shimmer::after { animation: ir-shimmer 2.8s ease-in-out infinite; }
           .ir-float { animation: ir-float 6s ease-in-out infinite; }
+          .ir-spin { animation: ir-spin-slow 14s linear infinite; }
         }
       `}</style>
       {/* header */}
       <header
         className="sticky top-0 z-20"
-        style={{ background: CARD, borderBottom: `1px solid ${RULE}` }}
+        style={{
+          background: "var(--brand-surface)",
+          borderBottom: "1px solid var(--brand-surface-border)",
+        }}
       >
         <div className="max-w-[1120px] mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/insider-report" className="no-underline shrink-0" aria-label="Insider Buying">
-            <Logo size="sm" />
+            <Logo size="sm" tone="light" />
           </Link>
           <nav
             className="hidden md:flex gap-7 text-[15px] font-medium"
-            style={{ color: SOFT }}
+            style={{ color: "rgba(255,255,255,0.82)" }}
           >
-            <a href="#buying" className="hover:text-[var(--text)]">Buying index</a>
-            <a href="#rookie" className="hover:text-[var(--text)]">The rookie mistake</a>
-            <a href="#score" className="hover:text-[var(--text)]">Quality Score</a>
+            <a href="#buying" className="hover:text-white">Buying index</a>
+            <a href="#rookie" className="hover:text-white">The rookie mistake</a>
+            <a href="#score" className="hover:text-white">Quality Score</a>
           </nav>
           <a
             href="#lookup"
-            className="rounded-lg px-5 py-2.5 text-[15px] font-semibold no-underline hover:opacity-90"
-            style={{ background: ACCENT, color: ON_ACCENT }}
+            className="rounded-lg px-5 py-2.5 text-[15px] font-bold no-underline hover:opacity-90"
+            style={{ background: "var(--gold)", color: "#14181d" }}
           >
             Check a stock
           </a>
@@ -977,58 +1019,97 @@ export default function InsiderReportLanding() {
         </div>
       </section>
 
-      {/* quality score — sits on the brand chrome surface, dark in both themes */}
+      {/* quality score — futuristic, follows the page theme */}
       <section
         id="score"
-        className="py-16 sm:py-20"
-        style={{
-          background: "var(--brand-surface)",
-          borderTop: "1px solid var(--brand-surface-border)",
-        }}
+        className="relative overflow-hidden py-16 sm:py-20"
+        style={{ borderTop: `1px solid ${RULE}` }}
       >
-        <div className="max-w-[1120px] mx-auto px-6">
+        {/* holographic grid backdrop, faded at the edges */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage:
+              "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
+            backgroundSize: "44px 44px",
+            maskImage:
+              "radial-gradient(ellipse 85% 75% at 50% 40%, black 25%, transparent 78%)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse 85% 75% at 50% 40%, black 25%, transparent 78%)",
+            opacity: 0.55,
+          }}
+          aria-hidden="true"
+        />
+        <div
+          className="ir-orb w-[400px] h-[400px] top-16 -right-32"
+          style={{ background: "var(--accent-soft)" }}
+          aria-hidden="true"
+        />
+        <div className="relative max-w-[1120px] mx-auto px-6">
           <Reveal className="max-w-[680px] mb-12">
-            <div className={`${eyebrow}`} style={{ color: HILITE }}>New</div>
-            <h2 className="font-heading font-extrabold text-white text-[clamp(28px,3.4vw,40px)] leading-[1.12] tracking-tight mb-4">
-              The Insider Quality Score. Every stock, rated 0–99.
+            <div
+              className="inline-flex items-center gap-2 font-mono text-[11.5px] font-semibold tracking-[.14em] uppercase rounded-full px-3.5 py-1.5 mb-5"
+              style={{
+                color: "var(--accent)",
+                background: "var(--accent-soft)",
+                border: "1px solid var(--accent)",
+              }}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full animate-pulse"
+                style={{ background: "var(--accent)" }}
+              />
+              New · The IQ Engine
+            </div>
+            <h2 className="font-heading font-extrabold text-[clamp(28px,3.4vw,40px)] leading-[1.12] tracking-tight mb-4">
+              The Insider Quality Score. Every stock, rated{" "}
+              <span className="ir-gradient-text">0–99</span>.
             </h2>
-            <p className="text-[17px]" style={{ color: DARK_TEXT }}>
+            <p className="text-[17px]" style={{ color: SOFT }}>
               One number that measures the size, intensity, and significance of insider
               buying — so you never mistake noise for conviction again.
             </p>
           </Reveal>
 
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_72px_1fr] items-center">
-            <Reveal>
-              <div className="grid gap-3.5">
-                {FACTORS.map(([id, title, desc]) => (
-                  <div
-                    key={id}
-                    className="rounded-xl px-5 py-4 flex gap-4 items-start"
+            <div className="grid gap-3.5">
+              {FACTORS.map(([id, title, desc], i) => (
+                <motion.div
+                  key={id}
+                  initial={{ opacity: 0, x: -32 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true, amount: 0.4 }}
+                  transition={{ duration: 0.45, delay: i * 0.09, ease: "easeOut" }}
+                  className="ir-lift rounded-xl px-5 py-4 flex gap-4 items-start"
+                  style={{
+                    background: id === "+" ? "transparent" : CARD,
+                    border: `1px ${id === "+" ? "dashed" : "solid"} ${RULE}`,
+                    boxShadow:
+                      id === "+" ? "none" : "var(--shadow-sm, 0 1px 2px rgba(16,26,43,.06))",
+                  }}
+                >
+                  <span
+                    className="font-mono font-bold text-[13px] rounded-md w-7 h-7 grid place-items-center shrink-0 mt-0.5 text-white"
                     style={{
-                      background: id === "+" ? "transparent" : DARK_CARD,
-                      border: `1px ${id === "+" ? "dashed" : "solid"} ${DARK_RULE}`,
+                      background: "linear-gradient(135deg, var(--accent), var(--accent-2))",
                     }}
                   >
-                    <span
-                      className="font-mono font-semibold text-[13px] rounded-md w-7 h-7 grid place-items-center shrink-0 mt-0.5"
-                      style={{ color: HILITE, border: `1px solid ${DARK_RULE}` }}
-                    >
-                      {id}
-                    </span>
-                    <div>
-                      <h4 className="text-[15.5px] font-semibold text-white mb-0.5">{title}</h4>
-                      <p className="text-[13.5px] leading-relaxed" style={{ color: DARK_TEXT }}>
-                        {desc}
-                      </p>
-                    </div>
+                    {id}
+                  </span>
+                  <div>
+                    <h4 className="text-[15.5px] font-semibold mb-0.5" style={{ color: INK }}>
+                      {title}
+                    </h4>
+                    <p className="text-[14px] leading-relaxed" style={{ color: SOFT }}>
+                      {desc}
+                    </p>
                   </div>
-                ))}
-              </div>
-            </Reveal>
+                </motion.div>
+              ))}
+            </div>
             <div
               className="grid place-items-center py-3 rotate-90 lg:rotate-0"
-              style={{ color: DARK_RULE }}
+              style={{ color: SPX }}
               aria-hidden="true"
             >
               <svg width="40" height="40" viewBox="0 0 40 40">
@@ -1042,42 +1123,66 @@ export default function InsiderReportLanding() {
                 />
               </svg>
             </div>
-            <Reveal>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 24 }}
+              whileInView={{ opacity: 1, scale: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.35 }}
+              transition={{ duration: 0.55, ease: "easeOut" }}
+            >
               <div
-                className="ir-float rounded-xl px-8 py-9 text-center"
-                style={{ background: DARK_CARD, border: `1px solid ${DARK_RULE}` }}
+                className="ir-float relative rounded-2xl px-8 py-9 text-center overflow-hidden"
+                style={{
+                  background: CARD,
+                  border: `1px solid ${RULE}`,
+                  boxShadow: "var(--shadow-lg, 0 18px 44px rgba(16,26,43,.14))",
+                }}
               >
-                <ScoreGauge />
-                <div className="font-mono text-[13px] mb-5" style={{ color: HILITE }}>
+                {/* thin animated gradient edge along the top */}
+                <div
+                  className="absolute top-0 left-0 right-0 h-[3px]"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, var(--accent), var(--accent-2), var(--good), var(--accent))",
+                    backgroundSize: "200% auto",
+                    animation: "ir-gradient-move 5s linear infinite",
+                  }}
+                  aria-hidden="true"
+                />
+                <ScoreRing />
+                <div
+                  className="inline-block font-mono text-[12px] font-semibold tracking-[.1em] rounded-full px-4 py-1.5 mb-5"
+                  style={{
+                    color: "var(--good-strong)",
+                    background: BUY_SOFT,
+                    border: `1px solid ${BUY}`,
+                  }}
+                >
                   STRONG INSIDER CONVICTION
                 </div>
                 <div className="flex justify-center gap-2.5 flex-wrap">
                   {[
-                    ["92.3", "Elite", "#5ED49A"],
-                    ["87.5", "Strong", "#5ED49A"],
-                    ["61.0", "Mixed", "var(--gold)"],
-                    ["28.4", "Weak", "#E98A78"],
+                    ["92.3", "Elite", "var(--good)"],
+                    ["87.5", "Strong", "var(--good)"],
+                    ["61.0", "Mixed", "var(--warn)"],
+                    ["28.4", "Weak", "var(--bad)"],
                   ].map(([n, label, color]) => (
                     <span
                       key={label as string}
                       className="font-mono text-[13px] font-semibold px-3 py-1.5 rounded-md"
-                      style={{ border: `1px solid ${DARK_RULE}`, color: DARK_TEXT }}
+                      style={{ border: `1px solid ${RULE}`, color: SOFT, background: WELL }}
                     >
                       <b style={{ color: color as string }}>{n}</b> {label}
                     </span>
                   ))}
                 </div>
               </div>
-            </Reveal>
+            </motion.div>
           </div>
 
           <Reveal>
-            <p className="mt-7 text-center text-[13px]" style={{ color: DARK_TEXT }}>
+            <p className="mt-8 text-center text-[14px]" style={{ color: SOFT }}>
               Higher score = stronger insider conviction — even if the share price is falling.
-              Scores update continuously as new Form 4 filings arrive.{" "}
-              <Link href="/methodology" style={{ color: HILITE }}>
-                Read the full methodology →
-              </Link>
+              Scores update continuously as new Form 4 filings arrive.
             </p>
           </Reveal>
         </div>

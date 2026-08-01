@@ -49,12 +49,6 @@ export function ScorePillarsCard({ ticker }: { ticker: string }) {
         <h2 className="text-[16px] font-bold tracking-tight">
           What&rsquo;s Behind the Score
         </h2>
-        {/* <Link
-          href="/methodology"
-          className="text-[12px] font-semibold text-accent hover:underline whitespace-nowrap"
-        >
-          How the score works →
-        </Link> */}
       </div>
 
       <div className="space-y-3">

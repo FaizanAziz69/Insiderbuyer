@@ -224,11 +224,7 @@ export default function LearnInsiderBuyingPage() {
             </strong>{" "}
             captures — a single 0–100 number that combines the size, intensity
             and significance of insider purchases so you don&apos;t have to weigh
-            them by hand. You can read the full breakdown on our{" "}
-            <Link href="/methodology" className="text-accent font-semibold underline">
-              methodology page
-            </Link>{" "}
-            or see live scores in the{" "}
+            them by hand. See live scores in the{" "}
             <Link href="/companies" className="text-accent font-semibold underline">
               Insider Score rankings
             </Link>

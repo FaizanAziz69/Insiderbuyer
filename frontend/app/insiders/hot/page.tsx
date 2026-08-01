@@ -371,14 +371,6 @@ export default function InsiderHotStocksPage() {
             information. Returns are gross of costs. Past performance does not
             predict future results.
           </p>
-          <div className="flex justify-end mt-1">
-            <Link
-              href="/methodology"
-              className="text-[13px] font-semibold inline-flex items-center gap-1"
-            >
-              About the IQ Score &amp; Performance <span aria-hidden>›</span>
-            </Link>
-          </div>
         </div>
       )}
 

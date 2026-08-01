@@ -96,7 +96,6 @@ export function Footer() {
             <div className="label-mini mb-3">Research</div>
             <ul className="space-y-2 text-[13px]">
               <li><Link href="/learn/insider-buying" className="text-soft hover:text-accent transition">Intro to Insider Buying</Link></li>
-              <li><Link href="/methodology" className="text-soft hover:text-accent transition">How the Insider Score Works</Link></li>
               <li><Link href="/reports" className="text-soft hover:text-accent transition">Reports &amp; Features</Link></li>
               <li><Link href="/premium" className="text-soft hover:text-accent transition">Premium</Link></li>
               <li><Link href="/business" className="text-soft hover:text-accent transition">For Business / API</Link></li>

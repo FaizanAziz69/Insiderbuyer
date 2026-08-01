@@ -20,7 +20,7 @@ const LINK_ALLOWED_EXACT = new Set([
   "/", "/companies", "/insights", "/editorial", "/stock-lists", "/trades",
   "/insiders/hot", "/analyst-ratings", "/top-analysts", "/earnings", "/dividends", "/ipos",
   "/short-interest", "/short-squeeze", "/congressional-trades", "/sectors",
-  "/methodology", "/screener", "/premium", "/news",
+  "/screener", "/premium", "/news",
 ]);
 const LINK_TOPIC_SLUGS = new Set(["ai", "biotech", "ev", "etf", "macro", "markets", "ma", "semis"]);
 
