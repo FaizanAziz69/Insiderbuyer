@@ -5,16 +5,17 @@
  *
  * A 1:1 port of the approved static mock (insiderbuying-landing.html): same
  * palette, same Archivo/Nunito Sans/IBM Plex Mono type, same sections, same
- * animations. Three things are live instead of illustrative:
- *   - the stock search (Yahoo-backed /market-stats/search)
+ * animations, and the SAME illustrative demo data everywhere (feed, panels,
+ * chart, stats) — per the client's sign-off on the mock. Only two things are
+ * live because the mock itself is interactive there:
+ *   - the stock search (Yahoo-backed /market-stats/search; the mock used a
+ *     16-ticker demo list)
  *   - the email/SMS opt-in (POST /report-requests; delivery stubbed until a
  *     provider key lands — leads stay 'pending')
- *   - the "Latest insider transactions" feed (/trades) — falls back to the
- *     mock's illustrative rows when the API has nothing to show
  * Renders without the site chrome via BARE_ROUTES in AppShell.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE } from "@/lib/api";
 
 interface SearchHit {
@@ -34,9 +35,8 @@ interface FeedRow {
   totalValue: number;
 }
 
-/* The mock's illustrative feed — shown until real filings load, or if the
- * API returns nothing (e.g. right after the month rolls over). */
-const FALLBACK_FEED: FeedRow[] = [
+/* The mock's illustrative Form 4 feed, verbatim. */
+const DEMO_FEED: FeedRow[] = [
   { id: "f1", ticker: "NVTR", insiderName: "CEO", role: "CEO", rawTitle: "CEO", type: "BUY", totalValue: 2_410_000 },
   { id: "f2", ticker: "HLXM", insiderName: "CFO", role: "CFO", rawTitle: "CFO", type: "BUY", totalValue: 886_500 },
   { id: "f3", ticker: "QRDA", insiderName: "Director", role: "Director", rawTitle: "Director", type: "SELL", totalValue: 1_120_000 },
@@ -45,62 +45,6 @@ const FALLBACK_FEED: FeedRow[] = [
 ];
 
 const fmtMoney = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
-
-const fmtCompact = (n: number) => {
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3) return `$${Math.round(n / 1e3)}K`;
-  return `$${Math.round(n)}`;
-};
-
-const fmtPts = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)} pts`;
-
-/* Real 90d insider-flow panels from our Form 4 archive (see backend
- * /landing/insider-panels). Null until loaded; mock rows as fallback. */
-interface PanelRow {
-  ticker: string;
-  totalValue: number;
-  insiders: number;
-  vsSpxPct: number | null;
-}
-interface LandingPanels {
-  buys: PanelRow[];
-  sells: PanelRow[];
-  stats: {
-    filings12mo: number;
-    buyingVsSpxPct: number | null;
-    sellingVsSpxPct: number | null;
-  };
-}
-
-/* Real backtest curve (insider strategy vs SPY) from /backtest/insider-strategy. */
-interface EquityPoint {
-  t: number;
-  s: number;
-  b: number;
-}
-interface BacktestData {
-  ready: boolean;
-  curve: EquityPoint[];
-  stats: {
-    startDate?: string;
-    totalReturn?: number;
-    benchmarkTotalReturn?: number;
-  } | null;
-}
-
-const FALLBACK_BUYS = [
-  { ticker: "NVTR", label: "$6.2M · 4 insiders", ret: "+22.4%" },
-  { ticker: "ARBN", label: "$5.1M · 2 insiders", ret: "+17.9%" },
-  { ticker: "HLXM", label: "$2.3M · 3 insiders", ret: "+11.6%" },
-  { ticker: "SOLV", label: "$1.8M · 5 insiders", ret: "+9.2%" },
-];
-const FALLBACK_SELLS = [
-  { ticker: "QRDA", label: "$9.4M · 6 insiders", ret: "−14.1%" },
-  { ticker: "VELO", label: "$4.7M · 3 insiders", ret: "−8.8%" },
-  { ticker: "MRLN", label: "$3.2M · 4 insiders", ret: "−6.5%" },
-  { ticker: "TYCO", label: "$2.9M · 2 insiders", ret: "−3.7%" },
-];
 
 export default function InsiderReportLanding() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -263,94 +207,9 @@ export default function InsiderReportLanding() {
     }
   };
 
-  /* live Form 4 feed — latest filings overall (no month window: right after a
-   * month rolls over the window is empty and the table looked broken). */
-  const [feed, setFeed] = useState<FeedRow[]>([]);
-  const [feedLive, setFeedLive] = useState(false);
-  useEffect(() => {
-    fetch(`${API_BASE}/trades?limit=5&side=all`)
-      .then((r) => r.json())
-      .then((d) => {
-        const rows = Array.isArray(d?.rows) ? d.rows.slice(0, 5) : [];
-        if (rows.length > 0) {
-          setFeed(rows);
-          setFeedLive(true);
-        } else {
-          setFeed(FALLBACK_FEED);
-        }
-      })
-      .catch(() => setFeed(FALLBACK_FEED));
-  }, []);
-
-  /* real 90d insider-flow panels + real backtest curve */
-  const [panels, setPanels] = useState<LandingPanels | null>(null);
-  const [bt, setBt] = useState<BacktestData | null>(null);
-  useEffect(() => {
-    fetch(`${API_BASE}/landing/insider-panels`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (Array.isArray(d?.buys) && d.buys.length > 0) setPanels(d);
-      })
-      .catch(() => {});
-    fetch(`${API_BASE}/backtest/insider-strategy`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d?.ready && Array.isArray(d.curve) && d.curve.length >= 2) setBt(d);
-      })
-      .catch(() => {});
-  }, []);
-
-  /* map the real equity curve into the mock's 900×380 chart geometry */
-  const chart = useMemo(() => {
-    if (!bt) return null;
-    const pts = bt.curve;
-    const vals = pts.flatMap((p) => [p.s, p.b]);
-    const min = Math.min(...vals);
-    const max = Math.max(...vals);
-    const span = max - min || 1;
-    const lo = min - span * 0.05;
-    const hi = max + span * 0.05;
-    const x = (i: number) => 60 + (i / (pts.length - 1)) * 820;
-    const y = (v: number) => 320 - ((v - lo) / (hi - lo)) * 280;
-    const path = (key: "s" | "b") =>
-      pts
-        .map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`)
-        .join(" ");
-    const grid = [0, 1, 2, 3, 4].map((k) => {
-      const v = hi - (k / 4) * (hi - lo);
-      return {
-        y: 40 + k * 70,
-        label: `${v - 100 >= 0 ? "+" : "−"}${Math.abs(Math.round(v - 100))}%`,
-      };
-    });
-    const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => {
-      const i = Math.round(f * (pts.length - 1));
-      const d = new Date(pts[i].t);
-      return {
-        x: 60 + f * 820,
-        label: d.toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
-      };
-    });
-    const endPct = (key: "s" | "b") => {
-      const v = pts[pts.length - 1][key] - 100;
-      return `${v >= 0 ? "+" : "−"}${Math.abs(Math.round(v))}%`;
-    };
-    return {
-      sPath: path("s"),
-      bPath: path("b"),
-      grid,
-      ticks,
-      sEnd: endPct("s"),
-      bEnd: endPct("b"),
-      sEndY: y(pts[pts.length - 1].s),
-      bEndY: y(pts[pts.length - 1].b),
-      startDate: bt.stats?.startDate || "",
-    };
-  }, [bt]);
-
   const gaugeFull = 314;
   const gaugeOffset = gaugeFull - (gaugeFull * gaugeVal) / 100;
-  const shownFeed = feed.length > 0 ? feed : FALLBACK_FEED;
+  const shownFeed = DEMO_FEED;
 
   return (
     <div className="irl" ref={rootRef}>
@@ -728,193 +587,97 @@ export default function InsiderReportLanding() {
 
           <div className="chart-card reveal" id="chartCard">
             <div className="chart-top">
-              <div className="chart-title">
-                {chart
-                  ? `Cumulative return since ${chart.startDate}`
-                  : "Cumulative return, trailing 5 years"}
-              </div>
+              <div className="chart-title">Cumulative return, trailing 5 years</div>
               <div className="legend">
                 <span className="key">
                   <span className="swatch" style={{ background: "var(--buy)" }} />
-                  {chart ? "Insider buying strategy" : "Insider Buying Index"}
+                  Insider Buying Index
                 </span>
                 <span className="key">
                   <span className="swatch" style={{ background: "var(--spx)" }} />
-                  S&amp;P 500{chart ? " (SPY)" : ""}
+                  S&amp;P 500
                 </span>
-                {!chart && (
-                  <span className="key">
-                    <span className="swatch" style={{ background: "var(--sell)" }} />
-                    Insider Selling Index
-                  </span>
-                )}
+                <span className="key">
+                  <span className="swatch" style={{ background: "var(--sell)" }} />
+                  Insider Selling Index
+                </span>
               </div>
             </div>
-            {chart ? (
-              <svg
-                viewBox="0 0 900 380"
-                role="img"
-                aria-label="Line chart: the insider buying strategy versus the S&P 500, from our own Form 4 archive"
-                style={{ width: "100%", height: "auto" }}
-              >
-                <g stroke="#E7ECF2" strokeWidth="1">
-                  {chart.grid.map((g) => (
-                    <line key={g.y} x1="60" y1={g.y} x2="880" y2={g.y} />
-                  ))}
-                </g>
-                <g fill="#93A1B3" fontSize="12">
-                  {chart.grid.map((g) => (
-                    <text key={g.y} x="50" y={g.y + 4} textAnchor="end">
-                      {g.label}
-                    </text>
-                  ))}
-                  {chart.ticks.map((t) => (
-                    <text key={t.x} x={t.x} y="350" textAnchor="middle">
-                      {t.label}
-                    </text>
-                  ))}
-                </g>
-                <path
-                  className="line-path d2"
-                  d={chart.bPath}
-                  fill="none"
-                  stroke="var(--spx)"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  className="line-path"
-                  d={chart.sPath}
-                  fill="none"
-                  stroke="var(--buy)"
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                />
-                <g fontSize="12" fontWeight="600">
-                  <text x="886" y={chart.sEndY + 4} fill="var(--buy)">
-                    {chart.sEnd}
-                  </text>
-                  <text x="886" y={chart.bEndY + 4} fill="var(--spx)">
-                    {chart.bEnd}
-                  </text>
-                </g>
-              </svg>
-            ) : (
-              <svg
-                viewBox="0 0 900 380"
-                role="img"
-                aria-label="Line chart: Insider Buying Index rising well above the S&P 500, Insider Selling Index trailing below it"
-                style={{ width: "100%", height: "auto" }}
-              >
-                <g stroke="#E7ECF2" strokeWidth="1">
-                  <line x1="60" y1="40" x2="880" y2="40" />
-                  <line x1="60" y1="110" x2="880" y2="110" />
-                  <line x1="60" y1="180" x2="880" y2="180" />
-                  <line x1="60" y1="250" x2="880" y2="250" />
-                  <line x1="60" y1="320" x2="880" y2="320" />
-                </g>
-                <g fill="#93A1B3" fontSize="12">
-                  <text x="50" y="44" textAnchor="end">+160%</text>
-                  <text x="50" y="114" textAnchor="end">+120%</text>
-                  <text x="50" y="184" textAnchor="end">+80%</text>
-                  <text x="50" y="254" textAnchor="end">+40%</text>
-                  <text x="50" y="324" textAnchor="end">0%</text>
-                  <text x="60" y="350">2021</text>
-                  <text x="255" y="350">2022</text>
-                  <text x="455" y="350">2023</text>
-                  <text x="655" y="350">2024</text>
-                  <text x="845" y="350">2025</text>
-                </g>
-                <path
-                  className="line-path d3"
-                  d="M60,320 C140,318 190,330 260,326 C340,322 400,336 470,328 C560,318 640,324 720,314 C790,306 840,304 880,298"
-                  fill="none"
-                  stroke="var(--sell)"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  className="line-path d2"
-                  d="M60,320 C150,300 200,312 270,290 C350,264 410,286 480,258 C570,224 650,232 730,204 C800,182 840,176 880,166"
-                  fill="none"
-                  stroke="var(--spx)"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  className="line-path"
-                  d="M60,320 C150,288 210,296 280,258 C360,216 420,232 490,186 C580,132 650,138 730,96 C800,62 840,56 880,44"
-                  fill="none"
-                  stroke="var(--buy)"
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                />
-                <g fontSize="12" fontWeight="600">
-                  <text x="886" y="48" fill="var(--buy)">+158%</text>
-                  <text x="886" y="170" fill="var(--spx)">+89%</text>
-                  <text x="886" y="302" fill="var(--sell)">+13%</text>
-                </g>
-              </svg>
-            )}
+            <svg
+              viewBox="0 0 900 380"
+              role="img"
+              aria-label="Line chart: Insider Buying Index rising well above the S&P 500, Insider Selling Index trailing below it"
+              style={{ width: "100%", height: "auto" }}
+            >
+              <g stroke="#E7ECF2" strokeWidth="1">
+                <line x1="60" y1="40" x2="880" y2="40" />
+                <line x1="60" y1="110" x2="880" y2="110" />
+                <line x1="60" y1="180" x2="880" y2="180" />
+                <line x1="60" y1="250" x2="880" y2="250" />
+                <line x1="60" y1="320" x2="880" y2="320" />
+              </g>
+              <g fill="#93A1B3" fontSize="12">
+                <text x="50" y="44" textAnchor="end">+160%</text>
+                <text x="50" y="114" textAnchor="end">+120%</text>
+                <text x="50" y="184" textAnchor="end">+80%</text>
+                <text x="50" y="254" textAnchor="end">+40%</text>
+                <text x="50" y="324" textAnchor="end">0%</text>
+                <text x="60" y="350">2021</text>
+                <text x="255" y="350">2022</text>
+                <text x="455" y="350">2023</text>
+                <text x="655" y="350">2024</text>
+                <text x="845" y="350">2025</text>
+              </g>
+              <path
+                className="line-path d3"
+                d="M60,320 C140,318 190,330 260,326 C340,322 400,336 470,328 C560,318 640,324 720,314 C790,306 840,304 880,298"
+                fill="none"
+                stroke="var(--sell)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+              <path
+                className="line-path d2"
+                d="M60,320 C150,300 200,312 270,290 C350,264 410,286 480,258 C570,224 650,232 730,204 C800,182 840,176 880,166"
+                fill="none"
+                stroke="var(--spx)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+              <path
+                className="line-path"
+                d="M60,320 C150,288 210,296 280,258 C360,216 420,232 490,186 C580,132 650,138 730,96 C800,62 840,56 880,44"
+                fill="none"
+                stroke="var(--buy)"
+                strokeWidth="3.5"
+                strokeLinecap="round"
+              />
+              <g fontSize="12" fontWeight="600">
+                <text x="886" y="48" fill="var(--buy)">+158%</text>
+                <text x="886" y="170" fill="var(--spx)">+89%</text>
+                <text x="886" y="302" fill="var(--sell)">+13%</text>
+              </g>
+            </svg>
             <p className="chart-note">
-              {chart
-                ? "Backtested on our own SEC Form 4 archive. Past performance does not guarantee future results."
-                : "Hypothetical illustration. Past performance does not guarantee future results."}
+              Hypothetical illustration. Past performance does not guarantee future results.
             </p>
           </div>
 
           <div className="stat-strip reveal">
             <div className="stat">
-              <div className="label">Top buy stocks vs S&amp;P 500</div>
-              {panels?.stats.buyingVsSpxPct != null ? (
-                <>
-                  <div className={`value ${panels.stats.buyingVsSpxPct >= 0 ? "up" : "down"}`}>
-                    {fmtPts(panels.stats.buyingVsSpxPct)}
-                  </div>
-                  <div className="sub">
-                    Avg 3-mo return vs SPY, top insider-buy stocks (live)
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="value up">+69 pts</div>
-                  <div className="sub">Cumulative outperformance, 5-yr illustration</div>
-                </>
-              )}
+              <div className="label">Buying index vs S&amp;P 500</div>
+              <div className="value up">+69 pts</div>
+              <div className="sub">Cumulative outperformance, 5-yr illustration</div>
             </div>
             <div className="stat">
-              <div className="label">Top sell stocks vs S&amp;P 500</div>
-              {panels?.stats.sellingVsSpxPct != null ? (
-                <>
-                  <div className={`value ${panels.stats.sellingVsSpxPct >= 0 ? "up" : "down"}`}>
-                    {fmtPts(panels.stats.sellingVsSpxPct)}
-                  </div>
-                  <div className="sub">
-                    Avg 3-mo return vs SPY, top insider-sell stocks (live)
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="value down">−76 pts</div>
-                  <div className="sub">Cumulative underperformance, 5-yr illustration</div>
-                </>
-              )}
+              <div className="label">Selling index vs S&amp;P 500</div>
+              <div className="value down">−76 pts</div>
+              <div className="sub">Cumulative underperformance, 5-yr illustration</div>
             </div>
             <div className="stat">
               <div className="label">Filings tracked</div>
-              {panels?.stats.filings12mo ? (
-                <>
-                  <div className="value">
-                    {panels.stats.filings12mo.toLocaleString("en-US")}/yr
-                  </div>
-                  <div className="sub">Form 4 transactions ingested, last 12 months</div>
-                </>
-              ) : (
-                <>
-                  <div className="value">40k+/yr</div>
-                  <div className="sub">Every Form 4, parsed within minutes</div>
-                </>
-              )}
+              <div className="value">40k+/yr</div>
+              <div className="sub">Every Form 4, parsed within minutes</div>
             </div>
           </div>
         </div>
@@ -927,102 +690,38 @@ export default function InsiderReportLanding() {
             <div className="panel reveal">
               <div className="panel-head">
                 <h3>Stocks with insider buying</h3>
-                <span className="delta up">▲ most bought (90d)</span>
+                <span className="delta up">▲ beats S&amp;P 500</span>
               </div>
               <table>
                 <thead>
                   <tr><th>Ticker</th><th>Insider buys (90d)</th><th>Return vs S&amp;P</th></tr>
                 </thead>
                 <tbody>
-                  {panels
-                    ? panels.buys.map((r) => (
-                        <tr key={r.ticker}>
-                          <td className="tick">{r.ticker}</td>
-                          <td className="amt">
-                            {fmtCompact(r.totalValue)} · {r.insiders}{" "}
-                            {r.insiders === 1 ? "insider" : "insiders"}
-                          </td>
-                          <td
-                            className="amt"
-                            style={{
-                              color:
-                                r.vsSpxPct == null
-                                  ? "var(--ink-soft)"
-                                  : r.vsSpxPct >= 0
-                                    ? "var(--buy)"
-                                    : "var(--sell)",
-                            }}
-                          >
-                            {r.vsSpxPct == null
-                              ? "—"
-                              : `${r.vsSpxPct >= 0 ? "+" : "−"}${Math.abs(r.vsSpxPct).toFixed(1)}%`}
-                          </td>
-                        </tr>
-                      ))
-                    : FALLBACK_BUYS.map((r) => (
-                        <tr key={r.ticker}>
-                          <td className="tick">{r.ticker}</td>
-                          <td className="amt">{r.label}</td>
-                          <td className="amt" style={{ color: "var(--buy)" }}>{r.ret}</td>
-                        </tr>
-                      ))}
+                  <tr><td className="tick">NVTR</td><td className="amt">$6.2M · 4 insiders</td><td className="amt" style={{ color: "var(--buy)" }}>+22.4%</td></tr>
+                  <tr><td className="tick">ARBN</td><td className="amt">$5.1M · 2 insiders</td><td className="amt" style={{ color: "var(--buy)" }}>+17.9%</td></tr>
+                  <tr><td className="tick">HLXM</td><td className="amt">$2.3M · 3 insiders</td><td className="amt" style={{ color: "var(--buy)" }}>+11.6%</td></tr>
+                  <tr><td className="tick">SOLV</td><td className="amt">$1.8M · 5 insiders</td><td className="amt" style={{ color: "var(--buy)" }}>+9.2%</td></tr>
                 </tbody>
               </table>
-              <div className="filing-foot">
-                {panels
-                  ? "Live data · Trailing 90 days of open-market Form 4 buying"
-                  : "Illustrative data · Clustered buying is the strongest signal"}
-              </div>
+              <div className="filing-foot">Illustrative data · Clustered buying is the strongest signal</div>
             </div>
             <div className="panel reveal">
               <div className="panel-head">
                 <h3>Stocks with insider selling</h3>
-                <span className="delta down">▼ most sold (90d)</span>
+                <span className="delta down">▼ lags the market</span>
               </div>
               <table>
                 <thead>
                   <tr><th>Ticker</th><th>Insider sales (90d)</th><th>Return vs S&amp;P</th></tr>
                 </thead>
                 <tbody>
-                  {panels
-                    ? panels.sells.map((r) => (
-                        <tr key={r.ticker}>
-                          <td className="tick">{r.ticker}</td>
-                          <td className="amt">
-                            {fmtCompact(r.totalValue)} · {r.insiders}{" "}
-                            {r.insiders === 1 ? "insider" : "insiders"}
-                          </td>
-                          <td
-                            className="amt"
-                            style={{
-                              color:
-                                r.vsSpxPct == null
-                                  ? "var(--ink-soft)"
-                                  : r.vsSpxPct >= 0
-                                    ? "var(--buy)"
-                                    : "var(--sell)",
-                            }}
-                          >
-                            {r.vsSpxPct == null
-                              ? "—"
-                              : `${r.vsSpxPct >= 0 ? "+" : "−"}${Math.abs(r.vsSpxPct).toFixed(1)}%`}
-                          </td>
-                        </tr>
-                      ))
-                    : FALLBACK_SELLS.map((r) => (
-                        <tr key={r.ticker}>
-                          <td className="tick">{r.ticker}</td>
-                          <td className="amt">{r.label}</td>
-                          <td className="amt" style={{ color: "var(--sell)" }}>{r.ret}</td>
-                        </tr>
-                      ))}
+                  <tr><td className="tick">QRDA</td><td className="amt">$9.4M · 6 insiders</td><td className="amt" style={{ color: "var(--sell)" }}>−14.1%</td></tr>
+                  <tr><td className="tick">VELO</td><td className="amt">$4.7M · 3 insiders</td><td className="amt" style={{ color: "var(--sell)" }}>−8.8%</td></tr>
+                  <tr><td className="tick">MRLN</td><td className="amt">$3.2M · 4 insiders</td><td className="amt" style={{ color: "var(--sell)" }}>−6.5%</td></tr>
+                  <tr><td className="tick">TYCO</td><td className="amt">$2.9M · 2 insiders</td><td className="amt" style={{ color: "var(--sell)" }}>−3.7%</td></tr>
                 </tbody>
               </table>
-              <div className="filing-foot">
-                {panels
-                  ? "Live data · Trailing 90 days of open-market Form 4 selling"
-                  : "Illustrative data · Heavy selling often precedes weakness"}
-              </div>
+              <div className="filing-foot">Illustrative data · Heavy selling often precedes weakness</div>
             </div>
           </div>
         </div>
@@ -1237,8 +936,7 @@ export default function InsiderReportLanding() {
               </tbody>
             </table>
             <div className="filing-foot">
-              {feedLive ? "Live data" : "Illustrative data"} · Filed within 2 business days of
-              trade, per SEC rules
+              Illustrative data · Filed within 2 business days of trade, per SEC rules
             </div>
           </div>
 
