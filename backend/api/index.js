@@ -10,6 +10,8 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule, {
       cors: true,
       logger: ['error', 'warn', 'log'],
+      // Keep raw request bytes for Stripe webhook signature verification.
+      rawBody: true,
     });
     app.setGlobalPrefix('api');
     await app.init();

@@ -8,6 +8,9 @@ import {
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { Logo } from "@/components/Logo";
+import { getAuthToken, useAuth } from "@/lib/auth";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { LoginModal } from "@/components/LoginModal";
 // Imported but not rendered on purpose. The hero shows LiveDataPanel instead:
 // the computed backtest returns +9.1% against SPY's +48.3% over the only window
 // our filing archive supports, which argues against subscribing. Swap this in
@@ -548,24 +551,137 @@ function SignupForm({ cta, tone = "cta" }: { cta: string; tone?: "cta" | "mint" 
   );
 }
 
-/* Paid button. TO WIRE STRIPE: replace the onClick with a POST to /checkout
-   and `window.location.href = session.url`. */
+/* Paid button — Stripe Checkout. Signed-out visitors get the login modal
+   first, then land back here to complete the purchase. Existing subscribers
+   are sent to the Stripe customer portal instead of a second checkout. */
 function BuyButton({ plan, label }: { plan: string; label: string }) {
-  const [note, setNote] = useState(false);
+  const { user } = useAuth();
+  const { premium } = usePremium();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
+
+  const startCheckout = async () => {
+    if (busy) return;
+    if (!user) {
+      setLoginOpen(true);
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`${API_BASE}/billing/checkout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getAuthToken() ?? ""}`,
+        },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.url) {
+        throw new Error(
+          (Array.isArray(data?.message) ? data.message[0] : data?.message) ||
+            "Checkout is unavailable right now — please try again.",
+        );
+      }
+      window.location.href = data.url as string;
+    } catch (e) {
+      setBusy(false);
+      setErr(e instanceof Error ? e.message : "Something went wrong — try again.");
+    }
+  };
+
   return (
     <div>
       <button
         type="button"
-        onClick={() => setNote(true)}
-        className="prm-cta w-full inline-flex items-center justify-center rounded-xl py-3.5 text-[15.5px] font-bold"
+        onClick={startCheckout}
+        disabled={busy}
+        className="prm-cta w-full inline-flex items-center justify-center rounded-xl py-3.5 text-[15.5px] font-bold disabled:opacity-60"
       >
-        {label}
+        {busy ? "Opening secure checkout…" : premium ? "Manage subscription" : label}
       </button>
-      {note && (
+      {!user && (
         <p className="text-[12.5px] mt-2.5 text-center leading-relaxed" style={{ color: "var(--text-soft)" }}>
-          Card payments open shortly — create a free account and we&rsquo;ll email you when {plan} billing goes live.
+          You&rsquo;ll be asked to sign in first so the subscription is tied to your account.
         </p>
       )}
+      {err && (
+        <p className="text-[12.5px] mt-2.5 text-center leading-relaxed" style={{ color: "var(--bad)" }}>
+          {err}
+        </p>
+      )}
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+    </div>
+  );
+}
+
+/* Post-checkout handling: on ?checkout=success the subscription is synced
+   with the backend immediately (webhook-independent) and every paywall on
+   the site unlocks via PremiumContext. */
+function CheckoutOutcome() {
+  const { refreshPremium } = usePremium();
+  const [state, setState] = useState<"none" | "syncing" | "success" | "cancelled" | "error">("none");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get("checkout");
+    if (!outcome) return;
+    if (outcome === "cancelled") {
+      setState("cancelled");
+      return;
+    }
+    if (outcome !== "success") return;
+    const sessionId = params.get("session_id");
+    setState("syncing");
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/billing/sync`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getAuthToken() ?? ""}`,
+          },
+          body: JSON.stringify({ sessionId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message || "sync failed");
+        await refreshPremium();
+        setState(data?.premium ? "success" : "syncing");
+        if (!data?.premium) {
+          // Webhook may still be in flight — one delayed re-check.
+          setTimeout(async () => {
+            await refreshPremium();
+            setState("success");
+          }, 4000);
+        }
+      } catch {
+        setState("error");
+      }
+    })();
+  }, [refreshPremium]);
+
+  if (state === "none") return null;
+  const styles: Record<string, { bg: string; border: string; color: string }> = {
+    success: { bg: "var(--good-soft)", border: "var(--good)", color: "var(--good-strong)" },
+    syncing: { bg: "var(--accent-soft)", border: "var(--accent)", color: "var(--accent)" },
+    cancelled: { bg: "var(--bg-3)", border: "var(--border-strong)", color: "var(--text-soft)" },
+    error: { bg: "var(--bad-soft)", border: "var(--bad)", color: "var(--bad)" },
+  };
+  const s = styles[state];
+  return (
+    <div
+      className="max-w-3xl mx-auto mt-8 rounded-xl px-5 py-4 text-center text-[14.5px] font-semibold"
+      style={{ background: s.bg, border: `1px solid ${s.border}`, color: s.color }}
+      role="status"
+    >
+      {state === "syncing" && "Finalizing your subscription…"}
+      {state === "success" &&
+        "You're in! Insider Premium is active — every paywall on the site is now unlocked."}
+      {state === "cancelled" && "Checkout was cancelled — no charge was made."}
+      {state === "error" &&
+        "We couldn't confirm the payment automatically. If you were charged, refresh in a minute or contact support."}
     </div>
   );
 }
@@ -708,6 +824,8 @@ export default function PremiumPage() {
             Every dataset, every tool, no caps — plus five sector playbooks.
           </p>
         </div>
+
+        <CheckoutOutcome />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-10 max-w-3xl mx-auto">
           {/* Monthly */}

@@ -39,6 +39,7 @@ import { ChatModule } from './chat/chat.module';
 import { ContentModule } from './content/content.module';
 import { SocialModule } from './social/social.module';
 import { ReportsModule } from './reports/reports.module';
+import { BillingModule } from './billing/billing.module';
 import { ReportLead } from './entities/report-lead.entity';
 
 @Module({
@@ -104,6 +105,7 @@ import { ReportLead } from './entities/report-lead.entity';
     ContentModule,
     SocialModule,
     ReportsModule,
+    BillingModule,
     AuthModule,
   ],
 })

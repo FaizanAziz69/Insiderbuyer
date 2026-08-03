@@ -3,7 +3,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Lock, Sparkles } from "lucide-react";
 import { useMemo } from "react";
-import { PREMIUM_UNLOCKED } from "@/lib/premium";
+import { usePremium } from "@/components/premium/PremiumContext";
 
 interface PreviewProps {
   title: string;
@@ -203,7 +203,8 @@ export function PremiumChartPreview({
     b: "var(--good)",
     c: "var(--bad)",
   };
-  const locked = !PREMIUM_UNLOCKED;
+  const { unlocked } = usePremium();
+  const locked = !unlocked;
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">

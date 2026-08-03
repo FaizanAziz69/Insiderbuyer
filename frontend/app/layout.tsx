@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { PremiumProvider } from "@/components/premium/PremiumContext";
+import { AuthProvider } from "@/lib/auth";
 
 const barlow = Barlow({
   subsets: ["latin"],
@@ -62,9 +63,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="antialiased">
         <PostHogProvider />
-        <PremiumProvider>
-          <AppShell>{children}</AppShell>
-        </PremiumProvider>
+        {/* Auth first: PremiumProvider derives the entitlement from the
+            signed-in user's Stripe subscription. */}
+        <AuthProvider>
+          <PremiumProvider>
+            <AppShell>{children}</AppShell>
+          </PremiumProvider>
+        </AuthProvider>
       </body>
     </html>
   );
