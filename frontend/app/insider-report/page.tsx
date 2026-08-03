@@ -415,7 +415,16 @@ export default function InsiderReportLanding() {
 
       <header>
         <div className="wrap nav">
-          <a className="brand" href="#top">Insider&nbsp;Buying</a>
+          <a className="brand" href="#top" aria-label="Insider Buying">
+            {/* Site wordmark; the page is light-committed, so always the dark-text version. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo-wordmark-dark-text.png"
+              alt="Insider Buying"
+              style={{ height: 44, width: "auto", display: "block" }}
+              className="select-none"
+            />
+          </a>
           <nav className="nav-links">
             <a href="#buying">Buying index</a>
             <a href="#rookie">The rookie mistake</a>
