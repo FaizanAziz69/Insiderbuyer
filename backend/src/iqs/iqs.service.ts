@@ -967,8 +967,10 @@ export class IqsService {
     const vB = Math.log(1 + buyers.size);
     const vC = safeCap > 0 ? roleWeightedValue / safeCap : 0;
     const vD = avgHoldingChangePct ?? 0;
+    const v1Sum = vA + vB + vC + vD;
+    const v1Log = Math.log(1 + v1Sum);
     const iqsV1 = counted.length
-      ? +Math.min(99, (Math.log(1 + vA + vB + vC + vD) / 6.5) * 100).toFixed(1)
+      ? +Math.min(99, (v1Log / 6.5) * 100).toFixed(1)
       : null;
 
     return {
@@ -986,6 +988,41 @@ export class IqsService {
             'D — Avg holding-change % per buyer',
           ],
           note: 'Measures the insider buying alone — no market or fundamental context.',
+          // Full v1 working — every factor's input and value, then the math.
+          factors: [
+            {
+              key: 'A', name: 'Purchase volume ÷ market cap',
+              inputLabel: `$${Math.round(totalPurchaseValue).toLocaleString('en-US')} ÷ ${safeCap ? '$' + Math.round(safeCap).toLocaleString('en-US') : '—'}`,
+              value: +vA.toFixed(6),
+            },
+            {
+              key: 'B', name: 'Cluster — log(1 + distinct buyers)',
+              inputLabel: `${buyers.size} distinct buyer${buyers.size === 1 ? '' : 's'}`,
+              value: +vB.toFixed(4),
+            },
+            {
+              key: 'C', name: 'Role-weighted volume ÷ market cap',
+              inputLabel: `Σ($ × role mult) = $${Math.round(roleWeightedValue).toLocaleString('en-US')}`,
+              value: +vC.toFixed(6),
+            },
+            {
+              key: 'D', name: 'Avg holding-change % per buyer',
+              inputLabel: avgHoldingChangePct != null ? `${avgHoldingChangePct.toFixed(2)}% avg stake added` : 'no holdings data → 0',
+              value: +vD.toFixed(4),
+            },
+          ],
+          math: {
+            sum: +v1Sum.toFixed(4),
+            log: +v1Log.toFixed(4),
+            scaled: +((v1Log / 6.5) * 100).toFixed(2),
+            final: iqsV1,
+            steps: [
+              `A + B + C + D = ${v1Sum.toFixed(4)}`,
+              `log(1 + ${v1Sum.toFixed(4)}) = ${v1Log.toFixed(4)}`,
+              `${v1Log.toFixed(4)} ÷ 6.5 × 100 = ${((v1Log / 6.5) * 100).toFixed(2)}`,
+              `capped at 99 → ${iqsV1 ?? '—'}`,
+            ],
+          },
         },
         new: {
           label: 'New Insider Score (v2 composite)',

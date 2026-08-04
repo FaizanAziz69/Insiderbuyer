@@ -33,6 +33,8 @@ interface ScoreVersion {
   formula: string;
   includes: string[];
   note: string;
+  factors?: Array<{ key: string; name: string; inputLabel: string; value: number }>;
+  math?: { sum: number; log: number; scaled: number; final: number | null; steps: string[] };
 }
 interface Explain {
   found: boolean;
@@ -257,6 +259,76 @@ export default function ScoreExplainerPage() {
                       </li>
                     ))}
                   </ul>
+
+                  {/* v1 — full working: factor values + the exact math chain */}
+                  {tag === "OLD" && v.factors && (
+                    <>
+                      <div className="text-[11px] uppercase tracking-wider text-mute font-bold mb-1.5">
+                        This stock&rsquo;s numbers
+                      </div>
+                      <table className="w-full text-[12.5px] mb-3">
+                        <tbody>
+                          {v.factors.map((f) => (
+                            <tr key={f.key} style={{ borderTop: "1px solid var(--border)" }}>
+                              <td className="py-1.5 pr-2 font-semibold whitespace-nowrap">{f.key}</td>
+                              <td className="py-1.5 pr-2">
+                                <div>{f.name}</div>
+                                <div className="text-mute text-[11.5px]">{f.inputLabel}</div>
+                              </td>
+                              <td className="py-1.5 text-right tabular font-bold">{f.value}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {v.math && (
+                        <div className="rounded-md px-3 py-2 font-mono text-[11.5px] space-y-1 mb-3" style={{ background: "var(--bg-1)" }}>
+                          {v.math.steps.map((s) => (
+                            <div key={s}>{s}</div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* v2 — this stock's five component scores at a glance */}
+                  {tag === "NEW" && d.components && (
+                    <>
+                      <div className="text-[11px] uppercase tracking-wider text-mute font-bold mb-1.5">
+                        This stock&rsquo;s numbers
+                      </div>
+                      <table className="w-full text-[12.5px] mb-2">
+                        <tbody>
+                          {d.components.map((c) => {
+                            const effective = c.score ?? d.config?.neutral ?? 50;
+                            return (
+                              <tr key={c.key} style={{ borderTop: "1px solid var(--border)" }}>
+                                <td className="py-1.5 pr-2 font-semibold whitespace-nowrap">
+                                  {c.name} <span className="text-mute font-normal">({Math.round(c.weight * 100)}%)</span>
+                                </td>
+                                <td className="py-1.5 pr-2 text-right tabular">
+                                  {c.score != null ? Math.round(c.score) : `neutral ${d.config?.neutral}`}
+                                </td>
+                                <td className="py-1.5 text-right tabular font-bold">
+                                  +{(effective * c.weight).toFixed(1)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          <tr style={{ borderTop: "1px solid var(--border-strong)" }}>
+                            <td className="py-1.5 pr-2 font-bold">Weighted sum → rounded, cap 99</td>
+                            <td />
+                            <td className="py-1.5 text-right tabular font-extrabold" style={{ color: accent }}>
+                              {v.score ?? "—"}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <p className="text-[11.5px] text-mute mb-3">
+                        Full working for every component is in steps 1–6 below.
+                      </p>
+                    </>
+                  )}
+
                   <p className="text-[12px] text-mute leading-relaxed">{v.note}</p>
                 </div>
               ))}
