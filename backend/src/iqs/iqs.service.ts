@@ -966,9 +966,45 @@ export class IqsService {
       dilution: dilutionScore,
     });
 
+    // Old v1 score (insider-only) — same math the scorer stores as iqsV1.
+    const vA = safeCap > 0 ? totalPurchaseValue / safeCap : 0;
+    const vB = Math.log(1 + buyers.size);
+    const vC = safeCap > 0 ? roleWeightedValue / safeCap : 0;
+    const vD = avgHoldingChangePct ?? 0;
+    const iqsV1 = counted.length
+      ? +Math.min(99, (Math.log(1 + vA + vB + vC + vD) / 6.5) * 100).toFixed(1)
+      : null;
+
     return {
       found: true,
       ticker,
+      comparison: {
+        old: {
+          label: 'Old Insider Score (v1)',
+          score: iqsV1,
+          formula: 'log(1 + A + B + C + D) ÷ 6.5 × 100, capped at 99',
+          includes: [
+            'A — Purchase volume ÷ market cap',
+            'B — Cluster: log(1 + distinct buyers)',
+            'C — Role-weighted volume ÷ market cap',
+            'D — Avg holding-change % per buyer',
+          ],
+          note: 'Measures the insider buying alone — no market or fundamental context.',
+        },
+        new: {
+          label: 'New Insider Score (v2 composite)',
+          score: composite.score,
+          formula: '0.50·Buying + 0.25·Sector + 0.05·MD&A + 0.10·Momentum + 0.10·Dilution',
+          includes: [
+            'Insider buying (6 sub-factors) — 50%',
+            'Sector sentiment (sector-ETF signal) — 25%',
+            'MD&A filing tone (AI-scored) — 5%',
+            'Volume momentum (10d vs 3m) — 10%',
+            'Share dilution (TTM growth) — 10%',
+          ],
+          note: 'The buying signal plus the market and fundamental context around it.',
+        },
+      },
       company: {
         name: company.name,
         sector: company.sector ?? null,

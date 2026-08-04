@@ -27,9 +27,17 @@ interface Component {
   score: number | null;
   usedNeutral: boolean;
 }
+interface ScoreVersion {
+  label: string;
+  score: number | null;
+  formula: string;
+  includes: string[];
+  note: string;
+}
 interface Explain {
   found: boolean;
   ticker: string;
+  comparison?: { old: ScoreVersion; new: ScoreVersion };
   company?: { name: string; sector: string | null; industry: string | null };
   config?: { windowDays: number; neutral: number; ceiling: number };
   marketData?: {
@@ -194,6 +202,65 @@ export default function ScoreExplainerPage() {
           </div>
           {d.final?.scoreNote && (
             <div className="card p-4 text-[13px]" style={{ color: "var(--gold)" }}>{d.final.scoreNote}</div>
+          )}
+
+          {/* Old vs New score — side by side */}
+          {d.comparison && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { v: d.comparison.old, accent: "var(--text-mute)", tag: "OLD" },
+                { v: d.comparison.new, accent: "var(--accent)", tag: "NEW" },
+              ].map(({ v, accent, tag }) => (
+                <div
+                  key={tag}
+                  className="card p-5"
+                  style={{
+                    background: "var(--bg-2)",
+                    border: `1px solid ${tag === "NEW" ? "var(--accent)" : "var(--border)"}`,
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <span
+                        className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                        style={{ background: `color-mix(in srgb, ${accent} 15%, transparent)`, color: accent }}
+                      >
+                        {tag}
+                      </span>
+                      <div className="text-[15px] font-bold mt-1">{v.label}</div>
+                    </div>
+                    <span
+                      className="flex items-center justify-center h-12 w-12 rounded-xl text-[20px] font-extrabold flex-shrink-0"
+                      style={{
+                        background: `color-mix(in srgb, ${accent} 12%, transparent)`,
+                        color: accent,
+                        border: `2px solid ${accent}`,
+                      }}
+                    >
+                      {v.score ?? "—"}
+                    </span>
+                  </div>
+                  <div
+                    className="rounded-md px-3 py-2 font-mono text-[11.5px] mb-3 overflow-x-auto whitespace-nowrap"
+                    style={{ background: "var(--bg-1)" }}
+                  >
+                    {v.formula}
+                  </div>
+                  <div className="text-[11px] uppercase tracking-wider text-mute font-bold mb-1.5">
+                    What&rsquo;s included
+                  </div>
+                  <ul className="space-y-1 mb-3">
+                    {v.includes.map((line) => (
+                      <li key={line} className="text-[13px] flex gap-2">
+                        <span style={{ color: accent }}>•</span>
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[12px] text-mute leading-relaxed">{v.note}</p>
+                </div>
+              ))}
+            </div>
           )}
 
           {/* Step 1 — market data */}
