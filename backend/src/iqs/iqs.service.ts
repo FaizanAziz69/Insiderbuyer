@@ -1421,13 +1421,14 @@ export class IqsService {
       .map((a) => {
         const rk = bySym.get(a.symbol.toUpperCase());
         const insiderScore = rk?.iqs != null ? Number(rk.iqs) : null;
-        const insiderSuccess =
-          rk?.historicalSuccessWeight != null
-            ? Number(rk.historicalSuccessWeight)
-            : null;
+        // Insider inputs are excluded from the blend: the strict-proposal IQS
+        // is log-scale (~0–7), not 0–100, so mixing it in dragged down every
+        // name that HAD insider buying while sparing names with none. The raw
+        // IQS is still returned per row for display. Re-enable only with a
+        // normalized (e.g. percentile-ranked) insider pillar.
         const score = topStocksScore({
-          insiderScore,
-          insiderSuccess,
+          insiderScore: null,
+          insiderSuccess: null,
           analystScore: analystPillarScore(a.recommendation, a.upsidePct),
           analystSuccess: null, // TODO: activate with a per-analyst data provider
         });
@@ -1443,7 +1444,8 @@ export class IqsService {
           recommendation: a.recommendation,
           numAnalysts: a.numAnalysts,
           iqs: insiderScore,
-          insiderSuccess,
+          // Legacy column — no longer computed by the scorer; not blended.
+          insiderSuccess: null,
           topStocksScore: score,
         };
       })

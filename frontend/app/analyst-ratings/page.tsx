@@ -9,8 +9,6 @@ import { AdSlot } from "@/components/AdSlot";
 import { DataTable } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
-import { IqsScoreCell } from "@/components/IqsScoreCell";
-import { PremiumValue } from "@/components/premium/PremiumValue";
 
 interface AnalystRow {
   symbol: string;
@@ -84,12 +82,9 @@ export default function AnalystRatingsPage() {
           Live consensus recommendations and 12-month price targets across the
           most widely-covered U.S. stocks — ranked by our{" "}
           <strong style={{ color: "var(--text)" }}>Top Stocks Score</strong>, a 0–99
-          blend of the analyst consensus and implied upside, each name&rsquo;s{" "}
-          <strong style={{ color: "var(--text)" }}>Insider Score</strong> (the quality
-          of its insider buying), and the insiders&rsquo; historical success rate.
-          Two different signals: the Insider Score grades the insider buying alone;
-          the Top Stocks Score is the combined conviction view. Data refreshed
-          throughout the trading day.
+          conviction score built from the analyst consensus and the implied
+          upside to the average price target. Data refreshed throughout the
+          trading day.
         </p>
       </header>
 
@@ -210,20 +205,6 @@ export default function AnalystRatingsPage() {
                   ) : (
                     <span className="text-mute">—</span>
                   ),
-              },
-              {
-                key: "iqs",
-                label: "Insider Score",
-                filterable: true,
-                filterType: "range",
-                filterLabelText: "Insider Score (0–100)",
-                align: "center",
-                sortValue: (r) => r.iqs ?? null,
-                render: (r) => (
-                  <PremiumValue label="Insider Score">
-                    <IqsScoreCell iqs={r.iqs} />
-                  </PremiumValue>
-                ),
               },
               {
                 key: "consensus",
