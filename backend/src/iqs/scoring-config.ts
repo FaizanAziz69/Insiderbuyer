@@ -1,20 +1,24 @@
 /**
  * Insider Buying Quality Score (IQS) — scoring configuration.
  *
- * Implements the Decode Investing proposal exactly. The IQS combines four
- * factors, all computed over open-market Form 4 purchases (code 'P'):
+ * Implements the Decode Investing proposal exactly, as written in
+ * docs/iqs-methodology.md (§3, "Final Calculation of IQS"):
  *
- *   A. Purchase Volume Factor      = Σ(shares × price) / market cap
- *   B. Cluster Factor              = ln(1 + distinct insider buyers)
- *   C. Role-Weighted Purchase Vol. = Σ(shares × price × role multiplier) / market cap
- *   D. Holding Change Factor       = Σ(shares bought / previous holdings × 100)
- *                                    / number of insiders who bought
+ *   A. Purchase Volume Factor      = Σ(Shares Bought × Price) / Market Cap
+ *   B. Cluster Factor              = log(1 + Number of Distinct Insider Buyers)
+ *   C. Role-Weighted Purchase Vol. = Σ(Shares Bought × Price × Role Multiplier) / Market Cap
+ *   D. Holding Change Factor       = Σ(Holding Change %) / Number of Insiders Who Bought,
+ *                                    where Holding Change % = Shares Bought / Previous Holdings × 100
  *
- *   IQS = ln(1 + (A + B + C + D))
+ *   IQS = log(1 + (A + B + C + D))
  *
  * The four factors are summed raw — no normalization, weighting, capping or
  * scaling. The log transformation prevents extreme values from distorting
  * rankings; a higher IQS = stronger insider confidence in the stock.
+ *
+ * The proposal leaves the lookback window, the log base, and the missing-data
+ * rules undefined — those engineering decisions are the exported constants
+ * below and are documented in docs/iqs-implementation-notes.md.
  */
 
 import type { InsiderRole } from '../entities/insider-transaction.entity';
