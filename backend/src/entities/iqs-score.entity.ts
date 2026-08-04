@@ -55,17 +55,13 @@ export class IqsScore {
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 50 })
   marketTimingWeight: number;
 
-  /** Composite Insider Quality Score, 0–100. In v2 this is the 5-component
-   *  weighted composite (Buying·0.50 + Sector·0.25 + MD&A·0.10 + Momentum·0.10
-   *  + Dilution·0.05); see scoring-config.ts. */
+  /** Insider Buying Quality Score = log(1 + (A + B + C + D)), where
+   *  A = purchase value / market cap, B = log(1 + distinct buyers),
+   *  C = role-weighted purchase value / market cap, D = avg holding-change %.
+   *  See scoring-config.ts. */
   @Index()
   @Column({ type: 'numeric', precision: 18, scale: 8 })
   iqs: number;
-
-  /** The previous (v1) insider-only score — log(1 + A+B+C+D) scaled to 0–99 —
-   *  kept alongside the v2 composite (`iqs`) for side-by-side comparison. */
-  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
-  iqsV1: number | null;
 
   // ── IQ Score v2 components (each 0–100, null when no data) ──────────────
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })

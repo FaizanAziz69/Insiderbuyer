@@ -11,7 +11,6 @@ import { SecClient } from '../ingestion/sec.client';
 import { IqsService } from './iqs.service';
 import { IqsController } from './iqs.controller';
 import { SentimentService } from './sentiment.service';
-import { SectorSentimentService } from './sector-sentiment.service';
 import { MdaSentimentService } from './mda-sentiment.service';
 
 @Module({
@@ -26,7 +25,6 @@ import { MdaSentimentService } from './mda-sentiment.service';
     IqsService,
     SecClient,
     SentimentService,
-    SectorSentimentService,
     MdaSentimentService,
   ],
   exports: [IqsService, MdaSentimentService],
