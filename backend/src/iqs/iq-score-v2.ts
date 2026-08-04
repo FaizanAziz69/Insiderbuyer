@@ -76,12 +76,25 @@ export function scorePriceVsBuys(
   return ((r - lo) / (hi - lo)) * 100;
 }
 
+/** F. Buy/Sell Balance — insider buying dollars against insider selling
+ *  dollars over the same window: buy$ ÷ (buy$ + sell$) × 100. All buying =
+ *  100, balanced = 50, all selling = 0. Null when there is no activity. */
+export function scoreBuySellBalance(
+  buyValue: number,
+  sellValue: number,
+): number | null {
+  const total = (Number(buyValue) || 0) + (Number(sellValue) || 0);
+  if (!(total > 0)) return null;
+  return ((Number(buyValue) || 0) / total) * 100;
+}
+
 export interface BuyingSubScores {
   volumeVsMarketCap: number | null;
   cluster: number | null;
   role: number | null;
   stakeIncrease: number | null;
   priceVsBuys: number | null;
+  buySellBalance: number | null;
 }
 
 /** Combine the five buying sub-factors into a 0–100 BuyingScore, renormalizing
@@ -93,6 +106,7 @@ export function computeBuyingScore(sub: BuyingSubScores): number | null {
     [BUYING_SUBWEIGHTS.role, sub.role],
     [BUYING_SUBWEIGHTS.stakeIncrease, sub.stakeIncrease],
     [BUYING_SUBWEIGHTS.priceVsBuys, sub.priceVsBuys],
+    [BUYING_SUBWEIGHTS.buySellBalance, sub.buySellBalance],
   ];
   const present = parts.filter(([, v]) => v != null);
   const wSum = present.reduce((a, [w]) => a + w, 0);

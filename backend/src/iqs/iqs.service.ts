@@ -21,6 +21,7 @@ import { COMPONENT_WEIGHTS, NEUTRAL, ROLE_MULTIPLIER, NORM, SCORE_CEILING } from
 import {
   assembleComposite,
   computeBuyingScore,
+  scoreBuySellBalance,
   scoreCluster,
   scoreDilution,
   scoreMomentum,
@@ -246,6 +247,15 @@ export class IqsService {
         return;
       }
 
+      // Insider selling dollars over the same window — feeds the Buy/Sell
+      // Balance sub-factor (same parse guard as the buy side).
+      let totalSellValue = 0;
+      for (const t of allTxs) {
+        if (t.transactionCode !== 'S') continue;
+        const v = Number(t.sharesBought) * Number(t.pricePerShare);
+        if (Number.isFinite(v) && v > 0 && v <= MAX_PLAUSIBLE_TX_VALUE) totalSellValue += v;
+      }
+
       // Prefer the LIVE market quote for price + market cap; fall back to the
       // SEC-derived values (shares outstanding × last Form 4 price) only when
       // no live quote is available. This keeps market cap and the
@@ -320,12 +330,14 @@ export class IqsService {
         ownWeightSum > 0 ? ownWeightedSum / ownWeightSum : null,
       );
       const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
+      const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
       const buyingScore = computeBuyingScore({
         volumeVsMarketCap: subVolume,
         cluster: subCluster,
         role: subRole,
         stakeIncrease: subStake,
         priceVsBuys: subPriceVsBuys,
+        buySellBalance: subBalance,
       });
 
       // ── Component 2: Sector Sentiment (from daily cache) ────────────────
@@ -422,6 +434,7 @@ export class IqsService {
         // ownership column is retired (nulled so stale values clear).
         subHoldingChange: round2(subStake),
         subPriceVsBuys: round2(subPriceVsBuys),
+        subBuySellBalance: round2(subBalance),
         subOwnershipPct: null,
         // legacy display columns
         insiderWeight: +(subRole ?? 0).toFixed(2),
@@ -927,7 +940,7 @@ export class IqsService {
       let reason: string | null = null;
       if (t.transactionCode !== 'P') {
         status = 'excluded';
-        reason = 'Sell (code S) — only open-market buys feed the score';
+        reason = 'Sell (code S) — not counted as buying, but feeds the Buy/Sell Balance sub-factor';
       } else if (isRoundTripper(t.insiderName)) {
         status = 'excluded';
         reason = 'Round-trip guard — this insider sold back ≥50% of their buys in the window';
@@ -980,6 +993,11 @@ export class IqsService {
     const avgHoldingChangePct = holdingChangePcts.length
       ? holdingChangePcts.reduce((a, b) => a + b, 0) / holdingChangePcts.length
       : null;
+    // Insider selling dollars in the window (same parse guard as buys) —
+    // feeds the Buy/Sell Balance sub-factor.
+    const totalSellValue = txTrace
+      .filter((t) => t.code === 'S')
+      .reduce((a, t) => (t.value > 0 && t.value <= MAX_PLAUSIBLE_TX_VALUE ? a + t.value : a), 0);
 
     // Step 6 — the five Buying sub-factors (D merges the former holding-change
     // and ownership-increase metrics, which measured the same thing).
@@ -991,12 +1009,14 @@ export class IqsService {
     const subRole = scoreRole(roleRatio);
     const subStake = scoreStakeIncrease(ownAvg);
     const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
+    const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
     const buyingScore = computeBuyingScore({
       volumeVsMarketCap: subVolume,
       cluster: subCluster,
       role: subRole,
       stakeIncrease: subStake,
       priceVsBuys: subPriceVsBuys,
+      buySellBalance: subBalance,
     });
 
     // Step 7 — the other four components, each with its source.
@@ -1088,7 +1108,7 @@ export class IqsService {
           score: composite.score,
           formula: '0.50·Buying + 0.25·Sector + 0.05·MD&A + 0.10·Momentum + 0.10·Dilution',
           includes: [
-            'Insider buying (5 sub-factors) — 50%',
+            'Insider buying & selling (6 sub-factors) — 50%',
             'Sector sentiment (sector-ETF signal) — 25%',
             'MD&A filing tone (AI-scored) — 5%',
             'Volume momentum (10d vs 3m) — 10%',
@@ -1129,6 +1149,7 @@ export class IqsService {
         countedBuys: counted.length,
         excluded: txTrace.length - counted.length,
         totalPurchaseValue: +totalPurchaseValue.toFixed(2),
+        totalSellValue: +totalSellValue.toFixed(2),
         totalShares,
         distinctBuyers: buyers.size,
         insiderVwap: insiderVwap != null ? +insiderVwap.toFixed(4) : null,
@@ -1138,7 +1159,7 @@ export class IqsService {
       buying: {
         subFactors: [
           {
-            key: 'A', name: 'Purchase size vs market cap', weight: 0.25,
+            key: 'A', name: 'Purchase size vs market cap', weight: 0.2,
             input: volumeRatio, inputLabel: 'total $ bought ÷ market cap',
             formula: 'ln(1 + ratio ÷ 0.02) ÷ ln(5) × 100 — ~2% of cap ≈ strong',
             score: subVolume,
@@ -1156,18 +1177,27 @@ export class IqsService {
             score: subRole,
           },
           {
-            key: 'D', name: 'Stake increase', weight: 0.2,
+            key: 'D', name: 'Stake increase', weight: 0.15,
             input: ownAvg, inputLabel: 'role-weighted avg relative stake growth (0–1)',
             formula:
               'shares bought ÷ previous holdings per buyer, role-weighted, capped at doubling (1.0 → 100); first-time buyers get the cap. (Merges the former "holding change" and "ownership % increase" — they measured the same thing.)',
             score: subStake,
           },
           {
-            key: 'E', name: 'Cost basis vs price', weight: 0.15,
+            key: 'E', name: 'Cost basis vs price', weight: 0.1,
             input: insiderVwap != null && lastPrice > 0 ? insiderVwap / lastPrice : null,
             inputLabel: 'insider avg cost ÷ current price',
             formula: 'clamp(ratio, 0.5–2.0) min-maxed to 0–100; >1 (stock below insider cost) = bullish',
             score: subPriceVsBuys,
+          },
+          {
+            key: 'F', name: 'Buy/Sell balance', weight: 0.15,
+            input: totalPurchaseValue + totalSellValue > 0
+              ? totalPurchaseValue / (totalPurchaseValue + totalSellValue)
+              : null,
+            inputLabel: `$${Math.round(totalPurchaseValue).toLocaleString('en-US')} bought vs $${Math.round(totalSellValue).toLocaleString('en-US')} sold`,
+            formula: 'buy$ ÷ (buy$ + sell$) × 100 — all buying = 100, balanced = 50, all selling = 0',
+            score: subBalance,
           },
         ],
         note: 'Sub-weights renormalize over whichever sub-factors have data.',

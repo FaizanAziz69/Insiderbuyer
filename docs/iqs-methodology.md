@@ -21,18 +21,21 @@ is deleted — the score only exists where insider buying exists.
 
 ## 1. Buying — 50%
 
-Only open-market purchases (Form 4 code 'P') in the last 90 days, after a
-round-trip guard that excludes any insider who sold back ≥50% of what they
-bought inside the window. Five sub-factors, each 0–100; sub-weights
-renormalize over whichever sub-factors have data:
+Open-market purchases (Form 4 code 'P') in the last 90 days drive the
+component, after a round-trip guard that excludes any insider who sold back
+≥50% of what they bought inside the window. Open-market sales (code 'S') in
+the same window count against the stock through the Buy/Sell Balance
+sub-factor. Six sub-factors, each 0–100; sub-weights renormalize over
+whichever sub-factors have data:
 
 | # | Sub-factor | Weight | Formula |
 |---|---|---|---|
-| A | Purchase size vs market cap | 25% | `ln(1 + ratio/0.02) / ln(5) × 100` — ~2% of cap ≈ strong |
+| A | Purchase size vs market cap | 20% | `ln(1 + ratio/0.02) / ln(5) × 100` — ~2% of cap ≈ strong |
 | B | Cluster | 20% | `ln(1 + buyers) / ln(7) × 100` — 6 buyers ≈ 100 |
 | C | Role-weighted size vs cap | 20% | same log curve, divisor 0.06; role multipliers CEO/CFO/COO 1.0, Director 0.6, Other 0.4 |
-| D | Stake increase | 20% | role-weighted avg of (shares bought ÷ previous holdings) per buyer, capped at doubling; first-time buyers get the cap |
-| E | Cost basis vs price | 15% | `r = clamp(insiderVWAP ÷ price, 0.5, 2.0)`, min-maxed; r > 1 (stock below insider cost) = bullish |
+| D | Stake increase | 15% | role-weighted avg of (shares bought ÷ previous holdings) per buyer, capped at doubling; first-time buyers get the cap |
+| E | Cost basis vs price | 10% | `r = clamp(insiderVWAP ÷ price, 0.5, 2.0)`, min-maxed; r > 1 (stock below insider cost) = bullish |
+| F | Buy/Sell balance | 15% | `buy$ ÷ (buy$ + sell$) × 100` — all buying = 100, balanced = 50, all selling = 0 |
 
 > Note: earlier versions carried separate "holding change" (10%) and
 > "ownership % increase" (10%) sub-factors. They measured the same thing —

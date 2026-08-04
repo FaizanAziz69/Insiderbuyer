@@ -105,6 +105,10 @@ export class IqsScore {
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
   subPriceVsBuys: number | null;
 
+  /** F — buy/sell balance: buy$ ÷ (buy$ + sell$) over the window, 0–100. */
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  subBuySellBalance: number | null;
+
   /** Retired — merged into subHoldingChange (Stake Increase); always null on
    *  new rows. Kept so old rows/readers don't break. */
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })

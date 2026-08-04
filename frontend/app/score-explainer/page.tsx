@@ -69,6 +69,7 @@ interface Explain {
     countedBuys: number;
     excluded: number;
     totalPurchaseValue: number;
+    totalSellValue?: number;
     totalShares: number;
     distinctBuyers: number;
     insiderVwap: number | null;
@@ -370,8 +371,11 @@ export default function ScoreExplainerPage() {
           {/* Step 2 — transactions */}
           <Step n={2} title={`Insider transactions — last ${d.config?.windowDays} days (SEC Form 4)`}>
             <p className="text-[13px] text-mute mb-3">
-              Every open-market transaction filed with the SEC. Only genuine open-market <strong style={{ color: "var(--text)" }}>buys (code P)</strong> count;
-              sells, wash-style round-trips and implausible filings are excluded — each exclusion says why.
+              Every open-market transaction filed with the SEC. Genuine open-market{" "}
+              <strong style={{ color: "var(--text)" }}>buys (code P)</strong> count as buying;{" "}
+              <strong style={{ color: "var(--text)" }}>sells (code S)</strong> count against the stock in
+              the Buy/Sell Balance sub-factor. Wash-style round-trips and implausible filings are
+              excluded — each row says how it was treated.
             </p>
             <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
@@ -417,8 +421,8 @@ export default function ScoreExplainerPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
                 ["Counted buys", fmtNum(d.aggregates?.countedBuys, 0)],
-                ["Excluded", fmtNum(d.aggregates?.excluded, 0)],
                 ["Total $ bought", d.aggregates ? formatCurrency(d.aggregates.totalPurchaseValue) : "—"],
+                ["Total $ sold", d.aggregates?.totalSellValue != null ? formatCurrency(d.aggregates.totalSellValue) : "—"],
                 ["Distinct buyers", fmtNum(d.aggregates?.distinctBuyers, 0)],
                 ["Insider avg cost", d.aggregates?.insiderVwap != null ? `$${fmtNum(d.aggregates.insiderVwap)}` : "—"],
                 ["Avg stake added", d.aggregates?.avgHoldingChangePct != null ? `${fmtNum(d.aggregates.avgHoldingChangePct)}%` : "—"],
@@ -432,7 +436,7 @@ export default function ScoreExplainerPage() {
           </Step>
 
           {/* Step 4 — buying sub-factors */}
-          <Step n={4} title="Buying component — five sub-factors (50% of the final score)">
+          <Step n={4} title="Buying & selling component — six sub-factors (50% of the final score)">
             <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead>
