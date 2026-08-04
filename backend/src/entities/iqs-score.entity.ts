@@ -27,37 +27,39 @@ export class IqsScore {
   @Column({ type: 'date' })
   asOfDate: string;
 
-  // ── The six IQS components (each 0–100) ──────────────────────────
-  // IQS = Insider×0.25 + Transaction×0.25 + Conviction×0.20
-  //     + HistoricalSuccess×0.15 + Cluster×0.10 + MarketTiming×0.05
+  // ── The four IQS factors (proposal §3), stored raw ────────────────
+  //   transactionWeight = A (Purchase Volume)
+  //   clusterWeight     = B (Cluster)
+  //   insiderWeight     = C (Role-Weighted Volume)
+  //   convictionWeight  = D (Holding Change)
 
-  /** Who bought — CEO/CFO buys score highest. */
+  /** C — role-weighted purchase volume: Σ(shares × price × role mult) / market cap. */
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 0 })
   insiderWeight: number;
 
-  /** How big — dollar size, absolute and relative to market cap. */
+  /** A — purchase volume: Σ(shares × price) / market cap. */
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 0 })
   transactionWeight: number;
 
-  /** Conviction — stake increase % and repeat buying. */
+  /** D — holding change: Σ(shares / prev holdings × 100) / insiders who bought. */
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 0 })
   convictionWeight: number;
 
-  /** Track record — share of past insider buys currently in profit. */
+  /** Legacy — no longer computed or written by the scorer (rows keep the
+   *  column default). Kept only so old rows/readers don't break. */
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 50 })
   historicalSuccessWeight: number;
 
-  /** Cluster — number of distinct insiders buying together. */
+  /** B — cluster: ln(1 + distinct insider buyers). */
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 0 })
   clusterWeight: number;
 
-  /** Market timing — buying near 52-week lows scores highest. */
+  /** Legacy — no longer computed or written by the scorer (rows keep the
+   *  column default). Kept only so old rows/readers don't break. */
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 50 })
   marketTimingWeight: number;
 
-  /** Insider Buying Quality Score = log(1 + (A + B + C + D)), where
-   *  A = purchase value / market cap, B = log(1 + distinct buyers),
-   *  C = role-weighted purchase value / market cap, D = avg holding-change %.
+  /** Insider Buying Quality Score = ln(1 + (A + B + C + D)).
    *  See scoring-config.ts. */
   @Index()
   @Column({ type: 'numeric', precision: 18, scale: 8 })

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
@@ -15,7 +15,7 @@ import {
   topStocksScore,
 } from './composite-score';
 import { SentimentService } from './sentiment.service';
-import { ROLE_MULTIPLIER } from './scoring-config';
+import { IQS_WINDOW_DAYS, form4RoleMultiplier, ln } from './scoring-config';
 
 export interface RankingRow {
   rank: number;
@@ -28,7 +28,7 @@ export interface RankingRow {
   /** Listing group: 'US' | 'CA' | 'DE' … — drives the Exchanges filter and
    *  gates which companies are eligible for generated articles. */
   exchange: string | null;
-  iqs: number; // log(1 + A + B + C + D) — see scoring-config.ts
+  iqs: number; // ln(1 + (A + B + C + D)) — see scoring-config.ts
   insiderWeight: number;
   transactionWeight: number;
   convictionWeight: number;
@@ -69,10 +69,8 @@ export interface RankingRow {
   livePrice?: number | null;
 }
 
-// Role multipliers (ROLE_MULTIPLIER) now live in scoring-config.ts so product
-// can tune them without a code change — imported above.
-
-const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+// Role multipliers and the role classifier live in scoring-config.ts so
+// product can tune them without a code change — imported above.
 
 /** Normalize an "Exchanges" filter value to a stored Company.exchange code,
  *  or null for "All" / unknown (no filter). Accepts UI labels and codes:
@@ -86,10 +84,11 @@ function normalizeExchange(raw?: string): string | null {
   return null;
 }
 
-// ── Data-quality guards ──────────────────────────────────────────────────
+// ── Data-quality guards (display features only — NOT the IQS) ─────────────
 // A single open-market Form 4 purchase above this is almost certainly a parse
 // artifact (the largest real insider buys are low hundreds of millions) — such
-// rows are excluded from score aggregates so one bad filing can't distort them.
+// rows are excluded from display aggregates (trades lists, leaderboards,
+// meters). The IQS calculation itself takes every 'P' transaction as filed.
 const MAX_PLAUSIBLE_TX_VALUE = 1_000_000_000;
 
 /** Null out a market cap that is impossible against observed insider buying —
@@ -108,6 +107,8 @@ function sanitizedMarketCap(
 
 @Injectable()
 export class IqsService {
+  private readonly logger = new Logger(IqsService.name);
+
   constructor(
     @InjectRepository(Company) private readonly companies: Repository<Company>,
     @InjectRepository(InsiderTransaction) private readonly txRepo: Repository<InsiderTransaction>,
@@ -161,25 +162,28 @@ export class IqsService {
     return data;
   }
 
-  /** Insider Buying Quality Score (see scoring-config.ts):
-   *
-   *   IQS = log(1 + (A + B + C + D))
+  /** Insider Buying Quality Score — the Decode Investing proposal, verbatim
+   *  (see scoring-config.ts):
    *
    *   A = Σ(shares × price) / market cap
-   *   B = log(1 + distinct insider buyers)
+   *   B = ln(1 + distinct insider buyers)
    *   C = Σ(shares × price × role multiplier) / market cap
-   *   D = avg holding-change % across the insiders who bought
+   *   D = Σ(shares bought / previous holdings × 100)
+   *       / number of insiders who bought (with known previous holdings)
    *
-   *  Only open-market purchases (Form 4 code P) feed the score — grants and
-   *  option exercises are excluded upstream at ingestion. */
-  async recalculateAll(windowDays = 90): Promise<number> {
-    const since = new Date(Date.now() - windowDays * 86400000);
-    const seasonedCutoff = new Date(Date.now() - 14 * 86400000);
+   *   IQS = ln(1 + (A + B + C + D))
+   *
+   *  Input is Form 4 non-derivative open-market purchases (code 'P') in the
+   *  last IQS_WINDOW_DAYS days — grants, option exercises and all sells are
+   *  excluded. The four factors are summed raw; a company without a usable
+   *  market cap is excluded from the ranking entirely. */
+  async recalculateAll(): Promise<number> {
+    const since = new Date(Date.now() - IQS_WINDOW_DAYS * 86400000);
     const today = new Date().toISOString().slice(0, 10);
     const companies = await this.companies.find();
     let updated = 0;
 
-    // One quote batch for price, market cap and 52-week ranges.
+    // One quote batch for live price + market cap (data sourcing, not scoring).
     let quotes = new Map<string, any>();
     try {
       const tickers = companies.map((c) => c.ticker).filter(Boolean) as string[];
@@ -188,37 +192,17 @@ export class IqsService {
       quotes = new Map();
     }
 
+    // officerTitles that fell through to the 1.0 multiplier — logged once per
+    // run (distinct) so classification misses can be reviewed.
+    const missedTitles = new Set<string>();
+
     for (const company of companies) {
-      const allTxs = await this.txRepo
+      const txs = await this.txRepo
         .createQueryBuilder('t')
         .where('t.company_id = :id', { id: company.id })
         .andWhere('t.transactionDate >= :since', { since })
-        .andWhere(`t."transactionCode" IN ('P','S')`)
+        .andWhere(`t."transactionCode" = 'P'`)
         .getMany();
-
-      // Round-trip guard: an "insider" who sells back a large share of what
-      // they bought inside the window (market makers, wash-style flipping —
-      // e.g. buy 6M shares, dump 3.7M two days later) shows zero conviction.
-      // Exclude that insider's buys entirely so such names can't top the
-      // rankings and feed contradictory articles.
-      const sharesBySide = new Map<string, { buy: number; sell: number }>();
-      for (const t of allTxs) {
-        const key = t.insiderName.toLowerCase();
-        const e = sharesBySide.get(key) || { buy: 0, sell: 0 };
-        const sh = Number(t.sharesBought) || 0;
-        if (t.transactionCode === 'P') e.buy += sh;
-        else e.sell += sh;
-        sharesBySide.set(key, e);
-      }
-      const isRoundTripper = (insider: string): boolean => {
-        const e = sharesBySide.get(insider.toLowerCase());
-        if (!e || e.buy <= 0) return false;
-        return e.sell >= e.buy * 0.5; // sold back ≥50% of window buys
-      };
-
-      const txs = allTxs.filter(
-        (t) => t.transactionCode === 'P' && !isRoundTripper(t.insiderName),
-      );
 
       if (!txs.length) {
         await this.scores.delete({ companyId: company.id });
@@ -227,9 +211,8 @@ export class IqsService {
 
       // Prefer the LIVE market quote for price + market cap; fall back to the
       // SEC-derived values (shares outstanding × last Form 4 price) only when
-      // no live quote is available. This keeps market cap and the
-      // "currently in profit" check anchored to the real current price rather
-      // than the most-recent insider transaction price.
+      // no live quote is available. This keeps market cap anchored to the real
+      // current price rather than the most-recent insider transaction price.
       const liveQ = company.ticker ? quotes.get(company.ticker.toUpperCase()) : null;
       const secPrice = company.lastPrice ? Number(company.lastPrice) : 0;
       const secMarketCap = company.marketCap ? Number(company.marketCap) : 0;
@@ -249,73 +232,69 @@ export class IqsService {
         }
       }
 
-      let totalPurchaseValue = 0; // Σ shares × price
-      let roleWeightedValue = 0; // Σ shares × price × role multiplier
-      const buyers = new Set<string>();
-      const holdingChangePcts: number[] = []; // D: per-buyer % add
+      // Market cap missing, zero or negative → the company is excluded from
+      // the ranking entirely (A and C have no denominator; the proposal does
+      // not define a fallback and we do not invent one).
+      if (!(marketCap > 0)) {
+        await this.scores.delete({ companyId: company.id });
+        continue;
+      }
+
+      let totalPurchaseValue = 0; // A numerator: Σ shares × price
+      let roleWeightedValue = 0; // C numerator: Σ shares × price × role mult
+      const buyers = new Set<string>(); // B: distinct buyers across the window
+      let holdingChangeSum = 0; // D numerator: Σ (shares / prev holdings × 100)
+      const holdingChangeInsiders = new Set<string>(); // D denominator
 
       for (const t of txs) {
         const shares = Number(t.sharesBought);
         const value = shares * Number(t.pricePerShare);
-        // Data-quality guard: skip implausible parse artifacts so one bad
-        // filing can't blow up the aggregates (and the market-cap check below).
-        if (!Number.isFinite(value) || value <= 0 || value > MAX_PLAUSIBLE_TX_VALUE) {
-          continue;
+        // One multiplier per insider, classified from the Form 4 officerTitle
+        // (stored as rawTitle) and the isDirector relationship flag (encoded
+        // as role === 'Director' at ingestion), first match wins.
+        const roleMult = form4RoleMultiplier(t.rawTitle, t.role === 'Director');
+        if (roleMult === 1.0 && (t.rawTitle || '').trim()) {
+          missedTitles.add(t.rawTitle.trim());
         }
-        const roleMult = ROLE_MULTIPLIER[t.role] ?? ROLE_MULTIPLIER.Other;
         totalPurchaseValue += value;
         roleWeightedValue += value * roleMult;
         buyers.add(t.insiderName.toLowerCase());
+        // previousHoldings 0 or null → this purchase adds nothing to D's
+        // numerator and its insider is not counted in D's denominator (they
+        // still count fully in A, B and C).
         const prev = Number(t.previousHoldings) || 0;
         if (prev > 0) {
-          holdingChangePcts.push((shares / prev) * 100); // Holding Change %
+          holdingChangeSum += (shares / prev) * 100;
+          holdingChangeInsiders.add(t.insiderName.toLowerCase());
         }
       }
-
-      // Data-quality guard: a cap smaller than the observed insider buying is
-      // impossible — treat it as unknown rather than producing absurd factors.
-      const safeCap = sanitizedMarketCap(marketCap, totalPurchaseValue) ?? 0;
 
       // ── IQS factors (proposal §3) ────────────────────────────────────────
       // A. Purchase Volume Factor = Σ(shares × price) / market cap
-      const purchaseVolumeFactor = safeCap > 0 ? totalPurchaseValue / safeCap : 0;
-      // B. Cluster Factor = log(1 + distinct insider buyers)
-      const clusterFactor = Math.log(1 + buyers.size);
+      const purchaseVolumeFactor = totalPurchaseValue / marketCap;
+      // B. Cluster Factor = ln(1 + distinct insider buyers)
+      const clusterFactor = ln(1 + buyers.size);
       // C. Role-Weighted Purchase Volume = Σ(shares × price × role mult) / market cap
-      const roleWeightedFactor = safeCap > 0 ? roleWeightedValue / safeCap : 0;
+      const roleWeightedFactor = roleWeightedValue / marketCap;
       // D. Holding Change Factor = Σ(holding change %) / insiders who bought
-      const holdingChangeFactor = holdingChangePcts.length
-        ? holdingChangePcts.reduce((a, b) => a + b, 0) / holdingChangePcts.length
+      const holdingChangeFactor = holdingChangeInsiders.size
+        ? holdingChangeSum / holdingChangeInsiders.size
         : 0;
 
-      // IQS = log(1 + (A + B + C + D))
-      const iqs = Math.log(
-        1 + purchaseVolumeFactor + clusterFactor + roleWeightedFactor + holdingChangeFactor,
+      // IQS = ln(1 + (A + B + C + D)) — the raw sum, nothing normalized,
+      // weighted, capped or scaled.
+      const iqs = ln(
+        1 + (purchaseVolumeFactor + clusterFactor + roleWeightedFactor + holdingChangeFactor),
       );
-
-      // Display-only columns for the breakdown card (not part of the IQS).
-      let historicalSuccessWeight = 50;
-      if (lastPrice > 0) {
-        const seasoned = await this.txRepo
-          .createQueryBuilder('t')
-          .where('t.company_id = :id', { id: company.id })
-          .andWhere(`t."transactionCode" = 'P'`)
-          .andWhere('t.transactionDate < :cut', { cut: seasonedCutoff })
-          .getMany();
-        if (seasoned.length >= 2) {
-          const wins = seasoned.filter((t) => lastPrice > Number(t.pricePerShare)).length;
-          historicalSuccessWeight = (wins / seasoned.length) * 100;
-        }
-      }
-      let marketTimingWeight = 50;
-      const hi = Number(liveQ?.fiftyTwoWeekHigh ?? 0);
-      const lo = Number(liveQ?.fiftyTwoWeekLow ?? 0);
-      const px = Number(liveQ?.price ?? lastPrice);
-      if (hi > lo && px > 0) marketTimingWeight = (1 - clamp01((px - lo) / (hi - lo))) * 100;
 
       const existing = await this.scores.findOne({
         where: { companyId: company.id, asOfDate: today },
       });
+      // Column mapping — existing columns carry the proposal's factors:
+      //   transactionWeight = A (Purchase Volume)
+      //   clusterWeight     = B (Cluster)
+      //   insiderWeight     = C (Role-Weighted Volume)
+      //   convictionWeight  = D (Holding Change)
       const payload: Partial<IqsScore> = {
         companyId: company.id,
         asOfDate: today,
@@ -332,14 +311,11 @@ export class IqsService {
         subHoldingChange: null,
         subPriceVsBuys: null,
         subOwnershipPct: null,
-        // The four IQS factors, stored in the display columns.
-        transactionWeight: +purchaseVolumeFactor.toFixed(4), // A
-        clusterWeight: +clusterFactor.toFixed(4), // B
-        insiderWeight: +roleWeightedFactor.toFixed(4), // C
-        convictionWeight: +holdingChangeFactor.toFixed(4), // D
-        historicalSuccessWeight: +historicalSuccessWeight.toFixed(2),
-        marketTimingWeight: +marketTimingWeight.toFixed(2),
-        iqs: +iqs.toFixed(4),
+        transactionWeight: +purchaseVolumeFactor.toFixed(8), // A
+        clusterWeight: +clusterFactor.toFixed(8), // B
+        insiderWeight: +roleWeightedFactor.toFixed(8), // C
+        convictionWeight: +holdingChangeFactor.toFixed(8), // D
+        iqs: +iqs.toFixed(8),
         distinctBuyers: buyers.size,
         transactionCount: txs.length,
         totalPurchaseValue,
@@ -350,6 +326,10 @@ export class IqsService {
         await this.scores.save(this.scores.create(payload));
       }
       updated++;
+    }
+
+    for (const title of missedTitles) {
+      this.logger.log(`officerTitle fell through to role multiplier 1.0: "${title}"`);
     }
     return updated;
   }
