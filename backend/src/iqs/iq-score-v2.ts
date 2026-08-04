@@ -44,10 +44,17 @@ export function scoreRole(roleWeightedRatio: number | null): number | null {
   return clamp01(Math.log1p(roleWeightedRatio / NORM.roleDivisor) / Math.log1p(4)) * 100;
 }
 
-/** D. Holding change (absolute commitment) — avg per-buyer % add, capped. */
-export function scoreHoldingChange(avgPctAdd: number | null): number | null {
-  if (avgPctAdd == null || !Number.isFinite(avgPctAdd) || avgPctAdd <= 0) return null;
-  return clamp01(avgPctAdd / 100) * 100;
+/** D. Stake Increase — the merged holding-change / ownership-increase metric
+ *  (the two measured the same thing: relative stake growth). Role-weighted
+ *  average of each buyer's (shares bought ÷ previous holdings), capped at
+ *  doubling (1.0 → 100); first-time buyers are pre-mapped to the cap
+ *  upstream. */
+export function scoreStakeIncrease(
+  weightedAvgPctIncrease: number | null,
+): number | null {
+  if (weightedAvgPctIncrease == null || !Number.isFinite(weightedAvgPctIncrease))
+    return null;
+  return clamp01(weightedAvgPctIncrease / NORM.ownershipPctCap) * 100;
 }
 
 /** E (NEW). Avg insider buy price vs current price. price_ratio = vwap/price.
@@ -69,35 +76,23 @@ export function scorePriceVsBuys(
   return ((r - lo) / (hi - lo)) * 100;
 }
 
-/** F (NEW). Ownership % increase — role-weighted avg relative stake growth.
- *  First-time buyers (held_before=0) are pre-mapped to the cap upstream. */
-export function scoreOwnershipPctIncrease(
-  weightedAvgPctIncrease: number | null,
-): number | null {
-  if (weightedAvgPctIncrease == null || !Number.isFinite(weightedAvgPctIncrease))
-    return null;
-  return clamp01(weightedAvgPctIncrease / NORM.ownershipPctCap) * 100;
-}
-
 export interface BuyingSubScores {
   volumeVsMarketCap: number | null;
   cluster: number | null;
   role: number | null;
-  holdingChange: number | null;
+  stakeIncrease: number | null;
   priceVsBuys: number | null;
-  ownershipPctIncrease: number | null;
 }
 
-/** Combine the six buying sub-factors into a 0–100 BuyingScore, renormalizing
+/** Combine the five buying sub-factors into a 0–100 BuyingScore, renormalizing
  *  the sub-weights over whichever sub-factors have data. */
 export function computeBuyingScore(sub: BuyingSubScores): number | null {
   const parts: Array<[number, number | null]> = [
     [BUYING_SUBWEIGHTS.volumeVsMarketCap, sub.volumeVsMarketCap],
     [BUYING_SUBWEIGHTS.cluster, sub.cluster],
     [BUYING_SUBWEIGHTS.role, sub.role],
-    [BUYING_SUBWEIGHTS.holdingChange, sub.holdingChange],
+    [BUYING_SUBWEIGHTS.stakeIncrease, sub.stakeIncrease],
     [BUYING_SUBWEIGHTS.priceVsBuys, sub.priceVsBuys],
-    [BUYING_SUBWEIGHTS.ownershipPctIncrease, sub.ownershipPctIncrease],
   ];
   const present = parts.filter(([, v]) => v != null);
   const wSum = present.reduce((a, [w]) => a + w, 0);

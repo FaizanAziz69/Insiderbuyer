@@ -97,12 +97,16 @@ export class IqsScore {
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
   subRole: number | null;
 
+  /** D — Stake Increase: the merged holding-change + ownership-increase
+   *  metric (role-weighted relative stake growth, capped at doubling). */
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
   subHoldingChange: number | null;
 
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
   subPriceVsBuys: number | null;
 
+  /** Retired — merged into subHoldingChange (Stake Increase); always null on
+   *  new rows. Kept so old rows/readers don't break. */
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
   subOwnershipPct: number | null;
 

@@ -30,14 +30,16 @@ export const COMPONENT_WEIGHTS = {
 } as const;
 
 /** Insider-Buying sub-factor weights (relative; renormalized over whichever
- *  sub-factors have data for a given company). */
+ *  sub-factors have data for a given company).
+ *  Note: the former "holding change" (D) and "ownership % increase" (F)
+ *  measured the same thing — relative stake growth — so they are merged into
+ *  one Stake Increase metric carrying their combined weight (0.10 + 0.10). */
 export const BUYING_SUBWEIGHTS = {
   volumeVsMarketCap: 0.25, // A
   cluster: 0.2, // B
   role: 0.2, // C
-  holdingChange: 0.1, // D (absolute commitment)
-  priceVsBuys: 0.15, // E (NEW) avg insider buy price vs current price
-  ownershipPctIncrease: 0.1, // F (NEW) relative stake growth
+  stakeIncrease: 0.2, // D — merged holding-change + ownership-increase
+  priceVsBuys: 0.15, // E — avg insider buy price vs current price
 } as const;
 
 /** Role multipliers — applied to each transaction's contribution to the

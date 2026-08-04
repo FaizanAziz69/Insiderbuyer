@@ -22,11 +22,10 @@ import {
   computeBuyingScore,
   scoreCluster,
   scoreDilution,
-  scoreHoldingChange,
   scoreMomentum,
-  scoreOwnershipPctIncrease,
   scorePriceVsBuys,
   scoreRole,
+  scoreStakeIncrease,
   scoreVolumeVsMarketCap,
 } from './iq-score-v2';
 
@@ -310,26 +309,22 @@ export class IqsService {
       const safeCap = sanitizedMarketCap(marketCap, totalPurchaseValue) ?? 0;
       const insiderVwap = totalShares > 0 ? totalPurchaseValue / totalShares : null;
 
-      // ── Component 1: Insider Buying (6 sub-factors, each 0–100) ──────────
+      // ── Component 1: Insider Buying (5 sub-factors, each 0–100) ──────────
+      // D — Stake Increase merges the former holding-change and ownership-%
+      // metrics (they measured the same thing) at their combined weight.
       const subVolume = scoreVolumeVsMarketCap(safeCap > 0 ? totalPurchaseValue / safeCap : null);
       const subCluster = scoreCluster(buyers.size);
       const subRole = scoreRole(safeCap > 0 ? roleWeightedValue / safeCap : null);
-      const subHolding = scoreHoldingChange(
-        holdingChangePcts.length
-          ? holdingChangePcts.reduce((a, b) => a + b, 0) / holdingChangePcts.length
-          : null,
-      );
-      const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
-      const subOwnership = scoreOwnershipPctIncrease(
+      const subStake = scoreStakeIncrease(
         ownWeightSum > 0 ? ownWeightedSum / ownWeightSum : null,
       );
+      const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
       const buyingScore = computeBuyingScore({
         volumeVsMarketCap: subVolume,
         cluster: subCluster,
         role: subRole,
-        holdingChange: subHolding,
+        stakeIncrease: subStake,
         priceVsBuys: subPriceVsBuys,
-        ownershipPctIncrease: subOwnership,
       });
 
       // ── Component 2: Sector Sentiment (from daily cache) ────────────────
@@ -422,13 +417,15 @@ export class IqsService {
         subVolumeVsMcap: round2(subVolume),
         subCluster: round2(subCluster),
         subRole: round2(subRole),
-        subHoldingChange: round2(subHolding),
+        // Merged Stake Increase lands in subHoldingChange; the separate
+        // ownership column is retired (nulled so stale values clear).
+        subHoldingChange: round2(subStake),
         subPriceVsBuys: round2(subPriceVsBuys),
-        subOwnershipPct: round2(subOwnership),
+        subOwnershipPct: null,
         // legacy display columns
         insiderWeight: +(subRole ?? 0).toFixed(2),
         transactionWeight: +(subVolume ?? 0).toFixed(2),
-        convictionWeight: +(subOwnership ?? subHolding ?? 0).toFixed(2),
+        convictionWeight: +(subStake ?? 0).toFixed(2),
         historicalSuccessWeight: +historicalSuccessWeight.toFixed(2),
         clusterWeight: +(subCluster ?? 0).toFixed(2),
         marketTimingWeight: +marketTimingWeight.toFixed(2),
@@ -925,23 +922,22 @@ export class IqsService {
       ? holdingChangePcts.reduce((a, b) => a + b, 0) / holdingChangePcts.length
       : null;
 
-    // Step 6 — the six Buying sub-factors.
+    // Step 6 — the five Buying sub-factors (D merges the former holding-change
+    // and ownership-increase metrics, which measured the same thing).
     const volumeRatio = safeCap > 0 ? totalPurchaseValue / safeCap : null;
     const roleRatio = safeCap > 0 ? roleWeightedValue / safeCap : null;
     const ownAvg = ownWeightSum > 0 ? ownWeightedSum / ownWeightSum : null;
     const subVolume = scoreVolumeVsMarketCap(volumeRatio);
     const subCluster = counted.length ? scoreCluster(buyers.size) : null;
     const subRole = scoreRole(roleRatio);
-    const subHolding = scoreHoldingChange(avgHoldingChangePct);
+    const subStake = scoreStakeIncrease(ownAvg);
     const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
-    const subOwnership = scoreOwnershipPctIncrease(ownAvg);
     const buyingScore = computeBuyingScore({
       volumeVsMarketCap: subVolume,
       cluster: subCluster,
       role: subRole,
-      holdingChange: subHolding,
+      stakeIncrease: subStake,
       priceVsBuys: subPriceVsBuys,
-      ownershipPctIncrease: subOwnership,
     });
 
     // Step 7 — the other four components, each with its source.
@@ -996,7 +992,7 @@ export class IqsService {
           score: composite.score,
           formula: '0.50·Buying + 0.25·Sector + 0.05·MD&A + 0.10·Momentum + 0.10·Dilution',
           includes: [
-            'Insider buying (6 sub-factors) — 50%',
+            'Insider buying (5 sub-factors) — 50%',
             'Sector sentiment (sector-ETF signal) — 25%',
             'MD&A filing tone (AI-scored) — 5%',
             'Volume momentum (10d vs 3m) — 10%',
@@ -1061,10 +1057,11 @@ export class IqsService {
             score: subRole,
           },
           {
-            key: 'D', name: 'Holding change', weight: 0.1,
-            input: avgHoldingChangePct, inputLabel: 'avg % each buyer added to their stake',
-            formula: 'avg per-buyer % added, capped at 100%',
-            score: subHolding,
+            key: 'D', name: 'Stake increase', weight: 0.2,
+            input: ownAvg, inputLabel: 'role-weighted avg relative stake growth (0–1)',
+            formula:
+              'shares bought ÷ previous holdings per buyer, role-weighted, capped at doubling (1.0 → 100); first-time buyers get the cap. (Merges the former "holding change" and "ownership % increase" — they measured the same thing.)',
+            score: subStake,
           },
           {
             key: 'E', name: 'Cost basis vs price', weight: 0.15,
@@ -1072,12 +1069,6 @@ export class IqsService {
             inputLabel: 'insider avg cost ÷ current price',
             formula: 'clamp(ratio, 0.5–2.0) min-maxed to 0–100; >1 (stock below insider cost) = bullish',
             score: subPriceVsBuys,
-          },
-          {
-            key: 'F', name: 'Ownership % increase', weight: 0.1,
-            input: ownAvg, inputLabel: 'role-weighted avg relative stake growth (0–1)',
-            formula: 'capped at doubling (1.0 → 100); first-time buyers get the cap',
-            score: subOwnership,
           },
         ],
         note: 'Sub-weights renormalize over whichever sub-factors have data.',

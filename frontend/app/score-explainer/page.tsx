@@ -352,7 +352,7 @@ export default function ScoreExplainerPage() {
           </Step>
 
           {/* Step 4 — buying sub-factors */}
-          <Step n={4} title="Buying component — six sub-factors (50% of the final score)">
+          <Step n={4} title="Buying component — five sub-factors (50% of the final score)">
             <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead>
