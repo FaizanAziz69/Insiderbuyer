@@ -59,11 +59,17 @@ export class IqsScore {
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 50 })
   marketTimingWeight: number;
 
-  /** Insider Buying Quality Score = ln(1 + (A + B + C + D)).
-   *  See scoring-config.ts. */
+  /** The site's 0–100 Insider Score: the percentile rank of iqsRaw across
+   *  all companies scored in the same run (monotonic — ordering is exactly
+   *  the raw formula's). Top company ≈ 99, median ≈ 50. */
   @Index()
   @Column({ type: 'numeric', precision: 18, scale: 8 })
   iqs: number;
+
+  /** Raw proposal value ln(1 + (A + B + C + D)) — the formula output that
+   *  the 0–100 percentile above is derived from. See scoring-config.ts. */
+  @Column({ type: 'numeric', precision: 18, scale: 8, nullable: true })
+  iqsRaw: number | null;
 
   // ── IQ Score v2 components (each 0–100, null when no data) ──────────────
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })

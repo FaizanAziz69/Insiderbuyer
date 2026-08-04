@@ -28,7 +28,7 @@ export interface RankingRow {
   /** Listing group: 'US' | 'CA' | 'DE' … — drives the Exchanges filter and
    *  gates which companies are eligible for generated articles. */
   exchange: string | null;
-  iqs: number; // ln(1 + (A + B + C + D)) — see scoring-config.ts
+  iqs: number; // 0–100 percentile of iqsRaw = ln(1 + (A + B + C + D)) — see scoring-config.ts
   insiderWeight: number;
   transactionWeight: number;
   convictionWeight: number;
@@ -196,6 +196,21 @@ export class IqsService {
     // run (distinct) so classification misses can be reviewed.
     const missedTitles = new Set<string>();
 
+    // Pass 1 computes every company's raw formula value; pass 2 (below the
+    // loop) percentile-ranks the raws into the 0–100 Insider Score and
+    // persists — the display scale needs the whole run's distribution.
+    const pending: Array<{
+      companyId: string;
+      raw: number;
+      purchaseVolumeFactor: number;
+      clusterFactor: number;
+      roleWeightedFactor: number;
+      holdingChangeFactor: number;
+      distinctBuyers: number;
+      transactionCount: number;
+      totalPurchaseValue: number;
+    }> = [];
+
     for (const company of companies) {
       const txs = await this.txRepo
         .createQueryBuilder('t')
@@ -281,22 +296,55 @@ export class IqsService {
         ? holdingChangeSum / holdingChangeInsiders.size
         : 0;
 
-      // IQS = ln(1 + (A + B + C + D)) — the raw sum, nothing normalized,
-      // weighted, capped or scaled.
-      const iqs = ln(
+      // Raw IQS = ln(1 + (A + B + C + D)) — the raw sum, nothing normalized,
+      // weighted, capped or scaled. The 0–100 display score is derived from
+      // this in pass 2 without changing the ordering.
+      const raw = ln(
         1 + (purchaseVolumeFactor + clusterFactor + roleWeightedFactor + holdingChangeFactor),
       );
 
+      pending.push({
+        companyId: company.id,
+        raw,
+        purchaseVolumeFactor,
+        clusterFactor,
+        roleWeightedFactor,
+        holdingChangeFactor,
+        distinctBuyers: buyers.size,
+        transactionCount: txs.length,
+        totalPurchaseValue,
+      });
+    }
+
+    // ── Pass 2: 0–100 Insider Score = percentile rank of the raw value ─────
+    // across every company scored this run. Monotonic in the raw formula, so
+    // the ranking order is EXACTLY the proposal's; only the display scale
+    // changes (top ≈ 99, median ≈ 50). Ties share a score.
+    const raws = pending.map((p) => p.raw).sort((a, b) => a - b);
+    const toPercentile = (raw: number): number => {
+      let lo = 0;
+      let hi = raws.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (raws[mid] <= raw) lo = mid + 1;
+        else hi = mid;
+      }
+      return Math.round((lo / raws.length) * 99 * 100) / 100;
+    };
+
+    for (const p of pending) {
       const existing = await this.scores.findOne({
-        where: { companyId: company.id, asOfDate: today },
+        where: { companyId: p.companyId, asOfDate: today },
       });
       // Column mapping — existing columns carry the proposal's factors:
       //   transactionWeight = A (Purchase Volume)
       //   clusterWeight     = B (Cluster)
       //   insiderWeight     = C (Role-Weighted Volume)
       //   convictionWeight  = D (Holding Change)
+      //   iqsRaw            = ln(1 + (A + B + C + D))
+      //   iqs               = 0–100 percentile rank of iqsRaw (display scale)
       const payload: Partial<IqsScore> = {
-        companyId: company.id,
+        companyId: p.companyId,
         asOfDate: today,
         // Retired v2 composite columns — nulled so stale breakdowns clear.
         buyingScore: null,
@@ -311,14 +359,15 @@ export class IqsService {
         subHoldingChange: null,
         subPriceVsBuys: null,
         subOwnershipPct: null,
-        transactionWeight: +purchaseVolumeFactor.toFixed(8), // A
-        clusterWeight: +clusterFactor.toFixed(8), // B
-        insiderWeight: +roleWeightedFactor.toFixed(8), // C
-        convictionWeight: +holdingChangeFactor.toFixed(8), // D
-        iqs: +iqs.toFixed(8),
-        distinctBuyers: buyers.size,
-        transactionCount: txs.length,
-        totalPurchaseValue,
+        transactionWeight: +p.purchaseVolumeFactor.toFixed(8), // A
+        clusterWeight: +p.clusterFactor.toFixed(8), // B
+        insiderWeight: +p.roleWeightedFactor.toFixed(8), // C
+        convictionWeight: +p.holdingChangeFactor.toFixed(8), // D
+        iqsRaw: +p.raw.toFixed(8),
+        iqs: toPercentile(p.raw),
+        distinctBuyers: p.distinctBuyers,
+        transactionCount: p.transactionCount,
+        totalPurchaseValue: p.totalPurchaseValue,
       };
       if (existing) {
         await this.scores.update(existing.id, payload);

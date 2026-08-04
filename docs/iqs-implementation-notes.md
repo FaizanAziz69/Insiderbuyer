@@ -39,6 +39,14 @@ those — are recorded here. None of them alter the formula.
    only. Grants, option exercises, and all sells are excluded upstream of the
    calculation, matching the proposal's "open market purchases only" rule.
 
+## Display scale (0–100)
+
+The formula's raw output (`ln(1 + (A+B+C+D))`, stored as `iqsRaw`) lives on a
+~0–8 log scale. The site displays the **percentile rank of that raw value
+across all companies scored in the same run**, 0–100 (stored as `iqs`): the
+top company ≈ 99, the median ≈ 50. The transform is monotonic, so the ranking
+order is exactly the proposal formula's — only the presentation scale changes.
+
 ## Storage mapping
 
 Scores land in the `iqs_scores` table, one row per company per day. The
@@ -50,7 +58,8 @@ existing columns carry the proposal's factors:
 | `clusterWeight` | B — Cluster |
 | `insiderWeight` | C — Role-Weighted Volume |
 | `convictionWeight` | D — Holding Change |
-| `iqs` | log(1 + (A + B + C + D)) |
+| `iqsRaw` | log(1 + (A + B + C + D)) — the formula output |
+| `iqs` | 0–100 percentile rank of `iqsRaw` (display scale) |
 
 `historicalSuccessWeight` and `marketTimingWeight` are legacy columns that are
 no longer computed or written.
