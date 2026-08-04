@@ -76,7 +76,7 @@ export default function InsiderHotStocksPage() {
     .join(",");
 
   // Analyst-implied potential upside % — rendered next to the Insider Score.
-  const { data: analystData } = useSWR<{
+  const { data: analystData, isLoading: analystLoading } = useSWR<{
     rows: {
       symbol: string;
       upsidePct: number | null;
@@ -381,7 +381,11 @@ export default function InsiderHotStocksPage() {
 
       {/* Top 50 — one page, counting down #50 → #1 */}
       <div className="card overflow-hidden">
-        {isLoading ? (
+        {/* The list needs BOTH fetches (rankings + analyst coverage) before it
+            can say anything is "empty" — rankings alone with coverage still in
+            flight briefly yields zero covered rows, which used to flash
+            "No insider buying data" for a few seconds on every load. */}
+        {isLoading || (rows.length > 0 && (analystLoading || !analystData)) ? (
           <div className="p-12 text-center text-mute">Loading insider data…</div>
         ) : top50.length === 0 ? (
           <div className="p-12 text-center text-mute">
