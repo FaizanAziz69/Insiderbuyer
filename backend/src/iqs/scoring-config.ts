@@ -1,65 +1,108 @@
 /**
- * Insider Buying Quality Score (IQS) — scoring configuration.
+ * Insider Quality ("IQ") Score v2 — scoring configuration.
  *
- * Implements the Decode Investing proposal exactly, as written in
- * docs/iqs-methodology.md (§3, "Final Calculation of IQS"):
+ * All weights, windows, role multipliers and normalization knobs live here so
+ * product can tune the model WITHOUT a code change to the engine. The final IQ
+ * Score is a 0–100 weighted composite of five components; each component is
+ * independently normalized to 0–100 before weighting (see IQ Score v2 spec).
  *
- *   A. Purchase Volume Factor      = Σ(Shares Bought × Price) / Market Cap
- *   B. Cluster Factor              = log(1 + Number of Distinct Insider Buyers)
- *   C. Role-Weighted Purchase Vol. = Σ(Shares Bought × Price × Role Multiplier) / Market Cap
- *   D. Holding Change Factor       = Σ(Holding Change %) / Number of Insiders Who Bought,
- *                                    where Holding Change % = Shares Bought / Previous Holdings × 100
+ *   IQ = 0.50·Buying + 0.25·Sector + 0.10·MD&A + 0.10·Momentum + 0.05·Dilution
  *
- *   IQS = log(1 + (A + B + C + D))
- *
- * The four factors are summed raw — no normalization, weighting, capping or
- * scaling. The log transformation prevents extreme values from distorting
- * rankings; a higher IQS = stronger insider confidence in the stock.
- *
- * The proposal leaves the lookback window, the log base, and the missing-data
- * rules undefined — those engineering decisions are the exported constants
- * below and are documented in docs/iqs-implementation-notes.md.
+ * A startup assertion (bottom of this file) guarantees the component weights
+ * sum to 1.0 so a mis-edit fails fast rather than silently skewing every score.
  */
 
 import type { InsiderRole } from '../entities/insider-transaction.entity';
 
-/** Lookback window in days. Every factor (A, B, C and D) is computed over
- *  this one window; B counts distinct buyers across the full window. */
-export const IQS_WINDOW_DAYS = 90;
+/** Which score version drives the site. v2 is the composite defined here. */
+export const SCORE_VERSION: 'v1' | 'v2' = 'v2';
 
-/** The log used in factor B and the final IQS wrapper — natural log, per the
- *  proposal. Defined once so the base can be changed in exactly one place. */
-export const ln = Math.log;
+/** No stock ever gets a perfect score — every 0–100 scale caps at 99. */
+export const SCORE_CEILING = 99;
+
+/** Top-level component weights. MUST sum to 1.0 (asserted below). */
+export const COMPONENT_WEIGHTS = {
+  buying: 0.5,
+  sector: 0.25,
+  mda: 0.1,
+  momentum: 0.1,
+  dilution: 0.05,
+} as const;
+
+/** Insider-Buying sub-factor weights (relative; renormalized over whichever
+ *  sub-factors have data for a given company). */
+export const BUYING_SUBWEIGHTS = {
+  volumeVsMarketCap: 0.25, // A
+  cluster: 0.2, // B
+  role: 0.2, // C
+  holdingChange: 0.1, // D (absolute commitment)
+  priceVsBuys: 0.15, // E (NEW) avg insider buy price vs current price
+  ownershipPctIncrease: 0.1, // F (NEW) relative stake growth
+} as const;
 
 /** Role multipliers — applied to each transaction's contribution to the
- *  role-weighted purchase volume factor (C). Per the proposal:
- *  CEO/CFO/COO purchases carry the most weight, directors less, others least. */
+ *  role-weighted sub-factors (A, C, E, F). Config-driven per spec §2C. */
 export const ROLE_MULTIPLIER: Record<InsiderRole, number> = {
-  CEO: 3.0,
-  CFO: 3.0,
-  COO: 3.0,
-  Director: 2.0,
-  Other: 1.0,
+  CEO: 1.0,
+  CFO: 1.0,
+  COO: 1.0,
+  Director: 0.6,
+  Other: 0.4,
 };
 
-/** Role classification from the Form 4 reportingOwner data — the uppercased
- *  officerTitle text plus the isDirector relationship flag. Matched in order,
- *  first match wins; one insider gets one multiplier, never summed:
- *
- *    contains "CHIEF EXECUTIVE" or standalone "CEO"  → 3.0
- *    contains "CHIEF FINANCIAL" or standalone "CFO"  → 3.0
- *    contains "CHIEF OPERATING" or standalone "COO"  → 3.0
- *    isDirector flag true                            → 2.0
- *    anything else                                   → 1.0
- */
-export function form4RoleMultiplier(
-  officerTitle: string | null | undefined,
-  isDirector: boolean,
-): number {
-  const t = (officerTitle || '').toUpperCase();
-  if (t.includes('CHIEF EXECUTIVE') || /\bCEO\b/.test(t)) return ROLE_MULTIPLIER.CEO;
-  if (t.includes('CHIEF FINANCIAL') || /\bCFO\b/.test(t)) return ROLE_MULTIPLIER.CFO;
-  if (t.includes('CHIEF OPERATING') || /\bCOO\b/.test(t)) return ROLE_MULTIPLIER.COO;
-  if (isDirector) return ROLE_MULTIPLIER.Director;
-  return ROLE_MULTIPLIER.Other;
+/** Lookback windows (days) — spec §10. Momentum's actual inputs come from
+ *  the Yahoo quote batch fields (10-day avg vs 3-month avg SHARE volume);
+ *  the 20/90 entries are the spec's nominal windows, kept for reference. */
+export const WINDOWS = {
+  buys: 90, // purchase volume + VWAP window
+  cluster: 45, // distinct-buyer window
+  momentumShort: 20, // nominal rel-volume numerator (impl: avgVol10d)
+  momentumLong: 90, // nominal rel-volume denominator (impl: 3-month avg)
+  seasoned: 14, // "seasoned" buy age for historical-success
+} as const;
+
+/** Normalization knobs (clamps / scales) — spec §2E, §2F, §5, §6. */
+export const NORM = {
+  // A — purchase value / market cap, log-scaled. ~2% of cap ≈ strong.
+  volumeVsMarketCapDivisor: 0.02,
+  // C — role-weighted value / market cap.
+  roleDivisor: 0.06,
+  // E — insider VWAP / current price, clamped then min-max to 0–100.
+  //     >1 (stock below insider cost basis) = bullish end (OQ#1 default).
+  priceRatioClamp: [0.5, 2.0] as [number, number],
+  // F — ownership % increase, clamped at 100% (doubling) → 100.
+  ownershipPctCap: 1.0,
+  // Momentum — relative SHARE volume clamped then log min-max to 0–100.
+  momentumClamp: [0.25, 4.0] as [number, number],
+  // Momentum neutral floor when the stock is too illiquid to trust.
+  momentumMinDollarVolume: 50_000,
+  // Dilution — piecewise TTM share-growth → score (spec §6).
+  dilution: {
+    // [maxDilutionPct, scoreAtThatPoint] knees; linear between.
+    knees: [
+      [0.0, 100],
+      [0.05, 75],
+      [0.15, 30],
+      [0.4, 0],
+    ] as Array<[number, number]>,
+  },
+} as const;
+
+/** Neutral score for a component that has no data — never zero (which would
+ *  unfairly punish quiet small-caps). Spec §8. */
+export const NEUTRAL = 50;
+
+/** 10b5-1 planned-purchase conviction discount (spec §8). Applied to a
+ *  transaction's contribution when flagged as a scheduled buy. */
+export const PLANNED_BUY_MULTIPLIER = 0.5;
+
+// ── Startup assertion: component weights must sum to 1.0 ──────────────────
+const _weightSum = Object.values(COMPONENT_WEIGHTS).reduce((a, b) => a + b, 0);
+if (Math.abs(_weightSum - 1) > 1e-9) {
+  throw new Error(
+    `[scoring-config] COMPONENT_WEIGHTS must sum to 1.0 (got ${_weightSum}). ` +
+      `Fix the weights before boot.`,
+  );
 }
+
+export type ComponentKey = keyof typeof COMPONENT_WEIGHTS;

@@ -27,49 +27,45 @@ export class IqsScore {
   @Column({ type: 'date' })
   asOfDate: string;
 
-  // ── The four IQS factors (proposal §3), stored raw ────────────────
-  //   transactionWeight = A (Purchase Volume)
-  //   clusterWeight     = B (Cluster)
-  //   insiderWeight     = C (Role-Weighted Volume)
-  //   convictionWeight  = D (Holding Change)
+  // ── The six IQS components (each 0–100) ──────────────────────────
+  // IQS = Insider×0.25 + Transaction×0.25 + Conviction×0.20
+  //     + HistoricalSuccess×0.15 + Cluster×0.10 + MarketTiming×0.05
 
-  /** C — role-weighted purchase volume: Σ(shares × price × role mult) / market cap. */
+  /** Who bought — CEO/CFO buys score highest. */
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 0 })
   insiderWeight: number;
 
-  /** A — purchase volume: Σ(shares × price) / market cap. */
+  /** How big — dollar size, absolute and relative to market cap. */
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 0 })
   transactionWeight: number;
 
-  /** D — holding change: Σ(shares / prev holdings × 100) / insiders who bought. */
+  /** Conviction — stake increase % and repeat buying. */
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 0 })
   convictionWeight: number;
 
-  /** Legacy — no longer computed or written by the scorer (rows keep the
-   *  column default). Kept only so old rows/readers don't break. */
+  /** Track record — share of past insider buys currently in profit. */
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 50 })
   historicalSuccessWeight: number;
 
-  /** B — cluster: ln(1 + distinct insider buyers). */
+  /** Cluster — number of distinct insiders buying together. */
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 0 })
   clusterWeight: number;
 
-  /** Legacy — no longer computed or written by the scorer (rows keep the
-   *  column default). Kept only so old rows/readers don't break. */
+  /** Market timing — buying near 52-week lows scores highest. */
   @Column({ type: 'numeric', precision: 18, scale: 8, default: 50 })
   marketTimingWeight: number;
 
-  /** The site's 0–100 Insider Score: the percentile rank of iqsRaw across
-   *  all companies scored in the same run (monotonic — ordering is exactly
-   *  the raw formula's). Top company ≈ 99, median ≈ 50. */
+  /** Composite Insider Quality Score, 0–100. In v2 this is the 5-component
+   *  weighted composite (Buying·0.50 + Sector·0.25 + MD&A·0.10 + Momentum·0.10
+   *  + Dilution·0.05); see scoring-config.ts. */
   @Index()
   @Column({ type: 'numeric', precision: 18, scale: 8 })
   iqs: number;
 
-  /** Raw proposal value ln(1 + (A + B + C + D)) — the formula output that
-   *  the 0–100 percentile above is derived from. See scoring-config.ts. */
-  @Column({ type: 'numeric', precision: 18, scale: 8, nullable: true })
-  iqsRaw: number | null;
+  /** The previous (v1) insider-only score — log(1 + A+B+C+D) scaled to 0–99 —
+   *  kept alongside the v2 composite (`iqs`) for side-by-side comparison. */
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  iqsV1: number | null;
 
   // ── IQ Score v2 components (each 0–100, null when no data) ──────────────
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })

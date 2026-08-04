@@ -1,120 +1,74 @@
-# Insider Buying Quality Score (IQS) — Methodology
+# Insider Quality (IQ) Score — Methodology (v2 composite)
 
-> This document reproduces the scoring methodology from the source proposal
-> ("Proposal: Insider Buying Quality Score (IQS) & Ranking Dashboard",
-> prepared for George Aizpurua — New World Ventures Inc., by Obi Akubue —
-> Founder, Decode Investing) exactly as written. It is the shareable
-> methodology. Engineering decisions the proposal does not define live in
-> [iqs-implementation-notes.md](iqs-implementation-notes.md).
-
-## What Makes Insider Buying "High Quality"?
-
-Not all insider purchases are equal. Some are routine transactions (like stock
-grants or option exercises), while others show strong conviction that the
-stock is undervalued.
-
-Key indicators of high-quality insider buying:
-
-- **They are buying in the open market** — we ignore automatic stock grants or
-  option exercises since they don't reflect a personal decision to invest.
-- **Multiple insiders are buying at the same time** — if several insiders buy
-  within days of each other, it's a strong signal.
-- **CEOs and CFOs are buying** — purchases from these roles carry more weight
-  since they have the most insight into the company's financial health.
-- **Insiders are increasing their stake significantly** — if an insider
-  already owns a large amount of stock, adding more isn't as meaningful as if
-  they are doubling or tripling their holdings.
-- **Insiders are spending a large amount relative to the company's size** — a
-  $1 million insider buy means a lot more for a small company than for a
-  trillion-dollar giant like Apple.
-
-## How We Calculate the IQS
-
-The IQS is a single number that combines multiple factors to measure how
-strong insider buying activity is for a company. We calculate four key factors
-that capture the size, intensity, and significance of insider purchases. These
-are then combined into a final score that ranks companies from strongest to
-weakest insider buying signals.
-
-### A. Purchase Volume (Relative to Market Cap)
-
-Shows how much insiders are investing compared to the size of the company. A
-$5 million insider buy is a big deal for a company worth $50 million but
-barely moves the needle for a company worth $500 billion.
+The site's Insider Score is a 0–99 weighted composite of five components,
+each independently normalized to 0–100 before weighting:
 
 ```
-Purchase Volume Factor = Σ(Shares Bought × Price) / Market Cap
+IQ = 0.50·Buying + 0.25·Sector + 0.10·MD&A + 0.10·Momentum + 0.05·Dilution
 ```
 
-- It ensures that large purchases in smaller companies are weighted more
-  heavily than those in giant corporations.
-- It helps identify smaller companies where insiders are making big moves,
-  which are often the best investment opportunities.
+The result is rounded and capped at 99 (no stock ever gets a perfect score).
+All weights and normalization knobs live in
+`backend/src/iqs/scoring-config.ts`, with a startup assertion that the
+component weights sum to 1.0.
 
-### B. Cluster Purchases Factor (Are Multiple Insiders Buying?)
+**Missing data → neutral 50, never 0.** A component with no data contributes
+a neutral 50 at its full weight — weights never renormalize across
+components. `dataCompleteness` (0–1) reports what share of the model's weight
+was backed by real data. Exception: if the Buying component is null (no
+qualifying insider buys), the whole score is null and the company's score row
+is deleted — the score only exists where insider buying exists.
 
-Checks if several insiders are buying at the same time. A CEO buying alone is
-a good sign, but if the CEO, CFO, and multiple directors all buy within a few
-weeks, it's a much stronger signal that something big is happening.
+## 1. Buying — 50%
 
-```
-Cluster Factor = log(1 + Number of Distinct Insider Buyers)
-```
+Only open-market purchases (Form 4 code 'P') in the last 90 days, after a
+round-trip guard that excludes any insider who sold back ≥50% of what they
+bought inside the window. Six sub-factors, each 0–100; sub-weights
+renormalize over whichever sub-factors have data:
 
-- It captures group confidence — the more insiders buying, the stronger the
-  signal.
-- The log function prevents a single company with a very high number of buyers
-  from dominating the score unfairly.
+| # | Sub-factor | Weight | Formula |
+|---|---|---|---|
+| A | Purchase size vs market cap | 25% | `ln(1 + ratio/0.02) / ln(5) × 100` — ~2% of cap ≈ strong |
+| B | Cluster | 20% | `ln(1 + buyers) / ln(7) × 100` — 6 buyers ≈ 100 |
+| C | Role-weighted size vs cap | 20% | same log curve, divisor 0.06; role multipliers CEO/CFO/COO 1.0, Director 0.6, Other 0.4 |
+| D | Holding change | 10% | avg per-buyer % added, capped at 100% |
+| E | Cost basis vs price | 15% | `r = clamp(insiderVWAP ÷ price, 0.5, 2.0)`, min-maxed; r > 1 (stock below insider cost) = bullish |
+| F | Ownership % increase | 10% | role-weighted relative stake growth, capped at doubling; first-time buyers get the cap |
 
-### C. Insider Role Weighting (Who Is Buying Matters)
+## 2. Sector Sentiment — 25%
 
-Not all insiders have the same influence. A CEO or CFO buying stock is much
-more meaningful than a director or lower-level executive buying.
+Daily cached sentiment score for the company's sector/industry, derived from
+sector ETF behaviour.
 
-```
-Role-Weighted Purchase Volume = Σ(Shares Bought × Price × Role Multiplier) / Market Cap
-```
+## 3. MD&A — 10%
 
-Role multipliers:
+Precomputed `company.mdaSentiment`: AI-scored tone of the company's own
+filing language (MD&A sections of 10-K/10-Q).
 
-| Role | Multiplier |
-|---|---|
-| CEO | 3.0 |
-| CFO | 3.0 |
-| COO | 3.0 |
-| Director | 2.0 |
-| Other Insiders | 1.0 |
+## 4. Momentum — 10%
 
-- It prioritizes the most important purchases over those from lower-level
-  executives.
-- Helps filter out transactions that might not have much impact on future
-  stock performance.
-
-### D. Holding Change Factor (How Much Are Insiders Increasing Their Stake?)
-
-Shows how much bigger an insider's total holdings became after the purchase.
+Relative **share volume**: 10-day average ÷ 3-month average (from the Yahoo
+quote batch). If recent dollar volume is under $50,000 the name is too
+illiquid to trust → neutral 50.
 
 ```
-Holding Change (%) = (Shares Bought / Previous Holdings) × 100
-
-Holding Change Factor = Σ(Holding Change %) / Number of Insiders Who Bought
+r = clamp(relVolume, 0.25, 4.0)
+score = (ln r − ln 0.25) ÷ (ln 4.0 − ln 0.25) × 100
 ```
 
-- If a CEO already owns 1 million shares and buys 10,000 more, that's not a
-  big deal.
-- If a CFO owns 10,000 shares and buys 10,000 more, they just doubled their
-  stake — a much stronger signal.
-- This factor captures whether insiders are making a real financial commitment
-  or just adding a small amount.
+Log-symmetric around flat: 4×+ volume = 100, 2× = 75, flat = 50, ½× = 25,
+¼× or less = 0. Note this is direction-agnostic — it measures an
+attention/liquidity surge, not price trend.
 
-## Final Calculation of IQS
+## 5. Dilution — 5%
 
-```
-IQS = log(1 + (Purchase Volume Factor + Cluster Factor
-              + Role-Weighted Purchase Volume + Holding Change Factor))
-```
+TTM share growth through a piecewise curve, linear between knees:
+0% → 100, 5% → 75, 15% → 30, 40%+ → 0. Buybacks score top; heavy issuance is
+penalized.
 
-- Log transformation prevents extreme values from distorting the rankings.
-- **Higher IQS = stronger insider confidence in the stock.**
+---
 
-Rankings are updated as new insider buying data is processed.
+Higher IQ Score = stronger combined signal. Scores recompute automatically as
+new Form 4 filings are ingested. The previous insider-only score
+(`log(1 + A+B+C+D)` scaled 0–99) is kept alongside as `iqsV1` for
+side-by-side comparison.

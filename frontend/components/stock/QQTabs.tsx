@@ -256,7 +256,7 @@ export function ScoreCardQQ({ ticker, iqs }: { ticker: string; iqs: number | nul
   const tier = iqs == null ? null : iqs >= 80 ? "Strong" : iqs >= 60 ? "Positive" : iqs >= 40 ? "Neutral" : "Weak";
   const color = iqs == null ? "var(--text-mute)" : iqs >= 80 ? "var(--good)" : iqs >= 60 ? "var(--accent)" : iqs >= 40 ? "var(--gold)" : "var(--bad)";
   return (
-    <Card icon={<Gauge className="h-4 w-4" />} title={`${ticker} Insider Score`} subtitle="Insider buying quality, percentile-ranked 0–100 across all scored stocks">
+    <Card icon={<Gauge className="h-4 w-4" />} title={`${ticker} Insider Score`} subtitle="Our composite score: insider buying, sector, volume, tone & dilution">
       {iqs == null ? (
         <Empty text={`No Insider Score for ${ticker} yet — it needs recent open-market insider buying.`} />
       ) : (
