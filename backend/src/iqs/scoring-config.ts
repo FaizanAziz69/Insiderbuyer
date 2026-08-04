@@ -6,7 +6,7 @@
  * Score is a 0–100 weighted composite of five components; each component is
  * independently normalized to 0–100 before weighting (see IQ Score v2 spec).
  *
- *   IQ = 0.50·Buying + 0.25·Sector + 0.10·MD&A + 0.10·Momentum + 0.05·Dilution
+ *   IQ = 0.50·Buying + 0.25·Sector + 0.05·MD&A + 0.10·Momentum + 0.10·Dilution
  *
  * A startup assertion (bottom of this file) guarantees the component weights
  * sum to 1.0 so a mis-edit fails fast rather than silently skewing every score.
@@ -24,9 +24,9 @@ export const SCORE_CEILING = 99;
 export const COMPONENT_WEIGHTS = {
   buying: 0.5,
   sector: 0.25,
-  mda: 0.1,
+  mda: 0.05,
   momentum: 0.1,
-  dilution: 0.05,
+  dilution: 0.1,
 } as const;
 
 /** Insider-Buying sub-factor weights (relative; renormalized over whichever

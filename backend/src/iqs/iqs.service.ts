@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
@@ -121,6 +121,8 @@ function sanitizedMarketCap(
 
 @Injectable()
 export class IqsService {
+  private readonly logger = new Logger(IqsService.name);
+
   constructor(
     @InjectRepository(Company) private readonly companies: Repository<Company>,
     @InjectRepository(InsiderTransaction) private readonly txRepo: Repository<InsiderTransaction>,
@@ -205,7 +207,9 @@ export class IqsService {
       quotes = new Map();
     }
 
-    for (const company of companies) {
+    // Per-company work is independent — run in small parallel batches so a
+    // full-universe recalc over a remote DB takes minutes, not an hour.
+    const processCompany = async (company: Company) => {
       const allTxs = await this.txRepo
         .createQueryBuilder('t')
         .where('t.company_id = :id', { id: company.id })
@@ -239,7 +243,7 @@ export class IqsService {
 
       if (!txs.length) {
         await this.scores.delete({ companyId: company.id });
-        continue;
+        return;
       }
 
       // Prefer the LIVE market quote for price + market cap; fall back to the
@@ -439,6 +443,17 @@ export class IqsService {
         await this.scores.save(this.scores.create(payload));
       }
       updated++;
+    };
+
+    const CONCURRENCY = 8; // stay inside the default connection pool
+    for (let i = 0; i < companies.length; i += CONCURRENCY) {
+      await Promise.all(
+        companies.slice(i, i + CONCURRENCY).map((c) =>
+          processCompany(c).catch((e) =>
+            this.logger.warn(`recalc failed for ${c.ticker || c.id}: ${e?.message || e}`),
+          ),
+        ),
+      );
     }
     return updated;
   }
