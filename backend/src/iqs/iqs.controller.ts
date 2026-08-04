@@ -71,6 +71,13 @@ export class IqsController {
     return { updated };
   }
 
+  /** Step-by-step IQ Score calculation trace for one ticker — powers the
+   *  temporary client-facing score-explainer page. */
+  @Get('score-explainer/:ticker')
+  async scoreExplainer(@Param('ticker') ticker: string) {
+    return this.iqs.explainScore(ticker);
+  }
+
   @Get('metrics/buy-sell')
   async buySell() {
     return this.iqs.getMonthlyBuySellMeter();

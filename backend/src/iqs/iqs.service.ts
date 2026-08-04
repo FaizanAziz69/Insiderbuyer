@@ -16,7 +16,7 @@ import {
 } from './composite-score';
 import { SentimentService } from './sentiment.service';
 import { SectorSentimentService } from './sector-sentiment.service';
-import { ROLE_MULTIPLIER, NORM } from './scoring-config';
+import { COMPONENT_WEIGHTS, NEUTRAL, ROLE_MULTIPLIER, NORM, SCORE_CEILING } from './scoring-config';
 import {
   assembleComposite,
   computeBuyingScore,
@@ -801,6 +801,297 @@ export class IqsService {
       transactions,
       congressionalTrades,
       quoteOnly: true,
+    };
+  }
+
+  /**
+   * Full step-by-step IQ Score calculation trace for one ticker — powers the
+   * client-facing "score explainer" page. Runs EXACTLY the same math as
+   * recalculateAll (same guards, same scoring functions, same weights) but
+   * returns every intermediate value with its data source instead of
+   * persisting a row. Temporary demo feature — safe to remove wholesale.
+   */
+  async explainScore(tickerRaw: string) {
+    const ticker = (tickerRaw || '').trim().toUpperCase();
+    if (!ticker) return null;
+    const company = await this.companies
+      .createQueryBuilder('c')
+      .where('UPPER(c.ticker) = :t', { t: ticker })
+      .getOne();
+    if (!company) return { found: false, ticker };
+
+    const windowDays = 90;
+    const since = new Date(Date.now() - windowDays * 86400000);
+
+    // Step 1 — raw Form 4 window (buys AND sells; sells feed the guard).
+    const allTxs = await this.txRepo
+      .createQueryBuilder('t')
+      .where('t.company_id = :id', { id: company.id })
+      .andWhere('t.transactionDate >= :since', { since })
+      .andWhere(`t."transactionCode" IN ('P','S')`)
+      .orderBy('t.transactionDate', 'DESC')
+      .getMany();
+
+    // Step 2 — round-trip guard.
+    const sharesBySide = new Map<string, { buy: number; sell: number }>();
+    for (const t of allTxs) {
+      const key = t.insiderName.toLowerCase();
+      const e = sharesBySide.get(key) || { buy: 0, sell: 0 };
+      const sh = Number(t.sharesBought) || 0;
+      if (t.transactionCode === 'P') e.buy += sh;
+      else e.sell += sh;
+      sharesBySide.set(key, e);
+    }
+    const isRoundTripper = (insider: string): boolean => {
+      const e = sharesBySide.get(insider.toLowerCase());
+      if (!e || e.buy <= 0) return false;
+      return e.sell >= e.buy * 0.5;
+    };
+
+    // Step 3 — market data (live quote preferred, SEC fallback).
+    let liveQ: any = null;
+    try {
+      const batch = await this.marketStats.getQuoteBatch([ticker]);
+      liveQ = batch.get(ticker) || null;
+    } catch {
+      liveQ = null;
+    }
+    const secPrice = company.lastPrice ? Number(company.lastPrice) : 0;
+    const secMarketCap = company.marketCap ? Number(company.marketCap) : 0;
+    const lastPrice = liveQ?.price && liveQ.price > 0 ? liveQ.price : secPrice;
+    const marketCap =
+      liveQ?.marketCap && liveQ.marketCap > 0 ? liveQ.marketCap : secMarketCap;
+
+    // Step 4 — per-transaction classification (kept / excluded and why).
+    const txTrace = allTxs.map((t) => {
+      const shares = Number(t.sharesBought);
+      const price = Number(t.pricePerShare);
+      const value = shares * price;
+      let status: 'counted' | 'excluded' = 'counted';
+      let reason: string | null = null;
+      if (t.transactionCode !== 'P') {
+        status = 'excluded';
+        reason = 'Sell (code S) — only open-market buys feed the score';
+      } else if (isRoundTripper(t.insiderName)) {
+        status = 'excluded';
+        reason = 'Round-trip guard — this insider sold back ≥50% of their buys in the window';
+      } else if (!Number.isFinite(value) || value <= 0 || value > MAX_PLAUSIBLE_TX_VALUE) {
+        status = 'excluded';
+        reason = 'Parse-artifact guard — implausible transaction value (> $1B or ≤ 0)';
+      }
+      return {
+        insiderName: t.insiderName,
+        role: t.role,
+        roleMultiplier: ROLE_MULTIPLIER[t.role] ?? ROLE_MULTIPLIER.Other,
+        code: t.transactionCode,
+        date: t.transactionDate,
+        shares,
+        price,
+        value: +value.toFixed(2),
+        previousHoldings: t.previousHoldings === null ? null : Number(t.previousHoldings),
+        status,
+        reason,
+      };
+    });
+
+    // Step 5 — aggregates over the counted buys (same loop as the scorer).
+    const counted = txTrace.filter((t) => t.status === 'counted');
+    let totalPurchaseValue = 0;
+    let totalShares = 0;
+    let roleWeightedValue = 0;
+    const buyers = new Set<string>();
+    const holdingChangePcts: number[] = [];
+    let ownWeightedSum = 0;
+    let ownWeightSum = 0;
+    for (const t of counted) {
+      totalPurchaseValue += t.value;
+      totalShares += t.shares;
+      roleWeightedValue += t.value * t.roleMultiplier;
+      buyers.add(t.insiderName.toLowerCase());
+      const prev = t.previousHoldings || 0;
+      if (prev > 0) {
+        const frac = t.shares / prev;
+        holdingChangePcts.push(frac * 100);
+        ownWeightedSum += Math.min(frac, NORM.ownershipPctCap) * t.roleMultiplier;
+        ownWeightSum += t.roleMultiplier;
+      } else {
+        ownWeightedSum += NORM.ownershipPctCap * t.roleMultiplier;
+        ownWeightSum += t.roleMultiplier;
+      }
+    }
+    const safeCap = sanitizedMarketCap(marketCap, totalPurchaseValue) ?? 0;
+    const insiderVwap = totalShares > 0 ? totalPurchaseValue / totalShares : null;
+    const avgHoldingChangePct = holdingChangePcts.length
+      ? holdingChangePcts.reduce((a, b) => a + b, 0) / holdingChangePcts.length
+      : null;
+
+    // Step 6 — the six Buying sub-factors.
+    const volumeRatio = safeCap > 0 ? totalPurchaseValue / safeCap : null;
+    const roleRatio = safeCap > 0 ? roleWeightedValue / safeCap : null;
+    const ownAvg = ownWeightSum > 0 ? ownWeightedSum / ownWeightSum : null;
+    const subVolume = scoreVolumeVsMarketCap(volumeRatio);
+    const subCluster = counted.length ? scoreCluster(buyers.size) : null;
+    const subRole = scoreRole(roleRatio);
+    const subHolding = scoreHoldingChange(avgHoldingChangePct);
+    const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
+    const subOwnership = scoreOwnershipPctIncrease(ownAvg);
+    const buyingScore = computeBuyingScore({
+      volumeVsMarketCap: subVolume,
+      cluster: subCluster,
+      role: subRole,
+      holdingChange: subHolding,
+      priceVsBuys: subPriceVsBuys,
+      ownershipPctIncrease: subOwnership,
+    });
+
+    // Step 7 — the other four components, each with its source.
+    const sectorScore = await this.sectorSentiment
+      .getScoreFor(company.sector, company.industry)
+      .catch(() => null);
+    const mdaScore = company.mdaSentiment != null ? Number(company.mdaSentiment) : null;
+    const shortVol = Number(liveQ?.avgVol10d ?? 0);
+    const longVol = Number(liveQ?.avgVolume ?? 0);
+    const relVol = shortVol > 0 && longVol > 0 ? shortVol / longVol : null;
+    const recentDollarVol = lastPrice > 0 && shortVol > 0 ? lastPrice * shortVol : null;
+    const momentumScore = scoreMomentum(relVol, recentDollarVol);
+    const dilutionPct = company.dilutionPctTtm != null ? Number(company.dilutionPctTtm) : null;
+    const dilutionScore = scoreDilution(dilutionPct);
+
+    // Step 8 — the weighted composite.
+    const composite = assembleComposite({
+      buying: buyingScore,
+      sector: sectorScore,
+      mda: mdaScore,
+      momentum: momentumScore,
+      dilution: dilutionScore,
+    });
+
+    return {
+      found: true,
+      ticker,
+      company: {
+        name: company.name,
+        sector: company.sector ?? null,
+        industry: company.industry ?? null,
+      },
+      config: {
+        windowDays,
+        componentWeights: COMPONENT_WEIGHTS,
+        roleMultipliers: ROLE_MULTIPLIER,
+        neutral: NEUTRAL,
+        ceiling: SCORE_CEILING,
+      },
+      marketData: {
+        source: liveQ?.price > 0 ? 'Live Yahoo Finance quote' : 'SEC-derived fallback',
+        lastPrice: lastPrice || null,
+        marketCap: marketCap || null,
+        marketCapUsed: safeCap || null,
+        capSanityNote:
+          safeCap === 0 && marketCap > 0
+            ? 'Market cap smaller than observed insider buying — treated as unknown'
+            : null,
+        avgVol10d: shortVol || null,
+        avgVol3m: longVol || null,
+      },
+      transactions: txTrace,
+      aggregates: {
+        countedBuys: counted.length,
+        excluded: txTrace.length - counted.length,
+        totalPurchaseValue: +totalPurchaseValue.toFixed(2),
+        totalShares,
+        distinctBuyers: buyers.size,
+        insiderVwap: insiderVwap != null ? +insiderVwap.toFixed(4) : null,
+        avgHoldingChangePct:
+          avgHoldingChangePct != null ? +avgHoldingChangePct.toFixed(2) : null,
+      },
+      buying: {
+        subFactors: [
+          {
+            key: 'A', name: 'Purchase size vs market cap', weight: 0.25,
+            input: volumeRatio, inputLabel: 'total $ bought ÷ market cap',
+            formula: 'ln(1 + ratio ÷ 0.02) ÷ ln(5) × 100 — ~2% of cap ≈ strong',
+            score: subVolume,
+          },
+          {
+            key: 'B', name: 'Cluster (distinct buyers)', weight: 0.2,
+            input: buyers.size, inputLabel: 'distinct insider buyers',
+            formula: 'ln(1 + buyers) ÷ ln(7) × 100 — 6 buyers ≈ 100',
+            score: subCluster,
+          },
+          {
+            key: 'C', name: 'Role-weighted size vs cap', weight: 0.2,
+            input: roleRatio, inputLabel: 'Σ($ × role multiplier) ÷ market cap',
+            formula: 'ln(1 + ratio ÷ 0.06) ÷ ln(5) × 100 — CEO/CFO/COO 1.0, Director 0.6, Other 0.4',
+            score: subRole,
+          },
+          {
+            key: 'D', name: 'Holding change', weight: 0.1,
+            input: avgHoldingChangePct, inputLabel: 'avg % each buyer added to their stake',
+            formula: 'avg per-buyer % added, capped at 100%',
+            score: subHolding,
+          },
+          {
+            key: 'E', name: 'Cost basis vs price', weight: 0.15,
+            input: insiderVwap != null && lastPrice > 0 ? insiderVwap / lastPrice : null,
+            inputLabel: 'insider avg cost ÷ current price',
+            formula: 'clamp(ratio, 0.5–2.0) min-maxed to 0–100; >1 (stock below insider cost) = bullish',
+            score: subPriceVsBuys,
+          },
+          {
+            key: 'F', name: 'Ownership % increase', weight: 0.1,
+            input: ownAvg, inputLabel: 'role-weighted avg relative stake growth (0–1)',
+            formula: 'capped at doubling (1.0 → 100); first-time buyers get the cap',
+            score: subOwnership,
+          },
+        ],
+        note: 'Sub-weights renormalize over whichever sub-factors have data.',
+        buyingScore,
+      },
+      components: [
+        {
+          key: 'buying', name: 'Insider Buying', weight: COMPONENT_WEIGHTS.buying,
+          source: 'SEC Form 4 open-market purchases (code P), last 90 days',
+          score: buyingScore,
+          usedNeutral: false,
+        },
+        {
+          key: 'sector', name: 'Sector Sentiment', weight: COMPONENT_WEIGHTS.sector,
+          source: `Daily sector-ETF sentiment for "${company.sector || 'Unknown'}"`,
+          score: sectorScore,
+          usedNeutral: sectorScore == null,
+        },
+        {
+          key: 'mda', name: 'MD&A Tone', weight: COMPONENT_WEIGHTS.mda,
+          source: 'AI-scored tone of the company\'s own 10-K/10-Q MD&A language',
+          score: mdaScore,
+          usedNeutral: mdaScore == null,
+        },
+        {
+          key: 'momentum', name: 'Volume Momentum', weight: COMPONENT_WEIGHTS.momentum,
+          source: `10-day avg volume (${shortVol || '—'}) ÷ 3-month avg (${longVol || '—'}), Yahoo quote batch`,
+          score: momentumScore,
+          usedNeutral: momentumScore == null,
+        },
+        {
+          key: 'dilution', name: 'Dilution', weight: COMPONENT_WEIGHTS.dilution,
+          source: `TTM share growth${dilutionPct != null ? ` (${(dilutionPct * 100).toFixed(1)}%)` : ''} from SEC filings`,
+          score: dilutionScore,
+          usedNeutral: dilutionScore == null,
+        },
+      ],
+      final: {
+        formula:
+          'IQ = 0.50·Buying + 0.25·Sector + 0.05·MD&A + 0.10·Momentum + 0.10·Dilution',
+        missingRule: `A component with no data contributes neutral ${NEUTRAL} at its full weight`,
+        weightedSum: composite.score,
+        dataCompleteness: composite.dataCompleteness,
+        ceiling: SCORE_CEILING,
+        score: composite.score,
+        scoreNote:
+          composite.score == null
+            ? 'No qualifying insider buying in the last 90 days — this company gets no score'
+            : null,
+      },
     };
   }
 
