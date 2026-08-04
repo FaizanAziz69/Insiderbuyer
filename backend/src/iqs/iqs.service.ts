@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
 import { InsiderTransaction } from '../entities/insider-transaction.entity';
 import { IqsScore } from '../entities/iqs-score.entity';
+import { normalizeRole } from '../common/role.util';
 import { CongressionalService } from '../congressional/congressional.service';
 import { FmpService } from '../fmp/fmp.service';
 import { SecClient } from '../ingestion/sec.client';
@@ -815,19 +816,83 @@ export class IqsService {
       .createQueryBuilder('c')
       .where('UPPER(c.ticker) = :t', { t: ticker })
       .getOne();
-    if (!company) return { found: false, ticker };
 
     const windowDays = 90;
     const since = new Date(Date.now() - windowDays * 86400000);
 
+    // Market quote up front — price/cap for the math, and name/sector when
+    // the ticker isn't in our DB at all.
+    let liveQ: any = null;
+    try {
+      const batch = await this.marketStats.getQuoteBatch([ticker]);
+      liveQ = batch.get(ticker) || null;
+    } catch {
+      liveQ = null;
+    }
+
     // Step 1 — raw Form 4 window (buys AND sells; sells feed the guard).
-    const allTxs = await this.txRepo
-      .createQueryBuilder('t')
-      .where('t.company_id = :id', { id: company.id })
-      .andWhere('t.transactionDate >= :since', { since })
-      .andWhere(`t."transactionCode" IN ('P','S')`)
-      .orderBy('t.transactionDate', 'DESC')
-      .getMany();
+    // Stored filings when we have them; otherwise fetch LIVE from SEC EDGAR
+    // so ANY searched ticker gets a real calculation, not "not found".
+    let dataSource: 'database' | 'live SEC EDGAR' = 'database';
+    let allTxs: Array<{
+      insiderName: string;
+      role: InsiderTransaction['role'];
+      transactionCode: string;
+      transactionDate: any;
+      sharesBought: number;
+      pricePerShare: number;
+      previousHoldings: number | null;
+    }> = [];
+    if (company) {
+      allTxs = await this.txRepo
+        .createQueryBuilder('t')
+        .where('t.company_id = :id', { id: company.id })
+        .andWhere('t.transactionDate >= :since', { since })
+        .andWhere(`t."transactionCode" IN ('P','S')`)
+        .orderBy('t.transactionDate', 'DESC')
+        .getMany();
+    }
+    if (!allTxs.length) {
+      dataSource = 'live SEC EDGAR';
+      try {
+        const raw = await this.sec.getRecentForm4ByTicker(ticker, 40);
+        allTxs = raw
+          .filter((t) => t.transactionCode === 'P' || t.transactionCode === 'S')
+          .filter((t) => new Date(t.transactionDate) >= since)
+          .map((t) => {
+            // Same previous-holdings derivation the ingester uses.
+            const disposed = t.acquiredDisposed === 'D';
+            const prev = disposed
+              ? t.postHoldings + t.sharesBought
+              : Math.max(0, t.postHoldings - t.sharesBought);
+            return {
+              insiderName: t.insiderName,
+              role: normalizeRole(t.rawTitle, t.isDirector, t.isOfficer),
+              transactionCode: t.transactionCode,
+              transactionDate: t.transactionDate,
+              sharesBought: t.sharesBought,
+              pricePerShare: t.pricePerShare,
+              previousHoldings: prev,
+            };
+          })
+          .sort((a, b) => String(b.transactionDate).localeCompare(String(a.transactionDate)));
+      } catch {
+        allTxs = [];
+      }
+    }
+
+    // Truly unknown ticker: no DB row, no quote, no live filings.
+    if (!company && !liveQ && !allTxs.length) return { found: false, ticker };
+
+    // Company metadata — DB row when present, live quote otherwise. MD&A and
+    // dilution are precomputed DB fields, so live-only names fall to neutral.
+    const meta = {
+      name: company?.name || liveQ?.name || ticker,
+      sector: company?.sector ?? liveQ?.sector ?? null,
+      industry: company?.industry ?? null,
+      mdaSentiment: company?.mdaSentiment ?? null,
+      dilutionPctTtm: company?.dilutionPctTtm ?? null,
+    };
 
     // Step 2 — round-trip guard.
     const sharesBySide = new Map<string, { buy: number; sell: number }>();
@@ -845,16 +910,10 @@ export class IqsService {
       return e.sell >= e.buy * 0.5;
     };
 
-    // Step 3 — market data (live quote preferred, SEC fallback).
-    let liveQ: any = null;
-    try {
-      const batch = await this.marketStats.getQuoteBatch([ticker]);
-      liveQ = batch.get(ticker) || null;
-    } catch {
-      liveQ = null;
-    }
-    const secPrice = company.lastPrice ? Number(company.lastPrice) : 0;
-    const secMarketCap = company.marketCap ? Number(company.marketCap) : 0;
+    // Step 3 — market data (live quote fetched above; SEC-derived fallback
+    // only exists for companies in our DB).
+    const secPrice = company?.lastPrice ? Number(company.lastPrice) : 0;
+    const secMarketCap = company?.marketCap ? Number(company.marketCap) : 0;
     const lastPrice = liveQ?.price && liveQ.price > 0 ? liveQ.price : secPrice;
     const marketCap =
       liveQ?.marketCap && liveQ.marketCap > 0 ? liveQ.marketCap : secMarketCap;
@@ -942,15 +1001,15 @@ export class IqsService {
 
     // Step 7 — the other four components, each with its source.
     const sectorScore = await this.sectorSentiment
-      .getScoreFor(company.sector, company.industry)
+      .getScoreFor(meta.sector, meta.industry)
       .catch(() => null);
-    const mdaScore = company.mdaSentiment != null ? Number(company.mdaSentiment) : null;
+    const mdaScore = meta.mdaSentiment != null ? Number(meta.mdaSentiment) : null;
     const shortVol = Number(liveQ?.avgVol10d ?? 0);
     const longVol = Number(liveQ?.avgVolume ?? 0);
     const relVol = shortVol > 0 && longVol > 0 ? shortVol / longVol : null;
     const recentDollarVol = lastPrice > 0 && shortVol > 0 ? lastPrice * shortVol : null;
     const momentumScore = scoreMomentum(relVol, recentDollarVol);
-    const dilutionPct = company.dilutionPctTtm != null ? Number(company.dilutionPctTtm) : null;
+    const dilutionPct = meta.dilutionPctTtm != null ? Number(meta.dilutionPctTtm) : null;
     const dilutionScore = scoreDilution(dilutionPct);
 
     // Step 8 — the weighted composite.
@@ -1039,10 +1098,13 @@ export class IqsService {
         },
       },
       company: {
-        name: company.name,
-        sector: company.sector ?? null,
-        industry: company.industry ?? null,
+        name: meta.name,
+        sector: meta.sector,
+        industry: meta.industry,
       },
+      /** Where the Form 4 filings came from — our ingested DB, or fetched
+       *  live from SEC EDGAR for tickers outside our stored universe. */
+      filingsSource: dataSource,
       config: {
         windowDays,
         componentWeights: COMPONENT_WEIGHTS,
@@ -1120,7 +1182,7 @@ export class IqsService {
         },
         {
           key: 'sector', name: 'Sector Sentiment', weight: COMPONENT_WEIGHTS.sector,
-          source: `Daily sector-ETF sentiment for "${company.sector || 'Unknown'}"`,
+          source: `Daily sector-ETF sentiment for "${meta.sector || 'Unknown'}"`,
           score: sectorScore,
           usedNeutral: sectorScore == null,
         },

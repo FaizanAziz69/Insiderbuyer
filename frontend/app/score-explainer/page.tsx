@@ -39,6 +39,7 @@ interface ScoreVersion {
 interface Explain {
   found: boolean;
   ticker: string;
+  filingsSource?: string;
   comparison?: { old: ScoreVersion; new: ScoreVersion };
   company?: { name: string; sector: string | null; industry: string | null };
   config?: { windowDays: number; neutral: number; ceiling: number };
@@ -171,7 +172,8 @@ export default function ScoreExplainerPage() {
       {isLoading && <div className="card p-10 text-center text-mute">Running the full calculation for {ticker}…</div>}
       {data && !data.found && (
         <div className="card p-10 text-center text-mute">
-          We don&rsquo;t track &ldquo;{data.ticker}&rdquo; — it has no insider-buying data in our universe.
+          Nothing found for &ldquo;{data.ticker}&rdquo; — not a resolvable ticker, or it has no SEC
+          filings and no market quote we can reach.
         </div>
       )}
 
@@ -187,6 +189,12 @@ export default function ScoreExplainerPage() {
                 {d.company?.sector || "Unknown sector"}
                 {d.company?.industry ? ` · ${d.company.industry}` : ""}
               </div>
+              {d.filingsSource === "live SEC EDGAR" && (
+                <div className="text-[12px] mt-1" style={{ color: "var(--gold)" }}>
+                  Fetched live from SEC EDGAR — this ticker isn&rsquo;t in our stored universe, so the
+                  calculation below runs on its most recent filings in real time.
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <span className="text-[13px] text-mute font-semibold uppercase tracking-wider">Final Insider Score</span>
