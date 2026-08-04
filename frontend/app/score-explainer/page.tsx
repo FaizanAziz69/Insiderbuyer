@@ -439,19 +439,50 @@ export default function ScoreExplainerPage() {
               </strong>{" "}
               of the model&rsquo;s weight was backed by real data.
             </p>
-            <div className="flex items-center gap-3 mt-4">
-              <span className="text-[14px] font-bold">Result:</span>
-              <span
-                className="flex items-center justify-center h-12 w-12 rounded-xl text-[20px] font-extrabold"
+            <div className="flex flex-wrap items-stretch gap-4 mt-4">
+              <div
+                className="flex items-center gap-3 rounded-xl px-4 py-3"
+                style={{ background: "var(--bg-1)", border: "1px solid var(--border)" }}
+              >
+                <span
+                  className="flex items-center justify-center h-12 w-12 rounded-xl text-[20px] font-extrabold"
+                  style={{
+                    background: "color-mix(in srgb, var(--text-mute) 12%, transparent)",
+                    color: "var(--text-mute)",
+                    border: "2px solid var(--text-mute)",
+                  }}
+                >
+                  {d.comparison?.old.score ?? "—"}
+                </span>
+                <div>
+                  <div className="text-[13px] font-bold">Old Insider Score (v1)</div>
+                  <div className="text-[11.5px] text-mute">Insider buying only — log(1 + A+B+C+D)</div>
+                </div>
+              </div>
+              <div
+                className="flex items-center gap-3 rounded-xl px-4 py-3"
                 style={{
-                  background: "color-mix(in srgb, var(--accent) 12%, transparent)",
-                  color: "var(--accent)",
-                  border: "2px solid var(--accent)",
+                  background: "color-mix(in srgb, var(--accent) 6%, var(--bg-1))",
+                  border: "1px solid var(--accent)",
                 }}
               >
-                {d.final?.score ?? "—"}
-              </span>
-              <span className="text-[13px] text-mute">out of {d.final?.ceiling}</span>
+                <span
+                  className="flex items-center justify-center h-12 w-12 rounded-xl text-[20px] font-extrabold"
+                  style={{
+                    background: "color-mix(in srgb, var(--accent) 12%, transparent)",
+                    color: "var(--accent)",
+                    border: "2px solid var(--accent)",
+                  }}
+                >
+                  {d.final?.score ?? "—"}
+                </span>
+                <div>
+                  <div className="text-[13px] font-bold">New Insider Score (v2)</div>
+                  <div className="text-[11.5px] text-mute">
+                    5-component composite · out of {d.final?.ceiling}
+                  </div>
+                </div>
+              </div>
             </div>
           </Step>
         </>
