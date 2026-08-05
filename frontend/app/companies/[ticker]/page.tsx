@@ -1258,7 +1258,7 @@ const SCORE_FACTORS: {
 }[] = [
   { key: "insiderWeight", label: "Insider Activity", desc: "Open-market Form 4 buying" },
   { key: "transactionWeight", label: "Transaction Size", desc: "Purchase $ vs. market cap" },
-  { key: "convictionWeight", label: "Insider Conviction", desc: "Stake increase by buyers" },
+  { key: "convictionWeight", label: "Insider Ownership", desc: "Stake increase by buyers" },
   { key: "clusterWeight", label: "Buyer Cluster", desc: "Multiple insiders buying together" },
   { key: "historicalSuccessWeight", label: "Track Record", desc: "Past insider-buy performance" },
   { key: "marketTimingWeight", label: "Market Timing", desc: "Timing vs. recent price trend" },

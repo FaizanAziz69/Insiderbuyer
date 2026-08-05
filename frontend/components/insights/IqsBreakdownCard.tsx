@@ -43,7 +43,7 @@ export function IqsBreakdownCard({ ticker }: Props) {
       hint: "Dollar size, absolute and vs market cap",
     },
     {
-      label: "Conviction Weight",
+      label: "Insider Ownership",
       value: Number(s.convictionWeight),
       weight: "×0.20",
       hint: "Stake growth and repeat buying",
