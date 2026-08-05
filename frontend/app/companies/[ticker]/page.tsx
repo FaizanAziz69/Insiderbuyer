@@ -235,9 +235,6 @@ export default function CompanyPage({
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">
             <main className="space-y-6 min-w-0">
 
-            {/* Answers "what are insiders doing?" before any dataset below. */}
-            <InsiderActivitySummary ticker={sym} />
-
             {/* About — reference-style full-width block */}
             <AboutQQ
               ticker={sym}
@@ -248,6 +245,9 @@ export default function CompanyPage({
               employees={profile?.employees ?? null}
               industry={profile?.industry ?? null}
             />
+
+            {/* "What are insiders doing?" — right under About. */}
+            <InsiderActivitySummary ticker={sym} />
 
             {/* ── 9-tab nav (reference layout) ── */}
             <div className="w-full" style={{ borderBottom: "1px solid var(--border)" }}>
