@@ -80,11 +80,8 @@ export default function AnalystRatingsPage() {
         </h1>
         <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
           Live consensus recommendations and 12-month price targets across the
-          most widely-covered U.S. stocks — ranked by our{" "}
-          <strong style={{ color: "var(--text)" }}>Top Stocks Score</strong>, a 0–99
-          conviction score built from the analyst consensus and the implied
-          upside to the average price target. Data refreshed throughout the
-          trading day.
+          most widely-covered U.S. stocks — ranked by the implied upside to the
+          average analyst price target. Data refreshed throughout the trading day.
         </p>
       </header>
 
@@ -124,7 +121,7 @@ export default function AnalystRatingsPage() {
           <DataTable<AnalystRow>
             rows={rows}
             rowKey={(r) => r.symbol}
-            initialSort={{ key: "topStocksScore", dir: "desc" }}
+            initialSort={{ key: "upsidePct", dir: "desc" }}
             empty="No matches."
             columns={[
               rankColumn<AnalystRow>(),
@@ -172,39 +169,6 @@ export default function AnalystRatingsPage() {
                   const up = q.changePct >= 0;
                   return <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>{up ? "+" : ""}{q.changePct.toFixed(2)}%</span>;
                 },
-              },
-              {
-                key: "topStocksScore",
-                label: "Top Stocks Score",
-                filterable: true,
-                filterType: "range",
-                filterLabelText: "Top Stocks Score (0–99)",
-                align: "center",
-                sortValue: (r) => r.topStocksScore ?? null,
-                render: (r) =>
-                  r.topStocksScore != null ? (
-                    <span
-                      className="inline-flex items-center justify-center h-8 w-8 rounded-full text-[13px] font-bold tabular"
-                      style={{
-                        background:
-                          r.topStocksScore >= 70
-                            ? "color-mix(in srgb, var(--good) 16%, transparent)"
-                            : r.topStocksScore >= 50
-                            ? "color-mix(in srgb, var(--gold) 18%, transparent)"
-                            : "color-mix(in srgb, var(--bad) 14%, transparent)",
-                        color:
-                          r.topStocksScore >= 70
-                            ? "var(--good)"
-                            : r.topStocksScore >= 50
-                            ? "var(--gold)"
-                            : "var(--bad)",
-                      }}
-                    >
-                      {r.topStocksScore}
-                    </span>
-                  ) : (
-                    <span className="text-mute">—</span>
-                  ),
               },
               {
                 key: "consensus",
