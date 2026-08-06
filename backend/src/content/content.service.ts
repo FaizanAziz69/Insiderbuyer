@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { BlogPost, BlogKind } from '../entities/blog-post.entity';
 import {
   ContentGeneratorService,
@@ -1374,6 +1374,52 @@ export class ContentService {
     }
   }
 
+  // ── SEO phased volume ramp (Content Marketing Calendar) ─────────────────
+  /** Editorial-tier kinds (Tier 1/2 in the calendar: signature series + top
+   *  stories); every other kind is a Tier 3 programmatic asset. */
+  private static readonly EDITORIAL_KINDS = new Set<BlogKind>([
+    'daily-summary',
+    'weekly-report',
+    'editorial',
+    'topic-roundup',
+  ]);
+
+  /** Publishing phase from months since launch (CONTENT_LAUNCH_DATE):
+   *  Phase 1 (month 1) 1–2 posts/day → cap 2; Phase 2 (months 2–3)
+   *  5–10/day → cap 10; Phase 3 (months 4+) 25–50/day → cap 50. */
+  private publishingPhase(): { phase: 1 | 2 | 3; dailyCap: number } {
+    const launch = new Date(process.env.CONTENT_LAUNCH_DATE || '2026-08-06');
+    const months = Math.max(0, (Date.now() - launch.getTime()) / (30 * 86400000));
+    if (months < 1) return { phase: 1, dailyCap: 2 };
+    if (months < 3) return { phase: 2, dailyCap: 10 };
+    return { phase: 3, dailyCap: 50 };
+  }
+
+  /** SEO publish gate — the phased daily-volume ramp plus the programmatic
+   *  freeze lever (guardrail #4: set CONTENT_PROGRAMMATIC_FREEZE=true when
+   *  the GSC indexation rate drops below 75%). Applies to NET-NEW pages only:
+   *  regenerating an existing slug is a rewrite, not new publishing. */
+  private async guardPublishRamp(kind: BlogKind, isNew: boolean, slug: string): Promise<void> {
+    if (!isNew) return;
+    const programmatic = !ContentService.EDITORIAL_KINDS.has(kind);
+    if (programmatic && process.env.CONTENT_PROGRAMMATIC_FREEZE === 'true') {
+      throw new Error(
+        `publish gate: programmatic publishing frozen (CONTENT_PROGRAMMATIC_FREEZE) — skipped ${slug}`,
+      );
+    }
+    const { phase, dailyCap } = this.publishingPhase();
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const publishedToday = await this.repo.count({
+      where: { generatedAt: MoreThanOrEqual(startOfDay) },
+    });
+    if (publishedToday >= dailyCap) {
+      throw new Error(
+        `publish gate: phase ${phase} daily volume cap (${dailyCap}) reached — skipped ${slug}`,
+      );
+    }
+  }
+
   private async persist(opts: {
     slug: string;
     kind: BlogKind;
@@ -1395,6 +1441,7 @@ export class ContentService {
     // Upsert by slug: overwrite an existing article in place (regeneration)
     // rather than inserting a duplicate that would violate the unique slug.
     const existing = await this.repo.findOne({ where: { slug } });
+    await this.guardPublishRamp(kind, !existing, slug);
     const post = this.repo.create({
       ...(existing ? { id: existing.id } : {}),
       slug,

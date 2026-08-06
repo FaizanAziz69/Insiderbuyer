@@ -127,9 +127,12 @@ export default function InsightDetailPage({
                       <span className="text-[11px] uppercase tracking-wider text-mute font-bold mr-1">
                         Written by
                       </span>
-                      <span className="text-accent font-bold">
+                      <Link
+                        href={`/authors/${authorFor(post.kind, post.slug).slug}`}
+                        className="text-accent font-bold hover:underline"
+                      >
                         {authorFor(post.kind, post.slug).name}
-                      </span>
+                      </Link>
                       <span className="text-mute mx-1.5">|</span>
                       <span className="text-[11px] uppercase tracking-wider text-mute font-bold mr-1">
                         Reviewed by
@@ -182,6 +185,32 @@ export default function InsightDetailPage({
 
             {/* Embedded Form 4 table — the data behind the story */}
             {post.ticker && <InsiderActivityTable ticker={post.ticker} />}
+
+            {/* E-E-A-T compliance footer (SEO guardrails #3 & #6): explicit
+                disclosure on every page + an upward link to the parent
+                ticker hub so no programmatic page is orphaned. */}
+            <div
+              className="mt-6 rounded-lg p-4 text-[12.5px] leading-relaxed"
+              style={{ background: "var(--bg-2)", border: "1px solid var(--border)", color: "var(--text-mute)" }}
+            >
+              <p className="mb-1.5">
+                <em>Not investment advice. Summarized automatically from public SEC Form 4 data.</em>
+              </p>
+              <p>
+                By{" "}
+                <Link href={`/authors/${authorFor(post.kind, post.slug).slug}`} className="text-accent font-semibold hover:underline">
+                  {authorFor(post.kind, post.slug).name}
+                </Link>
+                {post.ticker && (
+                  <>
+                    {" · "}
+                    <Link href={`/companies/${encodeURIComponent(post.ticker)}`} className="text-accent font-semibold hover:underline">
+                      Full {post.ticker} insider-activity hub →
+                    </Link>
+                  </>
+                )}
+              </p>
+            </div>
 
             {post.tags && post.tags.length > 0 && (
               <div className="mt-5 flex flex-wrap gap-2">

@@ -1,75 +1,50 @@
-/** Editorial author roster. Each article is attributed to a real-sounding
- *  staff writer (with a beat) so the byline reads like a financial publication
- *  — "Written by {name}" + date — instead of a generic desk label.
- *  The author is chosen deterministically from the article slug, so a given
- *  article always shows the same writer. */
+/** Author attribution — SEO guardrail #5 (Content Marketing Calendar):
+ *  NO synthetic authors or fabricated credentials. Programmatic/data-driven
+ *  articles are attributed to the official desk profile ("IQS Financial
+ *  Desk"); editorial-tier pieces to the named editorial team. Each profile
+ *  maps to a real bio page at /authors/[slug] (guardrail #3). */
 export interface Author {
   name: string;
   beat: string;
+  /** Bio page: /authors/{slug} */
+  slug: string;
 }
 
-const AUTHORS: Author[] = [
-  { name: "Marcus Devlin", beat: "Markets Reporter" },
-  { name: "Priya Raghunathan", beat: "Senior Markets Writer" },
-  { name: "Daniel Whitfield", beat: "Insider Activity Analyst" },
-  { name: "Sofia Marchetti", beat: "Equities Correspondent" },
-  { name: "James Okoro", beat: "Senior Research Analyst" },
-  { name: "Hannah Liu", beat: "Technology & Semis Reporter" },
-  { name: "Robert Castellano", beat: "Energy & Materials Writer" },
-  { name: "Elena Vasquez", beat: "Healthcare & Biotech Reporter" },
-  { name: "Thomas Bergstrom", beat: "Markets Editor" },
-  { name: "Aisha Karim", beat: "Financials Correspondent" },
-  { name: "Nathan Cole", beat: "Staff Writer" },
-  { name: "Grace Yoon", beat: "Research Desk Analyst" },
-];
-
-/** Beats that fit a given article kind, so e.g. ticker deep-dives lean toward
- *  analyst voices and topic roundups toward reporters. Falls back to the full
- *  roster. */
-const KIND_POOL: Record<string, number[]> = {
-  "ticker-deep-dive": [2, 4, 11],
-  "top-iqs": [2, 4, 11],
-  "weekly-report": [1, 8, 4],
-  "sector-roundup": [5, 6, 7, 9],
-  "stock-idea": [0, 3, 9],
-  "cluster-buy": [2, 3, 10],
-  "ceo-buying": [0, 8, 3],
-  "daily-summary": [0, 1, 8],
-  "topic-roundup": [0, 1, 5, 7],
+export const AUTHOR_PROFILES: Record<string, Author> = {
+  desk: {
+    name: 'IQS Financial Desk',
+    beat: 'Automated SEC Form 4 Analysis',
+    slug: 'iqs-financial-desk',
+  },
+  editorial: {
+    name: 'Insider Buying Editorial Team',
+    beat: 'Markets & Insider Activity',
+    slug: 'editorial-team',
+  },
 };
 
-function hash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
+/** Editorial-tier kinds (Tier 1/2 in the content calendar); every other kind
+ *  is a Tier 3 programmatic data page owned by the desk profile. */
+const EDITORIAL_KINDS = new Set([
+  'daily-summary',
+  'weekly-report',
+  'editorial',
+  'topic-roundup',
+]);
+
+/** Resolve the author profile for an article. The seed parameter is kept for
+ *  call-site compatibility (attribution is per-kind, not per-slug). */
+export function authorFor(kind: string | null | undefined, _seed?: string | null): Author {
+  return kind && EDITORIAL_KINDS.has(kind) ? AUTHOR_PROFILES.editorial : AUTHOR_PROFILES.desk;
 }
 
-/** Resolve the full author (name + beat) for an article. */
-export function authorFor(
-  kind: string | null | undefined,
-  seed?: string | null,
-): Author {
-  const key = seed && seed.length ? seed : kind || "editorial";
-  const pool = (kind && KIND_POOL[kind]) || AUTHORS.map((_, i) => i);
-  const idx = pool[hash(key) % pool.length];
-  return AUTHORS[idx] ?? AUTHORS[0];
-}
-
-/** Author display name for "Written by {name}". Pass the article slug as the
- *  seed so each article keeps a stable writer. */
-export function bylineFor(
-  kind: string | null | undefined,
-  seed?: string | null,
-): string {
+/** Author display name for "Written by {name}". */
+export function bylineFor(kind: string | null | undefined, seed?: string | null): string {
   return authorFor(kind, seed).name;
 }
 
-/** Editorial reviewers — the "Reviewed by {name}" credit, MarketBeat-style.
- *  A small, separate desk so the reviewer never collides with the writer. */
-const REVIEWERS = ["Shannon Harms", "Chris Markoch", "Rebecca McClay", "Liz Manning"];
-
-/** Reviewer name for "Reviewed by {name}", stable per article via the slug. */
-export function reviewerFor(seed?: string | null): string {
-  const key = seed && seed.length ? seed : "editorial";
-  return REVIEWERS[hash(key + "rev") % REVIEWERS.length];
+/** "Reviewed by" credit — the human-in-the-loop desk, never an invented (or
+ *  worse, real-but-unaffiliated) person. */
+export function reviewerFor(_seed?: string | null): string {
+  return 'Insider Buying Data Team';
 }
