@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, BookOpen, LineChart, Trophy } from "lucide-react";
+import { Bell, BookOpen, LineChart } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { LoginModal } from "@/components/LoginModal";
 
@@ -13,7 +13,6 @@ const PERKS = [
   { icon: BookOpen, title: "Unlimited articles", body: "Every daily briefing, deep dive, and sector report." },
   { icon: LineChart, title: "Watchlists with live scores", body: "Track your stocks with live Insider Scores." },
   { icon: Bell, title: "Daily insider alerts", body: "Know the moment executives buy their own stock." },
-  { icon: Trophy, title: "Full Insider Score rankings", body: "The complete #50 \u2192 #1 conviction leaderboard." },
 ];
 
 /**
@@ -91,8 +90,8 @@ export function ArticleGate({ slug, children }: { slug: string; children: React.
                       Unlock unlimited free articles
                     </h2>
                     <p className="mt-2 text-[14px] sm:text-[15px] text-soft leading-relaxed">
-                      You&rsquo;ve read your {FREE_ARTICLES} free articles. Keep reading with a
-                      free account — <strong>no credit card, no payment.</strong>
+                      Keep reading with a free account —{" "}
+                      <strong>no credit card, no payment.</strong>
                     </p>
                   </div>
 
