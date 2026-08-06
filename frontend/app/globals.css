@@ -374,16 +374,20 @@ table th {
   line-height: 1.18;
   margin: 1.7em 0 0.5em;
 }
-/* MarketBeat-style section heading: navy, medium weight, with a thin
-   underline rule and generous top margin. */
+/* Section heading: black in the light theme (client request), with a thin
+   underline rule and generous top margin. Dark theme keeps the accent tint
+   so headings still stand out on the dark background. */
 .article-body h2 {
   font-size: 25px;
   font-weight: 700;
   letter-spacing: -0.3px;
-  color: var(--accent);
+  color: var(--text);
   border-bottom: 1px solid var(--border);
   padding-bottom: 0.35em;
   margin: 1.6em 0 0.85em;
+}
+[data-theme="dark"] .article-body h2 {
+  color: var(--accent);
 }
 @media (min-width: 640px) {
   .article-body h2 { font-size: 28px; }
