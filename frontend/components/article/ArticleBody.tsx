@@ -41,8 +41,18 @@ function fixInternalLinks(html: string): string {
   );
 }
 
+/** Strip the engine's trailing in-body disclosure paragraph(s) — the page now
+ *  renders ONE standardized compliance footer under every article, so the
+ *  generated variant would show as a duplicate disclaimer. */
+function stripInlineDisclosure(html: string): string {
+  return html.replace(
+    /<p>\s*(?:<(?:em|i|strong)>\s*)?Not investment advice\.[\s\S]*?<\/p>\s*$/gi,
+    '',
+  );
+}
+
 export function ArticleBody({ html: rawHtml }: { html: string }) {
-  const html = useMemo(() => fixInternalLinks(rawHtml), [rawHtml]);
+  const html = useMemo(() => stripInlineDisclosure(fixInternalLinks(rawHtml)), [rawHtml]);
   const segments = useMemo(() => {
     const out: Array<{ type: "html"; value: string } | { type: "stock"; ticker: string }> = [];
     let last = 0;
