@@ -1,10 +1,12 @@
 import {
   ConflictException,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { EmailFlowsService } from '../email-flows/email-flows.service';
 import {
   createHmac,
   randomBytes,
@@ -53,6 +55,7 @@ function b64urlDecode(input: string): Buffer {
 export class AuthService {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
+    @Optional() private readonly emailFlows?: EmailFlowsService,
   ) {}
 
   private normalizeEmail(email: string): string {
@@ -139,6 +142,8 @@ export class AuthService {
         passwordHash: this.hashPassword(password),
       }),
     );
+    // New account → start the Welcome Flow (fire-and-forget, dedupes itself).
+    this.emailFlows?.startFlow('welcome', email, user.name).catch(() => undefined);
     return { token: this.signToken(user), user: this.toPublic(user) };
   }
 

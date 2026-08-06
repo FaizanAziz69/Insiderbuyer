@@ -41,6 +41,8 @@ import { SocialModule } from './social/social.module';
 import { ReportsModule } from './reports/reports.module';
 import { BillingModule } from './billing/billing.module';
 import { ReportLead } from './entities/report-lead.entity';
+import { EmailFlowsModule } from './email-flows/email-flows.module';
+import { EmailFlowState } from './entities/email-flow-state.entity';
 
 @Module({
   imports: [
@@ -79,6 +81,7 @@ import { ReportLead } from './entities/report-lead.entity';
           BacktestCache,
           AnalystPriceTarget,
           ReportLead,
+          EmailFlowState,
         ],
         synchronize: true,
         logging: false,
@@ -107,6 +110,7 @@ import { ReportLead } from './entities/report-lead.entity';
     ReportsModule,
     BillingModule,
     AuthModule,
+    EmailFlowsModule,
   ],
 })
 export class AppModule {}

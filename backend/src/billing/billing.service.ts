@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   Logger,
+  Optional,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -9,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Stripe from 'stripe';
 import { User } from '../entities/user.entity';
+import { EmailFlowsService } from '../email-flows/email-flows.service';
 
 export type Plan = 'monthly' | 'annual';
 
@@ -48,6 +50,7 @@ export class BillingService {
 
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
+    @Optional() private readonly emailFlows?: EmailFlowsService,
   ) {}
 
   // ── Client / catalog bootstrap ─────────────────────────────────────────
@@ -161,6 +164,9 @@ export class BillingService {
       cancel_url: `${FRONTEND_URL}/premium?checkout=cancelled`,
     });
     if (!session.url) throw new BadRequestException('Stripe returned no checkout URL.');
+    // Opened an order form → arm the Abandoned Order Form Flow. A completed
+    // purchase cancels it before the first email is due.
+    this.emailFlows?.startFlow('abandoned', user.email, user.name).catch(() => undefined);
     return { url: session.url };
   }
 
@@ -343,6 +349,10 @@ export class BillingService {
     user.premiumPlan = plan;
     user.premiumCurrentPeriodEnd = periodEnd ? new Date(periodEnd * 1000) : null;
     await this.users.save(user);
+    // Live subscription → stop the sales flows, start the Post-Purchase Flow.
+    if (sub.status === 'active' || sub.status === 'trialing') {
+      this.emailFlows?.onPurchase(user.email, user.name).catch(() => undefined);
+    }
     this.logger.log(
       `Subscription ${sub.id} → user ${user.email}: ${sub.status}${periodEnd ? ` until ${new Date(periodEnd * 1000).toISOString()}` : ''}`,
     );

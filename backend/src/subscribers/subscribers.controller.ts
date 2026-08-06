@@ -2,12 +2,14 @@ import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Subscriber } from '../entities/subscriber.entity';
+import { EmailFlowsService } from '../email-flows/email-flows.service';
 
 @Controller('subscribers')
 export class SubscribersController {
   constructor(
     @InjectRepository(Subscriber)
     private readonly repo: Repository<Subscriber>,
+    private readonly emailFlows: EmailFlowsService,
   ) {}
 
   @Post()
@@ -27,6 +29,8 @@ export class SubscribersController {
         source: body?.source?.slice(0, 80) || null,
       }),
     );
+    // New list member → start the Welcome Flow (fire-and-forget).
+    this.emailFlows.startFlow('welcome', email).catch(() => undefined);
     return { ok: true, id: saved.id };
   }
 }
