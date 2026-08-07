@@ -328,6 +328,36 @@ export default function CompanyPage({
                   </p>
                 </section>
 
+                {/* Scored-window strip — the EXACT numbers behind this stock's
+                    row in the rankings table (same stored score row), so the
+                    table and the profile can never disagree. The full filing
+                    history below is a different, clearly-labeled thing. */}
+                {data.score && (
+                  <div
+                    className="rounded-lg px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-1"
+                    style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}
+                  >
+                    <span className="text-[11px] uppercase tracking-wider font-bold text-accent">
+                      Scored window · last 90 days
+                    </span>
+                    <span className="text-[13px] tabular">
+                      <strong>{Number(data.score.transactionCount)}</strong> qualifying buy
+                      {Number(data.score.transactionCount) === 1 ? "" : "s"}
+                    </span>
+                    <span className="text-[13px] tabular">
+                      <strong>{Number(data.score.distinctBuyers)}</strong> insider
+                      {Number(data.score.distinctBuyers) === 1 ? "" : "s"}
+                    </span>
+                    <span className="text-[13px] tabular">
+                      <strong>{formatCurrency(Number(data.score.totalPurchaseValue))}</strong> bought
+                    </span>
+                    <span className="text-[12px] text-mute">
+                      — these are the numbers in the rankings table; the full history below shows
+                      every filing (buys, sells and older activity).
+                    </span>
+                  </div>
+                )}
+
                 <div className="card overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="table-base">
@@ -348,7 +378,7 @@ export default function CompanyPage({
                         {data.transactions.length === 0 ? (
                           <tr>
                             <td colSpan={9} className="text-center text-mute py-10">
-                              No Form 4 filings in the last 90 days.
+                              No Form 4 filings on record for this company.
                             </td>
                           </tr>
                         ) : (
