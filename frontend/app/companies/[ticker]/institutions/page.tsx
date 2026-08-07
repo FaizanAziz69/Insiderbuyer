@@ -62,7 +62,18 @@ export default function InstitutionsPage({ params }: { params: Promise<{ ticker:
           { label: "Institutions (recent filings)", val: holdings.length ? String(holdings.length) : "—" },
           { label: "Reported Shares", val: totalShares ? totalShares.toLocaleString() : "—" },
           { label: "Reported Value", val: totalValue ? formatCurrency(totalValue) : "—" },
-          { label: "Adding vs Reducing", val: holdings.length ? `${buyers} ▲ / ${sellers} ▼` : "—" },
+          {
+            label: "Adding vs Reducing",
+            val: holdings.length ? (
+              <>
+                <span style={{ color: "var(--good)" }}>{buyers} ▲</span>
+                {" / "}
+                <span style={{ color: "var(--bad)" }}>{sellers} ▼</span>
+              </>
+            ) : (
+              "—"
+            ),
+          },
         ].map((s) => (
           <div key={s.label} className="card p-4">
             <div className="text-[10px] uppercase tracking-wider text-mute font-bold">{s.label}</div>

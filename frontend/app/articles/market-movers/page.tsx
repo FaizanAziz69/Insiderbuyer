@@ -112,7 +112,7 @@ function MoverArticle({ r, catalyst }: { r: MoverRow; catalyst: string | null })
           <SectionHead>Financial snapshot</SectionHead>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-mute tabular">
             <span>Price ${r.price.toFixed(2)}</span>
-            <span>
+            <span style={{ color: up ? "var(--good)" : "var(--bad)" }}>
               Change {up ? "+" : ""}
               {r.changePct.toFixed(2)}%
             </span>

@@ -61,9 +61,9 @@ function Tile({
   hint,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   tone?: string;
-  hint?: string;
+  hint?: React.ReactNode;
 }) {
   return (
     <div
@@ -156,13 +156,23 @@ export function BacktestPanel() {
 
       {/* Stat tiles — the same metrics published backtests quote */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        <Tile label="Total return" value={signed(s.totalReturn)} tone={toneOf(s.totalReturn)} hint={`SPY ${signed(s.benchmarkTotalReturn)}`} />
-        <Tile label="CAGR" value={signed(s.cagr)} tone={toneOf(s.cagr)} hint={`SPY ${signed(s.benchmarkCagr)}`} />
+        <Tile label="Total return" value={signed(s.totalReturn)} tone={toneOf(s.totalReturn)} hint={<span>SPY <span style={{ color: toneOf(s.benchmarkTotalReturn) }}>{signed(s.benchmarkTotalReturn)}</span></span>} />
+        <Tile label="CAGR" value={signed(s.cagr)} tone={toneOf(s.cagr)} hint={<span>SPY <span style={{ color: toneOf(s.benchmarkCagr) }}>{signed(s.benchmarkCagr)}</span></span>} />
         <Tile label="Excess vs SPY" value={signed(beat)} tone={toneOf(beat)} hint="Total-return difference" />
         <Tile label="Max drawdown" value={`${s.maxDrawdown.toFixed(1)}%`} tone="var(--bad)" hint="Peak to trough" />
         <Tile label="Sharpe" value={s.sharpe.toFixed(2)} hint="Annual return ÷ volatility" />
         <Tile label="Win rate" value={`${s.winRate.toFixed(1)}%`} hint={`${s.weeks} rebalanced weeks`} />
-        <Tile label="Avg win / loss" value={`${signed(s.avgWin)} / ${s.avgLoss.toFixed(2)}%`} hint="Per week held" />
+        <Tile
+          label="Avg win / loss"
+          value={
+            <>
+              <span style={{ color: "var(--good)" }}>{signed(s.avgWin)}</span>
+              {" / "}
+              <span style={{ color: "var(--bad)" }}>{s.avgLoss.toFixed(2)}%</span>
+            </>
+          }
+          hint="Per week held"
+        />
         <Tile label="Volatility" value={`${s.volatility.toFixed(1)}%`} hint="Annualised" />
         <Tile label="Beta" value={s.beta.toFixed(2)} hint="vs SPY" />
         <Tile label="Alpha" value={signed(s.alpha)} tone={toneOf(s.alpha)} hint="Annualised, beta-adjusted" />

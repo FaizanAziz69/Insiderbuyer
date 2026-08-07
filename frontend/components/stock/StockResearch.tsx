@@ -77,7 +77,7 @@ function BarChart({
           <g key={i}>
             <rect x={cx - bw / 2} y={top} width={bw} height={Math.max(1, h)} rx={2} fill={pos ? GOOD : BAD} opacity={0.85} />
             {/* value label: above the bar for gains, below the bar end for losses */}
-            <text x={cx} y={pos ? top - 6 : top + h + 14} textAnchor="middle" fontSize="10" fill="var(--text)" fontWeight="700">
+            <text x={cx} y={pos ? top - 6 : top + h + 14} textAnchor="middle" fontSize="10" fill={pos ? GOOD : BAD} fontWeight="700">
               {fmt(p.value)}
             </text>
             {/* year always pinned to the very bottom, clear of the value labels */}
@@ -119,7 +119,7 @@ function LineChart({
       {pts.map((p, i) => (
         <g key={i}>
           <circle cx={xOf(i)} cy={yOf(p.value)} r={2.5} fill={ACCENT} />
-          <text x={xOf(i)} y={yOf(p.value) - 6} textAnchor="middle" fontSize="9" fill="var(--text-mute)" fontWeight="700">
+          <text x={xOf(i)} y={yOf(p.value) - 6} textAnchor="middle" fontSize="9" fill={p.value >= 0 ? GOOD : BAD} fontWeight="700">
             {fmt(p.value)}
           </text>
           <text x={xOf(i)} y={H - 5} textAnchor="middle" fontSize="9" fill="var(--text-faint)">

@@ -1384,7 +1384,7 @@ function AnalystCoverageCard({ ticker }: { ticker: string }) {
   );
   const row = data?.rows?.find((r) => r.symbol.toUpperCase() === ticker.toUpperCase()) ?? null;
   if (!row) return null;
-  const items: [string, string][] = [
+  const items: [string, React.ReactNode][] = [
     ["Covering analysts", row.numAnalysts != null ? String(row.numAnalysts) : "—"],
     [
       "Consensus",
@@ -1395,7 +1395,14 @@ function AnalystCoverageCard({ ticker }: { ticker: string }) {
     ["Lowest target", row.targetLow != null ? `$${row.targetLow.toFixed(2)}` : "—"],
     [
       "Implied upside",
-      row.upsidePct != null ? `${row.upsidePct >= 0 ? "+" : ""}${row.upsidePct.toFixed(1)}%` : "—",
+      row.upsidePct != null ? (
+        <span style={{ color: row.upsidePct >= 0 ? "var(--good)" : "var(--bad)" }}>
+          {row.upsidePct >= 0 ? "+" : ""}
+          {row.upsidePct.toFixed(1)}%
+        </span>
+      ) : (
+        "—"
+      ),
     ],
   ];
   return (

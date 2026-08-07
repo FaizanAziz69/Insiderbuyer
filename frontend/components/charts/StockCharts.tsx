@@ -115,7 +115,11 @@ export function NetSharesBars({ data }: { data: { label: string; value: number |
     <div className="relative">
       {hover != null && data[hover] && data[hover].value != null && (
         <Tip leftPct={((mL + groupW * (hover + 0.5)) / W) * 100}>
-          {data[hover].label} · {formatNumber(data[hover].value as number)} net shares
+          {data[hover].label} ·{" "}
+          <span style={{ color: (data[hover].value as number) >= 0 ? "#34D399" : "#F87171" }}>
+            {formatNumber(data[hover].value as number)}
+          </span>{" "}
+          net shares
         </Tip>
       )}
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", fontFamily: "var(--font-mono, monospace)" }}>
@@ -291,7 +295,19 @@ export function InstitutionsTreemap({ rows }: {
       {h && (
         <Tip leftPct={((h.x + h.w / 2) / W) * 100}>
           {h.item.institution} · {formatNumber(h.item.shares)} sh · {formatCurrency(h.item.value)}
-          {h.item.isNew ? " · NEW" : h.item.pctChange != null ? ` · ${h.item.pctChange >= 0 ? "+" : ""}${h.item.pctChange}%` : ""}
+          {h.item.isNew ? (
+            " · NEW"
+          ) : h.item.pctChange != null ? (
+            <>
+              {" · "}
+              <span style={{ color: h.item.pctChange >= 0 ? "#34D399" : "#F87171" }}>
+                {h.item.pctChange >= 0 ? "+" : ""}
+                {h.item.pctChange}%
+              </span>
+            </>
+          ) : (
+            ""
+          )}
         </Tip>
       )}
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}>

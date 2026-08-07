@@ -452,7 +452,16 @@ export default function ScoreExplainerPage() {
                 ["Total $ sold", d.aggregates?.totalSellValue != null ? formatCurrency(d.aggregates.totalSellValue) : "—"],
                 ["Distinct buyers", fmtNum(d.aggregates?.distinctBuyers, 0)],
                 ["Insider avg cost", d.aggregates?.insiderVwap != null ? `$${fmtNum(d.aggregates.insiderVwap)}` : "—"],
-                ["Avg stake added", d.aggregates?.avgHoldingChangePct != null ? `${fmtNum(d.aggregates.avgHoldingChangePct)}%` : "—"],
+                [
+                  "Avg stake added",
+                  d.aggregates?.avgHoldingChangePct != null ? (
+                    <span style={{ color: d.aggregates.avgHoldingChangePct >= 0 ? "var(--good)" : "var(--bad)" }}>
+                      {fmtNum(d.aggregates.avgHoldingChangePct)}%
+                    </span>
+                  ) : (
+                    "—"
+                  ),
+                ],
               ].map(([label, value]) => (
                 <div key={label as string} className="rounded-lg p-3" style={{ background: "var(--bg-1)" }}>
                   <div className="text-[11px] uppercase tracking-wider text-mute font-bold">{label}</div>

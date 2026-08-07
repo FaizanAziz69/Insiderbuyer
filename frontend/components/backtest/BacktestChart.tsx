@@ -230,11 +230,11 @@ export function BacktestChart({
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="inline-block h-[3px] w-3 rounded" style={{ background: cStrategy }} />
-              Strategy <span className="tabular font-bold" style={{ color: "var(--text)" }}>{tipranks ? fmtVal(active.s) : active.s.toFixed(1)}</span>
+              Strategy <span className="tabular font-bold" style={{ color: active.s >= 100 ? "var(--good)" : "var(--bad)" }}>{tipranks ? fmtVal(active.s) : active.s.toFixed(1)}</span>
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="inline-block h-[3px] w-3 rounded" style={{ background: cBench }} />
-              SPY <span className="tabular font-bold" style={{ color: "var(--text)" }}>{tipranks ? fmtVal(active.b) : active.b.toFixed(1)}</span>
+              SPY <span className="tabular font-bold" style={{ color: active.b >= 100 ? "var(--good)" : "var(--bad)" }}>{tipranks ? fmtVal(active.b) : active.b.toFixed(1)}</span>
             </span>
           </>
         ) : (
