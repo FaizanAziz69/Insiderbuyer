@@ -153,13 +153,18 @@ export class BacktestService {
             this.market.getCloseHistory(sym, '5y').catch(() => []),
           ),
         );
+        // Forced upsert, NOT save(): TypeORM skips a no-op UPDATE when the
+        // stored value is identical (e.g. an empty [] for a delisted symbol
+        // fetched again), which left updatedAt frozen — those rows read as
+        // permanently stale and the gathering loop never converged.
         await Promise.all(
           got.map((points, j) =>
-            points.length
-              ? this.priceRepo.save({ symbol: chunk[j], points })
-              : // Remember the empty result too, so a delisted or unquoted
-                // symbol isn't retried on every single request.
-                this.priceRepo.save({ symbol: chunk[j], points: [] }),
+            this.priceRepo
+              .createQueryBuilder()
+              .insert()
+              .values({ symbol: chunk[j], points })
+              .orUpdate(['points', 'updatedAt'], ['symbol'])
+              .execute(),
           ),
         );
       }
