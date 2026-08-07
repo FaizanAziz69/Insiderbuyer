@@ -268,7 +268,9 @@ export class IqsService {
       // or a literal "N/A"/"NONE") are not tradeable stocks: never score
       // them, and clear any score row a previous run left behind.
       const tkr = (company.ticker || '').trim().toUpperCase();
-      if (!tkr || tkr === 'N/A' || tkr === 'NONE') {
+      const isFundTicker = /^[A-Z]{4}X$/.test(tkr); // NASDAQ mutual-fund class
+      const malformed = !tkr || /[^A-Z0-9.\-]/.test(tkr);
+      if (malformed || tkr === 'N/A' || tkr === 'NONE' || isFundTicker) {
         await this.scores.delete({ companyId: company.id });
         return;
       }
@@ -1739,11 +1741,17 @@ export class IqsService {
     return {
       total,
       rows: rows.map((t) => {
-        const suspect = !isPlausibleTx(
-          Number(t.sharesBought),
-          Number(t.pricePerShare),
-          t.company?.lastPrice != null ? Number(t.company.lastPrice) : null,
-        );
+        const capNum = t.company?.marketCap != null ? Number(t.company.marketCap) : 0;
+        const suspect =
+          !isPlausibleTx(
+            Number(t.sharesBought),
+            Number(t.pricePerShare),
+            t.company?.lastPrice != null ? Number(t.company.lastPrice) : null,
+          ) ||
+          // A single filing can't exceed the whole company's value — either
+          // the stored cap or the filed numbers are wrong; both mean the
+          // dollar figure is unpublishable.
+          (capNum > 0 && Number(t.totalValue) > capNum);
         return {
           id: t.id,
           insiderName: t.insiderName,

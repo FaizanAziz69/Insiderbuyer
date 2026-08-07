@@ -209,7 +209,10 @@ export class SecClient {
     const issuerCik = String(issuer?.issuerCik || '').replace(/^0+/, '');
     const issuerName = String(issuer?.issuerName || '').trim();
     const rawTicker = issuer?.issuerTradingSymbol
-      ? String(issuer.issuerTradingSymbol).toUpperCase().trim()
+      ? String(issuer.issuerTradingSymbol)
+          .toUpperCase()
+          .replace(/[\s\[\]()]/g, '') // "N O G" → NOG, "[NONE]" → NONE
+          .trim()
       : '';
     // Unlisted filers put "N/A"/"NONE" in the symbol field — that is not a ticker.
     const issuerTicker = rawTicker && rawTicker !== 'N/A' && rawTicker !== 'NONE' ? rawTicker : null;
