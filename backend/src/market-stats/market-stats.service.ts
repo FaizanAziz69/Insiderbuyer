@@ -1290,7 +1290,9 @@ export class MarketStatsService {
   }
 
   private universe(): string[] {
-    return MARKET_UNIVERSE;
+    // Defensive dedupe — a repeated symbol in the curated list must never
+    // produce duplicate rows in analyst/dividend/heatmap payloads.
+    return Array.from(new Set(MARKET_UNIVERSE));
   }
 
   // ──────────────────────────────────────────────────────────────────

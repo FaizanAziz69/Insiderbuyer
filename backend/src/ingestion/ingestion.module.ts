@@ -12,6 +12,7 @@ import { IqsModule } from '../iqs/iqs.module';
 import { MarketStatsModule } from '../market-stats/market-stats.module';
 import { CongressionalModule } from '../congressional/congressional.module';
 import { AnalystsModule } from '../analysts/analysts.module';
+import { FmpModule } from '../fmp/fmp.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AnalystsModule } from '../analysts/analysts.module';
     MarketStatsModule,
     CongressionalModule,
     AnalystsModule,
+    FmpModule,
   ],
   controllers: [IngestionController],
   providers: [IngestionService, SecClient, QuoteClient, BafinClient],

@@ -52,16 +52,24 @@ export class QuoteClient {
         'CommonStockSharesOutstanding',
         'EntityListingSharesOutstanding',
       ];
+      // A public company cannot have fewer than ~100k shares outstanding —
+      // XBRL facts sometimes carry per-class or nominal figures (CHWY once
+      // reported "100"), and accepting one poisons marketCap = shares × price.
+      const MIN_PLAUSIBLE_SHARES = 100_000;
       for (const tag of tagPriority) {
         const node = dei[tag] || data?.facts?.['us-gaap']?.[tag];
         if (!node) continue;
         const units = node.units || {};
-        const seriesKey = Object.keys(units)[0];
+        // Prefer the actual share-count unit over whatever key happens first.
+        const seriesKey =
+          Object.keys(units).find((k) => /share/i.test(k)) || Object.keys(units)[0];
         const series: any[] = units[seriesKey] || [];
         if (!series.length) continue;
         const dated = series
           .map((s) => ({ v: Number(s.val), t: new Date(s.end || s.filed || 0).getTime() }))
-          .filter((s) => Number.isFinite(s.v) && s.v > 0 && s.t > 0)
+          .filter(
+            (s) => Number.isFinite(s.v) && s.v >= MIN_PLAUSIBLE_SHARES && s.t > 0,
+          )
           .sort((a, b) => b.t - a.t);
         if (!dated.length) continue;
         sharesOutstanding = dated[0].v;

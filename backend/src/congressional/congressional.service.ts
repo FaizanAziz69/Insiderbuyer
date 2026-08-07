@@ -56,6 +56,62 @@ function toGicsSector(raw: string | null | undefined): string {
 export class CongressionalService implements OnModuleInit {
   private readonly logger = new Logger(CongressionalService.name);
 
+  // ── Member roster (bioguide → party) ────────────────────────────────
+  // FMP's senate-latest/house-latest feeds omit party entirely, so we join
+  // against the public @unitedstates legislators roster (bioguide ID first,
+  // exact name as fallback). Cached for 7 days.
+  private roster: {
+    ts: number;
+    byBioguide: Map<string, { party: string; name: string }>;
+    byName: Map<string, string>;
+  } | null = null;
+
+  private async getRoster(): Promise<NonNullable<CongressionalService['roster']>> {
+    if (this.roster && Date.now() - this.roster.ts < 7 * 24 * 60 * 60_000) {
+      return this.roster;
+    }
+    const byBioguide = new Map<string, { party: string; name: string }>();
+    const byName = new Map<string, string>();
+    try {
+      const res = await fetch(
+        'https://unitedstates.github.io/congress-legislators/legislators-current.json',
+      );
+      const members: any[] = await res.json();
+      for (const m of members) {
+        const bid = m?.id?.bioguide;
+        const term = m?.terms?.[m.terms.length - 1];
+        const party = String(term?.party || '').charAt(0); // D / R / I
+        const name = `${m?.name?.first || ''} ${m?.name?.last || ''}`.trim();
+        if (bid && party) byBioguide.set(bid, { party, name });
+        if (name && party) byName.set(name.toLowerCase(), party);
+      }
+      this.logger.log(`Legislator roster loaded: ${byBioguide.size} members.`);
+    } catch (e: any) {
+      this.logger.warn(`Roster fetch failed: ${e?.message || e}`);
+    }
+    this.roster = { ts: Date.now(), byBioguide, byName };
+    return this.roster;
+  }
+
+  /** Fill party on stored rows that miss it (bioguide isn't stored, so this
+   *  matches on exact name). Returns how many rows were updated. */
+  async backfillParty(): Promise<number> {
+    const roster = await this.getRoster();
+    if (!roster.byName.size) return 0;
+    const rows = await this.repo.find({ where: { party: IsNull() } });
+    let updated = 0;
+    for (const r of rows) {
+      const party = roster.byName.get((r.politicianName || '').toLowerCase());
+      if (party) {
+        r.party = party;
+        await this.repo.save(r);
+        updated++;
+      }
+    }
+    if (updated) this.logger.log(`Party backfill: ${updated}/${rows.length} rows updated.`);
+    return updated;
+  }
+
   constructor(
     @InjectRepository(CongressionalTransaction)
     private readonly repo: Repository<CongressionalTransaction>,
@@ -111,6 +167,7 @@ export class CongressionalService implements OnModuleInit {
     if (!this.fmp.enabled) return false;
     const trades = await this.fmp.getCongressional(1);
     if (!trades.length) return false;
+    const roster = await this.getRoster();
     // Keys of everything already stored (so re-served rows aren't duplicated).
     const dayKey = (d: Date | string | null | undefined) => {
       const dt = d instanceof Date ? d : safeDate(d as any);
@@ -134,7 +191,11 @@ export class CongressionalService implements OnModuleInit {
       .map((t) => ({
         politicianName: t.politicianName,
         chamber: t.chamber,
-        party: t.party,
+        party:
+          t.party ||
+          (t.bioguideId && roster.byBioguide.get(t.bioguideId)?.party) ||
+          roster.byName.get(t.politicianName.toLowerCase()) ||
+          null,
         ticker: t.ticker,
         companyName: t.companyName,
         action: t.action,
@@ -151,6 +212,11 @@ export class CongressionalService implements OnModuleInit {
     const realCount = await this.repo.count({ where: { source: 'fmp' } });
     if (realCount > 0) await this.repo.delete({ source: 'sample-seed' });
     this.logger.log(`Congressional refresh: +${rows.length} new FMP disclosures (total real: ${realCount}).`);
+    try {
+      await this.backfillParty();
+    } catch (e: any) {
+      this.logger.warn(`Party backfill failed: ${e?.message || e}`);
+    }
     return realCount > 0;
   }
 

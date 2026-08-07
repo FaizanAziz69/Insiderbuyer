@@ -13,6 +13,7 @@ import {
   formatDate,
 } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
+import { Sparkline } from "@/components/Sparkline";
 import { AdSlot } from "@/components/AdSlot";
 import { DataTable, Column } from "@/components/DataTable";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
@@ -91,6 +92,16 @@ export default function InsiderHotStocksPage() {
     fetcher,
     { refreshInterval: 10 * 60_000, revalidateOnFocus: false },
   );
+  // 7-day sparklines for the same candidate set (one batched, cached call).
+  const { data: sparkData } = useSWR<{ spark: Record<string, number[]> }>(
+    tickerKey
+      ? `${API_BASE}/market-stats/spark?symbols=${encodeURIComponent(tickerKey.split(",").slice(0, 60).join(","))}`
+      : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
+  const sparkMap = sparkData?.spark || {};
+
   const upsideBySym = new Map<string, { upside: number | null; target: number | null }>();
   /** Symbols with genuine sell-side coverage: a published price target from at
    *  least two analysts. One-analyst micro-cap targets produce nonsense upsides
@@ -161,6 +172,13 @@ export default function InsiderHotStocksPage() {
           </span>
         );
       },
+    },
+    {
+      key: "spark7d",
+      label: "7D",
+      sortable: false,
+      align: "center",
+      render: (r) => <Sparkline data={sparkMap[(r.ticker || "").toUpperCase()]} />,
     },
     {
       key: "price",

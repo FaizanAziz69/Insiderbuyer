@@ -117,10 +117,18 @@ export function TradesTable({
       filterable: true,
       filterType: "range",
       align: "right",
-      sortValue: (t) => t.totalValue,
-      render: (t) => (
-        <span className="tabular text-[13px] font-bold">{formatCurrency(t.totalValue)}</span>
-      ),
+      sortValue: (t) => (t.priceSuspect ? null : t.totalValue),
+      render: (t) =>
+        t.priceSuspect ? (
+          <span
+            className="text-mute text-[13px]"
+            title="The price on this Form 4 looks like a filer error, so the dollar value is not shown — open the SEC filing for the raw numbers."
+          >
+            —
+          </span>
+        ) : (
+          <span className="tabular text-[13px] font-bold">{formatCurrency(t.totalValue)}</span>
+        ),
     },
     {
       key: "transactionDate",

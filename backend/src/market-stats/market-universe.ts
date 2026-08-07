@@ -20,7 +20,7 @@ export const MARKET_UNIVERSE: string[] = [
   'JPM', 'BAC', 'WFC', 'GS', 'MS', 'C', 'BLK', 'SCHW', 'AXP', 'V', 'MA', 'COF',
   'USB', 'PNC', 'TFC', 'BK', 'STT', 'FITB', 'HBAN', 'RF', 'KEY', 'CFG', 'MTB',
   'SPGI', 'MCO', 'ICE', 'CME', 'MSCI', 'MMC', 'AON', 'AJG', 'PGR', 'TRV', 'ALL',
-  'CB', 'MET', 'PRU', 'AIG', 'AFL', 'BRK-B', 'PYPL',
+  'CB', 'MET', 'PRU', 'AIG', 'AFL', 'BRK-B',
   // Healthcare / biotech / pharma
   'UNH', 'LLY', 'JNJ', 'ABBV', 'MRK', 'PFE', 'ABT', 'AMGN', 'CVS', 'MRNA',
   'TMO', 'DHR', 'BMY', 'GILD', 'ISRG', 'MDT', 'SYK', 'BSX', 'ELV', 'CI',

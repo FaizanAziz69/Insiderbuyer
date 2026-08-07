@@ -7,6 +7,8 @@ export interface FmpCongressTrade {
   politicianName: string;
   chamber: 'Senate' | 'House';
   party: string | null;
+  /** Bioguide member ID (FMP's `senateID`) — the roster join key for party. */
+  bioguideId: string | null;
   ticker: string | null;
   companyName: string;
   action: 'Buy' | 'Sell';
@@ -149,6 +151,48 @@ export class FmpService {
     return out;
   }
 
+  // ── Fundamentals gap-fillers (paid plan) ─────────────────────────────
+  private readonly fundamentalsCache = new Map<string, { ts: number; data: any }>();
+  private readonly FUNDAMENTALS_TTL_MS = 24 * 60 * 60_000;
+
+  /** TTM share-count growth from FMP annual income statements
+   *  (weightedAverageShsOutDil, last two fiscal years): 0.06 = +6% dilution,
+   *  ≤0 = buyback. Replaces the fragile SEC-XBRL year-ago derivation as the
+   *  primary source (SEC path stays as fallback). Null when unavailable. */
+  async getDilutionTtm(symbolRaw: string): Promise<number | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    const key = `dil:${symbol}`;
+    const c = this.fundamentalsCache.get(key);
+    if (c && Date.now() - c.ts < this.FUNDAMENTALS_TTL_MS) return c.data;
+    const rows = await this.get('income-statement', { symbol, limit: 2, period: 'annual' });
+    let out: number | null = null;
+    if (rows.length >= 2) {
+      const latest =
+        Number(rows[0]?.weightedAverageShsOutDil) || Number(rows[0]?.weightedAverageShsOut) || 0;
+      const prior =
+        Number(rows[1]?.weightedAverageShsOutDil) || Number(rows[1]?.weightedAverageShsOut) || 0;
+      if (latest > 0 && prior > 0) out = latest / prior - 1;
+    }
+    this.fundamentalsCache.set(key, { ts: Date.now(), data: out });
+    return out;
+  }
+
+  /** Real shares outstanding from FMP shares-float (sourced from the latest
+   *  10-Q/10-K) — §2G denominator + market-cap validation. Null if unknown. */
+  async getSharesOutstanding(symbolRaw: string): Promise<number | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    const key = `shs:${symbol}`;
+    const c = this.fundamentalsCache.get(key);
+    if (c && Date.now() - c.ts < this.FUNDAMENTALS_TTL_MS) return c.data;
+    const rows = await this.get('shares-float', { symbol });
+    const shs = Number(rows?.[0]?.outstandingShares) || 0;
+    const out = shs > 0 ? shs : null;
+    this.fundamentalsCache.set(key, { ts: Date.now(), data: out });
+    return out;
+  }
+
   // ── Analyst price targets ────────────────────────────────────────────
   /** The 10 most recent price-target notes market-wide — the only per-analyst
    *  (named) data on the free tier: page 0 only, limit capped at 10. */
@@ -201,7 +245,8 @@ export class FmpService {
     return {
       politicianName: name,
       chamber,
-      party: r.party || null, // FMP latest feed omits party
+      party: r.party || null, // FMP latest feed omits party — enriched via roster
+      bioguideId: r.senateID ? String(r.senateID) : null,
       ticker: r.symbol ? String(r.symbol).toUpperCase() : null,
       companyName: r.assetDescription || r.symbol || '',
       action,

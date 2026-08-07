@@ -64,6 +64,11 @@ export class InsiderTransaction {
   @Column({ type: 'varchar', length: 2, nullable: true })
   acquiredDisposed: string | null;
 
+  /** Filed under a Rule 10b5-1(c) trading plan (Form 4 checkbox). Planned
+   *  buys carry less signal — scoring discounts them (spec: 0.5×). */
+  @Column({ type: 'boolean', default: false })
+  plannedBuy: boolean;
+
   @Column({ type: 'numeric', precision: 24, scale: 4 })
   sharesBought: number;
 

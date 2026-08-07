@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowDown, ArrowUp, Flame } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
 import { CompanyLogo } from "@/components/CompanyLogo";
+import { Sparkline } from "@/components/Sparkline";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
 import { AiCatalyst, useExplainerPrewarm } from "@/components/AiCatalyst";
@@ -46,6 +47,19 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
   // Pre-warm the AI "Movement Explainer" for visible rows in one batched call.
   useExplainerPrewarm(rows);
 
+  // 7-day sparklines (batched + cached) so losers/most-active match gainers.
+  const sparkKey = rows
+    .map((r) => r.symbol.toUpperCase())
+    .filter(Boolean)
+    .slice(0, 60)
+    .join(",");
+  const { data: sparkData } = useSWR<{ spark: Record<string, number[]> }>(
+    sparkKey ? `${API_BASE}/market-stats/spark?symbols=${sparkKey}` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
+  const sparkMap = sparkData?.spark || {};
+
   const columns: Column<MarketStatRow>[] = [
     rankColumn<MarketStatRow>(),
     {
@@ -71,6 +85,13 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
           </Link>
         </span>
       ),
+    },
+    {
+      key: "spark7d",
+      label: "7D",
+      sortable: false,
+      align: "center",
+      render: (r) => <Sparkline data={sparkMap[r.symbol.toUpperCase()]} />,
     },
     {
       key: "price",

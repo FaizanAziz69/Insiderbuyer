@@ -44,6 +44,9 @@ export interface ParsedTransaction {
   sharesBought: number;
   pricePerShare: number;
   postHoldings: number;
+  /** Form 4 "made pursuant to a Rule 10b5-1(c) trading plan" checkbox —
+   *  planned buys are discounted by PLANNED_BUY_MULTIPLIER in scoring. */
+  plannedBuy: boolean;
 }
 
 export interface ParsedForm4 {
@@ -197,6 +200,11 @@ export class SecClient {
     const doc = parsed.ownershipDocument || parsed?.['ownershipDocument'];
     if (!doc) return null;
 
+    // Rule 10b5-1(c) plan checkbox (added to Form 4 in 2023) — document-level.
+    const aff = doc.aff10b5One;
+    const affVal = typeof aff === 'object' ? aff?.value : aff;
+    const plannedBuy = String(affVal ?? '').trim() === '1' || affVal === true || String(affVal).toLowerCase() === 'true';
+
     const issuer = doc.issuer || {};
     const issuerCik = String(issuer?.issuerCik || '').replace(/^0+/, '');
     const issuerName = String(issuer?.issuerName || '').trim();
@@ -257,6 +265,7 @@ export class SecClient {
         transactionDate: String(date),
         transactionCode: codeU,
         acquiredDisposed: acqDispU === 'D' ? 'D' : 'A',
+        plannedBuy,
         sharesBought: shares,
         pricePerShare: price,
         postHoldings: post,

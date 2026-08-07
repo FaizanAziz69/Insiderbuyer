@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,10 +13,23 @@ import { BafinClient, BafinDealing } from './bafin.client';
 import { IqsService } from '../iqs/iqs.service';
 import { MdaSentimentService } from '../iqs/mda-sentiment.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
+import { FmpService } from '../fmp/fmp.service';
 
 /** Ceiling for a plausible per-share price. BRK-A (~$700k) is the priciest
  *  real stock ever, so anything above this is a Form 4 parse artifact. */
 const MAX_PLAUSIBLE_PRICE = 1_000_000;
+
+/** Company names from filings occasionally carry literal escape artifacts
+ *  ("Protagenic Therapeutics, Inc.\\new") or control characters — strip them
+ *  so they never reach the UI or article copy. */
+function sanitizeName(raw: string): string {
+  return (raw || '')
+    .replace(/\\[nrt]?/g, ' ') // literal backslash escapes → space
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1f\x7f]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
 
 @Injectable()
 export class IngestionService implements OnModuleInit {
@@ -33,6 +46,7 @@ export class IngestionService implements OnModuleInit {
     private readonly iqs: IqsService,
     private readonly marketStats: MarketStatsService,
     private readonly mda: MdaSentimentService,
+    @Optional() private readonly fmp?: FmpService,
   ) {}
 
   async onModuleInit() {
@@ -114,7 +128,7 @@ export class IngestionService implements OnModuleInit {
           }
 
           const issuerCik = parsed.issuerCik || f.cik;
-          const issuerName = parsed.issuerName || f.companyName || 'Unknown';
+          const issuerName = sanitizeName(parsed.issuerName || f.companyName || '') || 'Unknown';
           const issuerTicker = parsed.issuerTicker || f.ticker || null;
 
           let company = await this.companies.findOne({ where: { cik: issuerCik } });
@@ -190,6 +204,7 @@ export class IngestionService implements OnModuleInit {
                 transactionDate: new Date(p.transactionDate),
                 transactionCode: p.transactionCode,
                 acquiredDisposed: p.acquiredDisposed,
+                plannedBuy: p.plannedBuy === true,
                 sharesBought: p.sharesBought,
                 pricePerShare: p.pricePerShare,
                 totalValue,
@@ -243,10 +258,44 @@ export class IngestionService implements OnModuleInit {
           .getOne();
         if (latestTx) company.lastPrice = Number(latestTx.pricePerShare);
 
-        if (facts?.sharesOutstanding && company.lastPrice) {
+        // Market cap source of truth: FMP profile (live, validated) first;
+        // the shares × last-Form-4-price product is only the fallback, and
+        // only when the share count is plausible. A cap that disagrees with
+        // price × sharesOutstanding by >25% is quarantined (logged, not
+        // written) — that combination produced CHWY's cap of $1,949.
+        const fmpProfile = company.ticker
+          ? await this.fmp?.getCompanyProfile(company.ticker).catch(() => null)
+          : null;
+        if (fmpProfile?.marketCap && fmpProfile.marketCap > 0) {
+          company.marketCap = String(Math.round(fmpProfile.marketCap));
+          if (fmpProfile.price && fmpProfile.price > 0) {
+            company.lastPrice = fmpProfile.price;
+          }
+        } else if (
+          facts?.sharesOutstanding &&
+          facts.sharesOutstanding >= 100_000 &&
+          company.lastPrice
+        ) {
           const mc = Math.round(Number(facts.sharesOutstanding) * Number(company.lastPrice));
-          company.marketCap = String(mc);
+          if (mc > 0) company.marketCap = String(mc);
         }
+        const capNum = Number(company.marketCap) || 0;
+        const shs = Number(company.sharesOutstanding) || 0;
+        const px = Number(company.lastPrice) || 0;
+        if (capNum > 0 && shs > 0 && px > 0) {
+          const implied = shs * px;
+          if (Math.abs(capNum - implied) / capNum > 0.25 && capNum < 1_000_000) {
+            this.logger.warn(
+              `Quarantining implausible market cap for ${company.ticker || company.cik}: ` +
+                `stored ${capNum} vs implied ${Math.round(implied)}`,
+            );
+            company.marketCap = null as unknown as string;
+          }
+        }
+        // Canonical sector/industry for the sector-sentiment mapper — FMP's
+        // GICS-style strings resolve where raw SIC descriptions don't.
+        if (fmpProfile?.sector && !company.sector) company.sector = fmpProfile.sector;
+        if (fmpProfile?.industry && !company.industry) company.industry = fmpProfile.industry;
 
         await this.companies.save(company);
         await this.delay(150);
@@ -271,14 +320,19 @@ export class IngestionService implements OnModuleInit {
       // universe converges over days without a big one-time LLM/SEC burn.
       // Both are idempotent (onlyMissing) and never abort the cron on error.
       try {
-        await this.backfillMdaSentiment({ limit: 12, onlyMissing: true });
+        await this.backfillMdaSentiment({ limit: 40, onlyMissing: true });
       } catch (e: any) {
         this.logger.warn(`MD&A cron slice failed: ${e?.message || e}`);
       }
       try {
-        await this.backfillDilution({ limit: 40, onlyMissing: true });
+        await this.backfillDilution({ limit: 200, onlyMissing: true });
       } catch (e: any) {
         this.logger.warn(`Dilution cron slice failed: ${e?.message || e}`);
+      }
+      try {
+        await this.repairCompanyFacts({ limit: 200 });
+      } catch (e: any) {
+        this.logger.warn(`Company-facts repair slice failed: ${e?.message || e}`);
       }
 
       this.logger.log(`Computing IQS scores...`);
@@ -375,9 +429,12 @@ export class IngestionService implements OnModuleInit {
     let ticker: string | null = null;
     try {
       const results = await this.marketStats.searchSymbols(isin, 15);
-      const de = results.find((r) => /\.DE$/i.test(r.symbol));
-      const other = results.find((r) =>
-        /\.(F|MU|SG|DU|BE|HM|HA|STU)$/i.test(r.symbol),
+      // Reject ISIN-as-symbol results (e.g. "DE000A460Q50.SG") — an ISIN is
+      // not a ticker, and storing one breaks every quote/profile lookup.
+      const isIsin = (sym: string) => /^[A-Z]{2}[A-Z0-9]{9,10}\./i.test(sym);
+      const de = results.find((r) => /\.DE$/i.test(r.symbol) && !isIsin(r.symbol));
+      const other = results.find(
+        (r) => /\.(F|MU|SG|DU|BE|HM|HA|STU)$/i.test(r.symbol) && !isIsin(r.symbol),
       );
       ticker = de?.symbol || other?.symbol || null;
     } catch {
@@ -450,7 +507,7 @@ export class IngestionService implements OnModuleInit {
         company = this.companies.create({
           cik,
           ticker,
-          name: head.issuer,
+          name: sanitizeName(head.issuer),
           exchange: 'DE',
         });
         company = await this.companies.save(company);
@@ -661,15 +718,38 @@ export class IngestionService implements OnModuleInit {
     let updated = 0;
     for (const c of batch) {
       try {
-        const facts = await this.quote.fetchSecFacts(c.cik);
-        if (facts?.sharesOutstanding && facts?.sharesOutstandingYearAgo && facts.sharesOutstandingYearAgo > 0) {
-          c.dilutionPctTtm = +(facts.sharesOutstanding / facts.sharesOutstandingYearAgo - 1).toFixed(6);
-          c.sharesOutstanding = Math.round(Number(facts.sharesOutstanding));
+        // FMP-first (annual weighted-average diluted shares, last two fiscal
+        // years) — the SEC-XBRL year-ago derivation rarely has a usable
+        // datapoint and left dilution null on ~100% of scored names.
+        let dirty = false;
+        if (c.ticker && this.fmp?.enabled) {
+          const dil = await this.fmp.getDilutionTtm(c.ticker);
+          if (dil != null) {
+            c.dilutionPctTtm = +dil.toFixed(6);
+            dirty = true;
+          }
+          if (!c.sharesOutstanding) {
+            const shs = await this.fmp.getSharesOutstanding(c.ticker);
+            if (shs && shs >= 100_000) {
+              c.sharesOutstanding = Math.round(shs);
+              dirty = true;
+            }
+          }
+        }
+        if (!dirty) {
+          const facts = await this.quote.fetchSecFacts(c.cik);
+          if (facts?.sharesOutstanding && facts?.sharesOutstandingYearAgo && facts.sharesOutstandingYearAgo > 0) {
+            c.dilutionPctTtm = +(facts.sharesOutstanding / facts.sharesOutstandingYearAgo - 1).toFixed(6);
+            c.sharesOutstanding = Math.round(Number(facts.sharesOutstanding));
+            dirty = true;
+          }
+        }
+        if (dirty) {
           await this.companies.save(c);
           updated++;
         }
       } catch {
-        /* SEC facts unavailable — skip */
+        /* both sources unavailable — skip */
       }
     }
     return {
@@ -677,6 +757,72 @@ export class IngestionService implements OnModuleInit {
       updated,
       remaining: Math.max(0, pending.length - batch.length),
     };
+  }
+
+  /** Repair company reference facts from FMP: quarantined/implausible market
+   *  caps, missing sector/industry, missing shares outstanding. Bounded slice
+   *  per run; targets scored companies first (they're user-visible). */
+  async repairCompanyFacts(opts?: {
+    limit?: number;
+  }): Promise<{ scanned: number; capFixed: number; sectorFixed: number; sharesFixed: number }> {
+    const out = { scanned: 0, capFixed: 0, sectorFixed: 0, sharesFixed: 0 };
+    if (!this.fmp?.enabled) return out;
+    const scored = await this.companies
+      .createQueryBuilder('c')
+      .innerJoin('iqs_scores', 's', 's.company_id = c.id')
+      .where('c.ticker IS NOT NULL')
+      .getMany();
+    const needy = scored.filter((c) => {
+      const cap = Number(c.marketCap) || 0;
+      const px = Number(c.lastPrice) || 0;
+      const shs = Number(c.sharesOutstanding) || 0;
+      const capSuspect =
+        cap <= 0 ||
+        cap < 1_000_000 || // no listed company is worth under $1M
+        (shs > 0 && px > 0 && Math.abs(cap - shs * px) / cap > 0.5);
+      return capSuspect || !c.sector || shs <= 0;
+    });
+    const batch = needy.slice(0, opts?.limit ?? 200);
+    for (const c of batch) {
+      out.scanned++;
+      try {
+        const prof = await this.fmp.getCompanyProfile(c.ticker!);
+        let dirty = false;
+        if (prof?.marketCap && prof.marketCap > 0) {
+          const next = String(Math.round(prof.marketCap));
+          if (c.marketCap !== next) {
+            c.marketCap = next;
+            out.capFixed++;
+            dirty = true;
+          }
+          if (prof.price && prof.price > 0 && Number(c.lastPrice) !== prof.price) {
+            c.lastPrice = prof.price;
+            dirty = true;
+          }
+        }
+        if (!c.sector && prof?.sector) {
+          c.sector = prof.sector;
+          out.sectorFixed++;
+          dirty = true;
+        }
+        if (!c.industry && prof?.industry) {
+          c.industry = prof.industry;
+          dirty = true;
+        }
+        if (!(Number(c.sharesOutstanding) > 0)) {
+          const shs = await this.fmp.getSharesOutstanding(c.ticker!);
+          if (shs && shs >= 100_000) {
+            c.sharesOutstanding = Math.round(shs);
+            out.sharesFixed++;
+            dirty = true;
+          }
+        }
+        if (dirty) await this.companies.save(c);
+      } catch {
+        /* per-company failure never aborts the slice */
+      }
+    }
+    return out;
   }
 
   /** Backfill MD&A / communications sentiment (IQ v2 component 3) onto

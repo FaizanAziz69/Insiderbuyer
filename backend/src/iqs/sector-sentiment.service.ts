@@ -26,12 +26,12 @@ interface SectorDef {
 // Representative, highly-liquid ETFs (free on Yahoo). Specific themes first.
 const SECTORS: SectorDef[] = [
   { key: 'Biotech', etf: 'XBI', match: /biotech|life scien|drug|therapeut|pharma/i },
-  { key: 'Technology', etf: 'XLK', match: /tech|software|semiconduct|internet|comput|information technology/i },
+  { key: 'Technology', etf: 'XLK', match: /tech|software|semiconduct|internet|comput|information technology|electronic|blockchain|crypto|data processing/i },
   { key: 'Communication Services', etf: 'XLC', match: /communication|media|telecom|entertain/i },
   { key: 'Financial Services', etf: 'XLF', match: /financ|bank|insurance|capital market|asset manage/i },
   { key: 'Energy', etf: 'XLE', match: /energy|oil|gas|petroleum/i },
   { key: 'Healthcare', etf: 'XLV', match: /health|medical|hospital|diagnostic/i },
-  { key: 'Industrials', etf: 'XLI', match: /industrial|aerospace|defense|machinery|transport|airline/i },
+  { key: 'Industrials', etf: 'XLI', match: /industrial|aerospace|defense|machinery|transport|airline|shipping|marine|freight|logistics|railroad|trucking|construction|engineering/i },
   { key: 'Consumer Cyclical', etf: 'XLY', match: /consumer cyclical|consumer discretion|retail|auto|apparel|restaurant|travel|leisure/i },
   { key: 'Consumer Defensive', etf: 'XLP', match: /consumer defensive|consumer staple|food|beverage|household|tobacco/i },
   { key: 'Utilities', etf: 'XLU', match: /utilit|electric|water|power/i },
@@ -107,7 +107,9 @@ export class SectorSentimentService {
     industry?: string | null,
   ): Promise<number | null> {
     const scores = await this.getScores();
-    const hay = `${sector || ''} ${industry || ''}`.trim();
+    // Collapse repeated whitespace — raw SIC strings contain doubles
+    // ("Deep Sea Foreign Transportation of  Freight") that break matching.
+    const hay = `${sector || ''} ${industry || ''}`.replace(/\s+/g, ' ').trim();
     if (!hay) return null;
     const def = SECTORS.find((s) => s.match.test(hay));
     if (!def) return null;

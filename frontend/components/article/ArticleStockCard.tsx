@@ -154,7 +154,8 @@ export function ArticleStockCard({ ticker }: { ticker: string }) {
                   style={{ color: analyst.upsidePct >= 0 ? "var(--good)" : "var(--bad)" }}
                 >
                   {analyst.upsidePct >= 0 ? "+" : ""}
-                  {analyst.upsidePct.toFixed(0)}% upside
+                  {analyst.upsidePct.toFixed(0)}%{" "}
+                  {analyst.upsidePct >= 0 ? "upside" : "downside"}
                 </span>
               )}
             </div>

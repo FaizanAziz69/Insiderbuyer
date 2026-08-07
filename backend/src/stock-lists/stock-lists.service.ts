@@ -753,10 +753,10 @@ export class StockListsService {
     const missing = rows.filter((r) => r.iqs == null && r.ticker);
     if (missing.length) {
       try {
-        const { rows: allRank } = await this.iqs.getRankings({ limit: 500, offset: 0 });
-        const bySym = new Map(allRank.map((r) => [r.ticker, r]));
+        const { rows: allRank } = await this.iqs.getRankings({ limit: 5000, offset: 0 });
+        const bySym = new Map(allRank.map((r) => [(r.ticker || '').toUpperCase(), r]));
         for (const row of missing) {
-          const hit = bySym.get(row.ticker!);
+          const hit = bySym.get(row.ticker!.toUpperCase());
           if (hit) {
             row.iqs = hit.iqs;
             (row as any).distinctBuyers = hit.distinctBuyers;

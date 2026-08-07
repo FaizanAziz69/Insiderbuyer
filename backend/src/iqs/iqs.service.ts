@@ -24,6 +24,7 @@ import {
   PEDIGREE_BASELINE,
   PEDIGREE_FLAG_POINTS,
   PEOPLE_SIGNALS_LIVE,
+  PLANNED_BUY_MULTIPLIER,
   ROLE_MULTIPLIER,
   NORM,
   SCORE_CEILING,
@@ -126,10 +127,11 @@ function normalizeExchange(raw?: string): string | null {
 }
 
 // ── Data-quality guards ──────────────────────────────────────────────────
-// A single open-market Form 4 purchase above this is almost certainly a parse
-// artifact (the largest real insider buys are low hundreds of millions) — such
-// rows are excluded from score aggregates so one bad filing can't distort them.
-const MAX_PLAUSIBLE_TX_VALUE = 1_000_000_000;
+// A single open-market Form 4 purchase above MAX_PLAUSIBLE_TX_VALUE is almost
+// certainly a parse artifact — such rows are excluded from score aggregates
+// so one bad filing can't distort them. The shared predicate lives in
+// tx-sanity.ts so every surface (scores, feeds, articles) agrees.
+import { isPlausibleTx, plausibleTxSql, MAX_PLAUSIBLE_TX_VALUE } from './tx-sanity';
 
 /** Null out a market cap that is impossible against observed insider buying —
  *  insiders cannot buy more dollars of stock than the whole company is worth.
@@ -188,6 +190,7 @@ export class IqsService {
           rawTitle: t.rawTitle || '',
           transactionCode: t.transactionCode,
           type: isSell ? 'SELL' : 'BUY',
+          plannedBuy: (t as any).plannedBuy === true,
           sharesBought: shares,
           pricePerShare: price,
           totalValue: +(shares * price).toFixed(2),
@@ -330,9 +333,10 @@ export class IqsService {
         }
       }
 
-      let totalPurchaseValue = 0; // Σ shares × price
+      let totalPurchaseValue = 0; // Σ shares × price (raw dollars — display/VWAP)
+      let signalValue = 0; // Σ value × plan discount (drives sub-factor A)
       let totalShares = 0; // Σ shares (for insider VWAP)
-      let roleWeightedValue = 0; // Σ shares × price × role multiplier
+      let roleWeightedValue = 0; // Σ value × role multiplier × plan discount
       const buyers = new Set<string>();
       const holdingChangePcts: number[] = []; // D: per-buyer % add
       // F: role-weighted ownership % increase
@@ -343,22 +347,20 @@ export class IqsService {
         const shares = Number(t.sharesBought);
         const px = Number(t.pricePerShare);
         const value = shares * px;
-        // Data-quality guard: skip implausible parse artifacts so one bad
-        // filing can't blow up the aggregates (and the market-cap check below).
-        if (!Number.isFinite(value) || value <= 0 || value > MAX_PLAUSIBLE_TX_VALUE) {
-          continue;
-        }
-        // Price-sanity guard: a filed per-share price 25×+ the live market
-        // price (e.g. a "$1,000/share" filing on a $6 stock) is a parse or
-        // pre-conversion artifact, not an open-market buy — counting it
-        // fabricates maxed-out A and E factors.
-        if (lastPrice > 0 && px > lastPrice * 25) {
+        // Shared data-quality guard (tx-sanity.ts): absolute-value bound plus
+        // the 25×-live-price sanity check, so one bad filing can't blow up
+        // the aggregates (and the market-cap check below).
+        if (!isPlausibleTx(shares, px, lastPrice)) {
           continue;
         }
         const roleMult = ROLE_MULTIPLIER[t.role] ?? ROLE_MULTIPLIER.Other;
+        // Rule 10b5-1(c) plan buys are pre-scheduled, not a conviction signal —
+        // they count at PLANNED_BUY_MULTIPLIER weight in A and C (spec).
+        const planMult = t.plannedBuy ? PLANNED_BUY_MULTIPLIER : 1;
         totalPurchaseValue += value;
+        signalValue += value * planMult;
         totalShares += shares;
-        roleWeightedValue += value * roleMult;
+        roleWeightedValue += value * roleMult * planMult;
         buyers.add(t.insiderName.toLowerCase());
         const prevRaw = t.previousHoldings;
         const prev = Number(prevRaw) || 0;
@@ -391,7 +393,7 @@ export class IqsService {
       const insiderVwap = totalShares > 0 ? totalPurchaseValue / totalShares : null;
 
       // ── Component 1: Insider Buying (v2.1 sub-factors A–G, each 0–100) ──
-      const subVolume = scoreVolumeVsMarketCap(safeCap > 0 ? totalPurchaseValue / safeCap : null);
+      const subVolume = scoreVolumeVsMarketCap(safeCap > 0 ? signalValue / safeCap : null);
       const subCluster = scoreCluster(buyers.size);
       const subRole = scoreRole(safeCap > 0 ? roleWeightedValue / safeCap : null);
       // D — holding change (absolute commitment).
@@ -430,9 +432,14 @@ export class IqsService {
             ? marketCap / lastPrice
             : 0;
       // null only when holdings DATA is missing; a measured ~0% scores 0.
+      // A raw fraction near/above 100% is a denominator mismatch (ADR ratio,
+      // stale share count) — no real company is ~100% insider-held via Form 4
+      // postHoldings — so treat it as unknown rather than assert "100%".
       const hasHoldingsData = latestHolding.size > 0;
+      const rawOwnFraction =
+        hasHoldingsData && sharesOut > 0 ? insiderShares / sharesOut : null;
       const subOwnershipG = scoreInsiderOwnership(
-        hasHoldingsData && sharesOut > 0 ? Math.min(1, insiderShares / sharesOut) : null,
+        rawOwnFraction != null && rawOwnFraction <= 0.98 ? rawOwnFraction : null,
       );
       const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
       const buyingScore = computeBuyingScore({
@@ -484,8 +491,8 @@ export class IqsService {
         ? holdingChangePcts.reduce((a, b) => a + b, 0) / holdingChangePcts.length
         : null;
       const ownPct =
-        sharesOut > 0 && insiderShares > 0
-          ? Math.min(1, insiderShares / sharesOut) * 100
+        rawOwnFraction != null && rawOwnFraction > 0 && rawOwnFraction <= 0.98
+          ? rawOwnFraction * 100
           : null;
       const fmtUsd = (v: number) =>
         new Intl.NumberFormat('en-US', {
@@ -1153,6 +1160,7 @@ export class IqsService {
         price,
         value: +value.toFixed(2),
         previousHoldings: t.previousHoldings === null ? null : Number(t.previousHoldings),
+        plannedBuy: (t as any).plannedBuy === true,
         status,
         reason,
       };
@@ -1161,6 +1169,7 @@ export class IqsService {
     // Step 5 — aggregates over the counted buys (same loop as the scorer).
     const counted = txTrace.filter((t) => t.status === 'counted');
     let totalPurchaseValue = 0;
+    let signalValue = 0; // plan-discounted dollars (sub-factor A input)
     let totalShares = 0;
     let roleWeightedValue = 0;
     const buyers = new Set<string>();
@@ -1168,9 +1177,11 @@ export class IqsService {
     let ownWeightedSum = 0;
     let ownWeightSum = 0;
     for (const t of counted) {
+      const planMult = t.plannedBuy ? PLANNED_BUY_MULTIPLIER : 1;
       totalPurchaseValue += t.value;
+      signalValue += t.value * planMult;
       totalShares += t.shares;
-      roleWeightedValue += t.value * t.roleMultiplier;
+      roleWeightedValue += t.value * t.roleMultiplier * planMult;
       buyers.add(t.insiderName.toLowerCase());
       const prev = t.previousHoldings || 0;
       if (prev > 0) {
@@ -1198,7 +1209,7 @@ export class IqsService {
       .reduce((a, t) => (t.value > 0 && t.value <= MAX_PLAUSIBLE_TX_VALUE ? a + t.value : a), 0);
 
     // Step 6 — the v2.1 Buying sub-factors A–G.
-    const volumeRatio = safeCap > 0 ? totalPurchaseValue / safeCap : null;
+    const volumeRatio = safeCap > 0 ? signalValue / safeCap : null;
     const roleRatio = safeCap > 0 ? roleWeightedValue / safeCap : null;
     const ownAvg = ownWeightSum > 0 ? ownWeightedSum / ownWeightSum : null;
     const subVolume = scoreVolumeVsMarketCap(volumeRatio);
@@ -1229,10 +1240,12 @@ export class IqsService {
           ? marketCap / lastPrice
           : 0;
     // null only when holdings DATA is missing; a measured ~0% scores 0.
+    // Fractions near/above 100% are denominator mismatches (see recalc) →
+    // treated as unknown, never asserted as "insiders hold 100%".
+    const rawOwnFraction =
+      latestHolding.size > 0 && sharesOut > 0 ? insiderShares / sharesOut : null;
     const ownershipFraction =
-      latestHolding.size > 0 && sharesOut > 0
-        ? Math.min(1, insiderShares / sharesOut)
-        : null;
+      rawOwnFraction != null && rawOwnFraction <= 0.98 ? rawOwnFraction : null;
     const subOwnershipG = scoreInsiderOwnership(ownershipFraction);
     const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
     const buyingScore = computeBuyingScore({
@@ -1689,9 +1702,9 @@ export class IqsService {
     const qb = this.txRepo
       .createQueryBuilder('t')
       .leftJoinAndSelect('t.company', 'c')
-      // Hide Form 4 parse artifacts (e.g. a "$40,000,000/share" price) so a
-      // single bad filing never shows an absurd multi-trillion-dollar trade.
-      .where('t."pricePerShare" <= :maxPrice', { maxPrice: 1_000_000 })
+      // Filings with implausible economics (e.g. a "$748,119/share" filer
+      // error) are NOT hidden — they exist on EDGAR — but they are flagged
+      // (priceSuspect) below so the UI shows "—" instead of a false $846M.
       .orderBy('t.transactionDate', 'DESC')
       .addOrderBy('t.totalValue', 'DESC');
     // "Exchanges" filter — narrow to a listing venue (US / CA / DE).
@@ -1717,23 +1730,33 @@ export class IqsService {
     const rows = await qb.limit(limit).offset(offset).getMany();
     return {
       total,
-      rows: rows.map((t) => ({
-        id: t.id,
-        insiderName: t.insiderName,
-        role: t.role,
-        rawTitle: t.rawTitle,
-        type: t.transactionCode === 'S' ? 'SELL' : 'BUY',
-        ticker: t.company?.ticker || null,
-        companyName: t.company?.name || '',
-        sector: t.company?.sector || null,
-        marketCap: t.company?.marketCap != null ? Number(t.company.marketCap) : null,
-        sharesBought: Number(t.sharesBought),
-        pricePerShare: Number(t.pricePerShare),
-        totalValue: Number(t.totalValue),
-        previousHoldings: t.previousHoldings === null ? null : Number(t.previousHoldings),
-        transactionDate: t.transactionDate,
-        filingUrl: this.form4Link(t.filingUrl, t.accessionNumber),
-      })),
+      rows: rows.map((t) => {
+        const suspect = !isPlausibleTx(
+          Number(t.sharesBought),
+          Number(t.pricePerShare),
+          t.company?.lastPrice != null ? Number(t.company.lastPrice) : null,
+        );
+        return {
+          id: t.id,
+          insiderName: t.insiderName,
+          role: t.role,
+          rawTitle: t.rawTitle,
+          type: t.transactionCode === 'S' ? 'SELL' : 'BUY',
+          ticker: t.company?.ticker || null,
+          companyName: t.company?.name || '',
+          sector: t.company?.sector || null,
+          marketCap: t.company?.marketCap != null ? Number(t.company.marketCap) : null,
+          sharesBought: Number(t.sharesBought),
+          pricePerShare: Number(t.pricePerShare),
+          totalValue: Number(t.totalValue),
+          /** The filed price fails the shared plausibility guard — render the
+           *  dollar figures as "—" and point at the SEC filing instead. */
+          priceSuspect: suspect,
+          previousHoldings: t.previousHoldings === null ? null : Number(t.previousHoldings),
+          transactionDate: t.transactionDate,
+          filingUrl: this.form4Link(t.filingUrl, t.accessionNumber),
+        };
+      }),
     };
   }
 
@@ -1757,8 +1780,10 @@ export class IqsService {
   }
 
   /** Volume-weighted insider avg cost + last open-market buy date, keyed by
-   *  ticker — computed across ALL Form 4 'P' buys (not just the scored
-   *  rankings universe), so any stock with insider purchases populates. */
+   *  ticker — computed across Form 4 'P' buys in the scoring window (90d,
+   *  WINDOWS.buys) for any stock with insider purchases, not just the scored
+   *  rankings universe. Windowed + sanity-guarded so a single mis-filed price
+   *  (e.g. NMM's $748,119/share) can never publish an absurd avg cost. */
   async getInsiderCostBasis(
     tickers: string[],
   ): Promise<Map<string, { avgCost: number | null; lastBuyDate: string | null }>> {
@@ -1767,6 +1792,7 @@ export class IqsService {
       new Set(tickers.filter(Boolean).map((t) => t.toUpperCase())),
     );
     if (!ups.length) return map;
+    const since = new Date(Date.now() - WINDOWS.buys * 86400 * 1000);
     const rows = await this.txRepo
       .createQueryBuilder('t')
       .innerJoin('t.company', 'c')
@@ -1776,6 +1802,8 @@ export class IqsService {
       .addSelect('MAX(t."transactionDate")', 'lastBuy')
       .where('UPPER(c.ticker) IN (:...ups)', { ups })
       .andWhere(`t."transactionCode" = 'P'`)
+      .andWhere('t."transactionDate" >= :since', { since })
+      .andWhere(plausibleTxSql('t', 'c'))
       .groupBy('UPPER(c.ticker)')
       .getRawMany();
     for (const r of rows) {
@@ -1948,10 +1976,7 @@ export class IqsService {
       .where(`t."transactionCode" = 'P'`)
       // Exclude parse artifacts so the leaderboard ranks real buying, not a
       // bad filing inflating one name to billions.
-      .andWhere('t."pricePerShare" <= :maxPrice', { maxPrice: 1_000_000 })
-      .andWhere('t."totalValue" > 0 AND t."totalValue" <= :maxTx', {
-        maxTx: MAX_PLAUSIBLE_TX_VALUE,
-      })
+      .andWhere(plausibleTxSql('t', 'c'))
       .leftJoinAndSelect('t.company', 'c');
     if (country) qb.andWhere('t."insiderCountry" = :country', { country });
     if (group === 'ceo') qb.andWhere(`t."role" = 'CEO'`);
@@ -2076,10 +2101,7 @@ export class IqsService {
     const rows = await this.txRepo
       .createQueryBuilder('t')
       .where(`t."transactionCode" = 'P'`)
-      .andWhere('t."pricePerShare" <= :maxPrice', { maxPrice: 1_000_000 })
-      .andWhere('t."totalValue" > 0 AND t."totalValue" <= :maxTx', {
-        maxTx: MAX_PLAUSIBLE_TX_VALUE,
-      })
+      .andWhere(plausibleTxSql('t', 'c'))
       .leftJoinAndSelect('t.company', 'c')
       .getMany();
 
@@ -2141,12 +2163,9 @@ export class IqsService {
       .leftJoinAndSelect('t.company', 'c')
       .where('LOWER(t."insiderName") = LOWER(:name)', { name: clean })
       .andWhere(`t."transactionCode" IN ('P','S')`)
-      .andWhere('t."pricePerShare" <= :maxPrice', { maxPrice: 1_000_000 })
       // Exclude implausible parse artifacts (e.g. billions into a nano-cap) so
-      // a bad filing can't dominate the profile's totals — same cap as scoring.
-      .andWhere('t."totalValue" > 0 AND t."totalValue" <= :maxTx', {
-        maxTx: MAX_PLAUSIBLE_TX_VALUE,
-      })
+      // a bad filing can't dominate the profile's totals — shared guard.
+      .andWhere(plausibleTxSql('t', 'c'))
       .orderBy('t.transactionDate', 'DESC')
       .getMany();
     if (!txs.length) return null;
@@ -2539,8 +2558,7 @@ export class IqsService {
       // Data-quality guard: exclude implausible parse artifacts (a single
       // Form 4 with a bad share count/price can otherwise inflate the total to
       // absurd figures like "$1600T bought"). Same ceiling the scorer uses.
-      .andWhere('t."totalValue" > 0')
-      .andWhere('t."totalValue" <= :maxTx', { maxTx: MAX_PLAUSIBLE_TX_VALUE })
+      .andWhere(plausibleTxSql('t'))
       .groupBy('t."transactionCode"')
       .getRawMany<{ code: string; value: string; count: string }>();
 

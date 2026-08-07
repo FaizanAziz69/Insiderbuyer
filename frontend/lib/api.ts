@@ -179,6 +179,9 @@ export interface TradeRow {
   previousHoldings: number | null;
   transactionDate: string;
   filingUrl: string;
+  /** Filed price fails the plausibility guard (filer error on EDGAR) — the
+   *  dollar figures are untrustworthy; render "—" and point at the filing. */
+  priceSuspect?: boolean;
 }
 
 export interface TradesResponse {

@@ -621,6 +621,11 @@ export default function CompanyPage({
               <ScoreCardQQ
                 ticker={sym}
                 iqs={data.score ? Number(data.score.iqs) : null}
+                dataCompleteness={
+                  data.score && (data.score as any).dataCompleteness != null
+                    ? Number((data.score as any).dataCompleteness)
+                    : null
+                }
               />
               <BullBearCard
                 ticker={sym}

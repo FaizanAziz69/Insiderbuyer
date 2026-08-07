@@ -252,7 +252,7 @@ export function EtfHoldersCard({ ticker }: { ticker: string }) {
 }
 
 /** Smart-Score slot — our REAL Insider Score (no fake sign-up gate). */
-export function ScoreCardQQ({ ticker, iqs }: { ticker: string; iqs: number | null }) {
+export function ScoreCardQQ({ ticker, iqs, dataCompleteness }: { ticker: string; iqs: number | null; dataCompleteness?: number | null }) {
   const tier = iqs == null ? null : iqs >= 80 ? "Strong" : iqs >= 60 ? "Positive" : iqs >= 40 ? "Neutral" : "Weak";
   const color = iqs == null ? "var(--text-mute)" : iqs >= 80 ? "var(--good)" : iqs >= 60 ? "var(--accent)" : iqs >= 40 ? "var(--gold)" : "var(--bad)";
   return (
@@ -267,7 +267,14 @@ export function ScoreCardQQ({ ticker, iqs }: { ticker: string; iqs: number | nul
           </div>
           <div className="min-w-0">
             <div className="text-[17px] font-bold" style={{ color }}>{tier}</div>
-           
+            {dataCompleteness != null && (
+              <div
+                className="text-[12px] text-mute mt-1"
+                title="Share of the model's weight backed by real data for this stock — missing components fall back to a neutral value."
+              >
+                Data completeness: {Math.round(dataCompleteness * 100)}%
+              </div>
+            )}
           </div>
         </div>
       )}

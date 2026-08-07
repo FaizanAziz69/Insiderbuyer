@@ -185,8 +185,10 @@ export class ContentService {
     // Our own Form 4 record — recent insider buying is often the real story.
     try {
       const recent = await this.iqs.getAllTrades({ q: symbol, side: 'buy', limit: 5 });
+      // priceSuspect rows are confirmed filer errors — never let a false
+      // "$846M" reach published article copy.
       const rows = (recent?.rows || []).filter(
-        (r) => (r.ticker || '').toUpperCase() === symbol,
+        (r: any) => (r.ticker || '').toUpperCase() === symbol && !r.priceSuspect,
       );
       if (rows.length) {
         const total = rows.reduce((a, r) => a + (Number(r.totalValue) || 0), 0);
@@ -882,7 +884,7 @@ export class ContentService {
       try {
         const { rows: trades } = await this.iqs.getAllTrades({ limit: 300, offset: 0 });
         const ceoBuys = trades
-          .filter((t: any) => t.role === 'CEO' && t.type === 'BUY')
+          .filter((t: any) => t.role === 'CEO' && t.type === 'BUY' && !t.priceSuspect)
           .slice(0, 6);
         if (ceoBuys.length >= 1) {
           const article = await this.generator.generateCeoBuyingArticle(ceoBuys as any);
@@ -1159,7 +1161,10 @@ export class ContentService {
     // roundups below draw from this pool too.
     const { rows: allRankings } = await this.iqs.getRankings({ limit: 300, offset: 0 });
     const rankings = allRankings.filter((r) => isArticleEligible(r.ticker, r.exchange));
-    const { rows: trades } = await this.iqs.getAllTrades({ limit: 400, offset: 0 });
+    const { rows: allTradeRows } = await this.iqs.getAllTrades({ limit: 400, offset: 0 });
+    // Filer-error rows (priceSuspect) are excluded from every article input —
+    // aggregates, top-N pickers, and per-trade prose lines alike.
+    const trades = allTradeRows.filter((t: any) => !t.priceSuspect);
     const weekAgo = Date.now() - 7 * 86400000;
     const buys7d = trades.filter(
       (t: any) => t.type === 'BUY' && new Date(t.transactionDate).getTime() >= weekAgo,

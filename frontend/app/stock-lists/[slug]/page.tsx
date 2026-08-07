@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
 import { CompanyLogo } from "@/components/CompanyLogo";
+import { Sparkline } from "@/components/Sparkline";
 import { Indicators } from "@/components/Indicators";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
@@ -134,6 +135,20 @@ export default function StockListDetailPage({
   }, [analystData]);
 
   const rows = data?.rows || [];
+
+  // 7-day price sparklines — one batched request for the visible tickers
+  // (same cached /market-stats/spark path the top-gainers table uses).
+  const sparkKey = rows
+    .map((r) => (r.ticker || r.symbol || "").toUpperCase())
+    .filter(Boolean)
+    .slice(0, 60)
+    .join(",");
+  const { data: sparkData } = useSWR<{ spark: Record<string, number[]> }>(
+    sparkKey ? `${API_BASE}/market-stats/spark?symbols=${sparkKey}` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
+  const sparkMap = sparkData?.spark || {};
   const listMissing = !isLoading && (!data || !Array.isArray(data.rows));
 
 
@@ -284,6 +299,15 @@ export default function StockListDetailPage({
                 },
               },
               {
+                key: "spark7d",
+                label: "7D",
+                sortable: false,
+                align: "center",
+                render: (r) => (
+                  <Sparkline data={sparkMap[(r.ticker || r.symbol || "").toUpperCase()]} />
+                ),
+              },
+              {
                 key: "price",
                 label: "Price",
                 filterable: true,
@@ -375,7 +399,8 @@ export default function StockListDetailPage({
                             className="tabular text-[13.5px] font-bold"
                             style={{ color: r.upsidePct >= 0 ? "var(--good)" : "var(--bad)" }}
                           >
-                            +{r.upsidePct.toFixed(0)}%
+                            {r.upsidePct >= 0 ? "+" : ""}
+                            {r.upsidePct.toFixed(0)}%
                           </span>
                         ) : (
                           <span className="text-mute">—</span>
