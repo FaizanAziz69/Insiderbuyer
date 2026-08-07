@@ -264,6 +264,14 @@ export class IqsService {
     // Per-company work is independent — run in small parallel batches so a
     // full-universe recalc over a remote DB takes minutes, not an hour.
     const processCompany = async (company: Company) => {
+      // Unlisted Form 4 filers (private credit funds, trusts — ticker absent
+      // or a literal "N/A"/"NONE") are not tradeable stocks: never score
+      // them, and clear any score row a previous run left behind.
+      const tkr = (company.ticker || '').trim().toUpperCase();
+      if (!tkr || tkr === 'N/A' || tkr === 'NONE') {
+        await this.scores.delete({ companyId: company.id });
+        return;
+      }
       const allTxs = await this.txRepo
         .createQueryBuilder('t')
         .where('t.company_id = :id', { id: company.id })

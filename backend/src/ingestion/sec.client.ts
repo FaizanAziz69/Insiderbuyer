@@ -208,7 +208,11 @@ export class SecClient {
     const issuer = doc.issuer || {};
     const issuerCik = String(issuer?.issuerCik || '').replace(/^0+/, '');
     const issuerName = String(issuer?.issuerName || '').trim();
-    const issuerTicker = issuer?.issuerTradingSymbol ? String(issuer.issuerTradingSymbol).toUpperCase().trim() : null;
+    const rawTicker = issuer?.issuerTradingSymbol
+      ? String(issuer.issuerTradingSymbol).toUpperCase().trim()
+      : '';
+    // Unlisted filers put "N/A"/"NONE" in the symbol field — that is not a ticker.
+    const issuerTicker = rawTicker && rawTicker !== 'N/A' && rawTicker !== 'NONE' ? rawTicker : null;
 
     const reportingOwner = doc.reportingOwner;
     const ownerArr = Array.isArray(reportingOwner) ? reportingOwner : [reportingOwner].filter(Boolean);
