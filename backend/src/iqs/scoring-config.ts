@@ -101,6 +101,12 @@ export const LITIGATION_STATUS_MODIFIER: Record<string, number> = {
 /** Total deduction cap in points (spec §7.1). */
 export const LITIGATION_DEDUCTION_CAP = 15;
 
+/** §12 rollout: pedigree + litigation ship DARK first — computed and stored
+ *  for audit, but NOT applied to the public score until this flag is turned
+ *  on (after the 4-week false-positive review and legal sign-off, OQ#D).
+ *  While dark: every company gets the pedigree baseline and a 0 deduction. */
+export const PEOPLE_SIGNALS_LIVE = process.env.IQS_PEOPLE_SIGNALS_LIVE === 'true';
+
 /** Role multipliers — applied to each transaction's contribution to the
  *  role-weighted sub-factors (A, C, E, F). Config-driven per spec §2C. */
 export const ROLE_MULTIPLIER: Record<InsiderRole, number> = {

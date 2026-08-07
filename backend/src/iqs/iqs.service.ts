@@ -22,6 +22,7 @@ import {
   NEUTRAL,
   PEDIGREE_BASELINE,
   PEDIGREE_FLAG_POINTS,
+  PEOPLE_SIGNALS_LIVE,
   ROLE_MULTIPLIER,
   NORM,
   SCORE_CEILING,
@@ -387,8 +388,10 @@ export class IqsService {
       }
       const insiderShares = [...latestHolding.values()].reduce((a, b) => a + b.shares, 0);
       const sharesOut = lastPrice > 0 && marketCap > 0 ? marketCap / lastPrice : 0;
+      // null only when holdings DATA is missing; a measured ~0% scores 0.
+      const hasHoldingsData = latestHolding.size > 0;
       const subOwnershipG = scoreInsiderOwnership(
-        sharesOut > 0 && insiderShares > 0 ? Math.min(1, insiderShares / sharesOut) : null,
+        hasHoldingsData && sharesOut > 0 ? Math.min(1, insiderShares / sharesOut) : null,
       );
       const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
       const buyingScore = computeBuyingScore({
@@ -476,17 +479,22 @@ export class IqsService {
       );
 
       // ── Composite (v2.1: weighted, missing → neutral 50 / pedigree
-      //    baseline 25, then the §7 litigation deduction, floored at 0) ────
+      //    baseline 25, then the §7 litigation deduction, floored at 0).
+      //    §12 dark mode: until IQS_PEOPLE_SIGNALS_LIVE=true, pedigree and
+      //    litigation are computed and STORED for the audit window but not
+      //    APPLIED — every company scores on the pedigree baseline with no
+      //    deduction, so the people-signals can be reviewed for false
+      //    positives before touching the public number. ─────────────────────
       const composite = assembleComposite(
         {
           buying: buyingScore,
           sector: sectorScore,
           mda: mdaScore,
           momentum: momentumScore,
-          pedigree: pedigreeScore,
+          pedigree: PEOPLE_SIGNALS_LIVE ? pedigreeScore : null,
           dilution: dilutionScore,
         },
-        litigationDeduction,
+        PEOPLE_SIGNALS_LIVE ? litigationDeduction : 0,
       );
       const iqs = composite.score ?? 0;
 
@@ -1149,8 +1157,11 @@ export class IqsService {
     }
     const insiderShares = [...latestHolding.values()].reduce((a, b) => a + b.shares, 0);
     const sharesOut = lastPrice > 0 && marketCap > 0 ? marketCap / lastPrice : 0;
+    // null only when holdings DATA is missing; a measured ~0% scores 0.
     const ownershipFraction =
-      sharesOut > 0 && insiderShares > 0 ? Math.min(1, insiderShares / sharesOut) : null;
+      latestHolding.size > 0 && sharesOut > 0
+        ? Math.min(1, insiderShares / sharesOut)
+        : null;
     const subOwnershipG = scoreInsiderOwnership(ownershipFraction);
     const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
     const buyingScore = computeBuyingScore({
@@ -1219,16 +1230,18 @@ export class IqsService {
     const litigationDeduction = computeLitigationDeduction(litigationMatters);
 
     // Step 8 — the weighted composite, then the litigation deduction.
+    // §12 dark mode: people-signals computed but not applied until
+    // IQS_PEOPLE_SIGNALS_LIVE=true.
     const composite = assembleComposite(
       {
         buying: buyingScore,
         sector: sectorScore,
         mda: mdaScore,
         momentum: momentumScore,
-        pedigree: pedigreeScore,
+        pedigree: PEOPLE_SIGNALS_LIVE ? pedigreeScore : null,
         dilution: dilutionScore,
       },
-      litigationDeduction,
+      PEOPLE_SIGNALS_LIVE ? litigationDeduction : 0,
     );
 
     // Old v1 score (insider-only) — same math the scorer stores as iqsV1.
@@ -1441,10 +1454,10 @@ export class IqsService {
           source: pedigreeScore != null
             ? `Reviewed insider profiles: ${pedigreeHighlights
                 .map((h) => `${h.name} (${h.flags.join(', ')})`)
-                .join('; ')}`
+                .join('; ')}${PEOPLE_SIGNALS_LIVE ? '' : ` — DARK MODE (§12): computed ${Math.round(pedigreeScore)} and logged, baseline ${PEDIGREE_BASELINE} applied to the score during the audit window`}`
             : `No reviewed pedigree profiles for these insiders yet — baseline ${PEDIGREE_BASELINE} applies (absence of fame ≠ negative signal)`,
-          score: pedigreeScore ?? PEDIGREE_BASELINE,
-          usedNeutral: pedigreeScore == null,
+          score: PEOPLE_SIGNALS_LIVE ? (pedigreeScore ?? PEDIGREE_BASELINE) : PEDIGREE_BASELINE,
+          usedNeutral: !PEOPLE_SIGNALS_LIVE || pedigreeScore == null,
         },
         {
           key: 'dilution', name: 'Dilution', weight: COMPONENT_WEIGHTS.dilution,
@@ -1454,7 +1467,9 @@ export class IqsService {
         },
       ],
       litigation: {
-        deduction: +litigationDeduction.toFixed(2),
+        deduction: PEOPLE_SIGNALS_LIVE ? +litigationDeduction.toFixed(2) : 0,
+        computedDeduction: +litigationDeduction.toFixed(2),
+        live: PEOPLE_SIGNALS_LIVE,
         cap: 15,
         matters: litigationMatters.map((m) => ({
           tier: m.tier,
@@ -1463,14 +1478,16 @@ export class IqsService {
           source: m.source ?? null,
         })),
         note: litigationMatters.length
-          ? 'Deduction = tier points × status modifier × recency decay, capped at 15.'
+          ? PEOPLE_SIGNALS_LIVE
+            ? 'Deduction = tier points × status modifier × recency decay, capped at 15.'
+            : `DARK MODE (§12): computed −${litigationDeduction.toFixed(2)} and logged; not applied to the score during the audit window.`
           : 'No confirmed litigation matters on file for these insiders — no deduction.',
       },
       final: {
         formula:
           'IQ = max(0, 0.45·Buying + 0.22·Sector + 0.10·MD&A + 0.10·Momentum + 0.08·Pedigree + 0.05·Dilution − Litigation)',
         missingRule: `A component with no data contributes neutral ${NEUTRAL} at its full weight (pedigree falls to its ${PEDIGREE_BASELINE} baseline)`,
-        litigationDeduction: +litigationDeduction.toFixed(2),
+        litigationDeduction: PEOPLE_SIGNALS_LIVE ? +litigationDeduction.toFixed(2) : 0,
         weightedSum: composite.score,
         dataCompleteness: composite.dataCompleteness,
         ceiling: SCORE_CEILING,

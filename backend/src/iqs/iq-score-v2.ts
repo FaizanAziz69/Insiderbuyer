@@ -73,12 +73,11 @@ export function scoreStakeIncrease(
  *  its insiders collectively own, mapped through the spec §2G piecewise curve
  *  (with the >60% controlled-company taper). */
 export function scoreInsiderOwnership(ownershipFraction: number | null): number | null {
-  if (
-    ownershipFraction == null ||
-    !Number.isFinite(ownershipFraction) ||
-    ownershipFraction <= 0
-  )
+  // null = no holdings DATA (drop from renormalization). A measured 0% is a
+  // real observation and scores 0 per the spec curve (<1% → 0–10 linear).
+  if (ownershipFraction == null || !Number.isFinite(ownershipFraction) || ownershipFraction < 0)
     return null;
+  if (ownershipFraction === 0) return 0;
   const curve = INSIDER_OWNERSHIP_CURVE;
   const x = Math.min(ownershipFraction, curve[curve.length - 1][0]);
   for (let i = 1; i < curve.length; i++) {
