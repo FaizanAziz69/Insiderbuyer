@@ -17,12 +17,15 @@ import {
   Wrench,
 } from "lucide-react";
 
+/** Portraits are self-hosted from Wikimedia Commons (CC BY / public-domain
+ *  originals; Trump = official 2025 presidential portrait, public domain).
+ *  Initials render as the fallback if an image ever fails to load. */
 const INVESTORS = [
-  { initials: "WB", name: "Warren Buffett", color: "#175d8d", href: "/stock-lists/warren-buffett" },
-  { initials: "RD", name: "Ray Dalio", color: "#0e8a6d", href: "/stock-lists/ray-dalio" },
-  { initials: "ES", name: "Eric Sprott", color: "#8d5a17", href: "/stock-lists/eric-sprott" },
-  { initials: "JB", name: "Jeff Bezos", color: "#5a3d8d", href: "/stock-lists/jeff-bezos" },
-  { initials: "TF", name: "Trump Family", color: "#8d1740", href: "/stock-lists/trump-family" },
+  { initials: "WB", name: "Warren Buffett", color: "#175d8d", href: "/stock-lists/warren-buffett", img: "/investors/warren-buffett.jpg" },
+  { initials: "RD", name: "Ray Dalio", color: "#0e8a6d", href: "/stock-lists/ray-dalio", img: "/investors/ray-dalio.jpg" },
+  { initials: "ES", name: "Eric Sprott", color: "#8d5a17", href: "/stock-lists/eric-sprott", img: "/investors/eric-sprott.jpg" },
+  { initials: "JB", name: "Jeff Bezos", color: "#5a3d8d", href: "/stock-lists/jeff-bezos", img: "/investors/jeff-bezos.jpg" },
+  { initials: "TF", name: "Trump Family", color: "#8d1740", href: "/stock-lists/trump-family", img: "/investors/trump-family.jpg" },
 ];
 
 const CHIPS = [
@@ -84,13 +87,27 @@ export function SidebarListsAndTools() {
                 style={{ gap: 6, cursor: "pointer" }}
               >
                 <span
-                  className="sbw-avatar flex items-center justify-center"
+                  className="sbw-avatar relative flex items-center justify-center overflow-hidden"
                   style={{
                     background: inv.color,
                     boxShadow: `0 0 0 2px var(--bg-1), 0 0 0 3.5px ${inv.color}66`,
                   }}
                 >
-                  {inv.initials}
+                  {/* Initials sit underneath as the fallback… */}
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    {inv.initials}
+                  </span>
+                  {/* …and the portrait covers them (hides itself on 404). */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={inv.img}
+                    alt={inv.name}
+                    className="relative h-full w-full object-cover"
+                    style={{ objectPosition: "center 20%" }}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
+                  />
                 </span>
                 <span className="sbw-name">{inv.name}</span>
               </Link>
