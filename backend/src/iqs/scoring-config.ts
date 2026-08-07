@@ -1,12 +1,14 @@
 /**
- * Insider Quality ("IQ") Score v2 — scoring configuration.
+ * Insider Quality ("IQ") Score v2.1 — scoring configuration.
  *
  * All weights, windows, role multipliers and normalization knobs live here so
  * product can tune the model WITHOUT a code change to the engine. The final IQ
- * Score is a 0–100 weighted composite of five components; each component is
- * independently normalized to 0–100 before weighting (see IQ Score v2 spec).
+ * Score is a 0–100 weighted composite of SIX components followed by a
+ * litigation deduction (v2.1 spec §1):
  *
- *   IQ = 0.50·Buying + 0.25·Sector + 0.05·MD&A + 0.10·Momentum + 0.10·Dilution
+ *   composite = 0.45·Buying + 0.22·Sector + 0.10·MD&A + 0.10·Momentum
+ *             + 0.08·Pedigree + 0.05·Dilution
+ *   IQ Score  = max(0, composite − LitigationDeduction)   // deduction 0–15
  *
  * A startup assertion (bottom of this file) guarantees the component weights
  * sum to 1.0 so a mis-edit fails fast rather than silently skewing every score.
@@ -14,34 +16,90 @@
 
 import type { InsiderRole } from '../entities/insider-transaction.entity';
 
-/** Which score version drives the site. v2 is the composite defined here. */
-export const SCORE_VERSION: 'v1' | 'v2' = 'v2';
+/** Which score version drives the site. v2.1 is the composite defined here. */
+export const SCORE_VERSION: 'v1' | 'v2' | 'v2.1' = 'v2.1';
 
 /** No stock ever gets a perfect score — every 0–100 scale caps at 99. */
 export const SCORE_CEILING = 99;
 
-/** Top-level component weights. MUST sum to 1.0 (asserted below). */
+/** Top-level component weights (v2.1 spec §1). MUST sum to 1.0. */
 export const COMPONENT_WEIGHTS = {
-  buying: 0.5,
-  sector: 0.25,
-  mda: 0.05,
+  buying: 0.45,
+  sector: 0.22,
+  mda: 0.1,
   momentum: 0.1,
-  dilution: 0.1,
+  pedigree: 0.08, // NEW v2.1 — caliber of the people buying
+  dilution: 0.05,
 } as const;
 
-/** Insider-Buying sub-factor weights (relative; renormalized over whichever
- *  sub-factors have data for a given company).
- *  Note: the former "holding change" (D) and "ownership % increase" (F)
- *  measured the same thing — relative stake growth — so they are merged into
- *  one Stake Increase metric carrying their combined weight (0.10 + 0.10). */
+/** Insider-Buying sub-factor weights (v2.1 spec §2; relative, renormalized
+ *  over whichever sub-factors have data for a given company).
+ *  buySellBalance is retained from the interim model as an informational
+ *  metric at 0 weight — spec open question #6 (sales) is still open, so it
+ *  renders in the breakdown without moving the score until product sets a
+ *  weight here. */
 export const BUYING_SUBWEIGHTS = {
-  volumeVsMarketCap: 0.2, // A
-  cluster: 0.2, // B
-  role: 0.2, // C
-  stakeIncrease: 0.15, // D — merged holding-change + ownership-increase
-  priceVsBuys: 0.1, // E — avg insider buy price vs current price
-  buySellBalance: 0.15, // F — insider buy $ vs sell $ over the window
+  volumeVsMarketCap: 0.22, // A
+  cluster: 0.18, // B
+  role: 0.18, // C
+  holdingChange: 0.08, // D — absolute commitment (avg % added per buyer)
+  priceVsBuys: 0.12, // E — avg insider buy price vs current price
+  stakeIncrease: 0.1, // F — ownership increase per insider (relative)
+  insiderOwnership: 0.12, // G — NEW v2.1: aggregate insider ownership
+  buySellBalance: 0.0, // informational — pending product decision (OQ#6)
 } as const;
+
+/** G — aggregate insider ownership → sub-score (v2.1 spec §2G piecewise).
+ *  [ownershipFraction, score] knees; linear between; gentle taper above 60%
+ *  (controlled-company caveat, OQ#B default ON). */
+export const INSIDER_OWNERSHIP_CURVE: Array<[number, number]> = [
+  [0.0, 0],
+  [0.01, 10],
+  [0.05, 40],
+  [0.15, 75],
+  [0.4, 100],
+  [0.6, 100],
+  [0.8, 85], // taper: >70–80% = tiny float / controlled company
+];
+
+// ── v2.1 §6 — Insider Pedigree ─────────────────────────────────────────────
+/** Flag points per insider (spec §6.1). Evidence-backed only; profiles live
+ *  in the insider_profiles table and require review before affecting scores. */
+export const PEDIGREE_FLAG_POINTS: Record<string, number> = {
+  major_exit: 40, // founded/led a company sold/IPO'd at ≥ $1B
+  mid_exit: 15, // same, $100M–$1B
+  billionaire: 30, // recognized wealth list / documented ≥ $1B
+  high_net_worth: 10, // documented ≥ $100M
+  political_office: 20, // former/current elected official, cabinet, regulator
+  political_connections: 10, // FEC-documented major donor / lobbying ties
+  serial_public_company_director: 8, // 3+ public boards
+};
+/** Per-insider points cap (spec §6.2). */
+export const PEDIGREE_PER_INSIDER_CAP = 60;
+/** Boost for insiders with an open-market buy in the trailing 12 months
+ *  (spec OQ#C, default ON — a billionaire writing checks beats one who
+ *  never buys). */
+export const PEDIGREE_RECENT_BUYER_MULTIPLIER = 1.5;
+/** Baseline when NO pedigree data exists for any insider — absence of fame
+ *  ≠ negative signal (spec §9). */
+export const PEDIGREE_BASELINE = 25;
+
+// ── v2.1 §7 — Litigation deduction ─────────────────────────────────────────
+/** Deduction points per matter by severity tier (spec §7.1). */
+export const LITIGATION_TIER_DEDUCTION: Record<string, number> = {
+  severe: 10, // SEC/DOJ securities fraud, criminal fraud, officer bar
+  serious: 5, // derivative suits, fiduciary judgments, FINRA sanctions
+  moderate: 2, // civil business disputes, defendant side
+  noise: 0,
+};
+/** Status modifiers (spec §7.1). */
+export const LITIGATION_STATUS_MODIFIER: Record<string, number> = {
+  adjudicated: 1.0, // judgment / settlement / plea
+  pending: 0.6, // pending / alleged
+  dismissed: 0.0, // dismissed / acquitted
+};
+/** Total deduction cap in points (spec §7.1). */
+export const LITIGATION_DEDUCTION_CAP = 15;
 
 /** Role multipliers — applied to each transaction's contribution to the
  *  role-weighted sub-factors (A, C, E, F). Config-driven per spec §2C. */

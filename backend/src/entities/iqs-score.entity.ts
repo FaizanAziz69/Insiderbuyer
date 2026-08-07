@@ -83,6 +83,19 @@ export class IqsScore {
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
   dilutionScore: number | null;
 
+  /** v2.1 — Insider Pedigree component (0–100; null = no profiles → §9
+   *  baseline applied inside the composite). */
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  pedigreeScore: number | null;
+
+  /** v2.1 — litigation deduction actually subtracted (0–15 points). */
+  @Column({ type: 'numeric', precision: 6, scale: 2, nullable: true })
+  litigationDeduction: number | null;
+
+  /** v2.1 — G sub-factor: aggregate insider ownership sub-score (0–100). */
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  subInsiderOwnership: number | null;
+
   /** Share of model weight that had data (0–1) — confidence hint. */
   @Column({ type: 'numeric', precision: 6, scale: 4, default: 1 })
   dataCompleteness: number;

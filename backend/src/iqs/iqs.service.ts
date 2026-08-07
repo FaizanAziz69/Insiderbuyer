@@ -17,19 +17,34 @@ import {
 } from './composite-score';
 import { SentimentService } from './sentiment.service';
 import { SectorSentimentService } from './sector-sentiment.service';
-import { COMPONENT_WEIGHTS, NEUTRAL, ROLE_MULTIPLIER, NORM, SCORE_CEILING } from './scoring-config';
 import {
+  COMPONENT_WEIGHTS,
+  NEUTRAL,
+  PEDIGREE_BASELINE,
+  PEDIGREE_FLAG_POINTS,
+  ROLE_MULTIPLIER,
+  NORM,
+  SCORE_CEILING,
+} from './scoring-config';
+import {
+  LitigationMatterInput,
+  PedigreeInsiderInput,
   assembleComposite,
   computeBuyingScore,
+  computeLitigationDeduction,
+  computePedigreeScore,
   scoreBuySellBalance,
   scoreCluster,
   scoreDilution,
+  scoreHoldingChange,
+  scoreInsiderOwnership,
   scoreMomentum,
   scorePriceVsBuys,
   scoreRole,
   scoreStakeIncrease,
   scoreVolumeVsMarketCap,
 } from './iq-score-v2';
+import { InsiderProfile } from '../entities/insider-profile.entity';
 
 export interface RankingRow {
   rank: number;
@@ -128,6 +143,7 @@ export class IqsService {
     @InjectRepository(Company) private readonly companies: Repository<Company>,
     @InjectRepository(InsiderTransaction) private readonly txRepo: Repository<InsiderTransaction>,
     @InjectRepository(IqsScore) private readonly scores: Repository<IqsScore>,
+    @InjectRepository(InsiderProfile) private readonly profiles: Repository<InsiderProfile>,
     private readonly congress: CongressionalService,
     private readonly marketStats: MarketStatsService,
     private readonly fmp: FmpService,
@@ -206,6 +222,24 @@ export class IqsService {
       quotes = await this.marketStats.getQuoteBatch(tickers);
     } catch {
       quotes = new Map();
+    }
+
+    // v2.1 §6/§7 — reviewed insider profiles (pedigree flags + litigation
+    // matters), keyed by lowercased filer name. Loaded once per run; when the
+    // table is empty every company falls to the §9 pedigree baseline.
+    const profileMap = new Map<
+      string,
+      { flags: string[]; matters: LitigationMatterInput[] }
+    >();
+    try {
+      for (const p of await this.profiles.find({ where: { suppressed: false } })) {
+        profileMap.set(p.nameKey, {
+          flags: JSON.parse(p.flags || '[]'),
+          matters: JSON.parse(p.litigationMatters || '[]'),
+        });
+      }
+    } catch {
+      /* profiles unavailable → pedigree baseline everywhere */
     }
 
     // Per-company work is independent — run in small parallel batches so a
@@ -320,25 +354,74 @@ export class IqsService {
       const safeCap = sanitizedMarketCap(marketCap, totalPurchaseValue) ?? 0;
       const insiderVwap = totalShares > 0 ? totalPurchaseValue / totalShares : null;
 
-      // ── Component 1: Insider Buying (5 sub-factors, each 0–100) ──────────
-      // D — Stake Increase merges the former holding-change and ownership-%
-      // metrics (they measured the same thing) at their combined weight.
+      // ── Component 1: Insider Buying (v2.1 sub-factors A–G, each 0–100) ──
       const subVolume = scoreVolumeVsMarketCap(safeCap > 0 ? totalPurchaseValue / safeCap : null);
       const subCluster = scoreCluster(buyers.size);
       const subRole = scoreRole(safeCap > 0 ? roleWeightedValue / safeCap : null);
+      // D — holding change (absolute commitment).
+      const subHolding = scoreHoldingChange(
+        holdingChangePcts.length
+          ? holdingChangePcts.reduce((a, b) => a + b, 0) / holdingChangePcts.length
+          : null,
+      );
+      const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
+      // F — ownership increase per insider (relative stake growth).
       const subStake = scoreStakeIncrease(
         ownWeightSum > 0 ? ownWeightedSum / ownWeightSum : null,
       );
-      const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
+      // G (NEW v2.1) — aggregate insider ownership: latest reported
+      // post-transaction holdings per individual filer in the window
+      // (fund-style 10%-owner filers excluded) over approximate shares
+      // outstanding (market cap ÷ price).
+      const latestHolding = new Map<string, { date: string; shares: number }>();
+      for (const t of allTxs) {
+        if (IqsService.FUND_NAME.test(t.insiderName)) continue;
+        const post = Number(t.postHoldings);
+        if (!Number.isFinite(post) || post < 0) continue;
+        const key = t.insiderName.trim().toLowerCase();
+        const d = String(t.transactionDate);
+        const cur = latestHolding.get(key);
+        if (!cur || d > cur.date) latestHolding.set(key, { date: d, shares: post });
+      }
+      const insiderShares = [...latestHolding.values()].reduce((a, b) => a + b.shares, 0);
+      const sharesOut = lastPrice > 0 && marketCap > 0 ? marketCap / lastPrice : 0;
+      const subOwnershipG = scoreInsiderOwnership(
+        sharesOut > 0 && insiderShares > 0 ? Math.min(1, insiderShares / sharesOut) : null,
+      );
       const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
       const buyingScore = computeBuyingScore({
         volumeVsMarketCap: subVolume,
         cluster: subCluster,
         role: subRole,
-        stakeIncrease: subStake,
+        holdingChange: subHolding,
         priceVsBuys: subPriceVsBuys,
+        stakeIncrease: subStake,
+        insiderOwnership: subOwnershipG,
         buySellBalance: subBalance,
       });
+
+      // ── Component 5 (NEW v2.1 §6): Insider Pedigree + §7 litigation ─────
+      const pedigreeInputs: PedigreeInsiderInput[] = [];
+      const litigationMatters: LitigationMatterInput[] = [];
+      const roleByFiler = new Map<string, number>();
+      for (const t of allTxs) {
+        const key = t.insiderName.trim().toLowerCase();
+        if (!roleByFiler.has(key)) {
+          roleByFiler.set(key, ROLE_MULTIPLIER[t.role] ?? ROLE_MULTIPLIER.Other);
+        }
+      }
+      for (const [filer, roleMult] of roleByFiler) {
+        const prof = profileMap.get(filer);
+        if (!prof) continue;
+        pedigreeInputs.push({
+          flags: prof.flags,
+          roleMultiplier: roleMult,
+          recentBuyer: buyers.has(filer), // bought inside the 90d window ⊂ 12mo
+        });
+        litigationMatters.push(...prof.matters);
+      }
+      const pedigreeScore = computePedigreeScore(pedigreeInputs, PEDIGREE_FLAG_POINTS);
+      const litigationDeduction = computeLitigationDeduction(litigationMatters);
 
       // ── Component 2: Sector Sentiment (from daily cache) ────────────────
       const sectorScore = await this.sectorSentiment
@@ -363,14 +446,19 @@ export class IqsService {
         company.dilutionPctTtm != null ? Number(company.dilutionPctTtm) : null,
       );
 
-      // ── Composite (weighted; missing components → neutral 50) ───────────
-      const composite = assembleComposite({
-        buying: buyingScore,
-        sector: sectorScore,
-        mda: mdaScore,
-        momentum: momentumScore,
-        dilution: dilutionScore,
-      });
+      // ── Composite (v2.1: weighted, missing → neutral 50 / pedigree
+      //    baseline 25, then the §7 litigation deduction, floored at 0) ────
+      const composite = assembleComposite(
+        {
+          buying: buyingScore,
+          sector: sectorScore,
+          mda: mdaScore,
+          momentum: momentumScore,
+          pedigree: pedigreeScore,
+          dilution: dilutionScore,
+        },
+        litigationDeduction,
+      );
       const iqs = composite.score ?? 0;
 
       // Legacy display columns (kept so existing UI keeps working) mapped to
@@ -425,21 +513,25 @@ export class IqsService {
         sectorSentiment: round2(sectorScore),
         mdaSentiment: round2(mdaScore),
         momentumScore: round2(momentumScore),
+        pedigreeScore: round2(pedigreeScore),
+        litigationDeduction: +litigationDeduction.toFixed(2),
         dilutionScore: round2(dilutionScore),
         dataCompleteness: +composite.dataCompleteness.toFixed(4),
+        // v2.1 sub-factor column mapping: A/B/C as before, D holding change,
+        // E price-vs-buys, F stake increase (subOwnershipPct), G aggregate
+        // insider ownership (subInsiderOwnership).
         subVolumeVsMcap: round2(subVolume),
         subCluster: round2(subCluster),
         subRole: round2(subRole),
-        // Merged Stake Increase lands in subHoldingChange; the separate
-        // ownership column is retired (nulled so stale values clear).
-        subHoldingChange: round2(subStake),
+        subHoldingChange: round2(subHolding),
         subPriceVsBuys: round2(subPriceVsBuys),
+        subOwnershipPct: round2(subStake),
+        subInsiderOwnership: round2(subOwnershipG),
         subBuySellBalance: round2(subBalance),
-        subOwnershipPct: null,
         // legacy display columns
         insiderWeight: +(subRole ?? 0).toFixed(2),
         transactionWeight: +(subVolume ?? 0).toFixed(2),
-        convictionWeight: +(subStake ?? 0).toFixed(2),
+        convictionWeight: +(subStake ?? subHolding ?? 0).toFixed(2),
         historicalSuccessWeight: +historicalSuccessWeight.toFixed(2),
         clusterWeight: +(subCluster ?? 0).toFixed(2),
         marketTimingWeight: +marketTimingWeight.toFixed(2),
@@ -855,6 +947,7 @@ export class IqsService {
       sharesBought: number;
       pricePerShare: number;
       previousHoldings: number | null;
+      postHoldings?: number | null;
     }> = [];
     if (company) {
       allTxs = await this.txRepo
@@ -886,6 +979,7 @@ export class IqsService {
               sharesBought: t.sharesBought,
               pricePerShare: t.pricePerShare,
               previousHoldings: prev,
+              postHoldings: t.postHoldings ?? null,
             };
           })
           .sort((a, b) => String(b.transactionDate).localeCompare(String(a.transactionDate)));
@@ -999,27 +1093,46 @@ export class IqsService {
       .filter((t) => t.code === 'S')
       .reduce((a, t) => (t.value > 0 && t.value <= MAX_PLAUSIBLE_TX_VALUE ? a + t.value : a), 0);
 
-    // Step 6 — the five Buying sub-factors (D merges the former holding-change
-    // and ownership-increase metrics, which measured the same thing).
+    // Step 6 — the v2.1 Buying sub-factors A–G.
     const volumeRatio = safeCap > 0 ? totalPurchaseValue / safeCap : null;
     const roleRatio = safeCap > 0 ? roleWeightedValue / safeCap : null;
     const ownAvg = ownWeightSum > 0 ? ownWeightedSum / ownWeightSum : null;
     const subVolume = scoreVolumeVsMarketCap(volumeRatio);
     const subCluster = counted.length ? scoreCluster(buyers.size) : null;
     const subRole = scoreRole(roleRatio);
-    const subStake = scoreStakeIncrease(ownAvg);
+    const subHolding = scoreHoldingChange(avgHoldingChangePct);
     const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
+    const subStake = scoreStakeIncrease(ownAvg);
+    // G — aggregate insider ownership (latest post-transaction holdings per
+    // individual filer ÷ approximate shares outstanding).
+    const latestHolding = new Map<string, { date: string; shares: number }>();
+    for (const t of allTxs) {
+      if (IqsService.FUND_NAME.test(t.insiderName)) continue;
+      const post = Number(t.postHoldings);
+      if (!Number.isFinite(post) || post < 0) continue;
+      const key = t.insiderName.trim().toLowerCase();
+      const d = String(t.transactionDate);
+      const cur = latestHolding.get(key);
+      if (!cur || d > cur.date) latestHolding.set(key, { date: d, shares: post });
+    }
+    const insiderShares = [...latestHolding.values()].reduce((a, b) => a + b.shares, 0);
+    const sharesOut = lastPrice > 0 && marketCap > 0 ? marketCap / lastPrice : 0;
+    const ownershipFraction =
+      sharesOut > 0 && insiderShares > 0 ? Math.min(1, insiderShares / sharesOut) : null;
+    const subOwnershipG = scoreInsiderOwnership(ownershipFraction);
     const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
     const buyingScore = computeBuyingScore({
       volumeVsMarketCap: subVolume,
       cluster: subCluster,
       role: subRole,
-      stakeIncrease: subStake,
+      holdingChange: subHolding,
       priceVsBuys: subPriceVsBuys,
+      stakeIncrease: subStake,
+      insiderOwnership: subOwnershipG,
       buySellBalance: subBalance,
     });
 
-    // Step 7 — the other four components, each with its source.
+    // Step 7 — the other components, each with its source.
     const sectorScore = await this.sectorSentiment
       .getScoreFor(meta.sector, meta.industry)
       .catch(() => null);
@@ -1032,14 +1145,59 @@ export class IqsService {
     const dilutionPct = meta.dilutionPctTtm != null ? Number(meta.dilutionPctTtm) : null;
     const dilutionScore = scoreDilution(dilutionPct);
 
-    // Step 8 — the weighted composite.
-    const composite = assembleComposite({
-      buying: buyingScore,
-      sector: sectorScore,
-      mda: mdaScore,
-      momentum: momentumScore,
-      dilution: dilutionScore,
-    });
+    // Pedigree (v2.1 §6) + litigation (§7) from reviewed insider profiles.
+    const pedigreeInputs: PedigreeInsiderInput[] = [];
+    const litigationMatters: Array<LitigationMatterInput & { caption?: string; source?: string }> = [];
+    const pedigreeHighlights: Array<{ name: string; flags: string[] }> = [];
+    const roleByFiler = new Map<string, { roleMult: number; name: string }>();
+    for (const t of allTxs) {
+      const key = t.insiderName.trim().toLowerCase();
+      if (!roleByFiler.has(key)) {
+        roleByFiler.set(key, {
+          roleMult: ROLE_MULTIPLIER[t.role] ?? ROLE_MULTIPLIER.Other,
+          name: t.insiderName,
+        });
+      }
+    }
+    try {
+      const filers = [...roleByFiler.keys()];
+      const profs = filers.length
+        ? await this.profiles
+            .createQueryBuilder('p')
+            .where('p."nameKey" IN (:...filers)', { filers })
+            .andWhere('p.suppressed = false')
+            .getMany()
+        : [];
+      for (const p of profs) {
+        const info = roleByFiler.get(p.nameKey);
+        if (!info) continue;
+        const flags: string[] = JSON.parse(p.flags || '[]');
+        pedigreeInputs.push({
+          flags,
+          roleMultiplier: info.roleMult,
+          recentBuyer: buyers.has(p.nameKey),
+        });
+        if (flags.length) pedigreeHighlights.push({ name: info.name, flags });
+        litigationMatters.push(...JSON.parse(p.litigationMatters || '[]'));
+      }
+    } catch {
+      /* profiles unavailable → baseline */
+    }
+    const pedigreeScore = computePedigreeScore(pedigreeInputs, PEDIGREE_FLAG_POINTS);
+    const litigationDeduction = computeLitigationDeduction(litigationMatters);
+
+    // Step 8 — the weighted composite, then the litigation deduction.
+    const composite = assembleComposite(
+      {
+        buying: buyingScore,
+        sector: sectorScore,
+        mda: mdaScore,
+        momentum: momentumScore,
+        pedigree: pedigreeScore,
+        dilution: dilutionScore,
+      },
+      litigationDeduction,
+    );
 
     // Old v1 score (insider-only) — same math the scorer stores as iqsV1.
     const vA = safeCap > 0 ? totalPurchaseValue / safeCap : 0;
@@ -1104,17 +1262,20 @@ export class IqsService {
           },
         },
         new: {
-          label: 'New Insider Score (v2 composite)',
+          label: 'New Insider Score (v2.1 composite)',
           score: composite.score,
-          formula: '0.50·Buying + 0.25·Sector + 0.05·MD&A + 0.10·Momentum + 0.10·Dilution',
+          formula:
+            'max(0, 0.45·Buying + 0.22·Sector + 0.10·MD&A + 0.10·Momentum + 0.08·Pedigree + 0.05·Dilution − Litigation)',
           includes: [
-            'Insider buying & selling (6 sub-factors) — 50%',
-            'Sector sentiment (sector-ETF signal) — 25%',
-            'MD&A filing tone (AI-scored) — 5%',
+            'Insider buying (sub-factors A–G) — 45%',
+            'Sector sentiment (sector-ETF signal) — 22%',
+            'MD&A filing tone (AI-scored) — 10%',
             'Volume momentum (10d vs 3m) — 10%',
-            'Share dilution (TTM growth) — 10%',
+            'Insider pedigree (track record, wealth, connections) — 8%',
+            'Share dilution (TTM growth) — 5%',
+            'Litigation screening — deduction up to 15 points',
           ],
-          note: 'The buying signal plus the market and fundamental context around it.',
+          note: 'The buying signal plus the market, fundamental and people context around it.',
         },
       },
       company: {
@@ -1159,44 +1320,59 @@ export class IqsService {
       buying: {
         subFactors: [
           {
-            key: 'A', name: 'Purchase size vs market cap', weight: 0.2,
+            key: 'A', name: 'Purchase size vs market cap', weight: 0.22,
             input: volumeRatio, inputLabel: 'total $ bought ÷ market cap',
             formula: 'ln(1 + ratio ÷ 0.02) ÷ ln(5) × 100 — ~2% of cap ≈ strong',
             score: subVolume,
           },
           {
-            key: 'B', name: 'Cluster (distinct buyers)', weight: 0.2,
+            key: 'B', name: 'Cluster (distinct buyers)', weight: 0.18,
             input: buyers.size, inputLabel: 'distinct insider buyers',
             formula: 'ln(1 + buyers) ÷ ln(7) × 100 — 6 buyers ≈ 100',
             score: subCluster,
           },
           {
-            key: 'C', name: 'Role-weighted size vs cap', weight: 0.2,
+            key: 'C', name: 'Role-weighted size vs cap', weight: 0.18,
             input: roleRatio, inputLabel: 'Σ($ × role multiplier) ÷ market cap',
             formula: 'ln(1 + ratio ÷ 0.06) ÷ ln(5) × 100 — CEO/CFO/COO 1.0, Director 0.6, Other 0.4',
             score: subRole,
           },
           {
-            key: 'D', name: 'Stake increase', weight: 0.15,
-            input: ownAvg, inputLabel: 'role-weighted avg relative stake growth (0–1)',
-            formula:
-              'shares bought ÷ previous holdings per buyer, role-weighted, capped at doubling (1.0 → 100); first-time buyers get the cap. (Merges the former "holding change" and "ownership % increase" — they measured the same thing.)',
-            score: subStake,
+            key: 'D', name: 'Holding change', weight: 0.08,
+            input: avgHoldingChangePct, inputLabel: 'avg % each buyer added to their stake',
+            formula: 'avg per-buyer % added, capped at 100% (absolute commitment)',
+            score: subHolding,
           },
           {
-            key: 'E', name: 'Cost basis vs price', weight: 0.1,
+            key: 'E', name: 'Cost basis vs price', weight: 0.12,
             input: insiderVwap != null && lastPrice > 0 ? insiderVwap / lastPrice : null,
             inputLabel: 'insider avg cost ÷ current price',
             formula: 'clamp(ratio, 0.5–2.0) min-maxed to 0–100; >1 (stock below insider cost) = bullish',
             score: subPriceVsBuys,
           },
           {
-            key: 'F', name: 'Buy/Sell balance', weight: 0.15,
+            key: 'F', name: 'Ownership increase (per insider)', weight: 0.1,
+            input: ownAvg, inputLabel: 'role-weighted avg relative stake growth (0–1)',
+            formula:
+              'shares bought ÷ previous holdings per buyer, role-weighted, capped at doubling (1.0 → 100); first-time buyers get the cap',
+            score: subStake,
+          },
+          {
+            key: 'G', name: 'Aggregate insider ownership (NEW v2.1)', weight: 0.12,
+            input: ownershipFraction,
+            inputLabel: `insiders hold ~${insiderShares.toLocaleString('en-US')} shares of ~${sharesOut > 0 ? Math.round(sharesOut).toLocaleString('en-US') : '—'} outstanding`,
+            formula:
+              'insider shares ÷ shares outstanding through the piecewise curve: <1%→0–10, 5%→40, 15%→75, 40%+→100, taper above 60% (controlled-company caveat)',
+            score: subOwnershipG,
+          },
+          {
+            key: 'S', name: 'Buy/Sell balance (informational)', weight: 0,
             input: totalPurchaseValue + totalSellValue > 0
               ? totalPurchaseValue / (totalPurchaseValue + totalSellValue)
               : null,
             inputLabel: `$${Math.round(totalPurchaseValue).toLocaleString('en-US')} bought vs $${Math.round(totalSellValue).toLocaleString('en-US')} sold`,
-            formula: 'buy$ ÷ (buy$ + sell$) × 100 — all buying = 100, balanced = 50, all selling = 0',
+            formula:
+              'buy$ ÷ (buy$ + sell$) × 100 — displayed for context; 0% weight pending the spec’s open question on sales',
             score: subBalance,
           },
         ],
@@ -1229,16 +1405,40 @@ export class IqsService {
           usedNeutral: momentumScore == null,
         },
         {
+          key: 'pedigree', name: 'Insider Pedigree (NEW v2.1)', weight: COMPONENT_WEIGHTS.pedigree,
+          source: pedigreeScore != null
+            ? `Reviewed insider profiles: ${pedigreeHighlights
+                .map((h) => `${h.name} (${h.flags.join(', ')})`)
+                .join('; ')}`
+            : `No reviewed pedigree profiles for these insiders yet — baseline ${PEDIGREE_BASELINE} applies (absence of fame ≠ negative signal)`,
+          score: pedigreeScore ?? PEDIGREE_BASELINE,
+          usedNeutral: pedigreeScore == null,
+        },
+        {
           key: 'dilution', name: 'Dilution', weight: COMPONENT_WEIGHTS.dilution,
           source: `TTM share growth${dilutionPct != null ? ` (${(dilutionPct * 100).toFixed(1)}%)` : ''} from SEC filings`,
           score: dilutionScore,
           usedNeutral: dilutionScore == null,
         },
       ],
+      litigation: {
+        deduction: +litigationDeduction.toFixed(2),
+        cap: 15,
+        matters: litigationMatters.map((m) => ({
+          tier: m.tier,
+          status: m.status,
+          caption: m.caption ?? null,
+          source: m.source ?? null,
+        })),
+        note: litigationMatters.length
+          ? 'Deduction = tier points × status modifier × recency decay, capped at 15.'
+          : 'No confirmed litigation matters on file for these insiders — no deduction.',
+      },
       final: {
         formula:
-          'IQ = 0.50·Buying + 0.25·Sector + 0.05·MD&A + 0.10·Momentum + 0.10·Dilution',
-        missingRule: `A component with no data contributes neutral ${NEUTRAL} at its full weight`,
+          'IQ = max(0, 0.45·Buying + 0.22·Sector + 0.10·MD&A + 0.10·Momentum + 0.08·Pedigree + 0.05·Dilution − Litigation)',
+        missingRule: `A component with no data contributes neutral ${NEUTRAL} at its full weight (pedigree falls to its ${PEDIGREE_BASELINE} baseline)`,
+        litigationDeduction: +litigationDeduction.toFixed(2),
         weightedSum: composite.score,
         dataCompleteness: composite.dataCompleteness,
         ceiling: SCORE_CEILING,
@@ -2077,6 +2277,60 @@ export class IqsService {
       { key: 'sentiment', value: sentimentValue },
     ]);
     return { ticker: sym, insiderScore: insider, sentimentRationale, ...composite };
+  }
+
+  // ── v2.1 §6.3 / §7.4 — insider profile administration ────────────────────
+
+  /** All pedigree/litigation profiles (flags parsed) — analyst tooling. */
+  async listInsiderProfiles() {
+    const rows = await this.profiles.find({ order: { updatedAt: 'DESC' } });
+    return rows.map((p) => ({
+      id: p.id,
+      nameKey: p.nameKey,
+      cik: p.cik,
+      displayName: p.displayName,
+      flags: JSON.parse(p.flags || '[]'),
+      litigationMatters: JSON.parse(p.litigationMatters || '[]'),
+      evidence: JSON.parse(p.evidence || '[]'),
+      reviewedBy: p.reviewedBy,
+      suppressed: p.suppressed,
+      updatedAt: p.updatedAt,
+    }));
+  }
+
+  /** Upsert a reviewed insider profile (spec §6.3 step 4: major_exit,
+   *  billionaire and all litigation flags require analyst confirmation —
+   *  pass reviewedBy). The §7.4 correction workflow is the same call with
+   *  suppressed=true, which removes the profile from scoring immediately;
+   *  the next recalc reflects it. */
+  async upsertInsiderProfile(body: {
+    name?: string;
+    cik?: string | null;
+    displayName?: string | null;
+    flags?: string[];
+    litigationMatters?: unknown[];
+    evidence?: unknown[];
+    reviewedBy?: string | null;
+    suppressed?: boolean;
+  }) {
+    const nameKey = (body?.name || '').trim().toLowerCase();
+    if (!nameKey) return { ok: false, error: 'name is required (as filed on Form 4)' };
+    const existing = await this.profiles.findOne({ where: { nameKey } });
+    const row = this.profiles.create({
+      ...(existing ? { id: existing.id } : {}),
+      nameKey,
+      cik: body.cik ?? existing?.cik ?? null,
+      displayName: body.displayName ?? existing?.displayName ?? body.name ?? null,
+      flags: JSON.stringify(body.flags ?? JSON.parse(existing?.flags || '[]')),
+      litigationMatters: JSON.stringify(
+        body.litigationMatters ?? JSON.parse(existing?.litigationMatters || '[]'),
+      ),
+      evidence: JSON.stringify(body.evidence ?? JSON.parse(existing?.evidence || '[]')),
+      reviewedBy: body.reviewedBy ?? existing?.reviewedBy ?? null,
+      suppressed: body.suppressed ?? existing?.suppressed ?? false,
+    });
+    const saved = await this.profiles.save(row);
+    return { ok: true, id: saved.id, nameKey: saved.nameKey };
   }
 
   /** Distinct insider countries present in the data, with counts — drives the

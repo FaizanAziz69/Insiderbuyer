@@ -43,6 +43,7 @@ import { BillingModule } from './billing/billing.module';
 import { ReportLead } from './entities/report-lead.entity';
 import { EmailFlowsModule } from './email-flows/email-flows.module';
 import { EmailFlowState } from './entities/email-flow-state.entity';
+import { InsiderProfile } from './entities/insider-profile.entity';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { EmailFlowState } from './entities/email-flow-state.entity';
           AnalystPriceTarget,
           ReportLead,
           EmailFlowState,
+          InsiderProfile,
         ],
         synchronize: true,
         logging: false,

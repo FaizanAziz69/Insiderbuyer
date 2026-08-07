@@ -4,6 +4,7 @@ import { Company } from '../entities/company.entity';
 import { InsiderTransaction } from '../entities/insider-transaction.entity';
 import { IqsScore } from '../entities/iqs-score.entity';
 import { SentimentScore } from '../entities/sentiment-score.entity';
+import { InsiderProfile } from '../entities/insider-profile.entity';
 import { CongressionalModule } from '../congressional/congressional.module';
 import { MarketStatsModule } from '../market-stats/market-stats.module';
 import { FmpModule } from '../fmp/fmp.module';
@@ -16,7 +17,7 @@ import { MdaSentimentService } from './mda-sentiment.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Company, InsiderTransaction, IqsScore, SentimentScore]),
+    TypeOrmModule.forFeature([Company, InsiderTransaction, IqsScore, SentimentScore, InsiderProfile]),
     CongressionalModule,
     MarketStatsModule,
     FmpModule,

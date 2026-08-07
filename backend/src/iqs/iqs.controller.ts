@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { IqsService } from './iqs.service';
 
@@ -76,6 +76,16 @@ export class IqsController {
   @Get('score-explainer/:ticker')
   async scoreExplainer(@Param('ticker') ticker: string) {
     return this.iqs.explainScore(ticker);
+  }
+
+  /** v2.1 pedigree/litigation profiles — analyst tooling (spec §6.3, §7.4). */
+  @Get('insider-profiles')
+  async insiderProfiles() {
+    return this.iqs.listInsiderProfiles();
+  }
+  @Post('insider-profiles')
+  async upsertInsiderProfile(@Body() body: Record<string, unknown>) {
+    return this.iqs.upsertInsiderProfile(body as never);
   }
 
   @Get('metrics/buy-sell')

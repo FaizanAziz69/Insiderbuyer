@@ -80,10 +80,17 @@ interface Explain {
   final?: {
     formula: string;
     missingRule: string;
+    litigationDeduction?: number;
     dataCompleteness: number;
     ceiling: number;
     score: number | null;
     scoreNote: string | null;
+  };
+  litigation?: {
+    deduction: number;
+    cap: number;
+    matters: Array<{ tier: string; status: string; caption: string | null; source: string | null }>;
+    note: string;
   };
 }
 
@@ -436,7 +443,7 @@ export default function ScoreExplainerPage() {
           </Step>
 
           {/* Step 4 — buying sub-factors */}
-          <Step n={4} title="Buying & selling component — six sub-factors (50% of the final score)">
+          <Step n={4} title="Buying component — sub-factors A–G (45% of the final score)">
             <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead>
@@ -473,7 +480,7 @@ export default function ScoreExplainerPage() {
           </Step>
 
           {/* Step 5 — five components */}
-          <Step n={5} title="The five components and their weights">
+          <Step n={5} title="The six components and their weights (v2.1)">
             <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead>
@@ -495,7 +502,9 @@ export default function ScoreExplainerPage() {
                         <td className="py-2.5 pr-3 text-mute text-[12px]">
                           {c.source}
                           {c.usedNeutral && (
-                            <span style={{ color: "var(--gold)" }}> — no data → neutral {d.config?.neutral}</span>
+                            <span style={{ color: "var(--gold)" }}>
+                              {" "}— no data → {c.score != null ? Math.round(c.score) : d.config?.neutral} applied
+                            </span>
                           )}
                         </td>
                         <td className="py-2.5 pr-3 text-right"><ScoreBadge score={c.score ?? d.config?.neutral ?? null} /></td>
@@ -523,6 +532,25 @@ export default function ScoreExplainerPage() {
               </strong>{" "}
               of the model&rsquo;s weight was backed by real data.
             </p>
+            {d.litigation && (
+              <p
+                className="text-[13px] mt-2"
+                style={{ color: d.litigation.deduction > 0 ? "var(--bad)" : "var(--text-mute)" }}
+              >
+                Litigation screening (v2.1):{" "}
+                {d.litigation.deduction > 0 ? (
+                  <>
+                    <strong>−{d.litigation.deduction} points</strong> from{" "}
+                    {d.litigation.matters.length} confirmed matter
+                    {d.litigation.matters.length === 1 ? "" : "s"} (
+                    {d.litigation.matters.map((m) => `${m.tier}/${m.status}`).join(", ")}) —{" "}
+                    {d.litigation.note}
+                  </>
+                ) : (
+                  d.litigation.note
+                )}
+              </p>
+            )}
             <div className="flex flex-wrap items-stretch gap-4 mt-4">
               <div
                 className="flex items-center gap-3 rounded-xl px-4 py-3"
