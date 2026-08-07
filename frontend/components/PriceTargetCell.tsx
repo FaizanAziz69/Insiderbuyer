@@ -21,7 +21,7 @@ export function PriceTargetCell({
       {upsidePct != null && (
         <span
           className="block text-[12px] tabular"
-          style={{ color: up ? "var(--text-soft)" : "var(--bad)" }}
+          style={{ color: up ? "var(--good)" : "var(--bad)" }}
         >
           ({upsidePct.toFixed(2)}% {up ? "Upside" : "Downside"})
         </span>
