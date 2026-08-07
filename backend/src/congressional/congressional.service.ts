@@ -83,7 +83,14 @@ export class CongressionalService implements OnModuleInit {
         const party = String(term?.party || '').charAt(0); // D / R / I
         const name = `${m?.name?.first || ''} ${m?.name?.last || ''}`.trim();
         if (bid && party) byBioguide.set(bid, { party, name });
-        if (name && party) byName.set(name.toLowerCase(), party);
+        if (name && party) {
+          byName.set(name.toLowerCase(), party);
+          // Compound / middle surnames diverge between sources ("April
+          // McClain Delaney" vs "April Delaney", "Shelley Moore Capito" vs
+          // "Shelley Capito") — index the first + final-token variant too.
+          const parts = name.toLowerCase().split(/\s+/);
+          if (parts.length > 2) byName.set(`${parts[0]} ${parts[parts.length - 1]}`, party);
+        }
       }
       this.logger.log(`Legislator roster loaded: ${byBioguide.size} members.`);
     } catch (e: any) {
@@ -101,7 +108,11 @@ export class CongressionalService implements OnModuleInit {
     const rows = await this.repo.find({ where: { party: IsNull() } });
     let updated = 0;
     for (const r of rows) {
-      const party = roster.byName.get((r.politicianName || '').toLowerCase());
+      const nm = (r.politicianName || '').toLowerCase().trim();
+      const parts = nm.split(/\s+/);
+      const party =
+        roster.byName.get(nm) ||
+        (parts.length > 1 ? roster.byName.get(`${parts[0]} ${parts[parts.length - 1]}`) : undefined);
       if (party) {
         r.party = party;
         await this.repo.save(r);
@@ -195,6 +206,9 @@ export class CongressionalService implements OnModuleInit {
           t.party ||
           (t.bioguideId && roster.byBioguide.get(t.bioguideId)?.party) ||
           roster.byName.get(t.politicianName.toLowerCase()) ||
+          roster.byName.get(
+            `${t.politicianName.toLowerCase().split(/\s+/)[0]} ${t.politicianName.toLowerCase().split(/\s+/).pop()}`,
+          ) ||
           null,
         ticker: t.ticker,
         companyName: t.companyName,
