@@ -34,7 +34,7 @@ const MIN_ANALYSTS = 2;
 const FAQS = [
   {
     q: "How does the IQ Score work?",
-    a: "It is a 0–99 composite of five weighted parts: the quality of the insider buying itself (50%), how strong the company's sector is right now (25%), the tone of management's own discussion in their latest filing (10%), how busy the stock's trading is versus normal (10%), and how much the company is diluting shareholders (5%). The buying half looks at purchase size against market cap, how many separate insiders bought, how senior they are, how much they grew their own stake, and whether the stock now trades below what they paid.",
+    a: "It is a 0–99 composite of six weighted parts: the quality of the insider buying itself (45%), how strong the company's sector is right now (22%), the tone of management's own discussion in their latest filing (10%), how busy the stock's trading is versus normal (10%), the caliber of the insiders doing the buying (8%), and how much the company is diluting shareholders (5%) — minus a deduction of up to 15 points for confirmed litigation against the insiders. The buying part looks at purchase size against market cap, how many separate insiders bought, how senior they are, how much they grew their own stake, whether the stock trades below what they paid, how much of the company insiders own in total, and insider buying versus selling.",
   },
   {
     q: "Why do some stocks with insider buying not appear here?",
@@ -423,7 +423,7 @@ export default function InsiderHotStocksPage() {
           How we rank Top Insider Scores
         </h2>
         <p className="text-[15px] text-soft leading-relaxed">
-          Stocks are ranked by our Insider Score, a 0–100 composite that weighs
+          Stocks are ranked by our Insider Score, a 0–99 composite that weighs
           the dollar size of insider purchases relative to the company&rsquo;s
           market cap, the number of distinct insiders buying (a cluster of
           buyers carries more signal than a lone trade), the seniority of the

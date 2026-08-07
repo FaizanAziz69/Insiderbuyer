@@ -1,10 +1,13 @@
-# Insider Quality (IQ) Score — Methodology (v2 composite)
+# Insider Quality (IQ) Score — Methodology (v2.1 composite)
 
-The site's Insider Score is a 0–99 weighted composite of five components,
-each independently normalized to 0–100 before weighting:
+The site's Insider Score is a 0–99 weighted composite of six components,
+each independently normalized to 0–100 before weighting, minus a litigation
+deduction:
 
 ```
-IQ = 0.50·Buying + 0.25·Sector + 0.10·MD&A + 0.10·Momentum + 0.05·Dilution
+composite = 0.45·Buying + 0.22·Sector + 0.10·MD&A + 0.10·Momentum
+          + 0.08·Pedigree + 0.05·Dilution
+IQ        = max(0, composite − LitigationDeduction)   // deduction 0–15
 ```
 
 The result is rounded and capped at 99 (no stock ever gets a perfect score).
@@ -12,37 +15,37 @@ All weights and normalization knobs live in
 `backend/src/iqs/scoring-config.ts`, with a startup assertion that the
 component weights sum to 1.0.
 
-**Missing data → neutral 50, never 0.** A component with no data contributes
-a neutral 50 at its full weight — weights never renormalize across
-components. `dataCompleteness` (0–1) reports what share of the model's weight
-was backed by real data. Exception: if the Buying component is null (no
-qualifying insider buys), the whole score is null and the company's score row
-is deleted — the score only exists where insider buying exists.
+**Missing data → neutral 50, never 0** (exception: Pedigree, whose no-data
+baseline is 25 — see §5). A component with no data contributes its neutral
+value at its full weight — weights never renormalize across components.
+`dataCompleteness` (0–1) reports what share of the model's weight was backed
+by real data. Exception: if the Buying component is null (no qualifying
+insider buys), the whole score is null and the company's score row is
+deleted — the score only exists where insider buying exists.
 
-## 1. Buying — 50%
+## 1. Buying — 45%
 
 Open-market purchases (Form 4 code 'P') in the last 90 days drive the
-component, after a round-trip guard that excludes any insider who sold back
-≥50% of what they bought inside the window. Open-market sales (code 'S') in
-the same window count against the stock through the Buy/Sell Balance
-sub-factor. Six sub-factors, each 0–100; sub-weights renormalize over
-whichever sub-factors have data:
+component, after data-quality guards: a round-trip guard that excludes any
+insider who sold back ≥50% of what they bought inside the window, a
+$1B-per-transaction plausibility cap, and a price-sanity guard that discards
+buys reported at more than 25× the live share price (filing artifacts).
+Open-market sales (code 'S') in the same window feed the informational
+Buy/Sell Balance sub-factor. Sub-factors, each 0–100; sub-weights
+renormalize over whichever sub-factors have data:
 
 | # | Sub-factor | Weight | Formula |
 |---|---|---|---|
-| A | Purchase size vs market cap | 20% | `ln(1 + ratio/0.02) / ln(5) × 100` — ~2% of cap ≈ strong |
-| B | Cluster | 20% | `ln(1 + buyers) / ln(7) × 100` — 6 buyers ≈ 100 |
-| C | Role-weighted size vs cap | 20% | same log curve, divisor 0.06; role multipliers CEO/CFO/COO 1.0, Director 0.6, Other 0.4 |
-| D | Stake increase | 15% | role-weighted avg of (shares bought ÷ previous holdings) per buyer, capped at doubling; first-time buyers get the cap |
-| E | Cost basis vs price | 10% | `r = clamp(insiderVWAP ÷ price, 0.5, 2.0)`, min-maxed; r > 1 (stock below insider cost) = bullish |
-| F | Buy/Sell balance | 15% | `buy$ ÷ (buy$ + sell$) × 100` — all buying = 100, balanced = 50, all selling = 0 |
+| A | Purchase size vs market cap | 22% | `ln(1 + ratio/0.02) / ln(5) × 100` — ~2% of cap ≈ strong |
+| B | Cluster | 18% | `ln(1 + buyers) / ln(7) × 100` — 6 buyers ≈ 100 |
+| C | Role-weighted size vs cap | 18% | same log curve, divisor 0.06; role multipliers CEO/CFO/COO 1.0, Director 0.6, Other 0.4 (spec §2C) |
+| D | Holding change | 8% | avg % each buyer added to their stake, capped at 100%; a genuine first-time buyer counts as the cap |
+| E | Cost basis vs price | 12% | `r = clamp(insiderVWAP ÷ price, 0.5, 2.0)`, min-maxed; r > 1 (stock below insider cost) = bullish |
+| F | Stake increase (per insider) | 10% | role-weighted avg of (shares bought ÷ previous holdings) per buyer, capped at doubling |
+| G | Aggregate insider ownership | 12% | insiders' total shares ÷ real shares outstanding (SEC XBRL; marketCap ÷ price fallback), through a piecewise curve: <1% → 0–10, 5% → 40, 15% → 75, 40%+ → 100, with a taper above 60% (controlled-company caveat). Insiders are deduplicated by SEC reporting-owner CIK, name fallback. |
+| — | Buy/Sell balance | 0% (informational) | `buy$ ÷ (buy$ + sell$) × 100` — displayed for context, unweighted pending the spec's open question #6 on sales |
 
-> Note: earlier versions carried separate "holding change" (10%) and
-> "ownership % increase" (10%) sub-factors. They measured the same thing —
-> relative stake growth — so they are merged into the single Stake Increase
-> metric (D) at their combined 20% weight.
-
-## 2. Sector Sentiment — 25%
+## 2. Sector Sentiment — 22%
 
 Daily cached sentiment score for the company's sector/industry, derived from
 sector ETF behaviour.
@@ -67,11 +70,38 @@ Log-symmetric around flat: 4×+ volume = 100, 2× = 75, flat = 50, ½× = 25,
 ¼× or less = 0. Note this is direction-agnostic — it measures an
 attention/liquidity surge, not price trend.
 
-## 5. Dilution — 5%
+## 5. Pedigree — 8% (NEW in v2.1)
+
+Track-record quality of the specific insiders buying, from reviewed
+`insider_profiles` (keyed by SEC reporting-owner CIK, name fallback). Flag
+points per insider (serial entrepreneur 40, prior exec exit 15, fund manager
+30, board network 10, prior successful insider buys 20, sector expertise 10,
+long tenure 8), capped at 60 per insider, and multiplied by 1.5 when that
+insider actually bought in the window. No reviewed profile data → baseline
+**25** (not 50): an unknown insider is a mild negative, not neutral.
+
+Profiles only count when human-reviewed (`reviewedBy` set) and not
+suppressed (spec §6.3.4).
+
+## 6. Dilution — 5%
 
 TTM share growth through a piecewise curve, linear between knees:
 0% → 100, 5% → 75, 15% → 30, 40%+ → 0. Buybacks score top; heavy issuance is
 penalized.
+
+## Litigation deduction — 0 to 15 points (NEW in v2.1)
+
+Subtracted from the weighted composite. Reviewed litigation matters against
+the buying insiders deduct by tier (fraud/securities > regulatory > civil)
+with status modifiers (settled/dismissed reduce the hit), capped at 15
+points total. Same review gate as pedigree.
+
+### Dark-mode rollout (spec §12)
+
+Pedigree and litigation are computed and stored on every recalc, but only
+**applied** to the published IQ when `IQS_PEOPLE_SIGNALS_LIVE=true`. While
+dark, the published score uses the pedigree baseline and zero deduction, so
+scores are audit-comparable before the people-signals go live.
 
 ---
 

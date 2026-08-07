@@ -181,6 +181,7 @@ export class IngestionService implements OnModuleInit {
               this.txRepo.create({
                 companyId: company.id,
                 insiderName: p.insiderName,
+                insiderCik: p.reportingOwnerCik ?? null,
                 role,
                 rawTitle: p.rawTitle,
                 insiderCity,
@@ -228,6 +229,10 @@ export class IngestionService implements OnModuleInit {
         if (facts?.sharesOutstanding && facts?.sharesOutstandingYearAgo && facts.sharesOutstandingYearAgo > 0) {
           company.dilutionPctTtm =
             +(facts.sharesOutstanding / facts.sharesOutstandingYearAgo - 1).toFixed(6);
+        }
+        // §2G denominator — persist the REAL share count for the scorer.
+        if (facts?.sharesOutstanding) {
+          company.sharesOutstanding = Math.round(Number(facts.sharesOutstanding));
         }
 
         const latestTx = await this.txRepo
@@ -659,6 +664,7 @@ export class IngestionService implements OnModuleInit {
         const facts = await this.quote.fetchSecFacts(c.cik);
         if (facts?.sharesOutstanding && facts?.sharesOutstandingYearAgo && facts.sharesOutstandingYearAgo > 0) {
           c.dilutionPctTtm = +(facts.sharesOutstanding / facts.sharesOutstandingYearAgo - 1).toFixed(6);
+          c.sharesOutstanding = Math.round(Number(facts.sharesOutstanding));
           await this.companies.save(c);
           updated++;
         }

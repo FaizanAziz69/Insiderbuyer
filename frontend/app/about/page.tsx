@@ -28,7 +28,7 @@ export default function AboutPage() {
         </p>
         <p>
           At the heart of the platform is our proprietary{" "}
-          <strong>Insider Score</strong> — a 0–100 measure that weighs
+          <strong>Insider Score</strong> — a 0–99 measure that weighs
           purchase size, buying clusters, the role of the insider, and conviction, so you can
           instantly see where insiders are putting their own capital with the most confidence.
         </p>

@@ -30,6 +30,9 @@ const KEPT_CODES = new Set(['P', 'S', 'A', 'M', 'X', 'F', 'C', 'G', 'J']);
 
 export interface ParsedTransaction {
   insiderName: string;
+  /** SEC reporting-person CIK — the canonical person key (spec §6.3.1).
+   *  10-digit zero-padded string, or null when the filing lacks it. */
+  reportingOwnerCik: string | null;
   rawTitle: string;
   isDirector: boolean;
   isOfficer: boolean;
@@ -203,6 +206,9 @@ export class SecClient {
     const ownerArr = Array.isArray(reportingOwner) ? reportingOwner : [reportingOwner].filter(Boolean);
     const owner = ownerArr[0] || {};
     const insiderName = owner?.reportingOwnerId?.rptOwnerName || 'Unknown';
+    // Canonical person key (spec §6.3.1) — zero-padded to the SEC's 10 digits.
+    const rawOwnerCik = String(owner?.reportingOwnerId?.rptOwnerCik ?? '').replace(/\D/g, '');
+    const reportingOwnerCik = rawOwnerCik ? rawOwnerCik.padStart(10, '0') : null;
     const relationship = owner?.reportingOwnerRelationship || {};
     const isDirector = String(relationship?.isDirector || '').trim() === '1' || relationship?.isDirector === true;
     const isOfficer = String(relationship?.isOfficer || '').trim() === '1' || relationship?.isOfficer === true;
@@ -244,6 +250,7 @@ export class SecClient {
 
       results.push({
         insiderName,
+        reportingOwnerCik,
         rawTitle: String(rawTitle || ''),
         isDirector: !!isDirector,
         isOfficer: !!isOfficer,

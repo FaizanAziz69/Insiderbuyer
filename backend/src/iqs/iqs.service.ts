@@ -18,6 +18,7 @@ import {
 import { SentimentService } from './sentiment.service';
 import { SectorSentimentService } from './sector-sentiment.service';
 import {
+  BUYING_SUBWEIGHTS,
   COMPONENT_WEIGHTS,
   NEUTRAL,
   PEDIGREE_BASELINE,
@@ -26,6 +27,7 @@ import {
   ROLE_MULTIPLIER,
   NORM,
   SCORE_CEILING,
+  WINDOWS,
 } from './scoring-config';
 import {
   LitigationMatterInput,
@@ -70,6 +72,11 @@ export interface RankingRow {
   totalPurchaseValue: number;
   /** TipRanks-style one-liner: who bought, how much, stake growth, ownership. */
   reasoning?: string | null;
+  // ── v2.1 people-signals + new sub-factors (stored; dark until live) ────
+  pedigreeScore?: number | null;
+  litigationDeduction?: number | null;
+  subInsiderOwnership?: number | null;
+  subBuySellBalance?: number | null;
   // ── IQ Score v2 component breakdown (explainability) ──────────────────
   buyingScore?: number | null;
   sectorSentiment?: number | null;
@@ -207,9 +214,9 @@ export class IqsService {
    *  company.dilutionPctTtm) so the per-company loop stays inside the 60s
    *  serverless budget. Only open-market purchases (code P) feed the Buying
    *  component; missing components degrade to neutral 50 (dataCompleteness). */
-  async recalculateAll(windowDays = 90): Promise<number> {
+  async recalculateAll(windowDays = WINDOWS.buys): Promise<number> {
     const since = new Date(Date.now() - windowDays * 86400000);
-    const seasonedCutoff = new Date(Date.now() - 14 * 86400000);
+    const seasonedCutoff = new Date(Date.now() - WINDOWS.seasoned * 86400000);
     const today = new Date().toISOString().slice(0, 10);
     const companies = await this.companies.find();
     let updated = 0;
@@ -227,19 +234,25 @@ export class IqsService {
       quotes = new Map();
     }
 
-    // v2.1 §6/§7 — reviewed insider profiles (pedigree flags + litigation
-    // matters), keyed by lowercased filer name. Loaded once per run; when the
-    // table is empty every company falls to the §9 pedigree baseline.
-    const profileMap = new Map<
-      string,
-      { flags: string[]; matters: LitigationMatterInput[] }
-    >();
+    // v2.1 §6/§7 — insider profiles (pedigree flags + litigation matters).
+    // Review gate (§6.3.4/§7.3): only ANALYST-CONFIRMED profiles (reviewedBy
+    // set) ever influence a score — unreviewed research stays inert. Keyed by
+    // reporting-person CIK first (§6.3.1), lowercased name as legacy fallback.
+    const profByCik = new Map<string, { flags: string[]; matters: LitigationMatterInput[] }>();
+    const profByName = new Map<string, { flags: string[]; matters: LitigationMatterInput[] }>();
     try {
-      for (const p of await this.profiles.find({ where: { suppressed: false } })) {
-        profileMap.set(p.nameKey, {
+      const rows = await this.profiles
+        .createQueryBuilder('p')
+        .where('p.suppressed = false')
+        .andWhere('p."reviewedBy" IS NOT NULL')
+        .getMany();
+      for (const p of rows) {
+        const parsed = {
           flags: JSON.parse(p.flags || '[]'),
           matters: JSON.parse(p.litigationMatters || '[]'),
-        });
+        };
+        if (p.cik) profByCik.set(p.cik, parsed);
+        profByName.set(p.nameKey, parsed);
       }
     } catch {
       /* profiles unavailable → pedigree baseline everywhere */
@@ -394,20 +407,28 @@ export class IqsService {
       );
       // G (NEW v2.1) — aggregate insider ownership: latest reported
       // post-transaction holdings per individual filer in the window
-      // (fund-style 10%-owner filers excluded) over approximate shares
-      // outstanding (market cap ÷ price).
+      // (fund-style 10%-owner filers excluded) over REAL shares outstanding
+      // (SEC XBRL, stored at ingest) with the market-cap ÷ price proxy as
+      // the fallback. Filers dedupe by reporting-person CIK (§6.3.1), name
+      // only for legacy rows without one.
       const latestHolding = new Map<string, { date: string; shares: number }>();
       for (const t of allTxs) {
         if (IqsService.FUND_NAME.test(t.insiderName)) continue;
         const post = Number(t.postHoldings);
         if (!Number.isFinite(post) || post < 0) continue;
-        const key = t.insiderName.trim().toLowerCase();
+        const key = t.insiderCik || t.insiderName.trim().toLowerCase();
         const d = String(t.transactionDate);
         const cur = latestHolding.get(key);
         if (!cur || d > cur.date) latestHolding.set(key, { date: d, shares: post });
       }
       const insiderShares = [...latestHolding.values()].reduce((a, b) => a + b.shares, 0);
-      const sharesOut = lastPrice > 0 && marketCap > 0 ? marketCap / lastPrice : 0;
+      const realSharesOut = Number(company.sharesOutstanding) || 0;
+      const sharesOut =
+        realSharesOut > 0
+          ? realSharesOut
+          : lastPrice > 0 && marketCap > 0
+            ? marketCap / lastPrice
+            : 0;
       // null only when holdings DATA is missing; a measured ~0% scores 0.
       const hasHoldingsData = latestHolding.size > 0;
       const subOwnershipG = scoreInsiderOwnership(
@@ -426,22 +447,29 @@ export class IqsService {
       });
 
       // ── Component 5 (NEW v2.1 §6): Insider Pedigree + §7 litigation ─────
+      // Profiles resolve by reporting-person CIK first (§6.3.1 — "never off
+      // a bare name"), lowercased name only as the legacy fallback.
       const pedigreeInputs: PedigreeInsiderInput[] = [];
       const litigationMatters: LitigationMatterInput[] = [];
-      const roleByFiler = new Map<string, number>();
+      const filerInfo = new Map<string, { roleMult: number; cik: string | null; nameKey: string }>();
       for (const t of allTxs) {
-        const key = t.insiderName.trim().toLowerCase();
-        if (!roleByFiler.has(key)) {
-          roleByFiler.set(key, ROLE_MULTIPLIER[t.role] ?? ROLE_MULTIPLIER.Other);
+        const nameKey = t.insiderName.trim().toLowerCase();
+        const key = t.insiderCik || nameKey;
+        if (!filerInfo.has(key)) {
+          filerInfo.set(key, {
+            roleMult: ROLE_MULTIPLIER[t.role] ?? ROLE_MULTIPLIER.Other,
+            cik: t.insiderCik || null,
+            nameKey,
+          });
         }
       }
-      for (const [filer, roleMult] of roleByFiler) {
-        const prof = profileMap.get(filer);
+      for (const info of filerInfo.values()) {
+        const prof = (info.cik && profByCik.get(info.cik)) || profByName.get(info.nameKey);
         if (!prof) continue;
         pedigreeInputs.push({
           flags: prof.flags,
-          roleMultiplier: roleMult,
-          recentBuyer: buyers.has(filer), // bought inside the 90d window ⊂ 12mo
+          roleMultiplier: info.roleMult,
+          recentBuyer: buyers.has(info.nameKey), // bought inside the 90d window ⊂ 12mo
         });
         litigationMatters.push(...prof.matters);
       }
@@ -659,6 +687,10 @@ export class IqsService {
         's."transactionCount" as "transactionCount"',
         's."totalPurchaseValue" as "totalPurchaseValue"',
         's.reasoning as reasoning',
+        's."pedigreeScore" as "pedigreeScore"',
+        's."litigationDeduction" as "litigationDeduction"',
+        's."subInsiderOwnership" as "subInsiderOwnership"',
+        's."subBuySellBalance" as "subBuySellBalance"',
         's."buyingScore" as "buyingScore"',
         's."sectorSentiment" as "sectorSentiment"',
         's."mdaSentiment" as "mdaSentiment"',
@@ -736,6 +768,10 @@ export class IqsService {
       transactionCount: Number(r.transactionCount),
       totalPurchaseValue: Number(r.totalPurchaseValue),
       reasoning: r.reasoning ?? null,
+      pedigreeScore: r.pedigreeScore != null ? Number(r.pedigreeScore) : null,
+      litigationDeduction: r.litigationDeduction != null ? Number(r.litigationDeduction) : null,
+      subInsiderOwnership: r.subInsiderOwnership != null ? Number(r.subInsiderOwnership) : null,
+      subBuySellBalance: r.subBuySellBalance != null ? Number(r.subBuySellBalance) : null,
       // IQ v2 component breakdown (null-safe — older rows may lack them).
       buyingScore: r.buyingScore != null ? Number(r.buyingScore) : null,
       sectorSentiment: r.sectorSentiment != null ? Number(r.sectorSentiment) : null,
@@ -982,7 +1018,7 @@ export class IqsService {
       .where('UPPER(c.ticker) = :t', { t: ticker })
       .getOne();
 
-    const windowDays = 90;
+    const windowDays = WINDOWS.buys;
     const since = new Date(Date.now() - windowDays * 86400000);
 
     // Market quote up front — price/cap for the math, and name/sector when
@@ -1001,6 +1037,7 @@ export class IqsService {
     let dataSource: 'database' | 'live SEC EDGAR' = 'database';
     let allTxs: Array<{
       insiderName: string;
+      insiderCik?: string | null;
       role: InsiderTransaction['role'];
       transactionCode: string;
       transactionDate: any;
@@ -1033,6 +1070,7 @@ export class IqsService {
               : Math.max(0, t.postHoldings - t.sharesBought);
             return {
               insiderName: t.insiderName,
+              insiderCik: t.reportingOwnerCik ?? null,
               role: normalizeRole(t.rawTitle, t.isDirector, t.isOfficer),
               transactionCode: t.transactionCode,
               transactionDate: t.transactionDate,
@@ -1169,20 +1207,27 @@ export class IqsService {
     const subHolding = scoreHoldingChange(avgHoldingChangePct);
     const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
     const subStake = scoreStakeIncrease(ownAvg);
-    // G — aggregate insider ownership (latest post-transaction holdings per
-    // individual filer ÷ approximate shares outstanding).
+    // G — aggregate insider ownership: latest post-transaction holdings per
+    // individual filer (CIK-deduped, §6.3.1) over REAL shares outstanding
+    // (SEC XBRL) with the market-cap ÷ price proxy as the fallback.
     const latestHolding = new Map<string, { date: string; shares: number }>();
     for (const t of allTxs) {
       if (IqsService.FUND_NAME.test(t.insiderName)) continue;
       const post = Number(t.postHoldings);
       if (!Number.isFinite(post) || post < 0) continue;
-      const key = t.insiderName.trim().toLowerCase();
+      const key = t.insiderCik || t.insiderName.trim().toLowerCase();
       const d = String(t.transactionDate);
       const cur = latestHolding.get(key);
       if (!cur || d > cur.date) latestHolding.set(key, { date: d, shares: post });
     }
     const insiderShares = [...latestHolding.values()].reduce((a, b) => a + b.shares, 0);
-    const sharesOut = lastPrice > 0 && marketCap > 0 ? marketCap / lastPrice : 0;
+    const realSharesOut = Number(company?.sharesOutstanding) || 0;
+    const sharesOut =
+      realSharesOut > 0
+        ? realSharesOut
+        : lastPrice > 0 && marketCap > 0
+          ? marketCap / lastPrice
+          : 0;
     // null only when holdings DATA is missing; a measured ~0% scores 0.
     const ownershipFraction =
       latestHolding.size > 0 && sharesOut > 0
@@ -1214,31 +1259,43 @@ export class IqsService {
     const dilutionPct = meta.dilutionPctTtm != null ? Number(meta.dilutionPctTtm) : null;
     const dilutionScore = scoreDilution(dilutionPct);
 
-    // Pedigree (v2.1 §6) + litigation (§7) from reviewed insider profiles.
+    // Pedigree (v2.1 §6) + litigation (§7) — ANALYST-CONFIRMED profiles only
+    // (review gate §6.3.4), resolved by reporting-person CIK first (§6.3.1),
+    // name as legacy fallback.
     const pedigreeInputs: PedigreeInsiderInput[] = [];
     const litigationMatters: Array<LitigationMatterInput & { caption?: string; source?: string }> = [];
     const pedigreeHighlights: Array<{ name: string; flags: string[] }> = [];
-    const roleByFiler = new Map<string, { roleMult: number; name: string }>();
+    const roleByFiler = new Map<string, { roleMult: number; name: string; cik: string | null }>();
     for (const t of allTxs) {
       const key = t.insiderName.trim().toLowerCase();
       if (!roleByFiler.has(key)) {
         roleByFiler.set(key, {
           roleMult: ROLE_MULTIPLIER[t.role] ?? ROLE_MULTIPLIER.Other,
           name: t.insiderName,
+          cik: t.insiderCik || null,
         });
       }
     }
     try {
       const filers = [...roleByFiler.keys()];
+      const ciks = [...roleByFiler.values()].map((i) => i.cik).filter(Boolean) as string[];
       const profs = filers.length
         ? await this.profiles
             .createQueryBuilder('p')
-            .where('p."nameKey" IN (:...filers)', { filers })
+            .where(
+              ciks.length
+                ? '(p."nameKey" IN (:...filers) OR p.cik IN (:...ciks))'
+                : 'p."nameKey" IN (:...filers)',
+              { filers, ciks },
+            )
             .andWhere('p.suppressed = false')
+            .andWhere('p."reviewedBy" IS NOT NULL')
             .getMany()
         : [];
       for (const p of profs) {
-        const info = roleByFiler.get(p.nameKey);
+        const info =
+          roleByFiler.get(p.nameKey) ??
+          (p.cik ? [...roleByFiler.values()].find((i) => i.cik === p.cik) : undefined);
         if (!info) continue;
         const flags: string[] = JSON.parse(p.flags || '[]');
         pedigreeInputs.push({
@@ -1391,45 +1448,45 @@ export class IqsService {
       buying: {
         subFactors: [
           {
-            key: 'A', name: 'Purchase size vs market cap', weight: 0.22,
+            key: 'A', name: 'Purchase size vs market cap', weight: BUYING_SUBWEIGHTS.volumeVsMarketCap,
             input: volumeRatio, inputLabel: 'total $ bought ÷ market cap',
             formula: 'ln(1 + ratio ÷ 0.02) ÷ ln(5) × 100 — ~2% of cap ≈ strong',
             score: subVolume,
           },
           {
-            key: 'B', name: 'Cluster (distinct buyers)', weight: 0.18,
+            key: 'B', name: 'Cluster (distinct buyers)', weight: BUYING_SUBWEIGHTS.cluster,
             input: buyers.size, inputLabel: 'distinct insider buyers',
             formula: 'ln(1 + buyers) ÷ ln(7) × 100 — 6 buyers ≈ 100',
             score: subCluster,
           },
           {
-            key: 'C', name: 'Role-weighted size vs cap', weight: 0.18,
+            key: 'C', name: 'Role-weighted size vs cap', weight: BUYING_SUBWEIGHTS.role,
             input: roleRatio, inputLabel: 'Σ($ × role multiplier) ÷ market cap',
             formula: 'ln(1 + ratio ÷ 0.06) ÷ ln(5) × 100 — CEO/CFO/COO 1.0, Director 0.6, Other 0.4',
             score: subRole,
           },
           {
-            key: 'D', name: 'Holding change', weight: 0.08,
+            key: 'D', name: 'Holding change', weight: BUYING_SUBWEIGHTS.holdingChange,
             input: avgHoldingChangePct, inputLabel: 'avg % each buyer added to their stake',
             formula: 'avg per-buyer % added, capped at 100% (absolute commitment)',
             score: subHolding,
           },
           {
-            key: 'E', name: 'Cost basis vs price', weight: 0.12,
+            key: 'E', name: 'Cost basis vs price', weight: BUYING_SUBWEIGHTS.priceVsBuys,
             input: insiderVwap != null && lastPrice > 0 ? insiderVwap / lastPrice : null,
             inputLabel: 'insider avg cost ÷ current price',
             formula: 'clamp(ratio, 0.5–2.0) min-maxed to 0–100; >1 (stock below insider cost) = bullish',
             score: subPriceVsBuys,
           },
           {
-            key: 'F', name: 'Ownership increase (per insider)', weight: 0.1,
+            key: 'F', name: 'Ownership increase (per insider)', weight: BUYING_SUBWEIGHTS.stakeIncrease,
             input: ownAvg, inputLabel: 'role-weighted avg relative stake growth (0–1)',
             formula:
               'shares bought ÷ previous holdings per buyer, role-weighted, capped at doubling (1.0 → 100); first-time buyers get the cap',
             score: subStake,
           },
           {
-            key: 'G', name: 'Aggregate insider ownership (NEW v2.1)', weight: 0.12,
+            key: 'G', name: 'Aggregate insider ownership (NEW v2.1)', weight: BUYING_SUBWEIGHTS.insiderOwnership,
             input: ownershipFraction,
             inputLabel: `insiders hold ~${insiderShares.toLocaleString('en-US')} shares of ~${sharesOut > 0 ? Math.round(sharesOut).toLocaleString('en-US') : '—'} outstanding`,
             formula:
@@ -1437,7 +1494,7 @@ export class IqsService {
             score: subOwnershipG,
           },
           {
-            key: 'S', name: 'Buy/Sell balance (informational)', weight: 0,
+            key: 'S', name: 'Buy/Sell balance (informational)', weight: BUYING_SUBWEIGHTS.buySellBalance,
             input: totalPurchaseValue + totalSellValue > 0
               ? totalPurchaseValue / (totalPurchaseValue + totalSellValue)
               : null,

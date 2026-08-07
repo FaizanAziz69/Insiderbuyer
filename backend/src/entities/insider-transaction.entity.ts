@@ -29,6 +29,12 @@ export class InsiderTransaction {
   @Column({ type: 'varchar', length: 255 })
   insiderName: string;
 
+  /** SEC reporting-person CIK (10-digit zero-padded) — the canonical person
+   *  key (v2.1 spec §6.3.1). Null on rows ingested before this column. */
+  @Index()
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  insiderCik: string | null;
+
   @Column({ type: 'varchar', length: 32, default: 'Other' })
   role: InsiderRole;
 

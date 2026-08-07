@@ -55,6 +55,11 @@ export class Company {
   @Column({ type: 'numeric', precision: 12, scale: 6, nullable: true })
   dilutionPctTtm: number | null;
 
+  /** Real shares outstanding from SEC XBRL — the §2G denominator (replaces
+   *  the marketCap ÷ price proxy when present). */
+  @Column({ type: 'numeric', precision: 24, scale: 0, nullable: true })
+  sharesOutstanding: number | null;
+
   /** MD&A / company-communications sentiment, 0–100 (50 = neutral). Populated
    *  by the MD&A NLP batch; read by the composite scorer. */
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })

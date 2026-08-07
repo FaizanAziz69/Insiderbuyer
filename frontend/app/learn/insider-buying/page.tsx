@@ -222,7 +222,7 @@ export default function LearnInsiderBuyingPage() {
             <strong className="text-[var(--text)]">
               Insider Score
             </strong>{" "}
-            captures — a single 0–100 number that combines the size, intensity
+            captures — a single 0–99 number that combines the size, intensity
             and significance of insider purchases so you don&apos;t have to weigh
             them by hand. See live scores in the{" "}
             <Link href="/companies" className="text-accent font-semibold underline">

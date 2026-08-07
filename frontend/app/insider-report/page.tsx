@@ -787,7 +787,7 @@ export default function InsiderReportLanding() {
         <div className="wrap">
           <div className="sec-head reveal">
             <div className="eyebrow">New</div>
-            <h2>The Insider Quality Score. Every stock, rated 0–100.</h2>
+            <h2>The Insider Quality Score. Every stock, rated 0–99.</h2>
             <p>
               One number that measures the size, intensity, and significance of insider buying
               — so you never mistake noise for conviction again.

@@ -40,7 +40,7 @@ const LICENSE_FEATURES = [
   {
     icon: Gauge,
     title: "Insider Scores API",
-    desc: "Pull our proprietary 0–100 Insider Score for any covered company, along with the underlying factor breakdown — volume, clusters, role weighting and conviction.",
+    desc: "Pull our proprietary 0–99 Insider Score for any covered company, along with the underlying factor breakdown — volume, clusters, role weighting and conviction.",
   },
   {
     icon: Landmark,
