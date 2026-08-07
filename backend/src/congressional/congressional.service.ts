@@ -410,9 +410,74 @@ export class CongressionalService implements OnModuleInit {
    *  -traded stocks, and full disclosure history. Dollar figures use the
    *  midpoint of each disclosed amount RANGE (STOCK Act reports bands, not
    *  exact values). */
+  /** Names already hydrated with their FULL FMP disclosure history this
+   *  process lifetime (per-name, re-checked daily). The latest feeds only
+   *  carry ~100 recent rows per chamber; profiles need the whole record so
+   *  Trade Volume by Year reaches back a decade and the portfolio estimate
+   *  actually has holdings. */
+  private readonly hydratedNames = new Map<string, number>();
+
+  private async hydrateFullHistory(name: string): Promise<void> {
+    if (!this.fmp.enabled) return;
+    const key = name.toLowerCase();
+    const last = this.hydratedNames.get(key) || 0;
+    if (Date.now() - last < 24 * 60 * 60_000) return;
+    this.hydratedNames.set(key, Date.now()); // set first — never hammer FMP on errors
+    const trades = await this.fmp.getCongressByName(name);
+    if (!trades.length) return;
+    const roster = await this.getRoster();
+    const dayKey = (d: Date | string | null | undefined) => {
+      const dt = d instanceof Date ? d : safeDate(d as any);
+      return dt ? dt.toISOString().slice(0, 10) : '';
+    };
+    const existing = await this.repo.find({
+      where: {},
+      select: ['politicianName', 'ticker', 'transactionDate', 'action', 'amountMin'],
+    });
+    const seen = new Set(
+      existing.map(
+        (e) => `${e.politicianName}|${e.ticker}|${dayKey(e.transactionDate)}|${e.action}|${Number(e.amountMin) || 0}`,
+      ),
+    );
+    const rows = trades
+      .filter((t) => {
+        const k = `${t.politicianName}|${t.ticker}|${dayKey(t.transactionDate)}|${t.action}|${Number(t.amountMin) || 0}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .map((t) => ({
+        politicianName: t.politicianName,
+        chamber: t.chamber,
+        party:
+          t.party ||
+          (t.bioguideId && roster.byBioguide.get(t.bioguideId)?.party) ||
+          roster.byName.get(t.politicianName.toLowerCase()) ||
+          null,
+        ticker: t.ticker,
+        companyName: t.companyName,
+        action: t.action,
+        amountMin: t.amountMin,
+        amountMax: t.amountMax,
+        transactionDate: safeDate(t.transactionDate),
+        reportedDate: safeDate(t.reportedDate) ?? safeDate(t.transactionDate),
+        source: 'fmp',
+      }))
+      .filter((r) => r.transactionDate != null);
+    if (rows.length) {
+      await this.repo.save(rows as any);
+      this.logger.log(`Hydrated ${rows.length} historical disclosures for ${name}.`);
+    }
+  }
+
   async getPoliticianProfile(name: string) {
     const clean = (name || '').trim();
     if (!clean) return null;
+    try {
+      await this.hydrateFullHistory(clean);
+    } catch (e: any) {
+      this.logger.warn(`Full-history hydration failed for ${clean}: ${e?.message || e}`);
+    }
     const txs = await this.repo
       .createQueryBuilder('t')
       .where('LOWER(t.politicianName) = LOWER(:name)', { name: clean })

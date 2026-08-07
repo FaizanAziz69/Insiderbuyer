@@ -260,6 +260,40 @@ export class FmpService {
   /** Latest Senate + House disclosures, merged & normalized.
    *  Free tier serves 100 rows on page 0 ONLY (pages 1+ are restricted), so
    *  ask for the full page; history is accumulated by the caller over time. */
+  /** FULL per-politician disclosure history (both chambers tried; rows
+   *  filtered to the requested person). FMP's by-name endpoints return the
+   *  complete record — e.g. Capito back to 2015 — unlike the latest feeds. */
+  async getCongressByName(fullName: string): Promise<FmpCongressTrade[]> {
+    const clean = (fullName || '').trim();
+    if (!this.key || !clean) return [];
+    const [senate, house] = await Promise.all([
+      this.get('senate-trades-by-name', { name: clean }),
+      this.get('house-trades-by-name', { name: clean }),
+    ]);
+    const wanted = clean.toLowerCase().split(/\s+/);
+    const first = wanted[0];
+    const last = wanted[wanted.length - 1];
+    const matches = (r: any) => {
+      const rn = `${r.firstName || ''} ${r.lastName || ''}`.trim().toLowerCase();
+      if (!rn) return false;
+      if (rn === clean.toLowerCase()) return true;
+      const parts = rn.split(/\s+/);
+      return parts[0] === first && parts[parts.length - 1] === last;
+    };
+    const out: FmpCongressTrade[] = [];
+    for (const r of senate) {
+      if (!matches(r)) continue;
+      const m = this.mapCongress(r, 'Senate');
+      if (m) out.push(m);
+    }
+    for (const r of house) {
+      if (!matches(r)) continue;
+      const m = this.mapCongress(r, 'House');
+      if (m) out.push(m);
+    }
+    return out;
+  }
+
   async getCongressional(pages = 1): Promise<FmpCongressTrade[]> {
     if (!this.key) return [];
     const out: FmpCongressTrade[] = [];
