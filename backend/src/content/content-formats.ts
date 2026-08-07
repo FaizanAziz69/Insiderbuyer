@@ -155,7 +155,7 @@ const SERIES: ContentFormat[] = [
     headlineFormula: "You've Never Heard of [Name]. He's Quietly Built a [$X] Position in [Stock/Sector].",
     requiredData: ['repeated Form 4 buys by a 10%+ owner', 'accumulated position size'],
     editorialNote:
-      'REVEAL the whale: the buyer\'s actual name from the data MUST appear in the headline (per the formula) and again in the opening paragraph, with the ticker(s) they are accumulating and the dollar amounts. The whole point of this series is naming who is buying — never write around the name.',
+      'REVEAL the whale: the buyer\'s actual name from the data MUST appear in the headline (per the formula) and again in the opening paragraph, with the ticker(s) they are accumulating and the dollar amounts. The whole point of this series is naming who is buying — never write around the name. PRONOUNS: if the buyer is an entity (LLC, LP, fund, trust — anything that is not a person\'s name), refer to it as "the firm" or "it" and adapt the headline formula accordingly ("It\'s Quietly Built…") — NEVER he/she for an entity, and never guess a person\'s gender; use they or repeat the name when unsure.',
   },
 ];
 

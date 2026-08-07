@@ -53,10 +53,12 @@ function MoverArticle({ r, catalyst }: { r: MoverRow; catalyst: string | null })
       const sentences = desc.split(/(?<=\.)\s+/).slice(0, 2).join(" ");
       return sentences;
     }
-    return r.sector
-      ? `${r.name} operates in the ${r.sector}${profileData?.profile?.industry ? ` sector (${profileData.profile.industry})` : " sector"}.`
-      : null;
-  }, [profileData, r.name, r.sector]);
+    if (r.sector) {
+      return `${r.name} operates in the ${r.sector}${profileData?.profile?.industry ? ` sector (${profileData.profile.industry})` : " sector"}.`;
+    }
+    // Never drop the section — the 5-part structure is the whole point.
+    return `${r.name} trades under the ticker ${r.symbol}${r.marketCap ? ` with a market value of ${formatCurrency(r.marketCap)}` : ""} — full profile on its company page below.`;
+  }, [profileData, r.name, r.sector, r.symbol, r.marketCap]);
 
   const volX = r.avgVolume > 0 ? r.volume / r.avgVolume : null;
 
@@ -98,13 +100,9 @@ function MoverArticle({ r, catalyst }: { r: MoverRow; catalyst: string | null })
             {volX && volX > 1.2 ? ` on roughly ${volX.toFixed(1)}× its average daily volume` : ""}.
           </p>
 
-          {/* What does it even do? */}
-          {about && (
-            <>
-              <SectionHead>What does {r.symbol} even do?</SectionHead>
-              <p className="text-[13px] text-soft leading-relaxed">{about}</p>
-            </>
-          )}
+          {/* What does it even do? — always present (client-spec section) */}
+          <SectionHead>What does {r.symbol} even do?</SectionHead>
+          <p className="text-[13px] text-soft leading-relaxed">{about}</p>
 
           {/* Catalyst */}
           <SectionHead>The catalyst</SectionHead>

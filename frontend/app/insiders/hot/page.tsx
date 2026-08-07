@@ -278,8 +278,10 @@ export default function InsiderHotStocksPage() {
           Top Insider Scores displays the best stocks according to our{" "}
           <strong style={{ color: "var(--text)" }}>IQ Score</strong> — a 0–99
           measure of how strong and meaningful a company&rsquo;s insider buying
-          is, built from five factors: the buying itself, sector strength,
-          management&rsquo;s own outlook, trading momentum and share dilution.
+          is, built from six components: the buying itself (including insider
+          ownership and selling), sector strength, management&rsquo;s own
+          outlook, trading momentum, the caliber of the insiders buying, and
+          share dilution — less a deduction for confirmed litigation.
           Only stocks with real analyst coverage appear here: every name below
           carries a published price target from at least {MIN_ANALYSTS}{" "}
           analysts. The list counts down to #1.

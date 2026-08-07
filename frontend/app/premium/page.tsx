@@ -83,7 +83,7 @@ const FAQS = [
     a: "Every dataset and tool on the site with no caps, plus all five sector playbooks.",
   },
   {
-    q: "Is the annual price really 58% off?",
+    q: `Is the annual price really ${SAVED_PCT}% off?`,
     a: `Yes. Monthly is $${PRICING.monthly} — $${PRICING.annualWas} over a year. The annual plan is $${PRICING.annual}, so you save $${SAVED}. It is a limited-time launch price.`,
   },
   {

@@ -26,6 +26,14 @@ export function guessWoman(fullName: string): boolean {
   return !!first && FEMALE_NAMES.has(first);
 }
 
+/** Entity filers (funds, LLCs, LPs, trusts) are not people — they get the
+ *  firm mark, never a gendered human face. */
+const ENTITY_RE =
+  /\b(L\.?P\.?|L\.?L\.?C\.?|Inc\.?|Corp\.?|Ltd\.?|Capital|Partners?|Management|Advisors?|Advisers?|Fund|Funds|Holdings?|Ventures?|Asset|Investments?|Group|Trust|Securities|Associates)\b/i;
+export function isEntityName(fullName: string): boolean {
+  return ENTITY_RE.test(fullName || "");
+}
+
 export function InsiderAvatar({
   name,
   kind = "insider",
@@ -35,6 +43,29 @@ export function InsiderAvatar({
   kind?: "insider" | "politician";
   size?: number;
 }) {
+  // Funds / LLCs / LPs are entities, not people — show the firm mark.
+  if (isEntityName(name)) {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 64 64"
+        role="img"
+        aria-label="Institutional filer"
+        style={{ borderRadius: "50%", display: "block" }}
+      >
+        <circle cx="32" cy="32" r="32" fill="#2b3648" />
+        {/* office building */}
+        <rect x="20" y="16" width="24" height="34" rx="2" fill="#8fa3c0" />
+        <rect x="26" y="50" width="12" height="6" fill="#8fa3c0" />
+        {[22, 30, 38].map((y) =>
+          [24, 31, 38].map((x) => (
+            <rect key={`${x}-${y}`} x={x} y={y} width="4" height="4" fill="#1d2534" />
+          )),
+        )}
+      </svg>
+    );
+  }
   const woman = guessWoman(name);
   const uid = `${kind}-${woman ? "w" : "m"}`;
   return (
