@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
+import { FmpService } from '../fmp/fmp.service';
 import { REFERENCE_QUOTES, ReferenceQuote } from './reference-quotes';
 import { MARKET_UNIVERSE } from './market-universe';
 import { SECTOR_BY_TICKER } from './market-sectors';
@@ -237,7 +238,7 @@ export class MarketStatsService {
     return rows.filter((r) => !r.exchange || this.MAJOR_EXCHANGES.has(r.exchange));
   }
 
-  constructor() {
+  constructor(@Optional() private readonly fmp?: FmpService) {
     this.http = axios.create({
       timeout: 10_000,
       // Force IPv4 — Node resolves Yahoo's hosts (fc.yahoo.com especially) to
@@ -1187,8 +1188,41 @@ export class MarketStatsService {
       });
     }
 
-    // Anything Yahoo couldn't resolve falls back to the static reference
-    // snapshot so tables never render empty cells for known tickers.
+    // Whatever Yahoo couldn't resolve gets a LIVE second chance through FMP
+    // (paid key) before falling to the static reference snapshot — so no
+    // page renders an empty price/cap for a real ticker.
+    const stillMissing = unique.filter((s) => !map.has(s));
+    if (stillMissing.length && this.fmp?.enabled) {
+      try {
+        const fmpQuotes = await this.fmp.getQuotesBatch(stillMissing);
+        for (const [sym, q] of fmpQuotes.entries()) {
+          const row: MarketStatRow = {
+            symbol: sym,
+            name: q.name,
+            price: q.price,
+            changeAbs: q.changeAbs,
+            changePct: q.changePct,
+            volume: q.volume,
+            avgVolume: q.avgVolume,
+            avgVol10d: null,
+            marketCap: q.marketCap,
+            sector: SECTOR_BY_TICKER[sym] ?? null,
+            exchange: null, // FMP uses full codes, not Yahoo's — leave unfiltered
+            fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
+            fiftyTwoWeekLow: q.fiftyTwoWeekLow,
+            peRatio: q.peRatio,
+          };
+          map.set(sym, row);
+          this.quoteCache.set(sym, { ts: now, row });
+          this.quoteFailCache.delete(sym);
+        }
+      } catch {
+        /* FMP unavailable — fall through to reference rows */
+      }
+    }
+
+    // Anything still unresolved falls back to the static reference snapshot
+    // so tables never render empty cells for known tickers.
     let missed = 0;
     for (const sym of unique) {
       if (!map.has(sym)) {
@@ -1200,7 +1234,7 @@ export class MarketStatsService {
       }
     }
     if (missed > 0) {
-      this.logger.warn(`Quote batch: ${missed}/${unique.length} symbols unresolved (no live quote or reference entry).`);
+      this.logger.warn(`Quote batch: ${missed}/${unique.length} symbols unresolved (no live quote, FMP or reference entry).`);
     }
     return map;
   }
@@ -1446,6 +1480,30 @@ export class MarketStatsService {
           pay: o.totalPay?.raw ?? null,
         })),
     };
+    // Yahoo's quoteSummary is flaky for smaller names — backfill every gap
+    // from the FMP profile so company pages never render empty sections.
+    if (this.fmp?.enabled && (!data.description || !data.sector || !data.exchange)) {
+      try {
+        const f = await this.fmp.getCompanyProfile(symbol);
+        if (f) {
+          data.name = data.name && data.name !== symbol ? data.name : f.name || data.name;
+          data.exchange = data.exchange || f.exchange || null;
+          data.sector = data.sector || f.sector || null;
+          data.industry = data.industry || f.industry || null;
+          data.employees = data.employees ?? f.employees ?? null;
+          data.website = data.website || f.website || null;
+          data.phone = data.phone || f.phone || null;
+          data.description = data.description || f.description || null;
+          data.address = data.address || f.address || null;
+          data.country = data.country || f.country || null;
+          if (!data.officers.length && f.ceo) {
+            data.officers = [{ name: f.ceo, title: 'Chief Executive Officer', pay: null }];
+          }
+        }
+      } catch {
+        /* FMP unavailable — Yahoo data stands */
+      }
+    }
     this.detailCache.set(cacheKey, { ts: Date.now(), data });
     return data;
   }

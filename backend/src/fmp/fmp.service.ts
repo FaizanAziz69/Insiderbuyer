@@ -76,6 +76,79 @@ export class FmpService {
     }
   }
 
+  // ── Company profile + quote gap-fillers ──────────────────────────────
+  private readonly profileCache = new Map<string, { ts: number; data: any | null }>();
+  private readonly PROFILE_TTL_MS = 24 * 60 * 60_000;
+
+  /** Full company profile (description, sector/industry, employees, HQ,
+   *  exchange, live price/cap) — fills the gaps Yahoo's quoteSummary leaves. */
+  async getCompanyProfile(symbolRaw: string): Promise<any | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    const c = this.profileCache.get(symbol);
+    if (c && Date.now() - c.ts < this.PROFILE_TTL_MS) return c.data;
+    const rows = await this.get('profile', { symbol });
+    const p = rows?.[0];
+    const data = p
+      ? {
+          symbol,
+          name: p.companyName || symbol,
+          exchange: p.exchange || null,
+          exchangeFullName: p.exchangeFullName || null,
+          sector: p.sector || null,
+          industry: p.industry || null,
+          employees: Number(p.fullTimeEmployees) || null,
+          website: p.website || null,
+          phone: p.phone || null,
+          description: p.description || null,
+          address:
+            [p.address, p.city, p.state, p.zip, p.country].filter(Boolean).join(', ') || null,
+          country: p.country || null,
+          ceo: p.ceo || null,
+          image: p.image || null,
+          price: Number(p.price) || null,
+          marketCap: Number(p.marketCap) || null,
+          averageVolume: Number(p.averageVolume) || null,
+          beta: Number(p.beta) || null,
+        }
+      : null;
+    this.profileCache.set(symbol, { ts: Date.now(), data });
+    return data;
+  }
+
+  /** Batch live quotes — the gap-filler for symbols Yahoo can't resolve.
+   *  Returns a Map keyed by UPPERCASE symbol. */
+  async getQuotesBatch(symbolsRaw: string[]): Promise<Map<string, any>> {
+    const out = new Map<string, any>();
+    const symbols = Array.from(
+      new Set(symbolsRaw.filter(Boolean).map((s) => s.toUpperCase())),
+    );
+    if (!this.enabled || !symbols.length) return out;
+    for (let i = 0; i < symbols.length; i += 50) {
+      const chunk = symbols.slice(i, i + 50);
+      const rows = await this.get('batch-quote', { symbols: chunk.join(',') });
+      for (const q of rows) {
+        const sym = String(q?.symbol || '').toUpperCase();
+        if (!sym || !(Number(q?.price) > 0)) continue;
+        out.set(sym, {
+          symbol: sym,
+          name: q.name || sym,
+          price: Number(q.price),
+          changeAbs: Number(q.change) || 0,
+          changePct: Number(q.changePercentage) || 0,
+          volume: Number(q.volume) || 0,
+          avgVolume: Number(q.avgVolume) || 0,
+          marketCap: Number(q.marketCap) || null,
+          fiftyTwoWeekHigh: Number(q.yearHigh) || null,
+          fiftyTwoWeekLow: Number(q.yearLow) || null,
+          peRatio: Number(q.pe) || null,
+          exchange: q.exchange || null,
+        });
+      }
+    }
+    return out;
+  }
+
   // ── Analyst price targets ────────────────────────────────────────────
   /** The 10 most recent price-target notes market-wide — the only per-analyst
    *  (named) data on the free tier: page 0 only, limit capped at 10. */
