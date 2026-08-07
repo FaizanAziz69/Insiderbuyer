@@ -463,7 +463,10 @@ export class CongressionalService implements OnModuleInit {
         reportedDate: safeDate(t.reportedDate) ?? safeDate(t.transactionDate),
         source: 'fmp',
       }))
-      .filter((r) => r.transactionDate != null);
+      // Bond/fund disclosures carry no ticker, and the column is NOT NULL —
+      // one such row aborts the whole batch insert. This is a stock feed;
+      // skip them.
+      .filter((r) => r.transactionDate != null && r.ticker);
     if (rows.length) {
       await this.repo.save(rows as any);
       this.logger.log(`Hydrated ${rows.length} historical disclosures for ${name}.`);
