@@ -8,10 +8,16 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpRight,
+  Bell,
+  Copy,
   FileText,
   Calendar,
   ExternalLink,
+  Maximize2,
+  Plus,
+  Star,
 } from "lucide-react";
+import { useWatchlist } from "@/lib/watchlist";
 import {
   API_BASE,
   CompanyDetail,
@@ -706,107 +712,62 @@ function CompanyHeader({
 
   return (
     <header className="card p-6">
-      <div className="flex flex-col sm:flex-row sm:items-start gap-5">
-        <div className="flex items-center gap-4 min-w-0">
-          <CompanyLogo
-            ticker={company.ticker}
-            name={company.name}
-            size={56}
-          />
-          <div className="min-w-0">
-            <h1
-              className="text-[24px] sm:text-[30px] font-semibold tracking-tight leading-tight"
-              style={{ letterSpacing: "-0.5px" }}
-            >
-              {company.name}
-            </h1>
-            <div className="text-mute text-[12px] font-semibold mt-0.5">
-              {company.ticker || company.cik} <span className="opacity-50">•</span> Real Time Price{" "}
-              <span className="opacity-50">•</span> USD{exchange ? <> <span className="opacity-50">•</span> {exchange}</> : null}
-            </div>
-            <MarketStateLine />
-            <div className="flex flex-wrap gap-2 mt-2 text-[12px] text-mute">
-              {(profile?.sector || company.sector) && (
-                <Chip>{profile?.sector || company.sector}</Chip>
-              )}
-              {profile?.industry && <Chip>{profile.industry}</Chip>}
-              {earningsDate && (
-                <Chip>
-                  <Calendar className="h-3 w-3" />
-                  Next earnings: {formatDate(earningsDate)}
-                </Chip>
-              )}
-            </div>
-            {company.ticker && (
-              <div className="mt-3 flex items-center gap-2">
-                <WatchlistButton ticker={company.ticker} variant="button" />
-                <Link
-                  href={`/trades?q=${encodeURIComponent(company.ticker)}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-bold transition hover:text-accent"
-                  style={{ border: "1px solid var(--border-strong)", background: "var(--bg-2)" }}
-                >
-                  Trade {company.ticker} <ArrowUpRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-            )}
+      {/* stockanalysis.com-style header (client reference): "Name (TICKER)"
+          with action buttons on the right, subtitle line, then a large price
+          with inline change and a timestamped market-state line. */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="min-w-0">
+          <h1
+            className="text-[24px] sm:text-[28px] font-bold tracking-tight leading-tight"
+            style={{ letterSpacing: "-0.4px" }}
+          >
+            {company.name} ({company.ticker || company.cik})
+          </h1>
+          <div className="text-mute text-[13px] font-medium mt-1">
+            {tickerLabel} · Real-Time Price · USD
           </div>
         </div>
 
-        <div className="sm:ml-auto flex items-start gap-6">
-          {price != null && (
-            <div className="text-right">
-              <div className="text-mute text-[11px] uppercase tracking-wider font-mono font-bold">
-                Last
-              </div>
-              <div className="text-[26px] font-semibold tabular tracking-tight mt-1">
-                ${price.toFixed(2)}
-              </div>
-              {change != null && changePct != null && (
-                <div
-                  className="inline-flex items-center gap-1 text-[13px] font-bold tabular mt-0.5"
-                  style={{ color: up ? "var(--good)" : "var(--bad)" }}
-                >
-                  {up ? (
-                    <ArrowUp className="h-3.5 w-3.5" />
-                  ) : (
-                    <ArrowDown className="h-3.5 w-3.5" />
-                  )}
-                  {up ? "+" : ""}
-                  {change.toFixed(2)} ({up ? "+" : ""}
-                  {changePct.toFixed(2)}%)
-                </div>
-              )}
-            </div>
-          )}
-
-          {score && (
-            <div
-              className="rounded-lg px-4 py-3 text-center"
-              style={{
-                background: "var(--bg-3)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <IqsTooltip>
-                <div className="text-[10px] uppercase tracking-wider font-bold text-accent underline decoration-dotted underline-offset-2 cursor-help">
-                  Insider Score
-                </div>
-              </IqsTooltip>
-              <div className="text-[26px] font-bold tabular text-accent leading-none mt-1">
-                {Number(score.iqs).toFixed(0)}
-                <span className="text-[13px] text-mute font-semibold">/100</span>
-              </div>
-              <div className="mt-1.5 flex justify-center">
-                <TierBadge iqs={score.iqs} size="sm" />
-              </div>
-            </div>
-          )}
-        </div>
+        {company.ticker && (
+          <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+            <HeaderActionBtn href="#price-chart" icon={<Maximize2 className="h-4 w-4" />}>
+              Full Chart
+            </HeaderActionBtn>
+            <HeaderWatchlistBtn ticker={company.ticker} />
+            <HeaderActionBtn href="/lists" icon={<Bell className="h-4 w-4" />}>
+              Alerts
+            </HeaderActionBtn>
+            <HeaderActionBtn href="/screener" icon={<Copy className="h-4 w-4" />}>
+              Compare
+            </HeaderActionBtn>
+          </div>
+        )}
       </div>
+
+      {price != null && (
+        <div className="mt-4">
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <span className="text-[36px] sm:text-[40px] font-bold tabular tracking-tight leading-none">
+              {price.toFixed(2)}
+            </span>
+            {change != null && changePct != null && (
+              <span
+                className="text-[18px] font-semibold tabular"
+                style={{ color: up ? "var(--good)" : "var(--bad)" }}
+              >
+                {up ? "+" : ""}
+                {change.toFixed(2)} ({up ? "+" : ""}
+                {changePct.toFixed(2)}%)
+              </span>
+            )}
+          </div>
+          <MarketStateLine />
+        </div>
+      )}
 
       {/* Price chart — merged into the header card so it reads as one box. */}
       {chart && (
-        <div className="mt-5 pt-5" style={{ borderTop: "1px solid var(--border)" }}>
+        <div id="price-chart" className="mt-5 pt-5" style={{ borderTop: "1px solid var(--border)" }}>
           {chart}
         </div>
       )}
@@ -1637,7 +1598,53 @@ function formatShortDate(s: string | null | undefined): string {
 }
 
 /** "As of today at 18:46 UTC-04:00 (Market Open/Closed)" — US market hours
- *  computed client-side (Mon–Fri 9:30–16:00 ET, holidays not modeled). */
+/** Solid slate action button — the stockanalysis.com header style. */
+function HeaderActionBtn({
+  href,
+  icon,
+  children,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center gap-1.5 rounded-md px-3.5 h-9 text-[13.5px] font-semibold text-white transition hover:brightness-110"
+      style={{ background: "#33526E" }}
+    >
+      {icon}
+      {children}
+    </Link>
+  );
+}
+
+/** Watchlist toggle in the same solid header style (star fills when saved). */
+function HeaderWatchlistBtn({ ticker }: { ticker: string }) {
+  const { has, toggle } = useWatchlist();
+  const saved = has(ticker);
+  return (
+    <button
+      type="button"
+      onClick={() => toggle(ticker)}
+      aria-pressed={saved}
+      className="inline-flex items-center gap-1.5 rounded-md px-3.5 h-9 text-[13.5px] font-semibold text-white transition hover:brightness-110"
+      style={{ background: "#33526E" }}
+    >
+      {saved ? (
+        <Star className="h-4 w-4" fill="var(--gold)" stroke="var(--gold)" />
+      ) : (
+        <Plus className="h-4 w-4" />
+      )}
+      Watchlist
+    </button>
+  );
+}
+
+/** "Aug 7, 2026, 3:16 PM EDT - Market open" — the reference's timestamp
+ *  line. Open/closed is computed client-side (Mon–Fri 9:30–16:00 ET,
+ *  holidays not modeled). */
 function MarketStateLine() {
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
@@ -1650,12 +1657,20 @@ function MarketStateLine() {
   const mins = et.getHours() * 60 + et.getMinutes();
   const isWeekday = et.getDay() >= 1 && et.getDay() <= 5;
   const open = isWeekday && mins >= 9 * 60 + 30 && mins < 16 * 60;
-  const hh = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-  const offMin = -now.getTimezoneOffset();
-  const off = `UTC${offMin >= 0 ? "+" : "-"}${String(Math.floor(Math.abs(offMin) / 60)).padStart(2, "0")}:${String(Math.abs(offMin) % 60).padStart(2, "0")}`;
+  // Reference format: "Aug 7, 2026, 3:16 PM EDT - Market open"
+  const stamp = now.toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  });
   return (
-    <div className="text-[11.5px] text-mute mt-1">
-      As of today at {hh} {off} ({open ? "Market Open" : "Market Closed"})
+    <div className="text-[12.5px] text-mute mt-1.5">
+      {stamp} - {open ? "Market open" : "Market closed"}
     </div>
   );
 }
