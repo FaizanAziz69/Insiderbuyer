@@ -92,15 +92,6 @@ export default function InsiderHotStocksPage() {
     fetcher,
     { refreshInterval: 10 * 60_000, revalidateOnFocus: false },
   );
-  // 7-day sparklines for the same candidate set (one batched, cached call).
-  const { data: sparkData } = useSWR<{ spark: Record<string, number[]> }>(
-    tickerKey
-      ? `${API_BASE}/market-stats/spark?symbols=${encodeURIComponent(tickerKey.split(",").slice(0, 60).join(","))}`
-      : null,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
-  );
-  const sparkMap = sparkData?.spark || {};
 
   const upsideBySym = new Map<string, { upside: number | null; target: number | null }>();
   /** Symbols with genuine sell-side coverage: a published price target from at
@@ -122,6 +113,20 @@ export default function InsiderHotStocksPage() {
     .slice(0, 50)
     .map((r, i) => ({ ...r, displayRank: i + 1 }))
     .reverse();
+
+  // 7-day sparklines for the 50 rows actually displayed (one batched,
+  // cached call — keyed on the post-coverage-filter list, otherwise names
+  // outside the first candidates would render an empty chart cell).
+  const sparkKey = top50
+    .map((r) => (r.ticker || "").toUpperCase())
+    .filter(Boolean)
+    .join(",");
+  const { data: sparkData } = useSWR<{ spark: Record<string, number[]> }>(
+    sparkKey ? `${API_BASE}/market-stats/spark?symbols=${encodeURIComponent(sparkKey)}` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
+  const sparkMap = sparkData?.spark || {};
 
   const columns: Column<Row50>[] = [
     {
