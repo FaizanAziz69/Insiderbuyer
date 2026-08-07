@@ -328,10 +328,18 @@ export class IqsService {
 
       for (const t of txs) {
         const shares = Number(t.sharesBought);
-        const value = shares * Number(t.pricePerShare);
+        const px = Number(t.pricePerShare);
+        const value = shares * px;
         // Data-quality guard: skip implausible parse artifacts so one bad
         // filing can't blow up the aggregates (and the market-cap check below).
         if (!Number.isFinite(value) || value <= 0 || value > MAX_PLAUSIBLE_TX_VALUE) {
+          continue;
+        }
+        // Price-sanity guard: a filed per-share price 25×+ the live market
+        // price (e.g. a "$1,000/share" filing on a $6 stock) is a parse or
+        // pre-conversion artifact, not an open-market buy — counting it
+        // fabricates maxed-out A and E factors.
+        if (lastPrice > 0 && px > lastPrice * 25) {
           continue;
         }
         const roleMult = ROLE_MULTIPLIER[t.role] ?? ROLE_MULTIPLIER.Other;
@@ -339,14 +347,18 @@ export class IqsService {
         totalShares += shares;
         roleWeightedValue += value * roleMult;
         buyers.add(t.insiderName.toLowerCase());
-        const prev = Number(t.previousHoldings) || 0;
+        const prevRaw = t.previousHoldings;
+        const prev = Number(prevRaw) || 0;
         if (prev > 0) {
           const frac = shares / prev; // relative stake growth
           holdingChangePcts.push(frac * 100); // D (percent)
           ownWeightedSum += Math.min(frac, NORM.ownershipPctCap) * roleMult; // F
           ownWeightSum += roleMult;
         } else {
-          // First-time buyer (held 0 before) — maximum relative commitment.
+          // First-time buyer (held 0 before) — maximum relative commitment
+          // in BOTH stake metrics (F caps at doubling; D caps at 100%), so
+          // D and F never contradict each other on the same filer.
+          if (prevRaw != null && shares > 0) holdingChangePcts.push(100);
           ownWeightedSum += NORM.ownershipPctCap * roleMult;
           ownWeightSum += roleMult;
         }
@@ -1081,6 +1093,9 @@ export class IqsService {
       } else if (!Number.isFinite(value) || value <= 0 || value > MAX_PLAUSIBLE_TX_VALUE) {
         status = 'excluded';
         reason = 'Parse-artifact guard — implausible transaction value (> $1B or ≤ 0)';
+      } else if (lastPrice > 0 && price > lastPrice * 25) {
+        status = 'excluded';
+        reason = `Price-sanity guard — filed at $${price.toLocaleString('en-US')}/share vs ~$${lastPrice.toFixed(2)} market price (25×+): parse/conversion artifact, not an open-market buy`;
       }
       return {
         insiderName: t.insiderName,
@@ -1118,6 +1133,9 @@ export class IqsService {
         ownWeightedSum += Math.min(frac, NORM.ownershipPctCap) * t.roleMultiplier;
         ownWeightSum += t.roleMultiplier;
       } else {
+        // First-time buyer — maximal commitment in BOTH stake metrics so D
+        // and F never contradict each other on the same filer.
+        if (t.previousHoldings != null && t.shares > 0) holdingChangePcts.push(100);
         ownWeightedSum += NORM.ownershipPctCap * t.roleMultiplier;
         ownWeightSum += t.roleMultiplier;
       }

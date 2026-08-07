@@ -1,5 +1,6 @@
 "use client";
 import useSWR from "swr";
+import { useMemo } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, TrendingDown, TrendingUp } from "lucide-react";
 import { API_BASE, RankingsResponse, fetcher, formatCurrency } from "@/lib/api";
@@ -39,17 +40,43 @@ function InsiderSidePanel({
   href: string;
   side: "buys" | "sells";
 }) {
-  // For now, both panels are sourced from the Insider Score rankings:
-  // - Buys = top Insider Score rows (already filtered to open-market purchases).
-  // - Sells = lowest Insider Score / negative-purchase rows are not in our schema, so
-  //   we'll display the same descending list with a "Sells" label and let
-  //   the visual indicator differentiate.
-  const { data } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=${side === "buys" ? 8 : 8}`,
+  // Buys = top Insider Score rows (open-market purchases). Sells = REAL
+  // Form 4 sales, aggregated per company by dollars sold — not the buys list.
+  const { data: buysData } = useSWR<RankingsResponse>(
+    side === "buys" ? `${API_BASE}/rankings?limit=8` : null,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
-  const rows = (data?.rows || []).slice(0, 8);
+  const { data: sellsData } = useSWR<{
+    rows: Array<{ ticker: string | null; companyName: string; marketCap?: number | null; totalValue: number }>;
+  }>(
+    side === "sells" ? `${API_BASE}/trades?side=sell&limit=100` : null,
+    fetcher,
+    { refreshInterval: 60_000, revalidateOnFocus: false },
+  );
+  const rows = useMemo(() => {
+    if (side === "buys") {
+      return (buysData?.rows || []).slice(0, 8).map((r) => ({
+        key: r.companyId,
+        ticker: r.ticker,
+        name: r.name,
+        marketCap: r.marketCap,
+        value: r.totalPurchaseValue,
+      }));
+    }
+    const agg = new Map<string, { ticker: string; name: string; marketCap: number | null; value: number }>();
+    for (const t of sellsData?.rows || []) {
+      const sym = (t.ticker || "").toUpperCase();
+      if (!sym) continue;
+      const cur = agg.get(sym) || { ticker: sym, name: t.companyName, marketCap: t.marketCap ?? null, value: 0 };
+      cur.value += Number(t.totalValue) || 0;
+      agg.set(sym, cur);
+    }
+    return [...agg.values()]
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8)
+      .map((r) => ({ key: r.ticker, ticker: r.ticker, name: r.name, marketCap: r.marketCap, value: r.value }));
+  }, [side, buysData, sellsData]);
 
   return (
     <section
@@ -62,7 +89,7 @@ function InsiderSidePanel({
       ) : (
         <ul className="divide-y divide-[var(--border)] flex-1">
           {rows.map((r, i) => (
-            <li key={r.companyId}>
+            <li key={r.key}>
               <Link
                 href={r.ticker ? `/companies/${encodeURIComponent(r.ticker)}` : "#"}
                 className="grid grid-cols-[22px_1fr_auto] gap-2 items-center px-4 py-2.5 hover:bg-[var(--accent-soft)] transition"
@@ -88,7 +115,7 @@ function InsiderSidePanel({
                   ) : (
                     <ArrowDown className="h-3 w-3" />
                   )}
-                  {formatCurrency(r.totalPurchaseValue)}
+                  {formatCurrency(r.value)}
                 </span>
               </Link>
             </li>

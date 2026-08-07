@@ -6,7 +6,7 @@
  * /score-explainer endpoint) once the client has signed off on the model.
  */
 import useSWR from "swr";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Calculator, Search } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 
@@ -130,6 +130,20 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 export default function ScoreExplainerPage() {
   const [input, setInput] = useState("");
   const [ticker, setTicker] = useState("");
+
+  // Shareable results: ?t=TICKER loads on arrival, and every search updates
+  // the URL so the page can be linked to a specific stock.
+  useEffect(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get("t");
+      if (t && /^[A-Za-z0-9.\-]{1,10}$/.test(t)) {
+        setInput(t.toUpperCase());
+        setTicker(t.toUpperCase());
+      }
+    } catch {
+      /* no URL access */
+    }
+  }, []);
   const { data, isLoading } = useSWR<Explain>(
     ticker ? `${API_BASE}/score-explainer/${encodeURIComponent(ticker)}` : null,
     fetcher,
@@ -138,7 +152,13 @@ export default function ScoreExplainerPage() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    setTicker(input.trim().toUpperCase());
+    const t = input.trim().toUpperCase();
+    setTicker(t);
+    try {
+      window.history.replaceState(null, "", t ? `?t=${encodeURIComponent(t)}` : window.location.pathname);
+    } catch {
+      /* ignore */
+    }
   };
 
   const d = data && data.found ? data : null;
@@ -591,7 +611,7 @@ export default function ScoreExplainerPage() {
                 <div>
                   <div className="text-[13px] font-bold">New Insider Score (v2)</div>
                   <div className="text-[11.5px] text-mute">
-                    5-component composite · out of {d.final?.ceiling}
+                    v2.1 composite (6 components − litigation) · out of {d.final?.ceiling}
                   </div>
                 </div>
               </div>
