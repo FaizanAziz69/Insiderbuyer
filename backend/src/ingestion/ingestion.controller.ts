@@ -98,6 +98,13 @@ export class IngestionController {
     });
   }
 
+  /** Repair company reference facts from FMP: implausible market caps,
+   *  missing sector/industry, missing shares outstanding. */
+  @Post('repair-facts')
+  async repairFacts(@Body() body: { limit?: number }) {
+    return this.ingestion.repairCompanyFacts({ limit: body?.limit });
+  }
+
   /** One-off: delete insider transactions with an implausible per-share price
    *  (parse artifacts behind the "$1600T bought" bug). Rescore afterwards. */
   @Post('cleanup-bad-trades')

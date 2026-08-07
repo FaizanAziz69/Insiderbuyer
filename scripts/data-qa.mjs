@@ -175,7 +175,7 @@ if (sample.length) {
 // ── Congressional party (13) ─────────────────────────────────────────────
 console.log('congressional…');
 try {
-  const cong = await get('/congressional?limit=500');
+  const cong = await get('/congressional-trades?limit=500');
   const crows = cong.rows || cong || [];
   const noParty = crows.filter((r) => !r.party).length;
   check('13-party-nonnull', noParty === 0, `${noParty}/${crows.length} rows missing party`);
