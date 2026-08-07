@@ -767,12 +767,16 @@ export class IngestionService implements OnModuleInit {
   }): Promise<{ scanned: number; capFixed: number; sectorFixed: number; sharesFixed: number }> {
     const out = { scanned: 0, capFixed: 0, sectorFixed: 0, sharesFixed: 0 };
     if (!this.fmp?.enabled) return out;
-    const scored = await this.companies
+    // ALL tickered companies, scored first — an unscored company's bad cap
+    // still reaches the UI through the trades feed and company profile
+    // (CHWY's $1,949 cap lived on an unscored row).
+    const all = await this.companies
       .createQueryBuilder('c')
-      .innerJoin('iqs_scores', 's', 's.company_id = c.id')
+      .leftJoin('iqs_scores', 's', 's.company_id = c.id')
       .where('c.ticker IS NOT NULL')
+      .orderBy('CASE WHEN s.id IS NULL THEN 1 ELSE 0 END', 'ASC')
       .getMany();
-    const needy = scored.filter((c) => {
+    const needy = all.filter((c) => {
       const cap = Number(c.marketCap) || 0;
       const px = Number(c.lastPrice) || 0;
       const shs = Number(c.sharesOutstanding) || 0;
