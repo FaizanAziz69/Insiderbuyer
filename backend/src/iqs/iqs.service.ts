@@ -364,6 +364,14 @@ export class IqsService {
         }
       }
 
+      // Every window buy was a guarded-out artifact → the company has no
+      // REAL qualifying buying; drop it from the ranking exactly like the
+      // no-transactions case (matches the explainer's "no score" behavior).
+      if (totalPurchaseValue <= 0 || buyers.size === 0) {
+        await this.scores.delete({ companyId: company.id });
+        return;
+      }
+
       // Data-quality guard: a cap smaller than the observed insider buying is
       // impossible — treat it as unknown rather than producing absurd factors.
       const safeCap = sanitizedMarketCap(marketCap, totalPurchaseValue) ?? 0;
