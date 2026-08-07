@@ -179,13 +179,6 @@ export default function InsiderHotStocksPage() {
       },
     },
     {
-      key: "spark7d",
-      label: "7D",
-      sortable: false,
-      align: "center",
-      render: (r) => <Sparkline data={sparkMap[(r.ticker || "").toUpperCase()]} />,
-    },
-    {
       key: "price",
       label: "Price",
       align: "right",
@@ -263,6 +256,13 @@ export default function InsiderHotStocksPage() {
       render: (r) => (
         <span className="tabular text-[14px] font-bold">{r.distinctBuyers}</span>
       ),
+    },
+    {
+      key: "spark7d",
+      label: "7D",
+      sortable: false,
+      align: "center",
+      render: (r) => <Sparkline data={sparkMap[(r.ticker || "").toUpperCase()]} />,
     },
     {
       key: "bought",

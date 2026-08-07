@@ -151,13 +151,6 @@ export default function TopGainersPage() {
       ),
     },
     {
-      key: "spark7d",
-      label: "7D",
-      sortable: false,
-      align: "center",
-      render: (r) => <Sparkline data={sparkMap[r.symbol.toUpperCase()]} />,
-    },
-    {
       key: "volume",
       label: "Volume",
       filterable: true,
@@ -180,6 +173,13 @@ export default function TopGainersPage() {
           {formatNumber(r.avgVolume)}
         </span>
       ),
+    },
+    {
+      key: "spark7d",
+      label: "7D",
+      sortable: false,
+      align: "center",
+      render: (r) => <Sparkline data={sparkMap[r.symbol.toUpperCase()]} />,
     },
     {
       key: "catalyst",

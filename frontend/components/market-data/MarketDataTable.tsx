@@ -87,13 +87,6 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
       ),
     },
     {
-      key: "spark7d",
-      label: "7D",
-      sortable: false,
-      align: "center",
-      render: (r) => <Sparkline data={sparkMap[r.symbol.toUpperCase()]} />,
-    },
-    {
       key: "price",
       label: "Price",
       filterable: true,
@@ -201,6 +194,13 @@ export function MarketDataTable({ endpoint, title, blurb, Icon = Flame }: Props)
       render: (r) => (
         <span className="tabular text-mute text-[14px] font-bold">{formatNumber(r.avgVolume)}</span>
       ),
+    },
+    {
+      key: "spark7d",
+      label: "7D",
+      sortable: false,
+      align: "center",
+      render: (r) => <Sparkline data={sparkMap[r.symbol.toUpperCase()]} />,
     },
     {
       key: "catalyst",

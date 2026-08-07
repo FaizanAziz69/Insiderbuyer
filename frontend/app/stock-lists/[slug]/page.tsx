@@ -299,15 +299,6 @@ export default function StockListDetailPage({
                 },
               },
               {
-                key: "spark7d",
-                label: "7D",
-                sortable: false,
-                align: "center",
-                render: (r) => (
-                  <Sparkline data={sparkMap[(r.ticker || r.symbol || "").toUpperCase()]} />
-                ),
-              },
-              {
                 key: "price",
                 label: "Price",
                 filterable: true,
@@ -490,6 +481,15 @@ export default function StockListDetailPage({
                     },
                   ] as Column<DetailRow>[])
                 : []),
+              {
+                key: "spark7d",
+                label: "7D",
+                sortable: false,
+                align: "center",
+                render: (r) => (
+                  <Sparkline data={sparkMap[(r.ticker || r.symbol || "").toUpperCase()]} />
+                ),
+              },
               {
                 key: "indicators",
                 label: "Indicators",
