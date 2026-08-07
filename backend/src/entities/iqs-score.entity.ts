@@ -96,6 +96,11 @@ export class IqsScore {
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
   subInsiderOwnership: number | null;
 
+  /** One-line human reasoning for the score (TipRanks-style): who bought,
+   *  how much, stake growth, and current insider ownership. */
+  @Column({ type: 'text', nullable: true })
+  reasoning: string | null;
+
   /** Share of model weight that had data (0–1) — confidence hint. */
   @Column({ type: 'numeric', precision: 6, scale: 4, default: 1 })
   dataCompleteness: number;

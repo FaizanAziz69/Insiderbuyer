@@ -18,6 +18,8 @@ export interface RankingRow {
   distinctBuyers: number;
   transactionCount: number;
   totalPurchaseValue: number;
+  /** TipRanks-style one-liner: who bought, how much, stake growth, ownership. */
+  reasoning?: string | null;
   /** Insider-type category flags — true when a buyer of that kind is present. */
   hasCeoBuyer?: boolean;
   hasCfoBuyer?: boolean;

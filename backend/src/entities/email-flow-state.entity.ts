@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export type EmailFlowName = 'welcome' | 'abandoned' | 'post_purchase';
+export type EmailFlowName = 'welcome' | 'abandoned' | 'post_purchase' | 'discount';
 
 /** One recipient's progress through one email flow. The scheduler walks
  *  active rows, sends every step whose offset has elapsed and isn't in

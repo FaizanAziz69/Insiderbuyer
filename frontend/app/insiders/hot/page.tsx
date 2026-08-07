@@ -16,6 +16,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
 import { DataTable, Column } from "@/components/DataTable";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { PriceTargetCell } from "@/components/PriceTargetCell";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { BacktestChart } from "@/components/backtest/BacktestChart";
 import { useBacktest } from "@/components/backtest/BacktestPanel";
@@ -90,14 +91,14 @@ export default function InsiderHotStocksPage() {
     fetcher,
     { refreshInterval: 10 * 60_000, revalidateOnFocus: false },
   );
-  const upsideBySym = new Map<string, number | null>();
+  const upsideBySym = new Map<string, { upside: number | null; target: number | null }>();
   /** Symbols with genuine sell-side coverage: a published price target from at
    *  least two analysts. One-analyst micro-cap targets produce nonsense upsides
    *  (4,800%+) that would discredit the whole list, so they are excluded. */
   const coveredSyms = new Set<string>();
   (analystData?.rows || []).forEach((r) => {
     const sym = r.symbol.toUpperCase();
-    upsideBySym.set(sym, r.upsidePct);
+    upsideBySym.set(sym, { upside: r.upsidePct, target: r.targetMean });
     if (r.targetMean != null && (r.numAnalysts ?? 0) >= MIN_ANALYSTS) coveredSyms.add(sym);
   });
   const coverageReady = (analystData?.rows || []).length > 0;
@@ -146,6 +147,15 @@ export default function InsiderHotStocksPage() {
                 <div className="text-[13px] font-medium truncate max-w-[220px]" style={{ color: "var(--text)" }}>
                   {r.name}
                 </div>
+                {r.reasoning && (
+                  <div
+                    className="text-[11.5px] text-mute leading-snug max-w-[260px] mt-0.5"
+                    style={{ whiteSpace: "normal" }}
+                    title={r.reasoning}
+                  >
+                    {r.reasoning}
+                  </div>
+                )}
               </div>
             </Link>
           </span>
@@ -199,19 +209,13 @@ export default function InsiderHotStocksPage() {
     },
     {
       key: "upside",
-      label: "Potential Upside",
-      align: "right",
-      sortValue: (r) => upsideBySym.get((r.ticker || "").toUpperCase()) ?? null,
+      label: "Analyst Price Target",
+      align: "center",
+      // Client spec: this column ranks by the UPSIDE, not the target price.
+      sortValue: (r) => upsideBySym.get((r.ticker || "").toUpperCase())?.upside ?? null,
       render: (r) => {
         const u = upsideBySym.get((r.ticker || "").toUpperCase());
-        if (u == null) return <span className="text-faint text-[13px]">—</span>;
-        const up = u >= 0;
-        return (
-          <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>
-            {up ? "+" : ""}
-            {u.toFixed(0)}%
-          </span>
-        );
+        return <PriceTargetCell target={u?.target ?? null} upsidePct={u?.upside ?? null} />;
       },
     },
     {

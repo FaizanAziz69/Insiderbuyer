@@ -154,6 +154,8 @@ const SERIES: ContentFormat[] = [
     trigger: 'Repeated buys by a 10%+ owner with a low media footprint.',
     headlineFormula: "You've Never Heard of [Name]. He's Quietly Built a [$X] Position in [Stock/Sector].",
     requiredData: ['repeated Form 4 buys by a 10%+ owner', 'accumulated position size'],
+    editorialNote:
+      'REVEAL the whale: the buyer\'s actual name from the data MUST appear in the headline (per the formula) and again in the opening paragraph, with the ticker(s) they are accumulating and the dollar amounts. The whole point of this series is naming who is buying — never write around the name.',
   },
 ];
 

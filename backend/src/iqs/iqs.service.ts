@@ -67,6 +67,8 @@ export interface RankingRow {
   distinctBuyers: number;
   transactionCount: number;
   totalPurchaseValue: number;
+  /** TipRanks-style one-liner: who bought, how much, stake growth, ownership. */
+  reasoning?: string | null;
   // ── IQ Score v2 component breakdown (explainability) ──────────────────
   buyingScore?: number | null;
   sectorSentiment?: number | null;
@@ -423,6 +425,33 @@ export class IqsService {
       const pedigreeScore = computePedigreeScore(pedigreeInputs, PEDIGREE_FLAG_POINTS);
       const litigationDeduction = computeLitigationDeduction(litigationMatters);
 
+      // TipRanks-style one-line reasoning: who bought, how much, stake growth,
+      // and current insider ownership.
+      const rolesBought = new Set(txs.map((t) => t.role));
+      const leaders = ['CEO', 'CFO', 'COO'].filter((r) => rolesBought.has(r as never));
+      const avgAddPct = holdingChangePcts.length
+        ? holdingChangePcts.reduce((a, b) => a + b, 0) / holdingChangePcts.length
+        : null;
+      const ownPct =
+        sharesOut > 0 && insiderShares > 0
+          ? Math.min(1, insiderShares / sharesOut) * 100
+          : null;
+      const fmtUsd = (v: number) =>
+        new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          notation: 'compact',
+          maximumFractionDigits: 1,
+        }).format(v);
+      const reasoning =
+        `${buyers.size} insider${buyers.size === 1 ? '' : 's'}` +
+        `${leaders.length ? ` (incl. ${leaders.join(', ')})` : ''}` +
+        ` bought ${fmtUsd(totalPurchaseValue)} across ${txs.length} filing${txs.length === 1 ? '' : 's'}` +
+        ` in the last 90 days` +
+        `${avgAddPct != null ? `, growing their personal stakes ~${Math.min(999, avgAddPct).toFixed(0)}% on average` : ''}` +
+        `${ownPct != null ? `; insiders now hold ~${ownPct.toFixed(1)}% of the company` : ''}` +
+        `${totalSellValue > 0 ? `. Insiders also sold ${fmtUsd(totalSellValue)} in the same window` : ''}.`;
+
       // ── Component 2: Sector Sentiment (from daily cache) ────────────────
       const sectorScore = await this.sectorSentiment
         .getScoreFor(company.sector, company.industry)
@@ -528,6 +557,7 @@ export class IqsService {
         subOwnershipPct: round2(subStake),
         subInsiderOwnership: round2(subOwnershipG),
         subBuySellBalance: round2(subBalance),
+        reasoning,
         // legacy display columns
         insiderWeight: +(subRole ?? 0).toFixed(2),
         transactionWeight: +(subVolume ?? 0).toFixed(2),
@@ -600,6 +630,7 @@ export class IqsService {
         's."distinctBuyers" as "distinctBuyers"',
         's."transactionCount" as "transactionCount"',
         's."totalPurchaseValue" as "totalPurchaseValue"',
+        's.reasoning as reasoning',
         's."buyingScore" as "buyingScore"',
         's."sectorSentiment" as "sectorSentiment"',
         's."mdaSentiment" as "mdaSentiment"',
@@ -676,6 +707,7 @@ export class IqsService {
       distinctBuyers: Number(r.distinctBuyers),
       transactionCount: Number(r.transactionCount),
       totalPurchaseValue: Number(r.totalPurchaseValue),
+      reasoning: r.reasoning ?? null,
       // IQ v2 component breakdown (null-safe — older rows may lack them).
       buyingScore: r.buyingScore != null ? Number(r.buyingScore) : null,
       sectorSentiment: r.sectorSentiment != null ? Number(r.sectorSentiment) : null,

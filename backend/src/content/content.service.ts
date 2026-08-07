@@ -1260,9 +1260,27 @@ export class ContentService {
       {
         key: 'quiet-whales',
         build: () => {
-          const rows = rankings.filter((r: any) => r.hasFundBuyer && r.ticker).slice(0, 6);
-          if (rows.length < 2) return null;
-          return { fundBackedBuys: rows.map(rankLite) };
+          // The series must NAME the whale — group the week's fund-style
+          // buyers by name with their actual purchases, biggest first.
+          const FUND_RE =
+            /\b(L\.?P\.?|L\.?L\.?C\.?|Capital|Partners?|Management|Advisors?|Advisers?|Fund|Holdings?|Ventures?|Asset|Investments?|Group|Trust)\b/i;
+          const fundBuys = buys7d.filter((t: any) => FUND_RE.test(String(t.insiderName || '')));
+          if (fundBuys.length < 2) return null;
+          const byBuyer = new Map<string, any[]>();
+          for (const t of fundBuys) {
+            const arr = byBuyer.get(t.insiderName) || [];
+            arr.push(tradeLite(t));
+            byBuyer.set(t.insiderName, arr);
+          }
+          const whales = [...byBuyer.entries()]
+            .map(([whaleName, buys]) => ({
+              whaleName,
+              totalValue: buys.reduce((a, b) => a + (Number(b.totalValue) || 0), 0),
+              buys: buys.slice(0, 8),
+            }))
+            .sort((a, b) => b.totalValue - a.totalValue)
+            .slice(0, 4);
+          return { whales };
         },
       },
       {

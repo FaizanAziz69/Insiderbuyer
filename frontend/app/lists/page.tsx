@@ -58,14 +58,15 @@ export default function ListsPage() {
       <header>
         <div className="flex items-center gap-2 text-mute text-sm mb-1">
           <Sparkles className="h-4 w-4" />
-          <span className="font-mono uppercase tracking-wider text-[11px]">Ideas</span>
+          <span className="font-mono uppercase tracking-wider text-[11px]">Insider Alerts</span>
         </div>
         <h1 className="text-[28px] font-bold tracking-tight" style={{ letterSpacing: "-0.4px" }}>
-          Investment ideas
+          Insider Alerts
         </h1>
         <p className="text-mute text-sm mt-1">
-          Curated lists drawn from today's insider-buying activity, sorted descending. Updated every
-          few minutes.
+          Live alerts generated from today&rsquo;s insider-buying activity — cluster buys,
+          executive purchases and the highest-conviction signals as they land. Updated every few
+          minutes from SEC Form 4 filings.
         </p>
       </header>
 

@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs
 import { EmailFlowsService } from './email-flows.service';
 import { EmailFlowName } from '../entities/email-flow-state.entity';
 
-const FLOW_NAMES: EmailFlowName[] = ['welcome', 'abandoned', 'post_purchase'];
+const FLOW_NAMES: EmailFlowName[] = ['welcome', 'abandoned', 'post_purchase', 'discount'];
 
 @Controller('email-flows')
 export class EmailFlowsController {
@@ -17,6 +17,12 @@ export class EmailFlowsController {
   @Get('cron')
   async cronGet() {
     return this.flows.processDue();
+  }
+
+  /** Weekly paygated newsletter — external-cron target (Mondays). */
+  @Post('newsletter')
+  async newsletter() {
+    return this.flows.sendWeeklyNewsletter();
   }
 
   /** The flows and their timings — sanity check. */

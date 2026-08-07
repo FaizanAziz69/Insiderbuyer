@@ -12,6 +12,8 @@ export interface OptInPromo {
   title: string;
   body: string;
   cta: string;
+  /** Line above the form (defaults to the free-report line). */
+  note?: string;
 }
 
 /**
@@ -24,11 +26,19 @@ export function OptInModal({
   onClose,
   promo,
   source,
+  hidePhone = false,
+  headerLabel,
+  onSubscribed,
 }: {
   open: boolean;
   onClose: () => void;
   promo: OptInPromo;
   source: string;
+  /** Email opt-in only — no SMS/phone field (client spec for alert popups). */
+  hidePhone?: boolean;
+  headerLabel?: string;
+  /** Fires after a successful subscribe (e.g. to start an email flow). */
+  onSubscribed?: (email: string) => void;
 }) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -75,6 +85,7 @@ export function OptInModal({
       });
       if (!res.ok) throw new Error(`Status ${res.status}`);
       setDone(true);
+      onSubscribed?.(email);
     } catch {
       setError("Something went wrong — please try again.");
     } finally {
@@ -105,7 +116,7 @@ export function OptInModal({
           >
             <Sparkles className="h-4 w-4" />
             <span className="text-[11px] font-bold uppercase tracking-wider">
-              Insider Buying — Premium Report
+              {headerLabel || "Insider Buying — Premium Report"}
             </span>
             <button
               onClick={onClose}
@@ -138,7 +149,7 @@ export function OptInModal({
                 </h3>
                 <p className="text-[14px] text-soft leading-relaxed mb-4">{promo.body}</p>
                 <p className="text-[13px] text-mute mb-4">
-                  Enter your email below to get this free report.
+                  {promo.note || "Enter your email below to get this free report."}
                 </p>
                 <form onSubmit={submit} noValidate className="space-y-3">
                   <div>
@@ -167,14 +178,16 @@ export function OptInModal({
                       </p>
                     )}
                   </div>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Phone number (optional)"
-                    className="w-full px-4 py-3 rounded-lg text-[14px]"
-                    style={{ background: "var(--bg-2)", border: "1px solid var(--border-strong)", color: "var(--text)" }}
-                  />
+                  {!hidePhone && (
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="Phone number (optional)"
+                      className="w-full px-4 py-3 rounded-lg text-[14px]"
+                      style={{ background: "var(--bg-2)", border: "1px solid var(--border-strong)", color: "var(--text)" }}
+                    />
+                  )}
                   <button
                     type="submit"
                     disabled={submitting}

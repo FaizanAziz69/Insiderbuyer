@@ -997,7 +997,7 @@ tags: include "editorial" plus any tickers/themes involved.`;
     );
     parts.push(`Trigger / cadence: ${format.trigger}`);
     parts.push(
-      `HEADLINE — use this exact formula, filling every [placeholder] from the data: "${format.headlineFormula}". It must still pass the universal headline rules.`,
+      `HEADLINE — start from this formula, filling every [placeholder] from the data: "${format.headlineFormula}". Then REWRITE it into a fresh, specific headline of your own: lead with the most concrete fact in the data (a person's name, a ticker, a dollar figure, a count), and vary the sentence shape — question, statement, or number-led. Two articles from this template must never share the same generic headline; the data's specifics ARE the headline. It must still pass the universal headline rules.`,
     );
     if (format.sections?.length) {
       parts.push(

@@ -13,6 +13,7 @@ import {
   formatNumber,
 } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
+import { InsiderAvatar } from "@/components/InsiderAvatar";
 import { useAuth } from "@/lib/auth";
 import { LoginModal } from "@/components/LoginModal";
 
@@ -230,8 +231,12 @@ export function InsiderActivityToast({
   );
   const politicianBuy = useMemo(() => {
     const rows = congressData?.rows || [];
+    // Prefer a row with a real photo (blurred below); otherwise still tease
+    // the buy with the flag-backed mystery-politician avatar.
     return (
-      rows.find((r) => r.action === "Buy" && r.photoUrl && r.ticker) || null
+      rows.find((r) => r.action === "Buy" && r.photoUrl && r.ticker) ||
+      rows.find((r) => r.action === "Buy" && r.ticker) ||
+      null
     );
   }, [congressData]);
 
@@ -540,11 +545,14 @@ export function InsiderActivityToast({
                       {a.pricePerShare > 0 && <> • ${a.pricePerShare.toFixed(2)}/share</>}
                     </div>
 
-                    {/* Insider • time */}
-                    <div className="mt-2 text-[12px]" style={{ color: "rgba(255,255,255,0.55)" }}>
-                      <span className="font-semibold" style={{ color: "rgba(255,255,255,0.85)" }}>{a.insiderName}</span>
-                      {" • "}
-                      {relTime(a.date)}
+                    {/* Insider (blurred-face avatar — identity teased) • time */}
+                    <div className="mt-2 flex items-center gap-2">
+                      <InsiderAvatar name={a.insiderName} kind="insider" size={30} />
+                      <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.55)" }}>
+                        <span className="font-semibold" style={{ color: "rgba(255,255,255,0.85)" }}>{a.insiderName}</span>
+                        {" • "}
+                        {relTime(a.date)}
+                      </span>
                     </div>
 
                     {/* CTA → stock page */}
@@ -569,13 +577,21 @@ export function InsiderActivityToast({
                 style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
               >
                 <span className="relative h-8 w-8 rounded-full overflow-hidden flex-shrink-0" aria-hidden>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={politicianBuy.photoUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    style={{ filter: "blur(5px) saturate(1.1)", transform: "scale(1.15)" }}
-                  />
+                  {politicianBuy.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={politicianBuy.photoUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      style={{ filter: "blur(5px) saturate(1.1)", transform: "scale(1.15)" }}
+                    />
+                  ) : (
+                    <InsiderAvatar
+                      name={politicianBuy.politician || politicianBuy.name || ""}
+                      kind="politician"
+                      size={32}
+                    />
+                  )}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[12px] font-bold leading-tight" style={{ color: "#fff" }}>

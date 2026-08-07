@@ -46,7 +46,7 @@ const NAV: NavItem[] = [
       { label: "Screener", href: "/screener" },
       { label: "Top insiders", href: "/insiders" },
       { label: "By sector", href: "/sectors" },
-      { label: "Ideas & lists", href: "/lists" },
+      { label: "Insider Alerts", href: "/lists" },
       { label: "Top performers", href: "/top-performers" },
     ],
   },

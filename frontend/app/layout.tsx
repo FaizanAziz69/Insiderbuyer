@@ -3,6 +3,7 @@ import { Barlow, Barlow_Condensed, Figtree, Libre_Franklin } from "next/font/goo
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import { PostHogProvider } from "@/components/PostHogProvider";
+import { SitePopups } from "@/components/SitePopups";
 import { PremiumProvider } from "@/components/premium/PremiumContext";
 import { AuthProvider } from "@/lib/auth";
 
@@ -68,6 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <PremiumProvider>
             <AppShell>{children}</AppShell>
+            <SitePopups />
           </PremiumProvider>
         </AuthProvider>
       </body>

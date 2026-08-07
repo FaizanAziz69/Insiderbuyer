@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
+import { PriceTargetCell } from "@/components/PriceTargetCell";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
 import { DataTable } from "@/components/DataTable";
@@ -198,38 +199,17 @@ export default function AnalystRatingsPage() {
                 },
               },
               {
-                key: "targetMean",
-                label: "Avg Target",
-                filterable: true,
-                filterType: "range",
-                align: "right",
-                sortValue: (r) => r.targetMean,
-                render: (r) => (
-                  <span className="tabular font-bold text-[14px]">
-                    {r.targetMean ? `$${r.targetMean.toFixed(2)}` : "—"}
-                  </span>
-                ),
-              },
-              {
                 key: "upsidePct",
-                label: "Upside",
+                label: "Analyst Price Target",
                 filterable: true,
                 filterType: "range",
-                align: "right",
+                filterLabelText: "Upside %",
+                align: "center",
+                // Client spec: ranked by the UPSIDE, not the target price.
                 sortValue: (r) => r.upsidePct,
-                render: (r) => {
-                  const up = (r.upsidePct ?? 0) >= 0;
-                  return (
-                    <span
-                      className="tabular font-bold text-[14px]"
-                      style={{ color: up ? "var(--good)" : "var(--bad)" }}
-                    >
-                      {r.upsidePct != null
-                        ? `${up ? "+" : ""}${r.upsidePct.toFixed(1)}%`
-                        : "—"}
-                    </span>
-                  );
-                },
+                render: (r) => (
+                  <PriceTargetCell target={r.targetMean} upsidePct={r.upsidePct} />
+                ),
               },
               {
                 key: "marketCap",

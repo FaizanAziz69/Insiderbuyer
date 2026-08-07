@@ -85,7 +85,10 @@ export function SidebarListsAndTools() {
               >
                 <span
                   className="sbw-avatar flex items-center justify-center"
-                  style={{ background: inv.color }}
+                  style={{
+                    background: inv.color,
+                    boxShadow: `0 0 0 2px var(--bg-1), 0 0 0 3.5px ${inv.color}66`,
+                  }}
                 >
                   {inv.initials}
                 </span>
