@@ -1,4 +1,5 @@
 name: FMP full data refresh
+# trigger: full-universe run (all-mode live)
 
 # Cloud-driven full refresh of company data from FMP (price, market cap,
 # sector/industry, shares outstanding, dilution) followed by a score recalc.
