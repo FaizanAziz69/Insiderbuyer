@@ -1157,13 +1157,14 @@ export class ContentService {
       const existing = await this.repo.findOne({ where: { slug } });
       return !existing;
     };
-    return this.generateGuideFormatArticles(dayKey, take, key);
+    return this.generateGuideFormatArticles(dayKey, take, key, true);
   }
 
   private async generateGuideFormatArticles(
     dayKey: string,
     take: (slug: string) => Promise<boolean>,
     forceKey?: string,
+    skipRamp = false,
   ): Promise<{ generated: number; skipped: number; errors: string[] }> {
     let generated = 0;
     let skipped = 0;
@@ -1341,6 +1342,7 @@ export class ContentService {
           ticker: firstTicker,
           sector: null,
           iqsAtGeneration: null,
+          skipRamp,
           article,
           inputSnapshot: { format: b.key, ...data },
         });
@@ -1466,6 +1468,8 @@ export class ContentService {
     iqsAtGeneration: number | null;
     article: GeneratedArticle;
     inputSnapshot: Record<string, unknown>;
+    /** Manual editorial publish — exempt from the programmatic volume ramp. */
+    skipRamp?: boolean;
   }) {
     const { slug, kind, ticker, sector, topic, iqsAtGeneration, article, inputSnapshot } = opts;
     this.guardArticle({ slug, kind, article, inputSnapshot });
@@ -1478,7 +1482,9 @@ export class ContentService {
     // Upsert by slug: overwrite an existing article in place (regeneration)
     // rather than inserting a duplicate that would violate the unique slug.
     const existing = await this.repo.findOne({ where: { slug } });
-    await this.guardPublishRamp(kind, !existing, slug);
+    if (!opts.skipRamp) {
+      await this.guardPublishRamp(kind, !existing, slug);
+    }
     const post = this.repo.create({
       ...(existing ? { id: existing.id } : {}),
       slug,
