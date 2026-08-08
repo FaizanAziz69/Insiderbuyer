@@ -271,6 +271,56 @@ export class FmpService {
       .filter((r) => r.symbol && r.analystName && r.publishedDate);
   }
 
+  /** Full open-market PURCHASE history for one symbol (insider-trading/
+   *  search, paginated) — feeds the 10-year backtest event store. */
+  async insiderPurchasesForSymbol(
+    symbolRaw: string,
+    maxPages = 10,
+  ): Promise<
+    Array<{
+      symbol: string;
+      insiderName: string;
+      typeOfOwner: string | null;
+      transactionDate: string;
+      totalValue: number;
+    }>
+  > {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return [];
+    const out: Array<{
+      symbol: string;
+      insiderName: string;
+      typeOfOwner: string | null;
+      transactionDate: string;
+      totalValue: number;
+    }> = [];
+    for (let p = 0; p < maxPages; p++) {
+      const rows = await this.get('insider-trading/search', {
+        symbol,
+        transactionType: 'P-Purchase',
+        limit: 100,
+        page: p,
+      });
+      for (const r of rows) {
+        const shares = Number(r?.securitiesTransacted) || 0;
+        const price = Number(r?.price) || 0;
+        const value = shares * price;
+        const name = String(r?.reportingName || '').trim();
+        const date = String(r?.transactionDate || '').slice(0, 10);
+        if (!name || !date || !(value > 0)) continue;
+        out.push({
+          symbol,
+          insiderName: name,
+          typeOfOwner: String(r?.typeOfOwner || '').trim() || null,
+          transactionDate: date,
+          totalValue: +value.toFixed(2),
+        });
+      }
+      if (rows.length < 100) break;
+    }
+    return out;
+  }
+
   // ── Congressional ────────────────────────────────────────────────────
   private parseAmount(a: string): { min: number | null; max: number | null } {
     if (!a) return { min: null, max: null };

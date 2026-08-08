@@ -44,6 +44,7 @@ import { ReportLead } from './entities/report-lead.entity';
 import { EmailFlowsModule } from './email-flows/email-flows.module';
 import { EmailFlowState } from './entities/email-flow-state.entity';
 import { InsiderProfile } from './entities/insider-profile.entity';
+import { HistoricalInsiderBuy } from './entities/historical-insider-buy.entity';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { InsiderProfile } from './entities/insider-profile.entity';
           ReportLead,
           EmailFlowState,
           InsiderProfile,
+          HistoricalInsiderBuy,
         ],
         synchronize: true,
         logging: false,

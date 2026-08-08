@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InsiderTransaction } from '../entities/insider-transaction.entity';
+import { HistoricalInsiderBuy } from '../entities/historical-insider-buy.entity';
+import { Company } from '../entities/company.entity';
+import { FmpService } from '../fmp/fmp.service';
 import {
   BacktestCache,
   PriceHistoryCache,
@@ -86,11 +89,16 @@ export class BacktestService {
    *  60s function limit; the next request picks up where this one stopped. */
   private readonly SLICE = 45;
   private readonly CONCURRENCY = 6;
-  private readonly CACHE_KEY = 'insider-strategy-v2';
+  private readonly CACHE_KEY = 'insider-strategy-v3'; // v3 = 10-year event store
 
   constructor(
     @InjectRepository(InsiderTransaction)
     private readonly txRepo: Repository<InsiderTransaction>,
+    @InjectRepository(HistoricalInsiderBuy)
+    private readonly histRepo: Repository<HistoricalInsiderBuy>,
+    @InjectRepository(Company)
+    private readonly companies: Repository<Company>,
+    private readonly fmp: FmpService,
     @InjectRepository(PriceHistoryCache)
     private readonly priceRepo: Repository<PriceHistoryCache>,
     @InjectRepository(BacktestCache)
@@ -150,7 +158,7 @@ export class BacktestService {
         const chunk = slice.slice(i, i + this.CONCURRENCY);
         const got = await Promise.all(
           chunk.map((sym) =>
-            this.market.getCloseHistory(sym, '5y').catch(() => []),
+            this.market.getCloseHistory(sym, '10y').catch(() => []),
           ),
         );
         // Forced upsert, NOT save(): TypeORM skips a no-op UPDATE when the
@@ -193,6 +201,57 @@ export class BacktestService {
 
   /** Weekly rebalance dates, the point-in-time top-10 for each, and every
    *  symbol whose price history the backtest will need. */
+  /** Populate the 10-year event store: full FMP purchase history for every
+   *  US-tickered company we track. Idempotent (unique-key upserts); safe to
+   *  re-run. Invalidates the computed result so the next request rebuilds. */
+  async backfillBuyEvents(opts?: {
+    maxPagesPerSymbol?: number;
+    limit?: number;
+  }): Promise<{ symbols: number; events: number }> {
+    if (!this.fmp.enabled) return { symbols: 0, events: 0 };
+    const rows = await this.companies
+      .createQueryBuilder('c')
+      .select('DISTINCT UPPER(c.ticker)', 'ticker')
+      .where(`c.exchange = 'US'`)
+      .andWhere(`c.ticker IS NOT NULL AND c.ticker NOT LIKE '%.%'`)
+      .getRawMany<{ ticker: string }>();
+    const symbols = rows
+      .map((r) => r.ticker)
+      .filter((t) => t && /^[A-Z0-9\-]+$/.test(t))
+      .slice(0, opts?.limit ?? 5000);
+    let events = 0;
+    for (const sym of symbols) {
+      try {
+        const buys = await this.fmp.insiderPurchasesForSymbol(
+          sym,
+          opts?.maxPagesPerSymbol ?? 10,
+        );
+        for (const b of buys) {
+          try {
+            await this.histRepo.upsert(
+              {
+                symbol: b.symbol,
+                insiderName: b.insiderName,
+                typeOfOwner: b.typeOfOwner,
+                transactionDate: new Date(b.transactionDate),
+                totalValue: b.totalValue,
+              },
+              ['symbol', 'insiderName', 'transactionDate', 'totalValue'],
+            );
+            events++;
+          } catch {
+            /* duplicate — fine */
+          }
+        }
+      } catch (e: any) {
+        this.logger.warn(`buy-event backfill ${sym}: ${e?.message || e}`);
+      }
+    }
+    await this.resultRepo.delete({ key: this.CACHE_KEY });
+    this.logger.log(`buy-event backfill: ${symbols.length} symbols, ${events} events`);
+    return { symbols: symbols.length, events };
+  }
+
   private async buildPlan(): Promise<{
     weeks: number[];
     picksByWeek: string[][];
@@ -230,20 +289,47 @@ export class BacktestService {
     const ORG =
       /\b(inc|incorporated|corp|corporation|co|company|llc|llp|lp|ltd|limited|plc|gmbh|ag|nv|sa|trust|fund|funds|capital|partners?|holdings?|group|management|advisors?|advisers?|ventures?|associates|investments?|equity|asset|bancorp|bank|financial|insurance|life|principal)\b/i;
 
-    const events = buys
-      .map((r) => ({
-        ms: new Date(r.t_transactionDate).getTime(),
-        value: Number(r.t_totalValue),
-        ticker: (r.ticker || '').toUpperCase(),
-        insiderName: String(r.insiderName || ''),
-      }))
+    const rawEvents = buys.map((r) => ({
+      ms: new Date(r.t_transactionDate).getTime(),
+      value: Number(r.t_totalValue),
+      ticker: (r.ticker || '').toUpperCase(),
+      insiderName: String(r.insiderName || ''),
+    }));
+
+    // Long-horizon event store (10 years via FMP per-symbol history) — merged
+    // with our own ingest, deduplicated on (ticker, day, insider, value).
+    const hist = await this.histRepo.find();
+    for (const h of hist) {
+      const typeOk =
+        !h.typeOfOwner || /officer|director/i.test(h.typeOfOwner);
+      if (!typeOk) continue;
+      rawEvents.push({
+        ms: new Date(h.transactionDate as unknown as string).getTime(),
+        value: Number(h.totalValue),
+        ticker: (h.symbol || '').toUpperCase(),
+        insiderName: h.insiderName,
+      });
+    }
+
+    const seen = new Set<string>();
+    const events = rawEvents
       .filter(
         (e) =>
           e.ticker &&
+          !e.ticker.includes('.') &&
           Number.isFinite(e.ms) &&
           Number.isFinite(e.value) &&
+          e.value > 0 &&
+          e.value <= MAX_TX_VALUE &&
           !ORG.test(e.insiderName.replace(/[.,]/g, ' ')),
-      );
+      )
+      .filter((e) => {
+        const key = `${e.ticker}|${new Date(e.ms).toISOString().slice(0, 10)}|${e.insiderName.toLowerCase()}|${Math.round(e.value)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.ms - b.ms);
 
     if (events.length < 100) {
       this.logger.warn(`not enough filings to backtest (${events.length})`);

@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { BacktestService } from './backtest.service';
 
 @Controller('backtest')
@@ -9,5 +9,14 @@ export class BacktestController {
   @Get('insider-strategy')
   async insiderStrategy() {
     return this.svc.get();
+  }
+
+  /** Populate the 10-year insider-purchase event store (paid FMP). */
+  @Post('backfill-buys')
+  async backfillBuys(@Body() body: { pages?: number; limit?: number }) {
+    return this.svc.backfillBuyEvents({
+      maxPagesPerSymbol: body?.pages,
+      limit: body?.limit,
+    });
   }
 }

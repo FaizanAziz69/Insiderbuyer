@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { InsiderTransaction } from '../entities/insider-transaction.entity';
+import { Company } from '../entities/company.entity';
+import { HistoricalInsiderBuy } from '../entities/historical-insider-buy.entity';
+import { FmpModule } from '../fmp/fmp.module';
 import {
   BacktestCache,
   PriceHistoryCache,
@@ -12,9 +15,11 @@ import { BacktestService } from './backtest.service';
 @Module({
   imports: [TypeOrmModule.forFeature([
       InsiderTransaction,
+      Company,
+      HistoricalInsiderBuy,
       PriceHistoryCache,
       BacktestCache,
-    ]), MarketStatsModule],
+    ]), MarketStatsModule, FmpModule],
   controllers: [BacktestController],
   providers: [BacktestService],
   exports: [BacktestService],
