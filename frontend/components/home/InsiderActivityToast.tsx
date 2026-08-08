@@ -157,25 +157,32 @@ export function InsiderActivityToast({
     }
   }
 
-  // Session-scoped dismissal (the × on the bubble removes it for the session).
+  // Dismissal expires after an hour. Session-scoped ("gone until the tab
+  // closes") meant one stray × made the widget vanish for days for anyone
+  // who never closes their tab — it read as "the popup disappeared".
+  const DISMISS_TTL_MS = 60 * 60_000;
   useEffect(() => {
     try {
-      if (sessionStorage.getItem("ib_insider_toast_dismissed") === "1") {
+      const ts = Number(sessionStorage.getItem("ib_insider_toast_dismissed_at") || 0);
+      if (ts && Date.now() - ts < DISMISS_TTL_MS) {
         setDismissed(true);
-        soundMuted = true; // dismissed earlier this session — stay silent
+        soundMuted = true; // dismissed recently — stay silent
+      } else if (ts) {
+        sessionStorage.removeItem("ib_insider_toast_dismissed_at");
       }
     } catch {
       /* ignore */
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   function dismiss() {
     setDismissed(true);
     // Closing must actually silence it: kill the queued chime and hard-mute
-    // for the rest of the session so no later effect can replay the sound.
+    // so no later effect can replay the sound while dismissed.
     chimePendingRef.current = false;
     soundMuted = true;
     try {
-      sessionStorage.setItem("ib_insider_toast_dismissed", "1");
+      sessionStorage.setItem("ib_insider_toast_dismissed_at", String(Date.now()));
     } catch {
       /* ignore */
     }
@@ -214,7 +221,7 @@ export function InsiderActivityToast({
     const t = setTimeout(() => {
       setVisible(true);
       chime();
-    }, 10_000);
+    }, 5_000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, dismissed]);
