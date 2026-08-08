@@ -217,11 +217,29 @@ export class IqsService {
    *  company.dilutionPctTtm) so the per-company loop stays inside the 60s
    *  serverless budget. Only open-market purchases (code P) feed the Buying
    *  component; missing components degrade to neutral 50 (dataCompleteness). */
-  async recalculateAll(windowDays = WINDOWS.buys): Promise<number> {
+  async recalculateAll(
+    windowDays = WINDOWS.buys,
+    opts?: { limit?: number; after?: string },
+  ): Promise<{ updated: number; remaining: number; cursor: string | null }> {
     const since = new Date(Date.now() - windowDays * 86400000);
     const seasonedCutoff = new Date(Date.now() - WINDOWS.seasoned * 86400000);
     const today = new Date().toISOString().slice(0, 10);
-    const companies = await this.companies.find();
+    const allCompanies = await this.companies.find();
+    // Sliceable: when a limit is given, walk the universe alphabetically by
+    // ticker from `after` — lets a 60s serverless call score a chunk and a
+    // GitHub-Actions loop cover everything without a local worker.
+    let companies = allCompanies;
+    let remaining = 0;
+    let cursor: string | null = null;
+    if (opts?.limit && opts.limit > 0) {
+      const after = opts.after || '';
+      const sorted = allCompanies
+        .filter((c) => (c.ticker || c.id) > after)
+        .sort((a, b) => (a.ticker || a.id).localeCompare(b.ticker || b.id));
+      companies = sorted.slice(0, opts.limit);
+      remaining = Math.max(0, sorted.length - companies.length);
+      cursor = companies.length ? companies[companies.length - 1].ticker || companies[companies.length - 1].id : null;
+    }
     let updated = 0;
 
     // Warm the daily sector-sentiment cache once (11 ETF fetches) so the
@@ -661,7 +679,7 @@ export class IqsService {
         ),
       );
     }
-    return updated;
+    return { updated, remaining, cursor };
   }
 
   async getRankings(opts: {

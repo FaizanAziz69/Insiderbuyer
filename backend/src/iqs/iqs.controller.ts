@@ -68,9 +68,11 @@ export class IqsController {
    *  for the formula). Lighter than a full SEC ingestion. */
   @Post('recalculate')
   @UseGuards(AdminTokenGuard)
-  async recalculate() {
-    const updated = await this.iqs.recalculateAll();
-    return { updated };
+  async recalculate(@Body() body?: { limit?: number; after?: string }) {
+    return this.iqs.recalculateAll(undefined, {
+      limit: body?.limit,
+      after: body?.after,
+    });
   }
 
   /** Step-by-step IQ Score calculation trace for one ticker — powers the

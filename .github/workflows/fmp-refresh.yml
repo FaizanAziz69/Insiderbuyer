@@ -51,7 +51,16 @@ jobs:
             sleep 2
           done
 
-      - name: Recalculate IQ Scores with the refreshed data
+      - name: Recalculate IQ Scores with the refreshed data (sliced loop)
         run: |
-          curl -s -X POST "$API/iqs/recalculate" -m 590 -w "\nHTTP %{http_code}\n" || true
-          echo "recalc triggered"
+          cursor=""
+          for i in $(seq 1 400); do
+            resp=$(curl -s -X POST "$API/recalculate" \
+              -H 'Content-Type: application/json' \
+              -d "{\"limit\":40,\"after\":\"$cursor\"}" -m 90 || echo '{}')
+            echo "recalc #$i -> $resp"
+            remaining=$(echo "$resp" | grep -o '"remaining":[0-9]*' | grep -o '[0-9]*' || echo "")
+            cursor=$(echo "$resp" | grep -o '"cursor":"[^"]*"' | sed 's/"cursor":"//;s/"//' || echo "")
+            if [ "$remaining" = "0" ] || [ -z "$cursor" ]; then echo "recalc complete"; break; fi
+            sleep 1
+          done
