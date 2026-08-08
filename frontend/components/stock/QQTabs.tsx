@@ -162,14 +162,13 @@ export function PatentsCard({ ticker, companyName }: { ticker: string; companyNa
   const { data, isLoading } = useSWR<{ items: { title: string; date: string }[]; enabled: boolean }>(
     `${API_BASE}/company-civic/patents?name=${encodeURIComponent(companyName)}`, fetcher, { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 });
   const items = data?.items || [];
+  // No data → no card. The USPTO integration isn't configured in prod, and an
+  // "add an API key" note is developer talk that should never face users.
+  if (!isLoading && items.length === 0) return null;
   return (
     <Card icon={<Award className="h-4 w-4" />} title="U.S. Patents" subtitle={`New ${ticker} patent grants`}>
       {isLoading ? (
         <div className="h-full flex items-center justify-center text-[12.5px] text-mute py-8">Loading patent grants…</div>
-      ) : items.length === 0 ? (
-        <Empty text={data && !data.enabled
-          ? "Patent data activates once a free USPTO Open Data Portal key (USPTO_API_KEY) is set."
-          : `No recent patent grants found for ${ticker}.`} />
       ) : (
         <div className="overflow-auto scrollbar-visible space-y-2.5 pr-1" style={{ maxHeight: 300 }}>
           {items.map((p, i) => (
