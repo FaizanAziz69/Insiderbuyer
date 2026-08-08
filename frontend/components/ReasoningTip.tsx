@@ -18,24 +18,37 @@ export function ReasoningTip({ text }: { text?: string | null }) {
 
   useEffect(() => setMounted(true), []);
 
-  // Position: below the icon, clamped to the viewport; flips above when the
-  // bottom edge would overflow.
+  // Position: tight under the icon (4px), clamped to the viewport; flips
+  // above when the bottom edge would overflow. Re-pinned every frame while
+  // open so hover-highlight/layout shifts can't leave the tip floating away
+  // from its icon.
   useEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const r = triggerRef.current.getBoundingClientRect();
+    if (!open) return;
+    const GAP = 4;
     const margin = 8;
-    const width = Math.min(320, window.innerWidth - margin * 2);
-    let left = r.left + r.width / 2 - width / 2;
-    left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
-    // Estimate height post-render; start below, flip above if needed.
-    let top = r.bottom + 8;
-    setPos({ top, left, width });
-    requestAnimationFrame(() => {
+    let raf = 0;
+    const place = () => {
+      const el = triggerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const width = Math.min(320, window.innerWidth - margin * 2);
+      let left = r.left + r.width / 2 - width / 2;
+      left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
       const h = tipRef.current?.offsetHeight ?? 0;
-      if (h && r.bottom + 8 + h > window.innerHeight - margin) {
-        setPos({ top: Math.max(margin, r.top - 8 - h), left, width });
-      }
-    });
+      const below = r.bottom + GAP;
+      const top =
+        h && below + h > window.innerHeight - margin
+          ? Math.max(margin, r.top - GAP - h)
+          : below;
+      setPos((prev) =>
+        prev && prev.top === top && prev.left === left && prev.width === width
+          ? prev
+          : { top, left, width },
+      );
+      raf = requestAnimationFrame(place);
+    };
+    raf = requestAnimationFrame(place);
+    return () => cancelAnimationFrame(raf);
   }, [open]);
 
   // Tap-toggle needs outside-tap + scroll to close (mobile has no mouseleave).
