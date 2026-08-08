@@ -1720,6 +1720,46 @@ export class MarketStatsService {
         strongSell: Number(t0.strongSell) || 0,
       },
     };
+    // FMP fallback for listings Yahoo leaves blank (esp. foreign .DE/.PA/…):
+    //  • rating consensus is currency-agnostic → always safe to fill;
+    //  • price targets only from FMP for THIS exact listing — we never graft a
+    //    US-ADR USD target onto a EUR page (FMP returns [] for .DE, honored).
+    const needTrend =
+      data.trend.strongBuy + data.trend.buy + data.trend.hold + data.trend.sell + data.trend.strongSell === 0;
+    const needTargets = data.targetMean == null && data.targetMedian == null;
+    if ((needTrend || needTargets) && this.fmp?.enabled) {
+      try {
+        if (needTrend) {
+          const g = await this.fmp.getGradesConsensus(symbol);
+          if (g) {
+            data.trend = {
+              strongBuy: g.strongBuy,
+              buy: g.buy,
+              hold: g.hold,
+              sell: g.sell,
+              strongSell: g.strongSell,
+            };
+            if (!data.recommendationKey && g.consensus) {
+              data.recommendationKey = g.consensus.toLowerCase().replace(/\s+/g, '_');
+            }
+            const gTotal = g.strongBuy + g.buy + g.hold + g.sell + g.strongSell;
+            data.analysts = data.analysts ?? (gTotal || null);
+          }
+        }
+        if (needTargets) {
+          const pt = await this.fmp.getPriceTargetConsensus(symbol);
+          if (pt && (pt.targetConsensus != null || pt.targetMedian != null)) {
+            data.targetMean = pt.targetConsensus ?? data.targetMean;
+            data.targetMedian = pt.targetMedian ?? data.targetMedian;
+            data.targetHigh = pt.targetHigh ?? data.targetHigh;
+            data.targetLow = pt.targetLow ?? data.targetLow;
+          }
+        }
+      } catch {
+        /* FMP unavailable — Yahoo values stand */
+      }
+    }
+
     this.detailCache.set(cacheKey, { ts: Date.now(), data });
     return data;
   }

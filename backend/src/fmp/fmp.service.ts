@@ -321,6 +321,45 @@ export class FmpService {
     return out;
   }
 
+  /** Analyst RATING consensus (buy/hold/sell counts) — available for foreign
+   *  listings (e.g. SAP.DE) and currency-agnostic, so it fills the analyst
+   *  block on non-US pages that Yahoo leaves empty. */
+  async getGradesConsensus(symbolRaw: string): Promise<{
+    strongBuy: number; buy: number; hold: number; sell: number; strongSell: number; consensus: string | null;
+  } | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    const rows = await this.get('grades-consensus', { symbol });
+    const r = rows?.[0];
+    if (!r) return null;
+    return {
+      strongBuy: Number(r.strongBuy) || 0,
+      buy: Number(r.buy) || 0,
+      hold: Number(r.hold) || 0,
+      sell: Number(r.sell) || 0,
+      strongSell: Number(r.strongSell) || 0,
+      consensus: r.consensus || null,
+    };
+  }
+
+  /** Price-target consensus for THIS listing only (never grafts a US-ADR USD
+   *  target onto a EUR page — FMP simply returns [] for .DE, which we honor). */
+  async getPriceTargetConsensus(symbolRaw: string): Promise<{
+    targetHigh: number | null; targetLow: number | null; targetConsensus: number | null; targetMedian: number | null;
+  } | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    const rows = await this.get('price-target-consensus', { symbol });
+    const r = rows?.[0];
+    if (!r) return null;
+    return {
+      targetHigh: r.targetHigh != null ? Number(r.targetHigh) : null,
+      targetLow: r.targetLow != null ? Number(r.targetLow) : null,
+      targetConsensus: r.targetConsensus != null ? Number(r.targetConsensus) : null,
+      targetMedian: r.targetMedian != null ? Number(r.targetMedian) : null,
+    };
+  }
+
   // ── Congressional ────────────────────────────────────────────────────
   private parseAmount(a: string): { min: number | null; max: number | null } {
     if (!a) return { min: null, max: null };
