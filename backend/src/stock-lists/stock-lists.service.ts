@@ -518,9 +518,10 @@ export class StockListsService {
       if (nonUsExchange) {
         return { slug, ...meta, total: 0, rows: [] as any[] };
       }
-      // Live 13F-HR from SEC EDGAR for the institutional filers we track
-      // (Buffett/Dalio/Sprott). Individuals who don't file 13Fs are not
-      // listed — we never publish fabricated holdings for a named person.
+      // Live 13F-HR from SEC EDGAR for institutional filers (Buffett/Dalio/
+      // Sprott); curated representative list for individuals who don't file
+      // 13Fs (Bezos/Trump) — labeled "illustrative, not actual filings" in
+      // the meta, or when the live fetch fails.
       let rows: PersonaHolding[];
       if (slug === 'politicians') {
         // Live congressional disclosures (FMP), aggregated by ticker.

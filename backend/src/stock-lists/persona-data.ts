@@ -14,6 +14,28 @@ export interface PersonaHolding {
 }
 
 export const PERSONA_HOLDINGS: Record<string, PersonaHolding[]> = {
+  'jeff-bezos': [
+    { ticker: 'AMZN', name: 'Amazon.com', sector: 'Consumer Discretionary', sharesHeld: 920_000_000, dollarValue: 195_000_000_000, lastReported: '2026-05-15' },
+    { ticker: 'GOOGL', name: 'Alphabet (Class A)', sector: 'Communication Services', sharesHeld: 3_200_000, dollarValue: 575_000_000, lastReported: '2026-05-15' },
+    { ticker: 'GOOG', name: 'Alphabet (Class C)', sector: 'Communication Services', sharesHeld: 3_100_000, dollarValue: 610_000_000, lastReported: '2026-05-15' },
+    { ticker: 'NFLX', name: 'Netflix', sector: 'Communication Services', sharesHeld: 1_100_000, dollarValue: 720_000_000, lastReported: '2026-05-15' },
+    { ticker: 'UBER', name: 'Uber Technologies', sector: 'Industrials', sharesHeld: 31_000_000, dollarValue: 2_400_000_000, lastReported: '2026-05-15' },
+    { ticker: 'ABNB', name: 'Airbnb', sector: 'Consumer Discretionary', sharesHeld: 2_300_000, dollarValue: 320_000_000, lastReported: '2026-05-15', note: 'Bezos Expeditions early investment' },
+    { ticker: 'NVDA', name: 'NVIDIA', sector: 'Technology', sharesHeld: 600_000, dollarValue: 720_000_000, lastReported: '2026-05-15' },
+    { ticker: 'MSFT', name: 'Microsoft', sector: 'Technology', sharesHeld: 1_200_000, dollarValue: 560_000_000, lastReported: '2026-05-15' },
+    { ticker: 'RIVN', name: 'Rivian Automotive', sector: 'Consumer Discretionary', sharesHeld: 12_000_000, dollarValue: 170_000_000, lastReported: '2026-05-15', note: 'EV ecosystem investment' },
+    { ticker: 'WDAY', name: 'Workday', sector: 'Technology', sharesHeld: 800_000, dollarValue: 205_000_000, lastReported: '2026-05-15', note: 'Bezos Expeditions early backer' },
+    { ticker: 'TWLO', name: 'Twilio', sector: 'Technology', sharesHeld: 1_200_000, dollarValue: 125_000_000, lastReported: '2026-05-15', note: 'Bezos Expeditions early backer' },
+    { ticker: 'GRAL', name: 'GRAIL Inc.', sector: 'Healthcare', sharesHeld: 2_100_000, dollarValue: 95_000_000, lastReported: '2026-05-15', note: 'Early life-sciences investment' },
+    { ticker: 'DOMO', name: 'Domo Inc.', sector: 'Technology', sharesHeld: 3_500_000, dollarValue: 32_000_000, lastReported: '2026-05-15', note: 'Bezos Expeditions early backer' },
+    { ticker: 'AAPL', name: 'Apple', sector: 'Technology', sharesHeld: 850_000, dollarValue: 246_000_000, lastReported: '2026-05-15', note: 'Family-office diversification (representative)' },
+    { ticker: 'META', name: 'Meta Platforms', sector: 'Communication Services', sharesHeld: 320_000, dollarValue: 230_000_000, lastReported: '2026-05-15', note: 'Family-office diversification (representative)' },
+    { ticker: 'CRM',  name: 'Salesforce', sector: 'Technology', sharesHeld: 540_000, dollarValue: 152_000_000, lastReported: '2026-05-15', note: 'Family-office diversification (representative)' },
+    { ticker: 'COST', name: 'Costco Wholesale', sector: 'Consumer Staples', sharesHeld: 130_000, dollarValue: 128_000_000, lastReported: '2026-05-15', note: 'Family-office diversification (representative)' },
+    { ticker: 'JPM',  name: 'JPMorgan Chase', sector: 'Financial Services', sharesHeld: 420_000, dollarValue: 112_000_000, lastReported: '2026-05-15', note: 'Family-office diversification (representative)' },
+    { ticker: 'V',    name: 'Visa Inc.', sector: 'Financial Services', sharesHeld: 310_000, dollarValue: 104_000_000, lastReported: '2026-05-15', note: 'Family-office diversification (representative)' },
+    { ticker: 'BLK',  name: 'BlackRock', sector: 'Financial Services', sharesHeld: 95_000, dollarValue: 97_000_000, lastReported: '2026-05-15', note: 'Family-office diversification (representative)' },
+  ],
   'warren-buffett': [
     { ticker: 'AAPL', name: 'Apple Inc.', sector: 'Technology', sharesHeld: 300_000_000, dollarValue: 60_000_000_000, lastReported: '2026-03-31' },
     { ticker: 'BAC',  name: 'Bank of America', sector: 'Financial Services', sharesHeld: 1_032_000_000, dollarValue: 41_000_000_000, lastReported: '2026-03-31' },
@@ -37,6 +59,30 @@ export const PERSONA_HOLDINGS: Record<string, PersonaHolding[]> = {
     { ticker: 'ALLY', name: 'Ally Financial', sector: 'Financial Services', sharesHeld: 29_000_000, dollarValue: 1_100_000_000, lastReported: '2026-03-31' },
     { ticker: 'DPZ',  name: "Domino's Pizza", sector: 'Consumer Discretionary', sharesHeld: 2_400_000, dollarValue: 1_100_000_000, lastReported: '2026-03-31' },
     { ticker: 'LPX',  name: 'Louisiana-Pacific', sector: 'Materials', sharesHeld: 5_700_000, dollarValue: 540_000_000, lastReported: '2026-03-31' },
+  ],
+  'trump-family': [
+    { ticker: 'DJT',  name: 'Trump Media & Technology Group', sector: 'Communication Services', sharesHeld: 115_000_000, dollarValue: 3_900_000_000, lastReported: '2026-04-30', note: 'Founder stake' },
+    { ticker: 'TSLA', name: 'Tesla', sector: 'Consumer Discretionary', sharesHeld: 75_000, dollarValue: 24_000_000, lastReported: '2026-04-30', note: 'Reported Trump family member' },
+    { ticker: 'NVDA', name: 'NVIDIA', sector: 'Technology', sharesHeld: 20_000, dollarValue: 26_000_000, lastReported: '2026-04-30' },
+    { ticker: 'AAPL', name: 'Apple', sector: 'Technology', sharesHeld: 50_000, dollarValue: 11_500_000, lastReported: '2026-04-30' },
+    { ticker: 'GOOGL', name: 'Alphabet', sector: 'Communication Services', sharesHeld: 32_000, dollarValue: 6_400_000, lastReported: '2026-04-30' },
+    { ticker: 'JPM',  name: 'JPMorgan Chase', sector: 'Financial Services', sharesHeld: 28_000, dollarValue: 7_100_000, lastReported: '2026-04-30' },
+    { ticker: 'GS',   name: 'Goldman Sachs', sector: 'Financial Services', sharesHeld: 9_500, dollarValue: 5_800_000, lastReported: '2026-04-30' },
+    { ticker: 'BLK',  name: 'BlackRock', sector: 'Financial Services', sharesHeld: 4_200, dollarValue: 3_900_000, lastReported: '2026-04-30' },
+    { ticker: 'META', name: 'Meta Platforms', sector: 'Communication Services', sharesHeld: 8_800, dollarValue: 6_300_000, lastReported: '2026-04-30' },
+    { ticker: 'MSFT', name: 'Microsoft', sector: 'Technology', sharesHeld: 11_500, dollarValue: 5_900_000, lastReported: '2026-04-30' },
+    { ticker: 'AMZN', name: 'Amazon.com', sector: 'Consumer Discretionary', sharesHeld: 24_000, dollarValue: 5_500_000, lastReported: '2026-04-30' },
+    { ticker: 'XOM',  name: 'Exxon Mobil', sector: 'Energy', sharesHeld: 42_000, dollarValue: 4_900_000, lastReported: '2026-04-30' },
+    { ticker: 'CVX',  name: 'Chevron', sector: 'Energy', sharesHeld: 28_000, dollarValue: 4_400_000, lastReported: '2026-04-30' },
+    { ticker: 'BA',   name: 'Boeing', sector: 'Industrials', sharesHeld: 21_000, dollarValue: 3_900_000, lastReported: '2026-04-30' },
+    { ticker: 'LMT',  name: 'Lockheed Martin', sector: 'Industrials', sharesHeld: 7_800, dollarValue: 3_700_000, lastReported: '2026-04-30' },
+    { ticker: 'RTX',  name: 'RTX Corp.', sector: 'Industrials', sharesHeld: 26_000, dollarValue: 3_400_000, lastReported: '2026-04-30' },
+    { ticker: 'KO',   name: 'Coca-Cola', sector: 'Consumer Staples', sharesHeld: 46_000, dollarValue: 3_100_000, lastReported: '2026-04-30' },
+    { ticker: 'MCD',  name: "McDonald's", sector: 'Consumer Discretionary', sharesHeld: 9_400, dollarValue: 2_900_000, lastReported: '2026-04-30' },
+    { ticker: 'PM',   name: 'Philip Morris Intl', sector: 'Consumer Staples', sharesHeld: 19_500, dollarValue: 2_700_000, lastReported: '2026-04-30' },
+    { ticker: 'MO',   name: 'Altria Group', sector: 'Consumer Staples', sharesHeld: 44_000, dollarValue: 2_400_000, lastReported: '2026-04-30' },
+    { ticker: 'WMT',  name: 'Walmart', sector: 'Consumer Staples', sharesHeld: 21_000, dollarValue: 2_200_000, lastReported: '2026-04-30' },
+    { ticker: 'HD',   name: 'Home Depot', sector: 'Consumer Discretionary', sharesHeld: 5_200, dollarValue: 2_100_000, lastReported: '2026-04-30' },
   ],
   'ray-dalio': [
     { ticker: 'IVV',  name: 'iShares Core S&P 500 ETF', sector: 'Diversified', sharesHeld: 8_800_000, dollarValue: 5_100_000_000, lastReported: '2026-03-31', note: 'Bridgewater Pure Alpha' },
@@ -535,6 +581,12 @@ export const STOCK_LIST_META: Record<
       "Selected current holdings of Berkshire Hathaway — Warren Buffett's flagship investment vehicle. Sample sizes shown; refreshed from public 13F filings.",
     kind: 'persona',
   },
+  'jeff-bezos': {
+    title: "Jeff Bezos's Investments",
+    description:
+      'Illustrative, representative positions associated with Jeff Bezos — including his founding Amazon stake and Bezos Expeditions themes. Sample figures for context, not actual reported filings (Bezos files no 13F).',
+    kind: 'persona',
+  },
   'ray-dalio': {
     title: "Ray Dalio's Bridgewater Portfolio",
     description:
@@ -545,6 +597,12 @@ export const STOCK_LIST_META: Record<
     title: "Eric Sprott's Precious Metals Book",
     description:
       "Selected precious-metals positions held across Sprott Inc.'s funds and Eric Sprott's personal accounts — primarily senior and mid-tier gold and silver miners.",
+    kind: 'persona',
+  },
+  'trump-family': {
+    title: 'Trump Family Investments',
+    description:
+      'Illustrative, representative positions associated with the Trump family — including the founder stake in Trump Media & Technology Group (DJT). Sample figures for context, not actual reported filings.',
     kind: 'persona',
   },
   politicians: {
