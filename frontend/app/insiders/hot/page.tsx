@@ -18,6 +18,7 @@ import { AdSlot } from "@/components/AdSlot";
 import { DataTable, Column } from "@/components/DataTable";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { PriceTargetCell } from "@/components/PriceTargetCell";
+import { ReasoningTip } from "@/components/ReasoningTip";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { BacktestChart } from "@/components/backtest/BacktestChart";
 import { useBacktest } from "@/components/backtest/BacktestPanel";
@@ -163,15 +164,6 @@ export default function InsiderHotStocksPage() {
                 <div className="text-[13px] font-medium truncate max-w-[220px]" style={{ color: "var(--text)" }}>
                   {r.name}
                 </div>
-                {r.reasoning && (
-                  <div
-                    className="text-[11.5px] text-mute leading-snug max-w-[260px] mt-0.5"
-                    style={{ whiteSpace: "normal" }}
-                    title={r.reasoning}
-                  >
-                    {r.reasoning}
-                  </div>
-                )}
               </div>
             </Link>
           </span>
@@ -222,6 +214,13 @@ export default function InsiderHotStocksPage() {
       align: "center",
       sortValue: (r) => r.iqs ?? null,
       render: (r) => <IqsScoreCell iqs={r.iqs} />,
+    },
+    {
+      key: "why",
+      label: "Why",
+      sortable: false,
+      align: "center",
+      render: (r) => <ReasoningTip text={r.reasoning} />,
     },
     {
       key: "upside",
