@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { AdminTokenGuard } from '../common/admin-token.guard';
 import type { Response } from 'express';
 import { IqsService } from './iqs.service';
 
@@ -66,6 +67,7 @@ export class IqsController {
   /** Recompute every IQS score (pulls live prices/market caps/52-week ranges
    *  for the formula). Lighter than a full SEC ingestion. */
   @Post('recalculate')
+  @UseGuards(AdminTokenGuard)
   async recalculate() {
     const updated = await this.iqs.recalculateAll();
     return { updated };
@@ -84,6 +86,7 @@ export class IqsController {
     return this.iqs.listInsiderProfiles();
   }
   @Post('insider-profiles')
+  @UseGuards(AdminTokenGuard)
   async upsertInsiderProfile(@Body() body: Record<string, unknown>) {
     return this.iqs.upsertInsiderProfile(body as never);
   }

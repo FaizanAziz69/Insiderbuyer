@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { AdminTokenGuard } from '../common/admin-token.guard';
 import { BacktestService } from './backtest.service';
 
 @Controller('backtest')
@@ -13,6 +14,7 @@ export class BacktestController {
 
   /** Populate the 10-year insider-purchase event store (paid FMP). */
   @Post('backfill-buys')
+  @UseGuards(AdminTokenGuard)
   async backfillBuys(@Body() body: { pages?: number; limit?: number }) {
     return this.svc.backfillBuyEvents({
       maxPagesPerSymbol: body?.pages,

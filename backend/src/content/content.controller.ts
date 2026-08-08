@@ -6,7 +6,9 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { AdminTokenGuard } from '../common/admin-token.guard';
 import { ContentService } from './content.service';
 import { ContentGeneratorService } from './content-generator.service';
 import { CONTENT_FORMATS, findFormat } from './content-formats';
@@ -43,6 +45,7 @@ export class ContentController {
   /** Generate an article for a specific guide format from supplied data.
    *  Body = the data payload the format's `requiredData` describes. */
   @Post('formats/:key/generate')
+  @UseGuards(AdminTokenGuard)
   async generateFormat(@Param('key') key: string, @Body() data: unknown) {
     const format = findFormat(key);
     if (!format) throw new NotFoundException(`Unknown content format: ${key}`);
@@ -53,6 +56,14 @@ export class ContentController {
     }
     const article = await this.generator.generateFromFormat(format, data);
     return { format: format.key, ref: format.ref, article };
+  }
+
+  /** Publish one series format NOW with live data (e.g. quiet-whales) —
+   *  bypasses the 2-per-day rotation. */
+  @Post('series/:key/publish')
+  @UseGuards(AdminTokenGuard)
+  async publishSeries(@Param('key') key: string) {
+    return this.content.publishSeries(key);
   }
 
   /** AI Bull Case vs Bear Case for a ticker (our own; grounded in recent news
@@ -191,6 +202,7 @@ export class ContentController {
    *  the current engine); `?limit=N` caps generations per call so batched
    *  regeneration fits within the serverless time budget. */
   @Post('refresh')
+  @UseGuards(AdminTokenGuard)
   async refresh(
     @Query('reset') reset?: string,
     @Query('stale') stale?: string,

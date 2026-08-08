@@ -1149,9 +1149,21 @@ export class ContentService {
   /** Rotate the client's programmatic guide formats through the daily feed —
    *  each format gets a real-data payload built from our own tables; formats
    *  whose data is too thin today are skipped rather than forced. */
+  /** Publish ONE series format on demand with a live payload (bypasses the
+   *  2-per-day rotation — used when a client link needs a current instance). */
+  async publishSeries(key: string): Promise<{ generated: number; skipped: number; errors: string[] }> {
+    const dayKey = new Date().toISOString().slice(0, 10);
+    const take = async (slug: string): Promise<boolean> => {
+      const existing = await this.repo.findOne({ where: { slug } });
+      return !existing;
+    };
+    return this.generateGuideFormatArticles(dayKey, take, key);
+  }
+
   private async generateGuideFormatArticles(
     dayKey: string,
     take: (slug: string) => Promise<boolean>,
+    forceKey?: string,
   ): Promise<{ generated: number; skipped: number; errors: string[] }> {
     let generated = 0;
     let skipped = 0;
@@ -1304,8 +1316,10 @@ export class ContentService {
     // regularly; thin-data formats fall through to the next candidate.
     const dayNum = Math.floor(new Date(dayKey).getTime() / 86400000);
     let produced = 0;
-    for (let hop = 0; hop < builders.length && produced < 2; hop++) {
-      const b = builders[(dayNum * 2 + hop) % builders.length];
+    const maxProduced = forceKey ? 1 : 2;
+    const pool = forceKey ? builders.filter((b) => b.key === forceKey) : builders;
+    for (let hop = 0; hop < pool.length && produced < maxProduced; hop++) {
+      const b = forceKey ? pool[hop] : builders[(dayNum * 2 + hop) % builders.length];
       const slug = `series-${b.key}-${dayKey}`;
       if (!(await take(slug))) {
         skipped++;

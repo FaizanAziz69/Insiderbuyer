@@ -39,7 +39,7 @@ export default function InsightDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
-  const { data: post, isLoading } = useSWR<BlogPost>(
+  const { data: post, isLoading, error } = useSWR<BlogPost>(
     `${API_BASE}/content/blogs/${encodeURIComponent(slug)}`,
     fetcher,
     { revalidateOnFocus: false },
@@ -65,7 +65,22 @@ export default function InsightDetailPage({
           All insights
         </Link>
 
-        {isLoading || !post ? (
+        {error || (!isLoading && !post) ? (
+          /* Missing/rotated article: a real state, never an infinite skeleton. */
+          <div className="card p-12 text-center">
+            <div className="text-[18px] font-bold mb-2">Article not found</div>
+            <p className="text-mute text-[13.5px] mb-5">
+              This article may have been removed or its link has expired.
+            </p>
+            <Link
+              href="/insights"
+              className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline"
+            >
+              Browse the latest insights
+              <ArrowLeft className="h-3.5 w-3.5 rotate-180" />
+            </Link>
+          </div>
+        ) : isLoading || !post ? (
           <SkeletonBody />
         ) : (
           <motion.div

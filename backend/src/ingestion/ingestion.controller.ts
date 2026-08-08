@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { AdminTokenGuard } from '../common/admin-token.guard';
 import { IngestionService } from './ingestion.service';
 import { CongressionalService } from '../congressional/congressional.service';
 import { AnalystsService } from '../analysts/analysts.service';
@@ -12,6 +13,7 @@ export class IngestionController {
   ) {}
 
   @Post()
+  @UseGuards(AdminTokenGuard)
   async run(@Body() body: { daysBack?: number }) {
     return this.ingestion.runIngestion(body?.daysBack ?? 7);
   }
@@ -39,12 +41,14 @@ export class IngestionController {
 
   /** Backfill insider filing location onto older transactions. */
   @Post('backfill-locations')
+  @UseGuards(AdminTokenGuard)
   async backfillLocations() {
     return this.ingestion.backfillLocations();
   }
 
   /** Backfill exact Form 4 document URLs onto older transactions. */
   @Post('backfill-filing-urls')
+  @UseGuards(AdminTokenGuard)
   async backfillFilingUrls() {
     return this.ingestion.backfillFilingUrls();
   }
@@ -54,6 +58,7 @@ export class IngestionController {
    *  the end via POST /iqs/recalculate (or pass rescore:true on the last call).
    *  Body: { letters?: string, maxIssuers?: number, rescore?: boolean }. */
   @Post('german')
+  @UseGuards(AdminTokenGuard)
   async german(
     @Body() body: { letters?: string; maxIssuers?: number; rescore?: boolean },
   ) {
@@ -68,6 +73,7 @@ export class IngestionController {
    *  assetProfile). Call repeatedly until `remaining` hits 0.
    *  Body: { limit?: number, onlyMissing?: boolean }. */
   @Post('german-profiles')
+  @UseGuards(AdminTokenGuard)
   async germanProfiles(
     @Body() body: { limit?: number; onlyMissing?: boolean },
   ) {
@@ -81,6 +87,7 @@ export class IngestionController {
    *  scored companies. LLM + SEC calls — chunk it; call until remaining = 0,
    *  then rescore. Body: { limit?: number, onlyMissing?: boolean }. */
   @Post('mda-sentiment')
+  @UseGuards(AdminTokenGuard)
   async mdaSentiment(@Body() body: { limit?: number; onlyMissing?: boolean }) {
     return this.ingestion.backfillMdaSentiment({
       limit: body?.limit,
@@ -91,6 +98,7 @@ export class IngestionController {
   /** Backfill trailing-12-month dilution (IQ v2 component 5) from SEC XBRL onto
    *  scored companies. Chunk until remaining = 0, then rescore. */
   @Post('dilution')
+  @UseGuards(AdminTokenGuard)
   async dilution(@Body() body: { limit?: number; onlyMissing?: boolean }) {
     return this.ingestion.backfillDilution({
       limit: body?.limit,
@@ -101,6 +109,7 @@ export class IngestionController {
   /** Repair company reference facts from FMP: implausible market caps,
    *  missing sector/industry, missing shares outstanding. */
   @Post('repair-facts')
+  @UseGuards(AdminTokenGuard)
   async repairFacts(@Body() body: { limit?: number }) {
     return this.ingestion.repairCompanyFacts({ limit: body?.limit });
   }
@@ -108,6 +117,7 @@ export class IngestionController {
   /** One-off: delete insider transactions with an implausible per-share price
    *  (parse artifacts behind the "$1600T bought" bug). Rescore afterwards. */
   @Post('cleanup-bad-trades')
+  @UseGuards(AdminTokenGuard)
   async cleanupBadTrades() {
     return this.ingestion.cleanupBadTransactions();
   }
