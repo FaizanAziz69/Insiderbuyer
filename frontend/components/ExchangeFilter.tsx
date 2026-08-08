@@ -2,8 +2,10 @@
 
 /** Shared "Exchanges" filter — All / U.S. / Canada / Germany. Ranking stays
  *  global; this narrows a table by listing venue. The chosen value is sent to
- *  the API as ?exchange= (backend maps US / CA / DE). Canada covers Canadian
- *  companies whose US listings file SEC Form 4s (tagged by FMP HQ country). */
+ *  the API as ?exchange= (backend maps US / CA / DE). Canada stays "Coming
+ *  soon": Canadian issuers file insider trades on SEDI, not SEC EDGAR — no
+ *  Canadian filer exists in our Form 4 data (verified against FMP country
+ *  for every tracked ticker), and FMP has no SEDI feed on any plan. */
 
 export type ExchangeValue = "all" | "US" | "CA" | "DE";
 
@@ -15,7 +17,7 @@ const EXCHANGE_OPTIONS: {
 }[] = [
   { value: "all", label: "All" },
   { value: "US", label: "U.S." },
-  { value: "CA", label: "Canada" },
+  { value: "CA", label: "Canada", disabled: true, hint: "Coming soon" },
   { value: "DE", label: "Germany" },
 ];
 
