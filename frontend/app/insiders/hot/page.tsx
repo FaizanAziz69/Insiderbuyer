@@ -105,12 +105,17 @@ export default function InsiderHotStocksPage() {
     if (r.targetMean != null && (r.numAnalysts ?? 0) >= MIN_ANALYSTS) coveredSyms.add(sym);
   });
   const coverageReady = (analystData?.rows || []).length > 0;
+  // Analyst price targets only exist for US listings; for the Germany/Canada
+  // tabs the coverage gate would filter everything out (and its fetch never
+  // even fires — foreign tickers carry dots and are excluded from tickerKey),
+  // which left the tab stuck on "Loading insider data…" forever.
+  const requireCoverage = exchange === "all" || exchange === "US";
 
   // Top 50 only, on one page. The list counts DOWN — #50 first, #1 last — so
   // the strongest Insider Score sits at the bottom. Display rank is attached
   // per row (not derived from position) so it survives column sorting.
   const top50: Row50[] = rows
-    .filter((r) => coveredSyms.has((r.ticker || "").toUpperCase()))
+    .filter((r) => !requireCoverage || coveredSyms.has((r.ticker || "").toUpperCase()))
     .slice(0, 50)
     .map((r, i) => ({ ...r, displayRank: i + 1 }))
     .reverse();
@@ -413,7 +418,8 @@ export default function InsiderHotStocksPage() {
             can say anything is "empty" — rankings alone with coverage still in
             flight briefly yields zero covered rows, which used to flash
             "No insider buying data" for a few seconds on every load. */}
-        {isLoading || (rows.length > 0 && (analystLoading || !analystData)) ? (
+        {isLoading ||
+        (requireCoverage && rows.length > 0 && (analystLoading || !analystData)) ? (
           <div className="p-12 text-center text-mute">Loading insider data…</div>
         ) : top50.length === 0 ? (
           <div className="p-12 text-center text-mute">

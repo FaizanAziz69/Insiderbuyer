@@ -296,6 +296,11 @@ export class IngestionService implements OnModuleInit {
         // GICS-style strings resolve where raw SIC descriptions don't.
         if (fmpProfile?.sector && !company.sector) company.sector = fmpProfile.sector;
         if (fmpProfile?.industry && !company.industry) company.industry = fmpProfile.industry;
+        // Canadian-HQ issuers filing SEC Form 4s power the "Canada" exchange
+        // tab (SEDI itself has no accessible feed).
+        if (fmpProfile?.country === 'CA' && company.exchange === 'US') {
+          company.exchange = 'CA';
+        }
 
         await this.companies.save(company);
         await this.delay(150);
@@ -811,6 +816,10 @@ export class IngestionService implements OnModuleInit {
         }
         if (!c.industry && prof?.industry) {
           c.industry = prof.industry;
+          dirty = true;
+        }
+        if (prof?.country === 'CA' && c.exchange === 'US') {
+          c.exchange = 'CA';
           dirty = true;
         }
         if (!(Number(c.sharesOutstanding) > 0)) {

@@ -2,8 +2,8 @@
 
 /** Shared "Exchanges" filter — All / U.S. / Canada / Germany. Ranking stays
  *  global; this narrows a table by listing venue. The chosen value is sent to
- *  the API as ?exchange= (backend maps US / CA / DE). Canada is shown as
- *  "Coming soon" until a paid Canadian insider feed is wired in. */
+ *  the API as ?exchange= (backend maps US / CA / DE). Canada covers Canadian
+ *  companies whose US listings file SEC Form 4s (tagged by FMP HQ country). */
 
 export type ExchangeValue = "all" | "US" | "CA" | "DE";
 
@@ -15,7 +15,7 @@ const EXCHANGE_OPTIONS: {
 }[] = [
   { value: "all", label: "All" },
   { value: "US", label: "U.S." },
-  { value: "CA", label: "Canada", disabled: true, hint: "Coming soon" },
+  { value: "CA", label: "Canada" },
   { value: "DE", label: "Germany" },
 ];
 
