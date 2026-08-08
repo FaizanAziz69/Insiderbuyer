@@ -110,8 +110,12 @@ export class IngestionController {
    *  missing sector/industry, missing shares outstanding. */
   @Post('repair-facts')
   @UseGuards(AdminTokenGuard)
-  async repairFacts(@Body() body: { limit?: number }) {
-    return this.ingestion.repairCompanyFacts({ limit: body?.limit });
+  async repairFacts(@Body() body: { limit?: number; all?: boolean; after?: string }) {
+    return this.ingestion.repairCompanyFacts({
+      limit: body?.limit,
+      all: body?.all,
+      after: body?.after,
+    });
   }
 
   /** One-off: delete insider transactions with an implausible per-share price

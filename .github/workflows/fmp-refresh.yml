@@ -1,0 +1,56 @@
+name: FMP full data refresh
+
+# Cloud-driven full refresh of company data from FMP (price, market cap,
+# sector/industry, shares outstanding, dilution) followed by a score recalc.
+# Runs on GitHub's infrastructure — no local machine needed. The deployed
+# Vercel API already holds DATABASE_URL + FMP_API_KEY, so this workflow only
+# needs to CALL the slice endpoints in a loop; it stores no secrets.
+
+on:
+  workflow_dispatch: {}        # manual "Run workflow" button
+  push:
+    paths:
+      - '.github/workflows/fmp-refresh.yml'   # re-runs whenever this file is pushed
+  schedule:
+    - cron: '0 */6 * * *'      # safety net: top up every 6 hours
+
+concurrency:
+  group: fmp-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330       # GitHub free job cap is 6h; we finish well under
+    env:
+      API: https://insiderbuyer-hwrc.vercel.app/api/backend
+    steps:
+      - name: Refresh ALL company facts (cap / sector / industry / shares) from FMP
+        run: |
+          cursor=""
+          for i in $(seq 1 400); do
+            resp=$(curl -s -X POST "$API/ingest/repair-facts" \
+              -H 'Content-Type: application/json' \
+              -d "{\"all\":true,\"limit\":40,\"after\":\"$cursor\"}" -m 90 || echo '{}')
+            echo "repair #$i -> $resp"
+            remaining=$(echo "$resp" | grep -o '"remaining":[0-9]*' | grep -o '[0-9]*' || echo "")
+            cursor=$(echo "$resp" | grep -o '"cursor":"[^"]*"' | sed 's/"cursor":"//;s/"//' || echo "")
+            if [ "$remaining" = "0" ] || [ -z "$cursor" ]; then echo "repair complete"; break; fi
+            sleep 2
+          done
+
+      - name: Backfill dilution (FMP-first) for all scored companies
+        run: |
+          for i in $(seq 1 200); do
+            resp=$(curl -s -X POST "$API/ingest/dilution" \
+              -H 'Content-Type: application/json' -d '{"limit":60,"onlyMissing":true}' -m 90 || echo '{}')
+            echo "dilution #$i -> $resp"
+            remaining=$(echo "$resp" | grep -o '"remaining":[0-9]*' | grep -o '[0-9]*' || echo "")
+            if [ "$remaining" = "0" ]; then echo "dilution complete"; break; fi
+            sleep 2
+          done
+
+      - name: Recalculate IQ Scores with the refreshed data
+        run: |
+          curl -s -X POST "$API/iqs/recalculate" -m 590 -w "\nHTTP %{http_code}\n" || true
+          echo "recalc triggered"

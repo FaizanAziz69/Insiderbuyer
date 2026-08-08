@@ -769,8 +769,20 @@ export class IngestionService implements OnModuleInit {
    *  per run; targets scored companies first (they're user-visible). */
   async repairCompanyFacts(opts?: {
     limit?: number;
-  }): Promise<{ scanned: number; capFixed: number; sectorFixed: number; sharesFixed: number }> {
-    const out = { scanned: 0, capFixed: 0, sectorFixed: 0, sharesFixed: 0 };
+    /** Refresh cap/sector/shares from FMP for EVERY company, not just the
+     *  implausible/missing ones — used by the full FMP-refresh workflow so
+     *  all stored fundamentals come from one source (consistency). */
+    all?: boolean;
+    /** Cursor: skip companies already refreshed this pass (by ticker > after). */
+    after?: string;
+  }): Promise<{
+    scanned: number; capFixed: number; sectorFixed: number; sharesFixed: number;
+    remaining: number; cursor: string | null;
+  }> {
+    const out = {
+      scanned: 0, capFixed: 0, sectorFixed: 0, sharesFixed: 0, remaining: 0,
+      cursor: null as string | null,
+    };
     if (!this.fmp?.enabled) return out;
     // ALL tickered companies, scored first — an unscored company's bad cap
     // still reaches the UI through the trades feed and company profile
@@ -781,17 +793,26 @@ export class IngestionService implements OnModuleInit {
       .where('c.ticker IS NOT NULL')
       .orderBy('CASE WHEN s.id IS NULL THEN 1 ELSE 0 END', 'ASC')
       .getMany();
-    const needy = all.filter((c) => {
-      const cap = Number(c.marketCap) || 0;
-      const px = Number(c.lastPrice) || 0;
-      const shs = Number(c.sharesOutstanding) || 0;
-      const capSuspect =
-        cap <= 0 ||
-        cap < 1_000_000 || // no listed company is worth under $1M
-        (shs > 0 && px > 0 && Math.abs(cap - shs * px) / cap > 0.5);
-      return capSuspect || !c.sector || shs <= 0;
-    });
+    const wantAll = opts?.all === true;
+    const after = opts?.after || '';
+    const sortedAll = all
+      .filter((c) => (c.ticker || '') > after)
+      .sort((a, b) => (a.ticker || '').localeCompare(b.ticker || ''));
+    const needy = wantAll
+      ? sortedAll
+      : sortedAll.filter((c) => {
+          const cap = Number(c.marketCap) || 0;
+          const px = Number(c.lastPrice) || 0;
+          const shs = Number(c.sharesOutstanding) || 0;
+          const capSuspect =
+            cap <= 0 ||
+            cap < 1_000_000 ||
+            (shs > 0 && px > 0 && Math.abs(cap - shs * px) / cap > 0.5);
+          return capSuspect || !c.sector || shs <= 0;
+        });
     const batch = needy.slice(0, opts?.limit ?? 200);
+    out.remaining = Math.max(0, needy.length - batch.length);
+    out.cursor = batch.length ? batch[batch.length - 1].ticker || null : null;
     for (const c of batch) {
       out.scanned++;
       try {
