@@ -180,9 +180,29 @@ function CompareChart({ symbols }: { symbols: string[] }) {
     const min = Math.min(...all, 0);
     const max = Math.max(...all, 0);
     const rng = max - min || 1;
+    // ~5 nice %-gridlines across the range (always including 0%).
+    const rawStep = rng / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const step =
+      [1, 2, 2.5, 5, 10].map((m) => m * mag).find((v) => v >= rawStep) || rawStep;
+    const ticks: number[] = [];
+    for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) {
+      ticks.push(Math.abs(v) < step / 2 ? 0 : v);
+    }
+    if (!ticks.includes(0)) ticks.push(0);
+    // Date axis from the longest series.
+    const longest = rows.reduce((a, b) => (b.bars.length > a.bars.length ? b : a), rows[0]);
+    const dateAt = (frac: number) => {
+      const b = longest.bars[Math.round(frac * (longest.bars.length - 1))];
+      const dt = new Date((b as any).t ?? b.date);
+      return dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" });
+    };
     return {
       min,
       max,
+      rng,
+      ticks,
+      dateLabels: [0, 0.25, 0.5, 0.75, 1].map((f) => dateAt(f)),
       zeroY: H - ((0 - min) / rng) * H,
       lines: rows.map((r) => ({
         symbol: r.symbol,
@@ -272,17 +292,23 @@ function CompareChart({ symbols }: { symbols: string[] }) {
           onMouseLeave={() => setHover(null)}
         >
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
-            {/* 0% baseline */}
-            <line
-              x1={0}
-              y1={series.zeroY}
-              x2={W}
-              y2={series.zeroY}
-              stroke="var(--border-strong)"
-              strokeWidth="1"
-              strokeDasharray="4 4"
-              vectorEffect="non-scaling-stroke"
-            />
+            {/* % gridlines (0% emphasised) */}
+            {series.ticks.map((v) => {
+              const y = H - ((v - series.min) / series.rng) * H;
+              return (
+                <line
+                  key={v}
+                  x1={0}
+                  y1={y}
+                  x2={W}
+                  y2={y}
+                  stroke={v === 0 ? "var(--border-strong)" : "var(--border)"}
+                  strokeWidth="1"
+                  strokeDasharray={v === 0 ? "4 4" : "2 5"}
+                  vectorEffect="non-scaling-stroke"
+                />
+              );
+            })}
             {series.lines.map((l) => (
               <path
                 key={l.symbol}
@@ -306,6 +332,27 @@ function CompareChart({ symbols }: { symbols: string[] }) {
               />
             )}
           </svg>
+
+          {/* y-axis % labels — HTML overlay so they don't stretch with the SVG */}
+          {series.ticks.map((v) => {
+            const topPct = (1 - (v - series.min) / series.rng) * 100;
+            if (topPct < 3 || topPct > 97) return null;
+            return (
+              <span
+                key={`lbl-${v}`}
+                className="absolute left-1 tabular text-[10.5px] font-bold pointer-events-none px-1 rounded"
+                style={{
+                  top: `${topPct}%`,
+                  transform: "translateY(-50%)",
+                  color: v > 0 ? "var(--good)" : v < 0 ? "var(--bad)" : "var(--text-mute)",
+                  background: "color-mix(in srgb, var(--bg-2) 78%, transparent)",
+                }}
+              >
+                {v > 0 ? "+" : ""}
+                {Math.abs(v) < 10 && v !== 0 ? v.toFixed(1) : Math.round(v)}%
+              </span>
+            );
+          })}
 
           {/* Hover readout: each ticker's % at the crosshair */}
           {hover != null && (
@@ -342,6 +389,13 @@ function CompareChart({ symbols }: { symbols: string[] }) {
         </div>
       )}
 
+      {series && (
+        <div className="flex justify-between text-[11px] text-mute mt-2 tabular">
+          {series.dateLabels.map((d, i) => (
+            <span key={i}>{d}</span>
+          ))}
+        </div>
+      )}
       <div className="text-[11px] text-mute mt-2">
         % change from the start of the selected period — each line is indexed
         to 0% so different price levels compare directly.
