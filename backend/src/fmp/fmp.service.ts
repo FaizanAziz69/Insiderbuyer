@@ -208,7 +208,55 @@ export class FmpService {
       newsPublisher: string | null;
     }>
   > {
-    const rows = await this.get('price-target-latest-news', { limit: 10, page: 0 });
+    // Paid plan: full 100-row pages, deep paging. Pull several pages per
+    // refresh so more than a trickle of named analysts accumulates.
+    const pages = 5;
+    const rows: any[] = [];
+    for (let p = 0; p < pages; p++) {
+      const batch = await this.get('price-target-latest-news', { limit: 100, page: p });
+      rows.push(...batch);
+      if (batch.length < 100) break;
+    }
+    return rows
+      .map((r: any) => ({
+        symbol: String(r?.symbol || '').toUpperCase(),
+        analystName: String(r?.analystName || '').trim(),
+        analystCompany: String(r?.analystCompany || '').trim() || null,
+        priceTarget: r?.priceTarget != null ? Number(r.priceTarget) : null,
+        priceWhenPosted: r?.priceWhenPosted != null ? Number(r.priceWhenPosted) : null,
+        publishedDate: String(r?.publishedDate || ''),
+        newsURL: String(r?.newsURL || '').trim() || null,
+        newsPublisher: String(r?.newsPublisher || '').trim() || null,
+      }))
+      .filter((r) => r.symbol && r.analystName && r.publishedDate);
+  }
+
+  /** FULL named-analyst price-target history for one symbol
+   *  (price-target-news, paginated) — powers the top-analysts backfill so
+   *  success rates and average returns have seasoned calls to grade. */
+  async priceTargetHistoryForSymbol(
+    symbolRaw: string,
+    pages = 3,
+  ): Promise<
+    Array<{
+      symbol: string;
+      analystName: string;
+      analystCompany: string | null;
+      priceTarget: number | null;
+      priceWhenPosted: number | null;
+      publishedDate: string;
+      newsURL: string | null;
+      newsPublisher: string | null;
+    }>
+  > {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return [];
+    const rows: any[] = [];
+    for (let p = 0; p < pages; p++) {
+      const batch = await this.get('price-target-news', { symbol, limit: 100, page: p });
+      rows.push(...batch);
+      if (batch.length < 100) break;
+    }
     return rows
       .map((r: any) => ({
         symbol: String(r?.symbol || '').toUpperCase(),

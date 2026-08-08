@@ -88,6 +88,58 @@ export class AnalystsService {
     return { fetched: rows.length, inserted };
   }
 
+  /** One-time/periodic deep backfill: named-analyst target history for a
+   *  symbol universe (price-target-news per symbol). Gives analysts enough
+   *  SEASONED calls (≥30 days old) that success rates and average returns
+   *  actually grade instead of sitting on "Pending" with 1 rating. */
+  async backfillHistory(
+    symbolsIn?: string[],
+    pagesPerSymbol = 3,
+  ): Promise<{ symbols: number; fetched: number }> {
+    if (!this.fmp.enabled) return { symbols: 0, fetched: 0 };
+    let symbols = (symbolsIn || []).map((s) => s.toUpperCase()).filter(Boolean);
+    if (!symbols.length) {
+      // Default universe: everything we already track + what rankings cover.
+      const seen = await this.repo
+        .createQueryBuilder('t')
+        .select('DISTINCT t.symbol', 'symbol')
+        .getRawMany<{ symbol: string }>();
+      symbols = seen.map((r) => r.symbol);
+    }
+    let fetched = 0;
+    for (const sym of symbols) {
+      try {
+        const rows = await this.fmp.priceTargetHistoryForSymbol(sym, pagesPerSymbol);
+        fetched += rows.length;
+        for (const r of rows) {
+          const publishedDate = new Date(r.publishedDate);
+          if (Number.isNaN(publishedDate.getTime())) continue;
+          try {
+            await this.repo.upsert(
+              {
+                analystName: r.analystName,
+                analystCompany: r.analystCompany,
+                symbol: r.symbol,
+                priceTarget: r.priceTarget,
+                priceWhenPosted: r.priceWhenPosted,
+                publishedDate,
+                newsURL: r.newsURL,
+                newsPublisher: r.newsPublisher,
+              },
+              ['analystName', 'symbol', 'publishedDate'],
+            );
+          } catch {
+            /* duplicate race — fine */
+          }
+        }
+      } catch (e: any) {
+        this.logger.warn(`backfill ${sym}: ${e?.message || e}`);
+      }
+    }
+    this.logger.log(`analyst history backfill: ${symbols.length} symbols, ${fetched} notes`);
+    return { symbols: symbols.length, fetched };
+  }
+
   /** Refresh at most every 20 minutes when the page is being viewed. */
   private async maybeRefresh(): Promise<void> {
     if (Date.now() - this.lastRefreshAt < this.REFRESH_MIN_MS) return;
