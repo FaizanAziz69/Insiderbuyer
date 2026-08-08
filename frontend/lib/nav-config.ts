@@ -120,10 +120,8 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Famous Investors",
         links: [
           { label: "Warren Buffett", href: "/stock-lists/warren-buffett", icon: Crown },
-          { label: "Jeff Bezos", href: "/stock-lists/jeff-bezos", icon: Rocket },
           { label: "Ray Dalio", href: "/stock-lists/ray-dalio", icon: Globe2 },
           { label: "Eric Sprott", href: "/stock-lists/eric-sprott", icon: Coins },
-          { label: "Trump Family", href: "/stock-lists/trump-family", icon: Star },
           { label: "Politicians", href: "/stock-lists/politicians", icon: Landmark },
         ],
       },

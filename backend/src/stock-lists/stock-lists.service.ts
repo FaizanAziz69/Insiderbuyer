@@ -518,9 +518,9 @@ export class StockListsService {
       if (nonUsExchange) {
         return { slug, ...meta, total: 0, rows: [] as any[] };
       }
-      // Prefer the latest real 13F-HR from SEC EDGAR for institutional filers
-      // (Buffett/Dalio/Sprott); fall back to the curated list for individuals
-      // (Bezos/Trump) who don't file 13Fs, or if the live fetch fails.
+      // Live 13F-HR from SEC EDGAR for the institutional filers we track
+      // (Buffett/Dalio/Sprott). Individuals who don't file 13Fs are not
+      // listed — we never publish fabricated holdings for a named person.
       let rows: PersonaHolding[];
       if (slug === 'politicians') {
         // Live congressional disclosures (FMP), aggregated by ticker.
@@ -528,6 +528,9 @@ export class StockListsService {
       } else {
         const live13f = await this.thirteenF.getHoldings(slug);
         rows = live13f && live13f.length ? live13f : PERSONA_HOLDINGS[slug] || [];
+        // Drop holdings whose CUSIP didn't resolve to a ticker — an empty
+        // ticker renders a blank row rather than useful data.
+        rows = rows.filter((r) => (r.ticker || '').trim().length > 0);
       }
       if (filters.sector) {
         rows = rows.filter((r) =>
@@ -707,6 +710,16 @@ export class StockListsService {
       return rows.filter(
         (r) => r.lastPrice != null && r.lastPrice > 0 && r.lastPrice <= 5,
       );
+    }
+    // Hard market-cap band on the final rows — a curated top-up must not
+    // smuggle an out-of-band name (e.g. a $51B company into "Small Cap").
+    if (base.minMarketCap != null || base.maxMarketCap != null) {
+      const lo = base.minMarketCap ?? 0;
+      const hi = base.maxMarketCap ?? Infinity;
+      return rows.filter((r) => {
+        const mc = r.marketCap != null ? Number(r.marketCap) : null;
+        return mc != null && mc >= lo && mc <= hi;
+      });
     }
     return rows;
   }
