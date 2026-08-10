@@ -39,6 +39,7 @@ const CHIPS = [
 ];
 
 const TOOLS = [
+  { name: "Government Contracts", icon: Landmark, href: "/government-contracts" },
   { name: "Analyst Ratings", icon: Star, href: "/analyst-ratings" },
   { name: "Top Analyst Stocks", icon: Star, href: "/analyst-stocks" },
   { name: "Top Analysts", icon: Star, href: "/top-analysts" },

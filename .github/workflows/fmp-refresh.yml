@@ -53,6 +53,20 @@ jobs:
             sleep 2
           done
 
+      - name: Refresh government-contract totals from USAspending.gov (sliced loop)
+        run: |
+          cursor=""
+          for i in $(seq 1 30); do
+            resp=$(curl -s -X POST "$API/gov-contracts/refresh" \
+              -H 'Content-Type: application/json' \
+              -d "{\"limit\":6,\"after\":\"$cursor\"}" -m 90 || echo '{}')
+            echo "gov-contracts #$i -> $resp"
+            remaining=$(echo "$resp" | grep -o '"remaining":[0-9]*' | grep -o '[0-9]*' || echo "")
+            cursor=$(echo "$resp" | grep -o '"cursor":"[^"]*"' | sed 's/"cursor":"//;s/"//' || echo "")
+            if [ "$remaining" = "0" ] || [ -z "$cursor" ]; then echo "gov-contracts complete"; break; fi
+            sleep 2
+          done
+
       - name: Recalculate IQ Scores with the refreshed data (sliced loop)
         run: |
           cursor=""

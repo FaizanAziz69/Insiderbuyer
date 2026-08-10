@@ -42,9 +42,11 @@ import { ReportsModule } from './reports/reports.module';
 import { BillingModule } from './billing/billing.module';
 import { ReportLead } from './entities/report-lead.entity';
 import { EmailFlowsModule } from './email-flows/email-flows.module';
+import { GovContractsModule } from './gov-contracts/gov-contracts.module';
 import { EmailFlowState } from './entities/email-flow-state.entity';
 import { InsiderProfile } from './entities/insider-profile.entity';
 import { HistoricalInsiderBuy } from './entities/historical-insider-buy.entity';
+import { GovContractCache } from './entities/gov-contract-cache.entity';
 
 @Module({
   imports: [
@@ -86,6 +88,7 @@ import { HistoricalInsiderBuy } from './entities/historical-insider-buy.entity';
           EmailFlowState,
           InsiderProfile,
           HistoricalInsiderBuy,
+          GovContractCache,
         ],
         synchronize: true,
         logging: false,
@@ -115,6 +118,7 @@ import { HistoricalInsiderBuy } from './entities/historical-insider-buy.entity';
     BillingModule,
     AuthModule,
     EmailFlowsModule,
+    GovContractsModule,
   ],
 })
 export class AppModule {}

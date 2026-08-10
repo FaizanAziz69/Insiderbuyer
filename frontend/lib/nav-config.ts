@@ -101,6 +101,8 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Stocks By Interest",
         links: [
           { label: "Hot Sectors", href: "/stock-lists/hot-sectors", icon: Flame, badge: "new" },
+          { label: "Government Contracts", href: "/government-contracts", description: "Largest federal contract winners, ranked by contract $ + analyst upside", icon: Briefcase, badge: "new" },
+          { label: "Top Analyst Stocks", href: "/analyst-stocks", description: "Stocks Wall Street rates most highly, by consensus + upside", icon: Star },
           { label: "Blue Sky Stocks", href: "/stock-lists/blue-sky", description: "Analyst targets implying 300%+ upside", icon: Rocket, badge: "premium" },
           { label: "Large Cap", href: "/stock-lists/large-cap", icon: Building2 },
           { label: "Small Cap", href: "/stock-lists/small-cap", icon: Rocket },
