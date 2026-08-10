@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AnalystPriceTarget } from '../entities/analyst-target.entity';
+import { Company } from '../entities/company.entity';
 import { FmpService } from '../fmp/fmp.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 import { SECTOR_BY_TICKER } from '../market-stats/market-sectors';
@@ -55,9 +56,35 @@ export class AnalystsService {
   constructor(
     @InjectRepository(AnalystPriceTarget)
     private readonly repo: Repository<AnalystPriceTarget>,
+    @InjectRepository(Company)
+    private readonly companies: Repository<Company>,
     private readonly fmp: FmpService,
     private readonly market: MarketStatsService,
   ) {}
+
+  /** ticker → clean sector, from the companies table (FMP-sourced), cached
+   *  for an hour. Broad coverage so an analyst's Main Sector isn't blank. */
+  private sectorMapCache: { ts: number; map: Map<string, string> } | null = null;
+  private async tickerSectorMap(): Promise<Map<string, string>> {
+    if (this.sectorMapCache && Date.now() - this.sectorMapCache.ts < 60 * 60_000) {
+      return this.sectorMapCache.map;
+    }
+    const map = new Map<string, string>();
+    try {
+      const rows = await this.companies
+        .createQueryBuilder('c')
+        .select(['c.ticker', 'c.sector'])
+        .where('c.ticker IS NOT NULL AND c.sector IS NOT NULL')
+        .getMany();
+      for (const c of rows) {
+        if (c.ticker && c.sector) map.set(c.ticker.toUpperCase(), c.sector);
+      }
+    } catch {
+      /* companies unavailable → fall back to the static map */
+    }
+    this.sectorMapCache = { ts: Date.now(), map };
+    return map;
+  }
 
   /** Pull the latest notes and upsert. One FMP request. */
   async refresh(): Promise<{ fetched: number; inserted: number }> {
@@ -178,6 +205,7 @@ export class AnalystsService {
       });
     }
     const now = Date.now();
+    const secMap = await this.tickerSectorMap();
 
     interface Acc {
       analyst: string;
@@ -222,7 +250,7 @@ export class AnalystsService {
       const ms = new Date(t.publishedDate).getTime();
       a.ratings += 1;
       a.symbols.set(t.symbol, (a.symbols.get(t.symbol) || 0) + 1);
-      const sec = SECTOR_BY_TICKER[t.symbol];
+      const sec = secMap.get(t.symbol.toUpperCase()) || SECTOR_BY_TICKER[t.symbol];
       if (sec) a.sectors.set(sec, (a.sectors.get(sec) || 0) + 1);
       if (a.lastMs == null || ms > a.lastMs) {
         a.lastMs = ms;
