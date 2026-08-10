@@ -327,10 +327,6 @@ export class IqsService {
         if (!e || e.buy <= 0) return false;
         return e.sell >= e.buy * 0.5; // sold back ≥50% of window buys
       };
-      // Net insider shares traded across the window (buys − sells) — drives
-      // the "insider ownership change (90d)" column.
-      let netWindowShares = 0;
-      for (const e of sharesBySide.values()) netWindowShares += e.buy - e.sell;
 
       const txs = allTxs.filter(
         (t) => t.transactionCode === 'P' && !isRoundTripper(t.insiderName),
@@ -455,8 +451,15 @@ export class IqsService {
       // the fallback. Filers dedupe by reporting-person CIK (§6.3.1), name
       // only for legacy rows without one.
       const latestHolding = new Map<string, { date: string; shares: number }>();
+      // Net shares the SAME counted (fund-excluded) insiders traded in the
+      // window — buys add, sells subtract. Used for the 90-day ownership
+      // change so it reconciles with the ownership % (same population).
+      let netCountedWindowShares = 0;
       for (const t of allTxs) {
         if (IqsService.FUND_NAME.test(t.insiderName)) continue;
+        const sh = Number(t.sharesBought) || 0;
+        if (t.transactionCode === 'P') netCountedWindowShares += sh;
+        else if (t.transactionCode === 'S') netCountedWindowShares -= sh;
         const post = Number(t.postHoldings);
         if (!Number.isFinite(post) || post < 0) continue;
         const key = t.insiderCik || t.insiderName.trim().toLowerCase();
@@ -661,8 +664,18 @@ export class IqsService {
         subOwnershipPct: round2(subStake),
         subInsiderOwnership: round2(subOwnershipG),
         insiderOwnershipPct: ownPct != null ? round2(ownPct) : null,
+        // 90-day ownership change (pp), same counted population as ownPct;
+        // null when ownership itself is unreliable, and bounded by the
+        // current ownership so it can never exceed what insiders now hold.
         insiderOwnershipChangePct:
-          sharesOut > 0 ? round2((netWindowShares / sharesOut) * 100) : null,
+          ownPct != null && sharesOut > 0
+            ? round2(
+                Math.max(
+                  -ownPct,
+                  Math.min(ownPct, (netCountedWindowShares / sharesOut) * 100),
+                ),
+              )
+            : null,
         subBuySellBalance: round2(subBalance),
         reasoning,
         // legacy display columns
