@@ -365,6 +365,8 @@ export default function StockListDetailPage({
                 ? ([
                     {
                       key: "iqs",
+                      pro: true,
+                      info: "Our 0–99 Insider Score — a daily composite of insider-buying quality (size vs market cap, cluster, seniority, stake growth, aggregate ownership), sector strength, management tone, momentum, insider caliber and dilution, minus a litigation deduction.",
                       label: "Insider Score",
                       align: "center",
                       filterable: true,
@@ -383,6 +385,8 @@ export default function StockListDetailPage({
                 ? ([
                     {
                       key: "upside",
+                      pro: true,
+                      info: "Implied upside to the mean Wall Street 12-month price target versus the current price. Positive = target above price.",
                       label: "Analyst Upside",
                       align: "center",
                       filterable: true,

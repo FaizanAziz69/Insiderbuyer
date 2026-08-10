@@ -80,6 +80,8 @@ export default function AnalystRatingsPage() {
     {
       key: "successRate",
       label: "Success Rate",
+      pro: true,
+      info: "Share of this analyst's directional price-target calls that moved the way they implied, one year out (or to date). Shown once they have enough calls at least 30 days old.",
       align: "right",
       sortValue: (r) => r.successRate ?? -1,
       render: (r) =>
@@ -97,6 +99,8 @@ export default function AnalystRatingsPage() {
     {
       key: "avgReturn",
       label: "Average Return",
+      pro: true,
+      info: "Average price move in the direction the analyst's target implied, across their scored calls.",
       align: "right",
       sortValue: (r) => r.avgReturn ?? -9999,
       render: (r) =>

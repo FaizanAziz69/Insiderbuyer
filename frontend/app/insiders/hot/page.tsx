@@ -231,6 +231,8 @@ export default function InsiderHotStocksPage() {
     },
     {
       key: "iqs",
+      pro: true,
+      info: "Our 0–99 Insider Score — a weighted composite of the buying itself (size vs market cap, cluster, seniority, stake growth, aggregate insider ownership), sector strength, management tone, trading momentum, insider caliber and share dilution, minus a litigation deduction. Recomputed daily.",
       label: "Insider Score",
       align: "center",
       sortValue: (r) => r.iqs ?? null,
@@ -301,6 +303,8 @@ export default function InsiderHotStocksPage() {
     {
       key: "perfVsCost",
       label: "vs Insider Cost",
+      pro: true,
+      info: "How far the live price sits above or below the insiders' 90-day average purchase price (volume-weighted). Positive means the stock trades above what insiders paid; negative means you can buy below their cost.",
       align: "right",
       sortValue: (r) => r.perfVsAvgCostPct ?? -9999,
       render: (r) =>
@@ -320,6 +324,8 @@ export default function InsiderHotStocksPage() {
     {
       key: "ownership",
       label: "Insider Ownership",
+      pro: true,
+      info: "Share of the company held by its insiders (their latest reported holdings ÷ shares outstanding), with the change over the last 90 days in percentage points. Higher aligned ownership is a stronger signal.",
       align: "right",
       sortValue: (r) => r.insiderOwnershipPct ?? -1,
       render: (r) =>
