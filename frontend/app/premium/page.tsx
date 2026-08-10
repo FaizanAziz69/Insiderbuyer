@@ -323,7 +323,7 @@ export default function PremiumPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
           {/* Free */}
           <div className="sub-card p-6 sm:p-7">
             <div className="text-[13px] font-bold uppercase tracking-wider text-mute">Free</div>
@@ -371,6 +371,36 @@ export default function PremiumPage() {
                 <li key={f} className="flex items-start gap-2.5 text-[13.5px]">
                   <Check className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: "var(--good)" }} />
                   <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Institutional — custom pricing, contact sales */}
+          <div className="sub-card p-6 sm:p-7">
+            <div className="text-[13px] font-bold uppercase tracking-wider text-mute">Institutional</div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-[34px] font-extrabold leading-none">Custom</span>
+            </div>
+            <p className="text-[13px] text-soft mt-2">For funds, RIAs, media and teams — seats, API access and bulk data.</p>
+            <a
+              href="mailto:admin@insiderbuying.com?subject=Institutional%20pricing%20—%20InsiderBuying"
+              className="sub-ghost mt-5 w-full inline-flex items-center justify-center rounded-xl py-3.5 text-[15px] font-bold"
+            >
+              Contact for pricing
+            </a>
+            <ul className="mt-6 space-y-3">
+              {[
+                "Everything in Insider Premium",
+                "Team seats & shared watchlists",
+                "API / bulk data access",
+                "Full CSV & historical exports",
+                "Priority support & onboarding",
+                "Custom data & licensing",
+              ].map((f) => (
+                <li key={f} className="flex items-start gap-2.5 text-[13.5px]">
+                  <Check className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: "var(--text-mute)" }} />
+                  <span className="text-soft">{f}</span>
                 </li>
               ))}
             </ul>
