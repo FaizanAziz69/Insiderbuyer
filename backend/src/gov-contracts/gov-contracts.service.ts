@@ -209,7 +209,9 @@ export class GovContractsService {
         sell: 'sell',
         'strong sell': 'strong_sell',
       };
-      const missing = rows.filter((r) => !r.recommendation);
+      // "none" comes from a Yahoo analystLabel of "None" — treat it as missing
+      // so the FMP grades fallback still fills a real consensus (e.g. SAIC).
+      const missing = rows.filter((r) => !r.recommendation || r.recommendation === 'none');
       const CONC = 5;
       for (let i = 0; i < missing.length; i += CONC) {
         const chunk = missing.slice(i, i + CONC);
