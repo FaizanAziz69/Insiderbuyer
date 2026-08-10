@@ -58,31 +58,38 @@ export function BacktestChart({
   // Timeframe + series toggles (QuiverQuant layout).
   const RANGES = ["1M", "3M", "6M", "YTD", "1Y", "2Y", "5Y", "MAX"] as const;
   const [range, setRange] = useState<(typeof RANGES)[number]>("MAX");
-  const [showStrategy, setShowStrategy] = useState(true);
+  // QuiverQuant toggles: "Start" re-indexes the visible window to 100 at its
+  // first point; "Market" shows/hides the SPY benchmark. Strategy is always on.
+  const [rebase, setRebase] = useState(true);
   const [showMarket, setShowMarket] = useState(true);
   const view = useMemo(() => {
-    if (!curve.length || range === "MAX") return curve;
-    const lastT = curve[curve.length - 1].t;
-    let fromT: number;
-    if (range === "YTD") {
-      fromT = new Date(new Date(lastT).getFullYear(), 0, 1).getTime();
-    } else {
-      const days: Record<string, number> = { "1M": 30, "3M": 91, "6M": 182, "1Y": 365, "2Y": 730, "5Y": 1825 };
-      fromT = lastT - (days[range] || 0) * 86400000;
+    let sliced = curve;
+    if (curve.length && range !== "MAX") {
+      const lastT = curve[curve.length - 1].t;
+      let fromT: number;
+      if (range === "YTD") {
+        fromT = new Date(new Date(lastT).getFullYear(), 0, 1).getTime();
+      } else {
+        const days: Record<string, number> = { "1M": 30, "3M": 91, "6M": 182, "1Y": 365, "2Y": 730, "5Y": 1825 };
+        fromT = lastT - (days[range] || 0) * 86400000;
+      }
+      sliced = curve.filter((p) => p.t >= fromT);
+      if (sliced.length < 2) sliced = curve.slice(-2);
     }
-    const sliced = curve.filter((p) => p.t >= fromT);
-    return sliced.length >= 2 ? sliced : curve.slice(-2);
-  }, [curve, range]);
+    if (rebase && sliced.length) {
+      const s0 = sliced[0].s || 1;
+      const b0 = sliced[0].b || 1;
+      return sliced.map((p) => ({ t: p.t, s: (p.s / s0) * 100, b: (p.b / b0) * 100 }));
+    }
+    return sliced;
+  }, [curve, range, rebase]);
 
   const geom = useMemo(() => {
     if (view.length < 2) return null;
     const xs = view.map((p) => p.t);
     const x0 = Math.min(...xs);
     const x1 = Math.max(...xs);
-    const vals = view.flatMap((p) => [
-      ...(showStrategy ? [p.s] : []),
-      ...(showMarket ? [p.b] : []),
-    ]);
+    const vals = view.flatMap((p) => [p.s, ...(showMarket ? [p.b] : [])]);
     let lo = Math.min(...vals);
     let hi = Math.max(...vals);
     const span = hi - lo || 1;
@@ -112,7 +119,7 @@ export function BacktestChart({
     for (let i = 0; i <= N; i++) xTicks.push(x0 + ((x1 - x0) * i) / N);
 
     return { x0, x1, lo, hi, px, py, sPath: line("s"), bPath: line("b"), areaS, ticks, xTicks };
-  }, [view, H, showStrategy, showMarket]);
+  }, [view, H, showMarket]);
 
   if (!geom) return null;
 
@@ -138,53 +145,76 @@ export function BacktestChart({
   const fmtDate = (ms: number) =>
     new Date(ms).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
+  // Floating tooltip position (QuiverQuant-style box), from the crosshair x.
+  const tipLeftPct = active ? (geom.px(active.t) / W) * 100 : 0;
+  const tipFlip = tipLeftPct > 55;
+  // Hypothetical growth of $100 — the honest $-value form of the index.
+  const money = (idx: number) =>
+    `$${(idx).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  const chg = (idx: number) => {
+    const d = idx - 100;
+    return `${d >= 0 ? "+$" : "-$"}${Math.abs(d).toLocaleString(undefined, { maximumFractionDigits: 2 })} (${d >= 0 ? "+" : ""}${d.toFixed(2)}%)`;
+  };
+
   return (
     <div className="w-full">
-      {/* Legend — always present for two series, so identity is never colour-alone. */}
-      <div
-        className={`flex items-center flex-wrap ${tipranks ? "gap-6 mb-1.5" : "gap-4 mb-2"}`}
-      >
-        <span className={`inline-flex items-center gap-1.5 ${tipranks ? "text-[11.5px]" : "text-[12px]"} font-semibold`}>
-          <span className="inline-block h-[3px] w-4 rounded" style={{ background: cStrategy }} />
-          <span style={{ color: tipranks ? "var(--text-soft)" : "var(--text)" }}>{strategyLabel}</span>
-        </span>
-        <span className={`inline-flex items-center gap-1.5 ${tipranks ? "text-[11.5px]" : "text-[12px]"} font-semibold`}>
-          <span className="inline-block h-[3px] w-4 rounded" style={{ background: cBench }} />
-          <span style={{ color: tipranks ? "var(--text-soft)" : "var(--text)" }}>{benchmarkLabel}</span>
-        </span>
-      </div>
+      {/* Legend only outside controls-mode (there the bottom toggles are the legend). */}
+      {!controls && (
+        <div
+          className={`flex items-center flex-wrap ${tipranks ? "gap-6 mb-1.5" : "gap-4 mb-2"}`}
+        >
+          <span className={`inline-flex items-center gap-1.5 ${tipranks ? "text-[11.5px]" : "text-[12px]"} font-semibold`}>
+            <span className="inline-block h-[3px] w-4 rounded" style={{ background: cStrategy }} />
+            <span style={{ color: tipranks ? "var(--text-soft)" : "var(--text)" }}>{strategyLabel}</span>
+          </span>
+          <span className={`inline-flex items-center gap-1.5 ${tipranks ? "text-[11.5px]" : "text-[12px]"} font-semibold`}>
+            <span className="inline-block h-[3px] w-4 rounded" style={{ background: cBench }} />
+            <span style={{ color: tipranks ? "var(--text-soft)" : "var(--text)" }}>{benchmarkLabel}</span>
+          </span>
+        </div>
+      )}
 
-      {controls && (
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-          <div className="inline-flex flex-wrap gap-1">
-            {RANGES.map((r) => {
-              const on = r === range;
-              return (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => { setRange(r); setHover(null); }}
-                  className="px-2.5 py-1 rounded-md text-[12px] font-bold transition"
-                  style={{
-                    background: on ? "var(--accent)" : "transparent",
-                    color: on ? "var(--on-accent)" : "var(--text-mute)",
-                  }}
-                >
-                  {r}
-                </button>
-              );
-            })}
+      <div className="relative">
+      {controls && active && (
+        <div
+          className="absolute z-20 pointer-events-none rounded-lg px-3.5 py-2.5"
+          style={{
+            top: 6,
+            left: `${tipLeftPct}%`,
+            transform: tipFlip ? "translateX(calc(-100% - 12px))" : "translateX(12px)",
+            background: "var(--bg-1)",
+            border: "1px solid var(--border-strong)",
+            boxShadow: "0 12px 32px rgba(0,0,0,0.25)",
+            minWidth: 210,
+          }}
+        >
+          <div className="text-[11px] font-semibold mb-1.5" style={{ color: "var(--text-mute)" }}>
+            {fmtDate(geom.x0)} - {new Date(active.t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
           </div>
-          <div className="inline-flex items-center gap-4 text-[12px] font-semibold">
-            <label className="inline-flex items-center gap-1.5 cursor-pointer">
-              <input type="checkbox" checked={showStrategy} onChange={(e) => setShowStrategy(e.target.checked)} />
-              <span style={{ color: "var(--text-soft)" }}>Strategy</span>
-            </label>
-            <label className="inline-flex items-center gap-1.5 cursor-pointer">
-              <input type="checkbox" checked={showMarket} onChange={(e) => setShowMarket(e.target.checked)} />
-              <span style={{ color: "var(--text-soft)" }}>Market</span>
-            </label>
+          <div className="flex items-center justify-between gap-4 text-[12.5px]">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: cStrategy }} />
+              <span style={{ color: "var(--text)" }}>Strategy</span>
+            </span>
+            <span className="tabular font-bold" style={{ color: "var(--text)" }}>{money(active.s)}</span>
           </div>
+          <div className="text-right text-[11.5px] tabular font-semibold mb-1" style={{ color: active.s >= 100 ? "var(--good)" : "var(--bad)" }}>
+            {chg(active.s)}
+          </div>
+          {showMarket && (
+            <div className="flex items-center justify-between gap-4 text-[12.5px]">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: cBench }} />
+                <span style={{ color: "var(--text)" }}>Market (SPY)</span>
+              </span>
+              <span className="tabular font-bold" style={{ color: "var(--text)" }}>{money(active.b)}</span>
+            </div>
+          )}
+          {showMarket && (
+            <div className="text-right text-[11.5px] tabular font-semibold" style={{ color: active.b >= 100 ? "var(--good)" : "var(--bad)" }}>
+              {chg(active.b)}
+            </div>
+          )}
         </div>
       )}
 
@@ -234,7 +264,7 @@ export function BacktestChart({
         ))}
 
         {/* Benchmark under the strategy so the headline series reads on top */}
-        {tipranks && showStrategy && (
+        {tipranks && (
           <>
             <defs>
               <linearGradient id="bt-area" x1="0" y1="0" x2="0" y2="1">
@@ -246,14 +276,12 @@ export function BacktestChart({
           </>
         )}
         {showMarket && <path d={geom.bPath} fill="none" stroke={cBench} strokeWidth={2} />}
-        {showStrategy && <path d={geom.sPath} fill="none" stroke={cStrategy} strokeWidth={2} />}
+        <path d={geom.sPath} fill="none" stroke={cStrategy} strokeWidth={2} />
 
         {/* End-of-series direct labels (secondary encoding beside the legend) */}
         {!compact && (
           <>
-            {showStrategy && (
-              <circle cx={geom.px(last.t)} cy={geom.py(last.s)} r={4} fill={cStrategy} stroke="var(--bg-1)" strokeWidth={2} />
-            )}
+            <circle cx={geom.px(last.t)} cy={geom.py(last.s)} r={4} fill={cStrategy} stroke="var(--bg-1)" strokeWidth={2} />
             {showMarket && (
               <circle cx={geom.px(last.t)} cy={geom.py(last.b)} r={4} fill={cBench} stroke="var(--bg-1)" strokeWidth={2} />
             )}
@@ -276,34 +304,66 @@ export function BacktestChart({
           </>
         )}
       </svg>
-
-      {/* Tooltip as real DOM under the chart — readable on mobile, no clipping */}
-      <div
-        className="mt-1 text-[12px] flex items-center gap-4 flex-wrap"
-        style={{ minHeight: 20, color: "var(--text-mute)" }}
-      >
-        {active ? (
-          <>
-            <span className="font-semibold" style={{ color: "var(--text)" }}>
-              {new Date(active.t).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-[3px] w-3 rounded" style={{ background: cStrategy }} />
-              Strategy <span className="tabular font-bold" style={{ color: active.s >= 100 ? "var(--good)" : "var(--bad)" }}>{tipranks ? fmtVal(active.s) : active.s.toFixed(1)}</span>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="inline-block h-[3px] w-3 rounded" style={{ background: cBench }} />
-              SPY <span className="tabular font-bold" style={{ color: active.b >= 100 ? "var(--good)" : "var(--bad)" }}>{tipranks ? fmtVal(active.b) : active.b.toFixed(1)}</span>
-            </span>
-          </>
-        ) : (
-          <span>Hover the chart for the value on any week. Both series start at 100.</span>
-        )}
       </div>
+
+      {/* Controls at the BOTTOM (QuiverQuant layout): timeframe buttons left,
+          Start/Market toggles right. */}
+      {controls ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
+          <div className="inline-flex flex-wrap gap-1">
+            {RANGES.map((r) => {
+              const on = r === range;
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => { setRange(r); setHover(null); }}
+                  className="px-3 py-1.5 rounded-md text-[12px] font-bold transition"
+                  style={{
+                    background: on ? "var(--accent)" : "transparent",
+                    color: on ? "var(--on-accent)" : "var(--text-mute)",
+                  }}
+                >
+                  {r}
+                </button>
+              );
+            })}
+          </div>
+          <div className="inline-flex items-center gap-4 text-[12px] font-semibold">
+            <label className="inline-flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={rebase} onChange={(e) => setRebase(e.target.checked)} />
+              <span style={{ color: "var(--text-soft)" }}>Start</span>
+            </label>
+            <label className="inline-flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={showMarket} onChange={(e) => setShowMarket(e.target.checked)} />
+              <span className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: cBench }} />Market</span>
+            </label>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="mt-1 text-[12px] flex items-center gap-4 flex-wrap"
+          style={{ minHeight: 20, color: "var(--text-mute)" }}
+        >
+          {active ? (
+            <>
+              <span className="font-semibold" style={{ color: "var(--text)" }}>
+                {new Date(active.t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block h-[3px] w-3 rounded" style={{ background: cStrategy }} />
+                Strategy <span className="tabular font-bold" style={{ color: active.s >= 100 ? "var(--good)" : "var(--bad)" }}>{tipranks ? fmtVal(active.s) : active.s.toFixed(1)}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block h-[3px] w-3 rounded" style={{ background: cBench }} />
+                SPY <span className="tabular font-bold" style={{ color: active.b >= 100 ? "var(--good)" : "var(--bad)" }}>{tipranks ? fmtVal(active.b) : active.b.toFixed(1)}</span>
+              </span>
+            </>
+          ) : (
+            <span>Hover the chart for the value on any week. Both series start at 100.</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
