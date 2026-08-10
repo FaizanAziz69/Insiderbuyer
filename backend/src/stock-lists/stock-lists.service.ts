@@ -134,7 +134,7 @@ export class StockListsService {
     }
     let rows: any[] = [];
     try {
-      const live = (await this.sec.getLatestHoldingsByOwner('DJT', /trump/i, 90)).filter(
+      const liveForm4 = (await this.sec.getLatestHoldingsByOwner('DJT', /trump/i, 90)).filter(
         (h) => h.shares > 0,
       );
       // Senior Trump's founder stake is reported on DJT's Schedule 13D / proxy
@@ -151,9 +151,9 @@ export class StockListsService {
         },
       ];
       const holders = [
-        ...live,
+        ...liveForm4,
         ...SEED.filter(
-          (s) => !live.some((h) => this.prettyOwner(h.owner) === s.owner),
+          (s) => !liveForm4.some((h) => this.prettyOwner(h.owner) === s.owner),
         ).map((s) => ({
           owner: s.owner,
           role: '10% Owner (founder)',
