@@ -28,6 +28,15 @@ export interface RankingRow {
   avgCost?: number | null;
   /** Most recent open-market insider purchase date (yyyy-mm-dd). */
   lastBuyDate?: string | null;
+  /** When this score row was last recomputed (ISO). */
+  scoreUpdatedAt?: string | null;
+  /** Aggregate insider ownership % + its 90-day change (percentage points). */
+  insiderOwnershipPct?: number | null;
+  insiderOwnershipChangePct?: number | null;
+  /** % the live price sits above/below insiders' 90-day average cost. */
+  perfVsAvgCostPct?: number | null;
+  /** An insider made more than one open-market buy in the last 90 days. */
+  hasRepeatBuyer?: boolean;
   /** Real intraday change % — present when the API is queried with live=1. */
   changePct?: number | null;
   livePrice?: number | null;

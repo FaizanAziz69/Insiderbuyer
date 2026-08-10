@@ -134,6 +134,22 @@ export default function InsiderHotStocksPage() {
   );
   const sparkMap = sparkData?.spark || {};
 
+  // Whole-days since a yyyy-mm-dd date (0 = today).
+  const daysSince = (d?: string | null): number | null => {
+    if (!d) return null;
+    const t = new Date(d).getTime();
+    if (Number.isNaN(t)) return null;
+    return Math.max(0, Math.floor((Date.now() - t) / 86400000));
+  };
+  const Ind = ({ label, color }: { label: string; color: string }) => (
+    <span
+      className="inline-block rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide whitespace-nowrap"
+      style={{ background: `color-mix(in srgb, ${color} 15%, transparent)`, color }}
+    >
+      {label}
+    </span>
+  );
+
   const columns: Column<Row50>[] = [
     {
       key: "rank",
@@ -260,6 +276,91 @@ export default function InsiderHotStocksPage() {
       render: (r) => (
         <span className="tabular text-[14px] font-bold">{r.distinctBuyers}</span>
       ),
+    },
+    {
+      key: "indicators",
+      label: "Signals",
+      sortable: false,
+      render: (r) => {
+        const big = r.totalPurchaseValue >= 1_000_000;
+        const items: [string, string][] = [];
+        if (r.hasCeoBuyer) items.push(["CEO Buy", "var(--good)"]);
+        if ((r.distinctBuyers ?? 0) >= 2) items.push(["Cluster", "var(--accent)"]);
+        if (big) items.push(["Big Buy", "var(--gold)"]);
+        if (r.hasRepeatBuyer) items.push(["Repeat", "#7c3aed"]);
+        if (!items.length) return <span className="text-faint text-[12px]">—</span>;
+        return (
+          <span className="inline-flex flex-wrap gap-1 max-w-[150px]">
+            {items.map(([l, c]) => (
+              <Ind key={l} label={l} color={c} />
+            ))}
+          </span>
+        );
+      },
+    },
+    {
+      key: "perfVsCost",
+      label: "vs Insider Cost",
+      align: "right",
+      sortValue: (r) => r.perfVsAvgCostPct ?? -9999,
+      render: (r) =>
+        r.perfVsAvgCostPct == null ? (
+          <span className="text-faint text-[12px]">—</span>
+        ) : (
+          <span
+            className="tabular text-[13.5px] font-bold"
+            title={r.avgCost ? `Insiders' 90-day avg cost: $${r.avgCost.toFixed(2)}` : undefined}
+            style={{ color: r.perfVsAvgCostPct >= 0 ? "var(--good)" : "var(--bad)" }}
+          >
+            {r.perfVsAvgCostPct >= 0 ? "+" : ""}
+            {r.perfVsAvgCostPct.toFixed(1)}%
+          </span>
+        ),
+    },
+    {
+      key: "ownership",
+      label: "Insider Ownership",
+      align: "right",
+      sortValue: (r) => r.insiderOwnershipPct ?? -1,
+      render: (r) =>
+        r.insiderOwnershipPct == null ? (
+          <span className="text-faint text-[12px]">—</span>
+        ) : (
+          <span className="inline-flex flex-col items-end leading-tight">
+            <span className="tabular text-[13.5px] font-bold">
+              {r.insiderOwnershipPct.toFixed(1)}%
+            </span>
+            {r.insiderOwnershipChangePct != null && r.insiderOwnershipChangePct !== 0 && (
+              <span
+                className="tabular text-[11px] font-semibold"
+                style={{ color: r.insiderOwnershipChangePct >= 0 ? "var(--good)" : "var(--bad)" }}
+              >
+                {r.insiderOwnershipChangePct >= 0 ? "+" : ""}
+                {r.insiderOwnershipChangePct.toFixed(2)}pp 90d
+              </span>
+            )}
+          </span>
+        ),
+    },
+    {
+      key: "lastBuy",
+      label: "Last Buy / Updated",
+      align: "right",
+      sortValue: (r) => (r.lastBuyDate ? new Date(r.lastBuyDate).getTime() : 0),
+      render: (r) => {
+        const dsBuy = daysSince(r.lastBuyDate);
+        const dsUpd = daysSince(r.scoreUpdatedAt ? r.scoreUpdatedAt.slice(0, 10) : null);
+        return (
+          <span className="inline-flex flex-col items-end leading-tight">
+            <span className="text-[13px] font-semibold whitespace-nowrap">
+              {dsBuy == null ? "—" : dsBuy === 0 ? "Today" : `${dsBuy}d ago`}
+            </span>
+            <span className="text-[10.5px] text-mute whitespace-nowrap">
+              {dsUpd == null ? "" : dsUpd === 0 ? "updated today" : `updated ${dsUpd}d ago`}
+            </span>
+          </span>
+        );
+      },
     },
     {
       key: "spark7d",

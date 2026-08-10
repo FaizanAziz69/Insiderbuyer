@@ -96,6 +96,16 @@ export class IqsScore {
   @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
   subInsiderOwnership: number | null;
 
+  /** Raw aggregate insider ownership % (insiders' shares ÷ shares
+   *  outstanding × 100) — the number shown in the rankings ownership column. */
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  insiderOwnershipPct: number | null;
+
+  /** Change in insider ownership over the buy window, in percentage points
+   *  (net insider shares traded in the window ÷ shares outstanding × 100). */
+  @Column({ type: 'numeric', precision: 8, scale: 4, nullable: true })
+  insiderOwnershipChangePct: number | null;
+
   /** One-line human reasoning for the score (TipRanks-style): who bought,
    *  how much, stake growth, and current insider ownership. */
   @Column({ type: 'text', nullable: true })

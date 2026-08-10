@@ -107,6 +107,15 @@ export interface RankingRow {
    *  caller passes withLive (null when no quote is available). */
   changePct?: number | null;
   livePrice?: number | null;
+  /** When this score row was last recomputed (ISO). */
+  scoreUpdatedAt?: string | null;
+  /** Aggregate insider ownership % + its change over the buy window (pp). */
+  insiderOwnershipPct?: number | null;
+  insiderOwnershipChangePct?: number | null;
+  /** % the live price sits above/below the 90-day insider avg cost. */
+  perfVsAvgCostPct?: number | null;
+  /** At least one insider made >1 open-market buy in the last 90 days. */
+  hasRepeatBuyer?: boolean;
 }
 
 // Role multipliers (ROLE_MULTIPLIER) now live in scoring-config.ts so product
@@ -318,6 +327,10 @@ export class IqsService {
         if (!e || e.buy <= 0) return false;
         return e.sell >= e.buy * 0.5; // sold back ≥50% of window buys
       };
+      // Net insider shares traded across the window (buys − sells) — drives
+      // the "insider ownership change (90d)" column.
+      let netWindowShares = 0;
+      for (const e of sharesBySide.values()) netWindowShares += e.buy - e.sell;
 
       const txs = allTxs.filter(
         (t) => t.transactionCode === 'P' && !isRoundTripper(t.insiderName),
@@ -647,6 +660,9 @@ export class IqsService {
         subPriceVsBuys: round2(subPriceVsBuys),
         subOwnershipPct: round2(subStake),
         subInsiderOwnership: round2(subOwnershipG),
+        insiderOwnershipPct: ownPct != null ? round2(ownPct) : null,
+        insiderOwnershipChangePct:
+          sharesOut > 0 ? round2((netWindowShares / sharesOut) * 100) : null,
         subBuySellBalance: round2(subBalance),
         reasoning,
         // legacy display columns
@@ -738,6 +754,9 @@ export class IqsService {
         's."subHoldingChange" as "subHoldingChange"',
         's."subPriceVsBuys" as "subPriceVsBuys"',
         's."subOwnershipPct" as "subOwnershipPct"',
+        's."updatedAt" as "scoreUpdatedAt"',
+        's."insiderOwnershipPct" as "insiderOwnershipPct"',
+        's."insiderOwnershipChangePct" as "insiderOwnershipChangePct"',
       ]);
 
     if (opts.sector) {
@@ -820,12 +839,17 @@ export class IqsService {
       subHoldingChange: r.subHoldingChange != null ? Number(r.subHoldingChange) : null,
       subPriceVsBuys: r.subPriceVsBuys != null ? Number(r.subPriceVsBuys) : null,
       subOwnershipPct: r.subOwnershipPct != null ? Number(r.subOwnershipPct) : null,
+      scoreUpdatedAt: r.scoreUpdatedAt ? new Date(r.scoreUpdatedAt).toISOString() : null,
+      insiderOwnershipPct: r.insiderOwnershipPct != null ? Number(r.insiderOwnershipPct) : null,
+      insiderOwnershipChangePct:
+        r.insiderOwnershipChangePct != null ? Number(r.insiderOwnershipChangePct) : null,
     }));
 
     // Average insider cost + last buy date per company — computed from the
     // Form 4 open-market buys (one grouped query for the whole page).
     if (rows.length) {
       const ids = rows.map((r) => r.companyId);
+      const since90 = new Date(Date.now() - WINDOWS.buys * 86400 * 1000);
       const aggs = await this.txRepo
         .createQueryBuilder('t')
         .select('t.company_id', 'companyId')
@@ -834,6 +858,8 @@ export class IqsService {
         .addSelect('MAX(t."transactionDate")', 'lastBuy')
         .where('t.company_id IN (:...ids)', { ids })
         .andWhere(`t."transactionCode" = 'P'`)
+        .andWhere('t."transactionDate" >= :since90', { since90 })
+        .andWhere(plausibleTxSql('t'))
         .groupBy('t.company_id')
         .getRawMany();
       const aggMap = new Map(aggs.map((a: any) => [a.companyId, a]));
@@ -844,12 +870,18 @@ export class IqsService {
         r.lastBuyDate = a?.lastBuy
           ? new Date(a.lastBuy).toISOString().slice(0, 10)
           : null;
+        // Stock performance since insiders' 90-day average cost.
+        r.perfVsAvgCostPct =
+          r.avgCost && r.avgCost > 0 && r.lastPrice && r.lastPrice > 0
+            ? +(((r.lastPrice - r.avgCost) / r.avgCost) * 100).toFixed(2)
+            : null;
       }
 
       // Insider-type category flags — which roles / filer types bought each
       // company (open-market 'P' only). Powers the "Cluster / CEO / CFO /
       // Hedge Funds" preset filter on the rankings table. Cluster is derived
       // client-side from distinctBuyers ≥ 2.
+      const since90r = new Date(Date.now() - WINDOWS.buys * 86400 * 1000);
       const roleRows = await this.txRepo
         .createQueryBuilder('t')
         .select('t.company_id', 'companyId')
@@ -857,20 +889,25 @@ export class IqsService {
         .addSelect('t."insiderName"', 'insiderName')
         .where('t.company_id IN (:...ids)', { ids })
         .andWhere(`t."transactionCode" = 'P'`)
+        .andWhere('t."transactionDate" >= :since90r', { since90r })
         .getRawMany();
       const catByCompany = new Map<
         string,
-        { ceo: boolean; cfo: boolean; fund: boolean }
+        { ceo: boolean; cfo: boolean; fund: boolean; buysByInsider: Map<string, number> }
       >();
       // Entity-style names (funds / institutional 10% owners) vs. individuals.
       const FUND_RE =
         /\b(L\.?P\.?|L\.?L\.?C\.?|Capital|Partners?|Management|Advisor|Adviser|Fund|Holdings?|Ventures?|Asset|Investments?|Group|Trust|Securities)\b/i;
       for (const rr of roleRows) {
         const cur =
-          catByCompany.get(rr.companyId) || { ceo: false, cfo: false, fund: false };
+          catByCompany.get(rr.companyId) || {
+            ceo: false, cfo: false, fund: false, buysByInsider: new Map<string, number>(),
+          };
         if (rr.role === 'CEO') cur.ceo = true;
         if (rr.role === 'CFO') cur.cfo = true;
         if (FUND_RE.test(String(rr.insiderName || ''))) cur.fund = true;
+        const nm = String(rr.insiderName || '').toLowerCase();
+        cur.buysByInsider.set(nm, (cur.buysByInsider.get(nm) || 0) + 1);
         catByCompany.set(rr.companyId, cur);
       }
       for (const r of rows) {
@@ -878,6 +915,10 @@ export class IqsService {
         r.hasCeoBuyer = !!c?.ceo;
         r.hasCfoBuyer = !!c?.cfo;
         r.hasFundBuyer = !!c?.fund;
+        // Repeat buyer: any single insider filed >1 open-market buy in 90 days.
+        r.hasRepeatBuyer = c
+          ? Array.from(c.buysByInsider.values()).some((n) => n >= 2)
+          : false;
       }
     }
 
