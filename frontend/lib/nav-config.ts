@@ -108,6 +108,11 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Small Cap", href: "/stock-lists/small-cap", icon: Rocket },
           { label: "Penny Stocks", href: "/stock-lists/penny-stocks", icon: Coins },
           { label: "Blue Chip", href: "/stock-lists/blue-chip", icon: ShieldCheck },
+        ],
+      },
+      {
+        title: "Sectors & Themes",
+        links: [
           { label: "FAANG", href: "/stock-lists/faang", icon: Cpu },
           { label: "REITs", href: "/stock-lists/reits", icon: Landmark },
           { label: "Tech", href: "/stock-lists/tech", icon: Cpu },

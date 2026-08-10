@@ -146,6 +146,7 @@ export function MegaDropdown({ group }: Props) {
             className="rounded-xl shadow-xl overflow-hidden"
             style={{
               minWidth: 640,
+              maxWidth: "calc(100vw - 24px)",
               background: "var(--bg-2)",
               border: "1px solid var(--border-strong)",
               boxShadow:
@@ -154,7 +155,12 @@ export function MegaDropdown({ group }: Props) {
           >
             {group.calloutPosition === "top" && renderCallouts(group, "top")}
 
-            <div className="grid grid-cols-3 gap-6 p-5">
+            <div
+              className="grid gap-6 p-5"
+              style={{
+                gridTemplateColumns: `repeat(${group.columns.length}, minmax(0, 1fr))`,
+              }}
+            >
               {group.columns.map((col, ci) => (
                 <div key={col.title ?? `col-${ci}`} className="min-w-0">
                   {col.title && (
