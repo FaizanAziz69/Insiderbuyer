@@ -1,32 +1,19 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import useSWR from "swr";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
-  Bell, Building2, Check, CheckCircle2, Gauge, Landmark,
-  SlidersHorizontal, Users,
+  Bell, Building2, Check, ChevronDown, Gauge, Landmark,
+  ShieldCheck, SlidersHorizontal, Users,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { Logo } from "@/components/Logo";
 import { getAuthToken, useAuth } from "@/lib/auth";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { LoginModal } from "@/components/LoginModal";
-// Imported but not rendered on purpose. The hero shows LiveDataPanel instead:
-// the computed backtest returns +9.1% against SPY's +48.3% over the only window
-// our filing archive supports, which argues against subscribing. Swap this in
-// once the signal is tested over a longer history.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { BacktestMini } from "@/components/backtest/BacktestPanel";
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
 
 /* ────────────────────────────────────────────────────────────
-   Subscribe / Insider Premium page.
-   Hero → $0 free → pricing → sector playbooks → what's in it → FAQ.
-
-   PRICING is the single source of truth for every figure shown.
-   The global Footer is rendered by AppShell — no footer here.
+   Subscribe / Insider Premium — clean white pricing page in the
+   TipRanks-upgrade + Autopilot-landing mould (client instruction).
+   PRICING is the single source of truth for every figure.
    ──────────────────────────────────────────────────────────── */
 
 const PRICING = {
@@ -38,25 +25,14 @@ const SAVED = +(PRICING.annualWas - PRICING.annual).toFixed(2);
 const SAVED_PCT = Math.round((SAVED / PRICING.annualWas) * 100);
 const ANNUAL_PER_MONTH = +(PRICING.annual / 12).toFixed(2);
 
-/** The five sector playbooks included with Insider Premium. */
-const PLAYBOOKS = [
-  { sector: "AI", title: "Top Stocks AI Insiders Are Buying", from: "#4338ca", to: "#7c3aed" },
-  { sector: "Mining", title: "Top Stocks Mining Insiders Are Buying", from: "#92400e", to: "#d97706" },
-  { sector: "Defense", title: "Top Stocks Defense Insiders Are Buying", from: "#0f2942", to: "#1d4ed8" },
-  { sector: "Biotech", title: "Top Stocks Biotech Insiders Are Buying", from: "#065f46", to: "#10b981" },
-  { sector: "Energy", title: "Top Stocks Energy Insiders Are Buying", from: "#9a3412", to: "#f97316" },
-];
-
-/** What the free tier actually covers — no premium features listed here. */
 const FREE_INCLUDES = [
   "Live insider filings as they hit EDGAR",
   "Company profiles, charts and fundamentals",
   "Congress trading and politician profiles",
 ];
 
-/** Short lines only — the page is meant to be scanned, not read. */
 const INCLUDED = [
-  "Complete Insider Score ranking",
+  "Complete Insider Score ranking (0–99), re-ranked daily",
   "Full screener and every stock list",
   "Insider profiles with track records",
   "Politician trades, donors and legislation",
@@ -69,7 +45,7 @@ const INCLUDED = [
 ];
 
 const BENEFITS = [
-  { icon: Gauge, title: "Insider Score", desc: "Every company scored 0–100 from its filings, re-ranked daily." },
+  { icon: Gauge, title: "Insider Score", desc: "Every company scored from its filings, re-ranked daily." },
   { icon: Users, title: "Track Records", desc: "How each insider's past buys actually performed." },
   { icon: Landmark, title: "Political Money", desc: "Congress trades, donors, lobbying and contracts." },
   { icon: Building2, title: "13F Ownership", desc: "Who added, trimmed, opened or closed each quarter." },
@@ -77,483 +53,33 @@ const BENEFITS = [
   { icon: Bell, title: "Alerts", desc: "Told the moment a CEO buys or a cluster forms." },
 ];
 
+const PLAYBOOKS = [
+  { sector: "AI", from: "#4338ca", to: "#7c3aed" },
+  { sector: "Mining", from: "#92400e", to: "#d97706" },
+  { sector: "Defense", from: "#0f2942", to: "#1d4ed8" },
+  { sector: "Biotech", from: "#065f46", to: "#10b981" },
+  { sector: "Energy", from: "#9a3412", to: "#f97316" },
+];
+
 const FAQS = [
-  {
-    q: "What do I get with Insider Premium?",
-    a: "Every dataset and tool on the site with no caps, plus all five sector playbooks.",
-  },
-  {
-    q: `Is the annual price really ${SAVED_PCT}% off?`,
-    a: `Yes. Monthly is $${PRICING.monthly} — $${PRICING.annualWas} over a year. The annual plan is $${PRICING.annual}, so you save $${SAVED}. It is a limited-time launch price.`,
-  },
-  {
-    q: "Where does the data come from?",
-    a: "Public filings only — SEC EDGAR, Congress.gov, the FEC, the Senate lobbying database, USAspending and BaFin. Every card names its source.",
-  },
-  {
-    q: "Can I cancel at any time?",
-    a: "Yes, in one click from your account. You keep access until the end of the period you have paid for.",
-  },
+  { q: "What do I get with Insider Premium?", a: "Every dataset and tool on the site with no caps, plus all five sector playbooks." },
+  { q: `Is the annual price really ${SAVED_PCT}% off?`, a: `Yes. Monthly is $${PRICING.monthly} — $${PRICING.annualWas} over a year. The annual plan is $${PRICING.annual}, so you save $${SAVED}. It is a limited-time launch price.` },
+  { q: "Where does the data come from?", a: "Public filings only — SEC EDGAR, Congress.gov, the FEC, the Senate lobbying database, USAspending and BaFin. Every card names its source." },
+  { q: "Can I cancel any time?", a: "Yes, in one click from your account. You keep access until the end of the period you have paid for." },
 ];
 
 const CSS = `
-/* Everything on this page derives from the site tokens. In light mode the hero
-   wears the navbar petrol; in dark mode it wears the app's own navy. */
-.prm-scope {
-  --sig: var(--accent);
-  --hero-a: var(--accent);
-  --hero-b: color-mix(in srgb, var(--accent) 62%, #00131d);
-  --hero-ink: #ffffff;
-  --hero-sub: rgba(255,255,255,.88);
-  --hero-edge: rgba(255,255,255,.14);
-  --cta-bg: var(--good);
-  --cta-b: color-mix(in srgb, var(--good) 70%, #0a3a26);
-  --cta-ink: #ffffff;
-}
-@media (prefers-color-scheme: dark) {
-  .prm-scope {
-    --sig: var(--premium);
-    --hero-a: var(--bg-3);
-    --hero-b: var(--bg-1);
-    --hero-ink: var(--text);
-    --hero-sub: var(--text-soft);
-    --hero-edge: var(--border-strong);
-    --cta-bg: var(--good);
-    --cta-b: color-mix(in srgb, var(--good) 72%, #05231a);
-    --cta-ink: #04221a;
-  }
-}
-:root[data-theme="dark"] .prm-scope {
-  --sig: var(--premium);
-  --hero-a: var(--bg-3);
-  --hero-b: var(--bg-1);
-  --hero-ink: var(--text);
-  --hero-sub: var(--text-soft);
-  --hero-edge: var(--border-strong);
-  --cta-bg: var(--good);
-  --cta-b: color-mix(in srgb, var(--good) 72%, #05231a);
-  --cta-ink: #04221a;
-}
-:root[data-theme="light"] .prm-scope {
-  --sig: var(--accent);
-  --hero-a: var(--accent);
-  --hero-b: color-mix(in srgb, var(--accent) 62%, #00131d);
-  --hero-ink: #ffffff;
-  --hero-sub: rgba(255,255,255,.88);
-  --hero-edge: rgba(255,255,255,.14);
-  --cta-bg: var(--good);
-  --cta-b: color-mix(in srgb, var(--good) 70%, #0a3a26);
-  --cta-ink: #ffffff;
-}
-
-.prm-h {
-  font-family: var(--font-display); font-weight: 800; letter-spacing: -.03em;
-  line-height: 1.08; text-wrap: balance; margin: 0;
-}
-.prm-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-
-.prm-hero {
-  background: radial-gradient(125% 135% at 50% -25%,
-    color-mix(in srgb, var(--hero-a) 88%, #fff 12%) 0%,
-    var(--hero-a) 42%,
-    var(--hero-b) 100%);
-  border-radius: 18px;
-  border: 1px solid var(--hero-edge);
-}
-/* Heading colour lives on the CLASS, not a Tailwind utility: globals.css has
-   an unlayered h1 colour rule, and unlayered CSS beats layered utilities, so
-   text-white silently lost against it. */
-.prm-hero-h { color: var(--hero-ink); }
-.prm-hero-sub { color: var(--hero-sub); }
-
-/* ── Hero eyebrow ─────────────────────────────────────────────────────── */
-.prm-eyebrow {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-size: 11.5px; font-weight: 700; letter-spacing: .14em;
-  text-transform: uppercase;
-  padding: 6px 12px; border-radius: 999px;
-  color: var(--hero-ink);
-  background: rgba(255,255,255,.10);
-  border: 1px solid var(--hero-edge);
-  backdrop-filter: blur(8px);
-}
-.prm-eyebrow-dot {
-  width: 6px; height: 6px; border-radius: 999px;
-  background: var(--cta-bg);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cta-bg) 28%, transparent);
-}
-
-/* ── Hero live-data glass panel. The hero surface is DARK in both themes, so
-   this panel's ink is hero-ink either way — it is not a theme inversion. ── */
-.prm-live { color: var(--hero-ink); }
-/* A white-tinted glass failed contrast in light mode (.88 white label text hit
-   4.32:1 against the gradient's lightest point). A DARK scrim instead keeps the
-   glass read while lifting every label to ~6:1. */
-.prm-live.fx-glass {
-  background: color-mix(in srgb, #00131d 16%, transparent);
-  border-color: var(--hero-edge);
-}
-:root[data-theme="dark"] .prm-live.fx-glass {
-  background: color-mix(in srgb, var(--bg-1) 55%, transparent);
-}
-.prm-live-strong { color: var(--hero-ink); }
-.prm-live-dim { color: var(--hero-sub); }
-.prm-live-label {
-  font-size: 11px; font-weight: 700; letter-spacing: .1em;
-  text-transform: uppercase; color: var(--hero-sub);
-}
-.prm-live-live {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .1em; color: var(--hero-ink);
-}
-.prm-live-divide { border-top: 1px solid var(--hero-edge); }
-
-/* Daily-filing bars. flex-1 with a min-width keeps 30 bars inside 375px. */
-.prm-bar {
-  flex: 1 1 0; min-width: 3px; border-radius: 2px 2px 0 0;
-  background: linear-gradient(to top,
-    color-mix(in srgb, var(--cta-bg) 85%, transparent),
-    color-mix(in srgb, var(--hero-ink) 55%, transparent));
-  transition: opacity .18s ease;
-}
-.prm-bar:hover { opacity: .75; }
-
-.prm-chip {
-  font-family: var(--font-mono); font-size: 11.5px; font-weight: 700;
-  padding: 2px 7px; border-radius: 5px;
-  color: var(--hero-ink);
-  background: rgba(255,255,255,.12);
-  border: 1px solid var(--hero-edge);
-}
-
-/* ── Free card: gradient sweep border + lift ──────────────────────────── */
-.prm-free-card {
-  position: relative; isolation: isolate;
-  border-radius: 16px; padding: 28px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
-  transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .25s ease;
-}
-.prm-free-card::before {
-  content: ""; position: absolute; z-index: -1; inset: -1.5px;
-  border-radius: inherit;
-  background: conic-gradient(from 0deg,
-    transparent 0deg,
-    color-mix(in srgb, var(--sig) 90%, transparent) 60deg,
-    var(--premium) 120deg,
-    transparent 190deg, transparent 360deg);
-  opacity: 0; transition: opacity .3s ease;
-  animation: fx-spin 6s linear infinite;
-  will-change: transform;
-}
-.prm-free-card::after {
-  content: ""; position: absolute; z-index: -1; inset: 0;
-  border-radius: inherit; background: var(--bg-2);
-}
-.prm-free-card:hover,
-.prm-free-card:focus-within {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-}
-.prm-free-card:hover::before,
-.prm-free-card:focus-within::before { opacity: 1; }
-
-@media (prefers-reduced-motion: reduce) {
-  .prm-free-card::before { animation: none; opacity: 1; }
-  .prm-free-card:hover, .prm-free-card:focus-within { transform: none; }
-  .prm-mint:hover { filter: none; }
-}
-
-.prm-mint {
-  background: linear-gradient(180deg, var(--cta-bg), var(--cta-b));
-  color: var(--cta-ink);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--cta-bg) 30%, transparent);
-  transition: filter .16s, transform .16s;
-}
-.prm-mint:hover { filter: brightness(1.08); }
-.prm-mint:active { transform: translateY(1px); }
-
-/* Price + content cards */
-.prm-card {
-  border: 1px solid var(--border); border-radius: 14px; background: var(--bg-2);
-}
-.prm-card--best {
-  border-color: color-mix(in srgb, var(--sig) 50%, var(--border));
-  box-shadow: 0 14px 40px color-mix(in srgb, var(--sig) 14%, transparent);
-}
-.prm-cta {
-  background: linear-gradient(135deg, var(--sig), color-mix(in srgb, var(--sig) 52%, #6fd0ff));
-  color: #fff;
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--sig) 28%, transparent),
-              inset 0 1px 0 rgba(255,255,255,.22);
-  transition: filter .16s, transform .16s;
-}
-.prm-cta:hover { filter: brightness(1.07); }
-.prm-cta:active { transform: translateY(1px); }
-
-/* E-book style playbook covers */
-.prm-book {
-  position: relative; aspect-ratio: 3 / 4; border-radius: 4px 10px 10px 4px;
-  overflow: hidden; display: flex; flex-direction: column;
-  align-items: center; justify-content: space-between;
-  padding: 20px 16px 18px;
-  box-shadow: 0 14px 28px rgba(0,0,0,.30), 0 2px 6px rgba(0,0,0,.22);
-  transition: transform .22s, box-shadow .22s;
-}
-.prm-book::before { /* spine */
-  content: ""; position: absolute; inset: 0 auto 0 0; width: 13px;
-  background: linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.10) 60%, transparent);
-}
-.prm-book::after { /* gloss */
-  content: ""; position: absolute; inset: 0;
-  background: linear-gradient(118deg, rgba(255,255,255,.16) 0%, transparent 42%);
-  pointer-events: none;
-}
-.prm-book:hover { transform: translateY(-6px) rotate(-.6deg); box-shadow: 0 22px 40px rgba(0,0,0,.38); }
-@media (prefers-reduced-motion: reduce) {
-  .prm-book, .prm-mint, .prm-cta { transition: none; }
-  .prm-book:hover { transform: none; }
-}
-.prm-faq summary { cursor: pointer; list-style: none; }
-.prm-faq summary::-webkit-details-marker { display: none; }
-.prm-faq details[open] .prm-chev { transform: rotate(45deg); }
-.prm-chev { transition: transform .18s; }
+.sub-scope { background: var(--bg-1); }
+.sub-card { background: var(--bg-1); border: 1px solid var(--border); border-radius: 18px; }
+.sub-card-hi { border: 2px solid var(--accent); box-shadow: 0 20px 50px color-mix(in srgb, var(--accent) 16%, transparent); }
+.sub-cta { background: var(--good); color: #fff; border: 1px solid color-mix(in srgb, var(--good) 70%, #0a3a26); transition: filter .15s; }
+.sub-cta:hover { filter: brightness(1.07); }
+.sub-ghost { background: transparent; color: var(--text); border: 1px solid var(--border-strong); transition: background .15s; }
+.sub-ghost:hover { background: var(--bg-2); }
+.sub-book { aspect-ratio: 3/4; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 18px 12px; box-shadow: 0 12px 30px rgba(0,0,0,.18); }
 `;
 
-/* Email capture — POSTs to the existing /subscribers endpoint. */
-/**
- * Fade + rise entrance, staggered 80ms per child via the `--i` index each child
- * sets. IntersectionObserver-driven and runs ONCE. The animation itself lives in
- * globals.css (.fx-in), including its reduced-motion fallback, so a user with
- * that preference sees the finished state immediately and no observer matters.
- */
-function Reveal({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [seen, setSeen] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || seen) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setSeen(true);
-          io.disconnect();
-        }
-      },
-      { threshold: 0.15 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [seen]);
-
-  return (
-    <div ref={ref} className={`fx-in ${seen ? "fx-seen" : ""} ${className}`}>
-      {children}
-    </div>
-  );
-}
-
-/** Compact currency for the hero tiles — $1.8B, $847M, $12.4K. */
-function shortMoney(v: number): string {
-  const a = Math.abs(v);
-  if (a >= 1e12) return `$${(v / 1e12).toFixed(1)}T`;
-  if (a >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
-  if (a >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
-  if (a >= 1e3) return `$${(v / 1e3).toFixed(0)}K`;
-  return `$${Math.round(v)}`;
-}
-
-interface DashboardLite {
-  metrics: { totalRecentValue: number; topSector: { name: string; value: number } };
-  activity: Array<{ date: string; count: number; value: number }>;
-  topTrades: Array<{
-    id: string;
-    insiderName: string;
-    role: string;
-    ticker: string | null;
-    companyName: string;
-    totalValue: number;
-  }>;
-}
-
-/**
- * Glass panel of REAL platform data for the hero — 30 days of Form 4 flow as a
- * bar chart plus headline totals and the largest recent buys. Everything comes
- * from /dashboard; nothing here is illustrative.
- *
- * Note it deliberately shows 30-day aggregates rather than a 24h count: the
- * feed legitimately reads zero early in the day, and a hero that says "0" is
- * worse than no hero at all.
- */
-function LiveDataPanel() {
-  const { data } = useSWR<DashboardLite>(`${API_BASE}/dashboard`, (u: string) =>
-    fetch(u).then((r) => r.json()),
-  );
-
-  const activity = data?.activity ?? [];
-  const filings = activity.reduce((a, d) => a + (d.count || 0), 0);
-  const maxCount = Math.max(1, ...activity.map((d) => d.count || 0));
-  const trades = (data?.topTrades ?? []).slice(0, 3);
-
-  return (
-    <Reveal>
-      <div className="prm-live fx-glass p-5" style={{ ["--i" as string]: 0 }}>
-        <div className="flex items-center justify-between gap-3 mb-1">
-          <span className="prm-live-label">Insider buying · last 30 days</span>
-          <span className="prm-live-live">
-            <span className="prm-eyebrow-dot" aria-hidden />
-            Live
-          </span>
-        </div>
-
-        {/* Headline totals */}
-        <div className="flex items-baseline gap-3 flex-wrap mt-3">
-          <span className="prm-num text-[34px] font-bold leading-none prm-live-strong">
-            {data ? shortMoney(data.metrics.totalRecentValue) : "—"}
-          </span>
-          <span className="text-[13px] prm-live-dim">
-            {data ? `${filings.toLocaleString()} filings tracked` : "loading…"}
-          </span>
-        </div>
-
-        {/* 30-day flow — one bar per day, height = filings that day.
-            Pure CSS bars: no layout shift, scales to any width. */}
-        <div
-          className="flex items-end gap-[3px] mt-4"
-          style={{ height: 68 }}
-          role="img"
-          aria-label={`Daily insider filings over the last 30 days, ${filings} in total`}
-        >
-          {activity.map((d) => (
-            <span
-              key={d.date}
-              className="prm-bar"
-              style={{ height: `${Math.max(6, ((d.count || 0) / maxCount) * 100)}%` }}
-              title={`${d.date}: ${d.count} filings`}
-            />
-          ))}
-          {!activity.length &&
-            Array.from({ length: 30 }, (_, i) => (
-              <span key={i} className="prm-bar" style={{ height: "18%", opacity: 0.35 }} />
-            ))}
-        </div>
-
-        {/* Largest recent buys */}
-        <div className="mt-4 pt-3.5 prm-live-divide space-y-2">
-          {trades.length
-            ? trades.map((t) => (
-                <div key={t.id} className="flex items-center gap-2.5 text-[13px]">
-                  <span className="prm-chip">{t.ticker || "—"}</span>
-                  <span className="truncate prm-live-dim flex-1 min-w-0">
-                    {t.insiderName}
-                  </span>
-                  <span className="prm-num font-bold prm-live-strong">
-                    {shortMoney(t.totalValue)}
-                  </span>
-                </div>
-              ))
-            : Array.from({ length: 3 }, (_, i) => (
-                <div key={i} className="shimmer rounded" style={{ height: 18 }} />
-              ))}
-        </div>
-      </div>
-    </Reveal>
-  );
-}
-
-function SignupForm({ cta, tone = "cta" }: { cta: string; tone?: "cta" | "mint" }) {
-  const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const btn = tone === "mint" ? "prm-mint" : "prm-cta";
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!isValidEmail(email)) {
-      setErr("Please enter a valid email address.");
-      return;
-    }
-    setErr(null);
-    setSubmitting(true);
-    try {
-      const res = await fetch(`${API_BASE}/subscribers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, source: "premium-free" }),
-      });
-      if (!res.ok) throw new Error(String(res.status));
-      setDone(true);
-    } catch {
-      setErr("Something went wrong — please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  if (done) {
-    return (
-      <div className="flex items-center justify-center gap-2 text-[14.5px] font-semibold text-good py-2">
-        <CheckCircle2 className="h-5 w-5" /> Check your inbox to finish setting up.
-      </div>
-    );
-  }
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={`${btn} w-full inline-flex items-center justify-center rounded-xl py-3.5 text-[16px] font-bold`}
-      >
-        {cta}
-      </button>
-    );
-  }
-
-  return (
-    <form onSubmit={submit} noValidate className="w-full flex flex-col gap-2.5">
-      <input
-        type="email"
-        required
-        autoFocus
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="you@example.com"
-        aria-label="Email address"
-        aria-invalid={!!err}
-        className="w-full px-4 py-3 rounded-xl text-[14.5px] text-center"
-        style={{
-          background: "var(--bg-1)",
-          border: err ? "1px solid var(--bad)" : "1px solid var(--border-strong)",
-          color: "var(--text)",
-        }}
-      />
-      <button
-        type="submit"
-        disabled={submitting}
-        className={`${btn} w-full inline-flex items-center justify-center rounded-xl py-3.5 text-[16px] font-bold`}
-      >
-        {submitting ? "Submitting…" : cta}
-      </button>
-      {err && <p className="text-[12px] text-center" style={{ color: "var(--bad)" }}>{err}</p>}
-    </form>
-  );
-}
-
-/* Paid button — Stripe Checkout. Signed-out visitors get the login modal
-   first, then land back here to complete the purchase. Existing subscribers
-   are sent to the Stripe customer portal instead of a second checkout. */
+/* ── Stripe checkout button (unchanged flow) ─────────────────── */
 function BuyButton({ plan, label }: { plan: string; label: string }) {
   const { user } = useAuth();
   const { premium } = usePremium();
@@ -563,19 +89,12 @@ function BuyButton({ plan, label }: { plan: string; label: string }) {
 
   const startCheckout = async () => {
     if (busy) return;
-    if (!user) {
-      setLoginOpen(true);
-      return;
-    }
-    setBusy(true);
-    setErr(null);
+    if (!user) { setLoginOpen(true); return; }
+    setBusy(true); setErr(null);
     try {
       const res = await fetch(`${API_BASE}/billing/checkout`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getAuthToken() ?? ""}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAuthToken() ?? ""}` },
         body: JSON.stringify({ plan }),
       });
       const data = await res.json().catch(() => ({}));
@@ -598,40 +117,30 @@ function BuyButton({ plan, label }: { plan: string; label: string }) {
         type="button"
         onClick={startCheckout}
         disabled={busy}
-        className="prm-cta w-full inline-flex items-center justify-center rounded-xl py-3.5 text-[15.5px] font-bold disabled:opacity-60"
+        className="sub-cta w-full inline-flex items-center justify-center rounded-xl py-3.5 text-[15.5px] font-bold disabled:opacity-60"
       >
         {busy ? "Opening secure checkout…" : premium ? "Manage subscription" : label}
       </button>
       {!user && (
-        <p className="text-[12.5px] mt-2.5 text-center leading-relaxed" style={{ color: "var(--text-soft)" }}>
-          You&rsquo;ll be asked to sign in first so the subscription is tied to your account.
+        <p className="text-[12px] mt-2.5 text-center leading-relaxed text-mute">
+          You&rsquo;ll sign in first so the subscription ties to your account. No credit card to browse the free tier.
         </p>
       )}
-      {err && (
-        <p className="text-[12.5px] mt-2.5 text-center leading-relaxed" style={{ color: "var(--bad)" }}>
-          {err}
-        </p>
-      )}
+      {err && <p className="text-[12px] mt-2.5 text-center text-[color:var(--bad)]">{err}</p>}
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </div>
   );
 }
 
-/* Post-checkout handling: on ?checkout=success the subscription is synced
-   with the backend immediately (webhook-independent) and every paywall on
-   the site unlocks via PremiumContext. */
+/* ── Post-checkout ?checkout=success handling (unchanged) ─────── */
 function CheckoutOutcome() {
   const { refreshPremium } = usePremium();
   const [state, setState] = useState<"none" | "syncing" | "success" | "cancelled" | "error">("none");
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const outcome = params.get("checkout");
     if (!outcome) return;
-    if (outcome === "cancelled") {
-      setState("cancelled");
-      return;
-    }
+    if (outcome === "cancelled") { setState("cancelled"); return; }
     if (outcome !== "success") return;
     const sessionId = params.get("session_id");
     setState("syncing");
@@ -639,29 +148,17 @@ function CheckoutOutcome() {
       try {
         const res = await fetch(`${API_BASE}/billing/sync`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${getAuthToken() ?? ""}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAuthToken() ?? ""}` },
           body: JSON.stringify({ sessionId }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.message || "sync failed");
         await refreshPremium();
         setState(data?.premium ? "success" : "syncing");
-        if (!data?.premium) {
-          // Webhook may still be in flight — one delayed re-check.
-          setTimeout(async () => {
-            await refreshPremium();
-            setState("success");
-          }, 4000);
-        }
-      } catch {
-        setState("error");
-      }
+        if (!data?.premium) setTimeout(async () => { await refreshPremium(); setState("success"); }, 4000);
+      } catch { setState("error"); }
     })();
   }, [refreshPremium]);
-
   if (state === "none") return null;
   const styles: Record<string, { bg: string; border: string; color: string }> = {
     success: { bg: "var(--good-soft)", border: "var(--good)", color: "var(--good-strong)" },
@@ -671,292 +168,217 @@ function CheckoutOutcome() {
   };
   const s = styles[state];
   return (
-    <div
-      className="max-w-3xl mx-auto mt-8 rounded-xl px-5 py-4 text-center text-[14.5px] font-semibold"
-      style={{ background: s.bg, border: `1px solid ${s.border}`, color: s.color }}
-      role="status"
-    >
+    <div className="max-w-3xl mx-auto mt-8 rounded-xl px-5 py-4 text-center text-[14.5px] font-semibold"
+      style={{ background: s.bg, border: `1px solid ${s.border}`, color: s.color }} role="status">
       {state === "syncing" && "Finalizing your subscription…"}
-      {state === "success" &&
-        "You're in! Insider Premium is active — every paywall on the site is now unlocked."}
+      {state === "success" && "You're in! Insider Premium is active — every paywall is now unlocked."}
       {state === "cancelled" && "Checkout was cancelled — no charge was made."}
-      {state === "error" &&
-        "We couldn't confirm the payment automatically. If you were charged, refresh in a minute or contact support."}
+      {state === "error" && "We couldn't confirm the payment automatically. If you were charged, refresh in a minute or contact support."}
     </div>
   );
 }
 
 function BookCover({ sector, from, to }: { sector: string; from: string; to: string }) {
   return (
-    <div className="prm-book" style={{ background: `linear-gradient(150deg, ${from}, ${to})` }}>
+    <div className="sub-book" style={{ background: `linear-gradient(150deg, ${from}, ${to})` }}>
       <Logo size="sm" tone="light" className="opacity-95" />
       <div className="text-center">
-        <div
-          className="font-extrabold text-white leading-none"
-          style={{ fontFamily: "var(--font-display)", fontSize: 30, letterSpacing: "-.02em" }}
-        >
-          {sector}
-        </div>
-        <div
-          className="prm-num text-white/85 mt-1.5"
-          style={{ fontSize: 11, letterSpacing: ".22em" }}
-        >
-          INSIDER
-        </div>
+        <div className="font-extrabold text-white leading-none" style={{ fontSize: 26, letterSpacing: "-.02em" }}>{sector}</div>
+        <div className="text-white/85 mt-1.5" style={{ fontSize: 10, letterSpacing: ".22em" }}>INSIDER</div>
       </div>
-      <div className="prm-num text-white/70" style={{ fontSize: 9, letterSpacing: ".16em" }}>
-        2026 PLAYBOOK
-      </div>
+      <div className="text-white/70" style={{ fontSize: 8.5, letterSpacing: ".16em" }}>2026 PLAYBOOK</div>
+    </div>
+  );
+}
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="sub-card overflow-hidden">
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left">
+        <span className="text-[14.5px] font-bold">{q}</span>
+        <ChevronDown className="h-4 w-4 flex-shrink-0 transition-transform" style={{ transform: open ? "rotate(180deg)" : "none", color: "var(--text-mute)" }} />
+      </button>
+      {open && <div className="px-5 pb-4 text-[13.5px] leading-relaxed text-soft">{a}</div>}
     </div>
   );
 }
 
 export default function PremiumPage() {
+  const [annual, setAnnual] = useState(true);
+  const price = annual ? PRICING.annual : PRICING.monthly;
+  const per = annual ? ANNUAL_PER_MONTH : PRICING.monthly;
+
   return (
-    <div className="w-full pb-16 prm-scope">
+    <div className="sub-scope w-full">
       <style>{CSS}</style>
 
-      {/* ─── Hero (above the fold) — copy left, live data right ───
-          Layered depth: base gradient → drifting mesh → masked grid → scanline
-          → grain → orbs, all pointer-events:none and all behind the content,
-          so nothing can collide with the text at any width. */}
-      <section className="prm-hero relative overflow-hidden px-6 sm:px-10 py-14 sm:py-20">
-        <div className="fx-mesh" aria-hidden />
-        <div className="fx-grid" aria-hidden />
-        <div className="fx-scan" aria-hidden />
-        <div className="fx-noise" aria-hidden />
-        <div
-          className="fx-orb"
-          aria-hidden
-          style={{ width: 260, height: 260, top: "-8%", right: "6%", background: "var(--mesh-2)" }}
-        />
-        <div
-          className="fx-orb"
-          aria-hidden
-          style={{ width: 190, height: 190, bottom: "-12%", left: "4%", background: "var(--mesh-3)", animationDelay: "2.5s" }}
-        />
-
-        <div className="relative max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-10 lg:gap-14 items-center">
-          <Reveal className="text-center lg:text-left">
-            <div style={{ ["--i" as string]: 0 }}>
-              <span className="prm-eyebrow">
-                <span className="prm-eyebrow-dot" aria-hidden />
-                Live SEC Form 4 intelligence
-              </span>
-            </div>
-            <h1
-              className="prm-h prm-hero-h text-[36px] sm:text-[58px] mt-4"
-              style={{ ["--i" as string]: 1, letterSpacing: "-0.035em" }}
-            >
-              Tap Into The Power of Insider Data
-            </h1>
-            <p
-              className="prm-hero-sub text-[17px] sm:text-[19px] leading-relaxed mt-5 max-w-xl mx-auto lg:mx-0"
-              style={{ ["--i" as string]: 2 }}
-            >
-              Make more well-informed trading decisions with our next-generation stock research platform.
-            </p>
-            <div
-              className="mt-9 w-full max-w-[300px] mx-auto lg:mx-0"
-              style={{ ["--i" as string]: 3 }}
-            >
-              <SignupForm cta="Create Free Account" tone="mint" />
-            </div>
-          </Reveal>
-
-          {/* Real platform data — 30 days of live Form 4 flow. */}
-          <div className="min-w-0">
-            <LiveDataPanel />
-          </div>
+      {/* ── Hero (Autopilot-clean, centered, airy) ─────────────── */}
+      <section className="max-w-3xl mx-auto text-center px-4 pt-10 sm:pt-16 pb-8">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] px-3 py-1 rounded-full"
+          style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
+          <ShieldCheck className="h-3.5 w-3.5" /> Insider Premium
+        </span>
+        <h1 className="text-[34px] sm:text-[52px] font-bold tracking-tight leading-[1.05] mt-5"
+          style={{ letterSpacing: "-1px" }}>
+          Trade with the insiders&rsquo; edge
+        </h1>
+        <p className="text-[16px] sm:text-[18px] text-soft leading-relaxed mt-4 max-w-xl mx-auto">
+          See exactly what corporate insiders and politicians are buying — scored,
+          ranked and delivered the moment it&rsquo;s filed. One subscription unlocks
+          every dataset and tool on the site.
+        </p>
+        <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <a href="#pricing" className="sub-cta inline-flex items-center justify-center rounded-xl px-8 py-3.5 text-[15.5px] font-bold">
+            Get Insider Premium
+          </a>
+          <span className="text-[13px] text-mute">Cancel anytime · No credit card to browse</span>
         </div>
+        <p className="text-[12px] text-faint mt-5">
+          Built on public filings — SEC EDGAR · Congress.gov · FEC · lobbying · USAspending
+        </p>
       </section>
 
-      {/* ─── $0 forever ─── */}
-      <section className="relative mt-16">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-9 lg:gap-12 items-center">
-          <Reveal>
-            <h2 className="prm-h text-[32px] sm:text-[42px]" style={{ ["--i" as string]: 0 }}>
-              Free to get started
-            </h2>
-            <p
-              className="text-[16.5px] leading-relaxed mt-4 max-w-md"
-              style={{ ["--i" as string]: 1, color: "var(--text-soft)" }}
-            >
-              Create an account and keep the essentials free for as long as you like.
-            </p>
-            <ul className="mt-6 space-y-2" style={{ ["--i" as string]: 2 }}>
+      <div className="px-4">
+        <CheckoutOutcome />
+      </div>
+
+      {/* ── Pricing (TipRanks-style: toggle + Free vs Premium) ─── */}
+      <section id="pricing" className="max-w-4xl mx-auto px-4 py-10 scroll-mt-8">
+        <div className="text-center mb-7">
+          <h2 className="text-[26px] sm:text-[32px] font-bold tracking-tight">Simple, honest pricing</h2>
+          {/* Monthly / Annual toggle */}
+          <div className="inline-flex items-center gap-1 mt-5 p-1 rounded-full" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
+            {[
+              { key: false, label: "Monthly" },
+              { key: true, label: "Annual" },
+            ].map((o) => {
+              const on = annual === o.key;
+              return (
+                <button key={o.label} type="button" onClick={() => setAnnual(o.key)}
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-[13.5px] font-bold transition"
+                  style={{ background: on ? "var(--accent)" : "transparent", color: on ? "var(--on-accent)" : "var(--text-mute)" }}>
+                  {o.label}
+                  {o.key && (
+                    <span className="text-[10.5px] font-extrabold px-1.5 py-0.5 rounded"
+                      style={{ background: on ? "rgba(255,255,255,0.2)" : "var(--good-soft)", color: on ? "#fff" : "var(--good-strong)" }}>
+                      SAVE {SAVED_PCT}%
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+          {/* Free */}
+          <div className="sub-card p-6 sm:p-7">
+            <div className="text-[13px] font-bold uppercase tracking-wider text-mute">Free</div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-[40px] font-extrabold tabular leading-none">$0</span>
+              <span className="text-[14px] text-mute">/ forever</span>
+            </div>
+            <p className="text-[13px] text-soft mt-2">Browse the raw feed — no account needed.</p>
+            <a href="/" className="sub-ghost mt-5 w-full inline-flex items-center justify-center rounded-xl py-3.5 text-[15px] font-bold">
+              Keep browsing free
+            </a>
+            <ul className="mt-6 space-y-3">
               {FREE_INCLUDES.map((f) => (
-                <li key={f} className="flex items-start gap-2.5 text-[14.5px]" style={{ color: "var(--text-soft)" }}>
+                <li key={f} className="flex items-start gap-2.5 text-[13.5px]">
+                  <Check className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: "var(--text-mute)" }} />
+                  <span className="text-soft">{f}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Premium (highlighted) */}
+          <div className="sub-card sub-card-hi p-6 sm:p-7 relative">
+            <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10.5px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full"
+              style={{ background: "var(--accent)", color: "var(--on-accent)" }}>
+              Most Popular
+            </span>
+            <div className="text-[13px] font-bold uppercase tracking-wider" style={{ color: "var(--accent)" }}>Insider Premium</div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-[40px] font-extrabold tabular leading-none">${per}</span>
+              <span className="text-[14px] text-mute">/ month</span>
+            </div>
+            <p className="text-[13px] text-soft mt-2">
+              {annual ? (
+                <>Billed ${PRICING.annual}/year — <span className="font-bold" style={{ color: "var(--good-strong)" }}>save ${SAVED} ({SAVED_PCT}% off)</span></>
+              ) : (
+                <>Billed ${PRICING.monthly} monthly · switch to annual to save {SAVED_PCT}%</>
+              )}
+            </p>
+            <div className="mt-5">
+              <BuyButton plan={annual ? "annual" : "monthly"} label="Get Insider Premium" />
+            </div>
+            <ul className="mt-6 space-y-3">
+              {INCLUDED.map((f) => (
+                <li key={f} className="flex items-start gap-2.5 text-[13.5px]">
                   <Check className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: "var(--good)" }} />
                   <span>{f}</span>
                 </li>
               ))}
             </ul>
-          </Reveal>
-
-          <Reveal>
-            <div className="prm-free-card" style={{ ["--i" as string]: 0 }}>
-              <div className="flex items-baseline justify-center gap-2.5 mb-5">
-                <span
-                  className="prm-num text-[60px] font-bold leading-none fx-blur-in"
-                  style={{ letterSpacing: "-.04em", color: "var(--text)" }}
-                >
-                  $0
-                </span>
-                <span className="text-[16px] font-semibold" style={{ color: "var(--text-mute)" }}>
-                  forever
-                </span>
-              </div>
-              <SignupForm cta="Sign Up" />
-              <p className="text-[12px] mt-3.5 text-center" style={{ color: "var(--text-mute)" }}>
-                No payment details required
-              </p>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* ─── Insider Premium pricing ─── */}
-      <section id="plans" className="mt-24 scroll-mt-6">
-        <div className="text-center max-w-2xl mx-auto">
-          <h2 className="prm-h text-[34px] sm:text-[46px]">Insider Premium</h2>
-          <p className="text-[16.5px] leading-relaxed mt-4" style={{ color: "var(--text-soft)" }}>
-            Every dataset, every tool, no caps — plus five sector playbooks.
-          </p>
-        </div>
-
-        <CheckoutOutcome />
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-10 max-w-3xl mx-auto">
-          {/* Monthly */}
-          <div className="prm-card p-7 flex flex-col text-center">
-            <span className="text-[13px] font-bold uppercase tracking-wider" style={{ color: "var(--text-mute)" }}>
-              Monthly
-            </span>
-            <div className="flex items-baseline justify-center gap-1.5 mt-4">
-              <span className="prm-num text-[46px] font-bold leading-none" style={{ letterSpacing: "-.035em" }}>
-                ${PRICING.monthly}
-              </span>
-              <span className="text-[14px] font-semibold" style={{ color: "var(--text-mute)" }}>/ mo</span>
-            </div>
-            <p className="text-[13px] mt-3 mb-6" style={{ color: "var(--text-mute)" }}>
-              Billed monthly. Cancel anytime.
-            </p>
-            <div className="mt-auto">
-              <BuyButton plan="monthly" label="Get Insider Premium" />
-            </div>
-          </div>
-
-          {/* Annual — the offer */}
-          <div className="prm-card prm-card--best p-7 flex flex-col text-center relative">
-            <span
-              className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10.5px] font-bold uppercase tracking-wider px-3 py-1 rounded-full whitespace-nowrap"
-              style={{ background: "var(--sig)", color: "#fff" }}
-            >
-              Limited time · Save {SAVED_PCT}%
-            </span>
-            <span className="text-[13px] font-bold uppercase tracking-wider" style={{ color: "var(--sig)" }}>
-              Annual
-            </span>
-            <div className="flex items-baseline justify-center gap-2 mt-4">
-              <span className="prm-num text-[46px] font-bold leading-none" style={{ letterSpacing: "-.035em" }}>
-                ${PRICING.annual}
-              </span>
-              <span className="prm-num text-[17px] line-through" style={{ color: "var(--text-faint)" }}>
-                ${PRICING.annualWas}
-              </span>
-            </div>
-            <p className="text-[13px] mt-3 mb-6" style={{ color: "var(--text-mute)" }}>
-              Just <span className="prm-num font-bold" style={{ color: "var(--text)" }}>${ANNUAL_PER_MONTH}</span>/mo —
-              you save <span className="prm-num font-bold" style={{ color: "var(--good)" }}>${SAVED}</span>.
-            </p>
-            <div className="mt-auto">
-              <BuyButton plan="annual" label="Get Insider Premium" />
-            </div>
           </div>
         </div>
-
-        {/* Compact included list — two columns, short lines */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2.5 mt-10 max-w-3xl mx-auto">
-          {INCLUDED.map((f) => (
-            <div key={f} className="flex items-start gap-2.5 text-[14px]">
-              <Check className="h-4 w-4 flex-shrink-0 mt-[3px]" strokeWidth={3} style={{ color: "var(--sig)" }} />
-              <span style={{ color: "var(--text-soft)" }}>{f}</span>
-            </div>
-          ))}
-        </div>
       </section>
 
-      {/* ─── Sector playbooks ─── */}
-      <section className="mt-24">
-        <div className="text-center max-w-2xl mx-auto">
-          <span className="prm-num text-[11px] uppercase tracking-[.14em]" style={{ color: "var(--sig)" }}>
-            Included free with Premium
-          </span>
-          <h2 className="prm-h text-[30px] sm:text-[40px] mt-3">Five sector playbooks</h2>
-          <p className="text-[16px] mt-4" style={{ color: "var(--text-soft)" }}>
-            Where insiders are putting their own money, sector by sector — refreshed each quarter.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5 sm:gap-6 mt-10">
-          {PLAYBOOKS.map((b) => (
-            <div key={b.sector}>
-              <BookCover sector={b.sector} from={b.from} to={b.to} />
-              <p className="text-[13px] font-semibold leading-snug mt-3.5 text-center">{b.title}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ─── What you get ─── */}
-      <section className="mt-24">
-        <h2 className="prm-h text-[30px] sm:text-[38px] text-center">What you get</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-9">
+      {/* ── Benefits grid (clean cards) ────────────────────────── */}
+      <section className="max-w-5xl mx-auto px-4 py-10">
+        <h2 className="text-[24px] sm:text-[30px] font-bold tracking-tight text-center mb-8">Everything in one subscription</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {BENEFITS.map((b) => {
             const Icon = b.icon;
             return (
-              <div key={b.title} className="prm-card p-5 flex items-start gap-3.5">
-                <span
-                  className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "color-mix(in srgb, var(--sig) 12%, transparent)", color: "var(--sig)" }}
-                >
-                  <Icon className="h-5 w-5" strokeWidth={1.9} />
+              <div key={b.title} className="sub-card p-5">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl mb-3"
+                  style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
+                  <Icon className="h-5 w-5" />
                 </span>
-                <div className="min-w-0">
-                  <h3 className="text-[15.5px] font-bold tracking-tight">{b.title}</h3>
-                  <p className="text-[13px] leading-relaxed mt-1" style={{ color: "var(--text-mute)" }}>
-                    {b.desc}
-                  </p>
-                </div>
+                <div className="text-[15px] font-bold">{b.title}</div>
+                <div className="text-[13px] text-soft leading-relaxed mt-1">{b.desc}</div>
               </div>
             );
           })}
         </div>
       </section>
 
-      {/* ─── FAQ ─── */}
-      <section className="mt-24 max-w-3xl mx-auto prm-faq">
-        <h2 className="prm-h text-[28px] sm:text-[34px] text-center">Common questions</h2>
-        <div className="flex flex-col gap-2.5 mt-8">
-          {FAQS.map((f) => (
-            <details key={f.q} className="prm-card px-5 py-4">
-              <summary className="flex items-center justify-between gap-4">
-                <span className="text-[15px] font-bold">{f.q}</span>
-                <span className="prm-chev flex-shrink-0" style={{ color: "var(--sig)", fontSize: 18, lineHeight: 1 }} aria-hidden>
-                  +
-                </span>
-              </summary>
-              <p className="text-[14px] leading-relaxed mt-3" style={{ color: "var(--text-soft)" }}>{f.a}</p>
-            </details>
+      {/* ── Sector playbooks ───────────────────────────────────── */}
+      <section className="max-w-5xl mx-auto px-4 py-10">
+        <div className="text-center mb-7">
+          <h2 className="text-[24px] sm:text-[30px] font-bold tracking-tight">Five sector playbooks included</h2>
+          <p className="text-[14px] text-soft mt-2">The top stocks insiders are buying in each sector — refreshed for 2026.</p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 max-w-3xl mx-auto">
+          {PLAYBOOKS.map((p) => (
+            <BookCover key={p.sector} sector={p.sector} from={p.from} to={p.to} />
           ))}
         </div>
+      </section>
 
-        <p className="text-[11.5px] mt-10 text-center leading-relaxed" style={{ color: "var(--text-faint)" }}>
-          Informational only — not investment advice. Insider data comes from public regulatory filings
-          and may be delayed.{" "}
-          <Link href="/stocks" className="text-accent">Browse the live ranking</Link>.
-        </p>
+      {/* ── FAQ ────────────────────────────────────────────────── */}
+      <section className="max-w-2xl mx-auto px-4 py-10">
+        <h2 className="text-[24px] sm:text-[30px] font-bold tracking-tight text-center mb-6">Questions</h2>
+        <div className="space-y-3">
+          {FAQS.map((f) => <FaqItem key={f.q} q={f.q} a={f.a} />)}
+        </div>
+      </section>
+
+      {/* ── Final CTA + trust ──────────────────────────────────── */}
+      <section className="max-w-2xl mx-auto px-4 pb-16 text-center">
+        <div className="sub-card p-8">
+          <h2 className="text-[24px] sm:text-[28px] font-bold tracking-tight">Start following the smart money</h2>
+          <p className="text-[14px] text-soft mt-2 mb-6">
+            {annual ? `$${ANNUAL_PER_MONTH}/mo billed annually` : `$${PRICING.monthly}/mo`} · cancel anytime · public-filing data only.
+          </p>
+          <div className="max-w-sm mx-auto">
+            <BuyButton plan={annual ? "annual" : "monthly"} label="Get Insider Premium" />
+          </div>
+        </div>
       </section>
     </div>
   );
