@@ -151,7 +151,7 @@ export class StockListsService {
         },
       ];
       const holders = [
-        ...liveForm4,
+        ...liveForm4.map((h) => ({ ...h, owner: this.prettyOwner(h.owner) })),
         ...SEED.filter(
           (s) => !liveForm4.some((h) => this.prettyOwner(h.owner) === s.owner),
         ).map((s) => ({
@@ -175,7 +175,7 @@ export class StockListsService {
         );
         // Per-filer breakdown for the note (largest holding first).
         const breakdown = holders
-          .map((h) => `${this.prettyOwner(h.owner)} ${h.shares.toLocaleString('en-US')} sh`)
+          .map((h) => `${h.owner} ${h.shares.toLocaleString('en-US')} sh`)
           .join(' · ');
         const base = [
           {
@@ -201,8 +201,6 @@ export class StockListsService {
   /** "TRUMP DONALD J JR" → "Donald J. Trump Jr." */
   private prettyOwner(raw: string): string {
     const s = (raw || '').trim();
-    // Already human-formatted (has lowercase) — leave it alone (idempotent).
-    if (/[a-z]/.test(s)) return s;
     if (/trump donald j\.? jr/i.test(s)) return 'Donald J. Trump Jr.';
     if (/trump donald j/i.test(s)) return 'Donald J. Trump';
     if (/trump eric/i.test(s)) return 'Eric Trump';
