@@ -1,0 +1,206 @@
+"use client";
+import useSWR from "swr";
+import Link from "next/link";
+import { useState } from "react";
+import { LineChart } from "lucide-react";
+import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
+import { AdSlot } from "@/components/AdSlot";
+import { DataTable, Column } from "@/components/DataTable";
+import { CompanyLogo } from "@/components/CompanyLogo";
+import { PriceTargetCell } from "@/components/PriceTargetCell";
+import { rankColumn } from "@/components/tableColumns";
+
+/** One covered stock — consensus recommendation, coverage depth and the
+ *  analyst-implied upside to the mean price target. Feeds the "Top Analyst
+ *  Stocks" list (stocks Wall Street rates most highly), the stock-level
+ *  counterpart to the individual-analyst ranking on /analyst-ratings. */
+interface StockRow {
+  symbol: string;
+  name: string;
+  sector: string | null;
+  price: number;
+  targetMean: number | null;
+  targetHigh: number | null;
+  targetLow: number | null;
+  upsidePct: number | null;
+  recommendation: string | null;
+  numAnalysts: number | null;
+}
+
+const REC: Record<string, { label: string; color: string; rank: number }> = {
+  strong_buy: { label: "Strong Buy", color: "var(--good)", rank: 5 },
+  buy: { label: "Buy", color: "var(--good)", rank: 4 },
+  hold: { label: "Hold", color: "var(--gold)", rank: 3 },
+  underperform: { label: "Underperform", color: "var(--bad)", rank: 2 },
+  sell: { label: "Sell", color: "var(--bad)", rank: 1 },
+  strong_sell: { label: "Strong Sell", color: "var(--bad)", rank: 0 },
+};
+const recOf = (k: string | null) => (k ? REC[k] : undefined);
+
+export default function AnalystStocksPage() {
+  const [q, setQ] = useState("");
+  const { data, isLoading } = useSWR<{ rows: StockRow[] }>(
+    `${API_BASE}/market-stats/analyst-ratings`,
+    fetcher,
+    { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
+  );
+  // Only genuinely covered names with a consensus rating belong on this list.
+  const rows = (data?.rows || [])
+    .filter((r) => r.recommendation && r.price > 0)
+    .filter(
+      (r) =>
+        !q ||
+        r.symbol.toLowerCase().includes(q.toLowerCase()) ||
+        (r.name || "").toLowerCase().includes(q.toLowerCase()) ||
+        (r.sector || "").toLowerCase().includes(q.toLowerCase()),
+    );
+
+  const columns: Column<StockRow>[] = [
+    rankColumn<StockRow>(),
+    {
+      key: "symbol",
+      label: "Company",
+      sortValue: (r) => r.symbol,
+      render: (r) => (
+        <Link href={`/companies/${r.symbol}`} className="flex items-center gap-2.5 group">
+          <span
+            className="flex-shrink-0 rounded-md overflow-hidden bg-white flex items-center justify-center"
+            style={{ width: 30, height: 30, padding: 3, border: "1px solid var(--border)" }}
+          >
+            <CompanyLogo ticker={r.symbol} name={r.name} size={24} />
+          </span>
+          <span className="min-w-0">
+            <span className="block font-bold text-[13.5px] leading-tight group-hover:text-accent" style={{ color: "var(--text)" }}>
+              {r.symbol}
+            </span>
+            <span className="block text-[11.5px] text-mute leading-tight truncate max-w-[190px]">{r.name}</span>
+          </span>
+        </Link>
+      ),
+    },
+    {
+      key: "recommendation",
+      label: "Analyst Consensus",
+      sortValue: (r) => recOf(r.recommendation)?.rank ?? -1,
+      render: (r) => {
+        const rec = recOf(r.recommendation);
+        if (!rec) return <span className="text-faint text-[12px]">—</span>;
+        return (
+          <span
+            className="inline-flex items-center text-[11.5px] font-bold px-2 py-0.5 rounded-full"
+            style={{ background: `color-mix(in srgb, ${rec.color} 15%, transparent)`, color: rec.color }}
+          >
+            {rec.label}
+          </span>
+        );
+      },
+    },
+    {
+      key: "numAnalysts",
+      label: "Analysts",
+      align: "right",
+      info: "How many Wall Street analysts currently publish a rating and price target on this stock.",
+      sortValue: (r) => r.numAnalysts ?? 0,
+      render: (r) => (
+        <span className="tabular text-[13.5px] font-semibold">{r.numAnalysts ?? "—"}</span>
+      ),
+    },
+    {
+      key: "price",
+      label: "Price",
+      align: "right",
+      sortValue: (r) => r.price,
+      render: (r) => <span className="tabular text-[13.5px]">{formatCurrency(r.price)}</span>,
+    },
+    {
+      key: "upside",
+      label: "Price Target",
+      align: "center",
+      info: "Mean analyst price target and the implied upside/downside from the current price. Ranked highest upside first.",
+      sortValue: (r) => r.upsidePct ?? -9999,
+      render: (r) => <PriceTargetCell target={r.targetMean} upsidePct={r.upsidePct} />,
+    },
+    {
+      key: "sector",
+      label: "Sector",
+      sortValue: (r) => r.sector || "",
+      filterable: true,
+      render: (r) => (
+        <span className="text-[12.5px] text-mute">{r.sector || "—"}</span>
+      ),
+    },
+  ];
+
+  return (
+    <div className="w-full space-y-6">
+      <header>
+        <div className="flex items-center gap-2 text-mute text-sm mb-1">
+          <LineChart className="h-4 w-4" />
+          <span className="font-mono uppercase tracking-wider text-[11px]">Top Analyst Stocks</span>
+        </div>
+        <h1
+          className="text-[32px] sm:text-[40px] font-semibold tracking-tight"
+          style={{ letterSpacing: "-0.6px" }}
+        >
+          Top Analyst Stocks
+        </h1>
+        <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
+          The stocks Wall Street rates most highly right now — ranked by
+          consensus recommendation and the analyst-implied upside to the mean
+          price target, across every name with genuine sell-side coverage.
+          Refreshed with live quotes. Informational, not investment advice.
+        </p>
+      </header>
+
+      <Link
+        href="/analyst-ratings"
+        className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline"
+      >
+        See the analysts behind these calls, ranked by track record →
+      </Link>
+
+      <AdSlot slot="leaderboard" seed="analyst-stocks" />
+
+      <div
+        className="card p-4"
+        style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+      >
+        <label className="block text-[11px] uppercase tracking-wider font-bold text-mute mb-1">
+          Search
+        </label>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Ticker, company or sector…"
+          className="w-full sm:max-w-xs px-3 py-2 rounded-md text-[13px]"
+          style={{
+            background: "var(--bg-1)",
+            border: "1px solid var(--border-strong)",
+            color: "var(--text)",
+          }}
+        />
+      </div>
+
+      <div className="card overflow-hidden">
+        {isLoading ? (
+          <div className="text-center text-mute py-10">Loading analyst coverage…</div>
+        ) : (
+          <DataTable<StockRow>
+            rows={rows}
+            rowKey={(r) => r.symbol}
+            initialSort={{ key: "recommendation", dir: "desc" }}
+            empty="No covered stocks match your search."
+            columns={columns}
+          />
+        )}
+      </div>
+
+      <p className="text-[12px] text-mute leading-relaxed">
+        Consensus and price targets are aggregated across covering analysts and
+        refreshed intraday. Upside is the percentage move from the current price
+        to the mean target. A stock appears here once it carries a published
+        analyst consensus — informational, not investment advice.
+      </p>
+    </div>
+  );
+}

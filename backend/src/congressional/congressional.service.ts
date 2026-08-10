@@ -68,6 +68,10 @@ export class CongressionalService implements OnModuleInit {
     metaByName: Map<string, { state: string | null; chamber: string | null }>;
     /** name(lower) → committee names the member sits on (QuiverQuant-style). */
     committeesByName: Map<string, string[]>;
+    /** name(lower) → official congressional headshot (bioguide image), which
+     *  exists for essentially every sitting member — a far better photo source
+     *  than a Wikipedia name-slug guess. */
+    photoByName: Map<string, string>;
   } | null = null;
 
   private async getRoster(): Promise<NonNullable<CongressionalService['roster']>> {
@@ -78,6 +82,7 @@ export class CongressionalService implements OnModuleInit {
     const byName = new Map<string, string>();
     const metaByName = new Map<string, { state: string | null; chamber: string | null }>();
     const committeesByName = new Map<string, string[]>();
+    const photoByName = new Map<string, string>();
     const bioToName = new Map<string, string>(); // bioguide → name(lower)
     try {
       const res = await fetch(
@@ -101,7 +106,11 @@ export class CongressionalService implements OnModuleInit {
         if (name && party) addNameKeys(name, (k) => byName.set(k, party));
         if (name) {
           addNameKeys(name, (k) => metaByName.set(k, { state, chamber }));
-          if (bid) bioToName.set(bid, name.toLowerCase());
+          if (bid) {
+            bioToName.set(bid, name.toLowerCase());
+            const img = `https://unitedstates.github.io/images/congress/450x550/${bid}.jpg`;
+            addNameKeys(name, (k) => photoByName.set(k, img));
+          }
         }
       }
       this.logger.log(`Legislator roster loaded: ${byBioguide.size} members.`);
@@ -137,7 +146,7 @@ export class CongressionalService implements OnModuleInit {
     } catch (e: any) {
       this.logger.warn(`Roster fetch failed: ${e?.message || e}`);
     }
-    this.roster = { ts: Date.now(), byBioguide, byName, metaByName, committeesByName };
+    this.roster = { ts: Date.now(), byBioguide, byName, metaByName, committeesByName, photoByName };
     return this.roster;
   }
 
@@ -299,21 +308,38 @@ export class CongressionalService implements OnModuleInit {
 
   private async backfillPhotos() {
     try {
+      const roster = await this.getRoster();
+      // Also retry rows that previously resolved to initials — the official
+      // bioguide headshot below covers members a Wikipedia slug guess missed.
       const missing = await this.repo.find({
-        where: { photoUrl: IsNull() },
+        where: [{ photoUrl: IsNull() }, { photoUrl: PhotosService.NO_PHOTO }],
       });
+      const rosterPhoto = (name: string): string | null => {
+        const low = name.toLowerCase();
+        if (roster.photoByName.get(low)) return roster.photoByName.get(low)!;
+        const parts = low.split(/\s+/).filter(Boolean);
+        if (parts.length > 1) {
+          const fl = `${parts[0]} ${parts[parts.length - 1]}`;
+          if (roster.photoByName.get(fl)) return roster.photoByName.get(fl)!;
+        }
+        return null;
+      };
       const seenName = new Set<string>();
+      let fromRoster = 0;
       for (const row of missing) {
         if (seenName.has(row.politicianName)) continue;
         seenName.add(row.politicianName);
-        const url = await this.photos.getPhoto(row.politicianName);
+        // Official congressional headshot first, Wikipedia only as a fallback.
+        const official = rosterPhoto(row.politicianName);
+        if (official) fromRoster += 1;
+        const url = official ?? (await this.photos.getPhoto(row.politicianName));
         await this.repo.update(
           { politicianName: row.politicianName },
           { photoUrl: url },
         );
       }
       this.logger.log(
-        `Photo backfill complete for ${seenName.size} unique politicians.`,
+        `Photo backfill complete for ${seenName.size} unique politicians (${fromRoster} official headshots).`,
       );
     } catch (err: any) {
       this.logger.warn(`Photo backfill error: ${err?.message || err}`);

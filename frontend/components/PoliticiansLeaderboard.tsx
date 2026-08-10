@@ -73,9 +73,11 @@ export function PoliticiansLeaderboard() {
           Politician Trading Performance
         </h1>
         <p className="text-mute text-[14px] mt-2 max-w-3xl leading-relaxed">
-          U.S. House and Senate members — plus the President and his family — ranked by their
-          disclosed equity trading under the STOCK Act. Party, committee seats, disclosed-portfolio
-          value, win rate and top holdings, from public filings.
+          U.S. House and Senate members ranked by their disclosed equity trading
+          under the STOCK Act. Party, committee seats, disclosed-portfolio value,
+          win rate and top holdings, from public filings. (The President and his
+          family aren&rsquo;t members of Congress and don&rsquo;t file STOCK Act
+          trade reports, so they don&rsquo;t appear here.)
         </p>
       </header>
 

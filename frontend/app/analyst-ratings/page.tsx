@@ -158,12 +158,20 @@ export default function AnalystRatingsPage() {
         </p>
       </header>
 
-      <Link
-        href="/top-analysts"
-        className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline"
-      >
-        See research firms ranked by track record →
-      </Link>
+      <div className="flex flex-wrap gap-x-6 gap-y-1.5">
+        <Link
+          href="/analyst-stocks"
+          className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline"
+        >
+          See the stocks analysts rate most highly →
+        </Link>
+        <Link
+          href="/top-analysts"
+          className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline"
+        >
+          See research firms ranked by track record →
+        </Link>
+      </div>
 
       <AdSlot slot="leaderboard" seed="analyst-top" />
 

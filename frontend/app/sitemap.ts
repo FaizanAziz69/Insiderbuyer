@@ -5,7 +5,7 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuyer-hwrc.verc
 
 const STATIC_ROUTES = [
   "", "/insights", "/editorial", "/stock-lists", "/companies", "/trades",
-  "/insiders/hot", "/analyst-ratings", "/market-data/top-gainers",
+  "/insiders/hot", "/analyst-ratings", "/analyst-stocks", "/market-data/top-gainers",
   "/market-data/top-losers", "/earnings", "/dividends", "/ipos",
   "/short-interest", "/short-squeeze", "/congressional-trades",
   "/heatmaps/market", "/sectors", "/screener", "/watchlist",
