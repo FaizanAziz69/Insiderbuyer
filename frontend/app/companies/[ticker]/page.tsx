@@ -27,7 +27,7 @@ import {
 } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
 import { PaywallOverlay } from "@/components/PaywallOverlay";
-import { InsiderActivitySummary } from "@/components/stock/InsiderActivitySummary";
+import { InsiderBuySellMeter } from "@/components/stock/InsiderBuySellMeter";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import {
   AnalystRatingSection,
@@ -236,8 +236,8 @@ export default function CompanyPage({
               industry={profile?.industry ?? null}
             />
 
-            {/* "What are insiders doing?" — right under About. */}
-            <InsiderActivitySummary ticker={sym} />
+            {/* "What are insiders doing?" — buy/sell balance meter, right under About. */}
+            <InsiderBuySellMeter transactions={data.transactions} />
 
             {/* ── 9-tab nav (reference layout) ── */}
             <div className="w-full" style={{ borderBottom: "1px solid var(--border)" }}>

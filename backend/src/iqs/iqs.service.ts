@@ -1747,7 +1747,8 @@ export class IqsService {
     // Buy/Sell side filter (P = open-market purchase, S = sale).
     if (opts.side === 'buy') qb.andWhere(`t."transactionCode" = 'P'`);
     else if (opts.side === 'sell') qb.andWhere(`t."transactionCode" = 'S'`);
-    else if (opts.side === 'all') qb.andWhere(`t."transactionCode" IN ('P','S')`);
+    else if (opts.side === 'all')
+      qb.andWhere(`t."transactionCode" IN ('P','S','A','M','X','F','C','G','J')`);
     // Current-month-only window (resets on the 1st, like the buy/sell meter).
     if (opts.month) {
       const now = new Date();
@@ -1758,7 +1759,36 @@ export class IqsService {
     const rows = await qb.limit(limit).offset(offset).getMany();
     return {
       total,
-      rows: rows.map((t) => {
+      rows: (() => {
+        const financingKeys = new Set<string>();
+        const grp = new Map<string, Set<string>>();
+        for (const t of rows) {
+          if (t.transactionCode !== 'P') continue;
+          const d = String(t.transactionDate).slice(0, 10);
+          const key = `${t.companyId}|${d}|${Number(t.sharesBought)}|${Number(t.pricePerShare)}`;
+          const set = grp.get(key) || new Set<string>();
+          set.add((t.insiderName || '').toLowerCase());
+          grp.set(key, set);
+        }
+        for (const [key, insiders] of grp) if (insiders.size >= 2) financingKeys.add(key);
+        const classify = (t: InsiderTransaction): { txType: string; txLabel: string } => {
+          const c = t.transactionCode;
+          if (c === 'P') {
+            const d = String(t.transactionDate).slice(0, 10);
+            const key = `${t.companyId}|${d}|${Number(t.sharesBought)}|${Number(t.pricePerShare)}`;
+            return financingKeys.has(key)
+              ? { txType: 'financing', txLabel: 'Financing' }
+              : { txType: 'open_market', txLabel: 'Open Market' };
+          }
+          if (c === 'S') return { txType: 'open_market', txLabel: 'Open Market' };
+          if (c === 'A') return { txType: 'grant', txLabel: 'Grant / Award' };
+          if (c === 'M' || c === 'X') return { txType: 'option', txLabel: 'Option Exercise' };
+          if (c === 'F') return { txType: 'tax', txLabel: 'Tax Withholding' };
+          if (c === 'G') return { txType: 'gift', txLabel: 'Gift' };
+          if (c === 'C') return { txType: 'conversion', txLabel: 'Conversion' };
+          return { txType: 'other', txLabel: 'Other' };
+        };
+        return rows.map((t) => {
         const capNum = t.company?.marketCap != null ? Number(t.company.marketCap) : 0;
         const suspect =
           !isPlausibleTx(
@@ -1775,7 +1805,8 @@ export class IqsService {
           insiderName: t.insiderName,
           role: t.role,
           rawTitle: t.rawTitle,
-          type: t.transactionCode === 'S' ? 'SELL' : 'BUY',
+          type:
+            t.transactionCode === 'S' || t.acquiredDisposed === 'D' ? 'SELL' : 'BUY',
           ticker: t.company?.ticker || null,
           companyName: t.company?.name || '',
           sector: t.company?.sector || null,
@@ -1789,8 +1820,11 @@ export class IqsService {
           previousHoldings: t.previousHoldings === null ? null : Number(t.previousHoldings),
           transactionDate: t.transactionDate,
           filingUrl: this.form4Link(t.filingUrl, t.accessionNumber),
+          transactionCode: t.transactionCode,
+          ...classify(t),
         };
-      }),
+        });
+      })(),
     };
   }
 

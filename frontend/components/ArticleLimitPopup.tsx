@@ -76,65 +76,59 @@ export function ArticleGate({ slug, children }: { slug: string; children: React.
                 boxShadow: "0 -24px 70px rgba(0,0,0,0.35)",
               }}
             >
-              <div className="mx-auto max-w-5xl px-5 sm:px-10 py-7 sm:py-10">
-                <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-12">
-                  {/* Headline block */}
-                  <div className="min-w-0 lg:max-w-[380px] flex-shrink-0">
-                    <span
-                      className="inline-block text-[10.5px] font-bold uppercase tracking-widest px-2.5 py-1 rounded mb-3"
-                      style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
-                    >
-                      InsiderBuying &middot; Free Account
-                    </span>
-                    <h2 className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight">
-                      Unlock unlimited free articles
-                    </h2>
-                    <p className="mt-2 text-[14px] sm:text-[15px] text-soft leading-relaxed">
-                      Keep reading with a free account —{" "}
-                      <strong>no credit card, no payment.</strong>
-                    </p>
-                  </div>
+              <div className="mx-auto max-w-4xl px-5 sm:px-10 py-8 sm:py-10 text-center">
+                {/* Centered header */}
+                <span
+                  className="inline-block text-[10.5px] font-bold uppercase tracking-widest px-2.5 py-1 rounded mb-3"
+                  style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+                >
+                  InsiderBuying &middot; Free Account
+                </span>
+                <h2 className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight">
+                  Unlock unlimited free articles
+                </h2>
+                <p className="mt-2 text-[14px] sm:text-[15px] text-soft leading-relaxed max-w-lg mx-auto">
+                  Keep reading with a free account —{" "}
+                  <strong>no credit card, no payment.</strong>
+                </p>
 
-                  {/* Perks + CTA */}
-                  <div className="flex-1 min-w-0">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3.5">
-                      {PERKS.map((p) => {
-                        const Icon = p.icon;
-                        return (
-                          <div key={p.title} className="flex items-start gap-3">
-                            <span
-                              className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                              style={{ background: "var(--accent-soft)" }}
-                            >
-                              <Icon className="text-accent" style={{ height: 16, width: 16 }} />
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block text-[13.5px] font-bold leading-tight">{p.title}</span>
-                              <span className="block text-[12px] text-mute leading-snug mt-0.5">{p.body}</span>
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-5 flex flex-col sm:flex-row sm:items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setLoginOpen(true)}
-                        className="btn-primary flex-shrink-0"
-                        style={{ padding: "14px 34px", fontSize: 16, fontWeight: 700 }}
-                      >
-                        Create Your Free Account
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLoginOpen(true)}
-                        className="text-[13.5px] text-mute hover:text-accent transition text-left"
-                      >
-                        Already have an account?{" "}
-                        <span className="font-bold text-accent underline">Log in</span>
-                      </button>
-                    </div>
-                  </div>
+                {/* Perks — 3 equal columns, each centered (symmetric) */}
+                <div className="mt-7 grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6">
+                  {PERKS.map((p) => {
+                    const Icon = p.icon;
+                    return (
+                      <div key={p.title} className="flex flex-col items-center text-center gap-2 px-2">
+                        <span
+                          className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ background: "var(--accent-soft)" }}
+                        >
+                          <Icon className="text-accent" style={{ height: 18, width: 18 }} />
+                        </span>
+                        <span className="block text-[13.5px] font-bold leading-tight">{p.title}</span>
+                        <span className="block text-[12px] text-mute leading-snug">{p.body}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* CTA — centered, stacked */}
+                <div className="mt-8 flex flex-col items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setLoginOpen(true)}
+                    className="btn-primary"
+                    style={{ padding: "14px 40px", fontSize: 16, fontWeight: 700 }}
+                  >
+                    Create Your Free Account
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoginOpen(true)}
+                    className="text-[13.5px] text-mute hover:text-accent transition"
+                  >
+                    Already have an account?{" "}
+                    <span className="font-bold text-accent underline">Log in</span>
+                  </button>
                 </div>
               </div>
             </div>

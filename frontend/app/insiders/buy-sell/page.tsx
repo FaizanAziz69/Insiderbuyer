@@ -17,6 +17,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
+import { TxTypeBadge } from "@/components/TxTypeBadge";
 
 type Side = "all" | "buy" | "sell";
 
@@ -100,12 +101,16 @@ export default function InsiderBuySellPage() {
       align: "center",
       filterLabel: (r) => r.type || "BUY",
       sortValue: (r) => r.type || "BUY",
-      render: (r) =>
-        r.type === "SELL" ? (
-          <span className="badge" style={{ background: "color-mix(in srgb, var(--bad) 16%, transparent)", color: "var(--bad)" }}>SELL</span>
-        ) : (
-          <span className="badge badge-buy">BUY</span>
-        ),
+      render: (r) => (
+        <span className="inline-flex flex-col items-center gap-1">
+          {r.type === "SELL" ? (
+            <span className="badge" style={{ background: "color-mix(in srgb, var(--bad) 16%, transparent)", color: "var(--bad)" }}>SELL</span>
+          ) : (
+            <span className="badge badge-buy">BUY</span>
+          )}
+          <TxTypeBadge txType={r.txType} txLabel={r.txLabel} />
+        </span>
+      ),
     },
     {
       key: "shares",

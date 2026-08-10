@@ -182,6 +182,11 @@ export interface TradeRow {
   /** Filed price fails the plausibility guard (filer error on EDGAR) — the
    *  dollar figures are untrustworthy; render "—" and point at the filing. */
   priceSuspect?: boolean;
+  /** Raw Form 4 code + a classified transaction nature for the type badge:
+   *  open_market | financing | grant | option | tax | gift | conversion | other. */
+  transactionCode?: string;
+  txType?: string;
+  txLabel?: string;
 }
 
 export interface TradesResponse {
