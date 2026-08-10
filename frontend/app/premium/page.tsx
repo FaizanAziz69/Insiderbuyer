@@ -206,9 +206,42 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 }
 
 export default function PremiumPage() {
+  const { user } = useAuth();
+  const { premium } = usePremium();
   const [annual, setAnnual] = useState(true);
+  const [sub, setSub] = useState<{ plan?: string | null; renewsAt?: string | null; status?: string | null } | null>(null);
   const price = annual ? PRICING.annual : PRICING.monthly;
   const per = annual ? ANNUAL_PER_MONTH : PRICING.monthly;
+
+  // Pull the signed-in user's live subscription so the page reflects what
+  // they already have (plan + renewal), not a generic sales pitch.
+  useEffect(() => {
+    if (!user) { setSub(null); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/billing/status`, {
+          headers: { Authorization: `Bearer ${getAuthToken() ?? ""}` },
+        });
+        const d = await res.json().catch(() => ({}));
+        if (alive && res.ok) setSub({ plan: d?.plan, renewsAt: d?.renewsAt, status: d?.status });
+      } catch { /* ignore */ }
+    })();
+    return () => { alive = false; };
+  }, [user]);
+
+  // Default the toggle to the plan the subscriber is actually on.
+  useEffect(() => {
+    if (sub?.plan === "monthly") setAnnual(false);
+    else if (sub?.plan === "annual") setAnnual(true);
+  }, [sub?.plan]);
+
+  const renewStr = sub?.renewsAt
+    ? new Date(sub.renewsAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    : null;
+  const planLabel = sub?.plan === "monthly" ? "Monthly" : sub?.plan === "annual" ? "Annual" : null;
+  const onThisPlan =
+    premium && ((annual && sub?.plan === "annual") || (!annual && sub?.plan === "monthly"));
 
   return (
     <div className="sub-scope w-full">
@@ -243,6 +276,24 @@ export default function PremiumPage() {
       <div className="px-4">
         <CheckoutOutcome />
       </div>
+
+      {premium && (
+        <div className="max-w-3xl mx-auto px-4 mt-4">
+          <div className="rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            style={{ background: "var(--good-soft)", border: "1px solid var(--good)" }}>
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="h-5 w-5 flex-shrink-0" style={{ color: "var(--good-strong)" }} />
+              <span className="text-[14px] font-semibold" style={{ color: "var(--good-strong)" }}>
+                You&rsquo;re on Insider Premium{planLabel ? ` — ${planLabel}` : ""}
+                {renewStr ? ` · renews ${renewStr}` : ""}. Every paywall is unlocked.
+              </span>
+            </div>
+            <div className="flex-shrink-0 sm:w-[220px]">
+              <BuyButton plan={sub?.plan === "monthly" ? "monthly" : "annual"} label="Manage subscription" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Pricing (TipRanks-style: toggle + Free vs Premium) ─── */}
       <section id="pricing" className="max-w-4xl mx-auto px-4 py-10 scroll-mt-8">
@@ -297,8 +348,8 @@ export default function PremiumPage() {
           {/* Premium (highlighted) */}
           <div className="sub-card sub-card-hi p-6 sm:p-7 relative">
             <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10.5px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full"
-              style={{ background: "var(--accent)", color: "var(--on-accent)" }}>
-              Most Popular
+              style={{ background: onThisPlan ? "var(--good)" : "var(--accent)", color: "#fff" }}>
+              {onThisPlan ? "Your Plan" : "Most Popular"}
             </span>
             <div className="text-[13px] font-bold uppercase tracking-wider" style={{ color: "var(--accent)" }}>Insider Premium</div>
             <div className="mt-2 flex items-baseline gap-1.5">
