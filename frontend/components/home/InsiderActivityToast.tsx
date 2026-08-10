@@ -1,9 +1,8 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, TrendingDown, TrendingUp, X } from "lucide-react";
+import { ArrowRight, Lock, TrendingDown, TrendingUp, X } from "lucide-react";
 import useSWR from "swr";
 import {
   API_BASE,
@@ -12,10 +11,8 @@ import {
   formatCurrency,
   formatNumber,
 } from "@/lib/api";
-import { CompanyLogo } from "@/components/CompanyLogo";
 import { InsiderAvatar } from "@/components/InsiderAvatar";
-import { useAuth } from "@/lib/auth";
-import { LoginModal } from "@/components/LoginModal";
+import { OptInModal } from "@/components/OptInModal";
 
 /** A single insider activity the widget cycles through. */
 export interface InsiderActivity {
@@ -40,6 +37,24 @@ const SIDE = {
 } as const;
 
 const SPRING = { type: "spring", stiffness: 260, damping: 26 } as const;
+
+// Locked-content blur: identity fields (company, ticker, insider name) are
+// teased behind this until the visitor unlocks via the opt-in.
+const LOCK = { filter: "blur(6.5px)", userSelect: "none", pointerEvents: "none" } as const;
+
+/** One compact stat in the price / target / upside row. */
+function ToastStat({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[9px] uppercase tracking-wider font-bold" style={{ color: "rgba(255,255,255,0.4)" }}>
+        {label}
+      </div>
+      <div className="mt-0.5 text-[13.5px] font-bold tabular truncate" style={{ color: color ?? "rgba(255,255,255,0.92)" }}>
+        {value}
+      </div>
+    </div>
+  );
+}
 
 // Shopify-style "Cha-Ching" sale sound — a real MP3 asset served from
 // /public/sounds. Autoplay is gated by the browser until a user gesture, so a
@@ -226,26 +241,8 @@ export function InsiderActivityToast({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, dismissed]);
 
-  const { user } = useAuth();
-  const [signupOpen, setSignupOpen] = useState(false);
-
-  // Opt-in tease (review "Explore" items): the latest congressional BUY with a
-  // photo — shown blurred in the expanded card to drive free-account signups.
-  const { data: congressData } = useSWR<{ rows: any[] }>(
-    `${API_BASE}/congressional-trades?limit=40`,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
-  );
-  const politicianBuy = useMemo(() => {
-    const rows = congressData?.rows || [];
-    // Prefer a row with a real photo (blurred below); otherwise still tease
-    // the buy with the flag-backed mystery-politician avatar.
-    return (
-      rows.find((r) => r.action === "Buy" && r.photoUrl && r.ticker) ||
-      rows.find((r) => r.action === "Buy" && r.ticker) ||
-      null
-    );
-  }, [congressData]);
+  const router = useRouter();
+  const [optInOpen, setOptInOpen] = useState(false);
 
   const { data } = useSWR<TradesResponse>(
     // Buys only, server-side — the generic trades feed is often dominated by
@@ -284,6 +281,16 @@ export function InsiderActivityToast({
   }, [provided, data]);
 
   const count = activities.length;
+
+  // Analyst coverage for the currently shown ticker: current price, mean price
+  // target and implied upside — the visible "tease" numbers on the card.
+  const curTicker = activities[idx]?.ticker || null;
+  const { data: covData } = useSWR<{ rows: any[] }>(
+    curTicker ? `${API_BASE}/market-stats/analyst-ratings?symbols=${curTicker}` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
+  const cov = covData?.rows?.[0] || null;
 
   // Baseline: on first load, acknowledge the current newest so existing trades
   // aren't counted as "new".
@@ -436,7 +443,7 @@ export function InsiderActivityToast({
                     className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold whitespace-nowrap"
                     style={{ color: "rgba(255,255,255,0.9)" }}
                   >
-                    <span className="font-mono">{a.ticker}</span>
+                    <span>Insider</span>
                     <span style={{ color: s.solid }}>{s.verb}</span>
                   </motion.span>
                 </>
@@ -486,15 +493,7 @@ export function InsiderActivityToast({
                   exit={reduce ? { opacity: 0 } : { opacity: 0, y: -30, scale: 0.98 }}
                   transition={SPRING}
                 >
-                  <Link
-                    href="/insiders/hot"
-                    aria-label={`${a.role} purchased ${formatCurrency(a.amount)} of ${a.ticker}. View Top Insider Scores.`}
-                    className="group block cursor-pointer px-5 pt-4 pb-4 focus:outline-none"
-                    style={{
-                      transform: hovered && !reduce ? "translateY(-4px)" : "translateY(0)",
-                      transition: "transform 0.3s ease",
-                    }}
-                  >
+                  <div className="px-5 pt-4 pb-4">
                     {/* LIVE header */}
                     <div className="flex items-center gap-2 pr-9">
                       <LiveDot reduce={reduce} />
@@ -503,19 +502,23 @@ export function InsiderActivityToast({
                       </span>
                     </div>
 
-                    {/* Logo + ticker */}
-                    <div className="mt-3.5 flex items-center justify-between">
-                      <motion.div
-                        animate={reduce ? undefined : { y: [0, -2, 0] }}
-                        transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
-                        className="rounded-xl overflow-hidden bg-white flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105"
-                        style={{ width: 40, height: 40, padding: 3 }}
+                    {/* Company name (locked) with the ticker directly beneath —
+                        both blurred until the visitor unlocks. */}
+                    <div className="mt-3.5">
+                      <div
+                        className="text-[17px] font-bold leading-tight select-none"
+                        style={{ color: "rgba(255,255,255,0.95)", ...LOCK }}
+                        aria-hidden
                       >
-                        <CompanyLogo ticker={a.ticker} name={a.company} size={34} />
-                      </motion.div>
-                      <span className="text-[15px] font-bold font-mono tracking-wide" style={{ color: "rgba(255,255,255,0.92)" }}>
+                        {a.company || "Company Name"}
+                      </div>
+                      <div
+                        className="mt-1 text-[13px] font-mono font-bold tracking-wide select-none"
+                        style={{ color: "rgba(255,255,255,0.7)", ...LOCK }}
+                        aria-hidden
+                      >
                         {a.ticker}
-                      </span>
+                      </div>
                     </div>
 
                     {/* Badge */}
@@ -552,65 +555,52 @@ export function InsiderActivityToast({
                       {a.pricePerShare > 0 && <> • ${a.pricePerShare.toFixed(2)}/share</>}
                     </div>
 
-                    {/* Insider (blurred-face avatar — identity teased) • time */}
-                    <div className="mt-2 flex items-center gap-2">
-                      <InsiderAvatar name={a.insiderName} kind="insider" size={30} />
-                      <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.55)" }}>
-                        <span className="font-semibold" style={{ color: "rgba(255,255,255,0.85)" }}>{a.insiderName}</span>
-                        {" • "}
-                        {relTime(a.date)}
+                    {/* Insider — enlarged blurred-face avatar, name locked • time */}
+                    <div className="mt-3 flex items-center gap-3">
+                      <span className="flex-shrink-0" style={{ filter: "blur(1.5px)" }} aria-hidden>
+                        <InsiderAvatar name={a.insiderName} kind="insider" size={54} />
+                      </span>
+                      <span className="text-[12px] min-w-0" style={{ color: "rgba(255,255,255,0.55)" }}>
+                        <span
+                          className="font-semibold block select-none"
+                          style={{ color: "rgba(255,255,255,0.85)", ...LOCK }}
+                          aria-hidden
+                        >
+                          {a.insiderName || "Insider Name"}
+                        </span>
+                        <span className="block mt-0.5">{relTime(a.date)}</span>
                       </span>
                     </div>
 
-                    {/* CTA → stock page */}
-                    <span
-                      className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold transition-[filter] group-hover:brightness-125"
-                      style={{ color: s.solid }}
+                    {/* Price / target / upside — the visible tease numbers */}
+                    <div
+                      className="mt-3.5 grid grid-cols-3 gap-2 rounded-lg px-3 py-2.5"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
                     >
-                      View Top Insider Scores
-                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
-                    </span>
-                  </Link>
+                      <ToastStat label="Price" value={cov?.price != null ? formatCurrency(cov.price) : "—"} />
+                      <ToastStat label="Price Target" value={cov?.targetMean != null ? formatCurrency(cov.targetMean) : "—"} />
+                      <ToastStat
+                        label="Upside"
+                        value={cov?.upsidePct != null ? `${cov.upsidePct >= 0 ? "+" : ""}${Number(cov.upsidePct).toFixed(1)}%` : "—"}
+                        color={cov?.upsidePct == null ? undefined : cov.upsidePct >= 0 ? "#10B981" : "#EF4444"}
+                      />
+                    </div>
+
+                    {/* Unlock CTA → email/SMS opt-in → subscribe page */}
+                    <button
+                      type="button"
+                      onClick={() => setOptInOpen(true)}
+                      className="mt-3.5 w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 text-[13px] font-bold uppercase tracking-wider transition hover:brightness-110"
+                      style={{ background: s.solid, color: "#052015", boxShadow: `0 6px 20px ${s.glow}` }}
+                    >
+                      <Lock className="h-3.5 w-3.5" strokeWidth={2.6} />
+                      Unlock Insider Information
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
                 </motion.div>
               </AnimatePresence>
             </div>
-
-            {/* Opt-in strip — blurred politician buy → free signup (review item) */}
-            {!user && politicianBuy && (
-              <button
-                type="button"
-                onClick={() => setSignupOpen(true)}
-                className="relative z-10 w-full flex items-center gap-3 px-4 py-2.5 text-left transition hover:bg-[rgba(255,255,255,0.06)]"
-                style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
-              >
-                <span className="relative h-8 w-8 rounded-full overflow-hidden flex-shrink-0" aria-hidden>
-                  {politicianBuy.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={politicianBuy.photoUrl}
-                      alt=""
-                      className="h-full w-full object-cover"
-                      style={{ filter: "blur(5px) saturate(1.1)", transform: "scale(1.15)" }}
-                    />
-                  ) : (
-                    <InsiderAvatar
-                      name={politicianBuy.politician || politicianBuy.name || ""}
-                      kind="politician"
-                      size={32}
-                    />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[12px] font-bold leading-tight" style={{ color: "#fff" }}>
-                    A member of Congress just bought {politicianBuy.ticker}
-                  </span>
-                  <span className="block text-[11px] leading-tight" style={{ color: "rgba(255,255,255,0.6)" }}>
-                    Create a free account to see who — plus daily insider alerts
-                  </span>
-                </span>
-                <ArrowRight className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.7)" }} />
-              </button>
-            )}
 
             {/* Progress bar */}
             {count > 1 && (
@@ -630,7 +620,23 @@ export function InsiderActivityToast({
       </AnimatePresence>
         </motion.div>
       </motion.div>
-      <LoginModal open={signupOpen} onClose={() => setSignupOpen(false)} />
+      <OptInModal
+        open={optInOpen}
+        onClose={() => setOptInOpen(false)}
+        source="insider-activity-toast"
+        headerLabel="Unlock Insider Information"
+        promo={{
+          eyebrow: "Unlock Insider Information",
+          title: "See who's buying — before the crowd",
+          body: "Reveal the insider's name and the company on every live buy, plus our full Insider Score. Get daily alerts the moment insiders and members of Congress file.",
+          cta: "Unlock Access",
+          note: "Enter your email (add a phone for SMS alerts) to unlock and continue.",
+        }}
+        onSubscribed={() => {
+          setOptInOpen(false);
+          router.push("/premium");
+        }}
+      />
     </>
   );
 }
