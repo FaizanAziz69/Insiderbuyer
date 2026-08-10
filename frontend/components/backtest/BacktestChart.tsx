@@ -54,6 +54,15 @@ export function BacktestChart({
   /** Axis/tooltip number: index (100 = start) or % change from start. */
   const fmtVal = (v: number) =>
     tipranks ? `${v - 100 >= 0 ? "+" : ""}${Math.round(v - 100)}%` : `${Math.round(v)}`;
+  // Compact $-value for the Y axis (growth of $100), e.g. $100 · $1.5K · $2B —
+  // the money scale shown in the reference layout.
+  const fmtMoney = (v: number) => {
+    const a = Math.abs(v);
+    if (a >= 1e9) return `$${(v / 1e9).toFixed(a >= 1e10 ? 0 : 1)}B`;
+    if (a >= 1e6) return `$${(v / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M`;
+    if (a >= 1e3) return `$${(v / 1e3).toFixed(a >= 1e4 ? 0 : 1)}K`;
+    return `$${Math.round(v)}`;
+  };
 
   // Timeframe + series toggles (QuiverQuant layout).
   const RANGES = ["1M", "3M", "6M", "YTD", "1Y", "2Y", "5Y", "MAX"] as const;
@@ -261,7 +270,7 @@ export function BacktestChart({
               style={{ fontSize: 10, fill: "var(--text-mute)" }}
               className="tabular"
             >
-              {fmtVal(v)}
+              {tipranks ? fmtMoney(v) : fmtVal(v)}
             </text>
           </g>
         ))}
