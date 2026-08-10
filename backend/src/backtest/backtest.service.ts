@@ -89,7 +89,7 @@ export class BacktestService {
    *  60s function limit; the next request picks up where this one stopped. */
   private readonly SLICE = 45;
   private readonly CONCURRENCY = 6;
-  private readonly CACHE_KEY = 'insider-strategy-v5'; // v5 = sustained-density start
+  private readonly CACHE_KEY = 'insider-strategy-v6'; // v6 = 2014 start floor + full price history
 
   constructor(
     @InjectRepository(InsiderTransaction)
@@ -158,7 +158,7 @@ export class BacktestService {
         const chunk = slice.slice(i, i + this.CONCURRENCY);
         const got = await Promise.all(
           chunk.map((sym) =>
-            this.market.getCloseHistory(sym, '10y').catch(() => []),
+            this.market.getCloseHistory(sym, 'max').catch(() => []),
           ),
         );
         // Forced upsert, NOT save(): TypeORM skips a no-op UPDATE when the
@@ -340,7 +340,10 @@ export class BacktestService {
     //    ranking already has a full 30 days of filings behind it.
     const firstMs = events[0].ms;
     const lastMs = events[events.length - 1].ms;
-    const start = firstMs + LOOKBACK_DAYS * DAY;
+    // Hard floor at 2014-01-01 (reference layout starts there); earlier Form 4
+    // history is too sparse and its priced coverage too thin to chart honestly.
+    const START_FLOOR = Date.UTC(2014, 0, 1);
+    const start = Math.max(firstMs + LOOKBACK_DAYS * DAY, START_FLOOR);
     const weeks: number[] = [];
     for (let t = start; t <= lastMs; t += WEEK) weeks.push(t);
     if (weeks.length < 8) {

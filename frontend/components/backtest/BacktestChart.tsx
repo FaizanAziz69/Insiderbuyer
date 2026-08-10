@@ -112,13 +112,29 @@ export function BacktestChart({
     const ticks: number[] = [];
     for (let i = 0; i <= 4; i++) ticks.push(lo + ((hi - lo) * i) / 4);
 
-    // Evenly spaced time ticks across the axis (reference style), endpoints
-    // included; interior count adapts to the window length.
-    const xTicks: number[] = [];
-    const N = 5;
-    for (let i = 0; i <= N; i++) xTicks.push(x0 + ((x1 - x0) * i) / N);
+    // Time ticks. For long (multi-year) windows use clean calendar-year marks
+    // (2014, 2016 … like the reference); for short windows fall back to evenly
+    // spaced points.
+    const spanYears = (x1 - x0) / (365.25 * 86400000);
+    let xTicks: number[] = [];
+    let xYearOnly = false;
+    if (spanYears >= 3) {
+      xYearOnly = true;
+      const y0 = new Date(x0).getUTCFullYear();
+      const y1 = new Date(x1).getUTCFullYear();
+      const step = spanYears >= 9 ? 2 : 1;
+      // First aligned year strictly inside the window, then every `step` years.
+      const startYear = Math.ceil(y0 / step) * step;
+      for (let y = startYear; y <= y1; y += step) {
+        const t = Date.UTC(y, 0, 1);
+        if (t >= x0 && t <= x1) xTicks.push(t);
+      }
+    } else {
+      const N = 5;
+      for (let i = 0; i <= N; i++) xTicks.push(x0 + ((x1 - x0) * i) / N);
+    }
 
-    return { x0, x1, lo, hi, px, py, sPath: line("s"), bPath: line("b"), areaS, ticks, xTicks };
+    return { x0, x1, lo, hi, px, py, sPath: line("s"), bPath: line("b"), areaS, ticks, xTicks, xYearOnly };
   }, [view, H, showMarket]);
 
   if (!geom) return null;
@@ -250,16 +266,24 @@ export function BacktestChart({
           </g>
         ))}
 
-        {/* x labels — evenly spaced, anchored so the ends stay inside */}
+        {/* x labels — calendar-year marks on long windows, else evenly spaced */}
         {geom.xTicks.map((t, i) => (
           <text
             key={`x${i}`}
             x={geom.px(t)}
             y={H - 8}
-            textAnchor={i === 0 ? "start" : i === geom.xTicks.length - 1 ? "end" : "middle"}
+            textAnchor={
+              geom.xYearOnly
+                ? "middle"
+                : i === 0
+                  ? "start"
+                  : i === geom.xTicks.length - 1
+                    ? "end"
+                    : "middle"
+            }
             style={{ fontSize: 10, fill: "var(--text-mute)" }}
           >
-            {fmtDate(t)}
+            {geom.xYearOnly ? new Date(t).getUTCFullYear() : fmtDate(t)}
           </text>
         ))}
 
@@ -329,15 +353,37 @@ export function BacktestChart({
               );
             })}
           </div>
-          <div className="inline-flex items-center gap-4 text-[12px] font-semibold">
-            <label className="inline-flex items-center gap-1.5 cursor-pointer">
-              <input type="checkbox" checked={rebase} onChange={(e) => setRebase(e.target.checked)} />
-              <span style={{ color: "var(--text-soft)" }}>Start</span>
-            </label>
-            <label className="inline-flex items-center gap-1.5 cursor-pointer">
-              <input type="checkbox" checked={showMarket} onChange={(e) => setShowMarket(e.target.checked)} />
-              <span className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: cBench }} />Market</span>
-            </label>
+          <div className="inline-flex items-center gap-2 text-[12px] font-semibold">
+            <button
+              type="button"
+              onClick={() => setRebase((v) => !v)}
+              aria-pressed={rebase}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition"
+              style={{
+                background: rebase ? "var(--accent-soft)" : "transparent",
+                color: rebase ? "var(--accent)" : "var(--text-mute)",
+                border: `1px solid ${rebase ? "var(--accent)" : "var(--border-strong)"}`,
+              }}
+            >
+              Start
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowMarket((v) => !v)}
+              aria-pressed={showMarket}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition"
+              style={{
+                background: showMarket ? "var(--accent-soft)" : "transparent",
+                color: showMarket ? "var(--text)" : "var(--text-mute)",
+                border: `1px solid ${showMarket ? cBench : "var(--border-strong)"}`,
+              }}
+            >
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-sm"
+                style={{ background: showMarket ? cBench : "transparent", border: `1px solid ${cBench}` }}
+              />
+              Market
+            </button>
           </div>
         </div>
       ) : (
