@@ -89,7 +89,7 @@ export class BacktestService {
    *  60s function limit; the next request picks up where this one stopped. */
   private readonly SLICE = 45;
   private readonly CONCURRENCY = 6;
-  private readonly CACHE_KEY = 'insider-strategy-v3'; // v3 = 10-year event store
+  private readonly CACHE_KEY = 'insider-strategy-v4'; // v4 = trim dead-start weeks + return clamp
 
   constructor(
     @InjectRepository(InsiderTransaction)
@@ -384,10 +384,25 @@ export class BacktestService {
       return MarketStatsService.closeOn(h, ms);
     };
 
-    // 5. Walk the weeks, equal-weighting whatever priced names we hold.
+    // 5a. Trim the leading period where the strategy can't even form a real
+    //     basket — early history has too few insider filings, so the curve
+    //     would sit flat at 100 for years then spike (misleading). Start at
+    //     the first week that holds at least MIN_HELD priced names.
+    const MIN_HELD = 5;
+    const heldCount = (i: number) =>
+      picksByWeek[i].filter((tk) => {
+        const p = priceOn(tk, weeks[i]);
+        return p != null && p > 0;
+      }).length;
+    let startIdx = 0;
+    while (startIdx < weeks.length - 8 && heldCount(startIdx) < MIN_HELD) startIdx++;
+    const W = weeks.slice(startIdx);
+    const P = picksByWeek.slice(startIdx);
+
+    // 5b. Walk the weeks, equal-weighting whatever priced names we hold.
     let equity = 100;
     let bench = 100;
-    const curve: EquityPoint[] = [{ t: weeks[0], s: 100, b: 100 }];
+    const curve: EquityPoint[] = [{ t: W[0], s: 100, b: 100 }];
     const weeklyReturns: number[] = [];
     const benchReturns: number[] = [];
     let wins = 0;
@@ -396,16 +411,20 @@ export class BacktestService {
     let lossSum = 0;
     let trades = 0;
 
-    for (let i = 0; i < weeks.length - 1; i++) {
-      const open = weeks[i];
-      const close = weeks[i + 1];
+    for (let i = 0; i < W.length - 1; i++) {
+      const open = W[i];
+      const close = W[i + 1];
 
       const rets: number[] = [];
-      for (const tk of picksByWeek[i]) {
+      for (const tk of P[i]) {
         const p0 = priceOn(tk, open);
         const p1 = priceOn(tk, close);
         if (p0 == null || p1 == null || !(p0 > 0) || !(p1 > 0)) continue;
-        rets.push(p1 / p0 - 1);
+        // Sanity clamp: a single-name weekly move beyond +200% / −90% is
+        // almost always a bad tick / split artifact in a thin micro-cap, not
+        // a real return — cap it so one bad print can't distort the curve.
+        const r = Math.max(-0.9, Math.min(2, p1 / p0 - 1));
+        rets.push(r);
         trades += 1;
       }
       const b0 = priceOn(BENCHMARK, open);
@@ -439,7 +458,7 @@ export class BacktestService {
 
     // 6. Statistics.
     const n = weeklyReturns.length;
-    const years = (weeks[weeks.length - 1] - weeks[0]) / (365.25 * DAY);
+    const years = (W[W.length - 1] - W[0]) / (365.25 * DAY);
     const mean = weeklyReturns.reduce((a, b) => a + b, 0) / n;
     const variance =
       weeklyReturns.reduce((a, r) => a + (r - mean) ** 2, 0) / Math.max(1, n - 1);
@@ -475,8 +494,8 @@ export class BacktestService {
     const pct = (x: number) => Math.round(x * 1000) / 10;
 
     const stats: BacktestStats = {
-      startDate: new Date(weeks[0]).toISOString().slice(0, 10),
-      endDate: new Date(weeks[weeks.length - 1]).toISOString().slice(0, 10),
+      startDate: new Date(W[0]).toISOString().slice(0, 10),
+      endDate: new Date(W[W.length - 1]).toISOString().slice(0, 10),
       years: Math.round(years * 100) / 100,
       totalReturn: pct(totalReturn),
       cagr: pct(years > 0 ? (equity / 100) ** (1 / years) - 1 : 0),
