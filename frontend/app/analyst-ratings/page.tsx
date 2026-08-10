@@ -2,95 +2,163 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useState } from "react";
-import { ShieldCheck } from "lucide-react";
-import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
-import { PriceTargetCell } from "@/components/PriceTargetCell";
-import { CompanyLogo } from "@/components/CompanyLogo";
+import { Star } from "lucide-react";
+import { API_BASE, fetcher } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
-import { DataTable } from "@/components/DataTable";
-import { WatchlistButton } from "@/components/WatchlistButton";
+import { DataTable, Column } from "@/components/DataTable";
 import { rankColumn } from "@/components/tableColumns";
 
+/** One ranked Wall Street analyst — matches the stockanalysis.com "Top
+ *  Analysts" table: name, firm, main sector, measured success rate + average
+ *  return, rating count and last rating date. */
 interface AnalystRow {
-  symbol: string;
-  name: string;
-  sector: string | null;
-  price: number;
-  targetMean: number | null;
-  targetHigh: number | null;
-  targetLow: number | null;
-  upsidePct: number | null;
-  recommendation: string | null;
-  numAnalysts: number | null;
-  /** Insider Score + blended Top Stocks score (from /top-stocks). */
-  iqs?: number | null;
-  insiderSuccess?: number | null;
-  topStocksScore?: number | null;
+  analyst: string;
+  firm: string | null;
+  slug: string;
+  ratings: number;
+  scoredRatings: number;
+  successRate: number | null;
+  avgReturn: number | null;
+  mainSector: string | null;
+  lastRatingMs: number | null;
 }
 
-const REC_LABEL: Record<string, { label: string; color: string }> = {
-  strong_buy: { label: "Strong Buy", color: "var(--good)" },
-  buy: { label: "Buy", color: "var(--good)" },
-  hold: { label: "Hold", color: "var(--gold)" },
-  underperform: { label: "Underperform", color: "var(--bad)" },
-  sell: { label: "Sell", color: "var(--bad)" },
-};
+function fmtDate(ms: number | null): string {
+  if (!ms) return "—";
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
 
 export default function AnalystRatingsPage() {
   const [q, setQ] = useState("");
   const { data, isLoading } = useSWR<{ rows: AnalystRow[] }>(
-    `${API_BASE}/top-stocks`,
+    `${API_BASE}/analysts/top?limit=100`,
     fetcher,
-    { refreshInterval: 10 * 60_000, revalidateOnFocus: false },
+    { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
   const rows = (data?.rows || []).filter(
     (r) =>
       !q ||
-      r.symbol.toLowerCase().includes(q.toLowerCase()) ||
-      r.name.toLowerCase().includes(q.toLowerCase()),
+      r.analyst.toLowerCase().includes(q.toLowerCase()) ||
+      (r.firm || "").toLowerCase().includes(q.toLowerCase()) ||
+      (r.mainSector || "").toLowerCase().includes(q.toLowerCase()),
   );
 
-  // Live quotes for the tickers shown in the table.
-  const tickerKey = rows
-    .map((r) => (r.symbol || "").toUpperCase())
-    .filter(Boolean)
-    .slice(0, 250)
-    .join(",");
-  const { data: quoteData } = useSWR<{ rows: { symbol: string; price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null; marketCap?: number | null }[] }>(
-    tickerKey ? `${API_BASE}/market-stats/quotes?symbols=${encodeURIComponent(tickerKey)}` : null,
-    fetcher,
-    { refreshInterval: 60_000, revalidateOnFocus: false },
-  );
-  const quoteBySym = new Map<string, { price: number; changePct: number; peRatio?: number | null; dividendYield?: number | null; marketCap?: number | null }>();
-  (quoteData?.rows || []).forEach((q) => quoteBySym.set(q.symbol.toUpperCase(), q));
+  const columns: Column<AnalystRow>[] = [
+    rankColumn<AnalystRow>(),
+    {
+      key: "analyst",
+      label: "Analyst Name",
+      sortValue: (r) => r.analyst,
+      render: (r) => (
+        <span className="font-semibold text-[14px]" style={{ color: "var(--text)" }}>
+          {r.analyst}
+        </span>
+      ),
+    },
+    {
+      key: "firm",
+      label: "Company",
+      sortValue: (r) => r.firm || "",
+      render: (r) => (
+        <span className="text-[13px]" style={{ color: "var(--text-soft)" }}>
+          {r.firm || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "mainSector",
+      label: "Main Sector",
+      sortValue: (r) => r.mainSector || "",
+      render: (r) => (
+        <span className="text-[13px]" style={{ color: "var(--text-soft)" }}>
+          {r.mainSector || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "successRate",
+      label: "Success Rate",
+      align: "right",
+      sortValue: (r) => r.successRate ?? -1,
+      render: (r) =>
+        r.successRate == null ? (
+          <span className="text-mute text-[12px]">Pending</span>
+        ) : (
+          <span
+            className="tabular font-bold text-[13.5px]"
+            style={{ color: r.successRate >= 50 ? "var(--good)" : "var(--bad)" }}
+          >
+            {r.successRate.toFixed(1)}%
+          </span>
+        ),
+    },
+    {
+      key: "avgReturn",
+      label: "Average Return",
+      align: "right",
+      sortValue: (r) => r.avgReturn ?? -9999,
+      render: (r) =>
+        r.avgReturn == null ? (
+          <span className="text-mute text-[12px]">—</span>
+        ) : (
+          <span
+            className="tabular font-bold text-[13.5px]"
+            style={{ color: r.avgReturn >= 0 ? "var(--good)" : "var(--bad)" }}
+          >
+            {r.avgReturn >= 0 ? "+" : ""}
+            {r.avgReturn.toFixed(2)}%
+          </span>
+        ),
+    },
+    {
+      key: "ratings",
+      label: "Ratings",
+      align: "right",
+      sortValue: (r) => r.ratings,
+      render: (r) => <span className="tabular text-[13.5px]">{r.ratings}</span>,
+    },
+    {
+      key: "lastRatingMs",
+      label: "Last Rating",
+      align: "right",
+      sortValue: (r) => r.lastRatingMs ?? 0,
+      render: (r) => (
+        <span className="text-mute text-[13px] tabular whitespace-nowrap">
+          {fmtDate(r.lastRatingMs)}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className="w-full space-y-6">
       <header>
         <div className="flex items-center gap-2 text-mute text-sm mb-1">
-          <ShieldCheck className="h-4 w-4" />
-          <span className="font-mono uppercase tracking-wider text-[11px]">
-            Analyst Ratings
-          </span>
+          <Star className="h-4 w-4" />
+          <span className="font-mono uppercase tracking-wider text-[11px]">Top Analysts</span>
         </div>
         <h1
           className="text-[32px] sm:text-[40px] font-semibold tracking-tight"
           style={{ letterSpacing: "-0.6px" }}
         >
-          Wall Street Analyst Ratings
+          Top Wall Street Analysts
         </h1>
         <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
-          Live consensus recommendations and 12-month price targets across the
-          most widely-covered U.S. stocks — ranked by the implied upside to the
-          average analyst price target. Data refreshed throughout the trading day.
+          Individual Wall Street analysts ranked by measured performance — the
+          success rate and average return of their price-target calls, scored
+          from each note&rsquo;s posting price against the year that followed.
+          A rate shows once an analyst has enough calls at least 30 days old;
+          newer coverage reads &ldquo;Pending&rdquo; rather than guessing.
         </p>
       </header>
 
       <Link
         href="/top-analysts"
-        className="inline-flex items-center gap-1.5 text-[13px] font-semibold"
+        className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline"
       >
-        See the analyst firms ranked by success rate →
+        See research firms ranked by track record →
       </Link>
 
       <AdSlot slot="leaderboard" seed="analyst-top" />
@@ -105,7 +173,7 @@ export default function AnalystRatingsPage() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Ticker or company…"
+          placeholder="Analyst, firm or sector…"
           className="w-full sm:max-w-xs px-3 py-2 rounded-md text-[13px]"
           style={{
             background: "var(--bg-1)",
@@ -117,126 +185,23 @@ export default function AnalystRatingsPage() {
 
       <div className="card overflow-hidden">
         {isLoading ? (
-          <div className="text-center text-mute py-10">Loading live analyst data…</div>
+          <div className="text-center text-mute py-10">Loading analyst performance…</div>
         ) : (
           <DataTable<AnalystRow>
             rows={rows}
-            rowKey={(r) => r.symbol}
-            initialSort={{ key: "upsidePct", dir: "desc" }}
-            empty="No matches."
-            columns={[
-              rankColumn<AnalystRow>(),
-              {
-                key: "company",
-                label: "Company",
-                sortValue: (r) => r.symbol,
-                render: (r) => (
-                  <span className="inline-flex items-center gap-2">
-                    <WatchlistButton ticker={r.symbol} variant="icon" size="sm" />
-                    <Link
-                      href={`/companies/${encodeURIComponent(r.symbol)}`}
-                      className="flex items-center gap-2.5"
-                    >
-                      <CompanyLogo ticker={r.symbol} name={r.name} size={28} />
-                      <div className="min-w-0">
-                        <div className="font-mono text-[15px] font-bold text-accent">
-                          {r.symbol}
-                        </div>
-                        <div className="text-[13px] font-medium truncate max-w-[170px]" style={{ color: "var(--text)" }}>
-                          {r.name}
-                        </div>
-                      </div>
-                    </Link>
-                  </span>
-                ),
-              },
-              {
-                key: "price",
-                label: "Price",
-                filterable: true,
-                filterType: "range",
-                align: "right",
-                sortValue: (r) => r.price,
-                render: (r) => <span className="tabular text-[14px] font-bold">${r.price.toFixed(2)}</span>,
-              },
-              {
-                key: "changePct",
-                label: "Change %",
-                align: "right",
-                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.changePct ?? null,
-                render: (r) => {
-                  const q = quoteBySym.get((r.symbol || "").toUpperCase());
-                  if (!q || q.changePct == null) return <span className="text-faint text-[13px]">—</span>;
-                  const up = q.changePct >= 0;
-                  return <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>{up ? "+" : ""}{q.changePct.toFixed(2)}%</span>;
-                },
-              },
-              {
-                key: "consensus",
-                label: "Consensus",
-                filterable: true,
-                sortValue: (r) => r.recommendation ?? "",
-                render: (r) => {
-                  const rec = r.recommendation
-                    ? REC_LABEL[r.recommendation] || {
-                        label: r.recommendation,
-                        color: "var(--text-soft)",
-                      }
-                    : null;
-                  return rec ? (
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
-                      style={{
-                        background: `color-mix(in srgb, ${rec.color} 16%, transparent)`,
-                        color: rec.color,
-                      }}
-                    >
-                      {rec.label}
-                    </span>
-                  ) : (
-                    "—"
-                  );
-                },
-              },
-              {
-                key: "upsidePct",
-                label: "Analyst Price Target",
-                filterable: true,
-                filterType: "range",
-                filterLabelText: "Upside %",
-                align: "center",
-                // Client spec: ranked by the UPSIDE, not the target price.
-                sortValue: (r) => r.upsidePct,
-                render: (r) => (
-                  <PriceTargetCell target={r.targetMean} upsidePct={r.upsidePct} />
-                ),
-              },
-              {
-                key: "marketCap",
-                label: "Market Cap",
-                filterable: true,
-                filterType: "marketCapPreset",
-                filterLabelText: "Market Cap",
-                align: "right",
-                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null,
-                render: (r) => {
-                  const mc = quoteBySym.get((r.symbol || "").toUpperCase())?.marketCap ?? null;
-                  return (
-                    <span className="tabular text-mute text-[14px] font-bold">
-                      {mc ? formatCurrency(mc) : "—"}
-                    </span>
-                  );
-                },
-              },
-            ]}
+            rowKey={(r) => r.slug || r.analyst}
+            initialSort={{ key: "successRate", dir: "desc" }}
+            empty="No matching analysts."
+            columns={columns}
           />
         )}
       </div>
 
-      <p className="text-[11px] text-faint">
-        Source: aggregated sell-side analyst coverage via live market data feed.
-        Consensus and price targets are informational only and not a
-        recommendation to buy or sell any security.
+      <p className="text-[12px] text-mute leading-relaxed">
+        Success rate = share of an analyst&rsquo;s directional calls that moved
+        the way their target implied, one year out (or to date). Average return
+        is the mean move in that direction. Measured from our own record of
+        published price targets — informational, not investment advice.
       </p>
     </div>
   );

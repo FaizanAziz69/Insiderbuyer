@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { AnalystPriceTarget } from '../entities/analyst-target.entity';
 import { FmpService } from '../fmp/fmp.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
+import { SECTOR_BY_TICKER } from '../market-stats/market-sectors';
 import {
   MIN_SEASONING_DAYS,
   firmSlug,
@@ -23,6 +24,8 @@ export interface TopAnalystRow {
   /** Mean (target ÷ price-at-note − 1)%, computable from day one. */
   avgImpliedUpside: number | null;
   lastRatingMs: number | null;
+  /** The sector this analyst covers most (from their rated symbols). */
+  mainSector: string | null;
   topSymbols: string[];
   /** 0 until the analyst has scored calls. */
   stars: number;
@@ -188,6 +191,7 @@ export class AnalystsService {
       lastMs: number | null;
       pastYear: number;
       symbols: Map<string, number>;
+      sectors: Map<string, number>;
       latest: TopAnalystRow['latest'];
     }
     const byAnalyst = new Map<string, Acc>();
@@ -208,6 +212,7 @@ export class AnalystsService {
           lastMs: null,
           pastYear: 0,
           symbols: new Map(),
+          sectors: new Map(),
           latest: null,
         };
         byAnalyst.set(key, a);
@@ -217,6 +222,8 @@ export class AnalystsService {
       const ms = new Date(t.publishedDate).getTime();
       a.ratings += 1;
       a.symbols.set(t.symbol, (a.symbols.get(t.symbol) || 0) + 1);
+      const sec = SECTOR_BY_TICKER[t.symbol];
+      if (sec) a.sectors.set(sec, (a.sectors.get(sec) || 0) + 1);
       if (a.lastMs == null || ms > a.lastMs) {
         a.lastMs = ms;
         a.latest = {
@@ -267,6 +274,8 @@ export class AnalystsService {
         avgImpliedUpside:
           a.upsideCount > 0 ? +(a.upsideSum / a.upsideCount).toFixed(1) : null,
         lastRatingMs: a.lastMs,
+        mainSector:
+          Array.from(a.sectors.entries()).sort((x, y) => y[1] - x[1])[0]?.[0] ?? null,
         topSymbols: Array.from(a.symbols.entries())
           .sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))
           .slice(0, 3)
