@@ -48,11 +48,19 @@ interface Props {
   seed?: string;
 }
 
+/** Site-wide switch. The whole product is our own — we don't run ad-styled
+ *  slots on pages showing our own tools (client directive: AD-FREE). Kept as
+ *  a flag so house promos can be re-enabled deliberately later. */
+const ADS_ENABLED = false;
+
 export function AdSlot({ slot = "leaderboard", seed }: Props) {
   // Pick a promo deterministically — seed is e.g. the page slug or article ID,
   // so the same surface keeps showing the same ad on a given page load.
   const promo = useMemo(() => pickPromo(seed || slot), [seed, slot]);
   const [open, setOpen] = useState(false);
+  // Hooks are declared above so hook order stays constant; the AD-FREE switch
+  // short-circuits the render right after.
+  if (!ADS_ENABLED) return null;
   const source = `ad-${slot}-${promo.eyebrow.toLowerCase().replace(/[^a-z]+/g, "-")}`;
 
   const modal = (
