@@ -1700,12 +1700,14 @@ export class MarketStatsService {
     };
     let income = build(inc);
     // Yahoo's quarterly timeseries is often thin (only the newest 1–2 quarters
-    // carry revenue), which leaves the YoY growth row empty. Backfill income
-    // from FMP (clean 8+ quarters) when Yahoo can't cover a YoY comparison.
+    // carry revenue), so the YoY growth row shows for at most one quarter.
+    // stockanalysis shows growth across several quarters, which needs ~9+
+    // quarters of data (each quarter needs its year-ago counterpart). Backfill
+    // from FMP whenever Yahoo can't cover that depth.
     const revCount = income.filter((r) => r.values.TotalRevenue != null).length;
-    if (revCount < 5 && this.fmp?.enabled) {
+    if (revCount < 9 && this.fmp?.enabled) {
       try {
-        const fmpRows = await this.fmp.getQuarterlyIncomeRows(symbol, 9);
+        const fmpRows = await this.fmp.getQuarterlyIncomeRows(symbol, 13);
         if (fmpRows.length > revCount) income = fmpRows;
       } catch { /* keep Yahoo income */ }
     }
