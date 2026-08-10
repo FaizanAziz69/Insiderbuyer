@@ -33,10 +33,13 @@ export function BacktestChart({
   tipranks = false,
   strategyLabel = "Insider strategy",
   benchmarkLabel = "S&P 500 (SPY)",
+  controls = false,
 }: {
   curve: EquityPoint[];
   height?: number;
   compact?: boolean;
+  /** QuiverQuant-style timeframe buttons + Start/Market toggles. */
+  controls?: boolean;
   /** TipRanks-style rendering: %-change axis, green strategy line with a
    *  gradient area fill, gray benchmark. */
   tipranks?: boolean;
@@ -52,12 +55,34 @@ export function BacktestChart({
   const fmtVal = (v: number) =>
     tipranks ? `${v - 100 >= 0 ? "+" : ""}${Math.round(v - 100)}%` : `${Math.round(v)}`;
 
+  // Timeframe + series toggles (QuiverQuant layout).
+  const RANGES = ["1M", "3M", "6M", "YTD", "1Y", "2Y", "5Y", "MAX"] as const;
+  const [range, setRange] = useState<(typeof RANGES)[number]>("MAX");
+  const [showStrategy, setShowStrategy] = useState(true);
+  const [showMarket, setShowMarket] = useState(true);
+  const view = useMemo(() => {
+    if (!curve.length || range === "MAX") return curve;
+    const lastT = curve[curve.length - 1].t;
+    let fromT: number;
+    if (range === "YTD") {
+      fromT = new Date(new Date(lastT).getFullYear(), 0, 1).getTime();
+    } else {
+      const days: Record<string, number> = { "1M": 30, "3M": 91, "6M": 182, "1Y": 365, "2Y": 730, "5Y": 1825 };
+      fromT = lastT - (days[range] || 0) * 86400000;
+    }
+    const sliced = curve.filter((p) => p.t >= fromT);
+    return sliced.length >= 2 ? sliced : curve.slice(-2);
+  }, [curve, range]);
+
   const geom = useMemo(() => {
-    if (curve.length < 2) return null;
-    const xs = curve.map((p) => p.t);
+    if (view.length < 2) return null;
+    const xs = view.map((p) => p.t);
     const x0 = Math.min(...xs);
     const x1 = Math.max(...xs);
-    const vals = curve.flatMap((p) => [p.s, p.b]);
+    const vals = view.flatMap((p) => [
+      ...(showStrategy ? [p.s] : []),
+      ...(showMarket ? [p.b] : []),
+    ]);
     let lo = Math.min(...vals);
     let hi = Math.max(...vals);
     const span = hi - lo || 1;
@@ -70,11 +95,11 @@ export function BacktestChart({
       PAD.top + (1 - (v - lo) / (hi - lo)) * (H - PAD.top - PAD.bottom);
 
     const line = (key: "s" | "b") =>
-      curve.map((p, i) => `${i ? "L" : "M"}${px(p.t).toFixed(1)},${py(p[key]).toFixed(1)}`).join(" ");
+      view.map((p, i) => `${i ? "L" : "M"}${px(p.t).toFixed(1)},${py(p[key]).toFixed(1)}`).join(" ");
     const areaS =
       line("s") +
-      ` L${px(curve[curve.length - 1].t).toFixed(1)},${(H - PAD.bottom).toFixed(1)}` +
-      ` L${px(curve[0].t).toFixed(1)},${(H - PAD.bottom).toFixed(1)} Z`;
+      ` L${px(view[view.length - 1].t).toFixed(1)},${(H - PAD.bottom).toFixed(1)}` +
+      ` L${px(view[0].t).toFixed(1)},${(H - PAD.bottom).toFixed(1)} Z`;
 
     // 4 gridlines, rounded to readable index values.
     const ticks: number[] = [];
@@ -87,12 +112,12 @@ export function BacktestChart({
     for (let i = 0; i <= N; i++) xTicks.push(x0 + ((x1 - x0) * i) / N);
 
     return { x0, x1, lo, hi, px, py, sPath: line("s"), bPath: line("b"), areaS, ticks, xTicks };
-  }, [curve, H]);
+  }, [view, H, showStrategy, showMarket]);
 
   if (!geom) return null;
 
-  const last = curve[curve.length - 1];
-  const active = hover != null ? curve[hover] : null;
+  const last = view[view.length - 1];
+  const active = hover != null ? view[hover] : null;
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -100,7 +125,7 @@ export function BacktestChart({
     // Nearest point by x — a crosshair, not a per-point hit target.
     let best = 0;
     let bestD = Infinity;
-    curve.forEach((p, i) => {
+    view.forEach((p, i) => {
       const d = Math.abs(geom.px(p.t) - x);
       if (d < bestD) {
         bestD = d;
@@ -128,6 +153,40 @@ export function BacktestChart({
           <span style={{ color: tipranks ? "var(--text-soft)" : "var(--text)" }}>{benchmarkLabel}</span>
         </span>
       </div>
+
+      {controls && (
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+          <div className="inline-flex flex-wrap gap-1">
+            {RANGES.map((r) => {
+              const on = r === range;
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => { setRange(r); setHover(null); }}
+                  className="px-2.5 py-1 rounded-md text-[12px] font-bold transition"
+                  style={{
+                    background: on ? "var(--accent)" : "transparent",
+                    color: on ? "var(--on-accent)" : "var(--text-mute)",
+                  }}
+                >
+                  {r}
+                </button>
+              );
+            })}
+          </div>
+          <div className="inline-flex items-center gap-4 text-[12px] font-semibold">
+            <label className="inline-flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={showStrategy} onChange={(e) => setShowStrategy(e.target.checked)} />
+              <span style={{ color: "var(--text-soft)" }}>Strategy</span>
+            </label>
+            <label className="inline-flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={showMarket} onChange={(e) => setShowMarket(e.target.checked)} />
+              <span style={{ color: "var(--text-soft)" }}>Market</span>
+            </label>
+          </div>
+        </div>
+      )}
 
       <svg
         viewBox={`0 0 ${W} ${H}`}
@@ -175,7 +234,7 @@ export function BacktestChart({
         ))}
 
         {/* Benchmark under the strategy so the headline series reads on top */}
-        {tipranks && (
+        {tipranks && showStrategy && (
           <>
             <defs>
               <linearGradient id="bt-area" x1="0" y1="0" x2="0" y2="1">
@@ -186,14 +245,18 @@ export function BacktestChart({
             <path d={geom.areaS} fill="url(#bt-area)" stroke="none" />
           </>
         )}
-        <path d={geom.bPath} fill="none" stroke={cBench} strokeWidth={2} />
-        <path d={geom.sPath} fill="none" stroke={cStrategy} strokeWidth={2} />
+        {showMarket && <path d={geom.bPath} fill="none" stroke={cBench} strokeWidth={2} />}
+        {showStrategy && <path d={geom.sPath} fill="none" stroke={cStrategy} strokeWidth={2} />}
 
         {/* End-of-series direct labels (secondary encoding beside the legend) */}
         {!compact && (
           <>
-            <circle cx={geom.px(last.t)} cy={geom.py(last.s)} r={4} fill={cStrategy} stroke="var(--bg-1)" strokeWidth={2} />
-            <circle cx={geom.px(last.t)} cy={geom.py(last.b)} r={4} fill={cBench} stroke="var(--bg-1)" strokeWidth={2} />
+            {showStrategy && (
+              <circle cx={geom.px(last.t)} cy={geom.py(last.s)} r={4} fill={cStrategy} stroke="var(--bg-1)" strokeWidth={2} />
+            )}
+            {showMarket && (
+              <circle cx={geom.px(last.t)} cy={geom.py(last.b)} r={4} fill={cBench} stroke="var(--bg-1)" strokeWidth={2} />
+            )}
           </>
         )}
 

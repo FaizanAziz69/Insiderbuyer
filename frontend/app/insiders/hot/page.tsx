@@ -420,93 +420,104 @@ export default function InsiderHotStocksPage() {
           S&P 500. Honest caveat in the caption: this tests the RAW insider
           buying signal, not the IQ Score itself, because stored scores are
           as-of-today and would leak future information into past weeks. */}
-      {bt?.ready && bt.stats && bt.curve.length > 0 && (
+      {bt?.ready && bt.stats && bt.curve.length > 0 && (() => {
+        // Trailing returns from the equity curve (strategy series 's').
+        const curve = bt.curve;
+        const lastPt = curve[curve.length - 1];
+        const retSince = (days: number): number | null => {
+          const target = lastPt.t - days * 86400000;
+          let past = curve[0];
+          for (const p of curve) {
+            if (p.t <= target) past = p;
+            else break;
+          }
+          return past.s > 0 ? +(((lastPt.s - past.s) / past.s) * 100).toFixed(2) : null;
+        };
+        const ret30 = retSince(30);
+        const ret1y = retSince(365);
+        const facts: { label: string; value: string; tone?: string }[] = [
+          { label: "Backtest Start Date", value: bt.stats.startDate },
+          {
+            label: "CAGR (Total)",
+            value: `${bt.stats.cagr >= 0 ? "+" : ""}${bt.stats.cagr.toFixed(2)}%`,
+            tone: bt.stats.cagr >= 0 ? "var(--good)" : "var(--bad)",
+          },
+          {
+            label: "Return (30d)",
+            value: ret30 == null ? "—" : `${ret30 >= 0 ? "+" : ""}${ret30.toFixed(2)}%`,
+            tone: ret30 == null ? undefined : ret30 >= 0 ? "var(--good)" : "var(--bad)",
+          },
+          {
+            label: "Return (1Y)",
+            value: ret1y == null ? "—" : `${ret1y >= 0 ? "+" : ""}${ret1y.toFixed(2)}%`,
+            tone: ret1y == null ? undefined : ret1y >= 0 ? "var(--good)" : "var(--bad)",
+          },
+        ];
+        return (
         <div className="card p-4 sm:p-5">
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+            {/* Chart column — title + All-Time %, then the chart with controls */}
             <div className="min-w-0">
+              <h2 className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-tight">
+                Insider Purchases Strategy
+              </h2>
+              <div
+                className="text-[22px] font-extrabold tabular mt-0.5 mb-3"
+                style={{ color: bt.stats.totalReturn >= 0 ? "var(--good)" : "var(--bad)" }}
+              >
+                {bt.stats.totalReturn >= 0 ? "+" : ""}
+                {bt.stats.totalReturn.toLocaleString(undefined, { maximumFractionDigits: 2 })}%{" "}
+                <span className="text-[13px] font-semibold text-mute">All Time</span>
+              </div>
               <BacktestChart
                 curve={bt.curve}
-                height={300}
+                height={320}
                 tipranks
+                controls
                 strategyLabel="Top Insider Buying Stocks"
-                benchmarkLabel="S&P-500"
+                benchmarkLabel="S&P-500 (Market)"
               />
+              <p className="text-[11px] text-mute mt-2">
+                Hover the chart for the value on any week. Both series start at 100.
+              </p>
             </div>
+
+            {/* About panel */}
             <div
-              className="rounded-lg p-4 flex flex-col justify-center gap-4"
+              className="rounded-lg p-5"
               style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
             >
-              <div className="flex items-center gap-3">
-                {/* Octagon badge, reference-style: green ring, ink center. */}
-                <span
-                  className="inline-flex items-center justify-center flex-shrink-0"
-                  style={{
-                    width: 42,
-                    height: 42,
-                    background: "var(--good)",
-                    clipPath:
-                      "polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)",
-                  }}
-                >
-                  <span
-                    className="inline-flex items-center justify-center text-[13px] font-extrabold"
-                    style={{
-                      width: 36,
-                      height: 36,
-                      background: "var(--bg-2)",
-                      color: "var(--good)",
-                      clipPath:
-                        "polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)",
-                    }}
-                  >
-                    IQ
-                  </span>
-                </span>
-                <div className="text-[16px] font-bold leading-snug" style={{ color: "var(--text)" }}>
-                  Top Insider Buying
-                  <br />
-                  Stocks Performance
-                </div>
-              </div>
-              {[
-                { label: "Total Return", value: bt.stats.totalReturn },
-                { label: "Alpha Over S&P 500", value: bt.stats.alpha },
-                { label: "Average Annualized Return", value: bt.stats.cagr },
-              ].map((m) => (
-                <div key={m.label} style={{ borderLeft: "4px solid var(--good)", paddingLeft: 12 }}>
-                  <div className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>
-                    {m.label}
+              <h3 className="text-[18px] font-bold tracking-tight mb-3">About</h3>
+              <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-soft)" }}>
+                The Insider Purchases Strategy scores open-market purchases by
+                company insiders and rolls them up to a company level over a
+                decaying trailing window. The top 10 companies by insider-buying
+                are equally weighted and rebalanced at the start of every week.
+                It tests the raw insider-buying signal, not the live IQ Score
+                (stored as-of-today, which would leak future information).
+                Returns are gross of costs; past performance does not predict
+                future results.
+              </p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4 mt-5">
+                {facts.map((f) => (
+                  <div key={f.label} style={{ borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+                    <div className="text-[11px] uppercase tracking-wider font-bold text-mute">
+                      {f.label}
+                    </div>
+                    <div
+                      className="text-[18px] font-extrabold tabular mt-0.5"
+                      style={{ color: f.tone ?? "var(--text)" }}
+                    >
+                      {f.value}
+                    </div>
                   </div>
-                  <div
-                    className="text-[27px] font-extrabold tabular leading-tight mt-0.5"
-                    style={{ color: m.value >= 0 ? "var(--good)" : "var(--bad)" }}
-                  >
-                    {m.value >= 0 ? "+" : ""}
-                    {m.value.toFixed(1)}%
-                  </div>
-                </div>
-              ))}
-              <div
-                className="text-[12px] text-mute pt-2.5 text-center"
-                style={{ borderTop: "1px solid var(--border)" }}
-              >
-                Backtested results since {bt.stats.startDate.slice(0, 4)}
+                ))}
               </div>
             </div>
           </div>
-          <p className="text-[12px] text-mute mt-3 leading-relaxed max-w-4xl">
-            The chart compares the performance of US stocks with the heaviest
-            open-market insider buying to the S&amp;P 500, starting{" "}
-            {bt.stats.startDate}: each week the ten US-listed companies with the
-            most purchases by individual officers and directors (institutional
-            10%-owner filings excluded) are held equally weighted. It backtests
-            the raw insider-buying signal, not the IQ Score — scores are stored
-            as-of-today, so ranking past weeks by them would leak future
-            information. Returns are gross of costs. Past performance does not
-            predict future results.
-          </p>
         </div>
-      )}
+        );
+      })()}
 
       <AdSlot slot="leaderboard" seed="insider-hot-top" />
 
