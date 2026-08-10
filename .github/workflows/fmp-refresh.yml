@@ -53,6 +53,11 @@ jobs:
             sleep 2
           done
 
+      - name: Warm the politician leaderboard cache (avoids ~20s cold loads)
+        run: |
+          resp=$(curl -s -X POST "$API/congressional-trades/refresh-politicians" -m 120 || echo '{}')
+          echo "refresh-politicians -> $resp"
+
       - name: Refresh government-contract totals from USAspending.gov (sliced loop)
         run: |
           cursor=""

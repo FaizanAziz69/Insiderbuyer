@@ -52,4 +52,12 @@ export class CongressionalController {
     const rows = await this.svc.getTopPoliticians(Number.isFinite(n) && n > 0 ? Math.min(n, 200) : 60);
     return { rows };
   }
+
+  /** Recompute + persist the politician leaderboard (cloud cron calls this so
+   *  user requests read a warm cache instead of paying the ~20s compute). */
+  @Post('refresh-politicians')
+  async refreshPoliticians() {
+    const rows = await this.svc.refreshTopPoliticians(100);
+    return { ok: true, count: rows.length };
+  }
 }

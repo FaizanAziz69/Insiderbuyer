@@ -8,6 +8,7 @@ import {
   MarketStatRow,
   MarketStatsService,
 } from '../market-stats/market-stats.service';
+import { FmpService } from '../fmp/fmp.service';
 import { CONTRACTORS, ContractorEntry } from './gov-contracts-map';
 
 const USA = 'https://api.usaspending.gov/api/v2';
@@ -42,6 +43,7 @@ export class GovContractsService {
     @InjectRepository(GovContractCache)
     private readonly repo: Repository<GovContractCache>,
     private readonly market: MarketStatsService,
+    private readonly fmp: FmpService,
   ) {
     this.http = axios.create({
       timeout: 25_000,
@@ -165,10 +167,17 @@ export class GovContractsService {
       .catch(() => new Map<string, MarketStatRow>());
     const ratingBy = new Map<string, AnalystRow>(ratings.map((r) => [r.symbol, r]));
 
+    // FMP batch quote fills market cap / price where the Yahoo batch is thin
+    // (e.g. FLR). One call for the whole set.
+    const fmpQuotes: Map<string, any> = this.fmp?.enabled
+      ? await this.fmp.getQuotesBatch(tickers).catch(() => new Map())
+      : new Map();
+
     const rows: GovContractRow[] = CONTRACTORS.map((c) => {
       const cache = byTicker.get(c.ticker);
       const rt = ratingBy.get(c.ticker);
       const q = quotes.get(c.ticker);
+      const fq = fmpQuotes.get(c.ticker);
       return {
         ticker: c.ticker,
         name: c.name,
@@ -178,14 +187,51 @@ export class GovContractsService {
         topAgency: cache?.topAgency || null,
         hasData: cache?.hasData ?? false,
         updatedAt: cache?.updatedAt ? new Date(cache.updatedAt).toISOString() : null,
-        price: rt?.price ?? q?.price ?? null,
-        marketCap: q?.marketCap ?? null,
+        price: rt?.price ?? q?.price ?? fq?.price ?? null,
+        marketCap: q?.marketCap ?? fq?.marketCap ?? null,
         targetMean: rt?.targetMean ?? null,
         upsidePct: rt?.upsidePct ?? null,
         recommendation: rt?.recommendation ?? null,
         numAnalysts: rt?.numAnalysts ?? null,
       };
     });
+
+    // FMP grades-consensus fills the analyst consensus where Yahoo has no
+    // coverage row (e.g. SAIC). Only for the rows still missing it.
+    if (this.fmp?.enabled) {
+      const CONSENSUS_MAP: Record<string, string> = {
+        'strong buy': 'strong_buy',
+        buy: 'buy',
+        outperform: 'buy',
+        hold: 'hold',
+        neutral: 'hold',
+        underperform: 'underperform',
+        sell: 'sell',
+        'strong sell': 'strong_sell',
+      };
+      const missing = rows.filter((r) => !r.recommendation);
+      const CONC = 5;
+      for (let i = 0; i < missing.length; i += CONC) {
+        const chunk = missing.slice(i, i + CONC);
+        await Promise.all(
+          chunk.map(async (r) => {
+            try {
+              const g = await this.fmp.getGradesConsensus(r.ticker);
+              if (!g) return;
+              const tot = g.strongBuy + g.buy + g.hold + g.sell + g.strongSell;
+              if (g.consensus) {
+                r.recommendation =
+                  CONSENSUS_MAP[g.consensus.toLowerCase()] ??
+                  g.consensus.toLowerCase().replace(/\s+/g, '_');
+              }
+              if (r.numAnalysts == null && tot > 0) r.numAnalysts = tot;
+            } catch {
+              /* leave blank */
+            }
+          }),
+        );
+      }
+    }
 
     // Largest federal contract dollars first; unpriced/uncontracted fall last.
     rows.sort((a, b) => b.ttmAmount - a.ttmAmount);

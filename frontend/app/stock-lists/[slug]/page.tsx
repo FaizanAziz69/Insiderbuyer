@@ -49,6 +49,7 @@ interface DetailRow {
   targetMean?: number | null;
   recommendation?: string | null;
   numAnalysts?: number | null;
+  note?: string | null;
   live?: RowLive | null;
 }
 type ListKind = "sector" | "persona" | "premium" | "universe" | "country";
@@ -225,12 +226,20 @@ export default function StockListDetailPage({
             {data.description}
           </p>
         )}
-        {data?.kind && (
+        {data?.kind && data.slug !== "trump-family" && (
           <p
             className="mt-3 max-w-4xl leading-relaxed"
             style={{ color: "var(--text-mute)", fontSize: 15 }}
           >
             {KIND_BLURB[data.kind]}
+          </p>
+        )}
+        {data?.slug === "trump-family" && data.rows?.[0]?.note && (
+          <p
+            className="mt-3 max-w-4xl leading-relaxed"
+            style={{ color: "var(--text-mute)", fontSize: 15 }}
+          >
+            {data.rows[0].note}
           </p>
         )}
         {data && (

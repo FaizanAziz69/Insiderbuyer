@@ -336,15 +336,20 @@ export default function InsiderHotStocksPage() {
             <span className="tabular text-[13.5px] font-bold">
               {r.insiderOwnershipPct.toFixed(1)}%
             </span>
-            {r.insiderOwnershipChangePct != null && r.insiderOwnershipChangePct !== 0 && (
-              <span
-                className="tabular text-[11px] font-semibold"
-                style={{ color: r.insiderOwnershipChangePct >= 0 ? "var(--good)" : "var(--bad)" }}
-              >
-                {r.insiderOwnershipChangePct >= 0 ? "+" : ""}
-                {r.insiderOwnershipChangePct.toFixed(2)}pp 90d
-              </span>
-            )}
+            {r.insiderOwnershipChangePct != null &&
+              (r.insiderOwnershipChangePct === 0 ? (
+                <span className="tabular text-[11px] font-semibold text-mute">
+                  ~0pp 90d
+                </span>
+              ) : (
+                <span
+                  className="tabular text-[11px] font-semibold"
+                  style={{ color: r.insiderOwnershipChangePct >= 0 ? "var(--good)" : "var(--bad)" }}
+                >
+                  {r.insiderOwnershipChangePct >= 0 ? "+" : ""}
+                  {r.insiderOwnershipChangePct.toFixed(2)}pp 90d
+                </span>
+              ))}
           </span>
         ),
     },

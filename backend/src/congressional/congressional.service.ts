@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { CongressionalTransaction } from '../entities/congressional-transaction.entity';
 import { Company } from '../entities/company.entity';
+import { BacktestCache } from '../entities/backtest-cache.entity';
 import { CONGRESS_SEED } from './congressional-seed';
 import { PhotosService } from './photos.service';
 import { CivicService } from './civic.service';
@@ -178,6 +179,8 @@ export class CongressionalService implements OnModuleInit {
     private readonly repo: Repository<CongressionalTransaction>,
     @InjectRepository(Company)
     private readonly companies: Repository<Company>,
+    @InjectRepository(BacktestCache)
+    private readonly kv: Repository<BacktestCache>,
     private readonly dataSource: DataSource,
     private readonly photos: PhotosService,
     private readonly fmp: FmpService,
@@ -476,7 +479,44 @@ export class CongressionalService implements OnModuleInit {
    *  estimated disclosed-stock portfolio value, win rate + average return on
    *  their BUYS (scored against price history), profitable-buy count, top
    *  holdings and headshot. Powers the redesigned /stock-lists/politicians. */
+  private readonly POLI_CACHE_KEY = 'top-politicians-v1';
+  private readonly POLI_TTL_MS = 12 * 60 * 60_000;
+  private poliMem: { ts: number; rows: any[] } | null = null;
+
+  /**
+   * Cached politician leaderboard. The full compute fetches multi-year price
+   * history per ticker (~20s cold), so the result is persisted to the generic
+   * cache table and read back instantly. A fresh cache serves immediately; a
+   * stale/absent one is recomputed synchronously (cron keeps it warm via
+   * refreshTopPoliticians so user requests rarely pay that cost).
+   */
   async getTopPoliticians(limit = 60): Promise<any[]> {
+    if (this.poliMem && Date.now() - this.poliMem.ts < this.POLI_TTL_MS) {
+      return this.poliMem.rows.slice(0, limit);
+    }
+    const cached = await this.kv.findOne({ where: { key: this.POLI_CACHE_KEY } });
+    if (cached && Date.now() - new Date(cached.computedAt).getTime() < this.POLI_TTL_MS) {
+      const rows = (cached.payload as any[]) || [];
+      this.poliMem = { ts: Date.now(), rows };
+      return rows.slice(0, limit);
+    }
+    return this.refreshTopPoliticians(limit);
+  }
+
+  /** Recompute the leaderboard and persist it (called by getTopPoliticians on a
+   *  miss and by the cron so cold user requests stay fast). */
+  async refreshTopPoliticians(limit = 60): Promise<any[]> {
+    const rows = await this.computeTopPoliticians(Math.max(limit, 100));
+    this.poliMem = { ts: Date.now(), rows };
+    try {
+      await this.kv.save({ key: this.POLI_CACHE_KEY, payload: rows });
+    } catch {
+      /* cache write best-effort */
+    }
+    return rows.slice(0, limit);
+  }
+
+  private async computeTopPoliticians(limit = 60): Promise<any[]> {
     const roster = await this.getRoster();
     const rows = await this.repo.find();
     interface Acc {
