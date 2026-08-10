@@ -64,6 +64,10 @@ export class CongressionalService implements OnModuleInit {
     ts: number;
     byBioguide: Map<string, { party: string; name: string }>;
     byName: Map<string, string>;
+    /** name(lower) → { state, chamber } for the leaderboard "title" line. */
+    metaByName: Map<string, { state: string | null; chamber: string | null }>;
+    /** name(lower) → committee names the member sits on (QuiverQuant-style). */
+    committeesByName: Map<string, string[]>;
   } | null = null;
 
   private async getRoster(): Promise<NonNullable<CongressionalService['roster']>> {
@@ -72,31 +76,68 @@ export class CongressionalService implements OnModuleInit {
     }
     const byBioguide = new Map<string, { party: string; name: string }>();
     const byName = new Map<string, string>();
+    const metaByName = new Map<string, { state: string | null; chamber: string | null }>();
+    const committeesByName = new Map<string, string[]>();
+    const bioToName = new Map<string, string>(); // bioguide → name(lower)
     try {
       const res = await fetch(
         'https://unitedstates.github.io/congress-legislators/legislators-current.json',
       );
       const members: any[] = await res.json();
+      const addNameKeys = (name: string, apply: (k: string) => void) => {
+        const low = name.toLowerCase();
+        apply(low);
+        const parts = low.split(/\s+/);
+        if (parts.length > 2) apply(`${parts[0]} ${parts[parts.length - 1]}`);
+      };
       for (const m of members) {
         const bid = m?.id?.bioguide;
         const term = m?.terms?.[m.terms.length - 1];
         const party = String(term?.party || '').charAt(0); // D / R / I
+        const chamber = term?.type === 'sen' ? 'Senate' : term?.type === 'rep' ? 'House' : null;
+        const state = term?.state || null;
         const name = `${m?.name?.first || ''} ${m?.name?.last || ''}`.trim();
         if (bid && party) byBioguide.set(bid, { party, name });
-        if (name && party) {
-          byName.set(name.toLowerCase(), party);
-          // Compound / middle surnames diverge between sources ("April
-          // McClain Delaney" vs "April Delaney", "Shelley Moore Capito" vs
-          // "Shelley Capito") — index the first + final-token variant too.
-          const parts = name.toLowerCase().split(/\s+/);
-          if (parts.length > 2) byName.set(`${parts[0]} ${parts[parts.length - 1]}`, party);
+        if (name && party) addNameKeys(name, (k) => byName.set(k, party));
+        if (name) {
+          addNameKeys(name, (k) => metaByName.set(k, { state, chamber }));
+          if (bid) bioToName.set(bid, name.toLowerCase());
         }
       }
       this.logger.log(`Legislator roster loaded: ${byBioguide.size} members.`);
+      // Committee memberships (bioguide → committee names).
+      try {
+        const [memRes, comRes] = await Promise.all([
+          fetch('https://unitedstates.github.io/congress-legislators/committee-membership-current.json'),
+          fetch('https://unitedstates.github.io/congress-legislators/committees-current.json'),
+        ]);
+        const membership: Record<string, any[]> = await memRes.json();
+        const committees: any[] = await comRes.json();
+        const comName = new Map<string, string>();
+        for (const c of committees) if (c?.thomas_id) comName.set(c.thomas_id, c.name);
+        const bioToComs = new Map<string, string[]>();
+        for (const [comId, mems] of Object.entries(membership)) {
+          const cname = comName.get(comId.replace(/\d+$/, '')) || comName.get(comId);
+          if (!cname) continue;
+          for (const mem of mems as any[]) {
+            const bid = mem?.bioguide;
+            if (!bid) continue;
+            const arr = bioToComs.get(bid) || [];
+            if (!arr.includes(cname)) arr.push(cname);
+            bioToComs.set(bid, arr);
+          }
+        }
+        for (const [bid, coms] of bioToComs) {
+          const nm = bioToName.get(bid);
+          if (nm) committeesByName.set(nm, coms);
+        }
+      } catch (e: any) {
+        this.logger.warn(`Committee roster fetch failed: ${e?.message || e}`);
+      }
     } catch (e: any) {
       this.logger.warn(`Roster fetch failed: ${e?.message || e}`);
     }
-    this.roster = { ts: Date.now(), byBioguide, byName };
+    this.roster = { ts: Date.now(), byBioguide, byName, metaByName, committeesByName };
     return this.roster;
   }
 
@@ -403,6 +444,114 @@ export class CongressionalService implements OnModuleInit {
       })
       .sort((a, b) => b.totalValue - a.totalValue)
       .slice(0, limit);
+  }
+
+  /** QuiverQuant-style leaderboard of members: party, title, committees,
+   *  estimated disclosed-stock portfolio value, win rate + average return on
+   *  their BUYS (scored against price history), profitable-buy count, top
+   *  holdings and headshot. Powers the redesigned /stock-lists/politicians. */
+  async getTopPoliticians(limit = 60): Promise<any[]> {
+    const roster = await this.getRoster();
+    const rows = await this.repo.find();
+    interface Acc {
+      name: string; chamber: string | null; party: string | null; photoUrl: string | null;
+      buyValue: number; sellValue: number; buys: number; sells: number; lastTraded: string;
+      byTicker: Map<string, { value: number; company: string }>;
+      buyEvents: { ticker: string; ms: number }[];
+    }
+    const agg = new Map<string, Acc>();
+    const mid = (r: any) => {
+      const lo = r.amountMin == null ? null : Number(r.amountMin);
+      const hi = r.amountMax == null ? null : Number(r.amountMax);
+      return lo != null && hi != null ? (lo + hi) / 2 : (hi ?? lo ?? 0);
+    };
+    for (const t of rows) {
+      const key = t.politicianName.trim().toLowerCase();
+      const cur: Acc = agg.get(key) || {
+        name: t.politicianName.trim(), chamber: t.chamber || null, party: t.party || null,
+        photoUrl: t.photoUrl || null, buyValue: 0, sellValue: 0, buys: 0, sells: 0,
+        lastTraded: '', byTicker: new Map(), buyEvents: [],
+      };
+      if (!cur.party && t.party) cur.party = t.party;
+      if (!cur.photoUrl && t.photoUrl) cur.photoUrl = t.photoUrl;
+      const v = mid(t);
+      const d = (t.transactionDate instanceof Date ? t.transactionDate.toISOString() : String(t.transactionDate)).slice(0, 10);
+      if (d > cur.lastTraded) cur.lastTraded = d;
+      const tk = (t.ticker || '').toUpperCase();
+      if (t.action === 'Buy') {
+        cur.buys += 1; cur.buyValue += v;
+        if (tk) {
+          const slot = cur.byTicker.get(tk) || { value: 0, company: t.companyName || tk };
+          slot.value += v; cur.byTicker.set(tk, slot);
+          const ms = new Date(t.transactionDate).getTime();
+          if (Number.isFinite(ms)) cur.buyEvents.push({ ticker: tk, ms });
+        }
+      } else {
+        cur.sells += 1; cur.sellValue += v;
+      }
+      agg.set(key, cur);
+    }
+
+    // Rank by disclosed activity, keep the top N, then score their buys.
+    const top = Array.from(agg.values())
+      .sort((a, b) => b.buyValue + b.sellValue - (a.buyValue + a.sellValue))
+      .slice(0, limit);
+
+    // One close-history fetch per ticker in the top set (cached downstream).
+    const tickers = Array.from(new Set(top.flatMap((a) => a.buyEvents.map((e) => e.ticker))));
+    const hist = new Map<string, Array<{ t: number; c: number }>>();
+    const CONC = 6;
+    for (let i = 0; i < tickers.length; i += CONC) {
+      const chunk = tickers.slice(i, i + CONC);
+      const got = await Promise.all(chunk.map((s) => this.marketStats.getCloseHistory(s, '5y').catch(() => [])));
+      got.forEach((h, j) => { if (h.length) hist.set(chunk[j], h); });
+    }
+    const now = Date.now();
+
+    return top.map((a) => {
+      const key = a.name.toLowerCase();
+      const parts = key.split(/\s+/);
+      const meta = roster.metaByName.get(key) || (parts.length > 1 ? roster.metaByName.get(`${parts[0]} ${parts[parts.length - 1]}`) : undefined);
+      const committees =
+        roster.committeesByName.get(key) ||
+        (parts.length > 1 ? roster.committeesByName.get(`${parts[0]} ${parts[parts.length - 1]}`) : undefined) || [];
+      // Profitable buys: a buy is "in the money" if the latest close is above
+      // the close on its trade date. Win rate + avg return over scored buys.
+      let scored = 0, wins = 0, retSum = 0;
+      for (const e of a.buyEvents) {
+        const h = hist.get(e.ticker);
+        if (!h || !h.length) continue;
+        const atBuy = MarketStatsService.closeOn(h, e.ms);
+        const nowPx = MarketStatsService.closeOn(h, now);
+        if (!atBuy || !nowPx || atBuy <= 0) continue;
+        scored += 1;
+        const ret = (nowPx - atBuy) / atBuy;
+        retSum += ret;
+        if (ret > 0) wins += 1;
+      }
+      const topHoldings = Array.from(a.byTicker.entries())
+        .sort((x, y) => y[1].value - x[1].value)
+        .slice(0, 3)
+        .map(([ticker, s]) => ({ ticker, company: s.company }));
+      return {
+        name: a.name,
+        party: a.party,
+        chamber: meta?.chamber || a.chamber || null,
+        state: meta?.state || null,
+        committees: committees.slice(0, 3),
+        photoUrl: a.photoUrl,
+        portfolioValue: Math.round(a.buyValue + a.sellValue),
+        buys: a.buys,
+        sells: a.sells,
+        trades: a.buys + a.sells,
+        lastTraded: a.lastTraded || null,
+        profitableBuys: wins,
+        scoredBuys: scored,
+        winRate: scored ? +((wins / scored) * 100).toFixed(1) : null,
+        avgReturn: scored ? +((retSum / scored) * 100).toFixed(1) : null,
+        topHoldings,
+      };
+    });
   }
 
   /** Full profile for one member of Congress (by exact name, case-insensitive)

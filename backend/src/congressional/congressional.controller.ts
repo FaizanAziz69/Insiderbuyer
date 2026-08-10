@@ -43,4 +43,13 @@ export class CongressionalController {
     if (!profile) return { error: 'Unknown politician', profile: null };
     return { profile };
   }
+
+  /** QuiverQuant-style member leaderboard (party, title, committees,
+   *  portfolio value, win rate, profitable buys, holdings, headshot). */
+  @Get('top-politicians')
+  async topPoliticians(@Query('limit') limit?: string) {
+    const n = Number(limit);
+    const rows = await this.svc.getTopPoliticians(Number.isFinite(n) && n > 0 ? Math.min(n, 200) : 60);
+    return { rows };
+  }
 }

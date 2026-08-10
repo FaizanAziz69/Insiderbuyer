@@ -20,6 +20,7 @@ import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { PremiumValue } from "@/components/premium/PremiumValue";
 import { rankColumn } from "@/components/tableColumns";
 import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
+import { PoliticiansLeaderboard } from "@/components/PoliticiansLeaderboard";
 
 interface RowLive {
   price: number;
@@ -170,6 +171,10 @@ export default function StockListDetailPage({
 
   // Last-updated stamp: newest live quote is intraday, so just stamp "today".
   const updatedLabel = formatDate(new Date().toISOString());
+
+  // Politicians isn't a stock list — render the member leaderboard instead
+  // (after all hooks, so hook order stays constant).
+  if (slug === "politicians") return <PoliticiansLeaderboard />;
 
   if (listMissing) {
     return (

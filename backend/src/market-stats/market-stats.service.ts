@@ -1639,6 +1639,18 @@ export class MarketStatsService {
       endCashPosition: val(cf, 'annualEndCashPosition', date),
     }));
 
+    // Year-over-year growth vs the prior annual period (rows are ascending).
+    const yoy = (cur: number | null, prev: number | null): number | null =>
+      cur != null && prev != null && prev !== 0
+        ? +(((cur - prev) / Math.abs(prev)) * 100).toFixed(2)
+        : null;
+    for (let i = 0; i < incomeRows.length; i++) {
+      const p = i > 0 ? incomeRows[i - 1] : null;
+      (incomeRows[i] as any).revenueGrowth = yoy(incomeRows[i].revenue, p?.revenue ?? null);
+      (incomeRows[i] as any).netIncomeGrowth = yoy(incomeRows[i].netIncome, p?.netIncome ?? null);
+      (incomeRows[i] as any).epsGrowth = yoy(incomeRows[i].dilutedEPS, p?.dilutedEPS ?? null);
+    }
+
     const data = {
       symbol,
       income: incomeRows,
