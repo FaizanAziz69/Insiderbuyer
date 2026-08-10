@@ -1225,6 +1225,7 @@ interface PressItem {
   source: string;
   date: number;
   link: string;
+  kind?: "news" | "press";
 }
 
 /**
@@ -1263,6 +1264,7 @@ function RecentNews({
     href: string;
     external: boolean;
     summary?: string | null;
+    kind: "news" | "press";
   };
 
   const rows: Row[] = [
@@ -1274,6 +1276,7 @@ function RecentNews({
       href: `/insights/${it.slug}`,
       external: false,
       summary: it.summary,
+      kind: "news" as const,
     })),
     ...(press?.items || [])
       .filter((p) => p.title && p.link)
@@ -1284,10 +1287,11 @@ function RecentNews({
         date: p.date || 0,
         href: p.link,
         external: true,
+        kind: (p.kind ?? "news") as "news" | "press",
       })),
-  ]
-    .sort((a, b) => b.date - a.date)
-    .slice(0, compact ? 4 : 20);
+  ].sort((a, b) => b.date - a.date);
+  const newsRows = rows.filter((r) => r.kind === "news").slice(0, compact ? 4 : 16);
+  const pressRows = rows.filter((r) => r.kind === "press").slice(0, 12);
 
   if (isLoading && rows.length === 0)
     return <div className="card p-5 h-40 shimmer rounded-lg" />;
@@ -1300,11 +1304,7 @@ function RecentNews({
     );
   }
 
-  return (
-    <section>
-      {compact && <h2 className="text-[16px] font-semibold mb-3">Latest News</h2>}
-      <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
-        {rows.map((it) => {
+  const renderRow = (it: Row) => {
           const inner = (
             <>
               <span
@@ -1360,8 +1360,37 @@ function RecentNews({
               {inner}
             </Link>
           );
-        })}
-      </div>
+  };
+
+  return (
+    <section className="space-y-6">
+      {compact ? (
+        <>
+          <h2 className="text-[16px] font-semibold mb-3">Latest News</h2>
+          <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
+            {newsRows.map(renderRow)}
+          </div>
+        </>
+      ) : (
+        <>
+          <div>
+            <h2 className="text-[18px] font-bold mb-3">News</h2>
+            <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
+              {newsRows.length ? newsRows.map(renderRow) : (
+                <div className="p-6 text-center text-mute text-sm">No recent news for {ticker}.</div>
+              )}
+            </div>
+          </div>
+          {pressRows.length > 0 && (
+            <div>
+              <h2 className="text-[18px] font-bold mb-3">Press Releases</h2>
+              <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
+                {pressRows.map(renderRow)}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </section>
   );
 }

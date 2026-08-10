@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { FmpModule } from '../fmp/fmp.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlogPost } from '../entities/blog-post.entity';
 import { IqsModule } from '../iqs/iqs.module';
@@ -11,6 +12,7 @@ import { ContentCronService } from './content-cron.service';
 
 @Module({
   imports: [
+    FmpModule,
     TypeOrmModule.forFeature([BlogPost]),
     IqsModule,
     NewsModule,

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Optional, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -13,6 +13,7 @@ import { buildAiImageUrl } from './image-url.builder';
 import { IqsService } from '../iqs/iqs.service';
 import { NewsService } from '../news/news.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
+import { FmpService } from '../fmp/fmp.service';
 import { TOPICS } from './topics';
 import { findFormat } from './content-formats';
 import { HOT_SECTOR_BASKETS } from '../stock-lists/persona-data';
@@ -75,6 +76,7 @@ export class ContentService {
     private readonly iqs: IqsService,
     private readonly news: NewsService,
     private readonly marketStats: MarketStatsService,
+    @Optional() private readonly fmp?: FmpService,
   ) {}
 
   /** Latest published posts, newest first. */
@@ -256,7 +258,7 @@ export class ContentService {
           const m = title.match(/^(.*)\s-\s([^-]{2,40})$/);
           if (m && !it.source) { title = m[1].trim(); source = m[2].trim(); }
           const link = String(it.link?.['#text'] ?? it.link ?? '').trim();
-          return { title, source, date: Date.parse(String(it.pubDate || '')) || 0, link };
+          return { title, source, date: Date.parse(String(it.pubDate || '')) || 0, link, kind: 'news' as const };
         });
       } catch { return []; }
     };
@@ -281,6 +283,7 @@ export class ContentService {
             source: String(n?.publisher || 'Yahoo Finance').trim(),
             date: (Number(n?.providerPublishTime) || 0) * 1000,
             link: String(n?.link || '').trim(),
+            kind: 'news' as const,
           })));
         })
         .catch(() => undefined),
@@ -405,8 +408,15 @@ export class ContentService {
     const cached = this.newsCache.get(key);
     if (cached && Date.now() - cached.ts < 15 * 60_000) return cached.data;
     const UA = { 'User-Agent': 'Mozilla/5.0' };
-    type Item = { title: string; source: string; date: number; link: string };
+    type Item = { title: string; source: string; date: number; link: string; kind: 'news' | 'press' };
     const items: Item[] = [];
+    // FMP first — ticker-accurate news + separated press releases.
+    if (this.fmp?.enabled) {
+      try {
+        const fmpItems = await this.fmp.getStockNews(key, 24);
+        items.push(...fmpItems);
+      } catch { /* fall back to the open feeds below */ }
+    }
     const parseRss = (xml: string, fallbackSource: string): Item[] => {
       try {
         const parsed = this.rssParser.parse(xml);
@@ -418,7 +428,7 @@ export class ContentService {
           const m = title.match(/^(.*)\s-\s([^-]{2,40})$/);
           if (m && !it.source) { title = m[1].trim(); source = m[2].trim(); }
           const link = String(it.link?.['#text'] ?? it.link ?? '').trim();
-          return { title, source, date: Date.parse(String(it.pubDate || '')) || 0, link };
+          return { title, source, date: Date.parse(String(it.pubDate || '')) || 0, link, kind: 'news' as const };
         });
       } catch { return [] as Item[]; }
     };
@@ -436,13 +446,23 @@ export class ContentService {
             source: String(n?.publisher || 'Yahoo Finance').trim(),
             date: (Number(n?.providerPublishTime) || 0) * 1000,
             link: String(n?.link || '').trim(),
+            kind: 'news' as const,
           })));
         }),
     ]);
     const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
     const seen = new Set<string>();
+    // Relevance: the story must actually name the company or its ticker —
+    // the open feeds otherwise return market-roundup pieces (NVDA showing
+    // ASML/Target headlines). FMP items are already ticker-scoped.
+    const nameToken = (name || key).split(/[,(]/)[0].trim().split(/\s+/)[0].toLowerCase();
+    const relevant = (t: string) => {
+      const low = t.toLowerCase();
+      return low.includes(key.toLowerCase()) || (nameToken.length >= 3 && low.includes(nameToken));
+    };
     const out = items
       .filter((i) => i.title && (!i.date || i.date >= cutoff))
+      .filter((i) => i.kind === 'press' || relevant(i.title))
       .sort((a, b) => b.date - a.date)
       .filter((i) => {
         const k = i.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 70);

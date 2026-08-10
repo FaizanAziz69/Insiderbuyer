@@ -52,6 +52,8 @@ export class FmpService {
     });
   }
 
+  private num(v: any): number | null { const n = Number(v); return Number.isFinite(n) ? n : null; }
+
   get enabled(): boolean {
     return !!this.key;
   }
@@ -358,6 +360,55 @@ export class FmpService {
       targetConsensus: r.targetConsensus != null ? Number(r.targetConsensus) : null,
       targetMedian: r.targetMedian != null ? Number(r.targetMedian) : null,
     };
+  }
+
+  /** Quarterly income statement mapped to the Yahoo-style keys the Financials
+   *  tab renders — the fallback when Yahoo's timeseries is too thin to show
+   *  YoY revenue growth (only the newest quarter populated). */
+  async getQuarterlyIncomeRows(symbolRaw: string, limit = 9): Promise<Array<{ date: string; values: Record<string, number | null> }>> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return [];
+    const rows = await this.get('income-statement', { symbol, period: 'quarter', limit });
+    return rows
+      .map((r: any) => ({
+        date: String(r?.date || '').slice(0, 10),
+        values: {
+          TotalRevenue: this.num(r?.revenue),
+          CostOfRevenue: this.num(r?.costOfRevenue),
+          GrossProfit: this.num(r?.grossProfit),
+          SellingGeneralAndAdministration: this.num(r?.sellingGeneralAndAdministrativeExpenses),
+          ResearchAndDevelopment: this.num(r?.researchAndDevelopmentExpenses),
+          OperatingExpense: this.num(r?.operatingExpenses),
+          OperatingIncome: this.num(r?.operatingIncome),
+          PretaxIncome: this.num(r?.incomeBeforeTax),
+          TaxProvision: this.num(r?.incomeTaxExpense),
+          NetIncome: this.num(r?.netIncome),
+          BasicEPS: this.num(r?.eps),
+          DilutedEPS: this.num(r?.epsdiluted ?? r?.epsDiluted),
+          BasicAverageShares: this.num(r?.weightedAverageShsOut),
+        } as Record<string, number | null>,
+      }))
+      .filter((r) => r.date && r.values.TotalRevenue != null);
+  }
+
+  /** Ticker-accurate news + press releases from FMP — the profile News tab
+   *  was pulling loose market-roundup headlines from Google/Yahoo. */
+  async getStockNews(symbolRaw: string, limit = 20): Promise<Array<{ title: string; source: string; date: number; link: string; kind: 'news' | 'press' }>> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return [];
+    const map = (rows: any[], kind: 'news' | 'press') =>
+      rows.map((r: any) => ({
+        title: String(r?.title || '').trim(),
+        source: String(r?.publisher || r?.site || '').trim() || (kind === 'press' ? 'Press Release' : 'Newswire'),
+        date: Date.parse(String(r?.publishedDate || r?.date || '')) || 0,
+        link: String(r?.url || r?.link || '').trim(),
+        kind,
+      })).filter((r) => r.title && r.link);
+    const [news, press] = await Promise.all([
+      this.get('news/stock', { symbols: symbol, limit }),
+      this.get('news/press-releases', { symbols: symbol, limit }),
+    ]);
+    return [...map(news, 'news'), ...map(press, 'press')];
   }
 
   // ── Congressional ────────────────────────────────────────────────────

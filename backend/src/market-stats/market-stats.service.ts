@@ -1698,7 +1698,18 @@ export class MarketStatsService {
         return { date, values };
       });
     };
-    const data = { symbol, income: build(inc), balance: build(bal), cashflow: build(cf) };
+    let income = build(inc);
+    // Yahoo's quarterly timeseries is often thin (only the newest 1–2 quarters
+    // carry revenue), which leaves the YoY growth row empty. Backfill income
+    // from FMP (clean 8+ quarters) when Yahoo can't cover a YoY comparison.
+    const revCount = income.filter((r) => r.values.TotalRevenue != null).length;
+    if (revCount < 5 && this.fmp?.enabled) {
+      try {
+        const fmpRows = await this.fmp.getQuarterlyIncomeRows(symbol, 9);
+        if (fmpRows.length > revCount) income = fmpRows;
+      } catch { /* keep Yahoo income */ }
+    }
+    const data = { symbol, income, balance: build(bal), cashflow: build(cf) };
     this.detailCache.set(cacheKey, { ts: Date.now(), data });
     return data;
   }
