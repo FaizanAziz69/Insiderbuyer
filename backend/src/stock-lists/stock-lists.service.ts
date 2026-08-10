@@ -134,9 +134,34 @@ export class StockListsService {
     }
     let rows: any[] = [];
     try {
-      const holders = (await this.sec.getLatestHoldingsByOwner('DJT', /trump/i, 90)).filter(
+      const live = (await this.sec.getLatestHoldingsByOwner('DJT', /trump/i, 90)).filter(
         (h) => h.shares > 0,
       );
+      // Senior Trump's founder stake is reported on DJT's Schedule 13D / proxy
+      // (beneficial-ownership) filings, NOT Form 3/4, so the structured-form
+      // scan above only returns his son. Seed his stake from those SEC filings
+      // (a documented public figure, not a sample) unless a live Form 4 already
+      // covers him. Everything else comes straight from Form 4 data.
+      const SEED: { owner: string; shares: number; lastDate: string; source: string }[] = [
+        {
+          owner: 'Donald J. Trump',
+          shares: 114_750_000,
+          lastDate: '2024-03-25',
+          source: 'DJT Schedule 13D / proxy',
+        },
+      ];
+      const holders = [
+        ...live,
+        ...SEED.filter(
+          (s) => !live.some((h) => this.prettyOwner(h.owner) === s.owner),
+        ).map((s) => ({
+          owner: s.owner,
+          role: '10% Owner (founder)',
+          shares: s.shares,
+          lastDate: s.lastDate,
+          filingUrl: 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001849635&type=SC+13D',
+        })),
+      ].sort((a, b) => b.shares - a.shares);
       const live = await this.fetchLiveQuotes(['DJT']);
       const px =
         (live.get('DJT') as any)?.price ??
@@ -160,7 +185,7 @@ export class StockListsService {
             sharesHeld: totalShares,
             dollarValue: px != null ? Math.round(totalShares * px) : 0,
             lastReported: latest,
-            note: `Reported on SEC Form 4: ${breakdown}`,
+            note: `Reported to SEC: ${breakdown}`,
             filingUrl: holders[0].filingUrl || null,
           },
         ];
@@ -176,6 +201,8 @@ export class StockListsService {
   /** "TRUMP DONALD J JR" → "Donald J. Trump Jr." */
   private prettyOwner(raw: string): string {
     const s = (raw || '').trim();
+    // Already human-formatted (has lowercase) — leave it alone (idempotent).
+    if (/[a-z]/.test(s)) return s;
     if (/trump donald j\.? jr/i.test(s)) return 'Donald J. Trump Jr.';
     if (/trump donald j/i.test(s)) return 'Donald J. Trump';
     if (/trump eric/i.test(s)) return 'Eric Trump';
