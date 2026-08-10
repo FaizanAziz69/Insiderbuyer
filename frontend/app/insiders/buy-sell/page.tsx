@@ -18,6 +18,7 @@ import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
 import { TxTypeBadge } from "@/components/TxTypeBadge";
+import { InsiderAvatar } from "@/components/InsiderAvatar";
 
 type Side = "all" | "buy" | "sell";
 
@@ -87,11 +88,14 @@ export default function InsiderBuySellPage() {
       filterable: true,
       sortValue: (r) => r.insiderName,
       render: (r) => (
-        <div className="min-w-0">
-          <Link href={`/insiders/${encodeURIComponent(r.insiderName)}`}
-            className="block text-[15px] font-bold truncate max-w-[200px] hover:text-accent transition">{r.insiderName}</Link>
-          <div className="text-[12px] text-mute truncate max-w-[200px]">{r.rawTitle || r.role}</div>
-        </div>
+        <span className="inline-flex items-center gap-2.5 min-w-0">
+          <InsiderAvatar name={r.insiderName} kind="insider" size={34} />
+          <span className="min-w-0">
+            <Link href={`/insiders/${encodeURIComponent(r.insiderName)}`}
+              className="block text-[15px] font-bold truncate max-w-[180px] hover:text-accent transition">{r.insiderName}</Link>
+            <div className="text-[12px] text-mute truncate max-w-[180px]">{r.rawTitle || r.role}</div>
+          </span>
+        </span>
       ),
     },
     {

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ExternalLink, Lock } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
 import { rankColumn } from "@/components/tableColumns";
+import { InsiderAvatar } from "@/components/InsiderAvatar";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { TradeRow, formatCurrency, formatDate, formatNumber } from "@/lib/api";
@@ -68,20 +69,23 @@ export function TradesTable({
       filterLabelText: "Role",
       sortValue: (t) => t.insiderName,
       render: (t) => (
-        <div className="min-w-0" title={t.rawTitle || t.role}>
-          <Link
-            href={`/insiders/${encodeURIComponent(t.insiderName)}`}
-            className="font-semibold text-[14px] truncate max-w-[190px] block hover:text-accent transition"
-          >
-            {t.insiderName}
-          </Link>
-          <span
-            className={`${ROLE_CLS[t.role] || ROLE_CLS.Other} mt-0.5 inline-block`}
-            style={{ fontSize: 10 }}
-          >
-            {t.role}
+        <span className="inline-flex items-center gap-2.5 min-w-0" title={t.rawTitle || t.role}>
+          <InsiderAvatar name={t.insiderName} kind="insider" size={34} />
+          <span className="min-w-0">
+            <Link
+              href={`/insiders/${encodeURIComponent(t.insiderName)}`}
+              className="font-semibold text-[14px] truncate max-w-[170px] block hover:text-accent transition"
+            >
+              {t.insiderName}
+            </Link>
+            <span
+              className={`${ROLE_CLS[t.role] || ROLE_CLS.Other} mt-0.5 inline-block`}
+              style={{ fontSize: 10 }}
+            >
+              {t.role}
+            </span>
           </span>
-        </div>
+        </span>
       ),
     },
     {
