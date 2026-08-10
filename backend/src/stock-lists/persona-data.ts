@@ -60,29 +60,12 @@ export const PERSONA_HOLDINGS: Record<string, PersonaHolding[]> = {
     { ticker: 'DPZ',  name: "Domino's Pizza", sector: 'Consumer Discretionary', sharesHeld: 2_400_000, dollarValue: 1_100_000_000, lastReported: '2026-03-31' },
     { ticker: 'LPX',  name: 'Louisiana-Pacific', sector: 'Materials', sharesHeld: 5_700_000, dollarValue: 540_000_000, lastReported: '2026-03-31' },
   ],
+  // Trump-family holdings are served LIVE from SEC Form 4 filings (see
+  // StockListsService.buildTrumpFamilyReal). This static anchor is only a
+  // fallback/preview: the family's sole publicly-filed individual-stock
+  // holding is DJT (Trump Media). No sample/illustrative positions.
   'trump-family': [
-    { ticker: 'DJT',  name: 'Trump Media & Technology Group', sector: 'Communication Services', sharesHeld: 115_000_000, dollarValue: 3_900_000_000, lastReported: '2026-04-30', note: 'Founder stake' },
-    { ticker: 'TSLA', name: 'Tesla', sector: 'Consumer Discretionary', sharesHeld: 75_000, dollarValue: 24_000_000, lastReported: '2026-04-30', note: 'Reported Trump family member' },
-    { ticker: 'NVDA', name: 'NVIDIA', sector: 'Technology', sharesHeld: 20_000, dollarValue: 26_000_000, lastReported: '2026-04-30' },
-    { ticker: 'AAPL', name: 'Apple', sector: 'Technology', sharesHeld: 50_000, dollarValue: 11_500_000, lastReported: '2026-04-30' },
-    { ticker: 'GOOGL', name: 'Alphabet', sector: 'Communication Services', sharesHeld: 32_000, dollarValue: 6_400_000, lastReported: '2026-04-30' },
-    { ticker: 'JPM',  name: 'JPMorgan Chase', sector: 'Financial Services', sharesHeld: 28_000, dollarValue: 7_100_000, lastReported: '2026-04-30' },
-    { ticker: 'GS',   name: 'Goldman Sachs', sector: 'Financial Services', sharesHeld: 9_500, dollarValue: 5_800_000, lastReported: '2026-04-30' },
-    { ticker: 'BLK',  name: 'BlackRock', sector: 'Financial Services', sharesHeld: 4_200, dollarValue: 3_900_000, lastReported: '2026-04-30' },
-    { ticker: 'META', name: 'Meta Platforms', sector: 'Communication Services', sharesHeld: 8_800, dollarValue: 6_300_000, lastReported: '2026-04-30' },
-    { ticker: 'MSFT', name: 'Microsoft', sector: 'Technology', sharesHeld: 11_500, dollarValue: 5_900_000, lastReported: '2026-04-30' },
-    { ticker: 'AMZN', name: 'Amazon.com', sector: 'Consumer Discretionary', sharesHeld: 24_000, dollarValue: 5_500_000, lastReported: '2026-04-30' },
-    { ticker: 'XOM',  name: 'Exxon Mobil', sector: 'Energy', sharesHeld: 42_000, dollarValue: 4_900_000, lastReported: '2026-04-30' },
-    { ticker: 'CVX',  name: 'Chevron', sector: 'Energy', sharesHeld: 28_000, dollarValue: 4_400_000, lastReported: '2026-04-30' },
-    { ticker: 'BA',   name: 'Boeing', sector: 'Industrials', sharesHeld: 21_000, dollarValue: 3_900_000, lastReported: '2026-04-30' },
-    { ticker: 'LMT',  name: 'Lockheed Martin', sector: 'Industrials', sharesHeld: 7_800, dollarValue: 3_700_000, lastReported: '2026-04-30' },
-    { ticker: 'RTX',  name: 'RTX Corp.', sector: 'Industrials', sharesHeld: 26_000, dollarValue: 3_400_000, lastReported: '2026-04-30' },
-    { ticker: 'KO',   name: 'Coca-Cola', sector: 'Consumer Staples', sharesHeld: 46_000, dollarValue: 3_100_000, lastReported: '2026-04-30' },
-    { ticker: 'MCD',  name: "McDonald's", sector: 'Consumer Discretionary', sharesHeld: 9_400, dollarValue: 2_900_000, lastReported: '2026-04-30' },
-    { ticker: 'PM',   name: 'Philip Morris Intl', sector: 'Consumer Staples', sharesHeld: 19_500, dollarValue: 2_700_000, lastReported: '2026-04-30' },
-    { ticker: 'MO',   name: 'Altria Group', sector: 'Consumer Staples', sharesHeld: 44_000, dollarValue: 2_400_000, lastReported: '2026-04-30' },
-    { ticker: 'WMT',  name: 'Walmart', sector: 'Consumer Staples', sharesHeld: 21_000, dollarValue: 2_200_000, lastReported: '2026-04-30' },
-    { ticker: 'HD',   name: 'Home Depot', sector: 'Consumer Discretionary', sharesHeld: 5_200, dollarValue: 2_100_000, lastReported: '2026-04-30' },
+    { ticker: 'DJT', name: 'Trump Media & Technology Group', sector: 'Communication Services', sharesHeld: 114_750_000, dollarValue: 0, lastReported: '2024-03-25', note: 'Founder stake — reported on SEC filings; live figures on the list' },
   ],
   'ray-dalio': [
     { ticker: 'IVV',  name: 'iShares Core S&P 500 ETF', sector: 'Diversified', sharesHeld: 8_800_000, dollarValue: 5_100_000_000, lastReported: '2026-03-31', note: 'Bridgewater Pure Alpha' },
@@ -600,9 +583,9 @@ export const STOCK_LIST_META: Record<
     kind: 'persona',
   },
   'trump-family': {
-    title: 'Trump Family Investments',
+    title: 'Trump Family (SEC Filings)',
     description:
-      'Illustrative, representative positions associated with the Trump family — including the founder stake in Trump Media & Technology Group (DJT). Sample figures for context, not actual reported filings.',
+      "The Trump family's publicly-disclosed equity from SEC Form 4 filings — their reported stake in Trump Media & Technology Group (DJT), valued live. Actual filings, not sample figures.",
     kind: 'persona',
   },
   politicians: {

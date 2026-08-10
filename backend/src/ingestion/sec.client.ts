@@ -322,6 +322,82 @@ export class SecClient {
     return m;
   }
 
+  /**
+   * Latest reported share holdings per insider (reporting owner) whose name
+   * matches `ownerRe`, from an issuer's Form 4 filings. Unlike
+   * getRecentForm4ByTicker this keeps EVERY transaction code (grants, awards,
+   * trust transfers — not just open-market buys/sells) because the goal is the
+   * most recent `sharesOwnedFollowing` figure, i.e. the real current holding.
+   */
+  async getLatestHoldingsByOwner(
+    ticker: string,
+    ownerRe: RegExp,
+    maxFilings = 90,
+  ): Promise<
+    { owner: string; role: string; shares: number; lastDate: string; filingUrl: string }[]
+  > {
+    const cikMap = await this.loadTickerCik();
+    const cik10 = cikMap.get(ticker.toUpperCase());
+    if (!cik10) return [];
+    const cikNum = String(Number(cik10));
+    let recent: any;
+    try {
+      const { data } = await this.http.get(
+        `https://data.sec.gov/submissions/CIK${cik10}.json`,
+      );
+      recent = data?.filings?.recent;
+    } catch {
+      return [];
+    }
+    if (!recent?.form) return [];
+
+    const jobs: { acc: string; doc: string }[] = [];
+    for (let i = 0; i < recent.form.length && jobs.length < maxFilings; i++) {
+      if (recent.form[i] === '4') {
+        const doc = String(recent.primaryDocument[i] || '').replace(/^xsl[^/]*\//i, '');
+        jobs.push({ acc: recent.accessionNumber[i], doc });
+      }
+    }
+
+    // owner(lower) -> best (latest) record
+    const best = new Map<
+      string,
+      { owner: string; role: string; shares: number; lastDate: string; filingUrl: string }
+    >();
+    for (let i = 0; i < jobs.length; i += 4) {
+      const chunk = jobs.slice(i, i + 4);
+      await Promise.all(
+        chunk.map(async ({ acc, doc }) => {
+          try {
+            const xml = await this.fetchForm4Xml(cikNum, acc, doc);
+            if (!xml) return;
+            const parsed = this.parseForm4(xml);
+            if (!parsed) return;
+            const accnd = acc.replace(/-/g, '');
+            const filingUrl = `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accnd}/${acc}-index.htm`;
+            for (const t of parsed.transactions) {
+              if (!ownerRe.test(t.insiderName || '')) continue;
+              const key = t.insiderName.toLowerCase();
+              const prev = best.get(key);
+              if (!prev || t.transactionDate > prev.lastDate) {
+                best.set(key, {
+                  owner: t.insiderName,
+                  role: t.rawTitle || (t.isDirector ? 'Director' : t.isOfficer ? 'Officer' : '10% Owner'),
+                  shares: t.postHoldings || prev?.shares || 0,
+                  lastDate: t.transactionDate,
+                  filingUrl,
+                });
+              }
+            }
+          } catch {
+            /* skip bad filing */
+          }
+        }),
+      );
+    }
+    return Array.from(best.values()).sort((a, b) => b.shares - a.shares);
+  }
+
   /** Most recent open-market insider transactions (buys AND sells) for a
    *  ticker, fetched live from SEC EDGAR. Parses up to `maxFilings` recent
    *  Form 4s. Returns [] if the ticker can't be resolved. */

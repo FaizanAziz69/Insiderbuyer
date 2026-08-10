@@ -74,7 +74,7 @@ interface Fundraising {
 const SECTIONS = [
   { id: "trades", label: "Trades" },
   { id: "portfolio", label: "Live Stock Portfolio" },
-  { id: "networth", label: "Net Worth" },
+  { id: "networth", label: "Portfolio Value" },
   { id: "supporters", label: "Supporters" },
   { id: "opponents", label: "Opponents" },
   { id: "donors", label: "Corporate Donors" },
@@ -373,8 +373,9 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
                 </div>
                 <p className="text-[11px] text-faint mt-4">
                   Estimated from disclosed trades (STOCK Act dollar ranges) valued at historical market prices —
-                  this is a stock-portfolio estimate, <strong>not total net worth</strong> (which would require annual
-                  financial-disclosure asset filings we don&rsquo;t yet ingest).
+                  this is a stock-portfolio estimate, <strong>not total net worth</strong>. True net worth comes from
+                  the annual Financial Disclosure asset &amp; liability filings (House/Senate); ingesting those for a
+                  real net-worth figure is on the roadmap.
                 </p>
               </div>
             </section>

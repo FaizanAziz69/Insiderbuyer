@@ -3,6 +3,7 @@ import { IqsService, RankingRow } from '../iqs/iqs.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 import { ThirteenFService } from './thirteenf.service';
 import { CongressionalService } from '../congressional/congressional.service';
+import { SecClient } from '../ingestion/sec.client';
 import {
   BLUE_CHIP_MIN_MARKET_CAP,
   COUNTRY_UNIVERSE,
@@ -114,7 +115,75 @@ export class StockListsService {
     private readonly marketStats: MarketStatsService,
     private readonly thirteenF: ThirteenFService,
     private readonly congress: CongressionalService,
+    private readonly sec: SecClient,
   ) {}
+
+  // Trump-family SEC holdings cache (DJT Form 4 data is expensive to fetch).
+  private trumpCache: { ts: number; rows: any[] } | null = null;
+  private readonly TRUMP_TTL_MS = 6 * 60 * 60_000;
+
+  /**
+   * Real Trump-family equity from SEC filings: their reported DJT (Trump Media)
+   * holdings, read from the latest Form 4 `sharesOwnedFollowing` per family
+   * member, valued at the live DJT price. Replaces the old illustrative basket
+   * — every figure here is a genuine SEC filing, not a sample.
+   */
+  private async buildTrumpFamilyReal(): Promise<any[]> {
+    if (this.trumpCache && Date.now() - this.trumpCache.ts < this.TRUMP_TTL_MS) {
+      return this.trumpCache.rows;
+    }
+    let rows: any[] = [];
+    try {
+      const holders = (await this.sec.getLatestHoldingsByOwner('DJT', /trump/i, 90)).filter(
+        (h) => h.shares > 0,
+      );
+      const live = await this.fetchLiveQuotes(['DJT']);
+      const px =
+        (live.get('DJT') as any)?.price ??
+        (live.get('DJT') as any)?.regularMarketPrice ??
+        null;
+      if (holders.length) {
+        const totalShares = holders.reduce((s, h) => s + h.shares, 0);
+        const latest = holders.reduce(
+          (m, h) => (h.lastDate > m ? h.lastDate : m),
+          holders[0].lastDate,
+        );
+        // Per-filer breakdown for the note (largest holding first).
+        const breakdown = holders
+          .map((h) => `${this.prettyOwner(h.owner)} ${h.shares.toLocaleString('en-US')} sh`)
+          .join(' · ');
+        const base = [
+          {
+            ticker: 'DJT',
+            name: 'Trump Media & Technology Group',
+            sector: 'Communication Services',
+            sharesHeld: totalShares,
+            dollarValue: px != null ? Math.round(totalShares * px) : 0,
+            lastReported: latest,
+            note: `Reported on SEC Form 4: ${breakdown}`,
+            filingUrl: holders[0].filingUrl || null,
+          },
+        ];
+        rows = this.enrichRows(base, live) as any[];
+      }
+    } catch {
+      rows = [];
+    }
+    this.trumpCache = { ts: Date.now(), rows };
+    return rows;
+  }
+
+  /** "TRUMP DONALD J JR" → "Donald J. Trump Jr." */
+  private prettyOwner(raw: string): string {
+    const s = (raw || '').trim();
+    if (/trump donald j\.? jr/i.test(s)) return 'Donald J. Trump Jr.';
+    if (/trump donald j/i.test(s)) return 'Donald J. Trump';
+    if (/trump eric/i.test(s)) return 'Eric Trump';
+    // Generic "LAST FIRST M" → "First M Last"
+    const parts = s.split(/\s+/);
+    if (parts.length >= 2) return [...parts.slice(1), parts[0]].join(' ');
+    return s;
+  }
 
   /** Build the "Politicians" list from live congressional disclosures — group
    *  trades by ticker, summing disclosed amount midpoints, newest date wins. */
@@ -452,6 +521,20 @@ export class StockListsService {
   async getDetail(slug: string, filters: StockListFilters): Promise<StockListDetail | null> {
     const meta = STOCK_LIST_META[slug];
     if (!meta && slug !== 'iqs-top-picks' && slug !== 'blue-sky') return null;
+
+    if (slug === 'trump-family') {
+      // Real SEC-filed Trump-family equity (DJT), not the old illustrative set.
+      const rows = await this.buildTrumpFamilyReal();
+      return {
+        slug,
+        title: 'Trump Family (SEC Filings)',
+        description:
+          "The Trump family's publicly-disclosed equity holdings from SEC Form 4 filings — their reported stake in Trump Media & Technology Group (DJT), valued at the live price. These are actual filings, not sample figures. The family files no other individual-stock holdings publicly, and (not being members of Congress) no STOCK Act trades.",
+        kind: 'persona',
+        total: rows.length,
+        rows,
+      };
+    }
 
     if (slug === 'blue-sky') {
       const rows = await this.buildBlueSkyRows();
