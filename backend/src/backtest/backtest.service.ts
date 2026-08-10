@@ -89,7 +89,7 @@ export class BacktestService {
    *  60s function limit; the next request picks up where this one stopped. */
   private readonly SLICE = 45;
   private readonly CONCURRENCY = 6;
-  private readonly CACHE_KEY = 'insider-strategy-v4'; // v4 = trim dead-start weeks + return clamp
+  private readonly CACHE_KEY = 'insider-strategy-v5'; // v5 = sustained-density start
 
   constructor(
     @InjectRepository(InsiderTransaction)
@@ -389,13 +389,25 @@ export class BacktestService {
     //     would sit flat at 100 for years then spike (misleading). Start at
     //     the first week that holds at least MIN_HELD priced names.
     const MIN_HELD = 5;
-    const heldCount = (i: number) =>
+    const held = weeks.map((_, i) =>
       picksByWeek[i].filter((tk) => {
         const p = priceOn(tk, weeks[i]);
         return p != null && p > 0;
-      }).length;
+      }).length,
+    );
+    // Start where coverage becomes SUSTAINED, not at the first isolated early
+    // cluster: the first week from which ≥90% of the next 26 weeks each hold
+    // at least MIN_HELD priced names. This drops the long flat-at-100 tail of
+    // sparse early history and begins the curve at genuine data density.
+    const WIN = 26;
     let startIdx = 0;
-    while (startIdx < weeks.length - 8 && heldCount(startIdx) < MIN_HELD) startIdx++;
+    for (let i = 0; i < weeks.length; i++) {
+      if (i > weeks.length - 9) { startIdx = i; break; } // never trim to < 8 weeks
+      const end = Math.min(weeks.length, i + WIN);
+      let ok = 0;
+      for (let j = i; j < end; j++) if (held[j] >= MIN_HELD) ok++;
+      if (ok / (end - i) >= 0.9) { startIdx = i; break; }
+    }
     const W = weeks.slice(startIdx);
     const P = picksByWeek.slice(startIdx);
 
