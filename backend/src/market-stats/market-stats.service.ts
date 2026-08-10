@@ -24,6 +24,13 @@ export interface AnalystRow {
   upsidePct: number | null;
   recommendation: string | null; // strong_buy | buy | hold | underperform | sell
   numAnalysts: number | null;
+  /** Rating breakdown from the current-month recommendation trend: how many
+   *  analysts rate the stock Buy (strong buy + buy), Hold, and Sell (sell +
+   *  strong sell). Null when no trend is available for the listing. */
+  buyRatings: number | null;
+  holdRatings: number | null;
+  sellRatings: number | null;
+  totalRatings: number | null;
 }
 
 export interface DividendRow {
@@ -1248,7 +1255,7 @@ export class MarketStatsService {
 
   // All three tool pages share one quoteSummary call per symbol so the cache
   // (keyed by symbol) is always complete regardless of which page asked first.
-  private readonly SUMMARY_MODULES = 'financialData,summaryDetail,defaultKeyStatistics';
+  private readonly SUMMARY_MODULES = 'financialData,summaryDetail,defaultKeyStatistics,recommendationTrend';
 
   private async fetchQuoteSummary(symbol: string, modules = this.SUMMARY_MODULES): Promise<any | null> {
     const cached = this.summaryCache.get(symbol);
@@ -1943,6 +1950,27 @@ export class MarketStatsService {
       const targetMean = fd?.targetMeanPrice?.raw ?? null;
       const upsidePct =
         targetMean && price ? +(((targetMean - price) / price) * 100).toFixed(2) : null;
+      // Rating breakdown from the current-month recommendation trend.
+      const trendArr = summaries.get(sym)?.recommendationTrend?.trend || [];
+      const t0 = trendArr.find((t: any) => t.period === '0m') || trendArr[0] || null;
+      let buyRatings: number | null = null;
+      let holdRatings: number | null = null;
+      let sellRatings: number | null = null;
+      let totalRatings: number | null = null;
+      if (t0) {
+        const sb = Number(t0.strongBuy) || 0;
+        const b = Number(t0.buy) || 0;
+        const h = Number(t0.hold) || 0;
+        const s = Number(t0.sell) || 0;
+        const ss = Number(t0.strongSell) || 0;
+        const tot = sb + b + h + s + ss;
+        if (tot > 0) {
+          buyRatings = sb + b;
+          holdRatings = h;
+          sellRatings = s + ss;
+          totalRatings = tot;
+        }
+      }
       rows.push({
         symbol: sym,
         name: q?.name ?? ref?.name ?? sym,
@@ -1954,7 +1982,41 @@ export class MarketStatsService {
         upsidePct,
         recommendation,
         numAnalysts: fd?.numberOfAnalystOpinions?.raw ?? null,
+        buyRatings,
+        holdRatings,
+        sellRatings,
+        totalRatings,
       });
+    }
+    // FMP grades-consensus fallback for rows Yahoo left without a trend
+    // breakdown (foreign listings, thin coverage) — bounded concurrency so a
+    // universe refresh doesn't hammer FMP.
+    if (this.fmp?.enabled) {
+      // Cap the fallback so a full-universe refresh can't exhaust the FMP
+      // budget; remaining rows simply show no breakdown.
+      const missing = rows.filter((r) => r.totalRatings == null).slice(0, 80);
+      const CONC = 5;
+      for (let i = 0; i < missing.length; i += CONC) {
+        const chunk = missing.slice(i, i + CONC);
+        await Promise.all(
+          chunk.map(async (r) => {
+            try {
+              const g = await this.fmp!.getGradesConsensus(r.symbol);
+              if (!g) return;
+              const tot = g.strongBuy + g.buy + g.hold + g.sell + g.strongSell;
+              if (tot > 0) {
+                r.buyRatings = g.strongBuy + g.buy;
+                r.holdRatings = g.hold;
+                r.sellRatings = g.sell + g.strongSell;
+                r.totalRatings = tot;
+                if (r.numAnalysts == null) r.numAnalysts = tot;
+              }
+            } catch {
+              /* leave blank */
+            }
+          }),
+        );
+      }
     }
     // Strongest consensus first (falls back to this when no upside is known).
     const strength: Record<string, number> = {

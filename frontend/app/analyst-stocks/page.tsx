@@ -25,6 +25,10 @@ interface StockRow {
   upsidePct: number | null;
   recommendation: string | null;
   numAnalysts: number | null;
+  buyRatings: number | null;
+  holdRatings: number | null;
+  sellRatings: number | null;
+  totalRatings: number | null;
 }
 
 const REC: Record<string, { label: string; color: string; rank: number }> = {
@@ -96,13 +100,29 @@ export default function AnalystStocksPage() {
       },
     },
     {
-      key: "numAnalysts",
-      label: "Analysts",
+      key: "buyRatings",
+      label: "Buy Ratings",
       align: "right",
-      info: "How many Wall Street analysts currently publish a rating and price target on this stock.",
+      info: "How many covering analysts rate the stock a Buy (Strong Buy + Buy), out of its total ratings. The Hold/Sell split is on each stock's Forecast tab.",
+      sortValue: (r) => r.buyRatings ?? -1,
+      render: (r) =>
+        r.buyRatings == null || r.totalRatings == null ? (
+          <span className="text-faint text-[12px]">—</span>
+        ) : (
+          <span className="tabular text-[13.5px]">
+            <span className="font-bold" style={{ color: "var(--good)" }}>{r.buyRatings}</span>
+            <span className="text-mute"> / {r.totalRatings} Buy</span>
+          </span>
+        ),
+    },
+    {
+      key: "numAnalysts",
+      label: "Coverage",
+      align: "right",
+      info: "Total number of Wall Street analysts publishing a rating and price target on this stock.",
       sortValue: (r) => r.numAnalysts ?? 0,
       render: (r) => (
-        <span className="tabular text-[13.5px] font-semibold">{r.numAnalysts ?? "—"}</span>
+        <span className="tabular text-[13px] text-mute">{r.numAnalysts ?? r.totalRatings ?? "—"}</span>
       ),
     },
     {
