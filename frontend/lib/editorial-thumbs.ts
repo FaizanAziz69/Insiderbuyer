@@ -83,8 +83,19 @@ export interface ThumbInput {
 /** Ordered candidate files for an article: its best-fit bucket first, then
  *  the neutral pool as backup so a unique assignment can always find an
  *  unused image. Empty → no editorial thumb (curated fallback). */
+/** Hard pin: specific article slugs → a specific thumbnail file (wins over
+ *  all keyword/pool logic). Used when an editorial needs one exact image. */
+const SLUG_OVERRIDES: Record<string, string> = {
+  "editorial-trump-3b-critical-minerals-2026-08-08": "trump-social-posts",
+};
+
 function candidatesFor(opts: ThumbInput): Thumb[] {
   const seed = (opts.seed || "").toLowerCase();
+  const pin = SLUG_OVERRIDES[seed];
+  if (pin) {
+    const t = THUMBS.find((x) => x.file === pin);
+    if (t) return [t];
+  }
   const sym = (opts.ticker || "").toUpperCase();
   const hay = [seed, (opts.sector || "").toLowerCase(), ...(opts.tags || []).map((t) => t.toLowerCase())]
     .join(" ");
