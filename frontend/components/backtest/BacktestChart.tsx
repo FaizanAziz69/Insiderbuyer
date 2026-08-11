@@ -266,6 +266,11 @@ export function BacktestChart({
 
       <svg
         viewBox={`0 0 ${W} ${H}`}
+        // Stretch the viewBox to exactly fill the rendered box (no letterbox),
+        // so the cursor's screen position maps 1:1 to viewBox/tooltip coords —
+        // otherwise the default "meet" centres the drawing and the hover box
+        // drifts away from the pointer.
+        preserveAspectRatio="none"
         className="w-full"
         style={{ height: H, display: "block" }}
         onMouseMove={onMove}
