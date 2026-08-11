@@ -15,7 +15,8 @@ on:
     paths:
       - '.github/workflows/fmp-refresh.yml'   # re-runs whenever this file is pushed
   schedule:
-    - cron: '0 */6 * * *'      # safety net: top up every 6 hours
+    - cron: '0 */12 * * *'     # twice daily — reads the whole universe, so keep
+                               # it modest to limit database egress
 
 concurrency:
   group: fmp-refresh

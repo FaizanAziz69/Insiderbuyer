@@ -711,6 +711,15 @@ export class IqsService {
     return { updated, remaining, cursor };
   }
 
+  // Rankings results are heavy (a wide join over the whole scored universe plus
+  // per-company Form 4 aggregations) and the underlying scores only change on
+  // the ~6-hourly recalc, yet the hot/home pages re-fetch this constantly. An
+  // in-memory cache keyed by the query shape collapses that repeated read —
+  // the single biggest driver of database egress. Prices refresh on the next
+  // window; a few minutes of staleness on a rankings table is invisible.
+  private rankCache = new Map<string, { ts: number; data: { total: number; rows: RankingRow[] } }>();
+  private readonly RANK_TTL_MS = 10 * 60_000;
+
   async getRankings(opts: {
     limit?: number;
     offset?: number;
@@ -723,6 +732,14 @@ export class IqsService {
     exchange?: string;
     withLive?: boolean;
   }): Promise<{ total: number; rows: RankingRow[] }> {
+    const cacheKey = JSON.stringify({
+      l: opts.limit, o: opts.offset, s: opts.sector,
+      sm: opts.sectorMatch?.source, mn: opts.minMarketCap, mx: opts.maxMarketCap,
+      mi: opts.minIqs, c: opts.country, e: opts.exchange, lv: !!opts.withLive,
+    });
+    const hit = this.rankCache.get(cacheKey);
+    if (hit && Date.now() - hit.ts < this.RANK_TTL_MS) return hit.data;
+
     const limit = Math.min(opts.limit ?? 50, 5000);
     const offset = opts.offset ?? 0;
 
@@ -952,7 +969,14 @@ export class IqsService {
       }
     }
 
-    return { total, rows };
+    const result = { total, rows };
+    this.rankCache.set(cacheKey, { ts: Date.now(), data: result });
+    // Bound the cache — only a handful of distinct query shapes are ever hot.
+    if (this.rankCache.size > 64) {
+      const oldest = [...this.rankCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
+      if (oldest) this.rankCache.delete(oldest[0]);
+    }
+    return result;
   }
 
   async getCompanyDetail(ticker: string) {

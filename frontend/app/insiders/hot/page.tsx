@@ -62,9 +62,13 @@ export default function InsiderHotStocksPage() {
   const { data: bt } = useBacktest();
 
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=1000&live=1${exchange !== "all" ? `&exchange=${exchange}` : ""}`,
+    // 300 candidates is ample to fill a top-50-with-coverage list (only the
+    // first 150 tickers feed the coverage lookup); pulling 1000 was needless
+    // database egress. Refresh every 30 min — scores only change on the ~6h
+    // recalc, so tighter polling just re-transfers identical rows.
+    `${API_BASE}/rankings?limit=300&live=1${exchange !== "all" ? `&exchange=${exchange}` : ""}`,
     fetcher,
-    { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
+    { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
 
   const rows: RankingRow[] = data?.rows || [];
@@ -91,7 +95,7 @@ export default function InsiderHotStocksPage() {
       ? `${API_BASE}/market-stats/analyst-ratings?symbols=${encodeURIComponent(tickerKey)}`
       : null,
     fetcher,
-    { refreshInterval: 10 * 60_000, revalidateOnFocus: false },
+    { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
 
   const upsideBySym = new Map<string, { upside: number | null; target: number | null }>();
