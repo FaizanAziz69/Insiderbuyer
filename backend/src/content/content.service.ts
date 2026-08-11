@@ -599,16 +599,30 @@ export class ContentService {
     // Prune most posts after 7 days so the homepage stays fresh, but let
     // topic-roundup articles live ~28 days so each topic page accumulates a
     // deep, MarketBeat-style archive of dozens of articles.
+    //
+    // GUARD: only prune when enough FRESH content exists to replace what's
+    // removed. When generation is down (e.g. the LLM account is out of
+    // credits) every run would otherwise delete the archive and add nothing —
+    // that's how a restored 400-article feed got emptied to one post.
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const topicCutoff = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000);
-    await this.repo
-      .createQueryBuilder()
-      .delete()
-      .where(
-        "(kind = 'topic-roundup' AND \"generatedAt\" < :topicCutoff) OR (kind <> 'topic-roundup' AND \"generatedAt\" < :cutoff)",
-        { topicCutoff: topicCutoff.toISOString(), cutoff: cutoff.toISOString() },
-      )
-      .execute();
+    const freshCount = await this.repo.count({
+      where: { generatedAt: MoreThanOrEqual(cutoff) },
+    });
+    if (freshCount >= 50) {
+      await this.repo
+        .createQueryBuilder()
+        .delete()
+        .where(
+          "(kind = 'topic-roundup' AND \"generatedAt\" < :topicCutoff) OR (kind <> 'topic-roundup' AND \"generatedAt\" < :cutoff)",
+          { topicCutoff: topicCutoff.toISOString(), cutoff: cutoff.toISOString() },
+        )
+        .execute();
+    } else {
+      this.logger.warn(
+        `Skipping aged-post prune: only ${freshCount} fresh posts (<50) — pruning now would empty the feed.`,
+      );
+    }
 
     // Pull the top of the Insider Score leaderboard once and reuse across all jobs.
     const rankings = await this.iqs.getRankings({ limit: 30, offset: 0 });
