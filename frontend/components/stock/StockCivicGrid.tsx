@@ -256,9 +256,8 @@ export function BullBearCard({ ticker, companyName, sector, insiderScore }: { ti
     { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 },
   );
   const bb = data?.bullBear;
-  // Bull/bear talking points come from the LLM pipeline; when absent, hide
-  // the card rather than pinning a permanent empty box on the profile.
-  if (!isLoading && (!bb || (!bb.bull.length && !bb.bear.length))) return null;
+  // Client spec: this card stays visible even while the bull/bear summary is
+  // still being prepared — unlike the other data cards, it is not hidden.
   return (
     <div className="card p-5 flex flex-col h-full min-h-[320px] lg:col-span-2">
       <div className="flex items-center gap-2">
@@ -269,7 +268,9 @@ export function BullBearCard({ ticker, companyName, sector, insiderScore }: { ti
       {isLoading ? (
         <div className="h-full flex items-center justify-center text-[12.5px] text-mute py-8">Generating analysis…</div>
       ) : !bb || (!bb.bull.length && !bb.bear.length) ? (
-        <div className="h-full flex items-center justify-center text-center text-[12.5px] text-mute py-8 px-4">AI analysis unavailable right now.</div>
+        <div className="h-full flex items-center justify-center text-center text-[12.5px] text-mute py-8 px-4">
+          The bull &amp; bear analysis for {ticker} is being prepared — check back soon.
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 flex-1">
           <div>
