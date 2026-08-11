@@ -180,6 +180,55 @@ export class AnalystsService {
     }
   }
 
+  /** One analyst's stored ratings, newest first — feeds the name-click popup.
+   *  Matched by the same slug the Top Analysts rows carry (slugified name). */
+  async getAnalystRatings(
+    slug: string,
+    limit = 20,
+  ): Promise<{
+    analyst: string | null;
+    firm: string | null;
+    rows: {
+      symbol: string;
+      priceTarget: number | null;
+      priceWhenPosted: number | null;
+      impliedUpsidePct: number | null;
+      publishedDate: string;
+    }[];
+  }> {
+    // Slug → name: scan distinct analyst names and match on slugified form
+    // (names are free-text from the feed; the slug is display-derived).
+    const names = await this.repo
+      .createQueryBuilder('t')
+      .select('DISTINCT t."analystName"', 'name')
+      .getRawMany<{ name: string }>();
+    const name = names.map((n) => n.name).find((n) => firmSlug(n) === slug) || null;
+    if (!name) return { analyst: null, firm: null, rows: [] };
+    const targets = await this.repo.find({
+      where: { analystName: name },
+      order: { publishedDate: 'DESC' },
+      take: limit,
+    });
+    return {
+      analyst: name,
+      firm: targets.find((t) => t.analystCompany)?.analystCompany ?? null,
+      rows: targets.map((t) => {
+        const posted = t.priceWhenPosted != null ? Number(t.priceWhenPosted) : null;
+        const target = t.priceTarget != null ? Number(t.priceTarget) : null;
+        return {
+          symbol: t.symbol,
+          priceTarget: target,
+          priceWhenPosted: posted,
+          impliedUpsidePct:
+            target != null && posted != null && posted > 0
+              ? +(((target - posted) / posted) * 100).toFixed(1)
+              : null,
+          publishedDate: new Date(t.publishedDate).toISOString().slice(0, 10),
+        };
+      }),
+    };
+  }
+
   async getTopAnalysts(limit = 50): Promise<{
     rows: TopAnalystRow[];
     coverage: { ratings: number; analysts: number; since: string | null };

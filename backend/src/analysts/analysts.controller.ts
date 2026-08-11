@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AdminTokenGuard } from '../common/admin-token.guard';
 import { AnalystsService } from './analysts.service';
 
@@ -11,6 +11,14 @@ export class AnalystsController {
   async top(@Query('limit') limit?: string) {
     const n = Number(limit);
     return this.svc.getTopAnalysts(Number.isFinite(n) && n > 0 ? Math.min(n, 200) : 50);
+  }
+
+  /** One analyst's rating history (for the name-click popup on Top Analysts —
+   *  most recent first; no standalone profile pages per client spec). */
+  @Get(':slug/ratings')
+  async ratings(@Param('slug') slug: string, @Query('limit') limit?: string) {
+    const n = Number(limit);
+    return this.svc.getAnalystRatings(slug, Number.isFinite(n) && n > 0 ? Math.min(n, 50) : 20);
   }
 
   /** Manual accumulation tick (also runs on the daily cron). */

@@ -117,9 +117,9 @@ export default function AnalystStocksPage() {
     },
     {
       key: "numAnalysts",
-      label: "Coverage",
+      label: "Top Analysts",
       align: "right",
-      info: "Total analysts with a current rating on this stock. Matches the Buy Ratings denominator so the two are always consistent.",
+      info: "How many top Wall Street analysts we track currently rate this stock — a curated set of ranked analysts, not every covering analyst. Matches the Buy Ratings denominator.",
       // Use the rating-breakdown total when present so Coverage never reads
       // lower than the Buy count (the two Yahoo fields can disagree).
       sortValue: (r) => r.totalRatings ?? r.numAnalysts ?? 0,

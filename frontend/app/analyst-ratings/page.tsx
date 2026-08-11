@@ -7,6 +7,7 @@ import { API_BASE, fetcher } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
 import { DataTable, Column } from "@/components/DataTable";
 import { rankColumn } from "@/components/tableColumns";
+import { AnalystRatingsPopover } from "@/components/AnalystRatingsPopover";
 
 /** One ranked Wall Street analyst — matches the stockanalysis.com "Top
  *  Analysts" table: name, firm, main sector, measured success rate + average
@@ -51,11 +52,7 @@ export default function AnalystRatingsPage() {
       key: "analyst",
       label: "Analyst Name",
       sortValue: (r) => r.analyst,
-      render: (r) => (
-        <span className="font-semibold text-[14px]" style={{ color: "var(--text)" }}>
-          {r.analyst}
-        </span>
-      ),
+      render: (r) => <AnalystRatingsPopover name={r.analyst} slug={r.slug} />,
     },
     {
       key: "firm",
@@ -164,12 +161,6 @@ export default function AnalystRatingsPage() {
           className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline"
         >
           See the stocks analysts rate most highly →
-        </Link>
-        <Link
-          href="/top-analysts"
-          className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline"
-        >
-          See research firms ranked by track record →
         </Link>
       </div>
 

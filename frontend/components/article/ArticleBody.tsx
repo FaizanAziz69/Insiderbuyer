@@ -19,7 +19,7 @@ const LINK_ALLOWED_PREFIXES = [
 ];
 const LINK_ALLOWED_EXACT = new Set([
   "/", "/companies", "/insights", "/editorial", "/stock-lists", "/trades",
-  "/insiders/hot", "/analyst-ratings", "/top-analysts", "/earnings", "/dividends", "/ipos",
+  "/insiders/hot", "/analyst-ratings", "/analyst-stocks", "/earnings", "/dividends", "/ipos",
   "/short-interest", "/short-squeeze", "/congressional-trades", "/sectors",
   "/screener", "/premium", "/news",
 ]);

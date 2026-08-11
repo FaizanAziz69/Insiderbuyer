@@ -69,7 +69,7 @@ const STOCK_LIST_PILLS = [
 
 const INVESTING_TOOL_PILLS = [
   { href: "/analyst-ratings", label: "Analyst Ratings" },
-  { href: "/top-analysts", label: "Top Analysts" },
+  { href: "/analyst-ratings", label: "Top Analysts" },
   { href: "/congressional-trades", label: "Congressional Trading" },
   { href: "/dividends", label: "Dividends" },
   { href: "/earnings", label: "Earnings" },
