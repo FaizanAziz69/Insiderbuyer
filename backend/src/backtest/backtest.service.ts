@@ -207,18 +207,25 @@ export class BacktestService {
   async backfillBuyEvents(opts?: {
     maxPagesPerSymbol?: number;
     limit?: number;
-  }): Promise<{ symbols: number; events: number }> {
-    if (!this.fmp.enabled) return { symbols: 0, events: 0 };
+    /** Cursor: skip this many symbols (alphabetical) — lets a 60s-capped
+     *  serverless caller walk the whole universe in slices. */
+    offset?: number;
+  }): Promise<{ symbols: number; events: number; remaining: number; nextOffset: number | null }> {
+    if (!this.fmp.enabled) return { symbols: 0, events: 0, remaining: 0, nextOffset: null };
     const rows = await this.companies
       .createQueryBuilder('c')
       .select('DISTINCT UPPER(c.ticker)', 'ticker')
       .where(`c.exchange = 'US'`)
       .andWhere(`c.ticker IS NOT NULL AND c.ticker NOT LIKE '%.%'`)
+      .orderBy('1', 'ASC')
       .getRawMany<{ ticker: string }>();
-    const symbols = rows
+    const all = rows
       .map((r) => r.ticker)
-      .filter((t) => t && /^[A-Z0-9\-]+$/.test(t))
-      .slice(0, opts?.limit ?? 5000);
+      .filter((t) => t && /^[A-Z0-9\-]+$/.test(t));
+    const offset = Math.max(0, opts?.offset ?? 0);
+    const symbols = all.slice(offset, offset + (opts?.limit ?? 5000));
+    const remaining = Math.max(0, all.length - offset - symbols.length);
+    const nextOffset = remaining > 0 ? offset + symbols.length : null;
     let events = 0;
     for (const sym of symbols) {
       try {
@@ -249,7 +256,7 @@ export class BacktestService {
     }
     await this.resultRepo.delete({ key: this.CACHE_KEY });
     this.logger.log(`buy-event backfill: ${symbols.length} symbols, ${events} events`);
-    return { symbols: symbols.length, events };
+    return { symbols: symbols.length, events, remaining, nextOffset };
   }
 
   private async buildPlan(): Promise<{

@@ -15,10 +15,11 @@ export class BacktestController {
   /** Populate the 10-year insider-purchase event store (paid FMP). */
   @Post('backfill-buys')
   @UseGuards(AdminTokenGuard)
-  async backfillBuys(@Body() body: { pages?: number; limit?: number }) {
+  async backfillBuys(@Body() body: { pages?: number; limit?: number; offset?: number }) {
     return this.svc.backfillBuyEvents({
       maxPagesPerSymbol: body?.pages,
       limit: body?.limit,
+      offset: body?.offset,
     });
   }
 }
