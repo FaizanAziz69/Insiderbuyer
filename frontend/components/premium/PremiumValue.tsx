@@ -1,18 +1,18 @@
 "use client";
 import Link from "next/link";
-import { Lock, X } from "lucide-react";
+import { Lock } from "lucide-react";
 import { usePremium } from "./PremiumContext";
 
 /**
- * Blurs a single premium value in place — an Insider Score, a potential-upside
+ * Gates a single premium value in place — an Insider Score, a potential-upside
  * figure, a top-stocks score — while keeping the column and its header visible
- * so visitors can see the data exists. Used on the stock lists that aren't full
- * freemium leaderboards; those use PaywallOverlay / PremiumRowWall instead.
+ * so visitors can see the data exists.
  *
- * Until Stripe lands, a small × sits above the lock: clicking it opens the
- * premium data for the current view (shared session unlock — the same one the
- * big walls use, so one dismissal opens everything; nothing is persisted and a
- * refresh restores the locks). Remove the × when checkout goes live.
+ * STRICT enforcement (client spec): when locked, the real value is NEVER
+ * rendered — not even blurred. A CSS blur keeps the number in the DOM where
+ * view-source/devtools reads it, which leaks paid data. Instead a decoy
+ * placeholder is blurred, and the lock links to the subscribe page. The old
+ * "×" session bypass (pre-Stripe stopgap) is gone — checkout is live.
  */
 export function PremiumValue({
   children,
@@ -22,21 +22,22 @@ export function PremiumValue({
   /** What the unlock CTA offers, e.g. "Insider Score". */
   label?: string;
 }) {
-  const { unlocked, unlock } = usePremium();
+  const { unlocked } = usePremium();
   if (unlocked) return <>{children}</>;
   return (
     <span
       className="relative inline-flex items-center justify-center"
       title={`Unlock ${label}`}
     >
+      {/* Decoy stand-in — the real value stays server/side-channel free. */}
       <span
         aria-hidden
-        className="select-none pointer-events-none"
+        className="select-none pointer-events-none tabular font-bold"
         style={{ filter: "blur(5px)" }}
       >
-        {children}
+        88
       </span>
-      <span className="sr-only">{label} — premium</span>
+      <span className="sr-only">{label} — premium, subscribe to view</span>
       <Link
         href="/premium"
         aria-label={`Unlock ${label}`}
@@ -44,20 +45,6 @@ export function PremiumValue({
       >
         <Lock className="h-3.5 w-3.5" style={{ color: "var(--premium)" }} />
       </Link>
-      {/* Temporary Stripe-less bypass — small × above the lock. */}
-      <button
-        type="button"
-        onClick={unlock}
-        aria-label="Show without subscribing (temporary)"
-        className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full"
-        style={{
-          background: "var(--bg-3)",
-          border: "1px solid var(--border-strong)",
-          color: "var(--text-soft)",
-        }}
-      >
-        <X className="h-2.5 w-2.5" />
-      </button>
     </span>
   );
 }

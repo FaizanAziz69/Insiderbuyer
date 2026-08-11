@@ -1,14 +1,16 @@
 "use client";
 import Link from "next/link";
-import { Lock, X } from "lucide-react";
+import { Lock } from "lucide-react";
 import { usePremium } from "./premium/PremiumContext";
 
 /**
- * Insider Score paygate for stock profiles (client spec): score content is
- * blurred with an Unlock CTA pointing at the sales page. Purely visual until
- * Stripe lands.
- * TODO: Stripe paywall — replace the always-locked state with a real
- * entitlement check once Stripe keys are provided.
+ * Insider Score paygate for stock profiles and article score cards.
+ *
+ * STRICT enforcement (client spec): when locked, the real children are NEVER
+ * rendered — a CSS blur would keep the paid numbers in the DOM where
+ * view-source/devtools reads them. A skeleton decoy stands in behind the
+ * unlock overlay instead. The old "×" session bypass (pre-Stripe stopgap) is
+ * removed — checkout is live, entitlement comes from /billing/status.
  */
 export function ScoreGate({
   children,
@@ -19,12 +21,31 @@ export function ScoreGate({
   label?: string;
   compact?: boolean;
 }) {
-  const { unlocked, unlock } = usePremium();
+  const { unlocked } = usePremium();
   if (unlocked) return <>{children}</>;
   return (
     <div className="relative rounded-lg overflow-hidden">
-      <div style={{ filter: "blur(7px)" }} className="select-none pointer-events-none" aria-hidden>
-        {children}
+      {/* Decoy skeleton — same footprint, zero real data in the DOM. */}
+      <div
+        className="select-none pointer-events-none space-y-2.5 p-4"
+        style={{ filter: "blur(6px)" }}
+        aria-hidden
+      >
+        {Array.from({ length: compact ? 2 : 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="rounded"
+            style={{
+              height: 14,
+              width: `${85 - i * 12}%`,
+              background: "var(--bg-3)",
+            }}
+          />
+        ))}
+        <div
+          className="rounded-full"
+          style={{ height: compact ? 24 : 40, width: compact ? 24 : 40, background: "var(--bg-3)" }}
+        />
       </div>
       <div
         className="absolute inset-0 flex flex-col items-center justify-center text-center px-4"
@@ -33,18 +54,6 @@ export function ScoreGate({
             "linear-gradient(180deg, color-mix(in srgb, var(--bg-2) 45%, transparent) 0%, color-mix(in srgb, var(--bg-2) 82%, transparent) 100%)",
         }}
       >
-        <button
-          onClick={unlock}
-          aria-label="Close"
-          className="absolute top-2 right-2 inline-flex items-center justify-center h-7 w-7 rounded-full"
-          style={{
-            background: "var(--bg-3)",
-            border: "1px solid var(--border-strong)",
-            color: "var(--text-soft)",
-          }}
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
         <span
           className={`inline-flex rounded-xl items-center justify-center ${compact ? "h-8 w-8 mb-1.5" : "h-11 w-11 mb-3"}`}
           style={{
