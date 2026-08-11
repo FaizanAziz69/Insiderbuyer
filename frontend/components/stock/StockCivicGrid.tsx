@@ -49,6 +49,9 @@ export function RevenueBreakdownCard({ ticker }: { ticker: string }) {
   const asOfQ = data?.asOf
     ? `Q${Math.floor(new Date(data.asOf).getUTCMonth() / 3) + 1} ${new Date(data.asOf).getUTCFullYear()} (${formatDate(data.asOf)})`
     : null;
+  // No segment breakdown in the latest filing -> no card (typical for shells
+  // and single-line-of-business micro-caps).
+  if (!isLoading && !(data?.segments?.length || data?.geography?.length)) return null;
   return (
     <div className="card p-5 flex flex-col h-full min-h-[320px]">
       <div className="flex items-center gap-2">
@@ -156,6 +159,9 @@ export function WhaleActivityCard({ ticker, companyName }: { ticker: string; com
     decreased: rows.filter((w) => (w.change ?? 0) < 0).length,
   };
   const known = counts.increased + counts.isNew + counts.held + counts.decreased;
+  // No reported 13F positions -> hide the card entirely (client spec: thin
+  // profiles shouldn't be a wall of empty boxes).
+  if (!isLoading && known === 0) return null;
   return (
     <Card icon={<Landmark className="h-4 w-4" />} title="Whale Activity" href={`/companies/${encodeURIComponent(ticker)}/institutions`}
       subtitle={`Recently reported changes in ${ticker} holdings by institutional investors`}>
@@ -250,6 +256,9 @@ export function BullBearCard({ ticker, companyName, sector, insiderScore }: { ti
     { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 },
   );
   const bb = data?.bullBear;
+  // Bull/bear talking points come from the LLM pipeline; when absent, hide
+  // the card rather than pinning a permanent empty box on the profile.
+  if (!isLoading && (!bb || (!bb.bull.length && !bb.bear.length))) return null;
   return (
     <div className="card p-5 flex flex-col h-full min-h-[320px] lg:col-span-2">
       <div className="flex items-center gap-2">
@@ -314,11 +323,11 @@ export function Empty({ text }: { text: string }) {
 export function CongressTradingCard({ ticker }: { ticker: string }) {
   const { data } = useSWR<{ rows: any[] }>(`${API_BASE}/congressional-trades?ticker=${ticker}&limit=8`, fetcher, { revalidateOnFocus: false });
   const rows = data?.rows || [];
+  // No congressional trades for this ticker -> no card.
+  if (data && rows.length === 0) return null;
   return (
     <Card icon={<Landmark className="h-4 w-4" />} title="Congress Trading" subtitle={`Recent trades of ${ticker} by members of U.S. Congress`}>
-      {rows.length === 0 ? (
-        <Empty text={`No recent congressional trades of ${ticker} in our data.`} />
-      ) : (
+      {rows.length === 0 ? null : (
         <div className="overflow-x-auto">
           <table className="w-full text-[12.5px]">
             <thead>

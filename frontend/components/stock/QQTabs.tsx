@@ -130,11 +130,12 @@ export function LobbyingStackedCard({ ticker, companyName }: { ticker: string; c
   const { data } = useSWR<{ quarters: { label: string; amount: number }[]; enabled: boolean }>(
     `${API_BASE}/company-civic/lobbying?name=${encodeURIComponent(companyName)}`, fetcher, { revalidateOnFocus: false });
   const stacked = toStacked(data?.quarters || []);
+  // No filings (or integration off) -> no card. An empty chart box, or worse a
+  // "set an API key" note, just makes thin profiles look broken (client spec).
+  if (data && stacked.length === 0) return null;
   return (
     <Card icon={<Scale className="h-4 w-4" />} title="Corporate Lobbying" subtitle={`${ticker} Estimated quarterly lobbying spending`}>
-      {stacked.length === 0 ? (
-        <Empty text={data && !data.enabled ? "Lobbying data activates once an LDA_API_KEY (free, Senate LDA) is set." : `No lobbying filings found for ${ticker}.`} />
-      ) : (
+      {stacked.length === 0 ? null : (
         <StackedYearBars data={stacked} base="#8B5CF6" yLabel="Lobbying Amount" />
       )}
       <p className="text-[10px] text-faint mt-2">Source: U.S. Senate LDA</p>
@@ -147,9 +148,12 @@ export function ContractsStackedCard({ ticker, companyName }: { ticker: string; 
   const { data } = useSWR<{ quarters: { label: string; amount: number }[] }>(
     `${API_BASE}/company-civic/contracts?name=${encodeURIComponent(companyName)}`, fetcher, { revalidateOnFocus: false });
   const stacked = toStacked(data?.quarters || []);
+  // Most companies have no federal contracts — hide the card instead of
+  // showing a permanent empty box on every profile.
+  if (data && stacked.length === 0) return null;
   return (
     <Card icon={<FileText className="h-4 w-4" />} title="Government Contracts" subtitle={`Estimated quarterly amount awarded to ${ticker} from public contracts`}>
-      {stacked.length === 0 ? <Empty text={`No recent federal contracts found for ${ticker}.`} /> : (
+      {stacked.length === 0 ? null : (
         <StackedYearBars data={stacked} base="var(--gold)" yLabel="Government Contracts Amount" />
       )}
       <p className="text-[10px] text-faint mt-2">Source: USAspending.gov</p>
@@ -191,22 +195,10 @@ export function PatentsCard({ ticker, companyName }: { ticker: string; companyNa
 }
 
 export function CnbcCard({ ticker }: { ticker: string }) {
-  return (
-    <Card icon={<Tv className="h-4 w-4" />} title="CNBC Recommendations" subtitle={`Recent picks made for ${ticker} stock on CNBC`}>
-      <div className="overflow-x-auto">
-        <table className="w-full text-[12.5px]">
-          <thead>
-            <tr className="text-[10px] uppercase tracking-wider text-mute text-left" style={{ background: "var(--bg-2)" }}>
-              <th className="font-bold px-2.5 py-1.5">Personality</th>
-              <th className="font-bold px-2.5 py-1.5">Type</th>
-              <th className="font-bold px-2.5 py-1.5 text-right">Date</th>
-            </tr>
-          </thead>
-        </table>
-      </div>
-      <Empty text="No CNBC pick data connected — this dataset has no free public source." />
-    </Card>
-  );
+  // This dataset has no free public source, so the card was a permanent empty
+  // box on every profile. Render nothing until a real feed exists.
+  void ticker;
+  return null;
 }
 
 /** Top ETF Holders — estimated from each fund's disclosed top holdings × AUM. */
@@ -214,6 +206,9 @@ export function EtfHoldersCard({ ticker }: { ticker: string }) {
   const { data, isLoading } = useSWR<{ rows: { etf: string; name: string; est: number | null; pct: number }[] }>(
     `${API_BASE}/market-stats/etf-holders?symbol=${encodeURIComponent(ticker)}`, fetcher, { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 });
   const rows = data?.rows || [];
+  // Not in any tracked ETF's top holdings -> hide the card (typical for
+  // micro-caps; an empty box adds nothing).
+  if (!isLoading && rows.length === 0) return null;
   return (
     <Card icon={<PieChart className="h-4 w-4" />} title="Top ETF Holders" subtitle={`ETFs with the largest estimated holdings in ${ticker}`}>
       {isLoading ? (

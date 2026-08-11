@@ -1420,6 +1420,9 @@ function AnalystCoverageCard({ ticker }: { ticker: string }) {
   );
   const row = data?.rows?.find((r) => r.symbol.toUpperCase() === ticker.toUpperCase()) ?? null;
   if (!row) return null;
+  // A coverage row with no target AND no consensus is a grid of dashes —
+  // hide the card for genuinely uncovered names instead.
+  if (row.targetMean == null && !row.recommendation) return null;
   const items: [string, React.ReactNode][] = [
     ["Covering analysts", row.numAnalysts != null ? String(row.numAnalysts) : "—"],
     [
