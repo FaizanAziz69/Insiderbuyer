@@ -9,6 +9,7 @@ import { DataTable, Column } from "@/components/DataTable";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { PriceTargetCell } from "@/components/PriceTargetCell";
 import { rankColumn } from "@/components/tableColumns";
+import { IqsScoreCell } from "@/components/IqsScoreCell";
 
 /** One public federal contractor — trailing-12-month contract dollars from
  *  USAspending.gov, its top awarding agency, plus live analyst consensus and
@@ -26,6 +27,7 @@ interface GovRow {
   upsidePct: number | null;
   recommendation: string | null;
   numAnalysts: number | null;
+  iqs: number | null;
 }
 
 const REC: Record<string, { label: string; color: string; rank: number }> = {
@@ -101,6 +103,15 @@ export default function GovernmentContractsPage() {
           {fmtBig(r.ttmAmount)}
         </span>
       ),
+    },
+    {
+      key: "iqs",
+      label: "Insider Score",
+      pro: true,
+      align: "center",
+      info: "Our 0–99 Insider Score for contractors that are also in our scored insider-buying universe. Blank when the company has no recent open-market insider buys.",
+      sortValue: (r) => r.iqs ?? null,
+      render: (r) => (r.iqs != null ? <IqsScoreCell iqs={r.iqs} /> : <span className="text-faint text-[12px]">—</span>),
     },
     {
       key: "topAgency",

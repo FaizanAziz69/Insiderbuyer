@@ -107,7 +107,7 @@ export default function HotSectorsPage() {
                   <th className="text-right">Insider Buys / Sells</th>
                   <th className="text-right">MTD</th>
                   <th className="text-right">YTD</th>
-                  <th className="text-right">vs S&amp;P 500</th>
+                  <th className="text-right">YTD vs S&amp;P 500</th>
                 </tr>
               </thead>
               <tbody>

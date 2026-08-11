@@ -37,6 +37,8 @@ export interface HotSectorRow {
   ytd: number | null;
   /** Sector YTD minus S&P 500 YTD (percentage points). */
   vsSp500: number | null;
+  /** Sector avg MTD minus S&P 500 MTD — same-window comparison. */
+  vsSp500Mtd?: number | null;
   /** Composite 0–100 heat score (gainer ratio + insider buying). */
   hotScore: number;
 }
@@ -45,6 +47,7 @@ export interface HotSectorsResponse {
   asOfDate: string;
   monthLabel: string;
   sp500Ytd: number | null;
+  sp500Mtd?: number | null;
   sectors: HotSectorRow[];
 }
 
@@ -61,9 +64,13 @@ export interface HotSectorsResponse {
  * The model now scores breadth, magnitude and insider pressure separately, each
  * on an ABSOLUTE scale rather than relative to the busiest peer.
  */
-const HOT_BREADTH_WEIGHT = 0.4;
-const HOT_MOMENTUM_WEIGHT = 0.3;
-const HOT_INSIDER_WEIGHT = 0.3;
+// Client recalibration (Azlan): breadth dominates — a sector with ~96% of
+// members up 10%+ MTD must score in the 90s, not the 60s. When a sector has
+// no insider activity at all, the insider component is EXCLUDED and the
+// remaining weights renormalised (a missing signal is not a bearish signal).
+const HOT_BREADTH_WEIGHT = 0.6;
+const HOT_MOMENTUM_WEIGHT = 0.25;
+const HOT_INSIDER_WEIGHT = 0.15;
 /** Average member MTD % mapped to 0–1 across this band. */
 const HOT_MOMENTUM_BAND: [number, number] = [-10, 15];
 /** Buy count at which the insider component reaches full confidence. */
@@ -452,6 +459,7 @@ export class StockListsService {
       this.marketStats.getQuoteBatch(allTickers).catch(() => new Map()),
     ]);
     const sp500Ytd = spReturns['^GSPC']?.ytd ?? null;
+    const sp500Mtd = spReturns['^GSPC']?.mtd ?? null;
     // Client spec (Azlan): only companies above a $100M market cap count
     // toward a sector's heat — sub-$100M names swing ±10% on nothing and were
     // distorting the gainer ratios. A missing cap keeps the name (curated
@@ -505,8 +513,12 @@ export class StockListsService {
         netInsider: insiderBuys - insiderSells,
         ytd,
         mtd,
+        // Explicit, same-window comparisons (client: the old single "vsSp500"
+        // was ambiguous about which window it compared).
         vsSp500:
           ytd != null && sp500Ytd != null ? +(ytd - sp500Ytd).toFixed(2) : null,
+        vsSp500Mtd:
+          mtd != null && sp500Mtd != null ? +(mtd - sp500Mtd).toFixed(2) : null,
       };
     });
 
@@ -527,14 +539,19 @@ export class StockListsService {
           Math.log1p(r.insiderBuys) / Math.log1p(HOT_BUYS_FOR_FULL_WEIGHT),
         );
         const insider = skew * confidence;
+        // No insider flow at all -> score over breadth+momentum only,
+        // renormalised, instead of hard-coding a zero into 15% of the score.
+        const weightSum =
+          flow > 0
+            ? HOT_BREADTH_WEIGHT + HOT_MOMENTUM_WEIGHT + HOT_INSIDER_WEIGHT
+            : HOT_BREADTH_WEIGHT + HOT_MOMENTUM_WEIGHT;
+        const weighted =
+          HOT_BREADTH_WEIGHT * breadth +
+          HOT_MOMENTUM_WEIGHT * momentum +
+          (flow > 0 ? HOT_INSIDER_WEIGHT * insider : 0);
         return {
           ...r,
-          hotScore: Math.round(
-            (HOT_BREADTH_WEIGHT * breadth +
-              HOT_MOMENTUM_WEIGHT * momentum +
-              HOT_INSIDER_WEIGHT * insider) *
-              100,
-          ),
+          hotScore: Math.round((weighted / weightSum) * 100),
         };
       })
       .sort(
@@ -550,6 +567,7 @@ export class StockListsService {
       asOfDate: now.toISOString().slice(0, 10),
       monthLabel: now.toLocaleString('en-US', { month: 'long', year: 'numeric' }),
       sp500Ytd,
+      sp500Mtd,
       sectors: scored,
     };
   }
@@ -766,12 +784,39 @@ export class StockListsService {
       // quotes; Insider Score + avg cost + last buy attached where the name also has
       // Form 4 insider buys in our rankings.
       let rows = UNIVERSE_LISTS[slug] || [];
+      // Category expansion (client spec, Azlan): thematic category lists must
+      // cover ALL indexed companies in the theme above a $100M market cap —
+      // the static basket alone left categories looking sparse. Merge in every
+      // scored company whose sector/industry matches the category rule.
+      const categoryRule = SECTOR_LIST_RULES[slug];
+      const CATEGORY_MIN_CAP = 100_000_000;
+      if (categoryRule) {
+        try {
+          const { rows: expanded } = await this.iqs.getRankings({
+            limit: 2000,
+            offset: 0,
+            sectorMatch: categoryRule,
+            minMarketCap: CATEGORY_MIN_CAP,
+          });
+          const have = new Set(rows.map((r) => r.ticker.toUpperCase()));
+          for (const r of expanded) {
+            const t = (r.ticker || '').toUpperCase();
+            if (!t || t.includes('.') || have.has(t)) continue;
+            have.add(t);
+            rows = rows.concat([
+              { ticker: t, name: r.name, sector: r.sector || '' } as (typeof rows)[number],
+            ]);
+          }
+        } catch {
+          /* expansion unavailable — curated basket still renders */
+        }
+      }
       if (filters.sector) {
         rows = rows.filter((r) =>
           r.sector.toLowerCase().includes(filters.sector!.toLowerCase()),
         );
       }
-      const { rows: rankRows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
+      const { rows: rankRows } = await this.iqs.getRankings({ limit: 2000, offset: 0 });
       const iqsByTicker = new Map(rankRows.map((r) => [r.ticker, r]));
       const tickers = rows.map((r) => r.ticker);
       const [live, costBasis] = await Promise.all([
@@ -780,14 +825,34 @@ export class StockListsService {
       ]);
       const withIqs = rows.map((h) => {
         const cb = costBasis.get(h.ticker.toUpperCase());
+        const rk = iqsByTicker.get(h.ticker);
         return {
           ...h,
-          iqs: iqsByTicker.get(h.ticker)?.iqs ?? undefined,
+          iqs: rk?.iqs ?? undefined,
           avgCost: cb?.avgCost ?? null,
           lastBuyDate: cb?.lastBuyDate ?? null,
+          // Full signal set where the name is in our scored universe — lets
+          // every list render the standard Top-Insider-Scores column layout.
+          reasoning: rk?.reasoning ?? null,
+          totalPurchaseValue: rk?.totalPurchaseValue ?? null,
+          distinctBuyers: rk?.distinctBuyers ?? null,
+          hasCeoBuyer: rk?.hasCeoBuyer ?? false,
+          hasRepeatBuyer: rk?.hasRepeatBuyer ?? false,
+          perfVsAvgCostPct: rk?.perfVsAvgCostPct ?? null,
+          insiderOwnershipPct: rk?.insiderOwnershipPct ?? null,
+          insiderOwnershipChangePct: rk?.insiderOwnershipChangePct ?? null,
+          scoreUpdatedAt: rk?.scoreUpdatedAt ?? null,
         };
       });
-      const enriched = this.enrichRows(withIqs, live) as any[];
+      let enriched = this.enrichRows(withIqs, live) as any[];
+      // $100M floor for category lists — known micro-caps drop out; cap-based
+      // lists (small-cap / penny) are exempt, small names are their point.
+      if (categoryRule) {
+        enriched = enriched.filter((r) => {
+          const cap = r.live?.marketCap ?? r.marketCap ?? null;
+          return cap == null || cap >= CATEGORY_MIN_CAP;
+        });
+      }
       return { slug, ...meta, total: enriched.length, rows: enriched };
     }
     return null;

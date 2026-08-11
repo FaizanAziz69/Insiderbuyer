@@ -9,6 +9,7 @@ import {
   MarketStatsService,
 } from '../market-stats/market-stats.service';
 import { FmpService } from '../fmp/fmp.service';
+import { IqsService } from '../iqs/iqs.service';
 import { CONTRACTORS, ContractorEntry } from './gov-contracts-map';
 
 const USA = 'https://api.usaspending.gov/api/v2';
@@ -31,6 +32,8 @@ export interface GovContractRow {
   upsidePct: number | null;
   recommendation: string | null;
   numAnalysts: number | null;
+  /** Insider Score where the contractor is in our scored universe. */
+  iqs: number | null;
 }
 
 @Injectable()
@@ -44,6 +47,7 @@ export class GovContractsService {
     private readonly repo: Repository<GovContractCache>,
     private readonly market: MarketStatsService,
     private readonly fmp: FmpService,
+    private readonly iqs: IqsService,
   ) {
     this.http = axios.create({
       timeout: 25_000,
@@ -167,6 +171,16 @@ export class GovContractsService {
       .catch(() => new Map<string, MarketStatRow>());
     const ratingBy = new Map<string, AnalystRow>(ratings.map((r) => [r.symbol, r]));
 
+    // Insider Score attach — contractors that also appear in our scored
+    // universe get their live IQ Score (Pro column on the list page).
+    const iqsBy = new Map<string, number>();
+    try {
+      const { rows: rank } = await this.iqs.getRankings({ limit: 5000, offset: 0 });
+      for (const r of rank) if (r.ticker) iqsBy.set(r.ticker.toUpperCase(), r.iqs);
+    } catch {
+      /* rankings unavailable — column shows dashes */
+    }
+
     // FMP batch quote fills market cap / price where the Yahoo batch is thin
     // (e.g. FLR). One call for the whole set.
     const fmpQuotes: Map<string, any> = this.fmp?.enabled
@@ -193,6 +207,7 @@ export class GovContractsService {
         upsidePct: rt?.upsidePct ?? null,
         recommendation: rt?.recommendation ?? null,
         numAnalysts: rt?.numAnalysts ?? null,
+        iqs: iqsBy.get(c.ticker) ?? null,
       };
     });
 

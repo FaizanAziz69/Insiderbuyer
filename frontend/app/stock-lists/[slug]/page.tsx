@@ -4,6 +4,8 @@ import Link from "next/link";
 import { use, useMemo, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Sparkles } from "lucide-react";
 import { DataTable, Column } from "@/components/DataTable";
+import { StandardStockListTable, StandardRow } from "@/components/StandardStockListTable";
+import { PriceTargetCell } from "@/components/PriceTargetCell";
 import {
   API_BASE,
   fetcher,
@@ -269,7 +271,7 @@ export default function StockListDetailPage({
       <div className="card overflow-hidden">
         {isLoading ? (
           <div className="text-center text-mute py-10">Loading…</div>
-        ) : (
+        ) : data?.kind === "persona" ? (
           <DataTable<DetailRow>
             rows={rows}
             rowKey={(r, i) => (r.ticker || r.symbol || r.name || "") + i}
@@ -528,6 +530,95 @@ export default function StockListDetailPage({
               },
             ]}
           />
+        ) : isBlueSky ? (
+          /* Blue Sky mirrors the Top Analyst Stocks layout (client spec):
+             # | Company | Price | Price Target | Top Analysts | Sector | Market Cap */
+          <DataTable<DetailRow>
+            rows={rows}
+            rowKey={(r, i) => (r.ticker || r.symbol || r.name || "") + i}
+            empty="No stocks in this list yet."
+            initialSort={{ key: "upside", dir: "asc" }}
+            rowClassName="hover:bg-[var(--accent-soft)]"
+            columns={[
+              rankColumn<DetailRow>({ countdownFrom: rows.length }),
+              {
+                key: "company",
+                label: "Company",
+                sortValue: (r) => r.ticker || r.symbol || "",
+                render: (r) => {
+                  const ticker = r.ticker || r.symbol || "";
+                  return (
+                    <Link
+                      href={ticker ? `/companies/${encodeURIComponent(ticker)}` : "#"}
+                      className="flex items-center gap-2 group"
+                    >
+                      <CompanyLogo ticker={ticker} name={r.name} size={24} />
+                      <span className="min-w-0">
+                        <span className="block font-mono text-[14px] font-bold text-accent group-hover:underline leading-tight">
+                          {ticker || "—"}
+                        </span>
+                        <span className="block text-[12px] font-medium truncate max-w-[190px] leading-tight" style={{ color: "var(--text)" }}>
+                          {r.name}
+                        </span>
+                      </span>
+                    </Link>
+                  );
+                },
+              },
+              {
+                key: "price",
+                label: "Price",
+                align: "right",
+                sortValue: (r) => r.live?.price ?? null,
+                render: (r) => (
+                  <span className="tabular font-bold text-[14px]">
+                    {r.live?.price != null ? `$${r.live.price.toFixed(2)}` : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "upside",
+                label: "Price Target",
+                align: "center",
+                sortValue: (r) => r.upsidePct ?? null,
+                render: (r) => <PriceTargetCell target={r.targetMean ?? null} upsidePct={r.upsidePct ?? null} />,
+              },
+              {
+                key: "numAnalysts",
+                label: "Top Analysts",
+                align: "right",
+                info: "How many top Wall Street analysts we track currently rate this stock.",
+                sortValue: (r) => r.numAnalysts ?? 0,
+                render: (r) => (
+                  <span className="tabular text-[13px] text-mute">{r.numAnalysts ?? "—"}</span>
+                ),
+              },
+              {
+                key: "sector",
+                label: "Sector",
+                filterable: true,
+                sortValue: (r) => r.sector || "",
+                render: (r) => (
+                  <span className="text-[12.5px] text-mute">{r.sector || "—"}</span>
+                ),
+              },
+              {
+                key: "marketCap",
+                label: "Market Cap",
+                align: "right",
+                sortValue: (r) => r.live?.marketCap ?? r.marketCap ?? null,
+                render: (r) => (
+                  <span className="tabular text-[13.5px] text-mute font-bold">
+                    {formatCurrency(r.live?.marketCap ?? r.marketCap ?? null)}
+                  </span>
+                ),
+              },
+            ]}
+          />
+        ) : (
+          /* Platform-standard layout — the exact Top Insider Scores column
+             sequence, enforced across every category/exchange/cap/style list. */
+          <StandardStockListTable rows={rows as unknown as StandardRow[]} />
         )}
       </div>
 
