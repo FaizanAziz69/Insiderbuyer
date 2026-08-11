@@ -47,6 +47,9 @@ export function BacktestChart({
   benchmarkLabel?: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
+  // Cursor position (as % of the chart box) so the tooltip follows the pointer
+  // and only shows while the pointer is genuinely over the plot area.
+  const [hoverPos, setHoverPos] = useState<{ xPct: number; yPct: number } | null>(null);
   const W = 760;
   const H = height;
   const cStrategy = tipranks ? TR_STRATEGY : STRATEGY;
@@ -151,28 +154,46 @@ export function BacktestChart({
   const last = view[view.length - 1];
   const active = hover != null ? view[hover] : null;
 
+  const clearHover = () => {
+    setHover(null);
+    setHoverPos(null);
+  };
+
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * W;
+    const xPct = (e.clientX - rect.left) / rect.width;
+    const yPct = (e.clientY - rect.top) / rect.height;
+    // Viewbox coords of the cursor. Only engage the crosshair while the pointer
+    // is actually inside the plotted area — not over the axis padding, and
+    // never when it has drifted off the chart (e.g. bottom-left of the page).
+    const vx = xPct * W;
+    const vy = yPct * H;
+    if (vx < PAD.left || vx > W - PAD.right || vy < PAD.top || vy > H - PAD.bottom) {
+      clearHover();
+      return;
+    }
     // Nearest point by x — a crosshair, not a per-point hit target.
     let best = 0;
     let bestD = Infinity;
     view.forEach((p, i) => {
-      const d = Math.abs(geom.px(p.t) - x);
+      const d = Math.abs(geom.px(p.t) - vx);
       if (d < bestD) {
         bestD = d;
         best = i;
       }
     });
     setHover(best);
+    setHoverPos({ xPct: xPct * 100, yPct: yPct * 100 });
   };
 
   const fmtDate = (ms: number) =>
     new Date(ms).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
-  // Floating tooltip position (QuiverQuant-style box), from the crosshair x.
-  const tipLeftPct = active ? (geom.px(active.t) / W) * 100 : 0;
-  const tipFlip = tipLeftPct > 55;
+  // Floating tooltip follows the cursor — flip left of the pointer past the
+  // right half, and sit above the pointer in the lower half, so it never runs
+  // off the chart and never sits under the cursor.
+  const tipFlipX = (hoverPos?.xPct ?? 0) > 55;
+  const tipFlipY = (hoverPos?.yPct ?? 0) > 50;
   // Hypothetical growth of $100 — the honest $-value form of the index.
   const money = (idx: number) =>
     `$${(idx).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -200,13 +221,13 @@ export function BacktestChart({
       )}
 
       <div className="relative">
-      {controls && active && (
+      {controls && active && hoverPos && (
         <div
           className="absolute z-20 pointer-events-none rounded-lg px-3.5 py-2.5"
           style={{
-            top: 6,
-            left: `${tipLeftPct}%`,
-            transform: tipFlip ? "translateX(calc(-100% - 12px))" : "translateX(12px)",
+            left: `${hoverPos.xPct}%`,
+            top: `${hoverPos.yPct}%`,
+            transform: `translate(${tipFlipX ? "calc(-100% - 14px)" : "14px"}, ${tipFlipY ? "calc(-100% - 14px)" : "14px"})`,
             background: "var(--bg-1)",
             border: "1px solid var(--border-strong)",
             boxShadow: "0 12px 32px rgba(0,0,0,0.25)",
@@ -248,7 +269,7 @@ export function BacktestChart({
         className="w-full"
         style={{ height: H, display: "block" }}
         onMouseMove={onMove}
-        onMouseLeave={() => setHover(null)}
+        onMouseLeave={clearHover}
         role="img"
         aria-label="Indexed equity curve: insider strategy versus the S&P 500"
       >
@@ -267,7 +288,7 @@ export function BacktestChart({
               x={PAD.left - 7}
               y={geom.py(v) + 3.5}
               textAnchor="end"
-              style={{ fontSize: 10, fill: "var(--text-mute)" }}
+              style={{ fontSize: 10.5, fill: "var(--text)", fontWeight: 700 }}
               className="tabular"
             >
               {tipranks ? fmtMoney(v) : fmtVal(v)}
@@ -290,7 +311,7 @@ export function BacktestChart({
                     ? "end"
                     : "middle"
             }
-            style={{ fontSize: 10, fill: "var(--text-mute)" }}
+            style={{ fontSize: 10.5, fill: "var(--text)", fontWeight: 700 }}
           >
             {geom.xYearOnly ? new Date(t).getUTCFullYear() : fmtDate(t)}
           </text>
