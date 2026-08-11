@@ -196,6 +196,17 @@ export default function InsiderHotStocksPage() {
       },
     },
     {
+      key: "upside",
+      label: "Analyst Price Target",
+      align: "center",
+      // Client spec: this column ranks by the UPSIDE, not the target price.
+      sortValue: (r) => upsideBySym.get((r.ticker || "").toUpperCase())?.upside ?? null,
+      render: (r) => {
+        const u = upsideBySym.get((r.ticker || "").toUpperCase());
+        return <PriceTargetCell target={u?.target ?? null} upsidePct={u?.upside ?? null} />;
+      },
+    },
+    {
       key: "price",
       label: "Price",
       align: "right",
@@ -204,31 +215,22 @@ export default function InsiderHotStocksPage() {
       sortValue: (r) => r.livePrice ?? r.lastPrice ?? null,
       render: (r) => {
         const p = r.livePrice ?? r.lastPrice;
+        const up = (r.changePct ?? 0) >= 0;
         return (
-          <span className="tabular font-bold text-[14px]">
-            {p != null ? `$${p.toFixed(2)}` : "—"}
-          </span>
-        );
-      },
-    },
-    {
-      key: "changePct",
-      label: "Price Change",
-      align: "right",
-      filterable: true,
-      filterType: "range",
-      sortValue: (r) => r.changePct ?? null,
-      render: (r) => {
-        if (r.changePct == null) return <span className="text-faint text-[13px]">—</span>;
-        const up = r.changePct >= 0;
-        return (
-          <span
-            className="tabular font-bold text-[14px] inline-flex items-center gap-0.5 justify-end"
-            style={{ color: up ? "var(--good)" : "var(--bad)" }}
-          >
-            {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-            {up ? "+" : ""}
-            {r.changePct.toFixed(2)}%
+          <span className="inline-flex flex-col items-end leading-tight">
+            <span className="tabular font-bold text-[14px]">
+              {p != null ? `$${p.toFixed(2)}` : "—"}
+            </span>
+            {r.changePct != null && (
+              <span
+                className="tabular text-[11.5px] font-semibold inline-flex items-center gap-0.5"
+                style={{ color: up ? "var(--good)" : "var(--bad)" }}
+              >
+                {up ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />}
+                {up ? "+" : ""}
+                {r.changePct.toFixed(2)}%
+              </span>
+            )}
           </span>
         );
       },
@@ -243,6 +245,27 @@ export default function InsiderHotStocksPage() {
       render: (r) => <IqsScoreCell iqs={r.iqs} />,
     },
     {
+      key: "perfVsCost",
+      label: "ROI",
+      pro: true,
+      info: "How far the live price sits above or below the insiders' 90-day average purchase price (volume-weighted). Positive means the stock trades above what insiders paid; negative means you can buy below their cost.",
+      align: "right",
+      sortValue: (r) => r.perfVsAvgCostPct ?? -9999,
+      render: (r) =>
+        r.perfVsAvgCostPct == null ? (
+          <span className="text-faint text-[12px]">—</span>
+        ) : (
+          <span
+            className="tabular text-[13.5px] font-bold"
+            title={r.avgCost ? `Insiders' 90-day avg cost: $${r.avgCost.toFixed(2)}` : undefined}
+            style={{ color: r.perfVsAvgCostPct >= 0 ? "var(--good)" : "var(--bad)" }}
+          >
+            {r.perfVsAvgCostPct >= 0 ? "+" : ""}
+            {r.perfVsAvgCostPct.toFixed(1)}%
+          </span>
+        ),
+    },
+    {
       key: "why",
       label: "Why",
       sortable: false,
@@ -250,37 +273,17 @@ export default function InsiderHotStocksPage() {
       render: (r) => <ReasoningTip text={r.reasoning} />,
     },
     {
-      key: "upside",
-      label: "Analyst Price Target",
-      align: "center",
-      // Client spec: this column ranks by the UPSIDE, not the target price.
-      sortValue: (r) => upsideBySym.get((r.ticker || "").toUpperCase())?.upside ?? null,
-      render: (r) => {
-        const u = upsideBySym.get((r.ticker || "").toUpperCase());
-        return <PriceTargetCell target={u?.target ?? null} upsidePct={u?.upside ?? null} />;
-      },
-    },
-    {
-      key: "marketCap",
-      label: "Market Cap",
+      key: "bought",
+      label: "$ Bought",
       align: "right",
-      filterable: true,
-      filterType: "marketCapPreset",
-      filterLabelText: "Market Cap",
-      sortValue: (r) => r.marketCap ?? null,
+      sortValue: (r) => r.totalPurchaseValue,
       render: (r) => (
-        <span className="tabular text-[14px] text-mute font-bold">
-          {formatCurrency(r.marketCap)}
+        <span
+          className="tabular text-[14px] font-bold"
+          style={{ color: "var(--good)" }}
+        >
+          {formatCurrency(r.totalPurchaseValue)}
         </span>
-      ),
-    },
-    {
-      key: "buyers",
-      label: "Insider Buyers",
-      align: "right",
-      sortValue: (r) => r.distinctBuyers,
-      render: (r) => (
-        <span className="tabular text-[14px] font-bold">{r.distinctBuyers}</span>
       ),
     },
     {
@@ -305,25 +308,60 @@ export default function InsiderHotStocksPage() {
       },
     },
     {
-      key: "perfVsCost",
-      label: "vs Insider Cost",
-      pro: true,
-      info: "How far the live price sits above or below the insiders' 90-day average purchase price (volume-weighted). Positive means the stock trades above what insiders paid; negative means you can buy below their cost.",
+      key: "lastBuy",
+      label: "Last Updated",
       align: "right",
-      sortValue: (r) => r.perfVsAvgCostPct ?? -9999,
-      render: (r) =>
-        r.perfVsAvgCostPct == null ? (
-          <span className="text-faint text-[12px]">—</span>
-        ) : (
-          <span
-            className="tabular text-[13.5px] font-bold"
-            title={r.avgCost ? `Insiders' 90-day avg cost: $${r.avgCost.toFixed(2)}` : undefined}
-            style={{ color: r.perfVsAvgCostPct >= 0 ? "var(--good)" : "var(--bad)" }}
-          >
-            {r.perfVsAvgCostPct >= 0 ? "+" : ""}
-            {r.perfVsAvgCostPct.toFixed(1)}%
+      sortValue: (r) => (r.lastBuyDate ? new Date(r.lastBuyDate).getTime() : 0),
+      render: (r) => {
+        const dsBuy = daysSince(r.lastBuyDate);
+        const dsUpd = daysSince(r.scoreUpdatedAt ? r.scoreUpdatedAt.slice(0, 10) : null);
+        return (
+          <span className="inline-flex flex-col items-end leading-tight">
+            <span className="text-[13px] font-semibold whitespace-nowrap">
+              {dsBuy == null ? "—" : dsBuy === 0 ? "Today" : `${dsBuy}d ago`}
+            </span>
+            <span className="text-[10.5px] text-mute whitespace-nowrap">
+              {dsUpd == null ? "" : dsUpd === 0 ? "updated today" : `updated ${dsUpd}d ago`}
+            </span>
           </span>
-        ),
+        );
+      },
+    },
+    {
+      key: "marketCap",
+      label: "Market Cap",
+      align: "right",
+      filterable: true,
+      filterType: "marketCapPreset",
+      filterLabelText: "Market Cap",
+      sortValue: (r) => r.marketCap ?? null,
+      render: (r) => (
+        <span className="tabular text-[14px] text-mute font-bold">
+          {formatCurrency(r.marketCap)}
+        </span>
+      ),
+    },
+    {
+      key: "sector",
+      label: "Sector",
+      filterable: true,
+      sortValue: (r) => r.sector || "",
+      render: (r) => (
+        <span className="text-[12.5px] text-mute truncate inline-block max-w-[140px]">
+          {r.sector || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "pe",
+      label: "P/E Ratio",
+      align: "right",
+      sortValue: (r) => r.peRatio ?? null,
+      render: (r) => (
+        <span className="tabular text-[13.5px] text-mute font-semibold">
+          {r.peRatio != null && Number.isFinite(r.peRatio) ? r.peRatio.toFixed(1) : "—"}
+        </span>
+      ),
     },
     {
       key: "ownership",
@@ -358,47 +396,13 @@ export default function InsiderHotStocksPage() {
         ),
     },
     {
-      key: "lastBuy",
-      label: "Last Buy / Updated",
-      align: "right",
-      sortValue: (r) => (r.lastBuyDate ? new Date(r.lastBuyDate).getTime() : 0),
-      render: (r) => {
-        const dsBuy = daysSince(r.lastBuyDate);
-        const dsUpd = daysSince(r.scoreUpdatedAt ? r.scoreUpdatedAt.slice(0, 10) : null);
-        return (
-          <span className="inline-flex flex-col items-end leading-tight">
-            <span className="text-[13px] font-semibold whitespace-nowrap">
-              {dsBuy == null ? "—" : dsBuy === 0 ? "Today" : `${dsBuy}d ago`}
-            </span>
-            <span className="text-[10.5px] text-mute whitespace-nowrap">
-              {dsUpd == null ? "" : dsUpd === 0 ? "updated today" : `updated ${dsUpd}d ago`}
-            </span>
-          </span>
-        );
-      },
-    },
-    {
       key: "spark7d",
       label: "7D",
       sortable: false,
       align: "center",
       render: (r) => <Sparkline data={sparkMap[(r.ticker || "").toUpperCase()]} />,
     },
-    {
-      key: "bought",
-      label: "$ Bought",
-      align: "right",
-      sortValue: (r) => r.totalPurchaseValue,
-      render: (r) => (
-        <span
-          className="tabular text-[14px] font-bold"
-          style={{ color: "var(--good)" }}
-        >
-          {formatCurrency(r.totalPurchaseValue)}
-        </span>
-      ),
-    },
-  ];
+    ];
 
   return (
     <div className="w-full space-y-6">

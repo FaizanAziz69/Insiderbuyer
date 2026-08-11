@@ -107,6 +107,8 @@ export interface RankingRow {
    *  caller passes withLive (null when no quote is available). */
   changePct?: number | null;
   livePrice?: number | null;
+  /** Trailing P/E from the live quote merge (withLive only). */
+  peRatio?: number | null;
   /** When this score row was last recomputed (ISO). */
   scoreUpdatedAt?: string | null;
   /** Aggregate insider ownership % + its change over the buy window (pp). */
@@ -963,6 +965,7 @@ export class IqsService {
           const q = row.ticker ? quotes.get(row.ticker.toUpperCase()) : null;
           row.changePct = q ? q.changePct : null;
           row.livePrice = q ? q.price : null;
+          row.peRatio = q ? (q.peRatio ?? null) : null;
         }
       } catch {
         /* quotes unavailable — rows ship without live fields */

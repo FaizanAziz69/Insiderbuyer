@@ -40,6 +40,8 @@ export interface RankingRow {
   /** Real intraday change % — present when the API is queried with live=1. */
   changePct?: number | null;
   livePrice?: number | null;
+  /** Trailing P/E from the live quote merge (live=1 only). */
+  peRatio?: number | null;
   volume?: number | null;
   avgVolume?: number | null;
   avgVol10d?: number | null;
