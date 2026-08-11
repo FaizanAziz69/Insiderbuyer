@@ -167,6 +167,10 @@ body {
   font-size: 1rem;
   line-height: 1.2;
   color: var(--text-soft);
+  /* No page-level horizontal scroll, ever — wide content must scroll inside
+     its own overflow-x container. `clip` (not hidden) so position:sticky
+     children keep working. */
+  overflow-x: clip;
 }
 
 /* Site-wide readability zoom. Enlarges EVERYTHING proportionally — text

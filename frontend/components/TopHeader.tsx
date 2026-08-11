@@ -52,7 +52,10 @@ export function TopHeader() {
       >
         {/* Inner container aligned with the main content (same max-width +
             gutters as <main>) so the logo lines up with where articles start. */}
-        <div className="h-full w-full max-w-[1640px] mx-auto flex items-center gap-4 px-6 sm:px-10 lg:px-16 xl:px-24">
+        {/* Tighter mobile gutters/gaps — the logo + hamburger + Subscribe row
+            must fit a small viewport (body zoom 1.10 shrinks it further) or
+            the whole page gets a horizontal scrollbar. */}
+        <div className="h-full w-full max-w-[1640px] mx-auto flex items-center gap-2 sm:gap-4 px-3 sm:px-10 lg:px-16 xl:px-24">
         {/* LEFT — logo */}
         <Link href="/" className="flex items-center flex-shrink-0" style={{ color: "#ffffff" }}>
           <Logo size="sm" tone="light" />
@@ -98,14 +101,16 @@ export function TopHeader() {
           </Link>
           <Link
             href="/premium"
-            className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-5 h-9 sm:h-10 rounded-md text-[13px] sm:text-[14px] font-semibold whitespace-nowrap"
+            className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-5 h-9 sm:h-10 rounded-md text-[12.5px] sm:text-[14px] font-semibold whitespace-nowrap"
             style={{
               background: "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
               color: "#ffffff",
               boxShadow: "0 4px 12px rgba(0,88,130,0.28)",
             }}
           >
-            <Sparkles className="h-4 w-4 flex-shrink-0" style={{ color: "#ffffff" }} />
+            {/* icon costs ~22px — drop it on phones so the button never forces
+                a horizontal scroll */}
+            <Sparkles className="hidden sm:block h-4 w-4 flex-shrink-0" style={{ color: "#ffffff" }} />
             <span style={{ color: "#ffffff" }}>Subscribe</span>
           </Link>
           {!user && (
