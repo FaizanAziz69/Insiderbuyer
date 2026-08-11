@@ -304,11 +304,23 @@ export class EmailFlowsService {
   }
 
   /** Manual test-send of any step to any address (doesn't touch state). */
-  async testSend(flow: EmailFlowName, stepId: string, to: string): Promise<{ ok: boolean; subject?: string }> {
+  async testSend(
+    flow: EmailFlowName,
+    stepId: string,
+    to: string,
+  ): Promise<{ ok: boolean; subject?: string; error?: string }> {
     const step = (FLOWS[flow] || []).find((s) => s.id === stepId);
-    if (!step || !this.enabled) return { ok: false };
+    if (!step) return { ok: false, error: `unknown step '${stepId}' in flow '${flow}'` };
+    if (!this.enabled) return { ok: false, error: 'RESEND_API_KEY not configured' };
     const fake = { email: to, firstName: 'Faizan' } as EmailFlowState;
-    await this.sendStep(fake, step);
+    try {
+      await this.sendStep(fake, step);
+    } catch (e: any) {
+      // Surface the provider's actual rejection (invalid key, unverified
+      // domain, bad from-address) — a bare 500 made email undebuggable.
+      const detail = e?.response?.data ? JSON.stringify(e.response.data) : e?.message || String(e);
+      return { ok: false, error: detail };
+    }
     const v = step.subjects[this.pickVariant(to, step.id, step.subjects.length)];
     return { ok: true, subject: this.fill(v.subject, 'Faizan') };
   }
