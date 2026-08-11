@@ -74,7 +74,7 @@ export function RightRailArticles({ excludeLink: _excludeLink, tag: _tag }: Prop
                   {n.eyebrow || n.kind.replace(/-/g, " ")}
                   {n.ticker && <span className="ml-1.5 font-mono">· {n.ticker}</span>}
                 </div>
-                <div className="text-[13px] font-bold leading-snug group-hover:text-accent transition">
+                <div className="font-serif text-[13.5px] font-semibold leading-snug group-hover:text-accent transition">
                   {n.title}
                 </div>
                 <div className="text-[11px] text-mute mt-1">

@@ -22,7 +22,7 @@ export default function NewsPage() {
           <span className="live-dot live-dot-good ml-2 text-faint">live</span>
         </div>
         <h1
-          className="font-bold tracking-tight"
+          className="font-semibold tracking-tight"
           style={{ fontSize: "clamp(32px, 4.5vw, 46px)", letterSpacing: "-0.8px", lineHeight: 1.05 }}
         >
           News &amp; analysis
@@ -40,7 +40,7 @@ export default function NewsPage() {
 
       {/* Real-time market feed — insider trades, congress, earnings, headlines */}
       <section>
-        <h2 className="text-[20px] font-bold tracking-tight mb-3">Real-Time Market Feed</h2>
+        <h2 className="text-[20px] font-semibold tracking-tight mb-3">Real-Time Market Feed</h2>
         <RealTimeNewsFeed />
       </section>
 

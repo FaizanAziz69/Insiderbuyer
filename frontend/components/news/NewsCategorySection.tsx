@@ -38,7 +38,7 @@ export function NewsCategorySection({ title, href, items, loading, index = 0 }: 
       className="min-w-0"
     >
       <div className="flex items-center justify-between mb-3 pb-2 border-b border-[var(--border)]">
-        <h3 className="text-[14px] font-bold tracking-tight">{title}</h3>
+        <h3 className="text-[14px] font-semibold tracking-tight">{title}</h3>
         <Link
           href={href}
           className="inline-flex items-center gap-0.5 text-[12px] font-semibold text-accent hover:underline"

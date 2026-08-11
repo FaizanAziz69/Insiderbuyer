@@ -95,7 +95,7 @@ export function NewsWidget() {
                     <span>{n.category}</span>
                     <span className="ml-auto text-faint">{formatRelative(n.pubDate)}</span>
                   </div>
-                  <div className="text-[13px] font-semibold leading-snug line-clamp-2 group-hover:text-accent transition">
+                  <div className="font-serif text-[13.5px] font-semibold leading-snug line-clamp-2 group-hover:text-accent transition">
                     {n.title}
                   </div>
                 </Link>

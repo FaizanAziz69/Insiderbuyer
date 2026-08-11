@@ -125,7 +125,7 @@ export function InsiderActivityTable({ ticker, limit = 6 }: Props) {
     <section className="my-8">
       <div className="flex items-baseline justify-between mb-3">
         <h2
-          className="font-bold tracking-tight"
+          className="font-semibold tracking-tight"
           style={{ fontSize: 22, letterSpacing: "-0.3px" }}
         >
           Recent Insider Activity — {ticker}

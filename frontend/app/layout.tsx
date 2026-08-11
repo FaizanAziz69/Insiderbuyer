@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed, Figtree, Libre_Franklin } from "next/font/google";
+import { Barlow, Barlow_Condensed, Figtree, Libre_Franklin, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import { PostHogProvider } from "@/components/PostHogProvider";
@@ -35,6 +35,17 @@ const barlowCondensed = Barlow_Condensed({
   display: "swap",
 });
 
+// Editorial serif for headlines + article body — a refined, WSJ/Barron's-style
+// text serif. One family across headlines and prose keeps the reading
+// experience consistent (no more mixed sans weights).
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-serif",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Insider Buying — Live SEC Form 4 + Congressional Trades",
   description:
@@ -57,7 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${barlow.variable} ${barlowCondensed.variable} ${figtree.variable} ${libreFranklin.variable}`}
+      className={`${barlow.variable} ${barlowCondensed.variable} ${figtree.variable} ${libreFranklin.variable} ${sourceSerif.variable}`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />

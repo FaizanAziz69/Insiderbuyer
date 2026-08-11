@@ -113,7 +113,7 @@ function InsightsIndexInner() {
           {copy.eyebrow}
         </div>
         <h1
-          className="font-bold tracking-tight"
+          className="font-semibold tracking-tight"
           style={{
             fontSize: "clamp(36px, 5vw, 56px)",
             letterSpacing: "-1px",
@@ -160,7 +160,7 @@ function InsightsIndexInner() {
           {/* Grid of remaining articles */}
           {rest.length > 4 && (
             <section>
-              <h2 className="text-[20px] font-bold tracking-tight mb-4">
+              <h2 className="text-[20px] font-semibold tracking-tight mb-4">
                 More from our editors
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -215,7 +215,7 @@ function FeaturedCard({ item, src }: { item: BlogListResponse["items"][number]; 
             {item.eyebrow || KIND_LABELS[item.kind]}
           </div>
           <h2
-            className="font-bold tracking-tight group-hover:text-accent transition"
+            className="font-semibold tracking-tight group-hover:text-accent transition"
             style={{
               fontSize: "clamp(22px, 2.4vw, 30px)",
               letterSpacing: "-0.5px",
@@ -358,7 +358,7 @@ function GridCard({
             {item.eyebrow || KIND_LABELS[item.kind]}
           </div>
           <h3
-            className="font-bold leading-snug line-clamp-3 group-hover:text-accent transition"
+            className="font-semibold leading-snug line-clamp-3 group-hover:text-accent transition"
             style={{ fontSize: 16, letterSpacing: "-0.01em" }}
           >
             {item.title}

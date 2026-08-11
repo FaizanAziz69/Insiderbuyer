@@ -64,7 +64,7 @@ function LeadCard({ item }: { item: NewsItem }) {
       </div>
       <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7 text-white">
         <h2
-          className="font-bold tracking-tight leading-tight line-clamp-3"
+          className="font-semibold tracking-tight leading-tight line-clamp-3"
           style={{ fontSize: "clamp(22px, 2.6vw, 32px)", letterSpacing: "-0.5px" }}
         >
           {item.title}

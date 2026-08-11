@@ -100,7 +100,7 @@ export default function InsightDetailPage({
             </div>
 
             <h1
-              className="font-bold tracking-tight"
+              className="font-semibold tracking-tight"
               style={{
                 fontSize: "clamp(30px, 4.4vw, 48px)",
                 lineHeight: 1.08,

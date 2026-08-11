@@ -4,8 +4,32 @@
   --font-sans: var(--font-sans), system-ui, sans-serif;
   --font-display: var(--font-display), var(--font-sans), system-ui, sans-serif;
   --font-heading: var(--font-heading), var(--font-sans), system-ui, sans-serif;
+  /* Editorial serif (WSJ/Barron's-style) for headlines + article prose. */
+  --font-serif: var(--font-serif), Georgia, "Times New Roman", serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
+
+/* ── Editorial typography system ──────────────────────────────────────────
+   One serif family, one weight scale, consistent sizes — used by every
+   article headline, card headline and page title on the news/editorial
+   surface so nothing renders as an ad-hoc mix of Barlow/Libre-Franklin at
+   random weights. Utilities (font-bold etc.) are intentionally NOT used on
+   these headlines anymore; size is set by the .hl-* step. */
+.hl,
+.hl-xl,
+.hl-lg,
+.hl-md,
+.hl-sm {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.011em;
+  line-height: 1.18;
+}
+.hl-xl { font-size: clamp(30px, 4.2vw, 46px); line-height: 1.08; letter-spacing: -0.02em; }
+.hl-lg { font-size: clamp(21px, 2.4vw, 27px); line-height: 1.16; }
+.hl-md { font-size: 18px; line-height: 1.25; }
+.hl-sm { font-size: 15px; line-height: 1.3; }
 
 /* Light theme — publication-standard neutrals + our navy/gold accent */
 :root,
@@ -155,7 +179,7 @@ body {
 
 /* Headings — publication weight: 600 (bold = 600), tight leading */
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-sans);
+  font-family: var(--font-serif);
   font-weight: 600;
   line-height: 1.15;
   letter-spacing: normal;
@@ -334,20 +358,21 @@ table th {
    Applies to /article and /featured/material-matters
    ──────────────────────────────────────────────────────────── */
 .article-body {
+  font-family: var(--font-serif);
   font-size: 18px;
-  line-height: 1.7;
+  line-height: 1.72;
   color: var(--text);
-  font-weight: 450;
+  font-weight: 400;
 }
 @media (min-width: 640px) {
   .article-body {
-    font-size: 19px;
-    line-height: 1.72;
+    font-size: 19.5px;
+    line-height: 1.75;
   }
 }
 .article-body p {
   margin: 0 0 1.25em;
-  font-weight: 450;
+  font-weight: 400;
 }
 .article-body strong,
 .article-body b {
@@ -368,10 +393,11 @@ table th {
 .article-body h2,
 .article-body h3,
 .article-body h4 {
+  font-family: var(--font-serif);
   color: var(--text);
-  letter-spacing: -0.4px;
-  font-weight: 800;
-  line-height: 1.18;
+  letter-spacing: -0.011em;
+  font-weight: 600;
+  line-height: 1.2;
   margin: 1.7em 0 0.5em;
 }
 /* Section heading: black in the light theme (client request), with a thin
@@ -379,8 +405,8 @@ table th {
    so headings still stand out on the dark background. */
 .article-body h2 {
   font-size: 25px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
+  font-weight: 600;
+  letter-spacing: -0.011em;
   color: var(--text);
   border-bottom: 1px solid var(--border);
   padding-bottom: 0.35em;
@@ -1282,17 +1308,19 @@ body {
 }
 .sg-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); transform: translateY(-1px); }
 
-/* ============ HEADINGS — thick Business-Insider-style grotesque ============
-   Libre Franklin (Franklin Gothic family) at heavy weights for every heading:
-   page titles, homepage section headers, and AI-article body headings. */
+/* ============ HEADINGS — editorial serif (WSJ / Barron's) ============
+   One serif family at a consistent semibold for every page title and headline,
+   replacing the old heavy Libre-Franklin grotesque. Cards that still carry a
+   font-bold/semibold utility are normalised in their components. */
 h1, h2, h3 {
-  font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
-  font-weight: 800;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.011em;
 }
 .article-body h2, .article-body h3 {
-  font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.011em;
 }
 
 /* ============ VISIBLE SCROLLBAR (light + dark) ============

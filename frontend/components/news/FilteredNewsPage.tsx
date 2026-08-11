@@ -85,7 +85,7 @@ export function FilteredNewsPage({
           <span className="live-dot live-dot-good ml-2 text-faint">live</span>
         </div>
         <h1
-          className="font-bold tracking-tight"
+          className="font-semibold tracking-tight"
           style={{ fontSize: "clamp(32px, 4.5vw, 46px)", letterSpacing: "-0.8px", lineHeight: 1.05 }}
         >
           {title}
@@ -197,7 +197,7 @@ export function FilteredNewsPage({
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-[18px] font-bold tracking-tight">Latest headlines</h2>
+                <h2 className="text-[18px] font-semibold tracking-tight">Latest headlines</h2>
                 <span className="text-xs text-mute">
                   {all.length} {all.length === 1 ? "story" : "stories"}
                 </span>

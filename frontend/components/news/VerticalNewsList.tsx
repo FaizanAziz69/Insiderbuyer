@@ -109,7 +109,7 @@ function NewsListRow({ item, index }: { item: NewsItem; index: number }) {
             <Tag muted>{item.region === "US" ? "United States" : item.region}</Tag>
           </div>
           <h3
-            className="text-[16px] sm:text-[19px] font-bold leading-snug tracking-tight group-hover:text-accent transition line-clamp-2"
+            className="text-[16px] sm:text-[19px] font-semibold leading-snug tracking-tight group-hover:text-accent transition line-clamp-2"
             style={{ letterSpacing: "-0.2px" }}
           >
             {item.title}

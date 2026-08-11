@@ -46,7 +46,7 @@ export function AiInsightsStrip({
     <section>
       <div className="flex items-baseline justify-between mb-4">
         <h2
-          className="font-bold tracking-tight inline-flex items-center gap-2"
+          className="font-semibold tracking-tight inline-flex items-center gap-2"
           style={{ fontSize: 22, letterSpacing: "-0.3px" }}
         >
           {title}
@@ -139,7 +139,7 @@ export function AiInsightsStrip({
                     {it.eyebrow || it.kind.replace(/-/g, " ")}
                   </div>
                   <h3
-                    className="font-bold leading-snug group-hover:text-accent transition"
+                    className="font-semibold leading-snug group-hover:text-accent transition"
                     style={{ fontSize: 14, letterSpacing: "-0.01em" }}
                   >
                     {it.title}

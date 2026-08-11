@@ -89,7 +89,7 @@ function MoverArticle({ r, catalyst }: { r: MoverRow; catalyst: string | null })
           </div>
 
           {/* Headline — the client-spec framing */}
-          <h2 className="text-[17px] sm:text-[19px] font-bold leading-snug">
+          <h2 className="text-[17px] sm:text-[19px] font-semibold leading-snug">
             Why did {r.name} {up ? "surge" : "drop"} {Math.abs(r.changePct).toFixed(1)}% today?
           </h2>
 

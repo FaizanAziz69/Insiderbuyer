@@ -210,7 +210,7 @@ function HeroCard({
             )}
           </div>
           <h3
-            className="font-bold leading-tight text-[20px] sm:text-[26px]"
+            className="font-semibold leading-tight text-[20px] sm:text-[26px]"
             style={{ color: "#0f1d33", letterSpacing: "-0.01em" }}
           >
             {item.title}
@@ -255,7 +255,7 @@ function HeroCard({
             {item.ticker || item.kind.replace(/-/g, " ").toUpperCase()}
           </div>
           <h3
-            className="font-bold leading-snug text-[12px] sm:text-[13px]"
+            className="font-semibold leading-snug text-[12px] sm:text-[13px]"
             style={{ color: "#0f1d33" }}
           >
             {item.title}

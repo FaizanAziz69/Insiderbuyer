@@ -80,7 +80,7 @@ export default function EditorialPage() {
                   <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-accent mb-2">
                     {lead.eyebrow || "Editorial"}
                   </div>
-                  <h2 className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-snug group-hover:text-accent transition">
+                  <h2 className="text-[22px] sm:text-[26px] font-semibold tracking-tight leading-snug group-hover:text-accent transition">
                     {lead.title}
                   </h2>
                   <p className="text-[14px] text-soft mt-3 leading-relaxed line-clamp-3">
@@ -118,7 +118,7 @@ export default function EditorialPage() {
                     className="h-40 w-full object-cover"
                   />
                   <div className="p-4 flex flex-col flex-1">
-                    <h3 className="text-[16px] font-bold tracking-tight leading-snug group-hover:text-accent transition line-clamp-3">
+                    <h3 className="text-[16px] font-semibold tracking-tight leading-snug group-hover:text-accent transition line-clamp-3">
                       {item.title}
                     </h3>
                     <p className="text-[13px] text-soft mt-2 leading-relaxed line-clamp-2 flex-1">
