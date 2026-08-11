@@ -739,22 +739,6 @@ body {
 .table-base tbody tr:hover {
   background: var(--accent-soft);
 }
-/* Compact horizontal padding for column-dense tables (opt-in via `dense`),
-   so wide tables fit their container without a horizontal scrollbar. */
-.table-dense thead th,
-.table-dense tbody td {
-  padding-left: 7px;
-  padding-right: 7px;
-  font-size: 14.5px;
-}
-.table-dense thead th:first-child,
-.table-dense tbody td:first-child {
-  padding-left: 12px;
-}
-.table-dense thead th:last-child,
-.table-dense tbody td:last-child {
-  padding-right: 12px;
-}
 .table-base tbody tr:last-child td {
   border-bottom: none;
 }

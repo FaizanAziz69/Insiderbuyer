@@ -157,9 +157,6 @@ interface Props<T> {
    *  the next one fades as a teaser, pagination is suppressed and the shared
    *  unlock wall renders underneath. */
   gate?: { label: string; freeRows?: number; bullets?: string[] };
-  /** Compact horizontal padding — lets column-dense tables fit their container
-   *  without a horizontal scrollbar. */
-  dense?: boolean;
 }
 
 const alignClass: Record<Align, string> = {
@@ -205,7 +202,6 @@ export function DataTable<T>({
   gate,
   empty = "No data.",
   rowClassName = "",
-  dense = false,
 }: Props<T>) {
   const { unlocked: premiumUnlocked } = usePremium();
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(
@@ -530,7 +526,7 @@ export function DataTable<T>({
       )}
 
       <div className="overflow-x-auto">
-        <table className={`table-base${dense ? " table-dense" : ""}`}>
+        <table className="table-base">
           <thead>
             {/* Segmented group band — renders when any column declares a group
                 (e.g. "Stock" | "Insider Score"). Contiguous same-group columns

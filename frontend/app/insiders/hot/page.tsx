@@ -197,8 +197,6 @@ export default function InsiderHotStocksPage() {
     },
     {
       key: "price",
-      // Price + today's change stacked in one column (was two) so the table
-      // fits without a horizontal scroller.
       label: "Price",
       align: "right",
       filterable: true,
@@ -206,22 +204,31 @@ export default function InsiderHotStocksPage() {
       sortValue: (r) => r.livePrice ?? r.lastPrice ?? null,
       render: (r) => {
         const p = r.livePrice ?? r.lastPrice;
-        const up = (r.changePct ?? 0) >= 0;
         return (
-          <span className="inline-flex flex-col items-end leading-tight">
-            <span className="tabular font-bold text-[14px]">
-              {p != null ? `$${p.toFixed(2)}` : "—"}
-            </span>
-            {r.changePct != null && (
-              <span
-                className="tabular text-[11.5px] font-semibold inline-flex items-center gap-0.5"
-                style={{ color: up ? "var(--good)" : "var(--bad)" }}
-              >
-                {up ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />}
-                {up ? "+" : ""}
-                {r.changePct.toFixed(2)}%
-              </span>
-            )}
+          <span className="tabular font-bold text-[14px]">
+            {p != null ? `$${p.toFixed(2)}` : "—"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "changePct",
+      label: "Price Change",
+      align: "right",
+      filterable: true,
+      filterType: "range",
+      sortValue: (r) => r.changePct ?? null,
+      render: (r) => {
+        if (r.changePct == null) return <span className="text-faint text-[13px]">—</span>;
+        const up = r.changePct >= 0;
+        return (
+          <span
+            className="tabular font-bold text-[14px] inline-flex items-center gap-0.5 justify-end"
+            style={{ color: up ? "var(--good)" : "var(--bad)" }}
+          >
+            {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+            {up ? "+" : ""}
+            {r.changePct.toFixed(2)}%
           </span>
         );
       },
@@ -551,7 +558,6 @@ export default function InsiderHotStocksPage() {
             rowKey={(r, i) => (r.ticker || r.companyId || r.name || "") + i}
             rowClassName="hover:bg-[var(--accent-soft)]"
             columns={columns}
-            dense
             pageSize={50}
             gate={{
               label: "Insider Score",
