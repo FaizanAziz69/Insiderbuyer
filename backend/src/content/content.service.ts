@@ -1507,6 +1507,13 @@ export class ContentService {
   }) {
     const { slug, kind, ticker, sector, topic, iqsAtGeneration, article, inputSnapshot } = opts;
     this.guardArticle({ slug, kind, article, inputSnapshot });
+    // Paywall consistency (client spec): the numeric Insider Score is a
+    // premium feature — no article may ever print one, regardless of which
+    // generation path produced it. "Insider Score of 73" → "Insider Score".
+    const SCORE_LEAK = /((?:Insider|IQ) Scores?)(?: of|:)? ?[0-9]+(?:\.[0-9]+)?/gi;
+    article.title = article.title.replace(SCORE_LEAK, '$1');
+    article.summary = article.summary.replace(SCORE_LEAK, '$1');
+    article.body = article.body.replace(SCORE_LEAK, '$1');
     const imageUrl = buildAiImageUrl(article.imagePrompt, {
       seed: slug,
       ticker,
