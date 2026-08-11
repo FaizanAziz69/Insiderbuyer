@@ -47,7 +47,7 @@ const ARTICLE_TOOL: Anthropic.Messages.Tool = {
       body: {
         type: 'string',
         description:
-          'Article body in HTML following the InsiderBuyer standard structure IN ORDER: (1) a Key Points box — <h3>Key points</h3> then a <ul> of 2-3 specific complete claims (numbers, names, dates); (2) a hook intro of ≤50 words that states the surprising fact FIRST; (3) 3-5 <h2> claim sections of 150-300 words each, EACH with a visual anchor — a data <table> (insider-trade table / mini stock profile / ratings) or a tight <ul> where each item is data point → context → why it matters; (4) a brief <h2>The Bottom Line</h2> CTA closer pointing to Top Buys, the ticker page, or the Insider Score rankings; (5) END with EXACTLY, verbatim: <p><em>Not investment advice. Summarized from public SEC Form 4 and congressional disclosure data.</em></p>. Cite our Insider Score feed and Form 4 filings. Use cautious phrasing ("may suggest", "historically associated with", "investors may want to monitor"); NEVER "buy", "guaranteed", "will go up", "recommend". Never invent numbers — use only the data provided.',
+          'Article body in HTML following the InsiderBuyer standard structure IN ORDER: (1) a Key Points box — <h3>Key points</h3> then a <ul> of 2-3 specific complete claims (numbers, names, dates); (2) a hook intro of ≤50 words that states the surprising fact FIRST; (3) 3-5 <h2> claim sections of 150-300 words each, EACH with a visual anchor — a data <table> (insider-trade table / mini stock profile / ratings) or a tight <ul> where each item is data point → context → why it matters; (4) a brief <h2>The Bottom Line</h2> CTA closer pointing to Top Buys, the ticker page, or the Insider Score rankings; (5) END with EXACTLY, verbatim: <p><em>Not investment advice. Summarized from public SEC Form 4 and congressional disclosure data.</em></p>. Cite our Insider Score feed and Form 4 filings. The NUMERIC Insider Score is a paygated premium feature: NEVER print a numeric Insider Score anywhere (no \"score of 70\", no scores in tables) — describe it only qualitatively using the band provided (e.g. \"a Very Strong Insider Score\"). Use cautious phrasing ("may suggest", "historically associated with", "investors may want to monitor"); NEVER "buy", "guaranteed", "will go up", "recommend". Never invent numbers — use only the data provided.',
       },
       imagePrompt: {
         type: 'string',
@@ -137,12 +137,24 @@ export class ContentGeneratorService {
     return !!this.client;
   }
 
+  /** Qualitative band for the paygated Insider Score. Article prose must NEVER
+   *  print the numeric score (it's premium-gated on every product surface) —
+   *  the generator receives only this band and is instructed accordingly. */
+  private iqsBand(iqs: number | null | undefined): string {
+    if (iqs == null) return 'not yet scored';
+    if (iqs >= 80) return 'Exceptional (top tier)';
+    if (iqs >= 70) return 'Very Strong';
+    if (iqs >= 60) return 'Strong';
+    if (iqs >= 45) return 'Moderate';
+    return 'Emerging';
+  }
+
   async generateDailySummary(top: RankingLite[], dateLabel: string): Promise<GeneratedArticle> {
     const lines = top
       .slice(0, 8)
       .map(
         (r, i) =>
-          `${i + 1}. ${r.ticker} — ${r.name} (${r.sector || 'n/a'}) — Insider Score ${r.iqs.toFixed(2)}` +
+          `${i + 1}. ${r.ticker} — ${r.name} (${r.sector || 'n/a'}) — Insider Score band: ${this.iqsBand(r.iqs)}` +
           (r.distinctBuyers ? `, ${r.distinctBuyers} distinct buyers` : '') +
           (r.totalPurchaseValue ? `, $${Math.round(r.totalPurchaseValue).toLocaleString()} purchased` : ''),
       )
@@ -170,7 +182,7 @@ eyebrow: "DAILY BRIEFING"`;
       .slice(0, 5)
       .map(
         (r, i) =>
-          `${i + 1}. ${r.ticker} — ${r.name} — Sector: ${r.sector || 'n/a'} — Insider Score ${r.iqs.toFixed(2)}` +
+          `${i + 1}. ${r.ticker} — ${r.name} — Sector: ${r.sector || 'n/a'} — Insider Score band: ${this.iqsBand(r.iqs)}` +
           (r.totalPurchaseValue ? `, total purchased $${Math.round(r.totalPurchaseValue).toLocaleString()}` : ''),
       )
       .join('\n');
@@ -213,7 +225,7 @@ eyebrow: "TOP INSIDER SCORE PICKS"`;
 
 Snapshot:
 - Sector: ${row.sector || 'n/a'}
-- Insider Score: ${row.iqs.toFixed(2)} (per our Insider Score feed)
+- Insider Score band: ${this.iqsBand(row.iqs)} (per our Insider Score feed)
 - Market cap: ${row.marketCap ? `$${Math.round(row.marketCap).toLocaleString()}` : 'n/a'}
 - Distinct insider buyers: ${row.distinctBuyers ?? 'n/a'}
 - Total purchase value: ${row.totalPurchaseValue ? `$${Math.round(row.totalPurchaseValue).toLocaleString()}` : 'n/a'}
@@ -238,7 +250,7 @@ eyebrow: "TICKER FOCUS"`;
 
 Snapshot:
 - Sector: ${row.sector || 'n/a'}
-- Insider Score: ${row.iqs.toFixed(2)} (per our Insider Score feed)
+- Insider Score band: ${this.iqsBand(row.iqs)} (per our Insider Score feed)
 - Market cap: ${row.marketCap ? `$${Math.round(row.marketCap).toLocaleString()}` : 'n/a'}
 - Distinct insider buyers: ${row.distinctBuyers ?? 'n/a'}
 - Total insider purchase value: ${row.totalPurchaseValue ? `$${Math.round(row.totalPurchaseValue).toLocaleString()}` : 'n/a'}
@@ -263,7 +275,7 @@ Use cautious language ("may suggest", "could indicate") — never "buy" or "reco
       .slice(0, 6)
       .map(
         (r, i) =>
-          `${i + 1}. ${r.ticker} — ${r.name} — Insider Score ${r.iqs.toFixed(2)}` +
+          `${i + 1}. ${r.ticker} — ${r.name} — Insider Score band: ${this.iqsBand(r.iqs)}` +
           (r.distinctBuyers ? `, ${r.distinctBuyers} buyers` : ''),
       )
       .join('\n');
@@ -306,7 +318,7 @@ eyebrow: "SECTOR ROUNDUP"`;
           `${i + 1}. ${s.ticker} — ${s.name}` +
           (s.price != null ? ` — $${s.price.toFixed(2)}` : '') +
           (s.marketCap != null ? `, mkt cap $${Math.round(s.marketCap / 1e6).toLocaleString()}M` : '') +
-          (s.iqs != null ? `, Insider Score ${s.iqs.toFixed(1)}` : ', no Insider Score yet') +
+          (s.iqs != null ? `, Insider Score band: ${this.iqsBand(s.iqs)}` : ', no Insider Score yet') +
           (s.distinctBuyers ? `, ${s.distinctBuyers} distinct insider buyers` : ''),
       )
       .join('\n');
@@ -342,7 +354,7 @@ eyebrow: "${variant === 'insiders-buying' ? 'INSIDERS ARE BUYING' : 'SECTOR SPOT
       .slice(0, 8)
       .map(
         (r, i) =>
-          `${i + 1}. ${r.ticker} — ${r.name} (${r.sector || 'n/a'}) — Insider Score ${r.iqs.toFixed(2)}` +
+          `${i + 1}. ${r.ticker} — ${r.name} (${r.sector || 'n/a'}) — Insider Score band: ${this.iqsBand(r.iqs)}` +
           (r.distinctBuyers ? `, ${r.distinctBuyers} buyers` : ''),
       )
       .join('\n');
@@ -371,7 +383,7 @@ eyebrow: "WEEKLY REPORT"`;
 
 Snapshot:
 - Sector: ${row.sector || 'n/a'}
-- Insider Score: ${row.iqs.toFixed(2)} (per our Insider Score feed)
+- Insider Score band: ${this.iqsBand(row.iqs)} (per our Insider Score feed)
 - Distinct insider buyers in the window: ${row.distinctBuyers ?? 'n/a'}
 - Total insider purchase value: ${row.totalPurchaseValue ? `$${Math.round(row.totalPurchaseValue).toLocaleString()}` : 'n/a'}
 
@@ -443,7 +455,7 @@ eyebrow: "CEO BUYING"`;
         (s) =>
           `- ${s.ticker} (${s.name})` +
           (typeof s.changePct === 'number' ? `, ${s.changePct >= 0 ? '+' : ''}${s.changePct.toFixed(2)}% today` : '') +
-          (typeof s.iqs === 'number' && s.iqs > 0 ? `, Insider Score ${s.iqs.toFixed(1)}/100` : ''),
+          (typeof s.iqs === 'number' && s.iqs > 0 ? `, Insider Score band: ${this.iqsBand(s.iqs)}` : ''),
       )
       .join('\n');
 
@@ -481,7 +493,7 @@ eyebrow: "${opts.label.toUpperCase()}"`;
         : "trading in line with the group";
     const iqsLine =
       typeof opts.iqs === "number" && opts.iqs > 0
-        ? `Its Insider Score is ${opts.iqs.toFixed(1)}/100 (per our Insider Score feed).`
+        ? `Its Insider Score band is ${this.iqsBand(opts.iqs)} (per our Insider Score feed).`
         : "";
     const headlineLines = opts.headlines.length
       ? opts.headlines.slice(0, 4).map((h, i) => `${i + 1}. "${h.title}" — ${h.source}`).join("\n")

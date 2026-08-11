@@ -25,6 +25,7 @@ import {
   formatDate,
   formatNumber,
 } from "@/lib/api";
+import { computeInsiderFlow } from "@/lib/insiderFlow";
 import { AdSlot } from "@/components/AdSlot";
 import { PaywallOverlay } from "@/components/PaywallOverlay";
 import { InsiderBuySellMeter } from "@/components/stock/InsiderBuySellMeter";
@@ -413,7 +414,13 @@ export default function CompanyPage({
                                     : "—"}
                                 </td>
                                 <td className="text-right tabular font-bold text-[14px]">
-                                  {formatCurrency(Number(t.totalValue))}
+                                  {t.priceSuspect ? (
+                                    <span className="text-faint" title="Filer-reported dollar figure looks erroneous — excluded from totals">
+                                      —
+                                    </span>
+                                  ) : (
+                                    formatCurrency(Number(t.totalValue))
+                                  )}
                                 </td>
                                 <td className="text-right tabular text-[13.5px] font-bold">
                                   {(() => {
@@ -1166,10 +1173,10 @@ function InsiderSummary({
 }: {
   transactions: CompanyDetail["transactions"];
 }) {
-  const buys = transactions.filter((t) => t.transactionCode === "P");
-  const sells = transactions.filter((t) => t.transactionCode === "S");
-  const buyValue = buys.reduce((a, t) => a + Number(t.totalValue || 0), 0);
-  const distinctBuyers = new Set(buys.map((t) => t.insiderName)).size;
+  // Same helper the buy/sell meter uses, so these figures reconcile with it.
+  const flow = computeInsiderFlow(transactions);
+  const buyValue = flow.buyValue;
+  const distinctBuyers = flow.distinctBuyers;
 
   if (transactions.length === 0) {
     return (
@@ -1186,8 +1193,8 @@ function InsiderSummary({
     <section className="card p-5">
       <h2 className="text-[16px] font-semibold mb-3">Recent Insider Activity</h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Stat label="Buys" value={formatNumber(buys.length)} good />
-        <Stat label="Sells" value={formatNumber(sells.length)} />
+        <Stat label="Buys" value={formatNumber(flow.buyCount)} good />
+        <Stat label="Sells" value={formatNumber(flow.sellCount)} />
         <Stat label="Buy Value" value={formatCurrency(buyValue)} good />
         <Stat label="Distinct Buyers" value={formatNumber(distinctBuyers)} />
       </div>

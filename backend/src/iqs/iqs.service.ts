@@ -1027,12 +1027,19 @@ export class IqsService {
       .limit(200)
       .getMany();
 
+    const capForSanity = company.marketCap != null ? Number(company.marketCap) : 0;
+    const lastPriceForSanity = company.lastPrice != null ? Number(company.lastPrice) : null;
     let transactions: any[] = txRows.map((t) => ({
       ...t,
       type: t.transactionCode === 'S' ? 'SELL' : 'BUY',
       sharesBought: Number(t.sharesBought),
       pricePerShare: Number(t.pricePerShare),
       totalValue: Number(t.totalValue),
+      // Same plausibility flag the trades feed uses, so the profile page's
+      // meter/summary/table all exclude the same filer-error dollar figures.
+      priceSuspect:
+        !isPlausibleTx(Number(t.sharesBought), Number(t.pricePerShare), lastPriceForSanity) ||
+        (capForSanity > 0 && Number(t.totalValue) > capForSanity),
       previousHoldings: t.previousHoldings === null ? null : Number(t.previousHoldings),
       postHoldings: t.postHoldings === null ? null : Number(t.postHoldings),
     }));

@@ -143,6 +143,8 @@ export interface CompanyDetail {
     totalValue: number;
     previousHoldings: number | null;
     postHoldings: number | null;
+    /** Filer-error dollar figure — shown as "—" and excluded from totals. */
+    priceSuspect?: boolean;
     filingUrl: string;
   }>;
 }

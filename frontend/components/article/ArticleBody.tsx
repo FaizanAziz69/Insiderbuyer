@@ -1,6 +1,7 @@
 "use client";
 import { Fragment, useMemo } from "react";
 import { ArticleStockCard } from "./ArticleStockCard";
+import { sanitizeArticleHtml } from "@/lib/sanitizeArticleHtml";
 
 /** Matches the embed placeholders the content engine writes into article
  *  HTML: `<div data-stock-embed="NVDA"></div>`. */
@@ -52,7 +53,10 @@ function stripInlineDisclosure(html: string): string {
 }
 
 export function ArticleBody({ html: rawHtml }: { html: string }) {
-  const html = useMemo(() => stripInlineDisclosure(fixInternalLinks(rawHtml)), [rawHtml]);
+  const html = useMemo(
+    () => sanitizeArticleHtml(stripInlineDisclosure(fixInternalLinks(rawHtml))),
+    [rawHtml],
+  );
   const segments = useMemo(() => {
     const out: Array<{ type: "html"; value: string } | { type: "stock"; ticker: string }> = [];
     let last = 0;

@@ -1,33 +1,17 @@
 "use client";
 import { Users } from "lucide-react";
 import { formatCurrency } from "@/lib/api";
-
-interface Tx {
-  type?: "BUY" | "SELL";
-  transactionCode?: string;
-  totalValue: number;
-  priceSuspect?: boolean;
-}
+import { computeInsiderFlow, FlowTx } from "@/lib/insiderFlow";
 
 /**
  * "What Are Insiders Doing?" — a single buy-vs-sell balance meter, styled
  * like the analyst-target gauge below it: a red→green track with a marker at
  * the buy share of open-market dollar flow, the total bought on the green end
- * and total sold on the red end. Replaces the old four-paragraph summary.
+ * and total sold on the red end. Uses the shared flow helper so its totals
+ * always match the "Recent Insider Activity" summary on the same page.
  */
-export function InsiderBuySellMeter({ transactions }: { transactions?: Tx[] }) {
-  const txs = transactions || [];
-  let buy = 0;
-  let sell = 0;
-  for (const t of txs) {
-    if (t.priceSuspect) continue; // filer-error dollar figure — never counted
-    const v = Number(t.totalValue) || 0;
-    if (v <= 0) continue;
-    const isBuy = t.type === "BUY" || t.transactionCode === "P";
-    const isSell = t.type === "SELL" || t.transactionCode === "S";
-    if (isBuy) buy += v;
-    else if (isSell) sell += v;
-  }
+export function InsiderBuySellMeter({ transactions }: { transactions?: FlowTx[] }) {
+  const { buyValue: buy, sellValue: sell } = computeInsiderFlow(transactions);
   const total = buy + sell;
   if (total <= 0) return null; // no open-market flow → nothing to meter
 
