@@ -58,6 +58,10 @@ import { GovContractCache } from './entities/gov-contract-cache.entity';
         !process.env.DATABASE_URL && (dbHost === 'localhost' || dbHost === '127.0.0.1');
       const sslDisabled = process.env.DB_SSL === 'false';
       const useSsl = !isLocal && !sslDisabled;
+      // On Vercel every cold start is a fresh process, so anything that runs at
+      // bootstrap runs per invocation — schema sync and long connect retries are
+      // pure waste there, and they burn the Postgres data-transfer allowance.
+      const serverless = !!process.env.VERCEL;
       return TypeOrmModule.forRoot({
         type: 'postgres',
         ...(process.env.DATABASE_URL
@@ -90,8 +94,23 @@ import { GovContractCache } from './entities/gov-contract-cache.entity';
           HistoricalInsiderBuy,
           GovContractCache,
         ],
-        synchronize: true,
+        // Schema sync issues a catalog query per entity on every boot. Fine
+        // locally; on serverless it repeats forever. Set DB_SYNC=true for a
+        // one-off migration against a fresh database.
+        synchronize: process.env.DB_SYNC === 'true' || !serverless,
         logging: false,
+        // Default is 10 attempts × 3s. When the database refuses connections
+        // (quota exhausted, paused compute) that stalls ~30s and the platform
+        // kills the function with an opaque FUNCTION_INVOCATION_FAILED instead
+        // of letting Nest return a real error.
+        retryAttempts: serverless ? 1 : 10,
+        retryDelay: serverless ? 500 : 3000,
+        extra: {
+          // A serverless instance handles one request at a time.
+          max: serverless ? 2 : 10,
+          connectionTimeoutMillis: serverless ? 5000 : 30000,
+          idleTimeoutMillis: 10000,
+        },
       });
     })(),
     CompaniesModule,

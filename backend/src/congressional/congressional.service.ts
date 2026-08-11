@@ -272,8 +272,9 @@ export class CongressionalService implements OnModuleInit {
         reportedDate: safeDate(t.reportedDate) ?? safeDate(t.transactionDate),
         source: 'fmp',
       }))
-      // Drop rows with no usable transaction date — they'd fail the insert.
-      .filter((r) => r.transactionDate != null);
+      // Drop rows with no usable transaction date or ticker — a single such
+      // row violates NOT NULL and aborts the whole batch insert.
+      .filter((r) => r.transactionDate != null && !!r.ticker);
     // Once real FMP rows exist, retire the sample seed (real data supersedes it).
     if (rows.length) await this.repo.save(rows as any);
     const realCount = await this.repo.count({ where: { source: 'fmp' } });

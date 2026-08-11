@@ -1,15 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  async rewrites() {
-    const backend = process.env.BACKEND_URL || 'http://localhost:4000';
-    return [
-      {
-        source: '/api/backend/:path*',
-        destination: `${backend}/api/:path*`,
-      },
-    ];
-  },
+  // NOTE: /api/backend/* is proxied by app/api/backend/[...path]/route.ts, not
+  // by a rewrite. rewrites() runs at build time, which baked BACKEND_URL into
+  // the deployment and made env-var changes take effect only after a rebuild.
 };
 
 module.exports = nextConfig;

@@ -2,6 +2,7 @@ name: FMP full data refresh
 # trigger: full-universe run (all-mode live)
 # trigger: populate insider-ownership columns
 # trigger: ownership-change fix
+# trigger: rebuild data on new Neon project
 
 # Cloud-driven full refresh of company data from FMP (price, market cap,
 # sector/industry, shares outstanding, dilution) followed by a score recalc.
