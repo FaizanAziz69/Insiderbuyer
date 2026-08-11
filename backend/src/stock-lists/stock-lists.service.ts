@@ -445,12 +445,22 @@ export class StockListsService {
     const allTickers = Array.from(
       new Set(HOT_SECTOR_BASKETS.flatMap((b) => b.tickers)),
     );
-    const [returns, buySell, spReturns] = await Promise.all([
+    const [returns, buySell, spReturns, quotes] = await Promise.all([
       this.marketStats.getMonthYtdReturns(allTickers),
       this.iqs.getMonthlyBuySellByTicker(allTickers),
       this.marketStats.getMonthYtdReturns(['^GSPC']),
+      this.marketStats.getQuoteBatch(allTickers).catch(() => new Map()),
     ]);
     const sp500Ytd = spReturns['^GSPC']?.ytd ?? null;
+    // Client spec (Azlan): only companies above a $100M market cap count
+    // toward a sector's heat — sub-$100M names swing ±10% on nothing and were
+    // distorting the gainer ratios. A missing cap keeps the name (curated
+    // baskets are liquid names; only a known micro-cap is excluded).
+    const MIN_CAP = 100_000_000;
+    const capOk = (sym: string): boolean => {
+      const cap = (quotes.get(sym) as { marketCap?: number | null } | undefined)?.marketCap;
+      return cap == null || cap >= MIN_CAP;
+    };
 
     const raw = HOT_SECTOR_BASKETS.map((b) => {
       let companies = 0;
@@ -463,6 +473,7 @@ export class StockListsService {
       let insiderSells = 0;
       for (const t of b.tickers) {
         const up = t.toUpperCase();
+        if (!capOk(up)) continue; // sub-$100M caps don't count toward heat
         const r = returns[up];
         if (r && r.mtd != null) {
           companies++;
