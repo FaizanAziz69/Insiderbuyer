@@ -222,6 +222,15 @@ export default function GovernmentContractsPage() {
             initialSort={{ key: "ttmAmount", dir: "desc" }}
             empty="No contractors match your search."
             columns={columns}
+            gate={{
+              label: "Government Contracts",
+              bullets: [
+                "All contractors ranked by federal contract dollars",
+                "Live USAspending.gov TTM totals + top agency",
+                "Analyst consensus and implied upside per name",
+                "Insider Scores where insiders are buying",
+              ],
+            }}
           />
         )}
       </div>

@@ -196,6 +196,15 @@ export default function AnalystRatingsPage() {
             initialSort={{ key: "successRate", dir: "desc" }}
             empty="No matching analysts."
             columns={columns}
+            gate={{
+              label: "Top Analysts",
+              bullets: [
+                "Every ranked analyst, not just the preview",
+                "Success rates and average returns as they mature",
+                "Click any analyst for their rating history",
+                "Firm and sector coverage for each analyst",
+              ],
+            }}
           />
         )}
       </div>

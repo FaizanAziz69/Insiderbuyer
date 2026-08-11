@@ -11,6 +11,7 @@ import { PriceTargetCell } from "@/components/PriceTargetCell";
 import { ReasoningTip } from "@/components/ReasoningTip";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
+import { PremiumValue } from "@/components/premium/PremiumValue";
 
 /**
  * The platform-standard stock-list row — a superset shape every list maps
@@ -195,7 +196,13 @@ export function StandardStockListTable({
       info: "Our 0–99 Insider Score — a weighted composite of insider-buying quality, sector strength, management tone, momentum, insider caliber and dilution. Blank when the company has no recent open-market insider buys.",
       sortValue: (r) => r.iqs ?? null,
       render: (r) =>
-        r.iqs != null ? <IqsScoreCell iqs={r.iqs} /> : <span className="text-faint text-[12px]">—</span>,
+        r.iqs != null ? (
+          <PremiumValue label="Insider Score">
+            <IqsScoreCell iqs={r.iqs} />
+          </PremiumValue>
+        ) : (
+          <span className="text-faint text-[12px]">—</span>
+        ),
     },
     {
       key: "roi",
@@ -208,13 +215,15 @@ export function StandardStockListTable({
         r.perfVsAvgCostPct == null ? (
           <span className="text-faint text-[12px]">—</span>
         ) : (
-          <span
-            className="tabular font-bold text-[13.5px]"
-            style={{ color: r.perfVsAvgCostPct >= 0 ? "var(--good)" : "var(--bad)" }}
-          >
-            {r.perfVsAvgCostPct >= 0 ? "+" : ""}
-            {r.perfVsAvgCostPct.toFixed(1)}%
-          </span>
+          <PremiumValue label="ROI">
+            <span
+              className="tabular font-bold text-[13.5px]"
+              style={{ color: r.perfVsAvgCostPct >= 0 ? "var(--good)" : "var(--bad)" }}
+            >
+              {r.perfVsAvgCostPct >= 0 ? "+" : ""}
+              {r.perfVsAvgCostPct.toFixed(1)}%
+            </span>
+          </PremiumValue>
         ),
     },
     {
@@ -321,6 +330,7 @@ export function StandardStockListTable({
         r.insiderOwnershipPct == null ? (
           <span className="text-faint text-[12px]">—</span>
         ) : (
+          <PremiumValue label="Insider Ownership">
           <span className="inline-flex flex-col items-end leading-tight">
             <span className="tabular text-[13.5px] font-bold">
               {r.insiderOwnershipPct.toFixed(1)}%
@@ -340,6 +350,7 @@ export function StandardStockListTable({
                 </span>
               ))}
           </span>
+          </PremiumValue>
         ),
     },
     {

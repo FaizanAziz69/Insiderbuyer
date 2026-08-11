@@ -168,9 +168,6 @@ export default function StockListsHubPage() {
                     <div className="font-bold" style={{ fontSize: 19, letterSpacing: "-0.3px" }}>
                       {premium.title}
                     </div>
-                    <p className="mt-1.5" style={{ fontSize: 12.5, color: "rgba(255,255,255,0.82)", lineHeight: 1.55 }}>
-                      {premium.description}
-                    </p>
                   </div>
                   {/* Conic count ring — arc proportional to ticker count */}
                   <div
@@ -239,9 +236,7 @@ export default function StockListsHubPage() {
                         {l.count}
                       </span>
                     </div>
-                    <p className="mt-1.5 line-clamp-2 flex-1" style={{ fontSize: 12, color: "var(--text-mute)", lineHeight: 1.5 }}>
-                      {l.description}
-                    </p>
+                    <span className="flex-1" />
                     <div className="mt-3 rounded-full overflow-hidden" style={{ height: 3, background: "var(--bg-3)" }}>
                       <div
                         className="h-full rounded-full"
@@ -301,9 +296,6 @@ export default function StockListsHubPage() {
                         <span className="font-mono font-bold flex-shrink-0" style={{ fontSize: 12, color: "var(--text-soft)" }}>
                           {l.count}
                         </span>
-                      </span>
-                      <span className="block truncate" style={{ fontSize: 12, color: "var(--text-mute)" }}>
-                        {l.description}
                       </span>
                     </span>
                     <ChevronRight className="h-4 w-4 flex-shrink-0 text-faint group-hover:text-accent transition" />

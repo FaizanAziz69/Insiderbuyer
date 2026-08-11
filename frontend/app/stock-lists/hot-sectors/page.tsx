@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Flame, TrendingDown, TrendingUp } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
+import { PaywallOverlay } from "@/components/PaywallOverlay";
 
 interface HotSectorRow {
   rank: number;
@@ -90,6 +91,19 @@ export default function HotSectorsPage() {
         </p>
       </header>
 
+      {/* Paid product (client spec): the sector ranking sits behind the wall,
+          height-clipped as a teaser. */}
+      <PaywallOverlay
+        title="Hot Sectors is a Premium feature"
+        subtitle="See which themes are running hottest right now — and the insider money behind them"
+        bullets={[
+          "Every sector ranked by live heat score",
+          "10%+ gainer breadth and momentum per theme",
+          "Insider buy/sell pressure across each basket",
+          "YTD performance vs the S&P 500",
+        ]}
+        peekHeight={420}
+      >
       <div className="card overflow-hidden">
         {isLoading ? (
           <div className="text-center text-mute py-12">Loading sectors…</div>
@@ -227,6 +241,7 @@ export default function HotSectorsPage() {
           </div>
         )}
       </div>
+      </PaywallOverlay>
 
       {/* Methodology note */}
       <div

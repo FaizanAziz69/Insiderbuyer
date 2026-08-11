@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Lock, X } from "lucide-react";
+import { Lock } from "lucide-react";
 import { usePremium } from "./premium/PremiumContext";
 
 interface Props {
@@ -15,10 +15,9 @@ interface Props {
 }
 
 /**
- * Dismissible upgrade wall. The real content sits behind a blur so visitors can
- * see what they'd be buying, and the cross opens it for the current view only —
- * nothing is persisted, so every page load puts the wall back. Once Stripe is
- * wired up, drop the cross and send the CTA to checkout instead.
+ * Upgrade wall. The content behind it is height-clipped and blurred as a
+ * teaser; entitlement comes from /billing/status (Stripe is live — the old
+ * pre-checkout dismissal cross is gone).
  */
 export function PaywallOverlay({
   children,
@@ -34,7 +33,7 @@ export function PaywallOverlay({
   href = "/premium",
   peekHeight = 560,
 }: Props) {
-  const { unlocked, unlock } = usePremium();
+  const { unlocked } = usePremium();
   if (unlocked) return <>{children}</>;
 
   return (
@@ -59,19 +58,6 @@ export function PaywallOverlay({
             "linear-gradient(180deg, color-mix(in srgb, var(--bg-1) 60%, transparent) 0%, color-mix(in srgb, var(--bg-1) 94%, transparent) 45%, var(--bg-1) 100%)",
         }}
       >
-        <button
-          onClick={unlock}
-          aria-label="Close"
-          className="absolute top-3 right-3 inline-flex items-center justify-center h-8 w-8 rounded-full"
-          style={{
-            background: "var(--bg-3)",
-            border: "1px solid var(--border-strong)",
-            color: "var(--text-soft)",
-          }}
-        >
-          <X className="h-4 w-4" />
-        </button>
-
         <div
           className="inline-flex items-center justify-center h-11 w-11 rounded-xl mb-3"
           style={{

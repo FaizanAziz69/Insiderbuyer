@@ -220,30 +220,7 @@ export default function StockListDetailPage({
         >
           {data?.title || "—"}
         </h1>
-        {data?.description && (
-          <p
-            className="mt-4 max-w-4xl leading-relaxed"
-            style={{ color: "var(--text-soft)", fontSize: 17 }}
-          >
-            {data.description}
-          </p>
-        )}
-        {data?.kind && data.slug !== "trump-family" && (
-          <p
-            className="mt-3 max-w-4xl leading-relaxed"
-            style={{ color: "var(--text-mute)", fontSize: 15 }}
-          >
-            {KIND_BLURB[data.kind]}
-          </p>
-        )}
-        {data?.slug === "trump-family" && data.rows?.[0]?.note && (
-          <p
-            className="mt-3 max-w-4xl leading-relaxed"
-            style={{ color: "var(--text-mute)", fontSize: 15 }}
-          >
-            {data.rows[0].note}
-          </p>
-        )}
+        {/* Client spec: no descriptions on stock-list pages. */}
         {data && (
           <div
             className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px]"
@@ -539,6 +516,15 @@ export default function StockListDetailPage({
             empty="No stocks in this list yet."
             initialSort={{ key: "upside", dir: "asc" }}
             rowClassName="hover:bg-[var(--accent-soft)]"
+            gate={{
+              label: "Blue Sky Stocks",
+              bullets: [
+                "Every 300%+ upside name, counted down to #1",
+                "Mean analyst targets behind each call",
+                "Top-analyst coverage counts per stock",
+                "Live prices and market caps",
+              ],
+            }}
             columns={[
               rankColumn<DetailRow>({ countdownFrom: rows.length }),
               {
@@ -618,7 +604,22 @@ export default function StockListDetailPage({
         ) : (
           /* Platform-standard layout — the exact Top Insider Scores column
              sequence, enforced across every category/exchange/cap/style list. */
-          <StandardStockListTable rows={rows as unknown as StandardRow[]} />
+          <StandardStockListTable
+            rows={rows as unknown as StandardRow[]}
+            gate={
+              data?.kind === "premium"
+                ? {
+                    label: "Top Insider Scores",
+                    bullets: [
+                      "The full ranked list, not just the preview",
+                      "Insider Scores, ROI vs insider cost and signals",
+                      "Insider ownership with 90-day change",
+                      "Every new Form 4 the moment it lands",
+                    ],
+                  }
+                : undefined
+            }
+          />
         )}
       </div>
 

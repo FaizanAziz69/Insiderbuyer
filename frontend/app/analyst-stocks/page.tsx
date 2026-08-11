@@ -213,6 +213,15 @@ export default function AnalystStocksPage() {
             initialSort={{ key: "recommendation", dir: "desc" }}
             empty="No covered stocks match your search."
             columns={columns}
+            gate={{
+              label: "Top Analyst Stocks",
+              bullets: [
+                "Every covered stock, ranked by consensus + upside",
+                "Buy-rating counts from top Wall Street analysts",
+                "Mean price targets and implied upside",
+                "Updated with live quotes all session",
+              ],
+            }}
           />
         )}
       </div>
