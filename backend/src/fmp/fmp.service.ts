@@ -153,10 +153,20 @@ export class FmpService {
           changeAbs: Number(q.change) || 0,
           changePct: Number(q.changePercentage) || 0,
           volume: Number(q.volume) || 0,
+          // DEAD FIELD — `batch-quote` carries no `avgVolume`; always 0. See the
+          // note on `peRatio` below.
           avgVolume: Number(q.avgVolume) || 0,
           marketCap: Number(q.marketCap) || null,
           fiftyTwoWeekHigh: Number(q.yearHigh) || null,
           fiftyTwoWeekLow: Number(q.yearLow) || null,
+          // DEAD FIELD — verified against the production key: `batch-quote` rows
+          // contain no `pe` (nor `avgVolume`). The full row shape is symbol,
+          // name, price, changePercentage, change, volume, dayLow, dayHigh,
+          // yearHigh, yearLow, marketCap, priceAvg50, priceAvg200, exchange,
+          // open, previousClose, timestamp. So this is ALWAYS null and must not
+          // be treated as a P/E source — use getPeRatioTtm() (`ratios-ttm`,
+          // one symbol per request) instead. Left in place because callers
+          // depend on the returned shape; removing it is a separate change.
           peRatio: Number(q.pe) || null,
           exchange: q.exchange || null,
         });
@@ -889,4 +899,126 @@ export class FmpService {
       }),
     ]);
   }
+
+  // ── Fallbacks for the company profile page (SEC EDGAR is tried first) ──
+  // Used by CompanyCivicService only when its own filing parser comes back
+  // empty, so these are off the hot path. Both are cached for a day.
+  private readonly civicFallbackCache = new Map<string, { ts: number; data: any }>();
+  private readonly CIVIC_FALLBACK_TTL_MS = 24 * 60 * 60_000;
+
+  /** Revenue by geography for the latest reported period.
+   *
+   *  `total` comes from the income statement for the *same* fiscal year, not
+   *  from summing the rows: FMP nests regions inside an aggregate bucket for
+   *  some filers (BA reports UNITED STATES and Non-US alongside Europe, Middle
+   *  East, CANADA … which are themselves inside Non-US), so summing would
+   *  overstate revenue by ~45% and make every derived percentage wrong. The
+   *  caller reconciles against `total` to drop the nested rows. */
+  async getGeographicRevenue(
+    symbolRaw: string,
+  ): Promise<{ asOf: string | null; period: string | null; rows: FmpGeoRevenueRow[]; total: number | null }> {
+    const empty = { asOf: null, period: null, rows: [] as FmpGeoRevenueRow[], total: null };
+    if (!this.enabled) return empty;
+    const symbol = String(symbolRaw || '').toUpperCase();
+    if (!symbol) return empty;
+    const ck = `geo:${symbol}`;
+    const hit = this.civicFallbackCache.get(ck);
+    if (hit && Date.now() - hit.ts < this.CIVIC_FALLBACK_TTL_MS) return hit.data;
+    const [segRows, incomeRows] = await Promise.all([
+      this.get('revenue-geographic-segmentation', { symbol }),
+      this.get('income-statement', { symbol, period: 'annual', limit: 5 }),
+    ]);
+    // Rows arrive newest-first; only the latest period is shown.
+    const latest = segRows[0];
+    const data = latest?.data;
+    if (!data || typeof data !== 'object') return empty;
+    const rows: FmpGeoRevenueRow[] = [];
+    for (const [name, v] of Object.entries<any>(data)) {
+      const revenue = this.num(v);
+      if (!name || revenue == null || revenue <= 0) continue;
+      // FMP shouts country names ("UNITED STATES"); the SEC path uses the
+      // filing's own casing, so normalise for a consistent-looking table —
+      // leaving genuine acronyms (EMEA, APAC) alone rather than "Emea".
+      const label = /^[^a-z]+$/.test(name)
+        ? name
+            .split(/\s+/)
+            .map((w) => (FMP_GEO_ACRONYMS.has(w) ? w : w.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase())))
+            .join(' ')
+        : name;
+      rows.push({ name: label, revenue });
+    }
+    const fy = this.num(latest?.fiscalYear);
+    const match = incomeRows.find((r) => this.num(r?.fiscalYear) === fy) || null;
+    const out = {
+      asOf: latest?.date ? String(latest.date).slice(0, 10) : null,
+      period: latest?.period ? String(latest.period) : null,
+      rows,
+      total: match ? this.num(match.revenue) : null,
+    };
+    if (rows.length) this.civicFallbackCache.set(ck, { ts: Date.now(), data: out });
+    return out;
+  }
+
+  /** Executive compensation collapsed to the same per-year shape the SEC
+   *  Pay-versus-Performance table gives: the principal executive's total plus
+   *  the average of the other named executives.
+   *
+   *  FMP publishes one row per executive per year. The PEO is the row whose
+   *  title ENDS in CEO — a business-unit chief ("CEO, Asset & Wealth
+   *  Management", "Co-CEO, Commercial & Investment Bank") is a named executive,
+   *  not the principal one, and JPM's filing lists several. */
+  async getExecutiveCompensation(symbolRaw: string): Promise<FmpExecCompYear[]> {
+    if (!this.enabled) return [];
+    const symbol = String(symbolRaw || '').toUpperCase();
+    if (!symbol) return [];
+    const ck = `comp:${symbol}`;
+    const hit = this.civicFallbackCache.get(ck);
+    if (hit && Date.now() - hit.ts < this.CIVIC_FALLBACK_TTL_MS) return hit.data;
+    const rows = await this.get('governance-executive-compensation', { symbol });
+    const byYear = new Map<number, { peo: number[]; neo: number[] }>();
+    for (const r of rows) {
+      const year = this.num(r?.year);
+      const total = this.num(r?.total);
+      if (year == null || !Number.isInteger(year) || total == null || total <= 0) continue;
+      const title = String(r?.nameAndPosition || '');
+      const isPeo = /(?:chief executive officer|\bceo)\s*$/i.test(title) && !/\bco-?ceo/i.test(title);
+      const e = byYear.get(year) || { peo: [], neo: [] };
+      (isPeo ? e.peo : e.neo).push(total);
+      byYear.set(year, e);
+    }
+    const out: FmpExecCompYear[] = [];
+    for (const [year, e] of byYear) {
+      // No clean PEO title that year → fall back to the largest package, which
+      // is how these filings read in practice. Never invent a figure.
+      const peoTotal = e.peo.length ? Math.max(...e.peo) : e.neo.length ? Math.max(...e.neo) : null;
+      const others = e.peo.length ? e.neo : e.neo.filter((v) => v !== peoTotal);
+      out.push({
+        year,
+        peoTotal,
+        avgNeoTotal: others.length ? Math.round(others.reduce((s, v) => s + v, 0) / others.length) : null,
+      });
+    }
+    out.sort((a, b) => b.year - a.year);
+    const top = out.slice(0, 5);
+    if (top.length) this.civicFallbackCache.set(ck, { ts: Date.now(), data: top });
+    return top;
+  }
+}
+
+/** Region labels that are acronyms, not shouted words — kept as-is when
+ *  normalising FMP's all-caps geography keys. */
+const FMP_GEO_ACRONYMS = new Set(['EMEA', 'APAC', 'EMEIA', 'AMEA', 'MEA', 'LATAM', 'ANZ', 'ASEAN', 'EU', 'UK', 'US', 'USA', 'UAE', 'ROW', 'NA']);
+
+/** One region of FMP's geographic revenue split for a single period. */
+export interface FmpGeoRevenueRow {
+  name: string;
+  revenue: number;
+}
+
+/** Executive compensation for one fiscal year, in the SEC Pay-versus-
+ *  Performance shape so both sources render through one code path. */
+export interface FmpExecCompYear {
+  year: number;
+  peoTotal: number | null;
+  avgNeoTotal: number | null;
 }

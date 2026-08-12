@@ -1608,3 +1608,55 @@ h1, h2, h3 {
     transform: none;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   stockanalysis.com profile-header tokens (.sa-head)
+   ─────────────────────────────────────────────────────────────────────────
+   The reference page's LIGHT theme is pinned here as exact literals so the
+   header can be measured against it. Dark mode re-points every token at the
+   site's own palette, so nothing below is a hardcoded colour in dark.
+   ────────────────────────────────────────────────────────────────────────── */
+.sa-head {
+  --sa-text: #111827;         /* rgb(17,24,39)    — h1, labels, values      */
+  --sa-faded: #374151;        /* rgb(55,65,81)    — subtitle, market clock  */
+  --sa-row-border: #e5e7eb;   /* rgb(229,231,235) — stat row hairline       */
+  --sa-dot: #6b7280;          /* rgb(107,114,128) — dothref underline       */
+  --sa-icon: #d1d5db;         /* text-gray-300    — superscript info glyph  */
+  --sa-icon-hover: #4b5563;
+  --sa-tab-blue: #1e73ba;     /* rgb(30,115,186)  — inactive tab link       */
+  --sa-tab-active-bg: #eeeeee;/* rgb(238,238,238) — active tab background   */
+  --sa-nav-border: #2c6288;   /* rgb(44,98,136)   — 2px rule under the tabs */
+  --sa-btn-bg: #ecedf1;       /* rgb(236,238,241) — active range button     */
+  --sa-btn-text: #1f2937;     /* rgb(31,41,55)                             */
+  --sa-up: #15803d;           /* rgb(21,128,61)   — growth + rising series  */
+  --sa-down: #dc2626;         /* rgb(220,38,38)   — decline + falling series*/
+  --sa-grid: #f3f4f6;         /* chart gridlines                           */
+  --sa-ref: #9ca3af;          /* previous-close dotted reference line       */
+}
+[data-theme="dark"] .sa-head {
+  --sa-text: var(--text);
+  --sa-faded: var(--text-soft);
+  --sa-row-border: var(--border);
+  --sa-dot: var(--text-mute);
+  --sa-icon: var(--text-faint);
+  --sa-icon-hover: var(--text-soft);
+  --sa-tab-blue: #6cb6f0;
+  --sa-tab-active-bg: var(--bg-3);
+  --sa-nav-border: var(--border-strong);
+  --sa-btn-bg: var(--bg-3);
+  --sa-btn-text: var(--text);
+  --sa-up: #34d399;
+  --sa-down: #f87171;
+  --sa-grid: var(--border);
+  --sa-ref: var(--text-mute);
+}
+
+/* Tooltip-bearing stat label — the reference's `dothref` affordance. */
+.sa-head .sa-dothref {
+  color: var(--sa-text);
+  font-weight: 400;
+  text-decoration: underline solid;
+  text-decoration-color: var(--sa-dot);
+  text-underline-offset: 4px;
+}
+.sa-head .sa-dothref:hover { text-decoration-color: var(--sa-text); }

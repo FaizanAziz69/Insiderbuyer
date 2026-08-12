@@ -273,65 +273,60 @@ export class MarketStatsService {
   // ---- P/E gap-filler --------------------------------------------------
   // Yahoo omits trailingPE from BOTH the screener payload and the v7 fast quote
   // for most names, which is why the "P/E" column renders em-dashes across the
-  // movers, dividend, short-interest and rankings tables. FMP's batch-quote
-  // carries `pe` for 50 symbols per request, so a whole table costs a couple of
-  // requests rather than one per row. Cached 30 min INCLUDING misses, so
-  // loss-making names aren't re-requested on every rebuild.
-  private peCache = new Map<string, { ts: number; pe: number | null }>();
-  private readonly PE_CACHE_MS = 30 * 60_000;
-  private readonly PE_CHUNK = 50;
-  private readonly PE_PARALLEL = 3;
+  // movers, dividend, short-interest and rankings tables.
+  //
+  // The only working FMP source is `ratios-ttm`, which takes ONE symbol per
+  // request — verified: `ratios-ttm?symbol=AAPL,MSFT,USB` returns zero rows, and
+  // `batch-quote` carries no `pe` field at all. So this CANNOT be batched, and
+  // the design is built around that: bounded concurrency, a symbol cap, a
+  // wall-clock budget, and rows filled in the order they appear (tables are
+  // sorted most-visible-first, so a budget that only reaches part of the list
+  // fills the rows a user actually sees). Coverage then converges across
+  // requests via the 24h cache inside FmpService.getPeRatioTtm — which caches
+  // MISSES too, so a loss-making or unknown symbol costs one request per day,
+  // not one per page load. No local cache here: duplicating it would only
+  // shorten that TTL and split coverage away from the other callers of the same
+  // FMP cache.
+  private readonly PE_CONCURRENCY = 8;
 
-  /** Fill `peRatio` in place for rows the feed left blank. Bounded on every
-   *  axis (symbol cap, 50-per-request batching, 3 requests in flight, wall-clock
-   *  budget) and never throws — a failure leaves the cells exactly as they were.
-   *  Only POSITIVE ratios are accepted: a loss-making company has no meaningful
-   *  trailing P/E and must stay an em-dash rather than show a negative number. */
+  /** Fill `peRatio` in place for rows the feed left blank. Never throws — a
+   *  failure or an exhausted budget leaves the remaining cells exactly as they
+   *  were, and the next request resumes where this one stopped. Only POSITIVE
+   *  ratios are published: a loss-making company genuinely has no trailing P/E
+   *  and must stay an em-dash rather than show a negative multiple. */
   private async fillPeRatios(
     rows: Array<{ symbol: string; peRatio?: number | null }>,
-    maxSymbols = 200,
+    maxSymbols = 120,
     budgetMs = 2_500,
   ): Promise<void> {
     if (!this.fmp?.enabled || !rows.length || budgetMs <= 0) return;
-    const now = Date.now();
-    const resolved = new Map<string, number>();
-    const pending = new Set<string>();
+    const pending: string[] = [];
+    const seen = new Set<string>();
     for (const r of rows) {
       if (r.peRatio != null) continue;
       const sym = (r.symbol || '').toUpperCase();
-      if (!sym) continue;
-      const hit = this.peCache.get(sym);
-      if (hit && now - hit.ts < this.PE_CACHE_MS) {
-        if (hit.pe != null) resolved.set(sym, hit.pe);
-      } else {
-        pending.add(sym);
-      }
+      if (!sym || seen.has(sym)) continue;
+      seen.add(sym);
+      pending.push(sym);
     }
-    const todo = Array.from(pending).slice(0, maxSymbols);
-    const deadline = now + budgetMs;
-    const stride = this.PE_CHUNK * this.PE_PARALLEL;
-    for (let i = 0; i < todo.length && Date.now() < deadline; i += stride) {
-      const group: string[][] = [];
-      for (let j = 0; j < this.PE_PARALLEL; j++) {
-        const chunk = todo.slice(i + j * this.PE_CHUNK, i + (j + 1) * this.PE_CHUNK);
-        if (chunk.length) group.push(chunk);
-      }
-      const left = Math.max(500, deadline - Date.now());
-      const maps = await Promise.all(
-        group.map((chunk) =>
-          this.withTimeout(this.fmp!.getQuotesBatch(chunk), left, new Map<string, any>()),
+    const todo = pending.slice(0, maxSymbols);
+    if (!todo.length) return;
+    const deadline = Date.now() + budgetMs;
+    const resolved = new Map<string, number>();
+    for (let i = 0; i < todo.length && Date.now() < deadline; i += this.PE_CONCURRENCY) {
+      const chunk = todo.slice(i, i + this.PE_CONCURRENCY);
+      const settled = await Promise.all(
+        chunk.map((sym) =>
+          this.withTimeout(
+            this.fmp!.getPeRatioTtm(sym).catch(() => null),
+            Math.max(500, deadline - Date.now()),
+            null,
+          ),
         ),
       );
-      group.forEach((chunk, k) => {
-        // An empty map means the request timed out or failed rather than "these
-        // symbols have no P/E" — caching that would blank the column for 30 min.
-        if (!maps[k].size) return;
-        for (const sym of chunk) {
-          const pe = Number(maps[k].get(sym)?.peRatio);
-          const val = Number.isFinite(pe) && pe > 0 ? +pe.toFixed(2) : null;
-          this.peCache.set(sym, { ts: Date.now(), pe: val });
-          if (val != null) resolved.set(sym, val);
-        }
+      chunk.forEach((sym, j) => {
+        const pe = settled[j];
+        if (pe != null && pe > 0) resolved.set(sym, pe);
       });
     }
     if (!resolved.size) return;
@@ -1088,7 +1083,15 @@ export class MarketStatsService {
         d7: pct(at(5)),
         d30: pct(at(21)),
         d180: pct(at(126)),
-        y1: pct(closes[0]),
+        // Baseline for the full year is the close immediately BEFORE the window,
+        // which the chart meta hands us for free. `closes[0]` is the first close
+        // INSIDE the window — i.e. already one day into the year being measured —
+        // so using it understates a 1-year return by that day's move.
+        y1: pct(
+          Number(result?.meta?.chartPreviousClose) > 0
+            ? Number(result.meta.chartPreviousClose)
+            : closes[0],
+        ),
       };
     } catch {
       return null;
@@ -1381,13 +1384,21 @@ export class MarketStatsService {
     // batch is what feeds the "P/E" column on /dividends, /short-interest,
     // /short-squeeze, /congressional-trades and the live /rankings table — so
     // top the column up from FMP before returning. The fill MUTATES the row
-    // objects, which are the same instances held in `quoteCache`, so a symbol is
-    // only ever resolved once per cache generation. Skipped for tiny lookups
-    // (single-symbol detail pages get their P/E from quoteSummary instead, and
-    // this keeps per-symbol call sites from issuing an FMP request each).
+    // objects, which are the same instances held in `quoteCache`, so a symbol
+    // resolved here stays resolved for the rest of that cache generation.
+    //
+    // Deliberately given a TIGHTER budget than the tool-page call sites: the P/E
+    // source is one request per symbol, and this is the hot path shared by every
+    // caller of getQuoteBatch, so it takes a small bite per request and lets the
+    // 24h FMP cache accumulate coverage across requests rather than trying to
+    // finish a whole table here. Skipped for tiny lookups — single-symbol detail
+    // pages get their P/E from quoteSummary anyway, and this keeps the
+    // per-symbol call sites from each issuing an FMP request.
     if (unique.length >= 5) {
       await this.fillPeRatios(
         unique.map((s) => map.get(s)).filter(Boolean) as MarketStatRow[],
+        80,
+        1_500,
       );
     }
     return map;
@@ -1842,10 +1853,17 @@ export class MarketStatsService {
     const c = this.detailCache.get(cacheKey);
     if (c && Date.now() - c.ts < this.DETAIL_TTL_MS) return c.data;
     const Q = (names: string[]) => names.map((n) => `quarterly${n}`);
+    // `DilutedAverageShares` is requested alongside the EPS fields (same
+    // endpoint, no extra request) because Yahoo reports BasicEPS/DilutedEPS at
+    // the 2dp precision of the filing itself. A TTM-YoY growth figure summed
+    // from 2dp quarters drifts a few tenths of a point, so a caller that needs
+    // precision can divide the full-precision NetIncome by the full-precision
+    // share count instead of summing the rounded per-quarter EPS.
     const incomeTypes = Q([
       'TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration',
       'ResearchAndDevelopment', 'OperatingExpense', 'OperatingIncome', 'PretaxIncome',
       'TaxProvision', 'NetIncome', 'BasicEPS', 'DilutedEPS', 'BasicAverageShares',
+      'DilutedAverageShares',
     ]);
     const balanceTypes = Q([
       'TotalAssets', 'CurrentAssets', 'CashAndCashEquivalents', 'TotalLiabilitiesNetMinorityInterest',
@@ -2011,15 +2029,30 @@ export class MarketStatsService {
   async getPriceHistory(symbolRaw: string, range = '1y'): Promise<any> {
     const symbol = (symbolRaw || '').toUpperCase();
     // Range → Yahoo interval, so 1D/5D show intraday and long ranges stay light.
+    // EVERY range the frontend offers must have a key here: an unlisted range
+    // silently falls through to '1y' below, which is how 'ytd' and 'max' both
+    // ended up rendering a one-year chart.
     const INTERVAL: Record<string, string> = {
-      '1d': '5m',
+      // 1-minute bars for the single-session view. At '5m' a half-elapsed
+      // session is only ~25 points, which is the whole reason the intraday line
+      // rendered visibly angular. A full session is 390 points (~55KB), and the
+      // only consumers of the 1d range are line/OHLC renderers — the indicator
+      // code paths request 1y/5y, so no window-based math shifts underneath.
+      '1d': '1m',
       '5d': '30m',
       '1mo': '1d',
+      // Jan 1 → today. Yahoo supports 'ytd' as a range natively, so there is
+      // nothing to compute or slice here.
+      ytd: '1d',
       '3mo': '1d',
       '6mo': '1d',
       '1y': '1d',
       '2y': '1wk',
       '5y': '1wk',
+      // Yahoo serves 'max' at monthly granularity whatever interval is asked
+      // for (verified: '1wk' and '1mo' both return the same 322 points), so
+      // label it honestly rather than claiming weekly bars we don't get.
+      max: '1mo',
     };
     const safeRange = INTERVAL[range] ? range : '1y';
     const interval = INTERVAL[safeRange];
@@ -2035,6 +2068,7 @@ export class MarketStatsService {
         `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${safeRange}&interval=${interval}&includePrePost=false`,
       );
       const res = data?.chart?.result?.[0];
+      const meta = res?.meta ?? {};
       const ts: number[] = res?.timestamp || [];
       const q = res?.indicators?.quote?.[0] || {};
       const bars: any[] = [];
@@ -2054,11 +2088,41 @@ export class MarketStatsService {
           changePct: prev ? +(((close - prev) / prev) * 100).toFixed(2) : 0,
         });
       }
-      const out = { symbol, range: safeRange, interval, intraday, bars };
+      const num = (v: any): number | null => {
+        const n = Number(v);
+        return Number.isFinite(n) && n > 0 ? n : null;
+      };
+      const out = {
+        symbol,
+        range: safeRange,
+        interval,
+        intraday,
+        bars,
+        // Additive baselines, straight off the chart meta at no extra request
+        // cost, so a caller need not cross-reference the quote endpoint:
+        //  • previousClose — the PRIOR TRADING DAY's close. This is the correct
+        //    reference for the 1D line's colour and its period return (measuring
+        //    from the first bar instead reports the move since the open, which
+        //    can be green on a day the stock is actually down). Yahoo only sends
+        //    it on the 1d range; null elsewhere, so callers must handle null
+        //    rather than assume it is always present.
+        //  • rangePreviousClose — the close immediately BEFORE the returned
+        //    window (e.g. the last close of last year for ytd). The correct
+        //    baseline for a whole-range return; bars[0] is the first close
+        //    INSIDE the window, so using it understates the period.
+        previousClose: num(meta.previousClose),
+        rangePreviousClose: num(meta.chartPreviousClose),
+      };
       this.detailCache.set(cacheKey, { ts: Date.now(), data: out });
       return out;
     } catch {
-      return { symbol, range: safeRange, bars: [] };
+      return {
+        symbol,
+        range: safeRange,
+        bars: [],
+        previousClose: null,
+        rangePreviousClose: null,
+      };
     }
   }
 
