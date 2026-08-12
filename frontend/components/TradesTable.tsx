@@ -120,11 +120,15 @@ export function TradesTable({
       filterType: "range",
       align: "right",
       sortValue: (t) => (t.priceSuspect ? null : t.totalValue),
+      // No usable price → no dollar figure. Most of these are the non-priced
+      // codes (gifts, awards, conversions), which legitimately carry no price;
+      // a few are implausible filer figures. Either way we withhold rather than
+      // guess, so the copy must not claim a filer error.
       render: (t) =>
         t.priceSuspect ? (
           <span
             className="text-mute text-[13px]"
-            title="The price on this Form 4 looks like a filer error, so the dollar value is not shown — open the SEC filing for the raw numbers."
+            title="This Form 4 has no usable price — gifts, awards and similar transactions are filed without one — so no dollar value is shown. Open the Form 4 for the raw numbers."
           >
             —
           </span>

@@ -2,7 +2,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Activity } from "lucide-react";
+import { Activity, ExternalLink } from "lucide-react";
 import {
   API_BASE,
   TradeRow,
@@ -176,6 +176,26 @@ export default function InsiderBuySellPage() {
         <span className="tabular text-[14px] text-soft whitespace-nowrap">
           {formatDate(r.transactionDate)}
         </span>
+      ),
+    },
+    {
+      // Form 4 source link — every parsed trade carries a filingUrl, so this
+      // column is never empty. Same treatment as the trades table: icon only,
+      // opens EDGAR in a new tab.
+      key: "filing",
+      label: "Form 4",
+      align: "center",
+      sortable: false,
+      render: (r) => (
+        <a
+          href={r.filingUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center text-mute hover:text-accent"
+          title="View Form 4 on SEC.gov"
+        >
+          <ExternalLink className="h-4 w-4" />
+        </a>
       ),
     },
   ];

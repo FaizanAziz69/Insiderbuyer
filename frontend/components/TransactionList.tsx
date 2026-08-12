@@ -128,7 +128,7 @@ export function TransactionList({ transactions }: { transactions: Tx[] }) {
           className="inline-flex items-center gap-1 text-xs text-mute hover:text-accent"
         >
           <ExternalLink className="h-3.5 w-3.5" />
-          SEC
+          Form 4
         </a>
       ),
     },
