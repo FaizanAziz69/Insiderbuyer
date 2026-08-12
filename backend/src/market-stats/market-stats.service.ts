@@ -198,16 +198,34 @@ export class MarketStatsService {
   // interest). These scan the whole universe with per-symbol summary calls, so
   // caching keeps them fast and — crucially — complete: a warm cache serves the
   // full set even if a later refresh partially fails on a cold serverless start.
-  private toolCache = new Map<string, { ts: number; data: any }>();
+  private toolCache = new Map<string, { ts: number; data: any; ttl?: number }>();
   private readonly TOOL_CACHE_MS = 15 * 60_000;
+  /** Short TTL for a result that is well-formed but not fully enriched — see
+   *  the `isComplete` parameter on cachedTool. Long enough to protect latency
+   *  against a rebuild storm, short enough that gaps are not user-visible for
+   *  a quarter of an hour. */
+  private readonly TOOL_PARTIAL_TTL_MS = 90_000;
 
+  /** `isComplete` distinguishes a result that has the right SHAPE from one that
+   *  is fully ENRICHED. Some builds (dividends) fill per-symbol columns under a
+   *  wall-clock budget, so a cold build can return every row with only the first
+   *  ~40 enriched. Caching that for the full TTL is what made a cold build's
+   *  blanks look permanent in production — measured 187/227 blank ex-dates on a
+   *  cold window while a warm one showed 0/227. Such a result is still served
+   *  (partial data beats none) but cached only briefly, so the next request
+   *  rebuilds against the now-warm per-symbol caches and converges in ~90s
+   *  instead of being frozen for 15 minutes. Callers that pass nothing keep the
+   *  previous behaviour exactly. */
   private async cachedTool<T>(
     key: string,
     build: () => Promise<T[]>,
     minHealthy = 1,
+    isComplete?: (data: T[]) => boolean,
   ): Promise<T[]> {
     const hit = this.toolCache.get(key);
-    if (hit && Date.now() - hit.ts < this.TOOL_CACHE_MS) return hit.data as T[];
+    if (hit && Date.now() - hit.ts < (hit.ttl ?? this.TOOL_CACHE_MS)) {
+      return hit.data as T[];
+    }
     try {
       const data = await build();
       const prevLen = hit?.data?.length ?? 0;
@@ -217,7 +235,14 @@ export class MarketStatsService {
       // cache so the very next request rebuilds (auth is warm by then).
       const healthy = data.length >= minHealthy && data.length >= prevLen * 0.6;
       if (healthy || !hit) {
-        if (healthy) this.toolCache.set(key, { ts: Date.now(), data });
+        if (healthy) {
+          const complete = !isComplete || isComplete(data);
+          this.toolCache.set(key, {
+            ts: Date.now(),
+            data,
+            ttl: complete ? undefined : this.TOOL_PARTIAL_TTL_MS,
+          });
+        }
         return data;
       }
       return hit.data as T[]; // keep the fuller previous set
@@ -2282,7 +2307,18 @@ export class MarketStatsService {
   /** Dividends — yield, rate, payout and ex-date for every dividend payer in
    *  the universe, highest yield first. */
   async getDividends(): Promise<DividendRow[]> {
-    return this.cachedTool("dividends", () => this.buildDividends(), 15);
+    return this.cachedTool(
+      "dividends",
+      () => this.buildDividends(),
+      15,
+      // Ex-Div Date is the one column bound by the per-symbol request budget, so
+      // it decides whether this build is worth caching for the full TTL. 5% (or
+      // 5 rows) of slack tolerates the handful of payers no feed covers without
+      // treating a budget-starved cold build as final.
+      (rows) =>
+        rows.filter((r) => r.exDividendDate == null).length <=
+        Math.max(5, Math.round(rows.length * 0.05)),
+    );
   }
   /** Wall-clock ceiling for the whole dividends enrichment phase (FMP calendar
    *  + P/E top-up + Yahoo summary sweep). The gateway kills requests at ~10s,
@@ -2292,6 +2328,10 @@ export class MarketStatsService {
   /** Slice of that budget held back for the FMP ex-date day-walk, so a slow
    *  Yahoo sweep can't consume the whole thing and leave the top-up no room. */
   private readonly DIV_FMP_RESERVE_MS = 1_800;
+  /** Headroom between the ex-date walk's internal deadline and the outer
+   *  timeout, so the round already in flight can land instead of having its
+   *  results discarded. Sized to one calendar-day request (measured ~0.5s). */
+  private readonly DIV_WALK_SLACK_MS = 800;
   private async buildDividends(): Promise<DividendRow[]> {
     const syms = this.universe();
     const quotes = await this.getQuoteBatch(syms);
@@ -2374,11 +2414,27 @@ export class MarketStatsService {
     // whole window.
     const needExDate = rows.filter((r) => !r.exDividendDate).map((r) => r.symbol);
     if (this.fmp?.enabled && needExDate.length && budgetLeft() > 400) {
+      // The walk's OWN deadline must land strictly before the outer timeout, or
+      // the timeout wins the race and throws away everything the walk found:
+      // summaryBatch-style loops stop starting rounds at their deadline but must
+      // still finish the round already in flight. Previously both were set to
+      // the same instant, so the walk contributed exactly zero rows in
+      // production — a delta of 0, not a small delta. The slack gives the last
+      // round room to land. (Its findings also accumulate in FmpService's
+      // exDivCache regardless, so a discarded return value is no longer a
+      // total loss on the next build.)
+      //
+      // maxDays is the MEASURED requirement, not a guess: walking single days
+      // back from today over the universe resolves 28 tickers at 12 weekdays,
+      // 68 at 30, and 220 at 64 — dividend ex-dates sit on a ~91-day cycle, so
+      // nothing short of a full quarter covers the table. maxDays only sizes the
+      // candidate list; the deadline still decides how far it actually gets, so
+      // asking for 64 costs nothing when the budget binds first.
       const exDates = await this.withTimeout(
         this.fmp.getExDividendDates(needExDate, {
-          maxDays: 30,
-          concurrency: 6,
-          deadlineMs: deadline,
+          maxDays: 64,
+          concurrency: 10,
+          deadlineMs: deadline - this.DIV_WALK_SLACK_MS,
         }),
         budgetLeft(),
         new Map<string, string>(),
