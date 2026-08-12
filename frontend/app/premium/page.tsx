@@ -10,6 +10,30 @@ import { usePremium } from "@/components/premium/PremiumContext";
 import { LoginModal } from "@/components/LoginModal";
 
 const CSS = String.raw`
+/* Theme awareness (client): light mode = pure white page; dark mode maps the
+   design onto the site's dark header/footer palette. Navy hero/pricing/ribbon
+   sections already read as dark chrome in both themes. */
+.ia{background:var(--bg)}
+[data-theme="dark"] .ia{
+  --bg:#050a18;--bg-alt:#0c1428;--ink:#f0f4fa;--body:#c9d3e3;--faint:#8794ab;--line:#1f2c45;
+}
+[data-theme="dark"] .ia .tool,
+[data-theme="dark"] .ia .why-card,
+[data-theme="dark"] .ia .iq-def,
+[data-theme="dark"] .ia .pstep,
+[data-theme="dark"] .ia .iq-item,
+[data-theme="dark"] .ia .strat,
+[data-theme="dark"] .ia .wchip,
+[data-theme="dark"] .ia .faq details{background:#0c1428;box-shadow:none}
+[data-theme="dark"] .ia .strat .hchip{background:#182338;color:#c9d3e3;border-color:#1f2c45}
+[data-theme="dark"] .ia .strat .code{background:#182338;border-color:#3a3320}
+[data-theme="dark"] .ia .sticky-cta{background:#0c1428;border-color:#1f2c45}
+[data-theme="dark"] .ia .sticky-cta .p{color:#f0f4fa}
+[data-theme="dark"] .ia .bundle{background:#0c1428;border-color:#1f2c45}
+[data-theme="dark"] .ia .trust-strip{background:#0c1428;border-color:#1f2c45}
+[data-theme="dark"] .ia .radar-alert{background:#0c1428;color:#c9d3e3}
+[data-theme="dark"] .ia .radar-alert b{color:#f0f4fa}
+
 /* Bundle strip enrichment — larger covers, spread layout, gold CTA */
 .ia .bundle{padding:30px 0}
 .ia .bundle .row{justify-content:center;gap:44px;align-items:center}
