@@ -29,7 +29,7 @@ const TOOLS = [
 export function SidebarPopularTools() {
   return (
     <aside
-      className="rounded-xl p-4"
+      className="rounded-xl p-4 self-start xl:sticky xl:top-24"
       style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
     >
       <div className="flex items-baseline justify-between mb-3">

@@ -73,7 +73,7 @@ function Header({ title, allHref, allLabel }: { title: string; allHref: string; 
  */
 export function SidebarListsAndTools() {
   return (
-    <nav className="sbw-card" aria-label="Stock lists and tools" style={{ maxWidth: 380 }}>
+    <nav className="sbw-card self-start xl:sticky xl:top-24" aria-label="Stock lists and tools" style={{ maxWidth: 380 }}>
       {/* ── SECTION 1 — STOCK LISTS ── */}
       <section>
         <Header title="Stock Lists" allHref="/stock-lists" allLabel="All lists" />
