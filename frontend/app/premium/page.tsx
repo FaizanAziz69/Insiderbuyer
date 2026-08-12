@@ -181,6 +181,7 @@ export default function PremiumPage() {
   };
 
   return (
+    <>
     <div className="ia" style={{ margin: "-24px -24px 0", minWidth: 0 }}>
       <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
@@ -457,7 +458,9 @@ export default function PremiumPage() {
       </div>
       
       
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </div>
+    {/* Outside the .ia scope so the landing design's CSS reset can't restyle it. */}
+    <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+    </>
   );
 }
