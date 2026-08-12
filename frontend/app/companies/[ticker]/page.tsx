@@ -595,7 +595,7 @@ export default function CompanyPage({
                 className="text-[20px] sm:text-[24px] font-semibold tracking-tight mb-3"
                 style={{ letterSpacing: "-0.4px" }}
               >
-                Company News &amp; Press Releases
+                Press Releases &amp; Announcements
               </h2>
               <RecentNews ticker={sym} name={data.company.name} />
             </section>
@@ -1297,8 +1297,13 @@ function RecentNews({
         kind: (p.kind ?? "news") as "news" | "press",
       })),
   ].sort((a, b) => b.date - a.date);
-  const newsRows = rows.filter((r) => r.kind === "news").slice(0, compact ? 4 : 16);
-  const pressRows = rows.filter((r) => r.kind === "press").slice(0, 12);
+  // Client spec: external third-party articles that merely tag the stock are
+  // excluded — only the company's own press releases plus our internal
+  // analyses render on the profile.
+  const newsRows = rows
+    .filter((r) => !r.external)
+    .slice(0, compact ? 4 : 8);
+  const pressRows = rows.filter((r) => r.kind === "press").slice(0, 16);
 
   if (isLoading && rows.length === 0)
     return <div className="card p-5 h-40 shimmer rounded-lg" />;
@@ -1306,7 +1311,7 @@ function RecentNews({
     if (compact) return null;
     return (
       <div className="card p-8 text-center text-mute text-sm">
-        No recent news or press releases found for {ticker}.
+        No press releases on file for {ticker}.
       </div>
     );
   }
@@ -1381,18 +1386,19 @@ function RecentNews({
       ) : (
         <>
           <div>
-            <h2 className="text-[18px] font-bold mb-3">News</h2>
             <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
-              {newsRows.length ? newsRows.map(renderRow) : (
-                <div className="p-6 text-center text-mute text-sm">No recent news for {ticker}.</div>
+              {pressRows.length ? pressRows.map(renderRow) : (
+                <div className="p-6 text-center text-mute text-sm">
+                  No press releases on file for {ticker}.
+                </div>
               )}
             </div>
           </div>
-          {pressRows.length > 0 && (
+          {newsRows.length > 0 && (
             <div>
-              <h2 className="text-[18px] font-bold mb-3">Press Releases</h2>
+              <h2 className="text-[18px] font-bold mb-3">Our Coverage</h2>
               <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
-                {pressRows.map(renderRow)}
+                {newsRows.map(renderRow)}
               </div>
             </div>
           )}
