@@ -66,7 +66,8 @@ export default function GovernmentContractsPage() {
       (r.topAgency || "").toLowerCase().includes(q.toLowerCase()),
   );
 
-  const columns: Column<GovRow>[] = [
+  const anyIqs = rows.some((r) => r.iqs != null);
+  const allColumns: Column<GovRow>[] = [
     rankColumn<GovRow>(),
     {
       key: "ticker",
@@ -165,6 +166,7 @@ export default function GovernmentContractsPage() {
       render: (r) => <span className="text-[12.5px] text-mute">{r.sector || "—"}</span>,
     },
   ];
+  const columns = allColumns.filter((c) => c.key !== "iqs" || anyIqs);
 
   return (
     <div className="w-full space-y-6">

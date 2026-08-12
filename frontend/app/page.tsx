@@ -82,7 +82,8 @@ function fmtCap(v: number | null): string {
   if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
   if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
   if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
-  return `$${v}`;
+  if (v >= 1e3) return `$${(v / 1e3).toFixed(2)}K`;
+  return `$${Math.round(v)}`;
 }
 
 /** Top-25 gainers rail — scrollable list beside the hero. Columns: #,
@@ -135,10 +136,13 @@ function TopGainersPanel() {
           <li className="px-4 py-6 text-center text-mute text-[12px]">Loading…</li>
         ) : (
           gainers.map((g, i) => (
-            <li key={g.symbol} className="flex-shrink-0 flex items-center">
+            <li
+              key={g.symbol}
+              className="flex-shrink-0 grid grid-cols-[18px_1fr_64px_auto_60px] gap-2 items-center px-4 py-2 hover:bg-[var(--accent-soft)] transition"
+            >
               <Link
                 href={`/companies/${encodeURIComponent(g.symbol)}`}
-                className="grid grid-cols-[18px_1fr_60px_auto] gap-2 items-center px-4 py-2 flex-1 min-w-0 hover:bg-[var(--accent-soft)] transition"
+                className="contents"
               >
                 <span className="text-[11px] font-mono font-bold text-faint text-center">
                   {i + 1}
@@ -163,8 +167,8 @@ function TopGainersPanel() {
                   </span>
                 </span>
               </Link>
-              {/* AI Catalyst — why this stock is moving (hover) */}
-              <span className="w-[56px] flex items-center justify-center flex-shrink-0">
+              {/* AI Catalyst — 5th grid cell, aligned under the header */}
+              <span className="flex items-center justify-center">
                 <AiCatalyst ticker={g.symbol} name={g.name} changePct={g.changePct} />
               </span>
             </li>

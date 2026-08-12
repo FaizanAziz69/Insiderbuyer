@@ -592,7 +592,10 @@ export class CongressionalService implements OnModuleInit {
         const nowPx = MarketStatsService.closeOn(h, now);
         if (!atBuy || !nowPx || atBuy <= 0) continue;
         scored += 1;
-        const ret = (nowPx - atBuy) / atBuy;
+        // Outlier clamp (QA audit): a bad historical fill (e.g. a split-
+        // unadjusted penny price) was producing +13,855% averages. A single
+        // disclosed buy is capped at +/-300% for scoring purposes.
+        const ret = Math.max(-3, Math.min(3, (nowPx - atBuy) / atBuy));
         retSum += ret;
         if (ret > 0) wins += 1;
       }

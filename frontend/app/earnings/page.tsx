@@ -2,7 +2,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { Calendar } from "lucide-react";
-import { API_BASE, fetcher } from "@/lib/api";
+import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
@@ -22,7 +22,7 @@ function readableTime(t: string | null): string {
   if (!t) return "—";
   if (t.includes("pre-market")) return "Pre-market";
   if (t.includes("after-hours")) return "After hours";
-  if (t.includes("not-supplied")) return "TBD";
+  if (t.includes("not-supplied")) return "—";
   return t.replace(/-/g, " ");
 }
 
@@ -128,7 +128,10 @@ export default function EarningsPage() {
                 sortValue: (r) => numericValue(r.marketCap),
                 render: (r) => (
                   <span className="tabular text-mute text-[14px] font-bold">
-                    {r.marketCap || "—"}
+                    {(() => {
+                      const v = numericValue(r.marketCap);
+                      return v != null && Number.isFinite(v) && v > 0 ? formatCurrency(v) : "—";
+                    })()}
                   </span>
                 ),
               },

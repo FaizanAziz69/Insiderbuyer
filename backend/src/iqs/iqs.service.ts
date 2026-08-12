@@ -1823,6 +1823,9 @@ export class IqsService {
       // (priceSuspect) below so the UI shows "—" instead of a false $846M.
       .orderBy('t.transactionDate', 'DESC')
       .addOrderBy('t.totalValue', 'DESC');
+    // QA audit: filings without a usable ticker (private funds) render an
+    // unclickable dash row — exclude them from the public feed.
+    qb.andWhere(`c.ticker IS NOT NULL AND UPPER(c.ticker) NOT IN ('NONE','N/A','')`);
     // "Exchanges" filter — narrow to a listing venue (US / CA / DE).
     const exchange = normalizeExchange(opts.exchange);
     if (exchange) qb.andWhere('c.exchange = :exchange', { exchange });
@@ -2312,18 +2315,24 @@ export class IqsService {
    *  track record vs the live price, top tickers & sectors, and the full trade
    *  history. Implausible-price parse artifacts are excluded. */
   async getInsiderProfile(name: string) {
-    const clean = (name || '').trim();
+    const clean = (name || '').trim().replace(/\s+/g, ' ');
     if (!clean) return null;
-    const txs = await this.txRepo
-      .createQueryBuilder('t')
-      .leftJoinAndSelect('t.company', 'c')
-      .where('LOWER(t."insiderName") = LOWER(:name)', { name: clean })
-      .andWhere(`t."transactionCode" IN ('P','S')`)
-      // Exclude implausible parse artifacts (e.g. billions into a nano-cap) so
-      // a bad filing can't dominate the profile's totals — shared guard.
-      .andWhere(plausibleTxSql('t', 'c'))
-      .orderBy('t.transactionDate', 'DESC')
-      .getMany();
+    const base = () =>
+      this.txRepo
+        .createQueryBuilder('t')
+        .leftJoinAndSelect('t.company', 'c')
+        // Whitespace-normalised match — stored names can carry double spaces
+        // that the URL-decoded name doesn't, which 404'd real insiders.
+        .where(`LOWER(regexp_replace(t."insiderName", '\\s+', ' ', 'g')) = LOWER(:name)`, {
+          name: clean,
+        })
+        .andWhere(`t."transactionCode" IN ('P','S')`)
+        .orderBy('t.transactionDate', 'DESC');
+    // Prefer plausibility-guarded rows; if the guard removes EVERYTHING (a
+    // large buy into a small cap can trip it), fall back to the unguarded set
+    // so the profile page always matches what the trades table shows.
+    let txs = await base().andWhere(plausibleTxSql('t', 'c')).getMany();
+    if (!txs.length) txs = await base().getMany();
     if (!txs.length) return null;
 
     const displayName = txs[0].insiderName;

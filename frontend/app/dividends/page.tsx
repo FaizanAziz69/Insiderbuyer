@@ -19,6 +19,8 @@ interface DividendRow {
   dividendRate: number | null;
   payoutRatio: number | null;
   exDividendDate: string | null;
+  changePct?: number | null;
+  peRatio?: number | null;
   marketCap: number | null;
 }
 
@@ -149,10 +151,10 @@ export default function DividendsPage() {
                 key: "changePct",
                 label: "Change %",
                 align: "right",
-                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.changePct ?? null,
+                sortValue: (r) => r.changePct ?? quoteBySym.get((r.symbol || "").toUpperCase())?.changePct ?? null,
                 render: (r) => {
-                  const q = quoteBySym.get((r.symbol || "").toUpperCase());
-                  if (!q || q.changePct == null) return <span className="text-faint text-[13px]">—</span>;
+                  const q = { changePct: r.changePct ?? quoteBySym.get((r.symbol || "").toUpperCase())?.changePct ?? null };
+                  if (q.changePct == null) return <span className="text-faint text-[13px]">—</span>;
                   const up = q.changePct >= 0;
                   return <span className="tabular font-bold text-[14px]" style={{ color: up ? "var(--good)" : "var(--bad)" }}>{up ? "+" : ""}{q.changePct.toFixed(2)}%</span>;
                 },
@@ -226,9 +228,9 @@ export default function DividendsPage() {
                 key: "peRatio",
                 label: "P/E",
                 align: "right",
-                sortValue: (r) => quoteBySym.get((r.symbol || "").toUpperCase())?.peRatio ?? null,
+                sortValue: (r) => r.peRatio ?? quoteBySym.get((r.symbol || "").toUpperCase())?.peRatio ?? null,
                 render: (r) => {
-                  const pe = quoteBySym.get((r.symbol || "").toUpperCase())?.peRatio;
+                  const pe = r.peRatio ?? quoteBySym.get((r.symbol || "").toUpperCase())?.peRatio;
                   return <span className="tabular text-mute text-[13px] font-bold">{pe != null ? pe.toFixed(1) : "—"}</span>;
                 },
               },

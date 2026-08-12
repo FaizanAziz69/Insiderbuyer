@@ -38,6 +38,8 @@ export interface DividendRow {
   name: string;
   sector: string | null;
   price: number;
+  changePct: number | null;
+  peRatio: number | null;
   dividendYield: number | null; // percent
   dividendRate: number | null; // annual $ per share
   payoutRatio: number | null; // percent
@@ -1404,7 +1406,15 @@ export class MarketStatsService {
       price: priceVal,
       change,
       changePct,
-      marketCap: num(price?.marketCap) ?? num(sd?.marketCap) ?? ref?.marketCap ?? null,
+      // Computable fallback (QA audit, ATTO): sharesOut x price when the feed
+      // omits the cap outright.
+      marketCap:
+        num(price?.marketCap) ??
+        num(sd?.marketCap) ??
+        ref?.marketCap ??
+        (num(ks?.sharesOutstanding) && priceVal
+          ? Math.round((num(ks?.sharesOutstanding) as number) * priceVal)
+          : null),
       revenue: num(fd?.totalRevenue),
       netIncome: num(ks?.netIncomeToCommon),
       eps: num(ks?.trailingEps),
@@ -2056,10 +2066,6 @@ export class MarketStatsService {
   }
   private async buildDividends(): Promise<DividendRow[]> {
     const syms = this.universe();
-    // Built entirely from the v7 batch quote (reliable on the server). We do
-    // NOT call the per-symbol summary here — Yahoo blocks it from datacenter
-    // IPs, and 250 slow/failing summary calls would blow the request budget
-    // and starve the table. Payout ratio / ex-date are omitted as a result.
     const quotes = await this.getQuoteBatch(syms);
     const rows: DividendRow[] = [];
     for (const sym of syms) {
@@ -2074,6 +2080,8 @@ export class MarketStatsService {
         name: q?.name ?? ref?.name ?? sym,
         sector: q?.sector ?? ref?.sector ?? null,
         price,
+        changePct: q?.changePct ?? null,
+        peRatio: q?.peRatio ?? null,
         dividendYield: yieldPct,
         dividendRate: rate,
         payoutRatio: null,
@@ -2082,6 +2090,25 @@ export class MarketStatsService {
       });
     }
     rows.sort((a, b) => (b.dividendYield ?? 0) - (a.dividendYield ?? 0));
+    const top = rows.slice(0, 40);
+    // Payout ratio + ex-div date live in the per-symbol summary. Only the
+    // payers that can actually render (top of the sorted list) are fetched —
+    // the same summaryBatch machinery short-interest already relies on.
+    try {
+      const summaries = await this.summaryBatch(top.map((r) => r.symbol));
+      for (const r of top) {
+        const sd = summaries.get(r.symbol)?.summaryDetail;
+        if (!sd) continue;
+        const pr = sd.payoutRatio?.raw;
+        if (pr != null && Number.isFinite(Number(pr))) r.payoutRatio = +(Number(pr) * 100).toFixed(1);
+        const ex = sd.exDividendDate?.raw;
+        if (ex != null && Number.isFinite(Number(ex))) {
+          r.exDividendDate = new Date(Number(ex) * 1000).toISOString().slice(0, 10);
+        }
+      }
+    } catch {
+      /* summary unavailable — cells stay em-dash */
+    }
     return rows;
   }
 

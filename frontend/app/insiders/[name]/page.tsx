@@ -218,6 +218,11 @@ export default function InsiderProfilePage({
         ),
     },
   ];
+  // Acceptance rule: never ship an all-empty column — RETURN* only exists
+  // for buys, so sell-only insiders lose the column instead of dashes.
+  const tradeColsVisible = tradeCols.filter(
+    (c) => c.key !== "return" || p.trades.some((t) => t.returnPct != null),
+  );
 
   return (
     <div className="w-full space-y-6">
@@ -354,7 +359,7 @@ export default function InsiderProfilePage({
           <DataTable<TradeRow>
             rows={p.trades}
             rowKey={(r, i) => `${r.ticker}-${r.transactionDate}-${i}`}
-            columns={tradeCols}
+            columns={tradeColsVisible}
           />
         </div>
         <p className="text-[11px] text-faint mt-2">

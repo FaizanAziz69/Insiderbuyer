@@ -369,6 +369,32 @@ export function StandardStockListTable({
     },
   ];
 
+  // Acceptance rule (QA audit): never ship a header that is empty in 100% of
+  // rows. The standard SEQUENCE is preserved; columns with zero coverage for
+  // this particular dataset are dropped (e.g. a curated mega-cap list where no
+  // name has recent insider buys loses the insider columns instead of showing
+  // seven all-dash columns).
+  const hasAny = {
+    upside: rows.some((r) => upsideBySym.get((r.ticker || "").toUpperCase())?.target != null),
+    iqs: rows.some((r) => r.iqs != null),
+    roi: rows.some((r) => r.perfVsAvgCostPct != null),
+    why: rows.some((r) => !!r.reasoning),
+    bought: rows.some((r) => (r.totalPurchaseValue ?? 0) > 0),
+    indicators: rows.some(
+      (r) => r.hasCeoBuyer || r.hasRepeatBuyer || (r.distinctBuyers ?? 0) >= 2 || (r.totalPurchaseValue ?? 0) >= 1_000_000,
+    ),
+    lastUpdated: rows.some((r) => r.lastBuyDate || r.scoreUpdatedAt),
+    marketCap: rows.some((r) => cap(r) != null),
+    sector: rows.some((r) => !!r.sector),
+    pe: rows.some((r) => pe(r) != null),
+    ownership: rows.some((r) => r.insiderOwnershipPct != null),
+    spark7d: rows.length > 0,
+  } as Record<string, boolean>;
+  const visible = columns.filter((c) => {
+    const k = String(c.key);
+    return !(k in hasAny) || hasAny[k];
+  });
+
   return (
     <DataTable<StandardRow>
       rows={rows}
@@ -376,7 +402,7 @@ export function StandardStockListTable({
       pageSize={pageSize}
       initialSort={{ key: "marketCap", dir: "desc" }}
       empty="No stocks match the current filters."
-      columns={columns}
+      columns={visible}
       gate={gate}
     />
   );

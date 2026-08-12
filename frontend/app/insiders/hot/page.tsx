@@ -431,7 +431,7 @@ export default function InsiderHotStocksPage() {
           share dilution — less a deduction for confirmed litigation.
           Only stocks with real analyst coverage appear here: every name below
           carries a published price target from at least {MIN_ANALYSTS}{" "}
-          analysts. The list counts down to #1.
+          analysts. Free accounts preview the first ranked names — subscribers see the full list counted down to #1.
         </p>
       </header>
 
