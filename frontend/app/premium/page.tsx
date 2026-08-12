@@ -79,7 +79,15 @@ function useCountdown(): string {
       deadline = Date.now() + 15 * 60 * 1000;
       sessionStorage.setItem(KEY, String(deadline));
     }
-    const t = setInterval(() => setLeft(Math.max(0, deadline - Date.now())), 500);
+    const t = setInterval(() => {
+      let remain = deadline - Date.now();
+      if (remain <= 0) {
+        deadline = Date.now() + 15 * 60 * 1000;
+        sessionStorage.setItem(KEY, String(deadline));
+        remain = deadline - Date.now();
+      }
+      setLeft(Math.max(0, remain));
+    }, 500);
     return () => clearInterval(t);
   }, []);
   const m = Math.floor(left / 60000);
@@ -221,7 +229,7 @@ export default function PremiumPage() {
 
   return (
     <>
-    <div className="ia" style={{ margin: "-24px -24px 0", minWidth: 0 }}>
+    <div className="ia" style={{ width: "100vw", position: "relative", left: "50%", marginLeft: "-50vw", marginTop: "-2rem", minWidth: 0 }}>
       <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <CheckoutOutcome />
