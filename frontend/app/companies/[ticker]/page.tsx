@@ -238,7 +238,7 @@ export default function CompanyPage({
             />
 
             {/* "What are insiders doing?" — buy/sell balance meter, right under About. */}
-            <InsiderBuySellMeter transactions={data.transactions} />
+            <InsiderBuySellMeter transactions={data.transactions} onOpen={() => setTab("insiders")} />
 
             {/* ── 9-tab nav (reference layout) ── */}
             <div className="w-full" style={{ borderBottom: "1px solid var(--border)" }}>
@@ -356,7 +356,7 @@ export default function CompanyPage({
                           <th className="text-right">&Delta; Holdings</th>
                           <th className="text-right">Held After</th>
                           <th>Date</th>
-                          <th />
+                          <th className="text-center">Form 4</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -467,16 +467,16 @@ export default function CompanyPage({
                                 <td className="text-[14px] font-bold tabular text-soft">
                                   {formatShortDate(t.transactionDate)}
                                 </td>
-                                <td>
+                                <td className="text-center">
                                   <a
                                     href={t.filingUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={() => track("web_form4_filing_click", { ticker: sym })}
-                                    className="inline-flex items-center text-mute hover:text-accent"
+                                    className="inline-flex items-center gap-1 text-[12px] font-bold text-accent hover:underline"
                                     aria-label="Open Form 4 filing"
                                   >
-                                    <FileText className="h-4 w-4" />
+                                    <FileText className="h-3.5 w-3.5" /> Form 4
                                   </a>
                                 </td>
                               </motion.tr>

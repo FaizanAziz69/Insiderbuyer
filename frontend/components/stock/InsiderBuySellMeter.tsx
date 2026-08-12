@@ -10,7 +10,14 @@ import { computeInsiderFlow, FlowTx } from "@/lib/insiderFlow";
  * and total sold on the red end. Uses the shared flow helper so its totals
  * always match the "Recent Insider Activity" summary on the same page.
  */
-export function InsiderBuySellMeter({ transactions }: { transactions?: FlowTx[] }) {
+export function InsiderBuySellMeter({
+  transactions,
+  onOpen,
+}: {
+  transactions?: FlowTx[];
+  /** Click-through: opens the insider transactions (with their Form 4 links). */
+  onOpen?: () => void;
+}) {
   const { buyValue: buy, sellValue: sell } = computeInsiderFlow(transactions);
   const total = buy + sell;
   if (total <= 0) return null; // no open-market flow → nothing to meter
@@ -23,7 +30,14 @@ export function InsiderBuySellMeter({ transactions }: { transactions?: FlowTx[] 
     buyFrac >= 0.6 ? "var(--good)" : buyFrac <= 0.4 ? "var(--bad)" : "var(--text-mute)";
 
   return (
-    <section className="card p-5">
+    <section
+      className={"card p-5" + (onOpen ? " cursor-pointer transition hover:shadow-md" : "")}
+      onClick={onOpen}
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onKeyDown={(e) => onOpen && e.key === "Enter" && onOpen()}
+      title={onOpen ? "View the trades behind this meter — each with its SEC Form 4" : undefined}
+    >
       <div className="flex items-center gap-2.5 mb-4">
         <span
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0"
@@ -78,6 +92,11 @@ export function InsiderBuySellMeter({ transactions }: { transactions?: FlowTx[] 
         </div>
       </div>
 
+      {onOpen && (
+        <p className="text-[12px] font-bold mt-3" style={{ color: "var(--accent)" }}>
+          View the trades behind this meter — each links to its SEC Form 4 →
+        </p>
+      )}
       <p className="text-[11.5px] text-faint mt-4 leading-relaxed">
         Open-market Form 4 purchases (code P) vs sales (code S) on file for this
         company. Grants, option exercises and tax withholdings are excluded.

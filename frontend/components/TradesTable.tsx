@@ -109,8 +109,6 @@ export function TradesTable({
     {
       key: "sharesBought",
       label: "Shares",
-      filterable: true,
-      filterType: "range",
       align: "right",
       sortValue: (t) => t.sharesBought,
       render: (t) => <span className="tabular text-[13px] font-bold">{formatNumber(t.sharesBought)}</span>,
@@ -145,7 +143,7 @@ export function TradesTable({
     },
     {
       key: "filing",
-      label: "SEC",
+      label: "Form 4",
       align: "center",
       sortable: false,
       render: (t) => (

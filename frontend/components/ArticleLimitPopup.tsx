@@ -11,7 +11,7 @@ const STORE_KEY = "ib_articles_read";
 
 const PERKS = [
   { icon: BookOpen, title: "Unlimited articles", body: "Every daily briefing, deep dive, and sector report." },
-  { icon: LineChart, title: "Watchlists with live scores", body: "Track your stocks with live Insider Scores." },
+  { icon: LineChart, title: "Watchlists", body: "Track the stocks you care about in one place." },
   { icon: Bell, title: "Daily insider alerts", body: "Know the moment executives buy their own stock." },
 ];
 

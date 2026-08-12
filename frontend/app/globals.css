@@ -4,8 +4,9 @@
   --font-sans: var(--font-sans), system-ui, sans-serif;
   --font-display: var(--font-display), var(--font-sans), system-ui, sans-serif;
   --font-heading: var(--font-heading), var(--font-sans), system-ui, sans-serif;
-  /* Editorial serif (WSJ/Barron's-style) for headlines + article prose. */
-  --font-serif: var(--font-serif), Georgia, "Times New Roman", serif;
+  /* Client (Azlan): serif reverted — headlines/prose use the clean sans.
+     Everything referencing --font-serif resolves to the sans stack. */
+  --font-serif: var(--font-sans), system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 

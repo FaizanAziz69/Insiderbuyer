@@ -32,7 +32,7 @@ const ARTICLE_TOOL: Anthropic.Messages.Tool = {
       title: {
         type: 'string',
         description:
-          'The HEADLINE. Lead with the tension or the number, NOT the ticker. Must contain ≥1 specific element (dollar figure, name, count, %, or timeframe), open a loop (state the surprising fact, never the "why"), stay ≤70 characters where possible, and use no hype/promise words. Example: "A Director Just Spent $2.1M on a Stock Down 60%".',
+          'The HEADLINE. Lead with the tension or the number, NOT the ticker. Must contain ≥1 specific element (dollar figure, name, count, %, or timeframe), open a loop (state the surprising fact, never the "why"), stay ≤70 characters where possible, and use no hype/promise words. VARY THE PHRASING EVERY TIME — never reuse a headline formula that appears on the site already ("Why X Insiders Are Quietly Buying" is banned); rotate distinct angles: the person ("A Director Just Spent $2.1M…"), the streak ("Third Insider Buy This Month at…"), the contrast ("Down 40%, Yet Insiders Keep Buying…"), the sum ("$5.3M of Insider Money Landed on…"), the question, the timeframe. Example: "A Director Just Spent $2.1M on a Stock Down 60%".',
       },
       eyebrow: {
         type: 'string',
@@ -256,7 +256,7 @@ Snapshot:
 - Total insider purchase value: ${row.totalPurchaseValue ? `$${Math.round(row.totalPurchaseValue).toLocaleString()}` : 'n/a'}
 
 Format — SHORT and PUNCHY:
-- title: a curiosity headline that frames the insider angle and MUST include the ticker ${row.ticker} (e.g. "Why ${row.ticker} Insiders Are Quietly Buying"), 6-12 words.
+- title: a curiosity headline that frames the insider angle and MUST include the ticker ${row.ticker}, 6-12 words. VARY the formula every time — never "Why X Insiders Are Quietly Buying" (overused); pick a fresh angle: the buyer's role, the dollar sum, the streak, the price contrast, or a question.
 - summary: 1-2 sentences (max 32 words) — what's the insider pattern + why it might matter.
 - body: 2-3 short paragraphs (180-260 words total). Open with the insider hook, give one specific data point, close with what to monitor next. No <h2> needed.
 - eyebrow: "STOCK IDEA"
