@@ -46,6 +46,12 @@ const CSS = String.raw`
 .ia .pay-zone .g-line{color:var(--body)}
 .ia .pay-zone p{color:var(--body)!important}
 .ia .pricing > .wrap > p{color:var(--faint)!important}
+.ia .ribbon{background:#FFFFFF;color:var(--ink);border-bottom:1px solid var(--line)}
+.ia .ribbon b{color:var(--gold-dark)}
+.ia .ribbon .zap{color:var(--gold-dark)}
+.ia .ribbon .timer{color:var(--gold-dark)}
+.ia .mini-covers{cursor:pointer}
+.ia .bundle .label b{cursor:pointer}
 
 /* Dark mode: restore the navy chrome for the same bands */
 
@@ -126,6 +132,12 @@ const CSS = String.raw`
 .ia .pay-zone .g-line{color:var(--body)}
 .ia .pay-zone p{color:var(--body)!important}
 .ia .pricing > .wrap > p{color:var(--faint)!important}
+.ia .ribbon{background:#FFFFFF;color:var(--ink);border-bottom:1px solid var(--line)}
+.ia .ribbon b{color:var(--gold-dark)}
+.ia .ribbon .zap{color:var(--gold-dark)}
+.ia .ribbon .timer{color:var(--gold-dark)}
+.ia .mini-covers{cursor:pointer}
+.ia .bundle .label b{cursor:pointer}
 `;
 
 function useCountdown(): string {
@@ -306,14 +318,14 @@ export default function PremiumPage() {
       <div className="bundle">
         <div className="wrap">
           <div className="row">
-            <div className="mini-covers" aria-hidden="true">
+            <div className="mini-covers" role="button" tabIndex={0} aria-label="See the free report bundle" onClick={() => setLto(true)} onKeyDown={(e) => e.key === "Enter" && setLto(true)}>
               <div className="mcov mc1"><div className="b">INSIDER<br/>BUYING</div><div className="m">Top Stocks<br/>Insiders Buy</div><div className="f">2026</div></div>
               <div className="mcov mc2"><div className="b">INSIDER<br/>BUYING</div><div className="m">Top Stocks<br/>Analysts Love</div><div className="f">2026</div></div>
               <div className="mcov mc3"><div className="b">INSIDER<br/>BUYING</div><div className="m">Top Dividend<br/>Stocks</div><div className="f">2026</div></div>
               <div className="mcov mc4"><span className="star">BONUS</span><div className="b">INSIDER<br/>BUYING</div><div className="m">Critical Metals<br/>Stock Idea</div><div className="f">SPECIAL</div></div>
             </div>
             <div className="label" style={{textAlign:"left",maxWidth:520}}>
-              <b>Your Free Bundle — 4 Insider Reports, Included Today</b>
+              <b onClick={() => setLto(true)}>Your Free Bundle — 4 Insider Reports, Included Today</b>
               <span>Our top stock ideas that insiders are bullish on — <span className="free">$0 with any plan</span></span>
               <ul className="bundle-ticks">
                 <li>✓ Top Stocks Insiders Are Buying</li>
