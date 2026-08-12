@@ -42,6 +42,7 @@ import { TierBadge, tierFor } from "@/components/TierBadge";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsTrendChart } from "@/components/IqsTrendChart";
 import { PriceChart } from "@/components/PriceChart";
+import { SAProfileHeader } from "@/components/stock/SAProfileHeader";
 import { ScorePillarsCard } from "@/components/ScorePillarsCard";
 import { ConversationsSection } from "@/components/stock/ConversationsSection";
 import { CongressTradingCard, WhaleActivityCard, RevenueBreakdownCard, BullBearCard } from "@/components/stock/StockCivicGrid";
@@ -199,29 +200,28 @@ export default function CompanyPage({
         <div className="space-y-6">
           {/* Header + price chart run the FULL page width; everything else
               keeps the two-column layout with the side rail. */}
-          <CompanyHeader
-            company={data.company}
-            score={data.score}
+          {/* stockanalysis.com-identical head: name + actions, price, tab bar,
+              stat columns + period chart (client spec) */}
+          <SAProfileHeader
+            ticker={sym}
+            name={data.company.name}
+            exchange={profile?.exchange ?? null}
+            country={profile?.country ?? null}
             stats={stats}
-            profile={profile}
-            earningsDate={earningsDate}
+            tabs={[
+              ["overview", "Overview"],
+              ["financials", "Financials"],
+              ["forecast", "Forecast"],
+              ["insiders", "Insiders"],
+              ["institutions", "Institutions"],
+              ["compensation", "Compensation"],
+              ["government", "Government"],
+              ["ownership", "Ownership"],
+              ["news", "News"],
+            ]}
+            activeTab={tab}
+            onTab={(k) => setTab(k as ProfileTab)}
           />
-
-          {/* Half-and-half: key-data card on the left, price chart on the right,
-              both spanning the full page width above the two-column region. */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch [&>*]:min-w-0 [&_.card]:h-full">
-            <StockOverviewGrid
-              ticker={sym}
-              stats={stats}
-              profile={profile}
-              fallbackMarketCap={data.company.marketCap}
-              fallbackPrice={data.company.lastPrice}
-              earningsDate={earningsDate}
-            />
-            <div className="card p-4">
-              <PriceChart ticker={sym} bare />
-            </div>
-          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">
             <main className="space-y-6 min-w-0">
@@ -239,40 +239,6 @@ export default function CompanyPage({
 
             {/* "What are insiders doing?" — buy/sell balance meter, right under About. */}
             <InsiderBuySellMeter transactions={data.transactions} onOpen={() => setTab("insiders")} />
-
-            {/* ── 9-tab nav (reference layout) ── */}
-            <div className="w-full" style={{ borderBottom: "1px solid var(--border)" }}>
-              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-2" role="tablist" aria-label="Stock profile sections">
-                {(
-                  [
-                    ["overview", "Overview"],
-                    ["financials", "Financials"],
-                    ["forecast", "Forecast"],
-                    ["insiders", "Insiders"],
-                    ["institutions", "Institutions"],
-                    ["compensation", "Compensation"],
-                    ["government", "Government"],
-                    ["ownership", "Ownership"],
-                    ["news", "News"],
-                  ] as [ProfileTab, string][]
-                ).map(([key, label]) => (
-                  <button
-                    key={key}
-                    role="tab"
-                    aria-selected={tab === key}
-                    onClick={() => setTab(key)}
-                    className="px-4 py-2 rounded-lg text-[13.5px] font-bold whitespace-nowrap transition"
-                    style={{
-                      background: tab === key ? "var(--bg-2)" : "transparent",
-                      color: tab === key ? "var(--text)" : "var(--text-mute)",
-                      boxShadow: tab === key ? "0 1px 5px rgba(0,0,0,0.10)" : "none",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {/* Everything below the tab nav is gated. The nav itself stays live
                 so visitors can see what each section holds. */}
