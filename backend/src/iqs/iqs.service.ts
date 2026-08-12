@@ -2333,6 +2333,19 @@ export class IqsService {
     // so the profile page always matches what the trades table shows.
     let txs = await base().andWhere(plausibleTxSql('t', 'c')).getMany();
     if (!txs.length) txs = await base().getMany();
+    if (!txs.length) {
+      // Some insiders exist ONLY through non-open-market codes (option
+      // exercises 'M', conversions) — the trades table shows them, so the
+      // profile must too rather than 404ing (QA audit: Simanovsky).
+      txs = await this.txRepo
+        .createQueryBuilder('t')
+        .leftJoinAndSelect('t.company', 'c')
+        .where(`LOWER(regexp_replace(t."insiderName", '\s+', ' ', 'g')) = LOWER(:name)`, {
+          name: clean,
+        })
+        .orderBy('t.transactionDate', 'DESC')
+        .getMany();
+    }
     if (!txs.length) return null;
 
     const displayName = txs[0].insiderName;

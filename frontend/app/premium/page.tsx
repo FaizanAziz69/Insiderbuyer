@@ -10,6 +10,76 @@ import { usePremium } from "@/components/premium/PremiumContext";
 import { LoginModal } from "@/components/LoginModal";
 
 const CSS = String.raw`
+/* ── Client spec: LIGHT MODE IS WHITE ─────────────────────────────────────
+   The navy hero / alerts / pricing bands read as a 'blue page' in light mode.
+   Light mode now paints them white/near-white with ink text; dark mode
+   re-asserts the original navy treatment below. Gold accents stay. */
+.ia .hero{background:var(--bg);color:var(--ink)}
+.ia .hero .stars{display:none}
+.ia .hero h1{color:var(--ink)}
+.ia .hero .sub{color:var(--body)}
+.ia .hero .sub b{color:var(--ink)}
+.ia .sparkles li{color:var(--body)}
+.ia .sparkles b{color:var(--ink)}
+.ia .hero .price-line{color:var(--faint)}
+.ia .hero .price-line b{color:var(--gold-dark)}
+.ia .btn.ghost{color:var(--ink);border-color:var(--line)}
+.ia .btn.ghost:hover{border-color:var(--ink)}
+.ia .alerts-band{background:var(--bg-alt);color:var(--ink)}
+.ia .alerts-band h2{color:var(--ink)}
+.ia .alerts-band .lede{color:var(--body)}
+.ia .alerts-band .lede b{color:var(--gold-dark)}
+.ia .vfeat{color:var(--body)}
+.ia .vfeat b{color:var(--ink)}
+.ia .vfeat .vword{color:var(--gold-dark)}
+.ia .pricing{background:var(--bg)}
+.ia .pricing .sec-head h2{color:var(--ink)}
+.ia .pricing .sec-head p{color:var(--body)}
+.ia .pricing .sec-head .kicker{color:var(--faint)!important}
+.ia .plan{border:1px solid var(--line)}
+.ia .guarantee{background:var(--bg-alt);border:1px solid var(--line)}
+.ia .guarantee h3{color:var(--ink)}
+.ia .guarantee p{color:var(--body)}
+.ia .guarantee p b{color:var(--ink)!important}
+.ia .closer .big-line{color:var(--ink)}
+.ia .closer .echo{color:var(--faint)}
+.ia .pay-zone .g-line{color:var(--body)}
+.ia .pay-zone p{color:var(--body)!important}
+.ia .pricing > .wrap > p{color:var(--faint)!important}
+
+/* Dark mode: restore the navy chrome for the same bands */
+[data-theme="dark"] .ia .hero{background:linear-gradient(180deg,#0A1730 0%,#0B1B3A 55%,#16294F 100%);color:#fff}
+[data-theme="dark"] .ia .hero .stars{display:block}
+[data-theme="dark"] .ia .hero h1{color:#fff}
+[data-theme="dark"] .ia .hero .sub{color:#C4CEE2}
+[data-theme="dark"] .ia .hero .sub b{color:#fff}
+[data-theme="dark"] .ia .sparkles li{color:#EAEEF6}
+[data-theme="dark"] .ia .sparkles b{color:#fff}
+[data-theme="dark"] .ia .hero .price-line{color:#9FB0CE}
+[data-theme="dark"] .ia .hero .price-line b{color:#F5B942}
+[data-theme="dark"] .ia .btn.ghost{color:#fff;border-color:#3A5384}
+[data-theme="dark"] .ia .alerts-band{background:linear-gradient(135deg,#0A1730,#0B1B3A 60%,#122650);color:#fff}
+[data-theme="dark"] .ia .alerts-band h2{color:#fff}
+[data-theme="dark"] .ia .alerts-band .lede{color:#C4CEE2}
+[data-theme="dark"] .ia .alerts-band .lede b{color:#F5B942}
+[data-theme="dark"] .ia .vfeat{color:#C4CEE2}
+[data-theme="dark"] .ia .vfeat b{color:#fff}
+[data-theme="dark"] .ia .vfeat .vword{color:#F5B942}
+[data-theme="dark"] .ia .pricing{background:#0B1B3A}
+[data-theme="dark"] .ia .pricing .sec-head h2{color:#fff}
+[data-theme="dark"] .ia .pricing .sec-head p{color:#B9C5DC}
+[data-theme="dark"] .ia .pricing .sec-head .kicker{color:#8DA0C4!important}
+[data-theme="dark"] .ia .plan{border:none}
+[data-theme="dark"] .ia .guarantee{background:#122650;border:1px solid #24406F}
+[data-theme="dark"] .ia .guarantee h3{color:#fff}
+[data-theme="dark"] .ia .guarantee p{color:#B9C5DC}
+[data-theme="dark"] .ia .guarantee p b{color:#fff!important}
+[data-theme="dark"] .ia .closer .big-line{color:#fff}
+[data-theme="dark"] .ia .closer .echo{color:#8DA0C4}
+[data-theme="dark"] .ia .pay-zone .g-line{color:#B9C5DC}
+[data-theme="dark"] .ia .pay-zone p{color:#9FB0CE!important}
+[data-theme="dark"] .ia .pricing > .wrap > p{color:#8DA0C4!important}
+
 /* Theme awareness (client): light mode = pure white page; dark mode maps the
    design onto the site's dark header/footer palette. Navy hero/pricing/ribbon
    sections already read as dark chrome in both themes. */
