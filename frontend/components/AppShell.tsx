@@ -20,7 +20,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       className={`min-h-screen flex flex-col${PREMIUM_UNLOCKED ? " premium-unlocked" : ""}`}
     >
       <TopTickerBar />
-      <div className="sticky top-0 z-20">
+      {/* data-app-sticky lets pages that scroll to an in-page section measure
+          this header's height and offset by it, so the target lands below the
+          header instead of underneath it. */}
+      <div data-app-sticky className="sticky top-0 z-20">
         <TopHeader />
       </div>
       <main className="flex-1 px-6 sm:px-10 lg:px-16 xl:px-24 py-6 sm:py-8 max-w-[1640px] mx-auto w-full">

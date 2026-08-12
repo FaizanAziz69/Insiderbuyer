@@ -148,12 +148,26 @@ export default function CompanyPage({
     const q = new URLSearchParams(window.location.search).get("tab") as ProfileTab | null;
     if (q && TAB_KEYS.includes(q)) setTabState(q);
   }, []);
+  /** The tab panel sits below the About block and the buy/sell meter, so a tab
+   *  click changes content that is off-screen. Scroll to it (clicks only —
+   *  scrolling on a ?tab= deep link would yank the page on arrival). */
+  const panelRef = useRef<HTMLDivElement>(null);
+  const scrollToPanel = () => {
+    const el = panelRef.current;
+    if (!el) return;
+    const stickyH =
+      document.querySelector<HTMLElement>("[data-app-sticky]")?.offsetHeight ?? 0;
+    const top = el.getBoundingClientRect().top + window.scrollY - stickyH - 12;
+    window.scrollTo({ top: Math.max(top, 0), behavior: "smooth" });
+  };
   const setTab = (t: ProfileTab) => {
     setTabState(t);
     const url = new URL(window.location.href);
     if (t === "overview") url.searchParams.delete("tab");
     else url.searchParams.set("tab", t);
     window.history.replaceState(null, "", url.toString());
+    // Wait for the new panel to commit so we measure its real position.
+    requestAnimationFrame(scrollToPanel);
   };
 
   const { data, isLoading } = useSWR<
@@ -241,7 +255,10 @@ export default function CompanyPage({
 
             {/* Company pages are fully public (client decision): every tab
                 renders for everyone. Premium converts on the tools — alerts,
-                screeners and the ranked lists — not on company profiles. */}
+                screeners and the ranked lists — not on company profiles.
+                space-y-6 mirrors the parent's spacing so wrapping the panel for
+                the scroll ref doesn't change the gaps between its sections. */}
+            <div ref={panelRef} className="space-y-6">
             {tab === "financials" ? (
               <FinancialsTab sym={sym} />
             ) : tab === "forecast" ? (
@@ -640,6 +657,7 @@ export default function CompanyPage({
             />
               </>
             )}
+            </div>
 
             {/* Disclaimer */}
             <div
