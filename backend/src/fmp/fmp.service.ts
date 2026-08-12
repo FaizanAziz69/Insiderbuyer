@@ -31,6 +31,18 @@ export interface FmpInsiderTrade {
   url: string;
 }
 
+/** One row of a `company-screener` snapshot — the reference fundamentals FMP
+ *  publishes for every listed symbol (used to fill blank sector / market-cap
+ *  cells on list pages). */
+export interface FmpScreenerRow {
+  symbol: string;
+  name: string;
+  sector: string | null;
+  industry: string | null;
+  marketCap: number | null;
+  exchange: string | null;
+}
+
 /**
  * Financial Modeling Prep client (free "stable" tier). Provides the data SEC
  * EDGAR alone can't give us cleanly: market-wide insider trades and
@@ -149,6 +161,103 @@ export class FmpService {
           exchange: q.exchange || null,
         });
       }
+    }
+    return out;
+  }
+
+  // ── Dividend calendar (ex-dividend dates) ────────────────────────────
+  // Accumulated symbol → most-recent-ex-date, plus the set of calendar days
+  // already walked, so a second build on the same instance re-requests nothing.
+  private exDivCache: {
+    ts: number;
+    map: Map<string, string>;
+    daysWalked: Set<string>;
+  } | null = null;
+  private readonly EXDIV_TTL_MS = 6 * 60 * 60_000;
+
+  /** FMP's `stable` calendar endpoints SILENTLY TRUNCATE a ranged response at
+   *  exactly this many rows — no error, no flag, just missing data. A single day
+   *  of US ex-dividends is already ~1,800 rows, so any multi-day window loses
+   *  most of its content. Verified against production: a 90-day pull came back
+   *  at exactly 4,000 rows and contained none of USB/MDLZ/HSY/MDT/PM/PNC, while
+   *  a single-day pull for the same ex-date found them immediately. The same cap
+   *  was independently confirmed on `earnings-calendar`. Hence the one-day-at-a-
+   *  time walk below, and the warning when a response arrives at the cap. */
+  private readonly CALENDAR_ROW_CAP = 4000;
+
+  /** Most recent ex-dividend date on or before today for each of `wanted`.
+   *
+   *  Walks the calendar ONE DAY AT A TIME (see CALENDAR_ROW_CAP — a ranged
+   *  request cannot be trusted) newest-first, so the first hit for a symbol IS
+   *  its latest ex-date. Bounded on every axis: a day cap, a concurrency cap, an
+   *  optional wall-clock deadline, and an early exit the moment every wanted
+   *  symbol is resolved — requests are only spent while something is still
+   *  missing. Weekends are skipped (no ex-dividends). Days already walked on
+   *  this instance are skipped, and a day that came back at the row cap is NOT
+   *  marked walked so a later call can retry it.
+   *
+   *  Returns only the requested symbols, but caches every symbol each walked day
+   *  yields (6h TTL) so the map serves any later caller for free. Callers should
+   *  treat a missing symbol as "not found in the walked window" — this is a
+   *  bounded top-up, not an exhaustive lookup. */
+  async getExDividendDates(
+    wanted: string[],
+    opts: { maxDays?: number; concurrency?: number; deadlineMs?: number } = {},
+  ): Promise<Map<string, string>> {
+    const want = new Set((wanted || []).filter(Boolean).map((s) => s.toUpperCase()));
+    const out = new Map<string, string>();
+    if (!this.enabled || !want.size) return out;
+    if (!this.exDivCache || Date.now() - this.exDivCache.ts > this.EXDIV_TTL_MS) {
+      this.exDivCache = { ts: Date.now(), map: new Map(), daysWalked: new Set() };
+    }
+    const { map, daysWalked } = this.exDivCache;
+    const maxDays = opts.maxDays ?? 30;
+    const concurrency = opts.concurrency ?? 6;
+
+    const stillMissing = () => {
+      for (const s of want) if (!map.has(s)) return true;
+      return false;
+    };
+
+    // Candidate days: today backwards, weekdays only, skipping days already
+    // walked. Scanning twice maxDays leaves room for the weekends dropped.
+    const days: string[] = [];
+    for (let back = 0; back < maxDays * 2 && days.length < maxDays; back++) {
+      const d = new Date(Date.now() - back * 86_400_000);
+      const dow = d.getUTCDay();
+      if (dow === 0 || dow === 6) continue;
+      const iso = d.toISOString().slice(0, 10);
+      if (!daysWalked.has(iso)) days.push(iso);
+    }
+
+    for (let i = 0; i < days.length && stillMissing(); i += concurrency) {
+      if (opts.deadlineMs != null && Date.now() >= opts.deadlineMs) break;
+      const chunk = days.slice(i, i + concurrency);
+      const results = await Promise.all(
+        chunk.map((day) => this.get('dividends-calendar', { from: day, to: day })),
+      );
+      results.forEach((rows, j) => {
+        const day = chunk[j];
+        if (rows.length >= this.CALENDAR_ROW_CAP) {
+          this.log.warn(
+            `FMP dividends-calendar ${day}: ${rows.length} rows — at the ${this.CALENDAR_ROW_CAP}-row cap, so this day is TRUNCATED and is not being marked as walked.`,
+          );
+        } else {
+          daysWalked.add(day);
+        }
+        for (const r of rows) {
+          const sym = String(r?.symbol || '').toUpperCase();
+          // Days are walked newest-first, so the first date seen for a symbol is
+          // its most recent — never let an older day overwrite it.
+          if (!sym || map.has(sym)) continue;
+          const d = String(r?.date || '').slice(0, 10);
+          if (d) map.set(sym, d);
+        }
+      });
+    }
+    for (const s of want) {
+      const d = map.get(s);
+      if (d) out.set(s, d);
     }
     return out;
   }
@@ -569,5 +678,215 @@ export class FmpService {
       }
     }
     return out;
+  }
+
+  // ── Earnings calendar ─────────────────────────────────────────────────
+  /** Market-wide earnings calendar for a date range. FMP carries no company
+   *  name / market cap / report time, so this is not a calendar source on its
+   *  own — it exists to supply `epsEstimated` for the long tail of small caps
+   *  that Nasdaq's calendar leaves blank.
+   *
+   *  NOTE: the range form (from != to) truncates at exactly 4000 rows and drops
+   *  the EARLIEST dates when it does — a measured 7-day pull returned 636 rows
+   *  for day 1 against 1579 when that same day was requested alone. So the
+   *  range is walked one day at a time (no single day has come close to the
+   *  cap). Days are fetched in concurrent batches, so the cost is roughly the
+   *  slowest day in a batch, not the sum of the range. */
+  async getEarningsCalendar(
+    from: string,
+    to: string,
+  ): Promise<Array<{ symbol: string; date: string; epsEstimated: number | null }>> {
+    if (!this.enabled || !from || !to) return [];
+    const start = Date.parse(`${from}T00:00:00Z`);
+    const end = Date.parse(`${to}T00:00:00Z`);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return [];
+    const DAY_MS = 86_400_000;
+    const days: string[] = [];
+    // Hard cap the fan-out; no caller needs more than a month of calendar.
+    for (let t = start; t <= end && days.length < 31; t += DAY_MS) {
+      days.push(new Date(t).toISOString().slice(0, 10));
+    }
+    const out: Array<{ symbol: string; date: string; epsEstimated: number | null }> = [];
+    for (let i = 0; i < days.length; i += 7) {
+      const batch = await Promise.all(
+        days.slice(i, i + 7).map((iso) => this.get('earnings-calendar', { from: iso, to: iso })),
+      );
+      for (const rows of batch) {
+        if (rows.length >= 4000) {
+          this.log.warn('FMP earnings-calendar hit the 4000-row cap on a single day');
+        }
+        for (const r of rows) {
+          const symbol = String(r?.symbol || '').toUpperCase();
+          if (!symbol) continue;
+          out.push({
+            symbol,
+            date: String(r?.date || '').slice(0, 10),
+            // Guard the null explicitly: num() would turn a null estimate into
+            // 0 (Number(null) === 0), inventing a "break even" forecast.
+            epsEstimated: r?.epsEstimated == null ? null : this.num(r.epsEstimated),
+          });
+        }
+      }
+    }
+    return out;
+  }
+
+  // ── Fundamentals gap-filler for list pages (sector / cap / P/E) ────────
+  private readonly peCache = new Map<string, { ts: number; data: number | null }>();
+  private readonly PE_TTL_MS = 24 * 60 * 60_000;
+
+  /** Trailing P/E for one symbol from FMP's TTM ratios (cached 24h). A
+   *  loss-making company genuinely HAS no trailing P/E, so a null here is an
+   *  answer rather than a gap — non-positive ratios are dropped instead of
+   *  being published as a negative multiple. */
+  async getPeRatioTtm(symbolRaw: string): Promise<number | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    const c = this.peCache.get(symbol);
+    if (c && Date.now() - c.ts < this.PE_TTL_MS) return c.data;
+    const rows = await this.get('ratios-ttm', { symbol });
+    const pe = this.num(rows?.[0]?.priceToEarningsRatioTTM);
+    const data = pe != null && pe > 0 ? +pe.toFixed(2) : null;
+    this.peCache.set(symbol, { ts: Date.now(), data });
+    return data;
+  }
+
+  /**
+   * Sector / industry / market cap / trailing P/E for MANY symbols — the
+   * gap-filler for table rows whose own source carries no fundamentals (penny
+   * screener names, non-US listings, curated baskets).
+   *
+   * FMP's stable `profile` endpoint takes ONE symbol per call, so the misses
+   * are fetched at bounded concurrency behind a wall-clock budget: symbols
+   * already in the 24h caches cost nothing, and whatever the budget doesn't
+   * reach is simply absent from the returned map — the next request resumes
+   * where this one stopped, since every symbol fetched is now cached. Never
+   * throws; a partial map is the expected result, not an error.
+   */
+  async getFundamentalsBatch(
+    symbolsRaw: string[],
+    opts: { concurrency?: number; budgetMs?: number; withPe?: boolean } = {},
+  ): Promise<
+    Map<
+      string,
+      {
+        sector: string | null;
+        industry: string | null;
+        marketCap: number | null;
+        peRatio: number | null;
+      }
+    >
+  > {
+    type Row = {
+      sector: string | null;
+      industry: string | null;
+      marketCap: number | null;
+      peRatio: number | null;
+    };
+    const out = new Map<string, Row>();
+    const symbols = Array.from(
+      new Set(symbolsRaw.filter(Boolean).map((s) => s.toUpperCase())),
+    );
+    if (!this.enabled || !symbols.length) return out;
+    const deadline = Date.now() + Math.max(0, opts.budgetMs ?? 3000);
+    const queue = [...symbols].reverse(); // pop() walks the caller's own order
+    const worker = async (): Promise<void> => {
+      for (;;) {
+        const symbol = queue.pop();
+        if (!symbol) return;
+        const cp = this.profileCache.get(symbol);
+        const profileFresh = !!cp && Date.now() - cp.ts < this.PROFILE_TTL_MS;
+        const cpe = this.peCache.get(symbol);
+        const peFresh = !!cpe && Date.now() - cpe.ts < this.PE_TTL_MS;
+        const haveTime = Date.now() < deadline;
+        // Out of budget: keep draining the queue, but serve cached hits only.
+        if (!haveTime && !profileFresh && !peFresh) continue;
+        // Profile and ratios are independent endpoints — fetched together so a
+        // symbol costs one round trip, not two.
+        const [profile, peRatio]: [any | null, number | null] = await Promise.all([
+          profileFresh || haveTime ? this.getCompanyProfile(symbol) : Promise.resolve(null),
+          opts.withPe && (peFresh || haveTime)
+            ? this.getPeRatioTtm(symbol)
+            : Promise.resolve(null),
+        ]);
+        if (!profile && peRatio == null) continue;
+        out.set(symbol, {
+          sector: profile?.sector ?? null,
+          industry: profile?.industry ?? null,
+          marketCap: profile?.marketCap ?? null,
+          peRatio,
+        });
+      }
+    };
+    await Promise.all(
+      Array.from(
+        { length: Math.min(Math.max(1, opts.concurrency ?? 6), symbols.length) },
+        () => worker(),
+      ),
+    );
+    return out;
+  }
+
+  // ── Whole-market-slice snapshot (company-screener) ─────────────────────
+  private readonly screenerCache = new Map<string, { ts: number; map: Map<string, FmpScreenerRow> }>();
+  private readonly screenerInflight = new Map<string, Promise<Map<string, FmpScreenerRow>>>();
+  private readonly SCREENER_TTL_MS = 12 * 60 * 60_000;
+
+  /**
+   * Sector + market cap for a whole slice of the market in ONE call
+   * (`company-screener`), keyed by UPPERCASE symbol and cached 12h — the only
+   * affordable source for lists too large to look up symbol-by-symbol (the
+   * 1,000-row penny screener would otherwise need 1,000 profile requests).
+   *
+   * The response is multi-megabyte and takes seconds, so the fetch is shared
+   * across concurrent callers and RACED against `budgetMs`: a caller that runs
+   * out of time gets an empty map while the fetch keeps running and fills the
+   * cache for the next request. `budgetMs: 0` (the default) never waits at all
+   * — pure cache read plus a background warm.
+   */
+  async getScreenerSnapshot(
+    params: Record<string, any>,
+    opts: { budgetMs?: number } = {},
+  ): Promise<Map<string, FmpScreenerRow>> {
+    const empty = new Map<string, FmpScreenerRow>();
+    if (!this.enabled) return empty;
+    const key = JSON.stringify(params);
+    const hit = this.screenerCache.get(key);
+    if (hit && Date.now() - hit.ts < this.SCREENER_TTL_MS) return hit.map;
+    let inflight = this.screenerInflight.get(key);
+    if (!inflight) {
+      inflight = (async () => {
+        try {
+          const rows = await this.get('company-screener', params);
+          const map = new Map<string, FmpScreenerRow>();
+          for (const r of rows) {
+            const symbol = String(r?.symbol || '').toUpperCase();
+            if (!symbol) continue;
+            map.set(symbol, {
+              symbol,
+              name: r.companyName || symbol,
+              sector: r.sector || null,
+              industry: r.industry || null,
+              marketCap: Number(r.marketCap) || null,
+              exchange: r.exchangeShortName || r.exchange || null,
+            });
+          }
+          if (map.size) this.screenerCache.set(key, { ts: Date.now(), map });
+          return map;
+        } finally {
+          this.screenerInflight.delete(key);
+        }
+      })();
+      this.screenerInflight.set(key, inflight);
+    }
+    const budgetMs = Math.max(0, opts.budgetMs ?? 0);
+    if (!budgetMs) return empty; // warm only — never block the caller
+    return Promise.race([
+      inflight,
+      new Promise<Map<string, FmpScreenerRow>>((resolve) => {
+        const t = setTimeout(() => resolve(empty), budgetMs);
+        t.unref?.();
+      }),
+    ]);
   }
 }

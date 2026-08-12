@@ -28,9 +28,15 @@ export default function InstitutionsPage({ params }: { params: Promise<{ ticker:
   const { ticker } = use(params);
   const sym = decodeURIComponent(ticker).toUpperCase();
 
-  const { data: companyData } = useSWR<{ company: { name: string } | null }>(
+  // The 13F endpoint needs the issuer *name* (it drives an EDGAR full-text
+  // search) alongside the ticker, so resolve the company first and hold the
+  // second request until it lands.
+  const { data: companyData, error: companyError } = useSWR<{ company: { name: string } | null }>(
     `${API_BASE}/companies/${encodeURIComponent(sym)}`, fetcher, { revalidateOnFocus: false });
   const name = companyData?.company?.name;
+  /** Name still in flight — show the spinner, not the empty state. Once the
+   *  lookup fails we stop waiting so the table can't spin forever. */
+  const resolvingName = !name && !companyError;
 
   const { data, isLoading } = useSWR<{ holdings: Holding[]; derivatives: Derivative[] }>(
     name ? `${API_BASE}/company-civic/institutions?ticker=${encodeURIComponent(sym)}&name=${encodeURIComponent(name)}` : null,
@@ -101,7 +107,7 @@ export default function InstitutionsPage({ params }: { params: Promise<{ ticker:
               </tr>
             </thead>
             <tbody>
-              {isLoading || !name ? (
+              {resolvingName || isLoading ? (
                 <tr><td colSpan={5} className="px-3.5 py-10 text-center text-[13px] text-mute">Scanning latest 13F filings on SEC EDGAR…</td></tr>
               ) : holdings.length === 0 ? (
                 <tr><td colSpan={5} className="px-3.5 py-10 text-center text-[13px] text-mute">No recent 13F filings reporting {sym} positions found.</td></tr>
@@ -151,7 +157,7 @@ export default function InstitutionsPage({ params }: { params: Promise<{ ticker:
               </tr>
             </thead>
             <tbody>
-              {isLoading || !name ? (
+              {resolvingName || isLoading ? (
                 <tr><td colSpan={5} className="px-3.5 py-8 text-center text-[13px] text-mute">Loading…</td></tr>
               ) : derivatives.length === 0 ? (
                 <tr><td colSpan={5} className="px-3.5 py-8 text-center text-[13px] text-mute">No derivative positions on {sym} in these filings.</td></tr>

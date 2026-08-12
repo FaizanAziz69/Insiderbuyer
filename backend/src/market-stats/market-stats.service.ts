@@ -247,6 +247,101 @@ export class MarketStatsService {
     return rows.filter((r) => !r.exchange || this.MAJOR_EXCHANGES.has(r.exchange));
   }
 
+  /** Authoritative sector for a ticker. Yahoo's fast quote and screener payloads
+   *  omit `sector` for most names, so the static map — which covers every ticker
+   *  in MARKET_UNIVERSE — is consulted FIRST and whatever the feed happened to
+   *  return is only a fallback. Pure in-memory lookup: zero added latency, so
+   *  every builder that emits a sector can afford it. */
+  private sectorFor(symbol: string, feedSector: string | null = null): string | null {
+    return SECTOR_BY_TICKER[(symbol || '').toUpperCase()] ?? feedSector ?? null;
+  }
+
+  /** Resolve `p`, or give up after `ms` and hand back `fallback`. The FMP client
+   *  allows itself a 15s timeout, which alone would blow the ~10s serverless
+   *  gateway budget — so every gap-filling call below is wrapped and can only
+   *  ever cost its own slice of the budget, never the whole request. */
+  private withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    return Promise.race([
+      p.catch(() => fallback),
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback), ms);
+      }),
+    ]).finally(() => clearTimeout(timer));
+  }
+
+  // ---- P/E gap-filler --------------------------------------------------
+  // Yahoo omits trailingPE from BOTH the screener payload and the v7 fast quote
+  // for most names, which is why the "P/E" column renders em-dashes across the
+  // movers, dividend, short-interest and rankings tables. FMP's batch-quote
+  // carries `pe` for 50 symbols per request, so a whole table costs a couple of
+  // requests rather than one per row. Cached 30 min INCLUDING misses, so
+  // loss-making names aren't re-requested on every rebuild.
+  private peCache = new Map<string, { ts: number; pe: number | null }>();
+  private readonly PE_CACHE_MS = 30 * 60_000;
+  private readonly PE_CHUNK = 50;
+  private readonly PE_PARALLEL = 3;
+
+  /** Fill `peRatio` in place for rows the feed left blank. Bounded on every
+   *  axis (symbol cap, 50-per-request batching, 3 requests in flight, wall-clock
+   *  budget) and never throws — a failure leaves the cells exactly as they were.
+   *  Only POSITIVE ratios are accepted: a loss-making company has no meaningful
+   *  trailing P/E and must stay an em-dash rather than show a negative number. */
+  private async fillPeRatios(
+    rows: Array<{ symbol: string; peRatio?: number | null }>,
+    maxSymbols = 200,
+    budgetMs = 2_500,
+  ): Promise<void> {
+    if (!this.fmp?.enabled || !rows.length || budgetMs <= 0) return;
+    const now = Date.now();
+    const resolved = new Map<string, number>();
+    const pending = new Set<string>();
+    for (const r of rows) {
+      if (r.peRatio != null) continue;
+      const sym = (r.symbol || '').toUpperCase();
+      if (!sym) continue;
+      const hit = this.peCache.get(sym);
+      if (hit && now - hit.ts < this.PE_CACHE_MS) {
+        if (hit.pe != null) resolved.set(sym, hit.pe);
+      } else {
+        pending.add(sym);
+      }
+    }
+    const todo = Array.from(pending).slice(0, maxSymbols);
+    const deadline = now + budgetMs;
+    const stride = this.PE_CHUNK * this.PE_PARALLEL;
+    for (let i = 0; i < todo.length && Date.now() < deadline; i += stride) {
+      const group: string[][] = [];
+      for (let j = 0; j < this.PE_PARALLEL; j++) {
+        const chunk = todo.slice(i + j * this.PE_CHUNK, i + (j + 1) * this.PE_CHUNK);
+        if (chunk.length) group.push(chunk);
+      }
+      const left = Math.max(500, deadline - Date.now());
+      const maps = await Promise.all(
+        group.map((chunk) =>
+          this.withTimeout(this.fmp!.getQuotesBatch(chunk), left, new Map<string, any>()),
+        ),
+      );
+      group.forEach((chunk, k) => {
+        // An empty map means the request timed out or failed rather than "these
+        // symbols have no P/E" — caching that would blank the column for 30 min.
+        if (!maps[k].size) return;
+        for (const sym of chunk) {
+          const pe = Number(maps[k].get(sym)?.peRatio);
+          const val = Number.isFinite(pe) && pe > 0 ? +pe.toFixed(2) : null;
+          this.peCache.set(sym, { ts: Date.now(), pe: val });
+          if (val != null) resolved.set(sym, val);
+        }
+      });
+    }
+    if (!resolved.size) return;
+    for (const r of rows) {
+      if (r.peRatio != null) continue;
+      const pe = resolved.get((r.symbol || '').toUpperCase());
+      if (pe != null) r.peRatio = pe;
+    }
+  }
+
   constructor(@Optional() private readonly fmp?: FmpService) {
     this.http = axios.create({
       timeout: 10_000,
@@ -288,7 +383,7 @@ export class MarketStatsService {
         volume: Number(q.regularMarketVolume ?? 0),
         avgVolume: Number(q.averageDailyVolume3Month ?? q.averageDailyVolume10Day ?? 0),
         marketCap: q.marketCap != null ? Number(q.marketCap) : null,
-        sector: q.sector ?? null,
+        sector: this.sectorFor(String(q.symbol || ''), q.sector ?? null),
         exchange: q.exchange ?? null,
         peRatio: q.trailingPE != null ? Number(q.trailingPE) : null,
         dividendYield:
@@ -347,12 +442,24 @@ export class MarketStatsService {
           userId: '',
           userIdType: 'guid',
         };
-        const { data } = await this.http.post(
-          `https://query1.finance.yahoo.com/v1/finance/screener?crumb=${encodeURIComponent(auth.crumb)}&lang=en-US&region=US`,
-          body,
-          { headers: { Cookie: auth.cookie, 'Content-Type': 'application/json' } },
-        );
-        const quotes: any[] = data?.finance?.result?.[0]?.quotes || [];
+        // Page failures are contained: Yahoo intermittently 500s on deep
+        // offsets, and letting that throw out of the loop used to discard every
+        // row already collected — the caller then fell back to the predefined
+        // screener, which caps at 25 rows. Keep what we have and stop paging.
+        let quotes: any[] = [];
+        try {
+          const { data } = await this.http.post(
+            `https://query1.finance.yahoo.com/v1/finance/screener?crumb=${encodeURIComponent(auth.crumb)}&lang=en-US&region=US`,
+            body,
+            { headers: { Cookie: auth.cookie, 'Content-Type': 'application/json' } },
+          );
+          quotes = data?.finance?.result?.[0]?.quotes || [];
+        } catch (err: any) {
+          this.logger.warn(
+            `Yahoo screen ${opts.key} page@${offset} failed: ${err?.message || err}. Keeping ${out.length} rows.`,
+          );
+          break;
+        }
         if (!quotes.length) break;
         for (const q of quotes) {
           const symbol = String(q.symbol || '');
@@ -367,7 +474,9 @@ export class MarketStatsService {
             volume: Number(q.regularMarketVolume ?? 0),
             avgVolume: Number(q.averageDailyVolume3Month ?? q.averageDailyVolume10Day ?? 0),
             marketCap: q.marketCap != null ? Number(q.marketCap) : null,
-            sector: q.sector ?? null,
+            // Yahoo's screener payload carries no sector at all; the static map
+            // covers the universe names that show up in the movers lists.
+            sector: this.sectorFor(symbol, q.sector ?? null),
             exchange: q.exchange ?? null,
             peRatio: q.trailingPE != null ? Number(q.trailingPE) : null,
             dividendYield:
@@ -395,9 +504,14 @@ export class MarketStatsService {
   private readonly MOVER_MIN_PCT = 10;
 
   async getTopGainers(limit = 500) {
-    const rows = await this.screenYahoo({
+    // Mirrors getTopLosers exactly: Yahoo's screener is unreliable when asked to
+    // SORT on percentchange (it 500s outright on ASC, and intermittently on deep
+    // DESC pages), which used to collapse this endpoint onto the predefined
+    // screener and its hard 25-row cap. Pull a large pool ordered by volume —
+    // the sort field that works — and rank biggest-gain-first here.
+    const pool = await this.screenYahoo({
       key: 'gainers',
-      sortField: 'percentchange',
+      sortField: 'dayvolume',
       sortType: 'DESC',
       operands: [
         { operator: 'GT', operands: ['percentchange', this.MOVER_MIN_PCT] },
@@ -406,12 +520,18 @@ export class MarketStatsService {
         { operator: 'EQ', operands: ['region', 'us'] },
         this.MAJOR_EXCHANGE_OPERAND,
       ],
-      limit,
+      limit: Math.max(limit, 500),
     });
-    const base = rows.length ? rows : await this.fetchScreener('day_gainers', limit);
-    return this.onlyMajorExchanges(base)
+    const base = pool.length ? pool : await this.fetchScreener('day_gainers', limit);
+    const rows = this.onlyMajorExchanges(
+      [...base].sort((a, b) => b.changePct - a.changePct),
+    )
       .filter((r) => r.changePct >= this.MOVER_MIN_PCT)
       .slice(0, limit);
+    // "P/E" is a rendered column here and the screener payload omits trailingPE
+    // for ~3 of every 4 movers — fill it from FMP's batch quote.
+    await this.fillPeRatios(rows);
+    return rows;
   }
   async getTopLosers(limit = 500) {
     // Yahoo's screener 500s on an ASC percentchange sort, so pull a large pool
@@ -430,11 +550,13 @@ export class MarketStatsService {
       limit: Math.max(limit, 500),
     });
     const base = pool.length ? pool : await this.fetchScreener('day_losers', limit);
-    return this.onlyMajorExchanges(
+    const rows = this.onlyMajorExchanges(
       [...base].sort((a, b) => a.changePct - b.changePct),
     )
       .filter((r) => r.changePct <= -this.MOVER_MIN_PCT)
       .slice(0, limit);
+    await this.fillPeRatios(rows);
+    return rows;
   }
   async getMostActive(limit = 100) {
     const rows = await this.screenYahoo({
@@ -509,7 +631,7 @@ export class MarketStatsService {
               q.averageDailyVolume3Month ?? q.averageDailyVolume10Day ?? 0,
             ),
             marketCap: q.marketCap != null ? Number(q.marketCap) : null,
-            sector: q.sector ?? null,
+            sector: this.sectorFor(symbol, q.sector ?? null),
             exchange: q.exchange ?? null,
             peRatio: q.trailingPE != null ? Number(q.trailingPE) : null,
             dividendYield:
@@ -627,7 +749,7 @@ export class MarketStatsService {
               ),
               exchange: q.exchange ?? null,
               marketCap: q.marketCap != null ? Number(q.marketCap) : ref?.marketCap ?? null,
-              sector: q.sector ?? ref?.sector ?? null,
+              sector: this.sectorFor(sym, q.sector ?? ref?.sector ?? null),
               fiftyTwoWeekHigh: q.fiftyTwoWeekHigh != null ? Number(q.fiftyTwoWeekHigh) : null,
               fiftyTwoWeekLow: q.fiftyTwoWeekLow != null ? Number(q.fiftyTwoWeekLow) : null,
               peRatio: q.trailingPE != null ? Number(q.trailingPE) : null,
@@ -662,8 +784,17 @@ export class MarketStatsService {
                 q.fiftyDayAverageChangePercent != null ? +(Number(q.fiftyDayAverageChangePercent) * 100).toFixed(2) : null,
               perf200d:
                 q.twoHundredDayAverageChangePercent != null ? +(Number(q.twoHundredDayAverageChangePercent) * 100).toFixed(2) : null,
+              // Extended-hours move. Yahoo populates exactly ONE of these at a
+              // time — postMarket* after the close, preMarket* before the open —
+              // and NEITHER during the regular session, so this is null for
+              // every row while the market is open. Callers must treat null as
+              // "no extended-hours session", not as 0%.
               postMarketPct:
-                q.postMarketChangePercent != null ? +Number(q.postMarketChangePercent).toFixed(2) : null,
+                q.postMarketChangePercent != null
+                  ? +Number(q.postMarketChangePercent).toFixed(2)
+                  : q.preMarketChangePercent != null
+                    ? +Number(q.preMarketChangePercent).toFixed(2)
+                    : null,
             });
           }
           break;
@@ -1245,6 +1376,20 @@ export class MarketStatsService {
     if (missed > 0) {
       this.logger.warn(`Quote batch: ${missed}/${unique.length} symbols unresolved (no live quote, FMP or reference entry).`);
     }
+
+    // Yahoo's v7 quote omits trailingPE for a large share of names, and this
+    // batch is what feeds the "P/E" column on /dividends, /short-interest,
+    // /short-squeeze, /congressional-trades and the live /rankings table — so
+    // top the column up from FMP before returning. The fill MUTATES the row
+    // objects, which are the same instances held in `quoteCache`, so a symbol is
+    // only ever resolved once per cache generation. Skipped for tiny lookups
+    // (single-symbol detail pages get their P/E from quoteSummary instead, and
+    // this keeps per-symbol call sites from issuing an FMP request each).
+    if (unique.length >= 5) {
+      await this.fillPeRatios(
+        unique.map((s) => map.get(s)).filter(Boolean) as MarketStatRow[],
+      );
+    }
     return map;
   }
 
@@ -1285,10 +1430,21 @@ export class MarketStatsService {
     return null;
   }
 
-  private async summaryBatch(symbols: string[]): Promise<Map<string, any>> {
+  /** Per-symbol quoteSummary for a list of symbols, concurrency-capped.
+   *  `deadlineMs` (epoch ms) makes the sweep time-boxed instead of exhaustive:
+   *  it stops starting new rounds once the budget is spent and RETURNS whatever
+   *  it already gathered, so a caller can enrich as much of a long list as fits
+   *  in the serverless request budget and cover the rest from cheaper sources.
+   *  Every symbol it does fetch lands in the shared per-symbol `summaryCache`,
+   *  so successive builds (and the other tool pages) get it for free. */
+  private async summaryBatch(
+    symbols: string[],
+    opts: { concurrency?: number; deadlineMs?: number } = {},
+  ): Promise<Map<string, any>> {
     const out = new Map<string, any>();
-    const CONCURRENCY = 6;
+    const CONCURRENCY = opts.concurrency ?? 6;
     for (let i = 0; i < symbols.length; i += CONCURRENCY) {
+      if (opts.deadlineMs != null && Date.now() >= opts.deadlineMs) break;
       const chunk = symbols.slice(i, i + CONCURRENCY);
       const rows = await Promise.all(chunk.map((s) => this.fetchQuoteSummary(s)));
       rows.forEach((r, j) => {
@@ -1984,7 +2140,7 @@ export class MarketStatsService {
       rows.push({
         symbol: sym,
         name: q?.name ?? ref?.name ?? sym,
-        sector: q?.sector ?? ref?.sector ?? null,
+        sector: this.sectorFor(sym, q?.sector ?? ref?.sector ?? null),
         price,
         targetMean,
         targetHigh: fd?.targetHighPrice?.raw ?? null,
@@ -2064,6 +2220,14 @@ export class MarketStatsService {
   async getDividends(): Promise<DividendRow[]> {
     return this.cachedTool("dividends", () => this.buildDividends(), 15);
   }
+  /** Wall-clock ceiling for the whole dividends enrichment phase (FMP calendar
+   *  + P/E top-up + Yahoo summary sweep). The gateway kills requests at ~10s,
+   *  so the sweep takes what fits and the arithmetic fallback covers the rest —
+   *  the table is never left with blank cells because time ran out. */
+  private readonly DIV_ENRICH_BUDGET_MS = 5_000;
+  /** Slice of that budget held back for the FMP ex-date day-walk, so a slow
+   *  Yahoo sweep can't consume the whole thing and leave the top-up no room. */
+  private readonly DIV_FMP_RESERVE_MS = 1_800;
   private async buildDividends(): Promise<DividendRow[]> {
     const syms = this.universe();
     const quotes = await this.getQuoteBatch(syms);
@@ -2078,7 +2242,7 @@ export class MarketStatsService {
       rows.push({
         symbol: sym,
         name: q?.name ?? ref?.name ?? sym,
-        sector: q?.sector ?? ref?.sector ?? null,
+        sector: this.sectorFor(sym, q?.sector ?? ref?.sector ?? null),
         price,
         changePct: q?.changePct ?? null,
         peRatio: q?.peRatio ?? null,
@@ -2090,24 +2254,87 @@ export class MarketStatsService {
       });
     }
     rows.sort((a, b) => (b.dividendYield ?? 0) - (a.dividendYield ?? 0));
-    const top = rows.slice(0, 40);
-    // Payout ratio + ex-div date live in the per-symbol summary. Only the
-    // payers that can actually render (top of the sorted list) are fetched —
-    // the same summaryBatch machinery short-interest already relies on.
+
+    // EVERY payer gets enriched, not just the first screenful. This used to
+    // fetch summaries for rows.slice(0, 40) only, which left ~82% of the table
+    // with empty "Payout Ratio" and "Ex-Div Date" cells — both rendered columns.
+    // Three sources are layered so the columns fill as completely as possible
+    // while the whole enrichment phase stays inside one wall-clock budget:
+    //
+    //  1. Yahoo quoteSummary (PRIMARY) — the authoritative payout ratio and
+    //     ex-date, swept over EVERY payer highest-yield-first. This is the
+    //     source that always worked; it was simply only ever asked for 40
+    //     symbols. Free on a warm instance: the per-symbol summaryCache is
+    //     shared with Short Interest, which sweeps the same universe.
+    //  2. FMP's dividend calendar (TOP-UP) — for the payers the sweep didn't
+    //     reach. Walked one day at a time because the ranged form silently
+    //     truncates at 4,000 rows and a single day is already ~1,800; see
+    //     FmpService.CALENDAR_ROW_CAP.
+    //  3. Arithmetic derivation — payout ratio IS dividend-per-share ÷ EPS, and
+    //     EPS falls out of price ÷ P/E, so any row the feeds missed is still
+    //     fillable from values already on the row, with no network call at all.
+    //     This is what takes the payout column to zero blanks.
+    const deadline = Date.now() + this.DIV_ENRICH_BUDGET_MS;
+    const budgetLeft = () => Math.max(0, deadline - Date.now());
+
+    // P/E first: it is both a rendered column and the EPS input for the
+    // derivation below. Usually a cache hit — getQuoteBatch above already ran
+    // the same fill over these symbols.
+    await this.fillPeRatios(rows, 200, Math.min(1_200, budgetLeft()));
+
     try {
-      const summaries = await this.summaryBatch(top.map((r) => r.symbol));
-      for (const r of top) {
+      const summaries = await this.summaryBatch(rows.map((r) => r.symbol), {
+        concurrency: 10,
+        // Reserve the tail of the budget for the FMP top-up below.
+        deadlineMs: deadline - this.DIV_FMP_RESERVE_MS,
+      });
+      for (const r of rows) {
         const sd = summaries.get(r.symbol)?.summaryDetail;
         if (!sd) continue;
-        const pr = sd.payoutRatio?.raw;
-        if (pr != null && Number.isFinite(Number(pr))) r.payoutRatio = +(Number(pr) * 100).toFixed(1);
-        const ex = sd.exDividendDate?.raw;
-        if (ex != null && Number.isFinite(Number(ex))) {
-          r.exDividendDate = new Date(Number(ex) * 1000).toISOString().slice(0, 10);
+        // Yahoo reports payoutRatio as a fraction, and reports a flat 0 when it
+        // simply has no figure — which for a confirmed payer means "unknown",
+        // so those fall through to the derivation instead of rendering "0.0%".
+        const pr = Number(sd.payoutRatio?.raw);
+        if (Number.isFinite(pr) && pr > 0) r.payoutRatio = +(pr * 100).toFixed(1);
+        const ex = Number(sd.exDividendDate?.raw);
+        if (Number.isFinite(ex) && ex > 0) {
+          r.exDividendDate = new Date(ex * 1000).toISOString().slice(0, 10);
         }
       }
     } catch {
-      /* summary unavailable — cells stay em-dash */
+      /* summary unavailable — the FMP top-up and the derivation below stand */
+    }
+
+    // Only the payers still without an ex-date are asked for, which lets the
+    // day-walk exit as soon as it has resolved them instead of burning the
+    // whole window.
+    const needExDate = rows.filter((r) => !r.exDividendDate).map((r) => r.symbol);
+    if (this.fmp?.enabled && needExDate.length && budgetLeft() > 400) {
+      const exDates = await this.withTimeout(
+        this.fmp.getExDividendDates(needExDate, {
+          maxDays: 30,
+          concurrency: 6,
+          deadlineMs: deadline,
+        }),
+        budgetLeft(),
+        new Map<string, string>(),
+      );
+      for (const r of rows) {
+        if (r.exDividendDate) continue;
+        const d = exDates.get(r.symbol);
+        if (d) r.exDividendDate = d;
+      }
+    }
+
+    for (const r of rows) {
+      if (r.payoutRatio != null) continue;
+      // payout = DPS / EPS, and EPS = price / P/E → DPS × P/E ÷ price. Skipped
+      // when P/E is unknown or non-positive: a loss-making payer has no
+      // meaningful payout ratio and must stay an em-dash.
+      const pe = r.peRatio;
+      if (!pe || pe <= 0 || !r.price || !r.dividendRate) continue;
+      const derived = ((r.dividendRate * pe) / r.price) * 100;
+      if (Number.isFinite(derived) && derived > 0) r.payoutRatio = +derived.toFixed(1);
     }
     return rows;
   }
@@ -2137,7 +2364,7 @@ export class MarketStatsService {
       rows.push({
         symbol: sym,
         name: q?.name ?? ref?.name ?? sym,
-        sector: q?.sector ?? ref?.sector ?? null,
+        sector: this.sectorFor(sym, q?.sector ?? ref?.sector ?? null),
         price,
         sharesShort,
         sharesShortPrior: prior,

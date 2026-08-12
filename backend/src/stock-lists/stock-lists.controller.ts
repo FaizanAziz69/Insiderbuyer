@@ -28,6 +28,12 @@ export class StockListsController {
     @Query('minIqs') minIqs?: string,
     @Query('sentiment') sentiment?: string,
     @Query('analystConsensus') analystConsensus?: string,
+    // OPTIONAL page window. Omitted = the whole list, exactly as before;
+    // `total` always reports the full count. Lets a client page the big lists
+    // (penny-stocks ships 1,000 rows in one response) instead of taking the
+    // whole payload in a single ~10s-budget request.
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
     const detail = await this.svc.getDetail(slug, {
       country: country || undefined,
@@ -38,6 +44,8 @@ export class StockListsController {
       minIqs: minIqs ? Number(minIqs) : undefined,
       sentiment: sentiment || undefined,
       analystConsensus: analystConsensus || undefined,
+      limit: limit && Number(limit) > 0 ? Number(limit) : undefined,
+      offset: offset && Number(offset) > 0 ? Number(offset) : undefined,
     });
     if (!detail) return { error: 'Unknown list' };
     return detail;
