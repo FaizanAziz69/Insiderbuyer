@@ -16,8 +16,9 @@ interface RatingRow {
 
 /**
  * Click-to-open ratings history for one analyst (client spec: a popup, not a
- * standalone profile page). Portal-rendered and viewport-clamped like the
- * other tooltips so it never clips inside the table.
+ * standalone profile page) — their most recent call on its own strip, then the
+ * past ratings under it. Portal-rendered and viewport-clamped like the other
+ * tooltips so it never clips inside the table.
  */
 export function AnalystRatingsPopover({ name, slug }: { name: string; slug: string }) {
   const [open, setOpen] = useState(false);
@@ -76,6 +77,10 @@ export function AnalystRatingsPopover({ name, slug }: { name: string; slug: stri
     dedupingInterval: 10 * 60_000,
   });
   const rows = data?.rows || [];
+  // The endpoint orders publishedDate DESC, so row 0 IS the most recent call.
+  // It gets its own strip because "what did they just say?" is the first thing
+  // asked of an analyst — the table under it is the history.
+  const latest = rows[0];
 
   return (
     <>
@@ -126,6 +131,37 @@ export function AnalystRatingsPopover({ name, slug }: { name: string; slug: stri
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
+            {latest && (
+              <div
+                className="px-3.5 py-2 flex items-baseline gap-2"
+                style={{
+                  background: "color-mix(in srgb, var(--accent) 7%, var(--bg-1))",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                <span className="text-[9.5px] uppercase tracking-wider font-bold text-mute flex-none">
+                  Latest
+                </span>
+                <span className="text-[12.5px] font-semibold truncate">
+                  <Link
+                    href={`/companies/${encodeURIComponent(latest.symbol)}`}
+                    className="font-mono font-bold text-accent hover:underline"
+                  >
+                    {latest.symbol}
+                  </Link>
+                  {latest.priceTarget != null && (
+                    <span className="tabular"> ${latest.priceTarget.toFixed(2)} target</span>
+                  )}
+                </span>
+                <span className="text-[11px] text-mute tabular whitespace-nowrap ml-auto flex-none">
+                  {new Date(latest.publishedDate).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </span>
+              </div>
+            )}
             <div className="overflow-y-auto" style={{ maxHeight: 300 }}>
               {isLoading ? (
                 <div className="text-center text-mute text-[12.5px] py-6">Loading ratings…</div>

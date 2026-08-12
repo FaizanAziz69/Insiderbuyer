@@ -119,8 +119,11 @@ export default function AnalystStocksPage() {
       key: "numAnalysts",
       label: "Top Analysts",
       align: "right",
-      info: "How many top Wall Street analysts we track currently rate this stock — a curated set of ranked analysts, not every covering analyst. Matches the Buy Ratings denominator.",
-      // Use the rating-breakdown total when present so Coverage never reads
+      // Honest provenance: this is the sell-side consensus head-count, NOT a
+      // count of the analysts on our /analyst-ratings leaderboard (no
+      // per-symbol endpoint exists for those — see report).
+      info: "How many Wall Street analysts hold a live rating on this stock, from the published sell-side consensus. Matches the Buy Ratings denominator. The individual analysts we rank on their own track record are on Top Analysts.",
+      // Use the rating-breakdown total when present so the count never reads
       // lower than the Buy count (the two Yahoo fields can disagree).
       sortValue: (r) => r.totalRatings ?? r.numAnalysts ?? 0,
       render: (r) => (

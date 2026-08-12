@@ -9,9 +9,9 @@ import { DataTable, Column } from "@/components/DataTable";
 import { rankColumn } from "@/components/tableColumns";
 import { AnalystRatingsPopover } from "@/components/AnalystRatingsPopover";
 
-/** One ranked Wall Street analyst — matches the stockanalysis.com "Top
- *  Analysts" table: name, firm, main sector, measured success rate + average
- *  return, rating count and last rating date. */
+/** One ranked Wall Street analyst. Columns read in the TipRanks / Seeking
+ *  Alpha order: identity (name, firm, main sector), then track record (rating
+ *  count, success rate, average return), then recency (last rating). */
 interface AnalystRow {
   analyst: string;
   firm: string | null;
@@ -46,17 +46,31 @@ export default function AnalystRatingsPage() {
       (r.mainSector || "").toLowerCase().includes(q.toLowerCase()),
   );
 
+  // Reading order follows the TipRanks / Seeking Alpha analyst tables: WHO the
+  // analyst is (name, firm, the sector they mostly cover), then WHAT their
+  // record is (sample size before the two rates it's measured from), then WHEN
+  // they last published. The segmented header band makes those three blocks
+  // visible instead of implied.
+  const WHO = "Analyst";
+  const RECORD = "Track Record";
+  const RECENT = "Latest";
   const columns: Column<AnalystRow>[] = [
-    rankColumn<AnalystRow>(),
+    { ...rankColumn<AnalystRow>(), group: WHO },
     {
       key: "analyst",
-      label: "Analyst Name",
+      label: "Analyst",
+      group: WHO,
+      info: "Click any name for that analyst's recent price-target calls and their latest rating.",
       sortValue: (r) => r.analyst,
       render: (r) => <AnalystRatingsPopover name={r.analyst} slug={r.slug} />,
     },
     {
       key: "firm",
-      label: "Company",
+      label: "Firm",
+      group: WHO,
+      // The firm sits beside the analyst rather than in its own league table —
+      // users rank individuals, not research houses (client spec).
+      info: "The research firm the analyst publishes under. Firms are a column here, not a separate ranking.",
       sortValue: (r) => r.firm || "",
       render: (r) => (
         <span className="text-[13px]" style={{ color: "var(--text-soft)" }}>
@@ -67,7 +81,11 @@ export default function AnalystRatingsPage() {
     {
       key: "mainSector",
       label: "Main Sector",
+      group: WHO,
+      info: "The sector most of this analyst's rated names sit in.",
       sortValue: (r) => r.mainSector || "",
+      filterable: true,
+      filterLabelText: "Sectors",
       render: (r) => (
         <span className="text-[13px]" style={{ color: "var(--text-soft)" }}>
           {r.mainSector || "—"}
@@ -75,8 +93,20 @@ export default function AnalystRatingsPage() {
       ),
     },
     {
+      key: "ratings",
+      label: "Ratings",
+      group: RECORD,
+      // Sample size comes BEFORE the two rates it is measured from, so a high
+      // success rate off a handful of calls reads for what it is.
+      info: "Price-target calls we hold for this analyst. The success rate and average return are measured on the subset old enough to score (30 days+).",
+      align: "right",
+      sortValue: (r) => r.ratings,
+      render: (r) => <span className="tabular text-[13.5px]">{r.ratings}</span>,
+    },
+    {
       key: "successRate",
       label: "Success Rate",
+      group: RECORD,
       pro: true,
       info: "Share of this analyst's directional price-target calls that moved the way they implied, one year out (or to date). Shown once they have enough calls at least 30 days old.",
       align: "right",
@@ -96,6 +126,7 @@ export default function AnalystRatingsPage() {
     {
       key: "avgReturn",
       label: "Average Return",
+      group: RECORD,
       pro: true,
       info: "Average price move in the direction the analyst's target implied, across their scored calls.",
       align: "right",
@@ -114,15 +145,10 @@ export default function AnalystRatingsPage() {
         ),
     },
     {
-      key: "ratings",
-      label: "Ratings",
-      align: "right",
-      sortValue: (r) => r.ratings,
-      render: (r) => <span className="tabular text-[13.5px]">{r.ratings}</span>,
-    },
-    {
       key: "lastRatingMs",
       label: "Last Rating",
+      group: RECENT,
+      info: "When this analyst last published a price target we captured.",
       align: "right",
       sortValue: (r) => r.lastRatingMs ?? 0,
       render: (r) => (
@@ -152,6 +178,15 @@ export default function AnalystRatingsPage() {
           from each note&rsquo;s posting price against the year that followed.
           A rate shows once an analyst has enough calls at least 30 days old;
           newer coverage reads &ldquo;Pending&rdquo; rather than guessing.
+        </p>
+        {/* One analyst view, not two: the research firm is a column beside the
+            name rather than its own league table (client spec — people follow
+            analysts, not firms). */}
+        <p className="text-mute text-[13px] sm:text-[13.5px] mt-2 max-w-4xl leading-relaxed">
+          This is the single top-analyst view on the site — each analyst&rsquo;s
+          firm sits beside their name, so there is no separate research-firm
+          ranking to cross-check. Click any analyst to see their recent calls
+          and their latest rating.
         </p>
       </header>
 
@@ -202,7 +237,7 @@ export default function AnalystRatingsPage() {
                 "Every ranked analyst, not just the preview",
                 "Success rates and average returns as they mature",
                 "Click any analyst for their rating history",
-                "Firm and sector coverage for each analyst",
+                "The firm and main sector behind every ranked analyst",
               ],
             }}
           />

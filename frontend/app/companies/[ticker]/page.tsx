@@ -1410,7 +1410,10 @@ function AnalystCoverageCard({ ticker }: { ticker: string }) {
   // hide the card for genuinely uncovered names instead.
   if (row.targetMean == null && !row.recommendation) return null;
   const items: [string, React.ReactNode][] = [
-    ["Covering analysts", row.numAnalysts != null ? String(row.numAnalysts) : "—"],
+    // Yahoo's numberOfAnalystOpinions — the consensus head-count, so it is
+    // labelled for what it is rather than as a count of the ranked analysts on
+    // /analyst-ratings (there is no per-symbol endpoint for those).
+    ["Analysts rating it", row.numAnalysts != null ? String(row.numAnalysts) : "—"],
     [
       "Consensus",
       row.recommendation ? RATING_LABEL[row.recommendation] || row.recommendation : "—",
@@ -1432,11 +1435,15 @@ function AnalystCoverageCard({ ticker }: { ticker: string }) {
   ];
   return (
     <section className="card p-5">
-      <h2 className="text-[16px] font-semibold mb-1">Analyst Coverage</h2>
+      <h2 className="text-[16px] font-semibold mb-1">Analyst Consensus</h2>
       <p className="text-[12px] text-mute mb-4">
-        Aggregated sell-side coverage for {ticker} — consensus, targets, and the
-        number of covering firms. Individual analyst-by-analyst breakdowns are
-        rolling out.
+        Aggregated sell-side view on {ticker} — consensus rating, price targets
+        and how many analysts hold a live rating. For named analysts and their
+        measured track records, see{" "}
+        <Link href="/analyst-ratings" className="text-accent hover:underline font-semibold">
+          Top Analysts
+        </Link>
+        .
       </p>
       <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3">
         {items.map(([l, v]) => (
