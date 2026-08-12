@@ -20,6 +20,51 @@ const SA_FONT =
 /** SA palette — red/green series exactly like the reference. */
 const SA_UP = "#199d5c";
 const SA_DOWN = "#dc2f3e";
+/** stockanalysis.com link blue — inactive tabs, "Chart ->". */
+const SA_BLUE = "#1e63c9";
+
+/** "HARLEY-DAVIDSON, INC." -> "Harley-Davidson, Inc." (SA shows title case). */
+function titleCase(name: string): string {
+  if (name !== name.toUpperCase()) return name;
+  return name
+    .toLowerCase()
+    .replace(/(^|[\s\-\/&.,(])([a-z])/g, (m, pre, ch) => pre + ch.toUpperCase())
+    .replace(/\b(Inc|Corp|Ltd|Plc|Llc|Lp|Etf|Reit|Usa|Ii|Iii|Iv)\b/g, (w) =>
+      ["Ii", "Iii", "Iv", "Usa", "Etf", "Reit", "Llc", "Plc", "Lp"].includes(w)
+        ? w.toUpperCase()
+        : w,
+    );
+}
+
+/** Yahoo exchange code/name -> the short label SA prints (NYSE / NASDAQ). */
+function exchangeLabel(x: string | null | undefined): string | null {
+  const v = (x || "").toLowerCase();
+  if (!v) return null;
+  if (v.includes("nasdaq") || v === "nms" || v === "ngm" || v === "ncm") return "NASDAQ";
+  if (v.includes("nyse") || v === "nyq") return "NYSE";
+  if (v === "ase" || v.includes("amex") || v.includes("american")) return "NYSE American";
+  if (v === "pnk" || v.includes("otc")) return "OTC";
+  return x || null;
+}
+
+/** New York market clock: "Aug 12, 2026, 10:35 AM EDT - Market open". */
+function nyLine(): string {
+  const now = new Date();
+  const dt = now.toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+  const ny = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const mins = ny.getHours() * 60 + ny.getMinutes();
+  const wd = ny.getDay();
+  const open = wd >= 1 && wd <= 5 && mins >= 570 && mins < 960;
+  return `${dt.replace(", ", ", ").replace(" GMT", " ")} - Market ${open ? "open" : "closed"}`;
+}
 
 interface Stats {
   symbol: string;
@@ -144,8 +189,8 @@ interface Bar {
   t?: number;
 }
 
-function SAChart({ ticker }: { ticker: string }) {
-  const [range, setRange] = useState("1y");
+function SAChart({ ticker, previousClose }: { ticker: string; previousClose?: number | null }) {
+  const [range, setRange] = useState("1d");
   const [hover, setHover] = useState<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -164,8 +209,9 @@ function SAChart({ ticker }: { ticker: string }) {
   const geo = useMemo(() => {
     if (bars.length < 2) return null;
     const closes = bars.map((b) => b.close);
-    const lo = Math.min(...closes);
-    const hi = Math.max(...closes);
+    const ref = intraday && previousClose != null ? previousClose : null;
+    const lo = Math.min(...closes, ...(ref != null ? [ref] : []));
+    const hi = Math.max(...closes, ...(ref != null ? [ref] : []));
     const rng = hi - lo || 1;
     // SA pads the scale slightly so the line never kisses the edges.
     const padLo = lo - rng * 0.06;
@@ -213,8 +259,8 @@ function SAChart({ ticker }: { ticker: string }) {
         });
       }
     }
-    return { pts, y, ticks, labels, ph };
-  }, [bars, intraday]);
+    return { pts, y, ticks, labels, ph, ref };
+  }, [bars, intraday, previousClose]);
 
   const first = bars[0]?.close ?? 0;
   const last = bars[bars.length - 1]?.close ?? 0;
@@ -306,6 +352,18 @@ function SAChart({ ticker }: { ticker: string }) {
                     opacity={0.6}
                   />
                 ))}
+                {geo.ref != null && (
+                  <line
+                    x1={0}
+                    x2={W}
+                    y1={geo.y(geo.ref)}
+                    y2={geo.y(geo.ref)}
+                    stroke="var(--text-mute)"
+                    strokeWidth={1}
+                    strokeDasharray="2 4"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
                 <path
                   d={
                     "M " +
@@ -380,7 +438,10 @@ function SAChart({ ticker }: { ticker: string }) {
 
         {/* right axis */}
         {geo && (
-          <div className="relative flex-shrink-0 tabular" style={{ width: 64, height: H }}>
+          <div
+            className="relative flex-shrink-0 tabular"
+            style={{ width: 64, height: H, borderLeft: "1px solid var(--border)" }}
+          >
             {geo.ticks.map((t, i) => (
               <span
                 key={i}
@@ -446,8 +507,7 @@ export function SAProfileHeader({
   const up = (change ?? 0) >= 0;
   const currency = stats?.currency || "USD";
 
-  const now = new Date();
-  const dateLine = `${now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}, ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} ${Intl.DateTimeFormat().resolvedOptions().timeZone.split("/").pop()?.replace("_", " ") || ""}`;
+  const dateLine = nyLine();
 
   const range = (lo: number | null, hi: number | null) =>
     lo != null && hi != null ? `${lo.toFixed(2)} - ${hi.toFixed(2)}` : "n/a";
@@ -461,10 +521,20 @@ export function SAProfileHeader({
             className="font-bold"
             style={{ fontFamily: SA_FONT, fontSize: 32, lineHeight: 1.15, letterSpacing: "-0.01em", color: "var(--text)", fontWeight: 700 }}
           >
-            {name} ({exchange ? `${exchange}:` : ""}{ticker})
+            {titleCase(name)} ({(() => {
+              const ex = exchangeLabel(exchange);
+              const us = !country || country === "United States" || country === "USA";
+              return us ? ticker : `${ex ? ex + ":" : ""}${ticker}`;
+            })()})
           </h1>
           <div className="mt-1 text-[15px]" style={{ color: "var(--text-soft)" }}>
-            {country || "United States"} · Delayed Price · Currency is {currency}
+            {(() => {
+              const ex = exchangeLabel(exchange);
+              const us = !country || country === "United States" || country === "USA";
+              return us && ex && ex !== "OTC"
+                ? `${ex}: ${ticker} · Real-Time Price · ${currency}`
+                : `${country || "United States"} · Delayed Price · Currency is ${currency}`;
+            })()}
           </div>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap pt-1">
@@ -515,7 +585,7 @@ export function SAProfileHeader({
       </div>
 
       {/* ── tab bar ── */}
-      <div className="mt-5" style={{ borderBottom: "2px solid var(--border)" }}>
+      <div className="mt-5" style={{ borderBottom: `2px solid ${SA_BLUE}` }}>
         <div className="flex items-center gap-0.5 overflow-x-auto scrollbar-none">
           {tabs.map(([key, label]) => {
             const on = key === activeTab;
@@ -526,7 +596,7 @@ export function SAProfileHeader({
                 className="px-[15px] py-[9px] text-[16px] whitespace-nowrap rounded-t-md"
                 style={{
                   fontWeight: on ? 600 : 400,
-                  color: "var(--text)",
+                  color: on ? "var(--text)" : SA_BLUE,
                   background: on ? "var(--bg-3)" : "transparent",
                 }}
               >
@@ -537,7 +607,7 @@ export function SAProfileHeader({
           <Link
             href={`/chart/${encodeURIComponent(ticker)}`}
             className="px-[15px] py-[9px] text-[16px] whitespace-nowrap inline-flex items-center gap-1.5"
-            style={{ color: "var(--text)", fontWeight: 400 }}
+            style={{ color: SA_BLUE, fontWeight: 400 }}
           >
             Chart <ArrowRight className="h-4 w-4" />
           </Link>
@@ -545,7 +615,7 @@ export function SAProfileHeader({
       </div>
 
       {/* ── stats + chart ── */}
-      <div className="mt-5 grid grid-cols-1 lg:grid-cols-[220px_240px_minmax(0,1fr)] gap-x-10 gap-y-6 items-start">
+      <div className="mt-5 grid grid-cols-1 lg:grid-cols-[220px_240px_minmax(0,1fr)] gap-x-9 gap-y-6 items-start">
         <div>
           <StatRow label="Market Cap" href="#">
             {abbr(stats?.marketCap)}
@@ -596,7 +666,7 @@ export function SAProfileHeader({
               : "n/a"}
           </StatRow>
         </div>
-        <SAChart ticker={ticker} />
+        <SAChart ticker={ticker} previousClose={stats?.previousClose ?? null} />
       </div>
     </section>
   );
