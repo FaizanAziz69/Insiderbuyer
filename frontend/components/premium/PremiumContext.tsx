@@ -63,9 +63,12 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Re-check whenever the signed-in user changes (login, logout, hydrate).
+  // On sign-out BOTH flags reset immediately, so every paywall snaps back
+  // live — no page refresh needed (client spec).
   useEffect(() => {
     if (!user) {
       setPremium(false);
+      setDismissed(false);
       return;
     }
     void refreshPremium();
