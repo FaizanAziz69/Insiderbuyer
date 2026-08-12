@@ -97,8 +97,8 @@ export class AnalystsService {
       try {
         const res = await this.repo.upsert(
           {
-            analystName: r.analystName,
-            analystCompany: r.analystCompany,
+            analystName: this.cleanName(r.analystName),
+            analystCompany: this.cleanName(r.analystCompany) || null,
             symbol: r.symbol,
             priceTarget: r.priceTarget,
             priceWhenPosted: r.priceWhenPosted,
@@ -122,6 +122,16 @@ export class AnalystsService {
    *  symbol universe (price-target-news per symbol). Gives analysts enough
    *  SEASONED calls (≥30 days old) that success rates and average returns
    *  actually grade instead of sitting on "Pending" with 1 rating. */
+  /** FMP feed names arrive HTML-encoded ("O&#039;Shea") — decode before any
+   *  write so one analyst can't split into duplicate rows. */
+  private cleanName(v: string | null | undefined): string {
+    return (v || '')
+      .replace(/&#0?39;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .trim();
+  }
+
   async backfillHistory(
     symbolsIn?: string[],
     pagesPerSymbol = 3,
@@ -147,8 +157,8 @@ export class AnalystsService {
           try {
             await this.repo.upsert(
               {
-                analystName: r.analystName,
-                analystCompany: r.analystCompany,
+                analystName: this.cleanName(r.analystName),
+                analystCompany: this.cleanName(r.analystCompany) || null,
                 symbol: r.symbol,
                 priceTarget: r.priceTarget,
                 priceWhenPosted: r.priceWhenPosted,
