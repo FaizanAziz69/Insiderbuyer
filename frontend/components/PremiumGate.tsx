@@ -1,5 +1,4 @@
 "use client";
-import { X } from "lucide-react";
 import { usePremium } from "./premium/PremiumContext";
 import { PaywallCta } from "./premium/PaywallCta";
 
@@ -23,9 +22,9 @@ export function PremiumGate({
   cta,
   compact = false,
 }: Props) {
-  // Unlocked (either by the env switch or by dismissing a wall in this view) —
-  // render the real content with no blur or overlay.
-  const { unlocked, unlock } = usePremium();
+  // A live subscription (or the test env switch) is the only thing that renders
+  // the real content — there is no in-session dismissal any more.
+  const { unlocked } = usePremium();
   if (unlocked) return <>{children}</>;
   return (
     <div
@@ -47,20 +46,9 @@ export function PremiumGate({
           backdropFilter: "blur(2px)",
         }}
       >
-        {/* Temporary bypass while Stripe is pending — remove with the cross on
-            every other wall once checkout is live. */}
-        <button
-          onClick={unlock}
-          aria-label="Close"
-          className="absolute top-2 right-2 inline-flex items-center justify-center h-7 w-7 rounded-full"
-          style={{
-            background: "var(--bg-3)",
-            border: "1px solid var(--border-strong)",
-            color: "var(--text-soft)",
-          }}
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        {/* No dismissal control: this wall is only lifted by a real
+            entitlement from /billing/status. The old cross called unlock() and
+            opened the gated rows to anyone who clicked it. */}
         <PaywallCta
           size={compact ? "sm" : "md"}
           title={`See the top ${count} ${label}`}

@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Flame, Lock, Sparkles } from "lucide-react";
 import { API_BASE, RankingRow, RankingsResponse, fetcher } from "@/lib/api";
 import { IqsTooltip } from "../IqsTooltip";
+import { usePremium } from "../premium/PremiumContext";
 
 function Row({
   r,
@@ -15,6 +16,12 @@ function Row({
   rank: number;
   blurred: boolean;
 }) {
+  // A CSS blur hides nothing from view-source, so a gated row renders DECOY
+  // values instead of the real ones — the ticker, name and score a paying
+  // subscriber gets never reach an unentitled visitor's DOM.
+  const ticker = blurred ? "XXXX" : r.ticker || "—";
+  const name = blurred ? "Premium pick" : r.name;
+  const score = blurred ? 88 : r.iqs;
   const content = (
     <div className="grid grid-cols-[22px_1fr_auto] gap-2 items-center px-4 py-2.5">
       <span className="text-[10px] font-mono font-bold text-faint tabular text-center">
@@ -22,18 +29,18 @@ function Row({
       </span>
       <div className="min-w-0">
         <div className="text-[12px] font-bold font-mono text-accent">
-          {r.ticker || "—"}
+          {ticker}
         </div>
-        <div className="text-[10px] text-mute truncate" title={r.name}>
-          {r.name}
+        <div className="text-[10px] text-mute truncate" title={blurred ? undefined : name}>
+          {name}
         </div>
       </div>
       <span className="text-right leading-tight">
         <span
           className="block text-[12px] font-bold tabular"
-          style={{ color: r.iqs >= 50 ? "var(--good)" : "var(--bad)" }}
+          style={{ color: score >= 50 ? "var(--good)" : "var(--bad)" }}
         >
-          {r.iqs.toFixed(1)}
+          {score.toFixed(1)}
         </span>
       </span>
     </div>
@@ -62,6 +69,7 @@ function Row({
 }
 
 export function TopScoresPanel() {
+  const { unlocked } = usePremium();
   const { data, isLoading } = useSWR<RankingsResponse>(
     `${API_BASE}/rankings?limit=15`,
     fetcher,
@@ -115,14 +123,17 @@ export function TopScoresPanel() {
             </ul>
           )}
 
-          {/* Blurred 5 → 1 (premium) */}
+          {/* Top 5 → 1. Real and clickable for a subscriber; decoyed, blurred
+              and behind the unlock panel for everyone else. This panel used to
+              hardcode the blur, so subscribers paid and still saw a blur. */}
           {blurredDesc.length > 0 && (
             <div className="relative border-t border-[var(--border)]">
               <ul className="divide-y divide-[var(--border)]">
                 {blurredDesc.map(({ row, rank }) => (
-                  <Row key={row.companyId} r={row} rank={rank} blurred />
+                  <Row key={row.companyId} r={row} rank={rank} blurred={!unlocked} />
                 ))}
               </ul>
+              {!unlocked && (
               <div
                 className="absolute inset-0 flex flex-col items-center justify-center text-center px-4"
                 style={{
@@ -155,6 +166,7 @@ export function TopScoresPanel() {
                   Unlock top picks
                 </Link>
               </div>
+              )}
             </div>
           )}
         </>
