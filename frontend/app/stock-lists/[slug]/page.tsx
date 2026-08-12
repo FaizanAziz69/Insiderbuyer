@@ -1,26 +1,11 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { use, useMemo, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Sparkles } from "lucide-react";
-import { DataTable, Column } from "@/components/DataTable";
+import { use, useState } from "react";
+import { ArrowLeft, ChevronRight, Sparkles } from "lucide-react";
 import { StandardStockListTable, StandardRow } from "@/components/StandardStockListTable";
-import { PriceTargetCell } from "@/components/PriceTargetCell";
-import {
-  API_BASE,
-  fetcher,
-  formatCurrency,
-  formatDate,
-  formatNumber,
-} from "@/lib/api";
+import { API_BASE, fetcher, formatDate } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
-import { CompanyLogo } from "@/components/CompanyLogo";
-import { Sparkline } from "@/components/Sparkline";
-import { Indicators } from "@/components/Indicators";
-import { WatchlistButton } from "@/components/WatchlistButton";
-import { IqsScoreCell } from "@/components/IqsScoreCell";
-import { PremiumValue } from "@/components/premium/PremiumValue";
-import { rankColumn } from "@/components/tableColumns";
 import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
 import { PoliticiansLeaderboard } from "@/components/PoliticiansLeaderboard";
 
@@ -34,19 +19,20 @@ interface RowLive {
   peRatio?: number | null;
   dividendYield?: number | null;
 }
-interface DetailRow {
-  ticker?: string | null;
+/**
+ * One row of a stock list as the API returns it — a superset of the standard
+ * row: 13F persona lists add holder fields, Blue Sky adds analyst-target
+ * fields. Every list renders through StandardStockListTable (client spec: one
+ * column order for all of them), so the only work left here is mapping this
+ * shape into StandardRow — see `toStandardRows`.
+ */
+interface DetailRow extends StandardRow {
+  /** Persona / 13F rows key on `symbol` where insider rows key on `ticker`. */
   symbol?: string;
-  name: string;
-  sector?: string | null;
-  marketCap?: number | null;
-  iqs?: number;
-  /** Insider-sourced (RankingRow) lists only. */
-  distinctBuyers?: number;
-  totalPurchaseValue?: number;
   avgCost?: number | null;
-  lastBuyDate?: string | null;
-  /** Blue Sky list — analyst target fields. */
+  /** Blue Sky list — analyst target fields. The standard table fetches its own
+   *  analyst coverage for the Analyst Price Target column, so these ride along
+   *  unread. */
   upsidePct?: number | null;
   targetMean?: number | null;
   recommendation?: string | null;
@@ -64,27 +50,15 @@ interface DetailResponse {
   rows: DetailRow[];
 }
 
-const KIND_BLURB: Record<ListKind, string> = {
-  sector:
-    "A sector screen of U.S. names where corporate insiders have been buying. Rows are ranked by our Insider Score and enriched with live price, volume, and the latest open-market Form 4 purchases.",
-  persona:
-    "The latest disclosed holdings for this investor or group — sourced from SEC 13F filings (or congressional disclosures where applicable) — paired with live quotes and, where the same name also has Form 4 activity, real insider cost basis.",
-  premium:
-    "Our premium ranking of the highest Insider Scores across the U.S. market. Every name is backed by real SEC Form 4 filings and recomputed daily.",
-  universe:
-    "A curated market-cap and thematic basket, refreshed with live quotes. Where a name also shows up in our Form 4 insider data, we attach its insider cost basis and most recent buy date.",
-  country:
-    "A universe of the most-traded names listed in this market, refreshed with live quotes and cross-referenced against U.S. insider buying activity where available.",
-};
-
-const DETAIL_REC_LABEL: Record<string, { label: string; color: string }> = {
-  strong_buy: { label: "Strong Buy", color: "var(--good)" },
-  buy: { label: "Buy", color: "var(--good)" },
-  hold: { label: "Hold", color: "var(--gold)" },
-  underperform: { label: "Underperform", color: "var(--bad)" },
-  sell: { label: "Sell", color: "var(--bad)" },
-  strong_sell: { label: "Strong Sell", color: "var(--bad)" },
-};
+/**
+ * Every list maps into the one standard row shape, so every list renders
+ * through the one canonical column order. Persona/13F rows only carry a subset
+ * of the insider fields; the rest stay undefined and the table either hides the
+ * column (no row has it) or dashes the cell with its coverage note.
+ */
+function toStandardRows(rows: DetailRow[]): StandardRow[] {
+  return rows.map((r) => ({ ...r, ticker: r.ticker || r.symbol || null }));
+}
 
 // Default cap-band selection per list so each opens true to its name. Large-Cap
 // opens on Mega (its constituents are all > $200B) and Penny Stocks on Small.
@@ -113,63 +87,13 @@ export default function StockListDetailPage({
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
 
-  // Real indicator data so every row's chips reflect live signals, not just a
-  // couple of heuristics: earnings-due-soon (next 7 days) and analyst coverage.
-  const { data: earningsData } = useSWR<{ rows: { symbol: string }[] }>(
-    `${API_BASE}/earnings/calendar?days=7`,
-    fetcher,
-    { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
-  );
-  const { data: analystData } = useSWR<{ rows: { symbol: string; recommendation: string | null }[] }>(
-    `${API_BASE}/market-stats/analyst-ratings`,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
-  );
-
-  const earningsSoon = useMemo(
-    () => new Set((earningsData?.rows || []).map((r) => r.symbol.toUpperCase())),
-    [earningsData],
-  );
-  const analystBuys = useMemo(() => {
-    const s = new Set<string>();
-    for (const r of analystData?.rows || []) {
-      if (r.recommendation && /buy/i.test(r.recommendation)) s.add(r.symbol.toUpperCase());
-    }
-    return s;
-  }, [analystData]);
-
   const rows = data?.rows || [];
-
-  // 7-day price sparklines — one batched request for the visible tickers
-  // (same cached /market-stats/spark path the top-gainers table uses).
-  const sparkKey = rows
-    .map((r) => (r.ticker || r.symbol || "").toUpperCase())
-    .filter(Boolean)
-    .slice(0, 60)
-    .join(",");
-  const { data: sparkData } = useSWR<{ spark: Record<string, number[]> }>(
-    sparkKey ? `${API_BASE}/market-stats/spark?symbols=${sparkKey}` : null,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
-  );
-  const sparkMap = sparkData?.spark || {};
   const listMissing = !isLoading && (!data || !Array.isArray(data.rows));
 
-
-  // Avg Cost / Last Buy are insider/holder concepts that the backend attaches
-  // to sector, persona, universe and country lists (Form 4 cost basis or 13F
-  // reported value). Only render the columns when at least one row carries a
-  // real value, so pure quote-only lists don't show a column of dashes.
-  const showLastBuy = rows.some((r) => r.lastBuyDate != null);
-  // Buyers / $ Bought come from the Insider Score RankingRow shape (sector + premium +
-  // universe lists that were cross-referenced against Form 4 data).
-  const showBuyers = rows.some((r) => (r.distinctBuyers ?? 0) > 0);
+  // Which of the two bottom-copy paragraphs fits this list — the insider one
+  // only when the rows actually carry Form 4 purchase values.
   const showBought = rows.some((r) => (r.totalPurchaseValue ?? 0) > 0);
-  // Every stock list carries the Insider Score column (client spec) — names
-  // without Form 4 activity simply render a dash.
-  const showIqs = true;
-  // Blue Sky list — analyst-upside columns + a #50 → #1 countdown rank.
-  const showUpside = rows.some((r) => r.upsidePct != null);
+  // Blue Sky counts down #50 → #1 by implied upside instead of ranking by cap.
   const isBlueSky = slug === "blue-sky";
 
   // Last-updated stamp: newest live quote is intraday, so just stamp "today".
@@ -248,376 +172,43 @@ export default function StockListDetailPage({
       <div className="card overflow-hidden">
         {isLoading ? (
           <div className="text-center text-mute py-10">Loading…</div>
-        ) : data?.kind === "persona" ? (
-          <DataTable<DetailRow>
-            rows={rows}
-            rowKey={(r, i) => (r.ticker || r.symbol || r.name || "") + i}
-            empty="No stocks in this list yet."
-            initialSort={
-              isBlueSky
-                ? { key: "upside", dir: "asc" } // weakest qualifier first → counts down to #1
-                : { key: "iqs", dir: "desc" } // scored names first; unscored sink (nulls last)
-            }
-            initialFilters={capDefault ? { marketCap: capDefault } : undefined}
-            rowClassName="hover:bg-[var(--accent-soft)]"
-            columns={[
-              rankColumn<DetailRow>(isBlueSky ? { countdownFrom: rows.length } : undefined),
-              {
-                key: "company",
-                label: "Company",
-                sortValue: (r) => r.ticker || r.symbol || "",
-                render: (r) => {
-                  const ticker = r.ticker || r.symbol || "";
-                  return (
-                    <span className="inline-flex items-center gap-2">
-                      {ticker && (
-                        <WatchlistButton ticker={ticker} variant="icon" size="sm" />
-                      )}
-                      <Link
-                        href={ticker ? `/companies/${encodeURIComponent(ticker)}` : "#"}
-                        className="flex items-center gap-2"
-                      >
-                        <CompanyLogo ticker={ticker} name={r.name} size={24} />
-                        <div className="min-w-0">
-                          <div className="font-mono text-[15px] font-bold text-accent hover:underline">
-                            {ticker || "—"}
-                          </div>
-                          <div className="truncate max-w-[260px] text-[13px] font-medium" style={{ color: "var(--text)" }}>
-                            {r.name}
-                          </div>
-                        </div>
-                      </Link>
-                    </span>
-                  );
-                },
-              },
-              {
-                key: "price",
-                label: "Price",
-                filterable: true,
-                filterType: "range",
-                filterLabelText: "Price ($)",
-                align: "center",
-                sortValue: (r) => r.live?.price ?? null,
-                render: (r) =>
-                  r.live?.price ? (
-                    <span className="tabular font-bold text-[14px]">
-                      ${r.live.price.toFixed(2)}
-                    </span>
-                  ) : (
-                    <span className="text-mute">—</span>
-                  ),
-              },
-              {
-                key: "changePct",
-                label: "Change %",
-                filterable: true,
-                filterType: "range",
-                filterLabelText: "Change %",
-                align: "center",
-                sortValue: (r) => r.live?.changePct ?? null,
-                render: (r) => {
-                  if (!r.live) return <span className="text-mute">—</span>;
-                  const up = r.live.changePct >= 0;
-                  return (
-                    <span
-                      className="tabular text-[13px] font-bold inline-flex items-center gap-0.5"
-                      style={{ color: up ? "var(--good)" : "var(--bad)" }}
-                    >
-                      {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                      {up ? "+" : ""}
-                      {r.live.changePct.toFixed(2)}%
-                    </span>
-                  );
-                },
-              },
-              {
-                key: "marketCap",
-                label: "Market Cap",
-                filterable: true,
-                filterType: "marketCapPreset",
-                filterLabelText: "Market Cap",
-                align: "center",
-                sortValue: (r) => r.live?.marketCap ?? r.marketCap ?? null,
-                render: (r) => (
-                  <span className="tabular text-mute text-[14px] font-bold">
-                    {r.live?.marketCap
-                      ? formatCurrency(r.live.marketCap)
-                      : r.marketCap
-                      ? formatCurrency(r.marketCap)
-                      : "—"}
-                  </span>
-                ),
-              },
-              ...(showIqs
-                ? ([
-                    {
-                      key: "iqs",
-                      pro: true,
-                      info: "Our 0–99 Insider Score — a daily composite of insider-buying quality (size vs market cap, cluster, seniority, stake growth, aggregate ownership), sector strength, management tone, momentum, insider caliber and dilution, minus a litigation deduction.",
-                      label: "Insider Score",
-                      align: "center",
-                      filterable: true,
-                      filterType: "range",
-                      filterLabelText: "Insider Score (0–100)",
-                      sortValue: (r) => r.iqs ?? null,
-                      render: (r) => (
-                  <PremiumValue label="Insider Score">
-                    <IqsScoreCell iqs={r.iqs} />
-                  </PremiumValue>
-                ),
-                    },
-                  ] as Column<DetailRow>[])
-                : []),
-              ...(showUpside
-                ? ([
-                    {
-                      key: "upside",
-                      pro: true,
-                      info: "Implied upside to the mean Wall Street 12-month price target versus the current price. Positive = target above price.",
-                      label: "Analyst Upside",
-                      align: "center",
-                      filterable: true,
-                      filterType: "range",
-                      filterLabelText: "Analyst Upside (%)",
-                      sortValue: (r) => r.upsidePct ?? null,
-                      render: (r) =>
-                        r.upsidePct != null ? (
-                          <span
-                            className="tabular text-[13.5px] font-bold"
-                            style={{ color: r.upsidePct >= 0 ? "var(--good)" : "var(--bad)" }}
-                          >
-                            {r.upsidePct >= 0 ? "+" : ""}
-                            {r.upsidePct.toFixed(0)}%
-                          </span>
-                        ) : (
-                          <span className="text-mute">—</span>
-                        ),
-                    },
-                    {
-                      key: "targetMean",
-                      label: "Avg Target",
-                      align: "right",
-                      sortValue: (r) => r.targetMean ?? null,
-                      render: (r) => (
-                        <span className="tabular text-[13px] font-bold text-soft">
-                          {r.targetMean != null ? `$${r.targetMean.toFixed(2)}` : "—"}
-                        </span>
-                      ),
-                    },
-                    {
-                      key: "recommendation",
-                      label: "Consensus",
-                      align: "center",
-                      sortValue: (r) => r.recommendation ?? "",
-                      render: (r) => {
-                        const rec = r.recommendation
-                          ? DETAIL_REC_LABEL[r.recommendation]
-                          : null;
-                        return rec ? (
-                          <span
-                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10.5px] font-bold uppercase tracking-wider"
-                            style={{
-                              background: `color-mix(in srgb, ${rec.color} 16%, transparent)`,
-                              color: rec.color,
-                            }}
-                          >
-                            {rec.label}
-                          </span>
-                        ) : (
-                          <span className="text-mute">—</span>
-                        );
-                      },
-                    },
-                  ] as Column<DetailRow>[])
-                : []),
-              ...(showBuyers
-                ? ([
-                    {
-                      key: "distinctBuyers",
-                      label: "Buyers",
-                      align: "center",
-                      sortValue: (r) => r.distinctBuyers ?? null,
-                      render: (r) => (
-                        <span className="tabular text-[14px] font-bold">
-                          {r.distinctBuyers ? formatNumber(r.distinctBuyers) : "—"}
-                        </span>
-                      ),
-                    },
-                  ] as Column<DetailRow>[])
-                : []),
-              ...(showBought
-                ? ([
-                    {
-                      key: "totalPurchaseValue",
-                      label: "$ Bought",
-                      align: "center",
-                      sortValue: (r) => r.totalPurchaseValue ?? null,
-                      render: (r) => (
-                        <span className="tabular text-[14px] font-bold" style={{ color: "var(--good)" }}>
-                          {r.totalPurchaseValue
-                            ? formatCurrency(r.totalPurchaseValue)
-                            : "—"}
-                        </span>
-                      ),
-                    },
-                  ] as Column<DetailRow>[])
-                : []),
-              ...(showLastBuy
-                ? ([
-                    {
-                      key: "lastBuyDate",
-                      label: "Last Buy",
-                      align: "center",
-                      sortValue: (r) => r.lastBuyDate ?? null,
-                      render: (r) => (
-                        <span className="tabular text-[14px] text-soft whitespace-nowrap">
-                          {r.lastBuyDate ? formatDate(r.lastBuyDate) : "—"}
-                        </span>
-                      ),
-                    },
-                  ] as Column<DetailRow>[])
-                : []),
-              {
-                key: "spark7d",
-                label: "7D",
-                sortable: false,
-                align: "center",
-                render: (r) => (
-                  <Sparkline data={sparkMap[(r.ticker || r.symbol || "").toUpperCase()]} />
-                ),
-              },
-              {
-                key: "indicators",
-                label: "Indicators",
-                sortable: false,
-                render: (r) => {
-                  const sym = (r.ticker || r.symbol || "").toUpperCase();
-                  return (
-                    <Indicators
-                      flags={{
-                        insiderTrade: (r.totalPurchaseValue || 0) > 0 ? "buy" : null,
-                        earningsDueSoon: sym ? earningsSoon.has(sym) : false,
-                        analystUpgrade: sym ? analystBuys.has(sym) : false,
-                        positiveNews: !!r.iqs && r.iqs >= 50,
-                      }}
-                    />
-                  );
-                },
-              },
-            ]}
-          />
-        ) : isBlueSky ? (
-          /* Blue Sky mirrors the Top Analyst Stocks layout (client spec):
-             # | Company | Price | Price Target | Top Analysts | Sector | Market Cap */
-          <DataTable<DetailRow>
-            rows={rows}
-            rowKey={(r, i) => (r.ticker || r.symbol || r.name || "") + i}
-            empty="No stocks in this list yet."
-            initialSort={{ key: "upside", dir: "asc" }}
-            rowClassName="hover:bg-[var(--accent-soft)]"
-            gate={{
-              label: "Blue Sky Stocks",
-              bullets: [
-                "Every 300%+ upside name, counted down to #1",
-                "Mean analyst targets behind each call",
-                "Top-analyst coverage counts per stock",
-                "Live prices and market caps",
-              ],
-            }}
-            columns={[
-              rankColumn<DetailRow>({ countdownFrom: rows.length }),
-              {
-                key: "company",
-                label: "Company",
-                sortValue: (r) => r.ticker || r.symbol || "",
-                render: (r) => {
-                  const ticker = r.ticker || r.symbol || "";
-                  return (
-                    <Link
-                      href={ticker ? `/companies/${encodeURIComponent(ticker)}` : "#"}
-                      className="flex items-center gap-2 group"
-                    >
-                      <CompanyLogo ticker={ticker} name={r.name} size={24} />
-                      <span className="min-w-0">
-                        <span className="block font-mono text-[14px] font-bold text-accent group-hover:underline leading-tight">
-                          {ticker || "—"}
-                        </span>
-                        <span className="block text-[12px] font-medium truncate max-w-[190px] leading-tight" style={{ color: "var(--text)" }}>
-                          {r.name}
-                        </span>
-                      </span>
-                    </Link>
-                  );
-                },
-              },
-              {
-                key: "price",
-                label: "Price",
-                align: "right",
-                sortValue: (r) => r.live?.price ?? null,
-                render: (r) => (
-                  <span className="tabular font-bold text-[14px]">
-                    {r.live?.price != null ? `$${r.live.price.toFixed(2)}` : "—"}
-                  </span>
-                ),
-              },
-              {
-                key: "upside",
-                label: "Price Target",
-                align: "center",
-                sortValue: (r) => r.upsidePct ?? null,
-                render: (r) => <PriceTargetCell target={r.targetMean ?? null} upsidePct={r.upsidePct ?? null} />,
-              },
-              {
-                key: "numAnalysts",
-                label: "Top Analysts",
-                align: "right",
-                info: "How many top Wall Street analysts we track currently rate this stock.",
-                sortValue: (r) => r.numAnalysts ?? 0,
-                render: (r) => (
-                  <span className="tabular text-[13px] text-mute">{r.numAnalysts ?? "—"}</span>
-                ),
-              },
-              {
-                key: "sector",
-                label: "Sector",
-                filterable: true,
-                sortValue: (r) => r.sector || "",
-                render: (r) => (
-                  <span className="text-[12.5px] text-mute">{r.sector || "—"}</span>
-                ),
-              },
-              {
-                key: "marketCap",
-                label: "Market Cap",
-                align: "right",
-                sortValue: (r) => r.live?.marketCap ?? r.marketCap ?? null,
-                render: (r) => (
-                  <span className="tabular text-[13.5px] text-mute font-bold">
-                    {formatCurrency(r.live?.marketCap ?? r.marketCap ?? null)}
-                  </span>
-                ),
-              },
-            ]}
-          />
         ) : (
-          /* Platform-standard layout — the exact Top Insider Scores column
-             sequence, enforced across every category/exchange/cap/style list. */
+          /* ONE table for every list — sector, persona, premium, universe,
+             country. The canonical column order lives in
+             STOCK_LIST_COLUMN_ORDER (StandardStockListTable) and nowhere else,
+             so it can no longer drift per branch: the persona and Blue Sky
+             branches that used to sit here each defined their own columns,
+             which is how persona lists ended up with an all-dash Insider Score
+             column and a "Buyers" column the client asked to remove.
+             Sorting, filtering, paging and paygating are unchanged — they all
+             still come from DataTable. */
           <StandardStockListTable
-            rows={rows as unknown as StandardRow[]}
+            rows={toStandardRows(rows)}
+            countdownRank={isBlueSky}
+            initialSort={isBlueSky ? { key: "upside", dir: "asc" } : undefined}
+            initialFilters={capDefault ? { marketCap: capDefault } : undefined}
             gate={
-              data?.kind === "premium"
+              isBlueSky
                 ? {
-                    label: "Top Insider Scores",
+                    label: "Blue Sky Stocks",
                     bullets: [
-                      "The full ranked list, not just the preview",
-                      "Insider Scores, ROI vs insider cost and signals",
-                      "Insider ownership with 90-day change",
-                      "Every new Form 4 the moment it lands",
+                      "Every 300%+ upside name, counted down to #1",
+                      "Mean analyst targets behind each call",
+                      "Top-analyst coverage counts per stock",
+                      "Live prices and market caps",
                     ],
                   }
-                : undefined
+                : data?.kind === "premium"
+                  ? {
+                      label: "Top Insider Scores",
+                      bullets: [
+                        "The full ranked list, not just the preview",
+                        "Insider Scores, ROI vs insider cost and signals",
+                        "Insider ownership with 90-day change",
+                        "Every new Form 4 the moment it lands",
+                      ],
+                    }
+                  : undefined
             }
           />
         )}
@@ -645,11 +236,9 @@ export default function StockListDetailPage({
           >
             About the {data.title} List
           </h2>
-          {data?.description && (
-            <p className="text-[15px] text-soft leading-relaxed mb-4">
-              {data.description}
-            </p>
-          )}
+          {/* Client spec: no stock-list descriptions on the list pages. The
+              API still sends `description` (STOCK_LIST_META) and it is still
+              used elsewhere — it just isn't rendered here. */}
           {showBought ? (
             <p className="text-[15px] text-soft leading-relaxed mb-5">
               Every name on this list is cross-referenced against real SEC Form
@@ -676,9 +265,9 @@ export default function StockListDetailPage({
           <p className="text-[15px] text-soft leading-relaxed mb-4">
             Hit the <strong>Filters</strong> button above the table to screen by
             market-cap band, sector, price, or daily move; or click any column
-            header to sort. Use the indicator chips on the right of each row to
-            see at a glance which stocks have recent insider trades, earnings due
-            soon, analyst upgrades, or fresh news coverage.
+            header to sort. Use the <strong>Signals</strong> chips on each row to
+            see at a glance which stocks have CEO buys, cluster buying, outsized
+            purchases, or repeat buyers.
           </p>
           <p className="text-[15px] text-soft leading-relaxed mb-5">
             Pair this list with our live{" "}

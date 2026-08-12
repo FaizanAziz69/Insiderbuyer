@@ -4,7 +4,8 @@ import Link from "next/link";
 import { ArrowLeft, Flame, TrendingDown, TrendingUp } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
-import { PaywallOverlay } from "@/components/PaywallOverlay";
+import { DataTable, Column } from "@/components/DataTable";
+import { rankColumn } from "@/components/tableColumns";
 
 interface HotSectorRow {
   rank: number;
@@ -49,6 +50,144 @@ export default function HotSectorsPage() {
   const sectors = data?.sectors ?? [];
   const sp = data?.sp500Ytd ?? null;
 
+  // Same eight columns the hand-rolled table showed, cell for cell — moved onto
+  // DataTable so the page can use the standard row wall (and so the ranking is
+  // sortable like every other list).
+  const columns: Column<HotSectorRow>[] = [
+    rankColumn<HotSectorRow>(),
+    {
+      key: "label",
+      label: "Sector",
+      sortValue: (s) => s.label,
+      render: (s) => (
+        <>
+          <span className="text-[15px] font-bold" style={{ color: "var(--text)" }}>
+            {s.label}
+          </span>
+          <span className="block text-[11px] text-mute">{s.companies} stocks tracked</span>
+        </>
+      ),
+    },
+    {
+      key: "hotScore",
+      label: "Heat Score",
+      info: "0–100 blend of breadth (40%), momentum (30%) and insider buy/sell pressure (30%) — see the methodology note under the table.",
+      sortValue: (s) => s.hotScore,
+      render: (s) => (
+        <div className="flex items-center gap-2 min-w-[130px]">
+          <div
+            className="h-1.5 rounded-full flex-1 overflow-hidden"
+            style={{ background: "var(--bg-3)", maxWidth: 90 }}
+          >
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${s.hotScore}%`, background: hotColor(s.hotScore) }}
+            />
+          </div>
+          <span
+            className="text-[14px] font-bold tabular w-7 text-right"
+            style={{ color: hotColor(s.hotScore) }}
+          >
+            {s.hotScore}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "gainers10",
+      label: "10%+ Gainers",
+      align: "right",
+      sortValue: (s) => s.gainerRatio,
+      render: (s) => (
+        <>
+          <span className="text-[14px] font-bold tabular" style={{ color: "var(--good)" }}>
+            {s.gainers10}
+          </span>
+          <span className="text-[12px] text-mute tabular"> / {s.companies}</span>
+          <span className="block text-[11px] text-mute tabular">
+            {Math.round(s.gainerRatio * 100)}% of sector
+          </span>
+        </>
+      ),
+    },
+    {
+      key: "netInsider",
+      label: "Insider Buys / Sells",
+      align: "right",
+      sortValue: (s) => s.netInsider,
+      render: (s) => (
+        <span className="tabular text-[13px]">
+          <span style={{ color: "var(--good)" }} className="font-bold">
+            {s.insiderBuys}
+          </span>
+          <span className="text-mute"> / </span>
+          <span style={{ color: "var(--bad)" }} className="font-bold">
+            {s.insiderSells}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "mtd",
+      label: "MTD",
+      align: "right",
+      sortValue: (s) => s.mtd,
+      render: (s) => (
+        <span
+          className="text-[14px] font-bold tabular"
+          style={{
+            color:
+              s.mtd == null ? "var(--text-mute)" : s.mtd >= 0 ? "var(--good)" : "var(--bad)",
+          }}
+        >
+          {pct(s.mtd, true)}
+        </span>
+      ),
+    },
+    {
+      key: "ytd",
+      label: "YTD",
+      align: "right",
+      sortValue: (s) => s.ytd,
+      render: (s) => (
+        <span
+          className="text-[14px] font-bold tabular"
+          style={{
+            color:
+              s.ytd == null ? "var(--text-mute)" : s.ytd >= 0 ? "var(--good)" : "var(--bad)",
+          }}
+        >
+          {pct(s.ytd, true)}
+        </span>
+      ),
+    },
+    {
+      key: "vsSp500",
+      label: "YTD vs S&P 500",
+      align: "right",
+      sortValue: (s) => s.vsSp500,
+      render: (s) => {
+        const vs = s.vsSp500;
+        return vs == null ? (
+          <span className="text-faint text-[13px]">—</span>
+        ) : (
+          <span
+            className="text-[14px] font-bold tabular inline-flex items-center gap-1 justify-end"
+            style={{ color: vs >= 0 ? "var(--good)" : "var(--bad)" }}
+          >
+            {vs >= 0 ? (
+              <TrendingUp className="h-3.5 w-3.5" />
+            ) : (
+              <TrendingDown className="h-3.5 w-3.5" />
+            )}
+            {vs >= 0 ? "+" : ""}
+            {vs.toFixed(2)} pp
+          </span>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <Link
@@ -91,157 +230,38 @@ export default function HotSectorsPage() {
         </p>
       </header>
 
-      {/* Paid product (client spec): the sector ranking sits behind the wall,
-          height-clipped as a teaser. */}
-      <PaywallOverlay
-        title="Hot Sectors is a Premium feature"
-        subtitle="See which themes are running hottest right now — and the insider money behind them"
-        bullets={[
-          "Every sector ranked by live heat score",
-          "10%+ gainer breadth and momentum per theme",
-          "Insider buy/sell pressure across each basket",
-          "YTD performance vs the S&P 500",
-        ]}
-        peekHeight={420}
-      >
+      {/* Paid product (client spec): Hot Sectors is one of the paywalled
+          products, so it uses the site-standard row wall — the same
+          `gate={{ label, bullets }}` every other gated leaderboard passes to
+          DataTable. It replaces a PaywallOverlay that blurred the whole table
+          with CSS: that kept every sector's real numbers in the DOM, where
+          view-source reads them. The wall renders only the free rows. */}
       <div className="card overflow-hidden">
         {isLoading ? (
           <div className="text-center text-mute py-12">Loading sectors…</div>
-        ) : sectors.length === 0 ? (
-          <div className="text-center text-mute py-12">No sector data available.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="table-base">
-              <thead>
-                <tr>
-                  <th className="text-left">#</th>
-                  <th className="text-left">Sector</th>
-                  <th className="text-left">Heat Score</th>
-                  <th className="text-right">10%+ Gainers</th>
-                  <th className="text-right">Insider Buys / Sells</th>
-                  <th className="text-right">MTD</th>
-                  <th className="text-right">YTD</th>
-                  <th className="text-right">YTD vs S&amp;P 500</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sectors.map((s) => {
-                  const ratioPct = Math.round(s.gainerRatio * 100);
-                  const vs = s.vsSp500;
-                  return (
-                    <tr key={s.key}>
-                      <td className="text-left">
-                        <span className="text-[13px] font-mono font-bold text-faint">
-                          {s.rank}
-                        </span>
-                      </td>
-                      <td className="text-left">
-                        <span className="text-[15px] font-bold" style={{ color: "var(--text)" }}>
-                          {s.label}
-                        </span>
-                        <span className="block text-[11px] text-mute">
-                          {s.companies} stocks tracked
-                        </span>
-                      </td>
-                      <td className="text-left">
-                        <div className="flex items-center gap-2 min-w-[130px]">
-                          <div
-                            className="h-1.5 rounded-full flex-1 overflow-hidden"
-                            style={{ background: "var(--bg-3)", maxWidth: 90 }}
-                          >
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${s.hotScore}%`,
-                                background: hotColor(s.hotScore),
-                              }}
-                            />
-                          </div>
-                          <span
-                            className="text-[14px] font-bold tabular w-7 text-right"
-                            style={{ color: hotColor(s.hotScore) }}
-                          >
-                            {s.hotScore}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="text-right">
-                        <span className="text-[14px] font-bold tabular" style={{ color: "var(--good)" }}>
-                          {s.gainers10}
-                        </span>
-                        <span className="text-[12px] text-mute tabular">
-                          {" "}/ {s.companies}
-                        </span>
-                        <span className="block text-[11px] text-mute tabular">
-                          {ratioPct}% of sector
-                        </span>
-                      </td>
-                      <td className="text-right tabular text-[13px]">
-                        <span style={{ color: "var(--good)" }} className="font-bold">
-                          {s.insiderBuys}
-                        </span>
-                        <span className="text-mute"> / </span>
-                        <span style={{ color: "var(--bad)" }} className="font-bold">
-                          {s.insiderSells}
-                        </span>
-                      </td>
-                      <td className="text-right">
-                        <span
-                          className="text-[14px] font-bold tabular"
-                          style={{
-                            color:
-                              s.mtd == null
-                                ? "var(--text-mute)"
-                                : s.mtd >= 0
-                                  ? "var(--good)"
-                                  : "var(--bad)",
-                          }}
-                        >
-                          {pct(s.mtd, true)}
-                        </span>
-                      </td>
-                        <td className="text-right">
-                        <span
-                          className="text-[14px] font-bold tabular"
-                          style={{
-                            color:
-                              s.ytd == null
-                                ? "var(--text-mute)"
-                                : s.ytd >= 0
-                                  ? "var(--good)"
-                                  : "var(--bad)",
-                          }}
-                        >
-                          {pct(s.ytd, true)}
-                        </span>
-                      </td>
-                      <td className="text-right">
-                        {vs == null ? (
-                          <span className="text-faint text-[13px]">—</span>
-                        ) : (
-                          <span
-                            className="text-[14px] font-bold tabular inline-flex items-center gap-1 justify-end"
-                            style={{ color: vs >= 0 ? "var(--good)" : "var(--bad)" }}
-                          >
-                            {vs >= 0 ? (
-                              <TrendingUp className="h-3.5 w-3.5" />
-                            ) : (
-                              <TrendingDown className="h-3.5 w-3.5" />
-                            )}
-                            {vs >= 0 ? "+" : ""}
-                            {vs.toFixed(2)} pp
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable<HotSectorRow>
+            rows={sectors}
+            rowKey={(s) => s.key}
+            initialSort={{ key: "hotScore", dir: "desc" }}
+            empty="No sector data available."
+            columns={columns}
+            gate={{
+              label: "Hot Sectors",
+              // The site default is FREE_ROWS (6), but this table is only ~8
+              // rows long — six free would give the whole ranking away. Three
+              // names the hottest themes and still sells the rest.
+              freeRows: 3,
+              bullets: [
+                "Every sector ranked by live heat score",
+                "10%+ gainer breadth and momentum per theme",
+                "Insider buy/sell pressure across each basket",
+                "YTD performance vs the S&P 500",
+              ],
+            }}
+          />
         )}
       </div>
-      </PaywallOverlay>
 
       {/* Methodology note */}
       <div

@@ -59,6 +59,45 @@ export interface StandardRow {
   } | null;
 }
 
+/**
+ * ── THE canonical column order ────────────────────────────────────────────
+ * The single source of truth for every stock list on the platform (client
+ * spec: every list follows the Top Insider Scores layout). Reorder or trim
+ * THIS ARRAY and every list follows in one edit — the column bodies below are
+ * keyed, not sequenced, so nothing else has to move.
+ *
+ * The client's verbatim list is: Company name · Analyst price target · Price ·
+ * Insider Score · $ Bought · Signals · Last Updated · Market Cap · Sector ·
+ * PE Ratio · 7D chart (and "Insider Buyers Removal", which is done — no
+ * buyer-count column exists any more).
+ *
+ * Three keys are not in that list. ROI and Why sit immediately after Insider
+ * Score — the client confirmed both stay, in that position ("Insider Score
+ * first column ROI"). Ownership was never mentioned either way and is retained
+ * deliberately: it carries real data on scored lists, so dropping it silently
+ * would be the worse error. Deleting a key from this array is all it takes to
+ * drop the column everywhere.
+ */
+export const STOCK_LIST_COLUMN_ORDER = [
+  "rank", // "#" — not a client column, it's the list's own numbering
+  "ticker", // Company name
+  "upside", // Analyst price target
+  "price",
+  "iqs", // Insider Score
+  "roi", // not in the client's list; confirmed to stay, in this slot
+  "why", // not in the client's list; confirmed to stay, in this slot
+  "bought", // $ Bought
+  "indicators", // Signals
+  "lastUpdated", // Last Updated (was "Last Buy")
+  "marketCap",
+  "sector",
+  "pe", // PE Ratio
+  "ownership", // not in the client's list; retained deliberately
+  "spark7d", // 7D chart
+] as const;
+
+export type StockListColumnKey = (typeof STOCK_LIST_COLUMN_ORDER)[number];
+
 const Ind = ({ label, color }: { label: string; color: string }) => (
   <span
     className="inline-flex items-center rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wider"
@@ -91,20 +130,30 @@ const NoInsiderValue = ({ row }: { row: StandardRow }) => {
 
 /**
  * Platform-standard stock-list table: the exact Top Insider Scores column
- * sequence — # | Company | Analyst Price Target | Price | Insider Score | ROI |
- * Why | $ Bought | Signals | Last Updated | Market Cap | Sector | P/E |
- * Insider Ownership | 7D — enforced uniformly across every category /
- * exchange / market-cap / style list. Fetches its own analyst coverage and
- * 7-day sparklines (batched, capped) for the rows it shows.
+ * sequence, taken from `STOCK_LIST_COLUMN_ORDER` above and enforced uniformly
+ * across every category / exchange / market-cap / style / persona list.
+ * Fetches its own analyst coverage and 7-day sparklines (batched, capped) for
+ * the rows it shows.
  */
 export function StandardStockListTable({
   rows,
   pageSize,
   gate,
+  initialSort,
+  initialFilters,
+  countdownRank,
 }: {
   rows: StandardRow[];
   pageSize?: number;
   gate?: { label: string; freeRows?: number; bullets?: string[] };
+  /** Presentation-only knobs. None of them can change the column set or its
+   *  order — that lives in STOCK_LIST_COLUMN_ORDER and nowhere else.
+   *  `initialSort` falls back to Market Cap when the requested column was
+   *  dropped for having no data on this list; `countdownRank` numbers the "#"
+   *  column downwards (Blue Sky counts #50 → #1). */
+  initialSort?: { key: StockListColumnKey; dir: "asc" | "desc" };
+  initialFilters?: Record<string, string>;
+  countdownRank?: boolean;
 }) {
   // Analyst coverage — batched for the first 150 tickers (same budget the Top
   // Insider Scores page uses). Dotted symbols are included: the endpoint
@@ -150,9 +199,13 @@ export function StandardStockListTable({
   const cap = (r: StandardRow) => r.live?.marketCap ?? r.marketCap ?? null;
   const pe = (r: StandardRow) => r.live?.peRatio ?? r.peRatio ?? null;
 
-  const columns: Column<StandardRow>[] = [
-    rankColumn<StandardRow>(),
-    {
+  // Column bodies, KEYED — never sequenced here. The order the reader sees is
+  // STOCK_LIST_COLUMN_ORDER's, applied once, below.
+  const byKey: Record<StockListColumnKey, Column<StandardRow>> = {
+    rank: rankColumn<StandardRow>(
+      countdownRank ? { countdownFrom: rows.length } : undefined,
+    ),
+    ticker: {
       key: "ticker",
       label: "Company",
       sortValue: (r) => r.ticker || "",
@@ -187,7 +240,7 @@ export function StandardStockListTable({
         );
       },
     },
-    {
+    upside: {
       key: "upside",
       label: "Analyst Price Target",
       align: "center",
@@ -197,7 +250,7 @@ export function StandardStockListTable({
         return <PriceTargetCell target={u?.target ?? null} upsidePct={u?.upside ?? null} />;
       },
     },
-    {
+    price: {
       key: "price",
       label: "Price",
       align: "right",
@@ -227,7 +280,7 @@ export function StandardStockListTable({
         );
       },
     },
-    {
+    iqs: {
       key: "iqs",
       label: "Insider Score",
       pro: true,
@@ -243,7 +296,7 @@ export function StandardStockListTable({
           <NoInsiderValue row={r} />
         ),
     },
-    {
+    roi: {
       key: "roi",
       label: "ROI",
       pro: true,
@@ -265,7 +318,7 @@ export function StandardStockListTable({
           </PremiumValue>
         ),
     },
-    {
+    why: {
       key: "why",
       label: "Why",
       sortable: false,
@@ -273,7 +326,7 @@ export function StandardStockListTable({
       render: (r) =>
         r.reasoning ? <ReasoningTip text={r.reasoning} /> : <NoInsiderValue row={r} />,
     },
-    {
+    bought: {
       key: "bought",
       label: "$ Bought",
       align: "right",
@@ -287,7 +340,7 @@ export function StandardStockListTable({
           <NoInsiderValue row={r} />
         ),
     },
-    {
+    indicators: {
       key: "indicators",
       label: "Signals",
       sortable: false,
@@ -307,7 +360,7 @@ export function StandardStockListTable({
         );
       },
     },
-    {
+    lastUpdated: {
       key: "lastUpdated",
       label: "Last Updated",
       align: "right",
@@ -321,7 +374,7 @@ export function StandardStockListTable({
         );
       },
     },
-    {
+    marketCap: {
       key: "marketCap",
       label: "Market Cap",
       align: "right",
@@ -333,7 +386,7 @@ export function StandardStockListTable({
         <span className="tabular text-[13.5px] text-mute font-bold">{formatCurrency(cap(r))}</span>
       ),
     },
-    {
+    sector: {
       key: "sector",
       label: "Sector",
       filterable: true,
@@ -344,7 +397,7 @@ export function StandardStockListTable({
         </span>
       ),
     },
-    {
+    pe: {
       key: "pe",
       label: "P/E Ratio",
       align: "right",
@@ -358,7 +411,7 @@ export function StandardStockListTable({
         );
       },
     },
-    {
+    ownership: {
       key: "ownership",
       label: "Insider Ownership",
       pro: true,
@@ -392,7 +445,7 @@ export function StandardStockListTable({
           </PremiumValue>
         ),
     },
-    {
+    spark7d: {
       key: "spark7d",
       label: "7D",
       sortable: false,
@@ -406,7 +459,10 @@ export function StandardStockListTable({
         );
       },
     },
-  ];
+  };
+
+  // The one place a reader's column sequence is decided.
+  const columns: Column<StandardRow>[] = STOCK_LIST_COLUMN_ORDER.map((k) => byKey[k]);
 
   // Acceptance rule (QA audit): never ship a header that is empty in 100% of
   // rows. The standard SEQUENCE is preserved; columns with zero coverage for
@@ -421,6 +477,13 @@ export function StandardStockListTable({
   // makes the thing a stock list, and Market Cap is also the `initialSort`
   // target. A column whose data arrives on its own request stays put until
   // that request answers, so it doesn't flash in after first paint.
+  //
+  // Coverage is measured on the RAW row data, never on what the visitor is
+  // entitled to see — that is what makes this compose with the inline column
+  // paygating. A locked Insider Score still counts as data, so the column
+  // survives and shows its PRO pill and unlock CTA (client spec: ungated lists
+  // stay browsable with premium COLUMNS gated in place); and a column dropped
+  // here is gone from `visible`, so a hidden column can never render a gate.
   const hasAny = {
     upside:
       !analystData ||
@@ -449,7 +512,12 @@ export function StandardStockListTable({
   // rows carry no verdict at all rather than guess at a reason.
   const coverageLine = (() => {
     if (!rows.length || INSIDER_COLUMN_KEYS.some((k) => hasAny[k])) return null;
-    const verdicts = new Set(rows.map((r) => r.insiderCoverage).filter(Boolean));
+    // "covered" is not an explanation for a blank column, so it never picks the
+    // wording — a 13F persona list whose rows are all "covered" but carry no
+    // Form 4 aggregates says nothing rather than claiming it isn't covered.
+    const verdicts = new Set(
+      rows.map((r) => r.insiderCoverage).filter((v) => !!v && v !== "covered"),
+    );
     if (!verdicts.size) return null;
     if (verdicts.has("lookup-unavailable"))
       return "We couldn’t check insider filings for every name on this list right now, so the insider columns are hidden.";
@@ -458,13 +526,22 @@ export function StandardStockListTable({
     return "These listings aren’t in our SEC Form 4 coverage yet, so the insider columns are hidden.";
   })();
 
+  // The default sort must name a column that survived the coverage filter
+  // above — a list that lost its Insider Score column can't open sorted by it.
+  // Market Cap is the fallback because it always renders (see `hasAny`).
+  const sortSpec =
+    initialSort && visible.some((c) => c.key === initialSort.key)
+      ? initialSort
+      : ({ key: "marketCap", dir: "desc" } as const);
+
   return (
     <>
       <DataTable<StandardRow>
         rows={rows}
         rowKey={(r, i) => `${r.ticker || "row"}-${i}`}
         pageSize={pageSize}
-        initialSort={{ key: "marketCap", dir: "desc" }}
+        initialSort={sortSpec}
+        initialFilters={initialFilters}
         empty="No stocks match the current filters."
         columns={visible}
         gate={gate}
