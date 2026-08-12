@@ -761,6 +761,15 @@ export class FmpService {
     return data;
   }
 
+  /** True when we asked FMP for this symbol's profile recently and it had none
+   *  (a delisted or OTC ticker FMP doesn't carry). The miss is remembered for
+   *  PROFILE_TTL_MS like any other answer, so a caller filling gaps under a
+   *  budget can skip symbols a retry could only waste it on. */
+  hasFreshProfileMiss(symbolRaw: string): boolean {
+    const c = this.profileCache.get((symbolRaw || '').toUpperCase());
+    return !!c && c.data == null && Date.now() - c.ts < this.PROFILE_TTL_MS;
+  }
+
   /**
    * Sector / industry / market cap / trailing P/E for MANY symbols — the
    * gap-filler for table rows whose own source carries no fundamentals (penny
@@ -848,11 +857,20 @@ export class FmpService {
    * affordable source for lists too large to look up symbol-by-symbol (the
    * 1,000-row penny screener would otherwise need 1,000 profile requests).
    *
-   * The response is multi-megabyte and takes seconds, so the fetch is shared
-   * across concurrent callers and RACED against `budgetMs`: a caller that runs
-   * out of time gets an empty map while the fetch keeps running and fills the
-   * cache for the next request. `budgetMs: 0` (the default) never waits at all
-   * — pure cache read plus a background warm.
+   * The response is multi-megabyte and takes ~3s, so the fetch is shared across
+   * concurrent callers and RACED against `budgetMs`: a caller that runs out of
+   * time gets an empty map.
+   *
+   * IMPORTANT — the caller MUST give this a real budget on the request that
+   * needs the data. We run on serverless functions, which are frozen the moment
+   * a response is sent: a fetch nobody is awaiting simply never finishes, so
+   * "fire it and let it warm the cache" does not work here (measured in
+   * production: 9 of 500 penny rows ever got a sector). A timed-out race
+   * therefore also ABANDONS the shared promise, because a pending request on a
+   * frozen instance may never settle and leaving it in the in-flight map would
+   * make every later caller race a dead promise forever — the exact bug that
+   * kept the cache permanently empty. Start the call early (concurrently with
+   * the rest of the page build) and await it where the data is used.
    */
   async getScreenerSnapshot(
     params: Record<string, any>,
@@ -865,7 +883,9 @@ export class FmpService {
     if (hit && Date.now() - hit.ts < this.SCREENER_TTL_MS) return hit.map;
     let inflight = this.screenerInflight.get(key);
     if (!inflight) {
-      inflight = (async () => {
+      // eslint-disable-next-line prefer-const -- referenced by its own finally
+      let self: Promise<Map<string, FmpScreenerRow>>;
+      self = (async () => {
         try {
           const rows = await this.get('company-screener', params);
           const map = new Map<string, FmpScreenerRow>();
@@ -884,20 +904,30 @@ export class FmpService {
           if (map.size) this.screenerCache.set(key, { ts: Date.now(), map });
           return map;
         } finally {
-          this.screenerInflight.delete(key);
+          // Only clear our OWN entry — an abandoned attempt that finishes late
+          // must not evict the fresh attempt a later request registered.
+          if (this.screenerInflight.get(key) === self) this.screenerInflight.delete(key);
         }
       })();
-      this.screenerInflight.set(key, inflight);
+      inflight = self;
+      this.screenerInflight.set(key, self);
     }
     const budgetMs = Math.max(0, opts.budgetMs ?? 0);
-    if (!budgetMs) return empty; // warm only — never block the caller
-    return Promise.race([
-      inflight,
-      new Promise<Map<string, FmpScreenerRow>>((resolve) => {
-        const t = setTimeout(() => resolve(empty), budgetMs);
+    if (!budgetMs) return empty; // cache read only — no warming, see above
+    const pending = inflight;
+    const won = await Promise.race([
+      pending.then((map) => map).catch(() => null),
+      new Promise<null>((resolve) => {
+        const t = setTimeout(() => resolve(null), budgetMs);
         t.unref?.();
       }),
     ]);
+    if (won) return won;
+    // Lost the race: stop sharing this attempt so the next request starts a
+    // fresh one instead of racing a promise that may never settle. If it does
+    // finish, its own `finally` is a no-op and the cache write still lands.
+    if (this.screenerInflight.get(key) === pending) this.screenerInflight.delete(key);
+    return empty;
   }
 
   // ── Fallbacks for the company profile page (SEC EDGAR is tried first) ──

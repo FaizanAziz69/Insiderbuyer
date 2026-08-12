@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { IqsService, RankingRow } from '../iqs/iqs.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
-import { FmpService } from '../fmp/fmp.service';
+import { FmpScreenerRow, FmpService } from '../fmp/fmp.service';
 import { ThirteenFService } from './thirteenf.service';
 import { CongressionalService } from '../congressional/congressional.service';
 import { SecClient } from '../ingestion/sec.client';
@@ -143,18 +143,23 @@ const INSIDER_COVERAGE_NOTE: Record<InsiderCoverage, string | null> = {
 // instead of pushing a single request past the ~10s gateway limit.
 const FUNDAMENTALS_BUDGET_MS = 2000;
 const FUNDAMENTALS_MAX_SYMBOLS = 150;
-/** Above this row count, per-symbol lookups are pointless (they could never
- *  cover the list) and the request is already the heaviest one we serve — such
- *  lists are filled from the cached screener snapshot only. */
+/** Above this row count the screener snapshot below carries the list, and the
+ *  per-symbol top-up gets a much smaller allowance (see fillFundamentalGaps). */
 const FUNDAMENTALS_PER_SYMBOL_MAX_ROWS = 200;
+const FUNDAMENTALS_LARGE_LIST_SYMBOLS = 40;
+const FUNDAMENTALS_LARGE_LIST_BUDGET_MS = 800;
 /** Penny rows are far too many for per-symbol profiles — their sector/cap comes
- *  from one cached `company-screener` snapshot of the sub-$5 market instead. */
+ *  from one `company-screener` snapshot of the sub-$5 market instead. Measured:
+ *  2,052 symbols, ~890KB, ~2.8s per call, cached 12h. */
 const PENNY_SNAPSHOT_QUERY = {
   priceLowerThan: 5,
   priceMoreThan: 0.01,
   isActivelyTrading: true,
   limit: 5000,
 };
+/** The snapshot is started concurrently with the page build, so this budget is
+ *  mostly absorbed by work that had to happen anyway. */
+const PENNY_SNAPSHOT_BUDGET_MS = 4500;
 
 export interface StockListFilters {
   country?: string;
@@ -448,46 +453,89 @@ export class StockListsService {
     return out;
   }
 
-  /** Blue Sky Stocks — every name in our combined coverage universe whose
-   *  average analyst price target implies >= 300% upside, best 50 by upside.
-   *  Candidates come from our Form 4 rankings, the live penny-stock screener
-   *  (where extreme-upside targets actually live), and the sector baskets. */
+  private blueSkyCache: { ts: number; ttl: number; rows: any[] } | null = null;
+  private readonly BLUE_SKY_TTL_MS = 30 * 60_000;
+  private readonly BLUE_SKY_PARTIAL_TTL_MS = 90_000;
+  /** Leaves room for the rest of the request (rankings join, live quotes, the
+   *  fundamentals pass) inside the ~10s gateway limit. */
+  private readonly BLUE_SKY_SCAN_BUDGET_MS = 5000;
+
+  /**
+   * Blue Sky Stocks — every name in our combined coverage universe whose average
+   * analyst price target implies >= 300% upside, best 50 by upside. Candidates
+   * come from our Form 4 rankings, the live penny-stock screener (where
+   * extreme-upside targets actually live), and the sector baskets.
+   *
+   * This is the most expensive list we build: the candidate pool runs into the
+   * thousands and every 250-symbol analyst batch costs a Yahoo quote batch plus
+   * per-symbol summary lookups. Measured in production: 8.5s cold against a ~10s
+   * gateway (a 504 during one QA sweep), 0.7s warm off MarketStatsService's
+   * 20-minute batch cache. Three changes keep a cold request inside the budget:
+   *   • the two pool sources are fetched concurrently, and the rankings result is
+   *     reused for the Insider Score join instead of being asked for twice;
+   *   • the analyst scan runs under a wall-clock deadline — batches still in
+   *     flight when it expires are abandoned, and since each batch caches itself
+   *     on completion, that work is what makes the NEXT request warm;
+   *   • the built rows are cached, briefly when the scan was cut short so it
+   *     converges, and a truncated scan that found nothing serves the previous
+   *     (stale) rows rather than an empty table.
+   */
   private async buildBlueSkyRows(): Promise<any[]> {
+    if (this.blueSkyCache && Date.now() - this.blueSkyCache.ts < this.blueSkyCache.ttl) {
+      return this.blueSkyCache.rows;
+    }
     const MIN_UPSIDE = 300;
     const candidates = new Set<string>();
-    try {
-      const { rows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
-      for (const r of rows) if (r.ticker) candidates.add(r.ticker.toUpperCase());
-    } catch { /* rankings unavailable — screener pool still applies */ }
-    try {
-      for (const q of await this.marketStats.getPennyStocks(500)) {
-        candidates.add(q.symbol.toUpperCase());
-      }
-    } catch { /* screener unavailable */ }
+    const [rankResult, pennyPool] = await Promise.all([
+      this.iqs
+        .getRankings({ limit: 500, offset: 0 })
+        .catch(() => ({ total: 0, rows: [] as RankingRow[] })),
+      this.marketStats.getPennyStocks(500).catch(() => []),
+    ]);
+    for (const r of rankResult.rows) if (r.ticker) candidates.add(r.ticker.toUpperCase());
+    for (const q of pennyPool) candidates.add(q.symbol.toUpperCase());
     for (const b of HOT_SECTOR_BASKETS) for (const t of b.tickers) candidates.add(t.toUpperCase());
     for (const list of Object.values(SECTOR_UNIVERSE)) for (const t of list) candidates.add(t.toUpperCase());
 
-    // Analyst ratings are built in 250-symbol batches (the builder's cap);
-    // run batches in parallel so the whole scan stays inside one request.
+    // Analyst ratings are built in 250-symbol batches (the builder's cap); run
+    // the batches in parallel — but stop waiting at the deadline rather than
+    // letting the slowest batch push the whole request past the gateway limit.
     const syms = Array.from(candidates);
     const chunks: string[][] = [];
     for (let i = 0; i < syms.length; i += 250) chunks.push(syms.slice(i, i + 250));
-    const settled = await Promise.allSettled(
-      chunks.map((c) => this.marketStats.getAnalystRatings(c)),
+    const batches = chunks.map((c) =>
+      this.marketStats.getAnalystRatings(c).catch(() => []),
     );
-    const all = settled.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+    const harvest: Array<Awaited<(typeof batches)[number]>[number]> = [];
+    let done = 0;
+    // Each batch records itself the moment it lands, so a deadline cut keeps
+    // everything that finished in time instead of discarding the whole wave.
+    const tracked = batches.map((p) =>
+      p.then((rows) => {
+        done++;
+        harvest.push(...rows);
+      }),
+    );
+    await Promise.race([
+      Promise.all(tracked),
+      new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, this.BLUE_SKY_SCAN_BUDGET_MS);
+        t.unref?.();
+      }),
+    ]);
+    const truncated = done < batches.length;
+    const all = harvest;
 
     const qualifying = all
       .filter((r) => (r.upsidePct ?? -1) >= MIN_UPSIDE && (r.price ?? 0) > 0)
       .sort((a, b) => (b.upsidePct ?? 0) - (a.upsidePct ?? 0))
       .slice(0, 50);
 
-    // Attach Insider Scores (every list carries the column) — v2 + v1.
-    let iqsByTicker = new Map<string | null, { iqs: number }>();
-    try {
-      const { rows: rankRows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
-      iqsByTicker = new Map(rankRows.map((r) => [r.ticker, { iqs: r.iqs }]));
-    } catch { /* scores unavailable */ }
+    // Insider Scores for the join come from the pool query above (every list
+    // carries the column) — no second trip to the rankings.
+    const iqsByTicker = new Map<string | null, { iqs: number }>(
+      rankResult.rows.map((r) => [r.ticker, { iqs: r.iqs }]),
+    );
 
     const rows = qualifying.map((r) => ({
       ticker: r.symbol,
@@ -501,7 +549,23 @@ export class StockListsService {
       numAnalysts: r.numAnalysts,
     }));
     const live = await this.fetchLiveQuotes(rows.map((r) => r.ticker));
-    return this.enrichRows(rows, live);
+    const out = this.enrichRows(rows, live) as any[];
+    // A cut-short scan that found nothing must not blank the page — serve the
+    // previous rows (stale beats empty) and retry on the short TTL.
+    if (truncated && !out.length && this.blueSkyCache?.rows.length) {
+      this.blueSkyCache = {
+        ts: Date.now(),
+        ttl: this.BLUE_SKY_PARTIAL_TTL_MS,
+        rows: this.blueSkyCache.rows,
+      };
+      return this.blueSkyCache.rows;
+    }
+    this.blueSkyCache = {
+      ts: Date.now(),
+      ttl: truncated ? this.BLUE_SKY_PARTIAL_TTL_MS : this.BLUE_SKY_TTL_MS,
+      rows: out,
+    };
+    return out;
   }
 
   /** Hot Sectors — rank the thematic baskets by month-to-date 10%+ gainers
@@ -646,6 +710,20 @@ export class StockListsService {
    * a weaker value, and no financial figure is synthesized.
    */
   async getDetail(slug: string, filters: StockListFilters): Promise<StockListDetail | null> {
+    // Kick the penny-stock sector snapshot off BEFORE the page build so its ~3s
+    // FMP call overlaps the (also slow) Yahoo screener build instead of adding to
+    // it — see fillFundamentalGaps for why it cannot be warmed in the background
+    // on serverless. Skipped for a non-US exchange filter, which builds this list
+    // from the scored rankings rather than the U.S. screener.
+    const ex = (filters.exchange || '').toLowerCase();
+    const usPennyList =
+      slug === 'penny-stocks' && (!ex || /^(all|us|u\.s\.?|usa|united states)$/.test(ex));
+    const snapshot =
+      usPennyList && this.fmp.enabled
+        ? this.fmp.getScreenerSnapshot(PENNY_SNAPSHOT_QUERY, {
+            budgetMs: PENNY_SNAPSHOT_BUDGET_MS,
+          })
+        : null;
     const detail = await this.buildDetail(slug, filters);
     if (!detail) return null;
     // OPTIONAL page window (see StockListFilters.limit) — applied before the
@@ -660,7 +738,7 @@ export class StockListsService {
           )
         : all;
     const withInsider = await this.annotateInsiderCoverage(paged);
-    detail.rows = (await this.fillFundamentalGaps(slug, withInsider)) as any[];
+    detail.rows = (await this.fillFundamentalGaps(slug, withInsider, snapshot)) as any[];
     return detail;
   }
 
@@ -1059,11 +1137,23 @@ export class StockListsService {
    * Cost control: only rows that are actually missing something are looked up,
    * capped at FUNDAMENTALS_MAX_SYMBOLS per request and bounded by a wall-clock
    * budget inside FmpService, with 24h caches so repeat views converge to full
-   * coverage. Penny stocks (up to 1,000 rows) are far past what per-symbol
-   * profiles can serve, so they read a single cached screener snapshot of the
-   * sub-$5 market and never wait on it.
+   * coverage.
+   *
+   * Penny stocks (up to 1,000 rows) are far past what per-symbol profiles can
+   * serve, so their sector/cap comes from ONE `company-screener` snapshot of the
+   * sub-$5 market (2,052 symbols in a single ~3s call), started by getDetail so
+   * it overlaps the page build. The first version of this shipped that call as a
+   * non-blocking background warm, which does not work on serverless — the
+   * function is frozen as soon as the response is sent, so the fetch never
+   * finished and production measured 9 of 500 rows with a sector. It is awaited
+   * now; whatever the snapshot doesn't cover falls back to a small, hard-capped
+   * per-symbol top-up that converges through the 24h profile cache.
    */
-  private async fillFundamentalGaps(slug: string, rows: any[]): Promise<any[]> {
+  private async fillFundamentalGaps(
+    slug: string,
+    rows: any[],
+    snapshot?: Promise<Map<string, FmpScreenerRow>> | null,
+  ): Promise<any[]> {
     if (!rows.length || !this.fmp.enabled) return rows;
     // The table reads live-quote values first, then the row's own field, so a
     // gap only exists when BOTH are empty — and we only ever write the row's
@@ -1072,34 +1162,52 @@ export class StockListsService {
     const peOf = (r: any) => r.live?.peRatio ?? r.peRatio ?? null;
     const noSector = (r: any) => !String(r.sector || '').trim();
 
-    if (slug === 'penny-stocks') {
-      // budgetMs 0: serve whatever the 12h snapshot already holds and let the
-      // fetch warm the cache in the background — this list is the one closest
-      // to the gateway timeout, so it must not wait on FMP at all.
-      const snapshot = await this.fmp.getScreenerSnapshot(PENNY_SNAPSHOT_QUERY, {
-        budgetMs: 0,
-      });
-      if (snapshot.size) {
-        for (const r of rows) {
-          const s = snapshot.get((r.ticker || '').toUpperCase());
-          if (!s) continue;
-          if (noSector(r) && s.sector) r.sector = s.sector;
-          if (capOf(r) == null && s.marketCap != null) r.marketCap = s.marketCap;
-        }
+    let spentOnSnapshot = 0;
+    if (snapshot) {
+      const t0 = Date.now();
+      const snap = await snapshot;
+      spentOnSnapshot = Date.now() - t0;
+      for (const r of rows) {
+        const s = snap.get((r.ticker || '').toUpperCase());
+        if (!s) continue;
+        if (noSector(r) && s.sector) r.sector = s.sector;
+        if (capOf(r) == null && s.marketCap != null) r.marketCap = s.marketCap;
       }
     }
 
-    // Per-symbol lookups only pay off on a list small enough for them to cover
-    // (a 1,000-row screener stays with the snapshot above).
-    if (rows.length > FUNDAMENTALS_PER_SYMBOL_MAX_ROWS) return rows;
-    const gaps = rows
-      .filter((r) => r.ticker && (noSector(r) || capOf(r) == null || peOf(r) == null))
-      .slice(0, FUNDAMENTALS_MAX_SYMBOLS);
-    if (!gaps.length) return rows;
-    const filled = await this.fmp.getFundamentalsBatch(
-      gaps.map((r) => String(r.ticker)),
-      { concurrency: 8, budgetMs: FUNDAMENTALS_BUDGET_MS, withPe: true },
+    const gapsAll = rows.filter(
+      (r) =>
+        r.ticker &&
+        (noSector(r) || capOf(r) == null || peOf(r) == null) &&
+        // Symbols FMP has already told us it has no profile for (delisted / OTC
+        // tickers) are skipped, so an unresolvable row can't sit at the head of
+        // the queue burning this list's budget on every single request.
+        !this.fmp.hasFreshProfileMiss(String(r.ticker)),
     );
+    if (!gapsAll.length) return rows;
+    // We just paid for a cold snapshot, which is this request's whole FMP
+    // allowance — the leftovers wait for the next (warm) view.
+    if (spentOnSnapshot > 250) return rows;
+    // A big list gets a much smaller per-symbol allowance: it can never cover
+    // the whole table in one request (that's the snapshot's job), it is the
+    // request closest to the gateway ceiling, and the symbols it does fetch stay
+    // cached for 24h — so the remainder (OTC names the screener omits) fills in
+    // over the next few views instead of all at once.
+    const big = rows.length > FUNDAMENTALS_PER_SYMBOL_MAX_ROWS;
+    const cap = big ? FUNDAMENTALS_LARGE_LIST_SYMBOLS : FUNDAMENTALS_MAX_SYMBOLS;
+    // Rotate the window when there are more gaps than we may look up. Always
+    // taking the first N would re-attempt the same head of the list forever —
+    // and symbols FMP has no profile for are cached as a negative, so that head
+    // could be permanently unresolvable while later rows never get a turn.
+    const start = gapsAll.length > cap ? (Math.floor(Date.now() / 60_000) * cap) % gapsAll.length : 0;
+    const gaps = [...gapsAll.slice(start), ...gapsAll.slice(0, start)].slice(0, cap);
+    const filled = await this.fmp.getFundamentalsBatch(gaps.map((r) => String(r.ticker)), {
+      concurrency: 8,
+      budgetMs: big ? FUNDAMENTALS_LARGE_LIST_BUDGET_MS : FUNDAMENTALS_BUDGET_MS,
+      // P/E costs a second call per symbol and a penny stock rarely has one
+      // (they are mostly loss-making, where no trailing P/E exists at all).
+      withPe: !big,
+    });
     for (const r of rows) {
       const f = filled.get((r.ticker || '').toUpperCase());
       if (!f) continue;
