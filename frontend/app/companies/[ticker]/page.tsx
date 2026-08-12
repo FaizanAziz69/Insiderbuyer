@@ -27,7 +27,6 @@ import {
 } from "@/lib/api";
 import { computeInsiderFlow } from "@/lib/insiderFlow";
 import { AdSlot } from "@/components/AdSlot";
-import { PaywallOverlay } from "@/components/PaywallOverlay";
 import { InsiderBuySellMeter } from "@/components/stock/InsiderBuySellMeter";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import {
@@ -240,11 +239,9 @@ export default function CompanyPage({
             {/* "What are insiders doing?" — buy/sell balance meter, right under About. */}
             <InsiderBuySellMeter transactions={data.transactions} onOpen={() => setTab("insiders")} />
 
-            {/* Everything below the tab nav is gated. The nav itself stays live
-                so visitors can see what each section holds. */}
-            <PaywallOverlay
-              subtitle={`Unlock the full ${sym} breakdown — financials, forecasts, insiders, institutions and more`}
-            >
+            {/* Company pages are fully public (client decision): every tab
+                renders for everyone. Premium converts on the tools — alerts,
+                screeners and the ranked lists — not on company profiles. */}
             {tab === "financials" ? (
               <FinancialsTab sym={sym} />
             ) : tab === "forecast" ? (
@@ -643,7 +640,6 @@ export default function CompanyPage({
             />
               </>
             )}
-            </PaywallOverlay>
 
             {/* Disclaimer */}
             <div
