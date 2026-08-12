@@ -106,11 +106,14 @@ export function StandardStockListTable({
   pageSize?: number;
   gate?: { label: string; freeRows?: number; bullets?: string[] };
 }) {
-  // Analyst coverage — batched for the first 150 clean US tickers (same
-  // budget the Top Insider Scores page uses).
+  // Analyst coverage — batched for the first 150 tickers (same budget the Top
+  // Insider Scores page uses). Dotted symbols are included: the endpoint
+  // serves them (RY.TO, SAP.DE and ABX.TO all return a target), and filtering
+  // them out left the Analyst Price Target column empty on every row of the
+  // all-dotted Canada and Germany lists.
   const tickerKey = rows
     .map((r) => (r.ticker || "").toUpperCase())
-    .filter((t) => t && !t.includes("."))
+    .filter(Boolean)
     .slice(0, 150)
     .join(",");
   const { data: analystData } = useSWR<{
@@ -127,11 +130,13 @@ export function StandardStockListTable({
     upsideBySym.set(r.symbol.toUpperCase(), { upside: r.upsidePct, target: r.targetMean }),
   );
 
-  // 7-day sparklines — first 100 rows (one batched, cached call).
+  // 7-day sparklines — first 100 rows (one batched, cached call). Dotted
+  // symbols included for the same reason as above: /spark returns 7 points for
+  // RY.TO, SAP.DE and ABX.TO, so excluding them only blanked the 7D column.
   const sparkKey = rows
     .slice(0, 100)
     .map((r) => (r.ticker || "").toUpperCase())
-    .filter((t) => t && !t.includes("."))
+    .filter(Boolean)
     .join(",");
   const { data: sparkData } = useSWR<{ spark: Record<string, number[]> }>(
     sparkKey ? `${API_BASE}/market-stats/spark?symbols=${encodeURIComponent(sparkKey)}` : null,
