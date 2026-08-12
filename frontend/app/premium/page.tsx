@@ -9,7 +9,22 @@ import { getAuthToken, useAuth } from "@/lib/auth";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { LoginModal } from "@/components/LoginModal";
 
-const CSS = String.raw`.ia{
+const CSS = String.raw`
+/* Bundle strip enrichment — larger covers, spread layout, gold CTA */
+.ia .bundle{padding:30px 0}
+.ia .bundle .row{justify-content:center;gap:44px;align-items:center}
+.ia .mcov{width:92px;height:124px;border-radius:10px;padding:12px 8px 9px}
+.ia .mcov .b{font-size:.56rem}
+.ia .mcov .m{font-size:.7rem}
+.ia .mcov .f{font-size:.44rem}
+.ia .mc4 .star{font-size:.6rem;padding:3px 10px;top:-10px;right:-10px}
+.ia .bundle .label b{font-size:1.25rem;margin-bottom:4px}
+.ia .bundle .label span{font-size:.9rem}
+.ia .bundle-ticks{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:5px 22px}
+.ia .bundle-ticks li{font-size:.82rem;color:var(--ink);font-weight:600}
+.ia .btn.bundle-cta{padding:.85rem 1.6rem;font-size:.95rem;white-space:nowrap;flex:0 0 auto}
+@media (max-width:920px){.ia .bundle .row{flex-direction:column;gap:20px}.ia .bundle .label{text-align:center}.ia .bundle-ticks{text-align:left}}
+.ia{
     --navy:#0B1B3A;--navy-2:#122650;--ink:#101828;--body:#475467;--faint:#98A2B3;
     --line:#EAECF0;--bg:#FFFFFF;--bg-alt:#F7F9FC;--gold:#F5B942;--gold-dark:#B07E1C;
     --blue:#1D4ED8;--gain:#12B76A;--urgent:#D92D20;--max:1140px;--radius:14px;
@@ -207,10 +222,17 @@ export default function PremiumPage() {
               <div className="mcov mc3"><div className="b">INSIDER<br/>BUYING</div><div className="m">Top Dividend<br/>Stocks</div><div className="f">2026</div></div>
               <div className="mcov mc4"><span className="star">BONUS</span><div className="b">INSIDER<br/>BUYING</div><div className="m">Critical Metals<br/>Stock Idea</div><div className="f">SPECIAL</div></div>
             </div>
-            <div className="label">
-              <b>Your Free Bundle — Included Today</b>
-              <span>Our top stock ideas that insiders are bullish on · <span className="free">$0 with any plan</span> · <button className="txt-cta" style={{background:"none",border:"none",cursor:"pointer",font:"inherit",fontWeight:700}} onClick={() => setLto(true)}>See details →</button></span>
+            <div className="label" style={{textAlign:"left",maxWidth:520}}>
+              <b>Your Free Bundle — 4 Insider Reports, Included Today</b>
+              <span>Our top stock ideas that insiders are bullish on — <span className="free">$0 with any plan</span></span>
+              <ul className="bundle-ticks">
+                <li>✓ Top Stocks Insiders Are Buying</li>
+                <li>✓ Top Stocks Analysts Love</li>
+                <li>✓ Top Dividend Stocks</li>
+                <li>✓ Bonus: Critical Metals Stock Idea</li>
+              </ul>
             </div>
+            <button className="btn bundle-cta" onClick={() => setLto(true)}>See what&rsquo;s inside →</button>
           </div>
         </div>
       </div>
