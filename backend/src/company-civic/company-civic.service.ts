@@ -41,6 +41,11 @@ export interface RevenueBreakdown {
   geographySource?: DataSource;
   sourceUrl?: string | null; // the filing directory the numbers came from
   geographyAsOf?: string | null; // FMP geography is annual, so it can differ from asOf
+  /** False when the rows could not be checked against the period's revenue
+   *  total. They are still real disclosed figures, but if the source nested
+   *  regions inside an aggregate bucket the shares may double-count, so the UI
+   *  should caveat the percentages rather than present them as exact. */
+  geographyReconciled?: boolean;
 }
 
 export interface WhaleHolding {
@@ -67,8 +72,9 @@ export interface InstitutionsPage {
   // ── additive status fields (frontend may ignore them) ──
   status?: DataStatus; // 'not-disclosed' = searched EDGAR, no 13F names this issuer
   issuer?: string; // the normalised issuer name we actually searched for
-  filersScanned?: number; // 13F info tables we read
-  filersMatched?: number; // …of those, ones holding this issuer
+  filersScanned?: number; // 13F filings the EDGAR search gave us
+  filersMatched?: number; // …of those, ones whose table we read and that hold this issuer
+  filersFailed?: number; // …and ones whose table we never managed to read
 }
 
 /**
@@ -96,6 +102,7 @@ export class CompanyCivicService {
   // hot page re-hammering EDGAR, short enough that a transient hiccup doesn't
   // pin an empty card for half a day.
   private readonly FAIL_TTL = 5 * 60_000;
+  private readonly PARTIAL_TTL = 30 * 60_000;
 
   constructor(private readonly fmp: FmpService) {
     this.http = axios.create({
@@ -140,10 +147,18 @@ export class CompanyCivicService {
   }
 
   /** Is a cache entry still good? Real answers (data, or an honest "not
-   *  disclosed") hold for the full TTL; failures expire in minutes. */
+   *  disclosed") hold for the full TTL; failures expire in minutes.
+   *
+   *  A 'partial' answer gets its own middling TTL: it is real data worth
+   *  serving, but incomplete. This matters because the cache lives in process
+   *  memory, so on serverless each instance keeps its own copy — pinning a
+   *  degraded sweep for 12h means that one instance serves a short holder list
+   *  until it is recycled, which is exactly what production was doing.
+   *  Re-sweeping every half hour costs little and lets a bad run heal. */
   private fresh(entry: { ts: number; data: { status?: DataStatus } } | undefined): boolean {
     if (!entry) return false;
-    const ttl = entry.data?.status === 'unavailable' ? this.FAIL_TTL : this.TTL;
+    const s = entry.data?.status;
+    const ttl = s === 'unavailable' ? this.FAIL_TTL : s === 'partial' ? this.PARTIAL_TTL : this.TTL;
     return Date.now() - entry.ts < ttl;
   }
 
@@ -401,7 +416,7 @@ export class CompanyCivicService {
   /** Per-year exec comp from FMP, already in the Pay-versus-Performance shape. */
   private async compensationFromFmp(ticker: string): Promise<{ year: number; peoTotal: number | null; avgNeoTotal: number | null }[]> {
     if (!this.fmp?.enabled) return [];
-    return this.withBudget(`Compensation ${ticker}`, 3000, () => this.fmp.getExecutiveCompensation(ticker), []);
+    return this.withBudget(`Compensation ${ticker}`, 6000, () => this.fmp.getExecutiveCompensation(ticker), []);
   }
 
   /** Best-effort executive-comp summary parsed from the company's latest
@@ -801,12 +816,12 @@ export class CompanyCivicService {
    *  path emits so the frontend renders one table either way. FMP gives a
    *  single period, so there is no comparative column to derive YoY from —
    *  those fields stay null rather than being guessed at. */
-  private async geographyFromFmp(ticker: string): Promise<{ rows: RevenueSegment[]; asOf: string | null }> {
-    const none = { rows: [] as RevenueSegment[], asOf: null as string | null };
+  private async geographyFromFmp(ticker: string): Promise<{ rows: RevenueSegment[]; asOf: string | null; reconciled: boolean }> {
+    const none = { rows: [] as RevenueSegment[], asOf: null as string | null, reconciled: false };
     if (!this.fmp?.enabled) return none;
     return this.withBudget(
       `Revenue geography ${ticker}`,
-      3000,
+      6000, // generous: this only runs when SEC gave us nothing at all
       async () => {
         const g = await this.fmp.getGeographicRevenue(ticker);
         if (g.rows.length < 2) return none;
@@ -823,8 +838,11 @@ export class CompanyCivicService {
           list.sort((a, b) => b.revenue - a.revenue),
           g.total,
         );
-        if (capped.length < 2) return none;
-        return { rows: this.rescale(capped), asOf: g.asOf };
+        // If the period revenue total was unavailable we cannot verify the rows
+        // add up, but they are still disclosed figures — serve them and flag
+        // them unreconciled rather than dropping the section entirely.
+        if (g.total == null) this.log.warn(`Revenue geography ${ticker}: no period revenue total — rows unreconciled`);
+        return { rows: this.rescale(capped.length >= 2 ? capped : list), asOf: g.asOf, reconciled: g.total != null };
       },
       none,
     );
@@ -973,20 +991,7 @@ export class CompanyCivicService {
       // to total revenue, is noise dressed up as data.
       const segments = (segPick?.list.length || 0) >= 2 ? this.rescale(segPick!.list) : [];
       const geoRows = this.capToTotal(geoPick?.list || [], geoPick?.total ?? null);
-      let geography = geoRows.length >= 2 ? this.rescale(geoRows) : [];
-      let geographySource: DataSource = geography.length ? 'sec' : null;
-      let geographyAsOf: string | null = geography.length ? asOf : null;
-      // Only now, with the filing read and nothing found, ask FMP. Banks and
-      // some multi-nationals disclose a geographic split that never reaches
-      // XBRL in a dimensioned form (JPM, BA, WMT), and the site pays for FMP.
-      if (!geography.length) {
-        const alt = await this.geographyFromFmp(key);
-        if (alt.rows.length) {
-          geography = alt.rows;
-          geographySource = 'fmp';
-          geographyAsOf = alt.asOf;
-        }
-      }
+      const geography = geoRows.length >= 2 ? this.rescale(geoRows) : [];
       // Reaching this point means we read the filing's own index of tables, so
       // an empty list here is the company not disclosing that split — not a
       // failed lookup. That distinction is the whole point of these fields.
@@ -999,13 +1004,38 @@ export class CompanyCivicService {
         segmentsStatus: segments.length ? 'ok' : 'not-disclosed',
         geographyStatus: geography.length ? 'ok' : 'not-disclosed',
         segmentsSource: segments.length ? 'sec' : null,
-        geographySource,
+        geographySource: geography.length ? 'sec' : null,
         sourceUrl: base,
-        geographyAsOf,
+        geographyAsOf: geography.length ? asOf : null,
+        geographyReconciled: geography.length ? true : undefined,
         status: segments.length || geography.length ? 'ok' : 'not-disclosed',
       };
     } catch (e: any) {
       this.log.warn(`Revenue breakdown failed for ${key}: ${e?.response?.status || ''} ${e?.message || e}`);
+    }
+    // The FMP fallback sits OUTSIDE the try deliberately. It used to be inside,
+    // so a transient SEC error threw straight past it and the endpoint returned
+    // 'unavailable' with no geography even though FMP had the rows — that is
+    // exactly how WMT came back empty in production while resolving fine
+    // locally. FMP is an independent source; an SEC outage is no reason to skip
+    // it. Banks and some multi-nationals (JPM, BA, WMT) disclose a geographic
+    // split that never reaches XBRL in a dimensioned form, and the site pays
+    // for FMP.
+    if (!out.geography.length) {
+      const alt = await this.geographyFromFmp(key);
+      if (alt.rows.length) {
+        out = {
+          ...out,
+          geography: alt.rows,
+          geographyStatus: 'ok',
+          geographySource: 'fmp',
+          geographyAsOf: alt.asOf,
+          geographyReconciled: alt.reconciled,
+          // Segments may still be missing or genuinely unavailable — recovering
+          // geography must not overstate them.
+          status: out.segments.length ? 'ok' : out.segmentsStatus === 'unavailable' ? 'partial' : 'ok',
+        };
+      }
     }
     // Real answers (including an honest "not disclosed") hold for the full TTL;
     // a transient SEC failure expires in minutes instead of pinning an empty
@@ -1208,10 +1238,17 @@ export class CompanyCivicService {
     const key = ticker.toUpperCase();
     const cached = this.whaleCache.get(key);
     if (this.fresh(cached)) return cached!.data;
-    const deadline = Date.now() + 8000; // inside the ~10s production gateway budget
+    // Total budget for the whole call, enforced by racing the sweep below rather
+    // than only checking between chunks — the axios instance allows 20s per
+    // request, so one hung fetch inside a Promise.all could otherwise run long
+    // past the gateway limit whatever the between-chunk check said. Production
+    // sweeps land in 2–3s, well inside this; the budget is for the degraded
+    // case, and the headroom is spent on retries rather than unread filers.
+    const deadline = Date.now() + 9000;
     const out: InstitutionsPage = { holdings: [], derivatives: [], status: 'unavailable' };
     let scanned = 0;
     let matched = 0;
+    let failed = 0;
     try {
       const { names, search, hits } = await this.issuerCandidates(companyName, key);
       out.issuer = search;
@@ -1231,65 +1268,99 @@ export class CompanyCivicService {
         picks.push({ acc: accDashed.replace(/-/g, ''), file, cik, name, date: String(s.file_date || '') });
         if (picks.length >= 24) break;
       }
-      // Chunks of 8 keep us inside SEC's ~10 req/s fair-use limit.
-      for (let c = 0; c < picks.length; c += 8) {
-        if (Date.now() > deadline) {
-          this.log.warn(`Institutions for ${key}: deadline hit after ${scanned}/${picks.length} filers`);
-          out.status = 'partial';
-          break;
-        }
-        // The previous-quarter diff costs three more requests per filer, so it
-        // is only attempted while there is budget left; without it `change`
-        // stays null, which already means "unknown" to the frontend.
-        const wantPrev = Date.now() < deadline - 3000;
-        const rows = await Promise.all(
-          picks.slice(c, c + 8).map(async (p) => {
-            try {
-              const url = `https://www.sec.gov/Archives/edgar/data/${Number(p.cik)}/${p.acc}/${p.file}`;
-              const xml = await this.secGet<string>(url, { text: true, tries: 1 });
-              const cur = this.sumInfoTable(String(xml), names, cusips);
-              if (!cur) return null;
-              const prev = wantPrev && cur.shares > 0 ? await this.previousPosition(p.cik, p.acc, names, cusips) : null;
-              return { p, cur, prev };
-            } catch {
-              return null;
+      // Chunks of 8 keep us inside SEC's ~10 req/s fair-use limit. Holdings are
+      // appended as they arrive, so whatever has landed when the race below is
+      // lost is still returned.
+      const sweep = async () => {
+        for (let c = 0; c < picks.length; c += 8) {
+          if (Date.now() > deadline) break;
+          // The previous-quarter diff costs three more requests per filer, so it
+          // is only attempted while there is budget left; without it `change`
+          // stays null, which already means "unknown" to the frontend.
+          const wantPrev = Date.now() < deadline - 3000;
+          const rows = await Promise.all(
+            picks.slice(c, c + 8).map(async (p) => {
+              try {
+                const url = `https://www.sec.gov/Archives/edgar/data/${Number(p.cik)}/${p.acc}/${p.file}`;
+                // Retry these, and cap each attempt: from a datacenter IP SEC
+                // throttles part of the fan-out, and a single-attempt fetch
+                // turned every throttled filer into a silent "doesn't hold it".
+                // That is how BA, DIS and JPM came back with 0 of 24 filers in
+                // production and still labelled themselves 'not-disclosed'.
+                const xml = await this.secGet<string>(url, { text: true, tries: 2, timeout: 3500 });
+                const cur = this.sumInfoTable(String(xml), names, cusips);
+                if (!cur) return 'miss' as const; // read the table; issuer genuinely absent
+                const prev = wantPrev && cur.shares > 0 ? await this.previousPosition(p.cik, p.acc, names, cusips) : null;
+                return { p, cur, prev };
+              } catch {
+                return 'fail' as const; // never read the table — evidence of nothing
+              }
+            }),
+          );
+          scanned += picks.slice(c, c + 8).length;
+          for (const r of rows) {
+            if (r === 'fail') {
+              failed++;
+              continue;
             }
-          }),
-        );
-        scanned += picks.slice(c, c + 8).length;
-        for (const r of rows) {
-          if (!r) continue;
-          matched++;
-          const { p, cur, prev } = r;
-          if (cur.shares > 0) {
-            out.holdings.push({
-              institution: p.name,
-              shares: cur.shares,
-              value: cur.value,
-              change: prev ? cur.shares - prev.shares : null,
-              pctChange: prev && prev.shares > 0 ? +(((cur.shares - prev.shares) / prev.shares) * 100).toFixed(1) : null,
-              isNew: prev != null && prev.shares === 0,
-              reported: p.date,
-            });
-          }
-          for (const t of ['puts', 'calls'] as const) {
-            if (cur[t].shares > 0) {
-              out.derivatives.push({
+            if (r === 'miss') continue;
+            matched++;
+            const { p, cur, prev } = r;
+            if (cur.shares > 0) {
+              out.holdings.push({
                 institution: p.name,
-                type: t === 'puts' ? 'PUT' : 'CALL',
-                shares: cur[t].shares,
-                value: cur[t].value,
+                shares: cur.shares,
+                value: cur.value,
+                change: prev ? cur.shares - prev.shares : null,
+                pctChange: prev && prev.shares > 0 ? +(((cur.shares - prev.shares) / prev.shares) * 100).toFixed(1) : null,
+                isNew: prev != null && prev.shares === 0,
                 reported: p.date,
               });
             }
+            for (const t of ['puts', 'calls'] as const) {
+              if (cur[t].shares > 0) {
+                out.derivatives.push({
+                  institution: p.name,
+                  type: t === 'puts' ? 'PUT' : 'CALL',
+                  shares: cur[t].shares,
+                  value: cur[t].value,
+                  reported: p.date,
+                });
+              }
+            }
           }
         }
+        return true; // ran to completion
+      };
+      let timer: NodeJS.Timeout | undefined;
+      const finished = await Promise.race([
+        sweep(),
+        new Promise<false>((resolve) => {
+          timer = setTimeout(() => resolve(false), Math.max(0, deadline - Date.now()));
+          timer.unref?.();
+        }),
+      ]);
+      if (timer) clearTimeout(timer);
+      // 'partial' whenever the sweep was cut short for ANY reason — the deadline,
+      // or filers whose tables we never managed to read. Claiming 'ok' on a
+      // short list is the worse failure: the page renders 3 holders as the whole
+      // picture with no hint that 21 were skipped.
+      if (!finished || scanned < picks.length) {
+        this.log.warn(`Institutions for ${key}: budget spent after ${scanned}/${picks.length} filers`);
+        out.status = 'partial';
+      }
+      if (failed) {
+        this.log.warn(`Institutions for ${key}: ${failed}/${scanned} filer tables unreadable`);
+        out.status = 'partial';
       }
       // We got through the EDGAR search and read the tables it pointed at, so an
       // empty result here means no recent 13F names this issuer — a real answer
       // about the company, not a failed lookup. That is the distinction the page
       // could not previously make.
       if (out.status !== 'partial') out.status = out.holdings.length || out.derivatives.length ? 'ok' : 'not-disclosed';
+      // …but a sweep that produced nothing AND failed reads is a broken lookup,
+      // not a company without holders. Never say 'not-disclosed' for that.
+      else if (!out.holdings.length && !out.derivatives.length && failed) out.status = 'unavailable';
     } catch (e: any) {
       // status stays 'unavailable' — the frontend should say "couldn't load",
       // never "no institutional holders".
@@ -1297,6 +1368,7 @@ export class CompanyCivicService {
     }
     out.filersScanned = scanned;
     out.filersMatched = matched;
+    out.filersFailed = failed;
     // Cached either way (see fresh()): real answers for the full TTL, failures
     // for minutes, so a transient SEC outage can't be re-hammered on every hit.
     this.whaleCache.set(key, { ts: Date.now(), data: out });
