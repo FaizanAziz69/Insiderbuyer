@@ -1,7 +1,7 @@
 "use client";
-import Link from "next/link";
-import { Lock, Sparkles, X } from "lucide-react";
+import { X } from "lucide-react";
 import { usePremium } from "./premium/PremiumContext";
+import { PaywallCta } from "./premium/PaywallCta";
 
 interface Props {
   children: React.ReactNode;
@@ -11,11 +11,16 @@ interface Props {
   compact?: boolean;
 }
 
+/**
+ * Blur-and-sell gate for a short block of top-ranked rows. Behaviour (the blur,
+ * the session dismissal) lives here; every word and pixel the visitor reads is
+ * <PaywallCta>, the one shared paywall presentation.
+ */
 export function PremiumGate({
   children,
   label = "picks",
   count = 3,
-  cta = "Unlock Insider Score",
+  cta,
   compact = false,
 }: Props) {
   // Unlocked (either by the env switch or by dismissing a wall in this view) —
@@ -35,7 +40,7 @@ export function PremiumGate({
         {children}
       </div>
       <div
-        className="absolute inset-0 flex flex-col items-center justify-center text-center px-6"
+        className="absolute inset-0 flex flex-col items-center justify-center px-6"
         style={{
           background:
             "linear-gradient(180deg, color-mix(in srgb, var(--bg-2) 55%, transparent) 0%, color-mix(in srgb, var(--bg-2) 90%, transparent) 100%)",
@@ -56,35 +61,13 @@ export function PremiumGate({
         >
           <X className="h-3.5 w-3.5" />
         </button>
-        <div
-          className={`inline-flex rounded-xl items-center justify-center ${
-            compact ? "h-8 w-8 mb-2" : "h-11 w-11 mb-3"
-          }`}
-          style={{
-            background: "linear-gradient(135deg, var(--premium), var(--premium-strong))",
-            boxShadow: "0 6px 18px rgba(56,189,248,0.3)",
-          }}
-        >
-          <Sparkles className={compact ? "h-3.5 w-3.5 text-white" : "h-5 w-5 text-white"} />
-        </div>
-        <div className={`font-bold ${compact ? "text-[12px]" : "text-[14px]"} mb-0.5`}>
-          Top {count} {label} are premium
-        </div>
-        <div
-          className={`text-mute mb-3 max-w-[280px] ${
-            compact ? "text-[10px]" : "text-[12px]"
-          }`}
-        >
-          Unlock the highest-ranked signals first.
-        </div>
-        <Link
-          href="/premium"
-          className="btn-primary inline-flex items-center gap-1.5"
-          style={{ padding: compact ? "6px 12px" : "8px 16px", fontSize: compact ? 12 : 13 }}
-        >
-          <Lock className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
-          {cta}
-        </Link>
+        <PaywallCta
+          size={compact ? "sm" : "md"}
+          title={`See the top ${count} ${label}`}
+          subtitle="The highest-ranked signals unlock first — these are the names the wall is hiding."
+          bullets={compact ? [] : undefined}
+          cta={cta}
+        />
       </div>
     </div>
   );

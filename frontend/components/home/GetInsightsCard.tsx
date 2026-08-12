@@ -22,8 +22,13 @@ export function GetInsightsCard() {
         <Sparkles className="h-4 w-4 text-white" />
       </div>
       <h3 className="text-[16px] font-bold tracking-tight">Get insights you can act on</h3>
+      {/* Accuracy (client free/paid audit): this used to promise "full rankings"
+          on a free account. Rankings are capped at six rows for everyone who
+          isn't a subscriber, and the watchlist's Insider Score column is masked
+          too — so the free list names only what a free visitor really gets. */}
       <p className="text-[12px] text-soft mt-1.5 leading-relaxed">
-        Free account: full rankings, screener, watchlists, weekly digest.
+        Free: screener, watchlists, company profiles, daily digest. Insider
+        Scores and full rankings come with Insider Access.
       </p>
       <Link
         href="/premium"

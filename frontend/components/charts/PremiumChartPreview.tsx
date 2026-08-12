@@ -213,7 +213,7 @@ export function PremiumChartPreview({
             <div className="flex items-center gap-2 mb-1">
               <span className="badge badge-neutral">
                 <Lock className="h-3 w-3" />
-                Premium
+                Insider Access
               </span>
             </div>
           )}
@@ -225,7 +225,7 @@ export function PremiumChartPreview({
         {locked && (
           <Link href="/premium" className="btn-primary self-start sm:self-auto">
             <Sparkles className="h-4 w-4" />
-            Unlock with Premium
+            Unlock Insider Access
           </Link>
         )}
       </header>
@@ -266,10 +266,10 @@ export function PremiumChartPreview({
                 >
                   <Lock className="h-5 w-5 text-white" />
                 </div>
-                <h2 className="text-xl font-bold tracking-tight mb-1.5">Premium feature</h2>
+                <h2 className="text-xl font-bold tracking-tight mb-1.5">Get the insider information</h2>
                 <p className="text-soft text-sm mb-4">{description}</p>
                 <Link href="/premium" className="btn-primary">
-                  Get Premium
+                  Unlock Insider Access
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </motion.div>
@@ -279,7 +279,7 @@ export function PremiumChartPreview({
       </div>
 
       <section className="card p-5 sm:p-6">
-        <div className="label-mini mb-4">{locked ? "What's included on Premium" : "What's included"}</div>
+        <div className="label-mini mb-4">{locked ? "What's included with Insider Access" : "What's included"}</div>
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm text-soft">
           {features.map((f) => (
             <li key={f} className="flex items-start gap-2.5">

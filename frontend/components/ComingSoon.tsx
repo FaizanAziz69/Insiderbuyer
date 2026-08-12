@@ -16,8 +16,13 @@ export function ComingSoon({
   features,
   premium: premiumProp,
 }: Props) {
-  // Subscribers (and unlocked/testing mode) never see the "Premium feature ·
-  // Subscribe to unlock" framing — these read as upcoming features instead.
+  // Subscribers (and unlocked/testing mode) never see the upsell framing —
+  // these read as plain upcoming features instead.
+  //
+  // Free-tier accuracy (client audit): every page that passes `premium` today
+  // (/ai-insights, /top-performers) is UNBUILT, so the old copy — "Available on
+  // premium. Subscribe to unlock this" — promised something a subscription does
+  // not deliver. The premium framing now sells the roadmap, not access.
   const { unlocked } = usePremium();
   const premium = !unlocked && premiumProp;
   return (
@@ -47,11 +52,11 @@ export function ComingSoon({
             {premium ? <Sparkles className="h-6 w-6" /> : <Lock className="h-6 w-6" />}
           </div>
           <h2 className="text-2xl font-bold tracking-tight">
-            {premium ? "Premium feature" : "Coming soon"}
+            {premium ? "Coming to Insider Access" : "Coming soon"}
           </h2>
           <p className="text-soft mt-2 max-w-md mx-auto text-[15px]">
             {premium
-              ? "Available on premium. Subscribe to unlock this and the full insider intelligence suite."
+              ? "Not live yet — it ships to Insider Access members first. Get in now and it lands in your account the day it goes live."
               : "We're building this. Want early access? Join the waitlist."}
           </p>
 
@@ -71,7 +76,7 @@ export function ComingSoon({
 
           <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/premium" className="btn-primary">
-              {premium ? "Get premium" : "Join waitlist"}
+              {premium ? "Get Insider Access" : "Join waitlist"}
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link href="/" className="btn-secondary">

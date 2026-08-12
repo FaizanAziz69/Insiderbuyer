@@ -37,13 +37,13 @@ export function PremiumCTA() {
             }}
           >
             <Sparkles className="h-3 w-3" />
-            Premium
+            Insider Access
           </div>
           <h2
             className="mt-4 text-2xl sm:text-3xl font-bold tracking-tight"
             style={{ letterSpacing: "-0.4px" }}
           >
-            Get premium access
+            Get the insider information
           </h2>
           <p className="mt-2 text-soft max-w-xl">
             Unlock the screener, real-time alerts, full insider rankings, and AI-generated market
@@ -51,7 +51,7 @@ export function PremiumCTA() {
           </p>
         </div>
         <Link href="/premium" className="btn-primary self-start sm:self-auto whitespace-nowrap">
-          Explore premium
+          Unlock Insider Access
           <ArrowRight className="h-4 w-4" />
         </Link>
       </div>

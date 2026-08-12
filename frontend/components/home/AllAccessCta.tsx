@@ -3,12 +3,17 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { BarChart3, Briefcase, Lightbulb } from "lucide-react";
 
+/* Feature claims audited against the code (client free/paid audit) — nothing
+   here may promise something the product cannot show today. Cut in that pass:
+   "Insider Score movement alerts" (no score-movement alerting exists — /alerts
+   is a live Form 4 feed plus email capture) and "Export results to CSV"
+   (already free and public via /rankings.csv, so it sells nothing). */
 const FEATURES = [
   {
     icon: Briefcase,
     title: "Best-in-class portfolio monitoring",
     bullets: [
-      "Build a watchlist and get Insider Score movement alerts.",
+      "Build a watchlist and see the Insider Score on every holding.",
       "Compare your portfolio against the Insider Score-leader basket.",
       "Track news, ratings, and SEC filings on your tickers.",
     ],
@@ -28,7 +33,7 @@ const FEATURES = [
     bullets: [
       "Filter the market by sector, market cap, and Insider Score tier.",
       "Stay informed with real-time Form 4 alerts.",
-      "Export results to CSV for offline analysis.",
+      "Rank every list down to #1 instead of the free six.",
     ],
   },
 ];
@@ -49,18 +54,21 @@ export function AllAccessCta() {
             className="text-[22px] sm:text-[28px] font-semibold tracking-tight leading-tight"
             style={{ letterSpacing: "-0.01em" }}
           >
-            Get 30 days of <span className="text-accent">Insider Buying Premium</span> for free
+            Get the insider information with{" "}
+            <span className="text-accent">Insider Access</span>
           </h2>
+          {/* No free trial exists in checkout — the guarantee is a 30-day
+              money-back window (client free/paid accuracy audit). */}
           <p className="text-soft text-[14px] sm:text-[15px] mt-3 leading-relaxed">
             Open up the top-five Insider Score picks, the full congressional-trade table, and the
-            daily SEC Form 4 alert stream. Cancel anytime — no card needed for the trial.
+            daily SEC Form 4 alert stream. 30-day money-back guarantee — cancel anytime.
           </p>
           <Link
             href="/premium"
             className="btn-primary inline-flex items-center gap-1.5 mt-5"
             style={{ padding: "11px 22px", fontSize: 13 }}
           >
-            Start your 30-day trial
+            Unlock Insider Access
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

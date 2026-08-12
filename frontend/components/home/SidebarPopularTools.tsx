@@ -25,14 +25,21 @@ const TOOLS = [
  * Popular Tools — redesigned per the homepage review: a compact grid of
  * colorful icon tiles (app-launcher style) instead of the old MarketBeat-like
  * stacked text cards. Same tools, same links — new look.
+ *
+ * The card FILLS its grid row (client: "remove the white space under Popular
+ * Tools"). It used to be `self-start`, so the news column beside it — always
+ * the taller of the two — left ~200px of dead white space below the card. Now
+ * the tile rows share that height (`auto-rows-fr` + `flex-1`) and the rail
+ * bottom lines up with the news column. Sticky is gone with `self-start`: a
+ * card as tall as its row has nothing to stick past.
  */
 export function SidebarPopularTools() {
   return (
     <aside
-      className="rounded-xl p-4 self-start xl:sticky xl:top-24"
+      className="rounded-xl p-4 h-full flex flex-col"
       style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
     >
-      <div className="flex items-baseline justify-between mb-3">
+      <div className="flex items-baseline justify-between mb-3 flex-shrink-0">
         <h3 className="text-[15px] font-bold tracking-tight" style={{ letterSpacing: "-0.2px" }}>
           Popular Tools
         </h3>
@@ -40,17 +47,17 @@ export function SidebarPopularTools() {
           href="/premium"
           className="text-[11px] font-semibold text-accent hover:underline inline-flex items-center gap-0.5"
         >
-          Premium <ArrowUpRight className="h-3 w-3" />
+          Insider Access <ArrowUpRight className="h-3 w-3" />
         </Link>
       </div>
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5 flex-1" style={{ gridAutoRows: "1fr" }}>
         {TOOLS.map((t) => {
           const Icon = t.icon;
           return (
             <Link
               key={t.title}
               href={t.href}
-              className="group rounded-lg p-3 flex flex-col items-start gap-2 transition hover:-translate-y-0.5"
+              className="group rounded-lg p-3 flex flex-col items-start justify-center gap-2 transition hover:-translate-y-0.5"
               style={{
                 background: "var(--bg-1)",
                 border: "1px solid var(--border)",

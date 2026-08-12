@@ -240,7 +240,7 @@ export function TopHeader() {
               <StockSearch dark={false} onNavigate={() => setMobileOpen(false)} />
             </div>
 
-            {/* Premium CTA — the only route to /premium on a phone. */}
+            {/* Insider Access CTA — the only route to /premium on a phone. */}
             <Link
               href="/premium"
               onClick={() => setMobileOpen(false)}
@@ -252,7 +252,7 @@ export function TopHeader() {
               }}
             >
               <Sparkles className="h-4 w-4" style={{ color: "#ffffff" }} />
-              Subscribe to Premium
+              Subscribe to Insider Access
             </Link>
             {!user && (
               <button
@@ -311,7 +311,7 @@ export function TopHeader() {
                               className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
                               style={{ background: "var(--premium)", color: "var(--premium-ink)" }}
                             >
-                              Premium
+                              Insider Access
                             </span>
                           )}
                           {link.badge === "live" && (

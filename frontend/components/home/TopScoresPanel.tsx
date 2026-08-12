@@ -142,7 +142,7 @@ export function TopScoresPanel() {
                 </div>
                 <div className="inline-flex items-center gap-1 text-[12px] font-bold mb-0.5">
                   <Lock className="h-3 w-3 text-accent" />
-                  Top 5 are premium
+                  Top 5 need Insider Access
                 </div>
                 <div className="text-[11px] text-mute mb-2.5 max-w-[200px]">
                   Unlock the highest Insider Score signals first.

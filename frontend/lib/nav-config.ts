@@ -192,7 +192,7 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
     callouts: [
       {
-        title: "Subscribe — Insider Score Premium",
+        title: "Get Insider Access",
         description: "Unlock the top-5 daily Insider Score picks, real-time alerts, and analyst-consensus filters.",
         href: "/premium",
         icon: Lock,

@@ -91,7 +91,7 @@ export default function MonthlyReportPage({
           <p>
             Several mid-cap names crossed our Insider Score threshold this month with cluster-buy
             patterns from multiple senior executives. We highlight the top-5 daily in
-            our premium signal feed. The full live ranking is always available on the{" "}
+            the Insider Access feed. The full live ranking is always available on the{" "}
             <Link href="/companies" className="font-bold underline">
               Insider Score rankings page
             </Link>
@@ -126,7 +126,7 @@ export default function MonthlyReportPage({
           </h3>
           <p className="text-[14px] text-soft leading-relaxed mb-5">
             Sign up to receive the monthly insider-buying digest plus the daily Insider Score
-            highlights from our premium feed.
+            highlights from Insider Access.
           </p>
           <Link
             href="/reports/cta/TOP5"

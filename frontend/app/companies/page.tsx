@@ -249,7 +249,7 @@ export default function CompaniesPage() {
         <h1 className="text-[24px] font-bold tracking-tight">Companies by Insider Score</h1>
         <p className="text-mute text-sm mt-1">
           U.S. public companies ranked by the Insider Score. Highest scores at the
-          bottom — top 5 are premium.
+          bottom — the top 5 need Insider Access.
         </p>
         <p
           className="mt-3 max-w-3xl rounded-lg px-4 py-3 text-[13px] leading-relaxed"

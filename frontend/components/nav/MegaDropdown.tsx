@@ -35,8 +35,8 @@ export function MegaDropdown({ group }: Props) {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
-  // Callout cards (e.g. premium upsell). Rendered at the top or bottom of the
-  // panel depending on the group's calloutPosition.
+  // Callout cards (e.g. the Insider Access upsell). Rendered at the top or
+  // bottom of the panel depending on the group's calloutPosition.
   function renderCallouts(g: NavGroup, position: "top" | "bottom") {
     if (!g.callouts || g.callouts.length === 0) return null;
     return (
@@ -91,7 +91,7 @@ export function MegaDropdown({ group }: Props) {
                       className="inline-flex items-center gap-0.5 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
                       style={{ background: "var(--premium)", color: "var(--premium-ink)" }}
                     >
-                      <Lock className="h-2.5 w-2.5" /> Premium
+                      <Lock className="h-2.5 w-2.5" /> Insider Access
                     </span>
                   )}
                 </div>
@@ -195,7 +195,7 @@ export function MegaDropdown({ group }: Props) {
                                       color: "var(--premium-ink)",
                                     }}
                                   >
-                                    <Lock className="h-2.5 w-2.5" /> Premium
+                                    <Lock className="h-2.5 w-2.5" /> Insider Access
                                   </span>
                                 )}
                                 {link.badge === "new" && (

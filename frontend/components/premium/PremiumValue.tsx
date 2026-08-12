@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { Lock } from "lucide-react";
 import { usePremium } from "./PremiumContext";
+import { PRODUCT_NAME, UnlockButton } from "./PaywallCta";
 
 /**
  * Gates a single premium value in place — an Insider Score, a potential-upside
@@ -13,6 +14,10 @@ import { usePremium } from "./PremiumContext";
  * view-source/devtools reads it, which leaks paid data. Instead a decoy
  * placeholder is blurred, and the lock links to the subscribe page. The old
  * "×" session bypass (pre-Stripe stopgap) is gone — checkout is live.
+ *
+ * A table cell is far too small for the shared <PaywallCta> panel, so this one
+ * keeps its own inline lock — but it borrows the shared product name, and its
+ * sibling banner below borrows the shared unlock button.
  */
 export function PremiumValue({
   children,
@@ -37,7 +42,7 @@ export function PremiumValue({
       >
         88
       </span>
-      <span className="sr-only">{label} — premium, subscribe to view</span>
+      <span className="sr-only">{label} — included with {PRODUCT_NAME}</span>
       <Link
         href="/premium"
         aria-label={`Unlock ${label}`}
@@ -51,7 +56,8 @@ export function PremiumValue({
 
 /**
  * Section-level banner for a gated block that has no rows to blur (or where a
- * blurred block needs an explicit call to action underneath).
+ * blurred block needs an explicit call to action underneath). Renders the
+ * site's one unlock button so it can never drift from the walls.
  */
 export function UnlockCta({
   label = "Insider Score",
@@ -63,13 +69,8 @@ export function UnlockCta({
   const { unlocked } = usePremium();
   if (unlocked) return null;
   return (
-    <Link
-      href="/premium"
-      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-[13px] ${className}`}
-      style={{ background: "var(--accent)", color: "#fff" }}
-    >
-      <Lock className="h-3.5 w-3.5" />
+    <UnlockButton compact className={className}>
       Unlock {label}
-    </Link>
+    </UnlockButton>
   );
 }

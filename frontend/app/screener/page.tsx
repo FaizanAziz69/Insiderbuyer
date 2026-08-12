@@ -94,9 +94,12 @@ export default function ScreenerPage() {
           </select>
         </Field>
         <Field label="Track record">
+          {/* Inert control. It used to read "Premium", which promised a filter a
+              subscription does not deliver — the filter isn't built yet (client
+              free/paid accuracy audit). Labelled for what it is. */}
           <div className="input-base flex items-center gap-2 text-mute cursor-not-allowed">
             <Lock className="h-3.5 w-3.5" />
-            Premium
+            Coming soon
           </div>
         </Field>
       </div>

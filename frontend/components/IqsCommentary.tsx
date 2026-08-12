@@ -37,7 +37,7 @@ export function IqsCommentary() {
         </Link>{" "}
         or learn how to{" "}
         <Link href="/premium" className="text-accent font-semibold hover:underline">
-          unlock the top-3 picks
+          unlock the top-5 picks
         </Link>
         .
       </p>

@@ -54,9 +54,11 @@ const TOPICS: Topic[] = [
   },
   {
     href: "/premium",
-    title: "Premium AI analysis",
+    // Was "Premium AI analysis" + an anomaly-detection promise that no shipped
+    // page delivers (client free/paid accuracy audit). Sells the real product.
+    title: "Insider Access",
     description:
-      "Anomaly detection, cluster scoring, and natural-language summaries for every Insider Score spike.",
+      "Every Insider Score unmasked, and every ranked list counted all the way down to #1.",
   },
 ];
 

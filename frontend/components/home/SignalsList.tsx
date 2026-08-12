@@ -115,7 +115,7 @@ export function SignalsList() {
                 </div>
                 <div className="inline-flex items-center gap-1 text-[14px] font-bold mb-0.5">
                   <Lock className="h-3.5 w-3.5 text-accent" />
-                  Top 5 are premium
+                  Top 5 need Insider Access
                 </div>
                 <div className="text-[12px] text-mute mb-3 max-w-[260px]">
                   Unlock the highest Insider Score signals first.

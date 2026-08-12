@@ -1,7 +1,15 @@
 "use client";
+import Link from "next/link";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { PRODUCT_NAME } from "@/components/premium/PaywallCta";
 
 export default function SettingsPage() {
+  // The plan row used to be a hardcoded "Free" badge, so a paying subscriber
+  // was told they were on the free tier (client free/paid accuracy audit).
+  // `premium` is the real Stripe entitlement — not `unlocked`, which the env
+  // override and the session dismissal also flip.
+  const { premium } = usePremium();
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <header>
@@ -18,8 +26,21 @@ export default function SettingsPage() {
           <span className="text-mute text-sm">—</span>
         </Row>
         <div className="h-px" style={{ background: "var(--border)" }} />
-        <Row label="Plan" hint="Free tier · upgrade for full access">
-          <span className="badge badge-neutral">Free</span>
+        <Row
+          label="Plan"
+          hint={
+            premium
+              ? `${PRODUCT_NAME} · every score, list and filing unlocked`
+              : "Free tier · Insider Scores and full rankings are locked"
+          }
+        >
+          {premium ? (
+            <span className="badge badge-gold">{PRODUCT_NAME}</span>
+          ) : (
+            <Link href="/premium" className="badge badge-neutral hover:text-accent transition">
+              Free — unlock
+            </Link>
+          )}
         </Row>
       </div>
     </div>

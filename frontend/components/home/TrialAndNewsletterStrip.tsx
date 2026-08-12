@@ -31,8 +31,11 @@ const CARD_SHADOW = "0 24px 60px -24px rgba(2,10,30,0.35)";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
 
+/* Claims audited against the code (client free/paid audit): there is no
+   score-movement alerting, so the first bullet now sells what /alerts and the
+   watchlist actually do. */
 const FEATURES = [
-  { icon: BellRing, text: "Automated portfolio monitoring with Insider Score alerts" },
+  { icon: BellRing, text: "Portfolio monitoring with the Insider Score on every holding" },
   { icon: Lightbulb, text: "Daily stock ideas drawn from insider activity" },
   { icon: SlidersHorizontal, text: "Stock screeners and Form 4 research tools" },
 ];
@@ -104,7 +107,7 @@ function HeroSide() {
         className="mt-4 text-[25px] font-semibold leading-[1.08] tracking-tight sm:text-[34px]"
         style={{ letterSpacing: "-0.02em" }}
       >
-        Try Insider Buying{" "}
+        Get the insider information with{" "}
         <span
           style={{
             background: ACCENT_GRADIENT,
@@ -113,9 +116,9 @@ function HeroSide() {
             WebkitTextFillColor: "transparent",
           }}
         >
-          Premium
-        </span>{" "}
-        free for 30 days.
+          Insider Access
+        </span>
+        .
       </h2>
 
       <p className="mt-3 max-w-md text-[14px] leading-relaxed text-soft">
@@ -147,13 +150,13 @@ function HeroSide() {
             className="group inline-flex items-center gap-2 rounded-lg px-5 py-3 text-[13.5px] font-bold uppercase tracking-wide"
             style={{ background: ACCENT_GRADIENT, color: "var(--on-accent)", boxShadow: ACCENT_GLOW }}
           >
-            Begin Your Free Trial
+            Unlock Insider Access
             <ArrowRight className="h-[18px] w-[18px] transition-transform duration-300 group-hover:translate-x-1" strokeWidth={2.5} />
           </Link>
         </motion.div>
         <span className="inline-flex items-center gap-1.5 text-[13px] text-mute">
           <CheckCircle2 className="h-4 w-4" style={{ color: "var(--good)" }} />
-          No credit card required
+          30-day money-back guarantee
         </span>
       </div>
     </div>

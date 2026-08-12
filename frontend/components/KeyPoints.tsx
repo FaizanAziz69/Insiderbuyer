@@ -12,8 +12,11 @@ const POINTS: { title: string; body: string }[] = [
     body: "Purchase volume, cluster effect, role-weighted size, and holding-change magnitude combine into a single ranked signal.",
   },
   {
-    title: "Free tier, premium depth",
-    body: "Ranks 4 and below are free; the top-3 strongest signals are gated behind a subscription.",
+    // Numbers audited against the code, not marketing: DataTable's gate frees
+    // FREE_ROWS (6) plus one faded teaser row, and the Insider Score column is
+    // masked by PremiumValue on every list — free rows included.
+    title: "Free to browse, Insider Access for depth",
+    body: "Every leaderboard shows six ranked names free; the rest of the list — and the Insider Score on each name — comes with Insider Access.",
   },
   {
     title: "Updated continuously",

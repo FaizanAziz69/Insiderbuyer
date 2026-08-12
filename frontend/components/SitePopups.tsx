@@ -26,7 +26,7 @@ const PROMOS: Record<PopupId, { promo: OptInPromo; header: string; hidePhone: bo
     promo: {
       eyebrow: "New Member Offer",
       title: "Your $150 new-member credit is waiting",
-      body: "Join today and we'll apply a $150 credit toward your first year of Insider Alerts — full rankings, real-time insider buy alerts, and every premium report. The credit expires soon.",
+      body: "Join today and we'll apply a $150 credit toward your first year of Insider Access — full rankings, real-time insider buy alerts, and every insider report. The credit expires soon.",
       note: "Enter your email to claim your credit.",
       cta: "Claim my $150 credit",
     },
