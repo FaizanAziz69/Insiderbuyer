@@ -1,9 +1,68 @@
-// Curated universe of liquid, widely-covered U.S. tickers used to populate
-// the market-wide tool pages (Analyst Ratings, Dividends, Short Interest).
-// Live financial data for each is pulled from Yahoo at read time — this list
-// only decides WHICH names appear, never their values. Kept broad (~250 large/
-// mid-cap S&P names) so those tables show as much data as we can serve without
-// blowing the serverless request budget; results are cached server-side.
+// The universe of U.S. tickers the market-wide tool pages are built from
+// (Heat Map, Analyst Ratings, Dividends, Short Interest, research-firm league
+// table). Live financial data for each name is pulled at read time — this file
+// only decides WHICH names appear, never their values.
+//
+// The universe is SCREENER-DRIVEN: every actively-traded NASDAQ/NYSE common
+// stock above a $100M market cap, read from FMP's `company-screener` in one
+// request and cached (client spec: "all indexed companies with a Market Cap
+// over $100 Million, filtering out micro-caps under $100M"). MARKET_UNIVERSE
+// below is the FALLBACK for when that call is unavailable or hasn't landed yet,
+// not the definition of the universe.
+//
+// Measured against the production FMP key on 2026-08-13:
+//   marketCapMoreThan=100000000 & exchange=NASDAQ,NYSE & isActivelyTrading=true
+//     … with isEtf=false & isFund=false  → 4,311 rows, 1.85 MB, 3–10s
+//     … without those two flags          → 8,577 rows, 3.69 MB, 36s
+// Filtering funds AT THE SOURCE is what makes this affordable: 545 ETFs and
+// 3,722 funds are half the payload and none of them belong in a stock universe.
+// The response carries `sector` and `industry` inline for every row, so a
+// dynamic universe also gets its sector classification for free — see
+// sectorFromFmp() in market-sectors.ts.
+
+/** Client-specified market-cap floor for every market-wide page. */
+export const UNIVERSE_MIN_MARKET_CAP = 100_000_000;
+
+/**
+ * The one `company-screener` query the universe is built from. Kept as a
+ * literal so `FmpService.getScreenerSnapshot` can key its 12h cache on it and
+ * every caller shares the same fetch.
+ *
+ * `limit` is deliberately above the true row count: FMP truncates silently at
+ * whatever `limit` says (asking for 5,000 returned exactly 5,000 of the 8,577
+ * unfiltered matches), so it must never be the binding constraint. 10,000 is
+ * the endpoint's own ceiling — 20,000 returned the same rows in twice the time.
+ */
+export const UNIVERSE_SCREENER_QUERY = {
+  marketCapMoreThan: UNIVERSE_MIN_MARKET_CAP,
+  exchange: 'NASDAQ,NYSE',
+  isActivelyTrading: true,
+  isEtf: false,
+  isFund: false,
+  limit: 10000,
+} as const;
+
+/**
+ * Industries excluded from the stock universe even above the cap floor.
+ *
+ * 337 of the 4,311 matches are blank-check SPACs ("Shell Companies") — trusts
+ * with no operations, whose price sits pinned near $10 until they merge. They
+ * have no sector meaning, no fundamentals, and no analyst or dividend data, so
+ * including them would pad every table and skew sector breadth statistics with
+ * rows that can never carry a value. This is a NAMED, auditable exclusion
+ * rather than a silent cap raise.
+ */
+export const EXCLUDED_UNIVERSE_INDUSTRIES = new Set(['Shell Companies']);
+
+/**
+ * FALLBACK universe — a curated ~287 liquid, widely-covered large/mid-cap U.S.
+ * names. Used only when the screener snapshot is unavailable (no FMP key, FMP
+ * down, or a cold serverless instance whose first request can't wait for the
+ * multi-megabyte response). Kept because every page must still render real rows
+ * in that state; `SECTOR_BY_TICKER` in market-sectors.ts covers exactly these
+ * names, which is why a dynamic universe must take its sector from the screener
+ * instead of that map.
+ */
 export const MARKET_UNIVERSE: string[] = [
   // Mega-cap / tech / semis / software
   'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'GOOG', 'META', 'TSLA', 'AVGO', 'ORCL',

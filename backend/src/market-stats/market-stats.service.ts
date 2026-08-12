@@ -3,8 +3,13 @@ import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
 import { FmpService } from '../fmp/fmp.service';
 import { REFERENCE_QUOTES, ReferenceQuote } from './reference-quotes';
-import { MARKET_UNIVERSE } from './market-universe';
-import { SECTOR_BY_TICKER } from './market-sectors';
+import {
+  EXCLUDED_UNIVERSE_INDUSTRIES,
+  MARKET_UNIVERSE,
+  UNIVERSE_MIN_MARKET_CAP,
+  UNIVERSE_SCREENER_QUERY,
+} from './market-universe';
+import { SECTOR_BY_TICKER, sectorFromFmp } from './market-sectors';
 import {
   AnalystFirmRow,
   RatingOutcome,
@@ -274,11 +279,18 @@ export class MarketStatsService {
 
   /** Authoritative sector for a ticker. Yahoo's fast quote and screener payloads
    *  omit `sector` for most names, so the static map — which covers every ticker
-   *  in MARKET_UNIVERSE — is consulted FIRST and whatever the feed happened to
-   *  return is only a fallback. Pure in-memory lookup: zero added latency, so
-   *  every builder that emits a sector can afford it. */
+   *  in the curated fallback list — is consulted FIRST, then the screener
+   *  snapshot's own sector/industry (translated into the SAME TRBC buckets, so
+   *  the thousands of dynamic names group with the curated ones instead of
+   *  forming a parallel set of headings), and only then whatever the feed
+   *  happened to return. Pure in-memory lookup: zero added latency, so every
+   *  builder that emits a sector can afford it. */
   private sectorFor(symbol: string, feedSector: string | null = null): string | null {
-    return SECTOR_BY_TICKER[(symbol || '').toUpperCase()] ?? feedSector ?? null;
+    const sym = (symbol || '').toUpperCase();
+    const curated = SECTOR_BY_TICKER[sym];
+    if (curated) return curated;
+    const row = this.universeRow(sym);
+    return sectorFromFmp(row?.sector, row?.industry) ?? feedSector ?? null;
   }
 
   /** Resolve `p`, or give up after `ms` and hand back `fallback`. The FMP client
@@ -313,6 +325,9 @@ export class MarketStatsService {
   // shorten that TTL and split coverage away from the other callers of the same
   // FMP cache.
   private readonly PE_CONCURRENCY = 8;
+  /** Above this many symbols in one quote batch, the shared hot-path P/E top-up
+   *  is skipped — see the note at the end of getQuoteBatch. */
+  private readonly PE_HOT_PATH_MAX_SYMBOLS = 1_000;
 
   /** Fill `peRatio` in place for rows the feed left blank. Never throws — a
    *  failure or an exhausted budget leaves the remaining cells exactly as they
@@ -736,19 +751,55 @@ export class MarketStatsService {
     }
   }
 
+  // Batch size and parallelism for the v7 quote, both MEASURED rather than
+  // guessed. The endpoint was being asked for 50 symbols per request, one chunk
+  // at a time; it in fact accepts far more, and sweeping the whole $100M+
+  // universe (4,311 symbols) came out as:
+  //     50 × serial   ~87 calls   (never completed inside the budget)
+  //    200 × 4 conc   22 calls    11.1s
+  //    200 × 8 conc   22 calls    17.7s   ← Yahoo throttles wide fan-out
+  //    400 × 6 conc   11 calls     6.2s
+  //    500 × 3 conc    9 calls     3.7–5.1s, 4,307/4,311 resolved, 0 failures
+  //   1000 × 2 conc    5 calls     6.0s
+  // 500×3 is the sweet spot: fewest round trips at the concurrency Yahoo serves
+  // fastest. Going wider is slower, not faster, so this is not a knob to turn up.
+  private readonly V7_CHUNK = 500;
+  private readonly V7_CONCURRENCY = 3;
+
   /** Primary live source — v7 batch quote (real market cap + 3-month avg
-   *  volume for up to 50 symbols per request). */
-  private async fetchQuoteV7(symbols: string[]): Promise<Map<string, MarketStatRow>> {
+   *  volume). `deadlineMs` (epoch ms) makes a whole-universe sweep time-boxed:
+   *  chunks are ordered largest-cap-first by the caller, so a sweep that runs
+   *  out of budget returns the most-viewed names and the rest fill in on the
+   *  next request from the shared 10-minute quote cache. */
+  private async fetchQuoteV7(
+    symbols: string[],
+    opts: { deadlineMs?: number } = {},
+  ): Promise<Map<string, MarketStatRow>> {
     const out = new Map<string, MarketStatRow>();
+    // Checked BEFORE the handshake, not just around the chunks: getAuth() is two
+    // HTTP calls against a 10s client timeout, and a throttled fc.yahoo.com has
+    // been observed taking 10.9s on its own. A caller whose budget is already
+    // spent must not start it — otherwise it pays the handshake and then finds it
+    // has no time left to use the crumb for.
+    if (opts.deadlineMs != null && Date.now() >= opts.deadlineMs) return out;
     let auth = await this.getAuth();
     if (!auth) return out;
-    for (let i = 0; i < symbols.length; i += 50) {
-      const chunk = symbols.slice(i, i + 50);
+    const chunks: string[][] = [];
+    for (let i = 0; i < symbols.length; i += this.V7_CHUNK) {
+      chunks.push(symbols.slice(i, i + this.V7_CHUNK));
+    }
+    // A deadline that only gates the START of each round is not a guarantee: the
+    // HTTP client allows each request 10s, so one round of slow chunks can run
+    // far past it (measured: a 27s analyst build against an 8s budget). The whole
+    // sweep is therefore also RACED against the deadline. Racing is safe because
+    // chunks write into `out` as they resolve, so abandoning the wait keeps every
+    // row that has already landed.
+    const fetchChunk = async (chunk: string[]): Promise<void> => {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           const { data } = await this.http.get(
-            `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(chunk.join(','))}&crumb=${encodeURIComponent(auth.crumb)}`,
-            { headers: { Cookie: auth.cookie } },
+            `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(chunk.join(','))}&crumb=${encodeURIComponent(auth!.crumb)}`,
+            { headers: { Cookie: auth!.cookie } },
           );
           for (const q of data?.quoteResponse?.result || []) {
             const sym = String(q.symbol || '').toUpperCase();
@@ -817,17 +868,33 @@ export class MarketStatsService {
                     : null,
             });
           }
-          break;
+          return;
         } catch (err: any) {
           if (err?.response?.status === 401 && attempt === 0) {
             auth = await this.getAuth(true); // stale crumb — refresh once
-            if (!auth) return out;
+            if (!auth) return;
           } else {
             this.logger.warn(`v7 quote chunk failed: ${err?.message || err}`);
-            break;
+            return;
           }
         }
       }
+    };
+    const sweep = async (): Promise<void> => {
+      for (let i = 0; i < chunks.length; i += this.V7_CONCURRENCY) {
+        if (opts.deadlineMs != null && Date.now() >= opts.deadlineMs) break;
+        await Promise.all(chunks.slice(i, i + this.V7_CONCURRENCY).map(fetchChunk));
+      }
+    };
+    if (opts.deadlineMs == null) {
+      await sweep();
+    } else {
+      await this.withTimeout(sweep(), Math.max(0, opts.deadlineMs - Date.now()), undefined);
+    }
+    if (out.size < symbols.length) {
+      this.logger.warn(
+        `v7 quote sweep resolved ${out.size}/${symbols.length} symbols.`,
+      );
     }
     return out;
   }
@@ -1124,50 +1191,125 @@ export class MarketStatsService {
   }
 
   // ── Month-to-date + year-to-date returns (for Hot Sectors) ────────────
-  private monthYtdCache = new Map<
+  //
+  // A period return is (live price ÷ period baseline − 1), and those two halves
+  // have completely different lifetimes:
+  //
+  //  • The BASELINE — the last close before the 1st of this month / this year —
+  //    is FIXED for the whole period. It cannot change until the month rolls
+  //    over. Verified against an independent source: AAPL's 2025-12-31 close of
+  //    271.86 gives YTD 11.02%, and FMP's `stock-price-change` reports
+  //    ytd = 11.029% for the same instant. (Measuring from the first close
+  //    INSIDE the window instead — 2026-01-02 at 271.01 — gives 11.37%, and for
+  //    MTD the same mistake turns AAPL's −2.29% into −0.53%. This code takes the
+  //    prior period's close and is correct; the note is here so it stays that way.)
+  //  • The PRICE is live, and it is BATCHED — the v7 quote returns hundreds of
+  //    symbols per request.
+  //
+  // The old code re-derived both halves from one 1-year chart per symbol and
+  // cached the RESULT for an hour. That made every figure up to an hour stale,
+  // let a sector's members and the S&P 500 benchmark be marked at different
+  // instants (each symbol's cache expires on its own clock, so a sector could be
+  // compared against an index quoted 59 minutes apart), and cost one HTTP request
+  // per symbol per hour — measured at 25.8 SECONDS for the 209 Hot Sectors
+  // tickers on a cold instance, which is a guaranteed 504 at the ~10s gateway.
+  //
+  // Splitting the two halves fixes all three: baselines are fetched once per
+  // symbol per MONTH, prices come from the batch quote every request, and every
+  // symbol in a response is marked to the same instant as the benchmark.
+  private periodBaseCache = new Map<
     string,
-    { ts: number; data: { mtd: number | null; ytd: number | null } | null }
+    { key: string; monthBase: number; yearBase: number; lastClose: number }
   >();
-  private readonly MONTH_YTD_TTL_MS = 60 * 60_000;
+  /** Symbols one call will ask for. Well above any current caller; the wall-clock
+   *  budget, not this, is what bounds a cold build. */
+  private readonly MONTH_YTD_MAX_SYMBOLS = 1_500;
+  /** Wall-clock slice a single request may spend fetching missing baselines.
+   *  Whatever isn't reached is simply absent from the result (as a failed fetch
+   *  always was) and is picked up by the next request — every baseline fetched
+   *  is then good for the rest of the month. */
+  private readonly MONTH_YTD_BASE_BUDGET_MS = 3_000;
+  /** Baseline fetches are one chart request each and independent, so they run
+   *  wider than the shared QUOTE_CONCURRENCY: measured 20 parallel 1-year charts
+   *  in ~950ms. */
+  private readonly MONTH_YTD_BASE_CONCURRENCY = 20;
 
-  /** Month-to-date and year-to-date % returns per symbol, derived from one
-   *  1-year daily chart each (timestamps + closes). MTD/YTD bases are the last
-   *  close before the first calendar day of the current month / year. Cached
-   *  1h, concurrency-limited. */
+  /** Month-to-date and year-to-date % returns per symbol. Baselines are the last
+   *  close before the first calendar day of the current month / year; the
+   *  numerator is the live batch quote, so every symbol in one response — and the
+   *  benchmark it is compared against — is marked at the same instant. */
   async getMonthYtdReturns(
     symbols: string[],
+    opts: { baselineBudgetMs?: number } = {},
   ): Promise<Record<string, { mtd: number | null; ytd: number | null }>> {
     const unique = Array.from(
       new Set(symbols.filter(Boolean).map((s) => s.toUpperCase())),
-    ).slice(0, 300);
+    ).slice(0, this.MONTH_YTD_MAX_SYMBOLS);
     const out: Record<string, { mtd: number | null; ytd: number | null }> = {};
-    const now = Date.now();
-    const toFetch: string[] = [];
-    for (const sym of unique) {
-      const c = this.monthYtdCache.get(sym);
-      if (c && now - c.ts < this.MONTH_YTD_TTL_MS) {
-        if (c.data) out[sym] = c.data;
-      } else {
-        toFetch.push(sym);
+    if (!unique.length) return out;
+    const key = this.periodKey();
+
+    // 1. Baselines: cached until the month rolls over, then re-derived. Ordered
+    //    as the caller asked, so a truncated fill is a stable prefix.
+    const toFetch = unique.filter((s) => this.periodBaseCache.get(s)?.key !== key);
+    const budgetMs = opts.baselineBudgetMs ?? this.MONTH_YTD_BASE_BUDGET_MS;
+    const deadline = Date.now() + budgetMs;
+    const fill = async (): Promise<void> => {
+      for (
+        let i = 0;
+        i < toFetch.length && Date.now() < deadline;
+        i += this.MONTH_YTD_BASE_CONCURRENCY
+      ) {
+        const chunk = toFetch.slice(i, i + this.MONTH_YTD_BASE_CONCURRENCY);
+        const settled = await Promise.all(chunk.map((s) => this.fetchPeriodBaselines(s)));
+        chunk.forEach((sym, j) => {
+          const b = settled[j];
+          if (b) this.periodBaseCache.set(sym, { key, ...b });
+        });
       }
+    };
+    // Hard-bounded for the same reason as the sweeps above: one round of charts
+    // against a 10s client timeout would otherwise blow a 2.5s budget. Baselines
+    // are written to the cache as each fetch resolves, so nothing already
+    // gathered is lost when the wait is abandoned.
+    if (toFetch.length) await this.withTimeout(fill(), budgetMs, undefined);
+
+    // 2. One batch quote for the live numerator, shared with whatever else the
+    //    request already fetched (Hot Sectors quotes the same tickers).
+    const priced = unique.filter((s) => this.periodBaseCache.get(s)?.key === key);
+    let quotes = new Map<string, MarketStatRow>();
+    if (priced.length) {
+      quotes = await this.getQuoteBatch(priced, {
+        deadlineMs: Date.now() + this.DIV_QUOTE_BUDGET_MS,
+      }).catch(() => new Map<string, MarketStatRow>());
     }
-    for (let i = 0; i < toFetch.length; i += this.QUOTE_CONCURRENCY) {
-      const chunk = toFetch.slice(i, i + this.QUOTE_CONCURRENCY);
-      const settled = await Promise.all(
-        chunk.map((s) => this.fetchMonthYtd(s)),
-      );
-      chunk.forEach((sym, j) => {
-        const data = settled[j];
-        this.monthYtdCache.set(sym, { ts: Date.now(), data });
-        if (data) out[sym] = data;
-      });
+
+    for (const sym of priced) {
+      const b = this.periodBaseCache.get(sym)!;
+      // No live quote → the chart's own last close, so a symbol the quote feed
+      // missed still reports a real (if slightly older) return rather than none.
+      const price = quotes.get(sym)?.price || b.lastClose;
+      if (!(price > 0)) continue;
+      const pct = (from: number) =>
+        from > 0 ? +(((price - from) / from) * 100).toFixed(2) : null;
+      out[sym] = { mtd: pct(b.monthBase), ytd: pct(b.yearBase) };
     }
     return out;
   }
 
-  private async fetchMonthYtd(
+  /** Cache generation for the period baselines: they are only invalid once the
+   *  calendar month changes (which also re-derives the year baseline every
+   *  January). UTC, matching the boundaries used below. */
+  private periodKey(): string {
+    const d = new Date();
+    return `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
+  }
+
+  /** The two immutable period baselines for one symbol, from a single 1-year
+   *  daily chart. Null when the series is too short to establish either. */
+  private async fetchPeriodBaselines(
     symbol: string,
-  ): Promise<{ mtd: number | null; ytd: number | null } | null> {
+  ): Promise<{ monthBase: number; yearBase: number; lastClose: number } | null> {
     try {
       const host = symbol.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
       const { data } = await this.http.get(
@@ -1184,15 +1326,21 @@ export class MarketStatsService {
         if (Number.isFinite(c) && c > 0 && Number.isFinite(t)) pts.push({ t, c });
       }
       if (pts.length < 2) return null;
-      const last = pts[pts.length - 1].c;
 
       const now = new Date();
       const monthStartSec =
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000;
       const yearStartSec = Date.UTC(now.getUTCFullYear(), 0, 1) / 1000;
 
-      // Base = last close strictly before the boundary (prior period's close).
-      // Fall back to the first available point when the chart starts later.
+      // Base = last close strictly before the boundary, i.e. the PRIOR period's
+      // closing price — the only baseline that captures the whole period. Yahoo
+      // stamps a daily bar at the session open in UTC (13:30Z for a U.S. equity
+      // in summer), so every bar dated on or after the 1st sorts after a
+      // midnight-UTC boundary and the comparison needs no timezone arithmetic.
+      //
+      // A series that STARTS after the boundary (listed this month/year) has no
+      // prior close, and falls back to its own first close — the same "since
+      // listing" convention every data provider reports for a new issue.
       const baseBefore = (boundary: number): number => {
         let base = pts[0].c;
         for (const p of pts) {
@@ -1201,12 +1349,11 @@ export class MarketStatsService {
         }
         return base;
       };
-      const pct = (from: number) =>
-        from > 0 ? +(((last - from) / from) * 100).toFixed(2) : null;
 
       return {
-        mtd: pct(baseBefore(monthStartSec)),
-        ytd: pct(baseBefore(yearStartSec)),
+        monthBase: baseBefore(monthStartSec),
+        yearBase: baseBefore(yearStartSec),
+        lastClose: pts[pts.length - 1].c,
       };
     } catch {
       return null;
@@ -1307,11 +1454,23 @@ export class MarketStatsService {
     }
   }
 
-  async getQuoteBatch(symbols: string[]): Promise<Map<string, MarketStatRow>> {
+  /** Live quotes for a symbol list, cached 10 min per symbol.
+   *
+   *  `deadlineMs` (epoch ms) bounds the WHOLE call and exists because this is
+   *  now asked for thousands of symbols, not dozens: the per-symbol fallbacks
+   *  below (one chart request each, 5 at a time) are fine for the handful the
+   *  batch misses out of 287 names but would run for minutes on a 4,311-name
+   *  sweep. With a deadline they take what fits and leave the rest to the next
+   *  request; without one the behaviour is exactly as before. */
+  async getQuoteBatch(
+    symbols: string[],
+    opts: { deadlineMs?: number } = {},
+  ): Promise<Map<string, MarketStatRow>> {
     const map = new Map<string, MarketStatRow>();
     if (!symbols.length) return map;
     const unique = Array.from(new Set(symbols.filter(Boolean).map((s) => s.toUpperCase())));
     if (!unique.length) return map;
+    const inBudget = () => opts.deadlineMs == null || Date.now() < opts.deadlineMs;
 
     const now = Date.now();
     const toFetch: string[] = [];
@@ -1328,11 +1487,18 @@ export class MarketStatsService {
       }
     }
 
-    // 1. Batch v7 quote (one request per 50 symbols, real market caps).
+    // 1. Batch v7 quote (500 symbols per request, real market caps).
     if (toFetch.length) {
-      const v7 = await this.fetchQuoteV7(toFetch);
+      const v7 = await this.fetchQuoteV7(toFetch, { deadlineMs: opts.deadlineMs });
       for (const [sym, row] of v7.entries()) {
         if (row.price > 0) {
+          // Yahoo omits marketCap for ~6% of the universe (262 of 4,311
+          // measured); the screener snapshot already carries a real cap for
+          // every member, so a heatmap tile is never sized from nothing.
+          if (row.marketCap == null) {
+            const cap = this.universeRow(sym)?.marketCap;
+            if (cap != null) row.marketCap = cap;
+          }
           map.set(sym, row);
           this.quoteCache.set(sym, { ts: now, row });
           this.quoteFailCache.delete(sym);
@@ -1342,7 +1508,7 @@ export class MarketStatsService {
 
     // 2. Per-symbol chart fallback for whatever the batch missed.
     const chartFetch = toFetch.filter((s) => !map.has(s));
-    for (let i = 0; i < chartFetch.length; i += this.QUOTE_CONCURRENCY) {
+    for (let i = 0; i < chartFetch.length && inBudget(); i += this.QUOTE_CONCURRENCY) {
       const chunk = chartFetch.slice(i, i + this.QUOTE_CONCURRENCY);
       const rows = await Promise.all(chunk.map((s) => this.fetchChartQuote(s)));
       rows.forEach((row, j) => {
@@ -1360,7 +1526,7 @@ export class MarketStatsService {
     // (paid key) before falling to the static reference snapshot — so no
     // page renders an empty price/cap for a real ticker.
     const stillMissing = unique.filter((s) => !map.has(s));
-    if (stillMissing.length && this.fmp?.enabled) {
+    if (stillMissing.length && this.fmp?.enabled && inBudget()) {
       try {
         const fmpQuotes = await this.fmp.getQuotesBatch(stillMissing);
         for (const [sym, q] of fmpQuotes.entries()) {
@@ -1374,7 +1540,7 @@ export class MarketStatsService {
             avgVolume: q.avgVolume,
             avgVol10d: null,
             marketCap: q.marketCap,
-            sector: SECTOR_BY_TICKER[sym] ?? null,
+            sector: this.sectorFor(sym),
             exchange: null, // FMP uses full codes, not Yahoo's — leave unfiltered
             fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
             fiftyTwoWeekLow: q.fiftyTwoWeekLow,
@@ -1419,7 +1585,14 @@ export class MarketStatsService {
     // finish a whole table here. Skipped for tiny lookups — single-symbol detail
     // pages get their P/E from quoteSummary anyway, and this keeps the
     // per-symbol call sites from each issuing an FMP request.
-    if (unique.length >= 5) {
+    //
+    // Skipped for a WHOLE-UNIVERSE sweep: 80 symbols out of 4,000 is 2% of the
+    // column, which is not worth 1.5s of a request that has just spent most of
+    // its budget on the sweep itself (measured: it was the difference between an
+    // 8.5s and a 10.1s heatmap build). The pages that actually render P/E run
+    // their own fill with their own budget over the rows they display, and both
+    // share the same 24h FMP cache, so nothing is lost but the latency.
+    if (unique.length >= 5 && unique.length <= this.PE_HOT_PATH_MAX_SYMBOLS && inBudget()) {
       await this.fillPeRatios(
         unique.map((s) => map.get(s)).filter(Boolean) as MarketStatRow[],
         80,
@@ -1479,21 +1652,151 @@ export class MarketStatsService {
   ): Promise<Map<string, any>> {
     const out = new Map<string, any>();
     const CONCURRENCY = opts.concurrency ?? 6;
-    for (let i = 0; i < symbols.length; i += CONCURRENCY) {
-      if (opts.deadlineMs != null && Date.now() >= opts.deadlineMs) break;
-      const chunk = symbols.slice(i, i + CONCURRENCY);
-      const rows = await Promise.all(chunk.map((s) => this.fetchQuoteSummary(s)));
-      rows.forEach((r, j) => {
-        if (r) out.set(chunk[j], r);
-      });
+    const sweep = async (): Promise<void> => {
+      for (let i = 0; i < symbols.length; i += CONCURRENCY) {
+        if (opts.deadlineMs != null && Date.now() >= opts.deadlineMs) break;
+        const chunk = symbols.slice(i, i + CONCURRENCY);
+        const rows = await Promise.all(chunk.map((s) => this.fetchQuoteSummary(s)));
+        rows.forEach((r, j) => {
+          if (r) out.set(chunk[j], r);
+        });
+      }
+    };
+    // Hard-bounded as well as round-gated: each request may take the client's
+    // full 10s, so a single slow round could otherwise overrun the deadline by
+    // more than the deadline itself. Whatever landed is kept, and every symbol
+    // fetched is in the shared summaryCache regardless.
+    if (opts.deadlineMs == null) {
+      await sweep();
+    } else {
+      await this.withTimeout(sweep(), Math.max(0, opts.deadlineMs - Date.now()), undefined);
     }
     return out;
   }
 
+  // ──────────────────────────────────────────────────────────────────
+  // The market-wide universe: every actively-traded NASDAQ/NYSE common
+  // stock above a $100M market cap, from ONE `company-screener` call.
+  //
+  // Measured (production key, 2026-08-13): 4,311 rows / 1.85 MB, 3–4s warm and
+  // ~10s cold — see market-universe.ts for the query and why funds are filtered
+  // at the source. That is 15x the 287-name curated list every market-wide page
+  // used to be built from, and the reason those tables were thin (short
+  // interest 283 rows, analyst ratings 283, heatmap 281, dividends 227).
+  //
+  // The snapshot lives in FmpService's own 12h cache and is SHARED with every
+  // other caller, so this costs one request per instance per half-day. Because
+  // a serverless instance is frozen the moment it responds, the fetch is given
+  // a real budget on the request that needs it and falls back to the curated
+  // list when it can't land in time — a page renders the 287 names on the first
+  // request of a cold instance and the full 4,311 once the snapshot is cached.
+  // Never blocks a page for the full 10s and never returns an empty universe.
+  // ──────────────────────────────────────────────────────────────────
+  private universeCache: {
+    ts: number;
+    symbols: string[];
+    rows: Map<string, { sector: string | null; industry: string | null; marketCap: number | null; name: string }>;
+  } | null = null;
+  private readonly UNIVERSE_TTL_MS = 12 * 60 * 60_000;
+  /** Slice of a request's budget the screener snapshot may consume. Sized off
+   *  the measured warm latency (3–4s) plus headroom, so a warm snapshot always
+   *  lands and a cold one degrades to the fallback instead of a 504. */
+  private readonly UNIVERSE_BUDGET_MS = 5_000;
+
+  /** Screener-driven universe, largest market cap first. Falls back to the
+   *  curated list; never throws. `budgetMs` is how long the caller can afford
+   *  to wait for a cold snapshot. */
+  private async loadUniverse(budgetMs = this.UNIVERSE_BUDGET_MS): Promise<string[]> {
+    const hit = this.universeCache;
+    if (hit && Date.now() - hit.ts < this.UNIVERSE_TTL_MS) return hit.symbols;
+    if (!this.fmp?.enabled) return this.universe();
+    try {
+      const snap = await this.fmp.getScreenerSnapshot(UNIVERSE_SCREENER_QUERY, { budgetMs });
+      if (snap.size) {
+        const rows = new Map<
+          string,
+          { sector: string | null; industry: string | null; marketCap: number | null; name: string }
+        >();
+        for (const [symbol, r] of snap) {
+          // The screener already applied the cap floor and the fund filters;
+          // re-check the cap so a stale/odd row can never sneak a micro-cap in,
+          // and drop the named industry exclusions (SPAC shells).
+          if ((r.marketCap ?? 0) < UNIVERSE_MIN_MARKET_CAP) continue;
+          if (r.industry && EXCLUDED_UNIVERSE_INDUSTRIES.has(r.industry)) continue;
+          rows.set(symbol, {
+            sector: r.sector,
+            industry: r.industry,
+            marketCap: r.marketCap,
+            name: r.name,
+          });
+        }
+        if (rows.size) {
+          // Largest first: every consumer below is budget-bounded, so ordering
+          // by cap means a truncated sweep covers the names users look for.
+          const symbols = Array.from(rows.keys()).sort(
+            (a, b) => (rows.get(b)!.marketCap ?? 0) - (rows.get(a)!.marketCap ?? 0),
+          );
+          this.universeCache = { ts: Date.now(), symbols, rows };
+          this.logger.log(
+            `Market universe: ${symbols.length} NASDAQ/NYSE stocks above $${Math.round(UNIVERSE_MIN_MARKET_CAP / 1e6)}M (screener).`,
+          );
+          return symbols;
+        }
+      }
+    } catch {
+      /* fall through to the curated list */
+    }
+    return this.universe();
+  }
+
+  /** The $100M+ universe as reference rows (sector, industry, market cap, name),
+   *  cap-ordered, for callers that need to widen a themed basket to every
+   *  qualifying company rather than just list one. Empty when the snapshot is
+   *  unavailable, so a caller falls back to whatever membership it already had. */
+  async getUniverseRows(budgetMs = this.UNIVERSE_BUDGET_MS): Promise<
+    Array<{ symbol: string; sector: string | null; industry: string | null; marketCap: number | null; name: string }>
+  > {
+    const symbols = await this.loadUniverse(budgetMs);
+    if (!this.universeIsDynamic()) return [];
+    const out: Array<{
+      symbol: string;
+      sector: string | null;
+      industry: string | null;
+      marketCap: number | null;
+      name: string;
+    }> = [];
+    for (const symbol of symbols) {
+      const r = this.universeRow(symbol);
+      if (r) out.push({ symbol, ...r });
+    }
+    return out;
+  }
+
+  /** The universe WITHOUT waiting on anything: the screener list once loaded,
+   *  else the curated fallback. For callers that must stay synchronous. */
   private universe(): string[] {
+    if (this.universeCache && Date.now() - this.universeCache.ts < this.UNIVERSE_TTL_MS) {
+      return this.universeCache.symbols;
+    }
     // Defensive dedupe — a repeated symbol in the curated list must never
     // produce duplicate rows in analyst/dividend/heatmap payloads.
     return Array.from(new Set(MARKET_UNIVERSE));
+  }
+
+  /** Screener reference row for a universe member (sector, industry, cap, name),
+   *  or undefined for a symbol outside the loaded universe. */
+  private universeRow(symbol: string) {
+    return this.universeCache?.rows.get((symbol || '').toUpperCase());
+  }
+
+  /** True when the screener snapshot has landed, i.e. a build ran against the
+   *  full $100M+ universe rather than the 287-name fallback. Tool caches use
+   *  this to tell a COMPLETE result from a merely well-formed one, so a build
+   *  that had to fall back is cached only briefly and retried. */
+  private universeIsDynamic(): boolean {
+    return (
+      !!this.universeCache && Date.now() - this.universeCache.ts < this.UNIVERSE_TTL_MS
+    );
   }
 
   // ──────────────────────────────────────────────────────────────────
@@ -2160,24 +2463,44 @@ export class MarketStatsService {
       const key = `analyst:${[...symbols].sort().join(',').slice(0, 400)}`;
       return this.cachedTool(key, () => this.buildAnalystRatings(symbols), 20);
     }
-    return this.cachedTool("analyst", () => this.buildAnalystRatings(), 20);
+    return this.cachedTool(
+      "analyst",
+      () => this.buildAnalystRatings(),
+      20,
+      // Only a build that saw the full universe is cached for the long TTL; one
+      // that fell back to the 287 curated names is retried shortly.
+      () => this.universeIsDynamic(),
+    );
   }
+  /** Wall-clock ceiling for a whole-universe analyst build, and the slice of it
+   *  the per-symbol target sweep may use. The old code raced the sweep against
+   *  a 20s timer — twice the gateway's own limit, so a cold build could only
+   *  ever end in a 504. Both legs are now inside one 8s budget. */
+  private readonly ANALYST_BUDGET_MS = 8_000;
+  private readonly ANALYST_TARGET_BUDGET_MS = 3_500;
   private async buildAnalystRatings(symbols?: string[]): Promise<AnalystRow[]> {
+    const deadline = Date.now() + this.ANALYST_BUDGET_MS;
     const syms =
       symbols && symbols.length
         ? Array.from(new Set(symbols.map((s) => s.toUpperCase()))).slice(0, 250)
-        : this.universe();
+        : await this.loadUniverse(this.UNIVERSE_BUDGET_MS);
     // Consensus comes from the v7 batch quote (averageAnalystRating), which is
-    // reliable on the server. Price targets need the per-symbol summary, which
-    // Yahoo blocks from datacenter IPs — so we fetch it only as a time-boxed
-    // best-effort and never let it starve the table.
-    const quotes = await this.getQuoteBatch(syms);
+    // reliable on the server and BATCHED — so the row set scales to the whole
+    // $100M+ universe for the price of a few requests (2,996 of the 4,311 names
+    // carry a consensus rating; the rest are genuinely uncovered and are
+    // dropped below, as they always were).
+    //
+    // Price targets need the per-symbol summary, which Yahoo blocks from
+    // datacenter IPs and which CANNOT be batched — so it is a time-boxed
+    // best-effort over the largest names first and never starves the table.
+    // Rows without a target sort last (upsidePct null ⇒ -999 in the comparator),
+    // so what the sweep does reach is exactly what a user sees at the top.
+    const quotes = await this.getQuoteBatch(syms, { deadlineMs: deadline });
     let summaries = new Map<string, any>();
     try {
-      summaries = await Promise.race([
-        this.summaryBatch(syms),
-        new Promise<Map<string, any>>((res) => setTimeout(() => res(new Map()), 20000)),
-      ]);
+      summaries = await this.summaryBatch(syms, {
+        deadlineMs: Math.min(deadline, Date.now() + this.ANALYST_TARGET_BUDGET_MS),
+      });
     } catch {
       /* targets unavailable — consensus from the quote is enough */
     }
@@ -2251,27 +2574,33 @@ export class MarketStatsService {
       // budget; remaining rows simply show no breakdown.
       const missing = rows.filter((r) => r.totalRatings == null).slice(0, 80);
       const CONC = 5;
-      for (let i = 0; i < missing.length; i += CONC) {
-        const chunk = missing.slice(i, i + CONC);
-        await Promise.all(
-          chunk.map(async (r) => {
-            try {
-              const g = await this.fmp!.getGradesConsensus(r.symbol);
-              if (!g) return;
-              const tot = g.strongBuy + g.buy + g.hold + g.sell + g.strongSell;
-              if (tot > 0) {
-                r.buyRatings = g.strongBuy + g.buy;
-                r.holdRatings = g.hold;
-                r.sellRatings = g.sell + g.strongSell;
-                r.totalRatings = tot;
-                if (r.numAnalysts == null) r.numAnalysts = tot;
+      const fill = async (): Promise<void> => {
+        for (let i = 0; i < missing.length && Date.now() < deadline; i += CONC) {
+          const chunk = missing.slice(i, i + CONC);
+          await Promise.all(
+            chunk.map(async (r) => {
+              try {
+                const g = await this.fmp!.getGradesConsensus(r.symbol);
+                if (!g) return;
+                const tot = g.strongBuy + g.buy + g.hold + g.sell + g.strongSell;
+                if (tot > 0) {
+                  r.buyRatings = g.strongBuy + g.buy;
+                  r.holdRatings = g.hold;
+                  r.sellRatings = g.sell + g.strongSell;
+                  r.totalRatings = tot;
+                  if (r.numAnalysts == null) r.numAnalysts = tot;
+                }
+              } catch {
+                /* leave blank */
               }
-            } catch {
-              /* leave blank */
-            }
-          }),
-        );
-      }
+            }),
+          );
+        }
+      };
+      // FMP's client allows itself 15s per request, so the round gate alone can't
+      // hold this inside the budget. Rows are mutated in place as they resolve,
+      // so an abandoned wait keeps every breakdown already filled.
+      await this.withTimeout(fill(), Math.max(0, deadline - Date.now()), undefined);
     }
     // Strongest consensus first (falls back to this when no upside is known).
     const strength: Record<string, number> = {
@@ -2285,22 +2614,51 @@ export class MarketStatsService {
     return rows;
   }
 
-  /** Market heat-map feed — the biggest U.S. companies (by market cap) with
-   *  live intraday change and sector, for the market heatmap. Sourced from the
-   *  v7 batch quote (reliable on the server), largest first. */
+  /** Wall-clock ceiling for the whole heatmap build (universe snapshot + quote
+   *  sweep). The gateway kills requests at ~10s; the two legs measured 3–4s
+   *  (warm screener) and 3.7–5.1s (4,311-symbol v7 sweep), so 8s leaves the
+   *  serialization and response headroom. */
+  private readonly HEATMAP_BUDGET_MS = 8_000;
+
+  /** Market heat-map feed — EVERY actively-traded NASDAQ/NYSE stock above a
+   *  $100M market cap (client spec), with live intraday change and sector,
+   *  largest cap first. Sourced from the v7 batch quote (reliable on the
+   *  server); sector comes from the screener snapshot, translated into the same
+   *  TRBC buckets the curated map uses.
+   *
+   *  This is the page the full expansion suits best: every column it renders
+   *  comes from the batch quote plus the screener's inline sector, so 4,311 rows
+   *  cost 9 batch requests rather than 4,311 per-symbol ones. Measured payload
+   *  for the full set: ~803 KB of JSON. */
   async getMarketHeatmap(): Promise<MarketStatRow[]> {
     return this.cachedTool(
       "heatmap",
       async () => {
-        const quotes = await this.getQuoteBatch(this.universe());
+        const deadline = Date.now() + this.HEATMAP_BUDGET_MS;
+        const syms = await this.loadUniverse(this.UNIVERSE_BUDGET_MS);
+        const quotes = await this.getQuoteBatch(syms, { deadlineMs: deadline });
         return Array.from(quotes.values())
-          .filter((r) => (r.marketCap ?? 0) > 0 && r.price > 0)
+          // The floor is enforced on the cap we PUBLISH, not just the one the
+          // screener selected on. The two occasionally disagree (Yahoo priced
+          // TRIB at a $9M cap on a screener row that qualified at >$100M —
+          // different share counts for the same ADR), and a tile labelled $9M on
+          // a page that promises "$100M and above" is a contradiction the client
+          // would see. When they disagree, the smaller wins and the row is out.
+          .filter((r) => (r.marketCap ?? 0) >= UNIVERSE_MIN_MARKET_CAP && r.price > 0)
           // Authoritative sector (Yahoo omits it on the fast quote path) so the
           // heatmap groups cleanly with no "Other" bucket.
-          .map((r) => ({ ...r, sector: SECTOR_BY_TICKER[r.symbol] ?? r.sector ?? "Other" }))
+          .map((r) => ({ ...r, sector: this.sectorFor(r.symbol, r.sector) ?? "Other" }))
           .sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0));
       },
       20,
+      // A sweep cut short by the budget is well-formed but incomplete, so it is
+      // served and cached only briefly — the next request resumes against the
+      // now-warm per-symbol quote cache and converges on the full universe.
+      // 90% rather than 100%: Yahoo has no quote for a handful of screener names
+      // (4 of 4,311 measured), which is not a reason to keep rebuilding.
+      (rows) =>
+        this.universeIsDynamic() &&
+        rows.length >= Math.round(this.universe().length * 0.9),
     );
   }
 
@@ -2312,19 +2670,41 @@ export class MarketStatsService {
       () => this.buildDividends(),
       15,
       // Ex-Div Date is the one column bound by the per-symbol request budget, so
-      // it decides whether this build is worth caching for the full TTL. 5% (or
-      // 5 rows) of slack tolerates the handful of payers no feed covers without
-      // treating a budget-starved cold build as final.
-      (rows) =>
-        rows.filter((r) => r.exDividendDate == null).length <=
-        Math.max(5, Math.round(rows.length * 0.05)),
+      // it decides whether this build is worth caching for the full TTL.
+      //
+      // The threshold is expressed over the ENRICHABLE PREFIX, not the whole
+      // table, because the universe expansion changed what "complete" can mean:
+      // 227 payers out of 287 names were all reachable inside one budget, but
+      // the $100M+ universe has ~1,900 payers and the ex-date sources are
+      // per-symbol (Yahoo summary) or per-calendar-day (FMP). Measuring blanks
+      // across all 1,900 would mark EVERY build partial forever, which pins the
+      // 90-second TTL on and turns the page into a rebuild storm — the opposite
+      // of what the short TTL is for. So we ask the honest question: are the
+      // rows we could reach filled? The table is sorted highest-yield first and
+      // enrichment runs in that order, so this is also the part users see.
+      (rows) => {
+        const prefix = rows.slice(0, this.DIV_ENRICH_MAX_ROWS);
+        return (
+          prefix.filter((r) => r.exDividendDate == null).length <=
+          Math.max(5, Math.round(prefix.length * 0.05))
+        );
+      },
     );
   }
+  /** How many payers one request's enrichment phase is expected to reach. Not a
+   *  cap on the table — every payer is still listed — only the window the
+   *  completeness check above is measured over. Sized to what the measured
+   *  budget actually covers (Yahoo summary sweep at concurrency 10 for ~3.2s
+   *  plus the FMP ex-date day-walk). */
+  private readonly DIV_ENRICH_MAX_ROWS = 250;
   /** Wall-clock ceiling for the whole dividends enrichment phase (FMP calendar
    *  + P/E top-up + Yahoo summary sweep). The gateway kills requests at ~10s,
    *  so the sweep takes what fits and the arithmetic fallback covers the rest —
    *  the table is never left with blank cells because time ran out. */
   private readonly DIV_ENRICH_BUDGET_MS = 5_000;
+  /** Ceiling for the quote leg that builds the rows themselves, so the universe
+   *  sweep and the enrichment phase together stay under the gateway limit. */
+  private readonly DIV_QUOTE_BUDGET_MS = 4_000;
   /** Slice of that budget held back for the FMP ex-date day-walk, so a slow
    *  Yahoo sweep can't consume the whole thing and leave the top-up no room. */
   private readonly DIV_FMP_RESERVE_MS = 1_800;
@@ -2333,8 +2713,17 @@ export class MarketStatsService {
    *  results discarded. Sized to one calendar-day request (measured ~0.5s). */
   private readonly DIV_WALK_SLACK_MS = 800;
   private async buildDividends(): Promise<DividendRow[]> {
-    const syms = this.universe();
-    const quotes = await this.getQuoteBatch(syms);
+    // Yield, rate, price and cap all come from the BATCH quote, so the row set
+    // scales to the whole $100M+ universe: ~1,900 dividend payers versus the 227
+    // the curated list could show. Only Payout Ratio and Ex-Div Date are
+    // per-symbol, and those stay budget-bounded — see the note above.
+    const syms = await this.loadUniverse(this.UNIVERSE_BUDGET_MS);
+    // Deadline taken AFTER the universe load, not before it: the quote leg needs
+    // its own budget, and starting the clock first meant a slow snapshot could
+    // leave it with none — measured as a build that returned ZERO dividend rows.
+    const quotes = await this.getQuoteBatch(syms, {
+      deadlineMs: Date.now() + this.DIV_QUOTE_BUDGET_MS,
+    });
     const rows: DividendRow[] = [];
     for (const sym of syms) {
       const q = quotes.get(sym);
@@ -2460,15 +2849,49 @@ export class MarketStatsService {
   }
 
   /** Short Interest — shares short, % of float, days-to-cover and the
-   *  month-over-month change, most-shorted first. */
+   *  month-over-month change, most-shorted first.
+   *
+   *  THE ONE MARKET-WIDE PAGE THAT CANNOT TAKE THE FULL $100M+ EXPANSION.
+   *  Every figure it renders (sharesShort, sharesShortPriorMonth,
+   *  shortPercentOfFloat, shortRatio) exists in exactly one place we can reach:
+   *  Yahoo's `quoteSummary.defaultKeyStatistics`, which serves ONE SYMBOL PER
+   *  REQUEST. There is no batch form, and FMP's stable tier publishes no short
+   *  interest at all. Measured cost of a per-symbol sweep: ~20 symbols per
+   *  second at concurrency 6, i.e. ~3.5 minutes for 4,311 names — 20x over the
+   *  gateway's ~10s limit.
+   *
+   *  So this page walks the universe INCREMENTALLY instead: each request sweeps
+   *  a budgeted slice, every symbol it fetches lands in the shared 30-minute
+   *  summaryCache, and rows accumulate across requests. Coverage therefore grows
+   *  from the curated ~283 toward the cap-ordered universe on a warm instance
+   *  and resets when the instance is recycled. Genuinely completing this page
+   *  over the whole universe needs the sweep moved OFF the request path — a
+   *  scheduled job writing to a persistent table, the same shape as
+   *  backtest-cache / gov-contract-cache. That is deferred work, not something
+   *  a request can be made to do.
+   */
   async getShortInterest(): Promise<ShortInterestRow[]> {
     return this.cachedTool("short-interest", () => this.buildShortInterest());
   }
+  /** Symbols one short-interest build will ASK for. Deliberately far below the
+   *  universe size: the summary sweep is the binding constraint, and asking for
+   *  thousands would only mean discarding most of the list at the deadline. */
+  private readonly SHORT_INTEREST_MAX_SYMBOLS = 600;
+  /** Slice of the request the per-symbol summary sweep may consume. */
+  private readonly SHORT_INTEREST_BUDGET_MS = 5_000;
   private async buildShortInterest(): Promise<ShortInterestRow[]> {
-    const syms = this.universe();
+    // Largest caps first (loadUniverse orders by market cap), so the slice this
+    // build can afford is the part of the market users actually look up.
+    const syms = (await this.loadUniverse(this.UNIVERSE_BUDGET_MS)).slice(
+      0,
+      this.SHORT_INTEREST_MAX_SYMBOLS,
+    );
     const [quotes, summaries] = await Promise.all([
-      this.getQuoteBatch(syms),
-      this.summaryBatch(syms),
+      this.getQuoteBatch(syms, { deadlineMs: Date.now() + this.DIV_QUOTE_BUDGET_MS }),
+      this.summaryBatch(syms, {
+        concurrency: 10,
+        deadlineMs: Date.now() + this.SHORT_INTEREST_BUDGET_MS,
+      }),
     ]);
     const rows: ShortInterestRow[] = [];
     for (const sym of syms) {
@@ -2553,6 +2976,13 @@ export class MarketStatsService {
   /** Symbols pulled before the first response returns — keeps cold starts fast. */
   private readonly FIRM_EAGER = 30;
   private readonly FIRM_CONCURRENCY = 6;
+  /** Names the league table is scored over. Each one costs TWO requests (rating
+   *  history + 5 years of closes), so this stays a bounded slice of the universe
+   *  rather than following it to 4,311: a firm ranking converges on the same
+   *  ordering long before then, and an unbounded background sweep would occupy
+   *  the instance for the rest of its life. Cap-ordered, so it is the coverage
+   *  that matters. */
+  private readonly FIRM_UNIVERSE_MAX = 500;
 
   /** Ratings for one ticker, joined to forward returns. Cached via the
    *  underlying quoteSummary + close-history caches. */
@@ -2618,7 +3048,7 @@ export class MarketStatsService {
     rows: AnalystFirmRow[];
     coverage: { symbols: number; universe: number; ratings: number };
   }> {
-    const universe = this.universe();
+    const universe = this.universe().slice(0, this.FIRM_UNIVERSE_MAX);
     const stale = Date.now() - this.firmSweepAt > this.FIRM_TTL_MS;
 
     // Nothing gathered yet → pull a small slice inline so the first paint has
@@ -2656,7 +3086,7 @@ export class MarketStatsService {
 
     const rows = aggregateFirms(
       outcomes,
-      (sym) => SECTOR_BY_TICKER[sym] ?? null,
+      (sym) => this.sectorFor(sym),
       Date.now(),
     ).slice(0, limit);
 

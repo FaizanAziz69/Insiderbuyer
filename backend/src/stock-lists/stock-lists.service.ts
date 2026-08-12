@@ -52,30 +52,133 @@ export interface HotSectorsResponse {
   sectors: HotSectorRow[];
 }
 
-// Hot Sectors ranking weights: how much the >10% gainer ratio vs. the insider
-// buying intensity each contribute to the composite heat score.
 /**
- * Heat Score weights. The old model was 0.6·gainerRatio + 0.4·(buys ÷ maxBuys),
- * which broke in two ways:
- *   • maxBuys is tiny in a quiet month (it was 2), so a sector with two insider
- *     buys took the FULL insider component and outranked a sector with 36% of
- *     its members up 10%+ — the worst-performing basket sat at #1.
- *   • sells were ignored entirely, so 0 buys / 656 sells scored the same as a
- *     basket with no insider activity at all.
- * The model now scores breadth, magnitude and insider pressure separately, each
- * on an ABSOLUTE scale rather than relative to the busiest peer.
+ * ── Heat Score model ──────────────────────────────────────────────────────
+ *
+ * The score is a weighted average of three factors, each independently mapped
+ * to 0–1 on an ABSOLUTE scale (never relative to the busiest peer), then scaled
+ * to 0–100:
+ *
+ *   breadth   = share of members up more than 10% month-to-date        (60%)
+ *   momentum  = average member MTD %, mapped across HOT_MOMENTUM_BAND  (25%)
+ *   insider   = current-month buy/sell skew, damped by how much
+ *               insider activity stands behind it, NEUTRAL AT 0.5      (15%)
+ *
+ * History, because the arithmetic is the whole point of this block:
+ *
+ * 1. The original model was `0.6·breadth + 0.4·(buys ÷ maxBuys)`. Two defects.
+ *    `maxBuys` is whatever the busiest basket happened to have — in a quiet
+ *    month it was 2, so a sector with two insider buys took the entire insider
+ *    component and the WORST-performing basket ranked #1. And sells were
+ *    ignored, so 0 buys / 656 sells scored the same as no insider activity at
+ *    all. It is also what produced the client's complaint: a sector with 96% of
+ *    members up 10%+ scored 0.6·0.96 + 0.4·0.26 = 0.68 → 68, because the
+ *    breadth term alone can never exceed 60 and the other 40 points were
+ *    decided by a ratio against an unrelated basket.
+ *
+ * 2. Breadth-dominant weights (60/25/15) with absolute scales replaced that.
+ *    Same 96%-breadth sector, average MTD +10%:
+ *      breadth  = 0.96
+ *      momentum = (10 − (−10)) ÷ (15 − (−10)) = 0.80
+ *      no insider data → renormalise over the two live factors:
+ *        (0.6·0.96 + 0.25·0.80) ÷ 0.85 = 0.776 ÷ 0.85 = 0.913 → 91
+ *
+ * 3. What is fixed HERE is the insider factor's zero point. It was
+ *    `skew × confidence`, which is 0 for a sector with balanced insider flow
+ *    (skew 0.5, confidence 1 → 0.5, i.e. only half credit) and drops toward 0
+ *    as evidence THINS — so thin data read as bearish, and a sector with no
+ *    data at all (renormalised away) scored HIGHER than an identical sector
+ *    with neutral data. A weighted average needs a neutral signal to score
+ *    neutral, so the factor is now centred on 0.5 and confidence interpolates
+ *    between "no idea" (0.5) and the measured skew:
+ *      insider = 0.5 + confidence·(skew − 0.5)
+ *    Confidence is derived from TOTAL flow, not the buy count: 656 sells and no
+ *    buys is strong evidence of selling (skew 0 at full confidence → insider 0),
+ *    whereas the old form read it as no evidence at all.
+ *
+ * Worked examples at 96% breadth (client's scenario), old model → new model:
+ *   avg MTD +10%, no insider data      68 → 91
+ *   avg MTD +10%, balanced insider flow 68 → 85
+ *   avg MTD +10%, only insider selling  68 → 78
+ *   avg MTD +18%, balanced insider flow 68 → 90
+ * A near-unanimous strong month can no longer land in the 60s under any
+ * insider configuration, and the insider factor moves the score by at most
+ * 15 points in either direction.
  */
-// Client recalibration (Azlan): breadth dominates — a sector with ~96% of
-// members up 10%+ MTD must score in the 90s, not the 60s. When a sector has
-// no insider activity at all, the insider component is EXCLUDED and the
-// remaining weights renormalised (a missing signal is not a bearish signal).
 const HOT_BREADTH_WEIGHT = 0.6;
 const HOT_MOMENTUM_WEIGHT = 0.25;
 const HOT_INSIDER_WEIGHT = 0.15;
-/** Average member MTD % mapped to 0–1 across this band. */
+/** Average member MTD % mapped to 0–1 across this band. The top is +15%, not
+ *  +10%, so the client's "everything up 10%+" case does not sit at the ceiling
+ *  with nowhere left to express a genuinely exceptional month. */
 const HOT_MOMENTUM_BAND: [number, number] = [-10, 15];
-/** Buy count at which the insider component reaches full confidence. */
-const HOT_BUYS_FOR_FULL_WEIGHT = 10;
+/** Total insider transactions (buys + sells) at which the buy/sell skew is
+ *  taken at face value. Below it the factor is pulled toward neutral, not
+ *  toward bearish. Logarithmic, so the first few filings move it the most. */
+const HOT_FLOW_FOR_FULL_CONFIDENCE = 10;
+/** A factor with no evidence behind it: the midpoint of the 0–1 scale. */
+const HOT_NEUTRAL = 0.5;
+
+// ── Hot Sectors membership ────────────────────────────────────────────────
+/** The benchmark every sector is compared against: the S&P 500 index itself. */
+const SP500_SYMBOL = '^GSPC';
+/** Client spec (Azlan): a company only counts toward a sector's heat above a
+ *  $100M market cap — below that a name swings ±10% on nothing and distorts the
+ *  gainer ratio that the score is mostly made of. */
+const HOT_SECTOR_MIN_CAP = 100_000_000;
+/**
+ * Widening the baskets to "every company above $100M" (client spec).
+ *
+ * A theme is not a taxonomy. FMP's screener publishes a sector and an industry
+ * for every listed company, which identifies Gold, Energy, Financials and
+ * Biotech precisely — but no published classification identifies "AI",
+ * "Quantum" or "Crypto", because those are business narratives that cut across
+ * industries (NVDA is a semiconductor company; COIN is capital markets). So the
+ * baskets in persona-data.ts remain the DEFINITION of each theme, and where a
+ * screener rule can honestly enumerate the rest of the theme, it is merged in.
+ * Themes with no rule stay exactly as curated rather than being padded with
+ * names that only look related.
+ *
+ * Matching is on the screener's `industry` first (the precise field) and
+ * `sector` as the coarse fallback.
+ */
+const HOT_SECTOR_EXPANSION: Record<string, { industry?: RegExp; sector?: RegExp }> = {
+  gold: { industry: /^(Gold|Other Precious Metals)$/i },
+  energy: { sector: /^Energy$/i },
+  financials: { sector: /^Financial Services$/i },
+  'biotech-pharma': {
+    industry: /^(Biotechnology|Drug Manufacturers.*|Medical - Pharmaceuticals)$/i,
+  },
+  'rare-earths': {
+    industry: /^(Copper|Aluminum|Steel|Uranium|Industrial Materials|Other Precious Metals)$/i,
+  },
+};
+/**
+ * Members one basket may hold after expansion, largest market cap first.
+ *
+ * This is the binding constraint on the whole page, and it is a DATA cost, not
+ * an arbitrary limit: the breadth factor needs a month-to-date return for every
+ * member, and a month-to-date return needs that member's close on the last
+ * trading day of the previous month. That baseline is one chart request per
+ * symbol — there is no batch form of it anywhere (see the note on
+ * getMonthYtdReturns) — so an unbounded expansion of the Financials basket
+ * alone (1,097 qualifying companies) would need 1,097 requests before the page
+ * could render. Baselines are cached for the whole month, so 75 per basket is
+ * affordable and converges within a few page loads; thousands is not. Covering
+ * every qualifying company in every theme needs the baseline sweep moved to a
+ * scheduled job with a persistent store.
+ */
+const HOT_SECTOR_MAX_MEMBERS = 75;
+/** Wall-clock slice one Hot Sectors request may spend fetching missing MTD/YTD
+ *  baselines. The rest of its budget goes on the batch quote and the insider
+ *  buy/sell join. */
+const HOT_SECTOR_BASELINE_BUDGET_MS = 2_500;
+/** Budget for the universe snapshot that drives the expansion. Deliberately
+ *  smaller than the heatmap's, which is the endpoint that normally warms the
+ *  shared 12h snapshot: this page should not be the one paying for a cold fetch
+ *  on top of its own two data legs. Losing the race costs coverage for one
+ *  request, never the page — the curated baskets stand. */
+const HOT_SECTOR_UNIVERSE_BUDGET_MS = 2_500;
 
 export interface LiveQuote {
   price: number;
@@ -160,6 +263,14 @@ const PENNY_SNAPSHOT_QUERY = {
 /** The snapshot is started concurrently with the page build, so this budget is
  *  mostly absorbed by work that had to happen anyway. */
 const PENNY_SNAPSHOT_BUDGET_MS = 4500;
+/** Whole-request soft budget for a list page. The frontend proxy aborts at 9s
+ *  (BACKEND_TIMEOUT_MS), which is tighter than the gateway, so the optional
+ *  gap-fill only runs with whatever is left of this — a page that already spent
+ *  its time building rows ships them instead of dying with prettier ones. */
+const LIST_REQUEST_BUDGET_MS = 7000;
+/** Held back from Blue Sky's analyst scan for the work that always follows it:
+ *  live quotes for the shortlist and the insider-coverage join. */
+const BLUE_SKY_TAIL_RESERVE_MS = 1500;
 
 export interface StockListFilters {
   country?: string;
@@ -456,31 +567,68 @@ export class StockListsService {
   private blueSkyCache: { ts: number; ttl: number; rows: any[] } | null = null;
   private readonly BLUE_SKY_TTL_MS = 30 * 60_000;
   private readonly BLUE_SKY_PARTIAL_TTL_MS = 90_000;
-  /** Leaves room for the rest of the request (rankings join, live quotes, the
-   *  fundamentals pass) inside the ~10s gateway limit. */
+  /** Hard stop for the analyst scan, sized off the measurements in the docblock
+   *  below: the rest of the request costs ~1.5s and the frontend proxy aborts at
+   *  9s, so the scan gets the middle and nothing it does can push past that. */
   private readonly BLUE_SKY_SCAN_BUDGET_MS = 5000;
+  /** Symbols per analyst batch. Deliberately far below MarketStatsService's
+   *  250-symbol cap, because a small batch is the only PREDICTABLE unit of work
+   *  here: measured cold against production, 50 symbols took 1.17s / 1.27s /
+   *  1.60s and returned 6–13 qualifiers each, where a 250-symbol batch ranged
+   *  5.2s to 19.8s. Three or four of these fit in the budget with room to spare. */
+  private readonly BLUE_SKY_BATCH = 50;
+  /** Don't start another batch without at least this much budget left. */
+  private readonly BLUE_SKY_MIN_BATCH_MS = 1200;
+  /** Floor for the first batch, so an over-budget request still ships some rows. */
+  private readonly BLUE_SKY_FIRST_BATCH_MS = 1800;
+  /** Cap on waiting for the penny screener that seeds the candidate pool. */
+  private readonly BLUE_SKY_POOL_BUDGET_MS = 2500;
+  /**
+   * Qualifying names accumulated ACROSS requests (symbol → row). A cold scan can
+   * only measure part of the pool inside the request budget, so each request
+   * merges what it managed to measure instead of throwing it away: a name that
+   * still clears the bar is (re)stored, one that no longer does is dropped, and
+   * the page is served from the accumulator. That is what turns "the scan was cut
+   * short" into a partial list rather than an empty one. Same 20-minute window
+   * MarketStatsService caches the underlying analyst batches for.
+   */
+  private blueSkyPool = new Map<string, { ts: number; row: any }>();
+  private readonly BLUE_SKY_POOL_TTL_MS = 20 * 60_000;
 
   /**
-   * Blue Sky Stocks — every name in our combined coverage universe whose average
-   * analyst price target implies >= 300% upside, best 50 by upside. Candidates
-   * come from our Form 4 rankings, the live penny-stock screener (where
-   * extreme-upside targets actually live), and the sector baskets.
+   * Blue Sky Stocks — every name in our coverage universe whose average analyst
+   * price target implies >= 300% upside, best 50 by upside.
    *
-   * This is the most expensive list we build: the candidate pool runs into the
-   * thousands and every 250-symbol analyst batch costs a Yahoo quote batch plus
-   * per-symbol summary lookups. Measured in production: 8.5s cold against a ~10s
-   * gateway (a 504 during one QA sweep), 0.7s warm off MarketStatsService's
-   * 20-minute batch cache. Three changes keep a cold request inside the budget:
-   *   • the two pool sources are fetched concurrently, and the rankings result is
-   *     reused for the Insider Score join instead of being asked for twice;
-   *   • the analyst scan runs under a wall-clock deadline — batches still in
-   *     flight when it expires are abandoned, and since each batch caches itself
-   *     on completion, that work is what makes the NEXT request warm;
-   *   • the built rows are cached, briefly when the scan was cut short so it
-   *     converges, and a truncated scan that found nothing serves the previous
-   *     (stale) rows rather than an empty table.
+   * The expensive part is the analyst scan: every batch costs a Yahoo quote batch
+   * plus per-symbol quoteSummary lookups. MEASURED against production:
+   *   • 250 curated large caps → 16.1s, past the frontend proxy's 9s abort, and
+   *     ZERO qualifiers; the best implied upside anywhere in the curated baskets
+   *     was 173% (VKTX). A liquid large cap does not carry a 4x consensus target.
+   *     Those baskets were most of the load and none of the answer, so the pool
+   *     is now the penny screener plus our own scored names (44 of one 250-symbol
+   *     penny batch cleared 300%; 100 qualifiers exist across the whole pool).
+   *   • Batch cost is dominated by the per-symbol summary lookups and is wildly
+   *     variable: the same 250-symbol batch took 5.2s once and 19.8s later, and
+   *     THREE batches in parallel took 14–19s each — they contend for Yahoo, so
+   *     fanning out makes every batch slower. A 50-symbol batch, by contrast,
+   *     came back in 1.17–1.60s every time with 6–13 qualifiers in it.
+   *   • MarketStatsService's 20-minute batch cache is per-process, and requests
+   *     land on different serverless instances, so "warm" is luck, not a state we
+   *     can count on.
+   * Conclusion: no single request can scan the whole pool. So it doesn't try. The
+   * scan walks SMALL batches one at a time (no self-contention), stops the moment
+   * the budget runs low, and folds every batch that lands into `blueSkyPool` —
+   * which is what makes a cut-short scan a partial list instead of an empty one,
+   * and lets successive views converge on the full 50.
+   *
+   * Also: the two pool sources are fetched concurrently and the rankings result
+   * is reused for the Insider Score join (it used to be fetched twice); results
+   * are cached 30 min for a complete scan and 90s for a partial one.
+   *
+   * An empty result from a cut-short scan is NOT an answer and is never cached:
+   * "we could not finish measuring" must not be published as "nothing qualifies".
    */
-  private async buildBlueSkyRows(): Promise<any[]> {
+  private async buildBlueSkyRows(startedAt = Date.now()): Promise<any[]> {
     if (this.blueSkyCache && Date.now() - this.blueSkyCache.ts < this.blueSkyCache.ttl) {
       return this.blueSkyCache.rows;
     }
@@ -490,44 +638,89 @@ export class StockListsService {
       this.iqs
         .getRankings({ limit: 500, offset: 0 })
         .catch(() => ({ total: 0, rows: [] as RankingRow[] })),
-      this.marketStats.getPennyStocks(500).catch(() => []),
+      // Bound the screener too. It is a live Yahoo call with its own retries,
+      // and when it goes slow it goes VERY slow — measured 21s end-to-end on a
+      // rate-limited client, which no downstream deadline can rescue. If it
+      // doesn't answer in time we scan our own scored names this round; the
+      // screener keeps filling its own 10-minute cache for the next one.
+      Promise.race([
+        this.marketStats.getPennyStocks(500).catch(() => []),
+        new Promise<Awaited<ReturnType<MarketStatsService['getPennyStocks']>>>((resolve) => {
+          const t = setTimeout(() => resolve([]), this.BLUE_SKY_POOL_BUDGET_MS);
+          t.unref?.();
+        }),
+      ]),
     ]);
-    for (const r of rankResult.rows) if (r.ticker) candidates.add(r.ticker.toUpperCase());
+    // Penny names first: they are both the cheapest batches and the productive
+    // ones, so if the deadline does bite, what landed is what mattered.
     for (const q of pennyPool) candidates.add(q.symbol.toUpperCase());
-    for (const b of HOT_SECTOR_BASKETS) for (const t of b.tickers) candidates.add(t.toUpperCase());
-    for (const list of Object.values(SECTOR_UNIVERSE)) for (const t of list) candidates.add(t.toUpperCase());
+    for (const r of rankResult.rows) if (r.ticker) candidates.add(r.ticker.toUpperCase());
 
-    // Analyst ratings are built in 250-symbol batches (the builder's cap); run
-    // the batches in parallel — but stop waiting at the deadline rather than
-    // letting the slowest batch push the whole request past the gateway limit.
     const syms = Array.from(candidates);
     const chunks: string[][] = [];
-    for (let i = 0; i < syms.length; i += 250) chunks.push(syms.slice(i, i + 250));
-    const batches = chunks.map((c) =>
-      this.marketStats.getAnalystRatings(c).catch(() => []),
+    for (let i = 0; i < syms.length; i += this.BLUE_SKY_BATCH) {
+      chunks.push(syms.slice(i, i + this.BLUE_SKY_BATCH));
+    }
+    const now = Date.now();
+    // Drop anything we last measured more than a window ago before deciding how
+    // much of the pool still needs scanning.
+    for (const [sym, e] of this.blueSkyPool) {
+      if (now - e.ts > this.BLUE_SKY_POOL_TTL_MS) this.blueSkyPool.delete(sym);
+    }
+    // The scan gets its own budget OR whatever the request has left, whichever
+    // is smaller — the pool fetch above already spent some of it (measured at up
+    // to 4s when the penny screener has to be re-fetched), and the annotate/quote
+    // passes downstream still need their turn before the proxy's 9s abort.
+    const deadline = Math.min(
+      now + this.BLUE_SKY_SCAN_BUDGET_MS,
+      startedAt + LIST_REQUEST_BUDGET_MS - BLUE_SKY_TAIL_RESERVE_MS,
     );
-    const harvest: Array<Awaited<(typeof batches)[number]>[number]> = [];
-    let done = 0;
-    // Each batch records itself the moment it lands, so a deadline cut keeps
-    // everything that finished in time instead of discarding the whole wave.
-    const tracked = batches.map((p) =>
-      p.then((rows) => {
-        done++;
-        harvest.push(...rows);
-      }),
-    );
-    await Promise.race([
-      Promise.all(tracked),
-      new Promise<void>((resolve) => {
-        const t = setTimeout(resolve, this.BLUE_SKY_SCAN_BUDGET_MS);
-        t.unref?.();
-      }),
-    ]);
-    const truncated = done < batches.length;
-    const all = harvest;
-
-    const qualifying = all
-      .filter((r) => (r.upsidePct ?? -1) >= MIN_UPSIDE && (r.price ?? 0) > 0)
+    let truncated = false;
+    let attempted = 0;
+    for (const chunk of chunks) {
+      // Enough names for a full page already — the rest of the pool can wait for
+      // the next window rather than spend this request's budget.
+      if (this.blueSkyPool.size >= 50) break;
+      // The FIRST batch always gets a go, even if the pool fetch ate the budget:
+      // one batch is ~1.3–1.6s and worth ~6–13 names, and a page with some rows
+      // beats a page with none. Every batch after it must fit in what's left.
+      const left = attempted === 0 ? Math.max(deadline - Date.now(), this.BLUE_SKY_FIRST_BATCH_MS) : deadline - Date.now();
+      if (left < this.BLUE_SKY_MIN_BATCH_MS) {
+        truncated = true;
+        break;
+      }
+      attempted++;
+      // Bound EVERY batch: MarketStatsService only caps its per-symbol summary
+      // sweep at 20s internally, which alone would blow the request.
+      const rows = await Promise.race([
+        this.marketStats
+          .getAnalystRatings(chunk)
+          .catch(() => [] as Awaited<ReturnType<MarketStatsService['getAnalystRatings']>>),
+        new Promise<null>((resolve) => {
+          const t = setTimeout(() => resolve(null), left);
+          t.unref?.();
+        }),
+      ]);
+      if (rows == null) {
+        // Abandoned mid-flight: it may still finish and cache itself for the next
+        // request, but this one stops here.
+        truncated = true;
+        break;
+      }
+      // Fold the batch in: a name that still clears the bar is (re)stored, one
+      // that no longer does is removed rather than left to linger in the list.
+      for (const r of rows) {
+        const sym = (r.symbol || '').toUpperCase();
+        if (!sym) continue;
+        if ((r.upsidePct ?? -1) >= MIN_UPSIDE && (r.price ?? 0) > 0) {
+          this.blueSkyPool.set(sym, { ts: Date.now(), row: r });
+        } else {
+          this.blueSkyPool.delete(sym);
+        }
+      }
+    }
+    const qualifying = Array.from(this.blueSkyPool.values())
+      .map((e) => e.row)
       .sort((a, b) => (b.upsidePct ?? 0) - (a.upsidePct ?? 0))
       .slice(0, 50);
 
@@ -550,15 +743,13 @@ export class StockListsService {
     }));
     const live = await this.fetchLiveQuotes(rows.map((r) => r.ticker));
     const out = this.enrichRows(rows, live) as any[];
-    // A cut-short scan that found nothing must not blank the page — serve the
-    // previous rows (stale beats empty) and retry on the short TTL.
-    if (truncated && !out.length && this.blueSkyCache?.rows.length) {
-      this.blueSkyCache = {
-        ts: Date.now(),
-        ttl: this.BLUE_SKY_PARTIAL_TTL_MS,
-        rows: this.blueSkyCache.rows,
-      };
-      return this.blueSkyCache.rows;
+    if (!out.length && truncated) {
+      // "The scan was cut short" is not the same claim as "nothing qualifies".
+      // Never cache it: serve the last known rows if we have any, otherwise let
+      // this request come back empty and let the NEXT one try again against
+      // warmer batch caches. Caching an empty here is what pinned the page at
+      // zero rows for 90 seconds at a time.
+      return this.blueSkyCache?.rows ?? [];
     }
     this.blueSkyCache = {
       ts: Date.now(),
@@ -568,32 +759,116 @@ export class StockListsService {
     return out;
   }
 
+  /** Basket membership for Hot Sectors: the curated theme definition, widened
+   *  with every $100M+ company the screener can attribute to that theme (see
+   *  HOT_SECTOR_EXPANSION for why only some themes can be). Cap-ordered, so the
+   *  members a budget-bounded build reaches first are the ones that matter most.
+   *  Degrades to the curated baskets exactly when the snapshot is unavailable. */
+  private async hotSectorBaskets(): Promise<Array<{ key: string; label: string; tickers: string[] }>> {
+    let universe: Awaited<ReturnType<MarketStatsService['getUniverseRows']>> = [];
+    try {
+      universe = await this.marketStats.getUniverseRows(HOT_SECTOR_UNIVERSE_BUDGET_MS);
+    } catch {
+      universe = [];
+    }
+    return HOT_SECTOR_BASKETS.map((b) => {
+      const tickers = b.tickers.map((t) => t.toUpperCase());
+      const rule = HOT_SECTOR_EXPANSION[b.key];
+      if (!rule || !universe.length) return { key: b.key, label: b.label, tickers };
+      const have = new Set(tickers);
+      // `universe` is already sorted by market cap descending, so this takes the
+      // largest qualifying companies first and stops at the member ceiling.
+      for (const r of universe) {
+        if (tickers.length >= HOT_SECTOR_MAX_MEMBERS) break;
+        if (have.has(r.symbol)) continue;
+        if ((r.marketCap ?? 0) < HOT_SECTOR_MIN_CAP) continue;
+        const hit =
+          (rule.industry && r.industry && rule.industry.test(r.industry)) ||
+          (rule.sector && r.sector && rule.sector.test(r.sector));
+        if (!hit) continue;
+        have.add(r.symbol);
+        tickers.push(r.symbol);
+      }
+      return { key: b.key, label: b.label, tickers };
+    });
+  }
+
   /** Hot Sectors — rank the thematic baskets by month-to-date 10%+ gainers
    *  (relative to basket size) and current-month insider buying, with each
-   *  sector's YTD performance vs. the S&P 500. */
+   *  sector's MTD and YTD performance vs. the S&P 500.
+   *
+   *  BENCHMARK BASIS (client asked for this to be verified explicitly):
+   *   • Source: Yahoo v8 daily chart for `^GSPC`, the S&P 500 index itself —
+   *     not SPY, so there is no tracking error or expense drag.
+   *   • Formula: (live index price ÷ last close before the 1st of the month or
+   *     year − 1) × 100. Verified against FMP as an independent source: our YTD
+   *     for AAPL from the 2025-12-31 close is 11.02% and FMP's own `ytd` field
+   *     is 11.029%. Measuring from the first close INSIDE the period instead —
+   *     the classic off-by-one-day error — would report 11.37%.
+   *   • `^GSPC` is a PRICE index (dividends excluded). The sector figures are
+   *     equal-weighted averages of member PRICE returns, so both sides of the
+   *     comparison exclude dividends and are consistent. They differ in
+   *     weighting: the index is cap-weighted, a sector average is equal-weighted
+   *     (every member counts once, which is the point of a breadth measure).
+   *   • The benchmark is now requested in the SAME call as the members, so every
+   *     figure in one response is marked at one instant. Previously the members
+   *     and the index came from two separately-cached calls, so a sector could be
+   *     compared against an index quoted up to an hour apart — the "slightly
+   *     inaccurate" part of the complaint.
+   */
   async getHotSectors(): Promise<HotSectorsResponse> {
-    const allTickers = Array.from(
-      new Set(HOT_SECTOR_BASKETS.flatMap((b) => b.tickers)),
-    );
-    const [returns, buySell, spReturns, quotes] = await Promise.all([
-      this.marketStats.getMonthYtdReturns(allTickers),
+    const baskets = await this.hotSectorBaskets();
+    // ROUND-ROBIN across baskets rather than basket-by-basket. The MTD baseline
+    // fill downstream is a budget-bounded PREFIX of this list, so the order
+    // decides what a warming instance knows about: taken basket-by-basket, the
+    // first sectors would have every member resolved and the last none, and
+    // their gainer ratios — the factor that is 60% of the score — would not be
+    // comparable. Interleaving spreads partial coverage evenly, and because each
+    // basket lists its curated members before its screener-expanded ones, every
+    // curated member is still resolved before any expansion member.
+    const allTickers: string[] = [];
+    const seen = new Set<string>();
+    for (let i = 0; ; i++) {
+      let any = false;
+      for (const b of baskets) {
+        const t = b.tickers[i];
+        if (!t) continue;
+        any = true;
+        if (seen.has(t)) continue;
+        seen.add(t);
+        allTickers.push(t);
+      }
+      if (!any) break;
+    }
+    const [returns, buySell] = await Promise.all([
+      // The benchmark rides along with the members: one call, one instant. It is
+      // FIRST in the list, not appended, because the baseline fill is a
+      // budget-bounded prefix of whatever order it is given — with the benchmark
+      // last, a converging cold instance produced sector returns and a null S&P
+      // 500 comparison for its first few requests (measured: ^GSPC resolved only
+      // on the 4th call). The one symbol every row is compared against goes first.
+      this.marketStats.getMonthYtdReturns([SP500_SYMBOL, ...allTickers], {
+        baselineBudgetMs: HOT_SECTOR_BASELINE_BUDGET_MS,
+      }),
       this.iqs.getMonthlyBuySellByTicker(allTickers),
-      this.marketStats.getMonthYtdReturns(['^GSPC']),
-      this.marketStats.getQuoteBatch(allTickers).catch(() => new Map()),
     ]);
-    const sp500Ytd = spReturns['^GSPC']?.ytd ?? null;
-    const sp500Mtd = spReturns['^GSPC']?.mtd ?? null;
+    // Cache hit: getMonthYtdReturns has just quoted these symbols for its live
+    // numerator, so this costs nothing and only supplies the market caps.
+    const quotes = await this.marketStats
+      .getQuoteBatch(allTickers)
+      .catch(() => new Map());
+    const sp500Ytd = returns[SP500_SYMBOL]?.ytd ?? null;
+    const sp500Mtd = returns[SP500_SYMBOL]?.mtd ?? null;
     // Client spec (Azlan): only companies above a $100M market cap count
     // toward a sector's heat — sub-$100M names swing ±10% on nothing and were
     // distorting the gainer ratios. A missing cap keeps the name (curated
     // baskets are liquid names; only a known micro-cap is excluded).
-    const MIN_CAP = 100_000_000;
     const capOk = (sym: string): boolean => {
       const cap = (quotes.get(sym) as { marketCap?: number | null } | undefined)?.marketCap;
-      return cap == null || cap >= MIN_CAP;
+      return cap == null || cap >= HOT_SECTOR_MIN_CAP;
     };
 
-    const raw = HOT_SECTOR_BASKETS.map((b) => {
+    const raw = baskets.map((b) => {
       let companies = 0;
       let gainers10 = 0;
       let ytdSum = 0;
@@ -608,7 +883,8 @@ export class StockListsService {
         const r = returns[up];
         if (r && r.mtd != null) {
           companies++;
-          if (r.mtd > 10) gainers10++;
+          // "up by 10%+" as the client states it — inclusive of exactly +10.00%.
+          if (r.mtd >= 10) gainers10++;
           mtdSum += r.mtd;
           mtdCount++;
         }
@@ -654,14 +930,15 @@ export class StockListsService {
         // Magnitude — the average move, so a basket that is broadly down can
         // never rank as "hot" on breadth alone.
         const momentum = r.mtd == null ? 0 : clamp01((r.mtd - mLo) / (mHi - mLo));
-        // Insider pressure — the buy/sell SKEW, scaled by how much activity
-        // stands behind it, so two lone buys can't max out the component.
+        // Insider pressure — the buy/sell SKEW, pulled toward neutral by how
+        // little activity stands behind it, so two lone buys can't max out the
+        // component and thin evidence isn't read as bearish.
         const flow = r.insiderBuys + r.insiderSells;
-        const skew = flow > 0 ? r.insiderBuys / flow : 0;
+        const skew = flow > 0 ? r.insiderBuys / flow : HOT_NEUTRAL;
         const confidence = clamp01(
-          Math.log1p(r.insiderBuys) / Math.log1p(HOT_BUYS_FOR_FULL_WEIGHT),
+          Math.log1p(flow) / Math.log1p(HOT_FLOW_FOR_FULL_CONFIDENCE),
         );
-        const insider = skew * confidence;
+        const insider = HOT_NEUTRAL + confidence * (skew - HOT_NEUTRAL);
         // No insider flow at all -> score over breadth+momentum only,
         // renormalised, instead of hard-coding a zero into 15% of the score.
         const weightSum =
@@ -710,6 +987,7 @@ export class StockListsService {
    * a weaker value, and no financial figure is synthesized.
    */
   async getDetail(slug: string, filters: StockListFilters): Promise<StockListDetail | null> {
+    const startedAt = Date.now();
     // Kick the penny-stock sector snapshot off BEFORE the page build so its ~3s
     // FMP call overlaps the (also slow) Yahoo screener build instead of adding to
     // it — see fillFundamentalGaps for why it cannot be warmed in the background
@@ -724,7 +1002,7 @@ export class StockListsService {
             budgetMs: PENNY_SNAPSHOT_BUDGET_MS,
           })
         : null;
-    const detail = await this.buildDetail(slug, filters);
+    const detail = await this.buildDetail(slug, filters, startedAt);
     if (!detail) return null;
     // OPTIONAL page window (see StockListFilters.limit) — applied before the
     // enrichment passes so a paged caller only pays for the rows it asked for.
@@ -738,13 +1016,22 @@ export class StockListsService {
           )
         : all;
     const withInsider = await this.annotateInsiderCoverage(paged);
-    detail.rows = (await this.fillFundamentalGaps(slug, withInsider, snapshot)) as any[];
+    detail.rows = (await this.fillFundamentalGaps(
+      slug,
+      withInsider,
+      snapshot,
+      LIST_REQUEST_BUDGET_MS - (Date.now() - startedAt),
+    )) as any[];
     return detail;
   }
 
   private async buildDetail(
     slug: string,
     filters: StockListFilters,
+    /** When the request started, so a builder that scans an external feed can
+     *  size its own deadline against the whole request rather than assuming it
+     *  owns the clock (measured: Blue Sky's pool fetch alone can cost 4s). */
+    startedAt = Date.now(),
   ): Promise<StockListDetail | null> {
     const meta = STOCK_LIST_META[slug];
     if (!meta && slug !== 'iqs-top-picks' && slug !== 'blue-sky') return null;
@@ -764,7 +1051,7 @@ export class StockListsService {
     }
 
     if (slug === 'blue-sky') {
-      const rows = await this.buildBlueSkyRows();
+      const rows = await this.buildBlueSkyRows(startedAt);
       return {
         slug,
         title: 'Blue Sky Stocks',
@@ -1153,6 +1440,9 @@ export class StockListsService {
     slug: string,
     rows: any[],
     snapshot?: Promise<Map<string, FmpScreenerRow>> | null,
+    /** What is left of the request's soft budget. Everything here is optional
+     *  polish on rows we already have, so it yields to shipping them on time. */
+    budgetLeftMs = LIST_REQUEST_BUDGET_MS,
   ): Promise<any[]> {
     if (!rows.length || !this.fmp.enabled) return rows;
     // The table reads live-quote values first, then the row's own field, so a
@@ -1201,9 +1491,17 @@ export class StockListsService {
     // could be permanently unresolvable while later rows never get a turn.
     const start = gapsAll.length > cap ? (Math.floor(Date.now() / 60_000) * cap) % gapsAll.length : 0;
     const gaps = [...gapsAll.slice(start), ...gapsAll.slice(0, start)].slice(0, cap);
+    // Out of request budget → budget 0, which still resolves anything already
+    // cached (free) but makes no new calls. Blue Sky in particular can spend its
+    // whole allowance on the analyst scan, and a filled P/E column is not worth
+    // a timed-out page.
+    const budgetMs = Math.max(
+      0,
+      Math.min(big ? FUNDAMENTALS_LARGE_LIST_BUDGET_MS : FUNDAMENTALS_BUDGET_MS, budgetLeftMs),
+    );
     const filled = await this.fmp.getFundamentalsBatch(gaps.map((r) => String(r.ticker)), {
       concurrency: 8,
-      budgetMs: big ? FUNDAMENTALS_LARGE_LIST_BUDGET_MS : FUNDAMENTALS_BUDGET_MS,
+      budgetMs,
       // P/E costs a second call per symbol and a penny stock rarely has one
       // (they are mostly loss-making, where no trailing P/E exists at all).
       withPe: !big,
