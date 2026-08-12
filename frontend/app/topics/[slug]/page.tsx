@@ -14,6 +14,7 @@ import { AiCoverImage } from "@/components/insights/AiCoverImage";
 import { AdSlot } from "@/components/AdSlot";
 import { bylineFor } from "@/lib/byline";
 import { assignUniquePhotos } from "@/lib/sector-photos";
+import { maskScoreText } from "@/lib/sanitizeArticleHtml";
 
 /** Topic slug → display label + the representative tickers. */
 const TOPIC_META: Record<string, { label: string; tickers: string[] }> = {
@@ -260,7 +261,7 @@ function ArticleCard({
             {stampET(item.generatedAt as unknown as string)}
           </div>
           <h2 className="mt-1.5 text-[16px] font-bold leading-snug tracking-tight group-hover:underline decoration-2 underline-offset-2 line-clamp-3">
-            {item.title}
+            {maskScoreText(item.title)}
           </h2>
           <div className="mt-1.5 text-[11px] uppercase tracking-wider font-bold text-mute">
             {bylineFor(item.kind, item.slug)}

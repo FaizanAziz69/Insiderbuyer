@@ -23,15 +23,16 @@ import { TickerSnapshotCard } from "@/components/insights/TickerSnapshotCard";
 import { IqsBreakdownCard } from "@/components/insights/IqsBreakdownCard";
 import { InsiderActivityTable } from "@/components/insights/InsiderActivityTable";
 import { authorFor, reviewerFor } from "@/lib/byline";
+import { articleLabel, articleLabels } from "@/lib/articleLabel";
+import { maskScoreText } from "@/lib/sanitizeArticleHtml";
+import { usePremium } from "@/components/premium/PremiumContext";
 
-const KIND_LABELS: Record<string, string> = {
-  "daily-summary": "Daily Briefing",
-  "top-iqs": "Top Insider Score Picks",
-  "ticker-deep-dive": "Ticker Focus",
-  "sector-roundup": "Sector Roundup",
-  "cluster-buy": "Cluster Buy Alert",
-  "ceo-buying": "CEO Buying",
-};
+/* The per-kind label map that used to live here covered only 6 of the API's 11
+   kinds, so `stock-idea`, `weekly-report`, `topic-roundup`, `editorial` and
+   `guide-format` all fell through to a literal — "INSIDER BUYING" on the
+   article and "INSIDER" on EVERY rail item, i.e. the same placeholder stacked
+   five times down the rail. `articleLabel` derives the wording from each
+   article's own record instead and always resolves. */
 
 export default function InsightDetailPage({
   params,
@@ -39,6 +40,10 @@ export default function InsightDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
+  // The headline and standfirst can state the score too ("Perfect Insider
+  // Scores Lead Today's Briefing"), so both go through the same paygate as the
+  // body. Subscribers see them verbatim.
+  const { unlocked } = usePremium();
   const { data: post, isLoading, error } = useSWR<BlogPost>(
     `${API_BASE}/content/blogs/${encodeURIComponent(slug)}`,
     fetcher,
@@ -53,6 +58,8 @@ export default function InsightDetailPage({
   );
   const railItems =
     latest?.items.filter((it) => it.slug !== slug).slice(0, 5) || [];
+  // Varied per-article eyebrows, de-duplicated down the rail.
+  const railLabels = articleLabels(railItems);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-6 lg:gap-10 max-w-[1400px] mx-auto">
@@ -96,7 +103,7 @@ export default function InsightDetailPage({
                 letterSpacing: "0.14em",
               }}
             >
-              {post.eyebrow || KIND_LABELS[post.kind] || "INSIDER BUYING"}
+              {articleLabel(post)}
             </div>
 
             <h1
@@ -107,14 +114,14 @@ export default function InsightDetailPage({
                 letterSpacing: "-0.8px",
               }}
             >
-              {post.title}
+              {maskScoreText(post.title, { unlocked })}
             </h1>
 
             <p
               className="mt-4 leading-relaxed"
               style={{ color: "var(--text-soft)", fontSize: 18 }}
             >
-              {post.summary}
+              {maskScoreText(post.summary, { unlocked })}
             </p>
 
             {/* Byline row — author + date on the left, social share on the
@@ -167,7 +174,7 @@ export default function InsightDetailPage({
                   </span>
                 </span>
               </div>
-              <ArticleShareRow title={post.title} />
+              <ArticleShareRow title={maskScoreText(post.title, { unlocked })} />
             </div>
 
             {/* Hard signup gate — after 3 free articles the cover image AND
@@ -304,13 +311,13 @@ export default function InsightDetailPage({
                       letterSpacing: "0.1em",
                     }}
                   >
-                    {it.eyebrow || KIND_LABELS[it.kind] || "INSIDER"}
+                    {railLabels[it.slug]}
                   </div>
                   <h4
                     className="font-semibold leading-snug line-clamp-2 group-hover:text-accent transition"
                     style={{ fontSize: 13 }}
                   >
-                    {it.title}
+                    {maskScoreText(it.title, { unlocked })}
                   </h4>
                   <div className="text-[11px] text-mute mt-1">
                     By {authorFor(it.kind, it.slug).name}

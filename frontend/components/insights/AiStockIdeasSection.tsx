@@ -13,6 +13,9 @@ import {
 import { AiCoverImage } from "./AiCoverImage";
 import { assignUniquePhotos } from "@/lib/sector-photos";
 import { bylineFor } from "@/lib/byline";
+import { articleLabel, articleLabels } from "@/lib/articleLabel";
+import { maskScoreInList } from "@/lib/sanitizeArticleHtml";
+import { usePremium } from "@/components/premium/PremiumContext";
 
 /** Pulls live AI-generated stock-idea cards from /content/blogs?kind=stock-idea
  *  and renders them in the home-page "Stock Ideas" slot using the same
@@ -23,12 +26,18 @@ export function AiStockIdeasSection() {
     fetcher,
     { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
-  const items = data?.items || [];
+  const { unlocked } = usePremium();
+  // Titles and summaries carry the score too ("Two stocks hit 100.00 Insider
+  // Score"), so the list is masked once here — subscribers pass through.
+  const items = maskScoreInList(data?.items || [], { unlocked });
   const big = items[0];
   const small = items.slice(1, 5);
   const covers = assignUniquePhotos(
     [big, ...small].filter(Boolean).map((it) => ({ seed: it.slug, sector: it.sector })),
   );
+  // Every card here is kind=stock-idea, so the old `item.eyebrow || "STOCK
+  // IDEA"` fallback printed the identical words on all five. Vary per article.
+  const labels = articleLabels([big, ...small].filter(Boolean));
 
   return (
     <section>
@@ -69,7 +78,7 @@ export function AiStockIdeasSection() {
         <EmptyHint />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-6 lg:gap-8">
-          {big && <BigCard item={big} src={covers[big.slug]} />}
+          {big && <BigCard item={big} src={covers[big.slug]} label={labels[big.slug]} />}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
             {small.map((it, i) => (
               <motion.div
@@ -79,7 +88,7 @@ export function AiStockIdeasSection() {
                 viewport={{ once: true, amount: 0.1 }}
                 transition={{ duration: 0.3, delay: 0.05 * i }}
               >
-                <SmallCard item={it} src={covers[it.slug]} />
+                <SmallCard item={it} src={covers[it.slug]} label={labels[it.slug]} />
               </motion.div>
             ))}
           </div>
@@ -89,7 +98,7 @@ export function AiStockIdeasSection() {
   );
 }
 
-function BigCard({ item, src, editorialSrc }: { item: BlogPostListItem; src?: string; editorialSrc?: string | null }) {
+function BigCard({ item, src, editorialSrc, label }: { item: BlogPostListItem; src?: string; editorialSrc?: string | null; label?: string }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -115,7 +124,7 @@ function BigCard({ item, src, editorialSrc }: { item: BlogPostListItem; src?: st
           style={{ aspectRatio: "16 / 9" }}
         />
         <div className="text-[10px] uppercase tracking-wider font-bold text-accent mb-1.5">
-          {item.eyebrow || "STOCK IDEA"}
+          {label || articleLabel(item)}
           {item.ticker && (
             <span className="ml-2 font-mono">· {item.ticker}</span>
           )}
@@ -148,7 +157,7 @@ function BigCard({ item, src, editorialSrc }: { item: BlogPostListItem; src?: st
   );
 }
 
-function SmallCard({ item, src, editorialSrc }: { item: BlogPostListItem; src?: string; editorialSrc?: string | null }) {
+function SmallCard({ item, src, editorialSrc, label }: { item: BlogPostListItem; src?: string; editorialSrc?: string | null; label?: string }) {
   return (
     <Link href={`/insights/${item.slug}`} className="block group h-full">
       <AiCoverImage
@@ -163,7 +172,7 @@ function SmallCard({ item, src, editorialSrc }: { item: BlogPostListItem; src?: 
         style={{ aspectRatio: "16 / 9" }}
       />
       <div className="text-[9px] uppercase tracking-wider font-bold text-accent mb-1">
-        {item.eyebrow || "STOCK IDEA"}
+        {label || articleLabel(item)}
         {item.ticker && (
           <span className="ml-1.5 font-mono">· {item.ticker}</span>
         )}

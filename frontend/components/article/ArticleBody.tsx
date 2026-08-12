@@ -2,6 +2,7 @@
 import { Fragment, useMemo } from "react";
 import { ArticleStockCard } from "./ArticleStockCard";
 import { sanitizeArticleHtml } from "@/lib/sanitizeArticleHtml";
+import { usePremium } from "@/components/premium/PremiumContext";
 
 /** Matches the embed placeholders the content engine writes into article
  *  HTML: `<div data-stock-embed="NVDA"></div>`. */
@@ -53,9 +54,16 @@ function stripInlineDisclosure(html: string): string {
 }
 
 export function ArticleBody({ html: rawHtml }: { html: string }) {
+  // Stored bodies state the numeric Insider Score in prose; it is paygated
+  // everywhere else, so it is masked here for anyone without an entitlement.
+  // Subscribers get the prose verbatim — this gates, it does not delete.
+  const { unlocked } = usePremium();
   const html = useMemo(
-    () => sanitizeArticleHtml(stripInlineDisclosure(fixInternalLinks(rawHtml))),
-    [rawHtml],
+    () =>
+      sanitizeArticleHtml(stripInlineDisclosure(fixInternalLinks(rawHtml)), {
+        unlocked,
+      }),
+    [rawHtml, unlocked],
   );
   const segments = useMemo(() => {
     const out: Array<{ type: "html"; value: string } | { type: "stock"; ticker: string }> = [];

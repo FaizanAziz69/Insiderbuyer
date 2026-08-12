@@ -8,6 +8,8 @@ import { ArrowLeft, Calendar, ExternalLink, FileText } from "lucide-react";
 import { API_BASE, ExtractedArticle, fetcher, formatDate } from "@/lib/api";
 import { KeyPoints } from "@/components/KeyPoints";
 import { IqsCommentary } from "@/components/IqsCommentary";
+import { sanitizeArticleHtml } from "@/lib/sanitizeArticleHtml";
+import { usePremium } from "@/components/premium/PremiumContext";
 import { AdSlot } from "@/components/AdSlot";
 import { RightRailArticles } from "@/components/article/RightRailArticles";
 import { RightRailStockLists } from "@/components/article/RightRailStockLists";
@@ -17,6 +19,9 @@ function ArticleReader() {
   const params = useSearchParams();
   const u = params.get("u") || "";
   const cat = params.get("c") || "Press release";
+  // Same Insider Score paygate as the /insights article template — extracted
+  // copy can quote our score too, so every body on the site goes through it.
+  const { unlocked } = usePremium();
 
   const { data, error, isLoading } = useSWR<ExtractedArticle>(
     u ? `${API_BASE}/news/article?u=${encodeURIComponent(u)}` : null,
@@ -153,7 +158,9 @@ function ArticleReader() {
 
           <div
             className="article-body"
-            dangerouslySetInnerHTML={{ __html: data.html }}
+            dangerouslySetInnerHTML={{
+              __html: sanitizeArticleHtml(data.html, { unlocked }),
+            }}
           />
 
           <ProgrammaticCta articleUrl={u} />

@@ -9,20 +9,22 @@ import { AdSlot } from "@/components/AdSlot";
 import { RightRailStockLists } from "@/components/article/RightRailStockLists";
 import { RightRailArticles } from "@/components/article/RightRailArticles";
 
-const HEADLINE_CARDS = [
-  {
-    title: "This Market Expert Just Gave A Cautious Warning",
-    href: "/advertorials/this-time-is-different",
-  },
-  {
-    title: "Can The Tech Stock Rally Continue?",
-    href: "/advertorials/tech-insider",
-  },
-  {
-    title: "3 Stocks Insiders Can't Stop Buying",
-    href: "/advertorials/biotech-insider",
-  },
-];
+/**
+ * "Related reading" cards, derived from the advertorial catalogue itself.
+ *
+ * This replaced a hardcoded array of three titles that rendered identically on
+ * all five advertorials — and whose text did not match the headlines of the
+ * pages it linked to, so the same article appeared under two different
+ * headlines across the site. On three of the five pages it also linked to the
+ * page the reader was already on. Reading `ADVERTORIALS` fixes all three: real
+ * headlines, and the current page excluded.
+ */
+function relatedReading(currentSlug: string) {
+  return Object.values(ADVERTORIALS)
+    .filter((a) => a.slug !== currentSlug)
+    .slice(0, 3)
+    .map((a) => ({ title: a.headline, eyebrow: a.eyebrow, href: `/advertorials/${a.slug}` }));
+}
 
 export default function AdvertorialPage({
   params,
@@ -128,9 +130,9 @@ export default function AdvertorialPage({
             Related reading
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {HEADLINE_CARDS.map((c) => (
+            {relatedReading(slug).map((c) => (
               <Link
-                key={c.title}
+                key={c.href}
                 href={c.href}
                 className="block rounded-lg p-4 hover:bg-[var(--accent-soft)] transition"
                 style={{
@@ -138,6 +140,9 @@ export default function AdvertorialPage({
                   border: "1px solid var(--border)",
                 }}
               >
+                <div className="text-[10px] uppercase tracking-wider font-bold text-accent mb-1">
+                  {c.eyebrow}
+                </div>
                 <div className="text-[13px] font-bold leading-snug">{c.title}</div>
                 <div className="text-[11px] text-accent mt-1.5 inline-flex items-center gap-1">
                   Read more <ArrowRight className="h-3 w-3" />

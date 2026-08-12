@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { TierBadge } from "@/components/TierBadge";
+import { PremiumValue } from "@/components/premium/PremiumValue";
 
 interface Props {
   ticker: string;
@@ -107,9 +108,21 @@ export function TickerSnapshotCard({ ticker }: Props) {
 export function KeyStatsGrid({ detail }: { detail: CompanyDetail }) {
   const c = detail.company;
   const s = detail.score;
-  const stats: Array<[string, string]> = [
+  // The Insider Score cell is paygated like the stock-list column it mirrors —
+  // `PremiumValue` keeps the row and its label visible (so readers see the
+  // data exists) but never puts the number in the DOM for non-subscribers.
+  const stats: Array<[string, React.ReactNode]> = [
     ["Market Cap", c.marketCap ? formatCurrency(Number(c.marketCap)) : "—"],
-    ["Insider Score", s ? Number(s.iqs).toFixed(2) : "—"],
+    [
+      "Insider Score",
+      s ? (
+        <PremiumValue label="Insider Score">
+          <span>{Number(s.iqs).toFixed(2)}</span>
+        </PremiumValue>
+      ) : (
+        "—"
+      ),
+    ],
     ["Distinct Buyers", s ? String(s.distinctBuyers) : "—"],
     ["Form 4 Buys", s ? String(s.transactionCount) : "—"],
     [

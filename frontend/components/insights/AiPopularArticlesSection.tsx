@@ -13,26 +13,32 @@ import {
 import { AiCoverImage } from "./AiCoverImage";
 import { assignUniquePhotos } from "@/lib/sector-photos";
 import { bylineFor } from "@/lib/byline";
+import { dealHomeFeed } from "@/lib/homeFeed";
+import { articleLabel, articleLabels } from "@/lib/articleLabel";
+import { maskScoreInList } from "@/lib/sanitizeArticleHtml";
+import { usePremium } from "@/components/premium/PremiumContext";
 
-/** Live editorial feed in the home-page "Popular Articles" slot. Pulls every
- *  kind EXCEPT stock-idea (which has its own dedicated section below) and
- *  renders in the same 1-big + 4-small grid the site uses for the news rows. */
+/** Live editorial feed in the home-page "Popular Articles" slot, rendered in the
+ *  same 1-big + 4-small grid the news rows use. Its articles are claimed through
+ *  `dealHomeFeed`, which replaced a `pool.slice(6)` offset that silently fell
+ *  back to offset 0 on a short feed and re-showed the rows above it. */
 export function AiPopularArticlesSection() {
   const { data, isLoading } = useSWR<BlogListResponse>(
     `${API_BASE}/content/blogs?limit=20`,
     fetcher,
     { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
-  // Filter out stock-idea cards — those live in their own section. Offset past
-  // the items the Latest Financial News section shows (hero + 5) so Popular
-  // Articles features DIFFERENT stories — no repeated articles or images.
-  const pool = (data?.items || []).filter((i) => i.kind !== "stock-idea");
-  const items = pool.length > 11 ? pool.slice(6) : pool;
+  const { unlocked } = usePremium();
+  // Titles and summaries carry the score too ("Two stocks hit 100.00 Insider
+  // Score"), so the list is masked once here — subscribers pass through.
+  const items = maskScoreInList(dealHomeFeed(data?.items)["popular-articles"], { unlocked });
   const big = items[0];
   const small = items.slice(1, 5);
   const covers = assignUniquePhotos(
     [big, ...small].filter(Boolean).map((it) => ({ seed: it.slug, sector: it.sector })),
   );
+  // Per-article eyebrow wording, de-duplicated across the five visible cards.
+  const labels = articleLabels([big, ...small].filter(Boolean));
 
   return (
     <section>
@@ -63,7 +69,7 @@ export function AiPopularArticlesSection() {
         <EmptyHint />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-6 lg:gap-8">
-          {big && <BigCard item={big} src={covers[big.slug]} />}
+          {big && <BigCard item={big} src={covers[big.slug]} label={labels[big.slug]} />}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
             {small.map((it, i) => (
               <motion.div
@@ -73,7 +79,7 @@ export function AiPopularArticlesSection() {
                 viewport={{ once: true, amount: 0.1 }}
                 transition={{ duration: 0.3, delay: 0.05 * i }}
               >
-                <SmallCard item={it} src={covers[it.slug]} />
+                <SmallCard item={it} src={covers[it.slug]} label={labels[it.slug]} />
               </motion.div>
             ))}
           </div>
@@ -83,7 +89,7 @@ export function AiPopularArticlesSection() {
   );
 }
 
-function BigCard({ item, src, editorialSrc }: { item: BlogPostListItem; src?: string; editorialSrc?: string | null }) {
+function BigCard({ item, src, editorialSrc, label }: { item: BlogPostListItem; src?: string; editorialSrc?: string | null; label?: string }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -106,7 +112,7 @@ function BigCard({ item, src, editorialSrc }: { item: BlogPostListItem; src?: st
           style={{ aspectRatio: "16 / 9" }}
         />
         <div className="text-[10px] uppercase tracking-wider font-bold text-accent mb-1.5">
-          {item.eyebrow || item.kind.replace(/-/g, " ").toUpperCase()}
+          {label || articleLabel(item)}
           {item.ticker && (
             <span className="ml-2 font-mono">· {item.ticker}</span>
           )}
@@ -139,7 +145,7 @@ function BigCard({ item, src, editorialSrc }: { item: BlogPostListItem; src?: st
   );
 }
 
-function SmallCard({ item, src, editorialSrc }: { item: BlogPostListItem; src?: string; editorialSrc?: string | null }) {
+function SmallCard({ item, src, editorialSrc, label }: { item: BlogPostListItem; src?: string; editorialSrc?: string | null; label?: string }) {
   return (
     <Link href={`/insights/${item.slug}`} className="block group h-full">
       <AiCoverImage
@@ -154,7 +160,7 @@ function SmallCard({ item, src, editorialSrc }: { item: BlogPostListItem; src?: 
         style={{ aspectRatio: "16 / 9" }}
       />
       <div className="text-[9px] uppercase tracking-wider font-bold text-accent mb-1">
-        {item.eyebrow || item.kind.replace(/-/g, " ").toUpperCase()}
+        {label || articleLabel(item)}
         {item.ticker && (
           <span className="ml-1.5 font-mono">· {item.ticker}</span>
         )}

@@ -15,21 +15,15 @@ import {
 import { AdSlot } from "@/components/AdSlot";
 import { AiCoverImage } from "@/components/insights/AiCoverImage";
 import { assignUniquePhotos } from "@/lib/sector-photos";
+import { articleLabel } from "@/lib/articleLabel";
+import { maskScoreInList } from "@/lib/sanitizeArticleHtml";
+import { usePremium } from "@/components/premium/PremiumContext";
 import { bylineFor } from "@/lib/byline";
 
-const KIND_LABELS: Record<BlogKind, string> = {
-  "daily-summary": "Daily Briefing",
-  "top-iqs": "Top Insider Score Picks",
-  "ticker-deep-dive": "Ticker Focus",
-  "sector-roundup": "Sector Roundup",
-  "cluster-buy": "Cluster Buy Alert",
-  "ceo-buying": "CEO Buying",
-  "stock-idea": "Stock Idea",
-  "weekly-report": "Weekly Report",
-  "topic-roundup": "News Roundup",
-  editorial: "Editorial",
-  "guide-format": "Insider Series",
-};
+/* The per-kind label map that used to live here gave every article of a kind
+   the same eyebrow, so a page of 40 cards repeated a handful of words. Card
+   eyebrows now come from `articleLabel`, which varies the wording per article
+   off that article's own record. */
 
 // "Most-read"/popular ordering: high-signal editorial kinds float to the top.
 // We have no read-count metric, so this deterministic priority stands in for it.
@@ -77,6 +71,7 @@ function InsightsIndexInner() {
       "Editorial briefings synthesised from today’s SEC Form 4 filings and our proprietary Insider Score scoring engine. New posts published every morning from the live insider-buying feed.",
   };
 
+  const { unlocked } = usePremium();
   const { data, isLoading } = useSWR<BlogListResponse>(
     `${API_BASE}/content/blogs?limit=40`,
     fetcher,
@@ -84,13 +79,15 @@ function InsightsIndexInner() {
   );
   const base = data?.items || [];
   // "latest" = newest first (API default order); "popular" = high-signal kinds first.
-  const items =
+  const rawItems =
     sort === "popular"
       ? [...base].sort(
           (a, b) =>
             (POPULAR_WEIGHT[b.kind] ?? 0) - (POPULAR_WEIGHT[a.kind] ?? 0),
         )
       : base;
+  // Card titles/summaries can state the score — mask the list once here.
+  const items = maskScoreInList(rawItems, { unlocked });
   const featured = items[0];
   const rest = items.slice(1);
   const covers = assignUniquePhotos(
@@ -212,7 +209,7 @@ function FeaturedCard({ item, src }: { item: BlogListResponse["items"][number]; 
               letterSpacing: "0.12em",
             }}
           >
-            {item.eyebrow || KIND_LABELS[item.kind]}
+            {articleLabel(item)}
           </div>
           <h2
             className="font-semibold tracking-tight group-hover:text-accent transition"
@@ -287,7 +284,7 @@ function RailRow({ item, src }: { item: BlogListResponse["items"][number]; src?:
               className="text-[9px] uppercase font-extrabold mb-1.5"
               style={{ color: "var(--accent)", letterSpacing: "0.12em" }}
             >
-              {item.eyebrow || KIND_LABELS[item.kind]}
+              {articleLabel(item)}
             </div>
             <h3
               className="font-semibold leading-snug line-clamp-3 group-hover:text-accent transition"
@@ -355,7 +352,7 @@ function GridCard({
             className="text-[10px] uppercase font-bold mb-1.5"
             style={{ color: "var(--accent)", letterSpacing: "0.12em" }}
           >
-            {item.eyebrow || KIND_LABELS[item.kind]}
+            {articleLabel(item)}
           </div>
           <h3
             className="font-semibold leading-snug line-clamp-3 group-hover:text-accent transition"

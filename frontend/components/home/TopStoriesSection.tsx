@@ -5,6 +5,10 @@ import { ChevronRight } from "lucide-react";
 import { API_BASE, BlogListResponse, fetcher } from "@/lib/api";
 import { AiCoverImage } from "@/components/insights/AiCoverImage";
 import { bylineFor } from "@/lib/byline";
+import { dealHomeFeed } from "@/lib/homeFeed";
+import { articleLabels } from "@/lib/articleLabel";
+import { maskScoreInList } from "@/lib/sanitizeArticleHtml";
+import { usePremium } from "@/components/premium/PremiumContext";
 
 function timeAgo(iso: string): string {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -19,29 +23,29 @@ function timeAgo(iso: string): string {
  * in a row beneath it.
  */
 export function TopStoriesSection() {
-  // Top Stories = the Editorial Desk: real world stock-market news rewritten
-  // by our AI. This is a DISTINCT feed from Stock Ideas / Popular Articles
-  // (which show internal insider-buying content).
+  // Top Stories = the Editorial Desk: real-world market news rewritten by our
+  // AI. It reads the SAME shared feed as Latest Financial News and Popular
+  // Articles (SWR dedupes the identical key into one request) and takes its
+  // articles through `dealHomeFeed`, which hands each block a disjoint set.
+  //
+  // The two fetches this replaces were the duplicate-headline bug: a separate
+  // `kind=editorial` query plus a general "fill" query meant this block topped
+  // itself up from articles the sections below were independently about to
+  // show, so the same headlines rendered twice on one page. `dealHomeFeed`
+  // still prefers editorial here — it just claims whatever it borrows.
   const { data, isLoading } = useSWR<BlogListResponse>(
-    `${API_BASE}/content/blogs?kind=editorial&limit=12`,
+    `${API_BASE}/content/blogs?limit=20`,
     fetcher,
     { revalidateOnFocus: false, refreshInterval: 10 * 60_000 },
   );
-  // Fallback fill: if editorial is thin, top up with the newest general
-  // articles so the block is never empty.
-  const { data: fillData } = useSWR<BlogListResponse>(
-    (data?.items?.length ?? 0) < 5 ? `${API_BASE}/content/blogs?limit=10` : null,
-    fetcher,
-    { revalidateOnFocus: false, refreshInterval: 10 * 60_000 },
-  );
-  const editorial = data?.items || [];
-  const seen = new Set(editorial.map((i) => i.slug));
-  const items = [
-    ...editorial,
-    ...(fillData?.items || []).filter((i) => !seen.has(i.slug)),
-  ];
+  const { unlocked } = usePremium();
+  // Titles and summaries carry the score too ("Two stocks hit 100.00 Insider
+  // Score"), so the list is masked once here — subscribers pass through.
+  const items = maskScoreInList(dealHomeFeed(data?.items)["top-stories"], { unlocked });
   const lead = items[0];
   const rest = items.slice(1, 5);
+  // Per-article eyebrow wording, de-duplicated across the visible cards.
+  const labels = articleLabels(items);
 
   return (
     <section className="flex flex-col h-full">
@@ -95,14 +99,12 @@ export function TopStoriesSection() {
                 style={{ width: "100%", height: "100%" }}
                 className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
               />
-              {lead.eyebrow && (
-                <span
-                  className="absolute left-3 bottom-3 inline-block text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded"
-                  style={{ background: "var(--accent)", color: "#fff" }}
-                >
-                  {lead.eyebrow}
-                </span>
-              )}
+              <span
+                className="absolute left-3 bottom-3 inline-block text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded"
+                style={{ background: "var(--accent)", color: "#fff" }}
+              >
+                {labels[lead.slug]}
+              </span>
             </div>
             <div className="p-4 sm:p-5 min-w-0">
               <h3 className="text-[19px] sm:text-[25px] font-bold leading-tight group-hover:text-accent transition">
@@ -141,6 +143,9 @@ export function TopStoriesSection() {
                   />
                 </div>
                 <div className="p-3 flex flex-col flex-1">
+                  <div className="text-[9px] uppercase tracking-wider font-bold text-accent mb-1">
+                    {labels[item.slug]}
+                  </div>
                   <h4 className="text-[13px] font-bold leading-snug group-hover:text-accent transition">
                     {item.title}
                   </h4>
