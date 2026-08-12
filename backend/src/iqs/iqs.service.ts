@@ -1721,6 +1721,12 @@ export class IqsService {
       .where('t.transactionDate >= :since', { since: since30d })
       .andWhere(`t."transactionCode" = 'P'`)
       .leftJoinAndSelect('t.company', 'c')
+      // Every dollar figure this method publishes (totalRecentValue, the
+      // sector split, the 30-day activity chart and topTrades — which RANKS by
+      // dollar value, so an artifact sorts straight to #1) is a Σ of
+      // shares × price, so the guard is mandatory. Same 30-day window as
+      // getVolumeSeries and so the same $23.65B of artifact filings.
+      .andWhere(plausibleTxSql('t', 'c'))
       .orderBy('t.transactionDate', 'DESC')
       .getMany();
 
@@ -1995,10 +2001,22 @@ export class IqsService {
 
     const rows = await this.txRepo
       .createQueryBuilder('t')
+      // Joined for the alias only (not selected) so the guard's 25×-live-price
+      // leg applies — the absolute bound alone misses filer errors that land
+      // under $1B, like NMM's $748,119/share on a ~$79 stock.
+      .leftJoin('t.company', 'c')
       .where('t.transactionDate >= :since', { since })
       .andWhere(`t."transactionCode" = 'P'`)
+      // Every dollar figure below (total, byRole, per-day series) is a Σ of
+      // shares × price, so the plausibility guard is mandatory here: three
+      // artifact filings were contributing $23.65B of a $23.99B 30-day total,
+      // pinning "Volume by role" at CEO ~99% and flattening the line chart.
+      .andWhere(plausibleTxSql('t', 'c'))
       .getMany();
 
+    // Counts come off the same guarded set as the values, so the chart's
+    // count and its dollar figure always describe the same rows (matching
+    // getMonthlyBuySellMeter and getSectorFlows).
     const totalCount = rows.length;
     const totalValue = rows.reduce((a, t) => a + Number(t.totalValue), 0);
 
@@ -2212,6 +2230,17 @@ export class IqsService {
     const buys = tx.filter((t) => isCode(t.transactionCode, ['P']));
     const sells = tx.filter((t) => isCode(t.transactionCode, ['S']));
 
+    // These facts are spread into AI-generated prose, so a filer artifact here
+    // becomes a published sentence ("insiders bought $846M"). Guard the DOLLAR
+    // sums only — the counts below describe filings that genuinely exist on
+    // EDGAR and must keep counting them (per the tx-sanity contract).
+    const plausible = (t: InsiderTransaction) =>
+      isPlausibleTx(Number(t.sharesBought), Number(t.pricePerShare), company.lastPrice);
+    const sumValue = (rows: InsiderTransaction[]) =>
+      rows.reduce((a, t) => (plausible(t) ? a + num(t.totalValue) : a), 0);
+    const sumShares = (rows: InsiderTransaction[]) =>
+      rows.reduce((a, t) => (plausible(t) ? a + num(t.sharesBought) : a), 0);
+
     // Latest post-transaction holding per filer — a FLOOR on insider ownership,
     // since it only counts insiders who have actually filed a transaction.
     const latestByInsider = new Map<string, number>();
@@ -2232,11 +2261,11 @@ export class IqsService {
       symbol: ticker,
       name: company.name,
       buyCount: buys.length,
-      buyValue: buys.reduce((a, t) => a + num(t.totalValue), 0),
-      buyShares: buys.reduce((a, t) => a + num(t.sharesBought), 0),
+      buyValue: sumValue(buys),
+      buyShares: sumShares(buys),
       sellCount: sells.length,
-      sellValue: sells.reduce((a, t) => a + num(t.totalValue), 0),
-      sellShares: sells.reduce((a, t) => a + num(t.sharesBought), 0),
+      sellValue: sumValue(sells),
+      sellShares: sumShares(sells),
       distinctBuyers: new Set(buys.map((t) => t.insiderName.toLowerCase())).size,
       distinctSellers: new Set(sells.map((t) => t.insiderName.toLowerCase())).size,
       topRoles: roles.slice(0, 5),
@@ -2317,17 +2346,23 @@ export class IqsService {
   async getInsiderProfile(name: string) {
     const clean = (name || '').trim().replace(/\s+/g, ' ');
     if (!clean) return null;
-    const base = () =>
+    // Whitespace-normalised match — stored names can carry double spaces that
+    // the URL-decoded name doesn't, which 404'd real insiders. Declared ONCE
+    // and shared by every query below: the backslash MUST stay doubled so the
+    // template literal hands Postgres the regex `\s+`. A single `\s` is not a
+    // JS escape, so it collapses to the literal regex `s+`, which strips the
+    // letter "s" out of every name and can never match.
+    // btrim mirrors the .trim() above, so a stored leading/trailing space
+    // can't 404 an insider either.
+    const NAME_MATCH =
+      `LOWER(btrim(regexp_replace(t."insiderName", '\\s+', ' ', 'g'))) = LOWER(:name)`;
+    const byName = () =>
       this.txRepo
         .createQueryBuilder('t')
         .leftJoinAndSelect('t.company', 'c')
-        // Whitespace-normalised match — stored names can carry double spaces
-        // that the URL-decoded name doesn't, which 404'd real insiders.
-        .where(`LOWER(regexp_replace(t."insiderName", '\\s+', ' ', 'g')) = LOWER(:name)`, {
-          name: clean,
-        })
-        .andWhere(`t."transactionCode" IN ('P','S')`)
+        .where(NAME_MATCH, { name: clean })
         .orderBy('t.transactionDate', 'DESC');
+    const base = () => byName().andWhere(`t."transactionCode" IN ('P','S')`);
     // Prefer plausibility-guarded rows; if the guard removes EVERYTHING (a
     // large buy into a small cap can trip it), fall back to the unguarded set
     // so the profile page always matches what the trades table shows.
@@ -2335,16 +2370,10 @@ export class IqsService {
     if (!txs.length) txs = await base().getMany();
     if (!txs.length) {
       // Some insiders exist ONLY through non-open-market codes (option
-      // exercises 'M', conversions) — the trades table shows them, so the
-      // profile must too rather than 404ing (QA audit: Simanovsky).
-      txs = await this.txRepo
-        .createQueryBuilder('t')
-        .leftJoinAndSelect('t.company', 'c')
-        .where(`LOWER(regexp_replace(t."insiderName", '\s+', ' ', 'g')) = LOWER(:name)`, {
-          name: clean,
-        })
-        .orderBy('t.transactionDate', 'DESC')
-        .getMany();
+      // exercises 'M', awards 'A', gifts 'G', tax withholding 'F') — the
+      // trades table shows them, so the profile must too rather than 404ing
+      // (QA audit: Simanovsky, ROESCHLEIN BILL, Tian Jing, Judkins Brian C).
+      txs = await byName().getMany();
     }
     if (!txs.length) return null;
 
@@ -2363,14 +2392,53 @@ export class IqsService {
     let totalSold = 0;
     let wins = 0;
     let scored = 0;
+    // Why a buy could NOT be scored — drives the coverage labels below.
+    let buysNoLivePrice = 0;
+    let buysNoFiledPrice = 0;
     let firstDate = txs[txs.length - 1].transactionDate;
     let lastDate = txs[0].transactionDate;
+
+    // Every return stat below is measured against the LIVE price, which
+    // normally comes off the stored company row. Companies outside the scored
+    // rankings universe often have no stored lastPrice, which silently blanked
+    // Win Rate / Avg Return / Best Trade for any insider whose buys are all in
+    // such names. Fill those from the quote feed: ONE batched call
+    // (getQuoteBatch chunks 50/request and TTL-caches), and only for symbols
+    // that actually have an open-market buy to score — a profile spans a
+    // handful of tickers, so this stays well inside the gateway budget.
+    // Capped at one batch request (getQuoteBatch chunks 50/symbol-request) so a
+    // fund filer spanning hundreds of tickers cannot turn this into a fan-out;
+    // the TTL cache makes coverage converge across requests. Anything past the
+    // cap stays unscored and is labelled rather than guessed.
+    const QUOTE_FILL_CAP = 50;
+    const needQuote = Array.from(
+      new Set(
+        txs
+          .filter((t) => t.transactionCode === 'P' && !t.company?.lastPrice)
+          .map((t) => (t.company?.ticker || '').toUpperCase())
+          .filter(Boolean),
+      ),
+    ).slice(0, QUOTE_FILL_CAP);
+    const quoteFill = new Map<string, number>();
+    if (needQuote.length) {
+      try {
+        const batch = await this.marketStats.getQuoteBatch(needQuote);
+        for (const [sym, row] of batch.entries()) {
+          if (Number(row?.price) > 0) quoteFill.set(sym, Number(row.price));
+        }
+      } catch {
+        /* quote feed down — those buys stay unscored and are labelled, not guessed */
+      }
+    }
 
     const trades = txs.map((t) => {
       const value = Number(t.totalValue) || 0;
       const buyPx = Number(t.pricePerShare) || 0;
       const isBuy = t.transactionCode === 'P';
-      const livePrice = t.company?.lastPrice ? Number(t.company.lastPrice) : null;
+      const sym = (t.company?.ticker || '').toUpperCase();
+      const livePrice = t.company?.lastPrice
+        ? Number(t.company.lastPrice)
+        : (quoteFill.get(sym) ?? null);
       if (t.role) roles.add(t.role);
       if (t.company) {
         const cid = t.companyId;
@@ -2382,7 +2450,6 @@ export class IqsService {
         c.trades += 1;
         companies.set(cid, c);
       }
-      const sym = (t.company?.ticker || '').toUpperCase();
       if (sym) {
         const ta = tickerAgg.get(sym) || {
           ticker: sym,
@@ -2412,6 +2479,11 @@ export class IqsService {
         if (buyPx > 0 && livePrice && livePrice > 0) {
           scored += 1;
           if (livePrice > buyPx) wins += 1;
+        } else if (buyPx <= 0) {
+          // Filed with no per-share price — nothing to measure a return from.
+          buysNoFiledPrice += 1;
+        } else {
+          buysNoLivePrice += 1;
         }
       } else {
         sellCount += 1;
@@ -2463,6 +2535,36 @@ export class IqsService {
       ? +(buyTrades.reduce((a, t) => a + (t.returnPct as number), 0) / buyTrades.length).toFixed(2)
       : null;
 
+    // Honest labels for the three headline stats. A blank Win Rate / Avg Return
+    // / Best Trade is usually NOT a data bug: the trades table links every
+    // filer, including award/gift/tax-withholding-only names, and those have no
+    // open-market buy to measure a return on. Name the reason so the UI can
+    // render it instead of an unexplained dash. Nothing is synthesized — a stat
+    // with no computable value stays null and is merely explained.
+    type ReturnsCoverage = 'covered' | 'no-open-market-buys' | 'no-filed-price' | 'no-live-price';
+    const RETURNS_NOTE: Record<ReturnsCoverage, string | null> = {
+      covered: null,
+      'no-open-market-buys':
+        'No open-market purchases (Form 4 code P) on record — returns are only measured on open-market buys.',
+      'no-filed-price':
+        'These purchases were filed without a per-share price, so no return can be measured.',
+      'no-live-price':
+        'No live market quote for these tickers yet, so buy returns cannot be measured.',
+    };
+    const returnsCoverage: ReturnsCoverage =
+      avgReturn != null
+        ? 'covered'
+        : buyCount === 0
+          ? 'no-open-market-buys'
+          : buysNoLivePrice === 0 && buysNoFiledPrice > 0
+            ? 'no-filed-price'
+            : 'no-live-price';
+    // Win rate keeps its ≥2-buy threshold: a single buy can only ever read 0%
+    // or 100%, which reads as a track record but is noise. Label it rather than
+    // publish a one-sample rate.
+    const winRateCoverage: ReturnsCoverage | 'insufficient-sample' =
+      scored >= 2 ? 'covered' : scored === 1 ? 'insufficient-sample' : returnsCoverage;
+
     return {
       name: displayName,
       roles: Array.from(roles),
@@ -2483,6 +2585,22 @@ export class IqsService {
         avgBuyReturnPct: avgReturn,
       },
       bestTrade,
+      // Additive only — existing fields above are untouched. Explains a null
+      // winRate / avgBuyReturnPct / bestTrade; the counts let a coverage sweep
+      // measure the split without needing DB access.
+      statsCoverage: {
+        winRate: winRateCoverage,
+        winRateNote:
+          winRateCoverage === 'insufficient-sample'
+            ? 'Only one scored buy — a win rate needs at least two to be meaningful.'
+            : RETURNS_NOTE[winRateCoverage],
+        returns: returnsCoverage,
+        returnsNote: RETURNS_NOTE[returnsCoverage],
+        scoredBuys: scored,
+        unscoredBuysNoLivePrice: buysNoLivePrice,
+        unscoredBuysNoFiledPrice: buysNoFiledPrice,
+        quotesFilled: quoteFill.size,
+      },
       topTickers,
       topSectors,
       trades,

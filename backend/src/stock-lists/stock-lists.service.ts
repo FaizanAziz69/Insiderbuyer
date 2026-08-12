@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { IqsService, RankingRow } from '../iqs/iqs.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
+import { FmpService } from '../fmp/fmp.service';
 import { ThirteenFService } from './thirteenf.service';
 import { CongressionalService } from '../congressional/congressional.service';
 import { SecClient } from '../ingestion/sec.client';
@@ -104,6 +105,57 @@ export interface StockListDetail {
   rows: Array<RankingRow | (PersonaHolding & { iqs?: number })>;
 }
 
+/**
+ * How much our U.S. Form 4 insider data can legitimately say about a row.
+ * The insider columns (Insider Score, ROI, Why, $ Bought, Signals, Last
+ * Updated, Insider Ownership) only have a value for a `covered` row — for
+ * every other state the value does not exist, and the table needs to know WHY
+ * so it can render an explained dash instead of an ambiguous blank. Nothing
+ * here is ever invented: a missing insider figure stays missing.
+ *   covered              — the ticker is in our scored Form 4 universe.
+ *   no-insider-buying    — checked against the WHOLE universe; no open-market
+ *                          insider buys on record in the scoring window.
+ *   listing-not-covered  — non-US listing (RY.TO / SAP.DE). Our pipeline is
+ *                          SEC-only, so silence is missing coverage, not an
+ *                          absence of insider buying.
+ *   lookup-unavailable   — the cross-reference failed or couldn't see the full
+ *                          universe, so absence proves nothing.
+ */
+export type InsiderCoverage =
+  | 'covered'
+  | 'no-insider-buying'
+  | 'listing-not-covered'
+  | 'lookup-unavailable';
+
+/** Tooltip-ready explanation per coverage state (the UI renders a dash plus
+ *  this note; only 'covered' rows carry real insider values). */
+const INSIDER_COVERAGE_NOTE: Record<InsiderCoverage, string | null> = {
+  covered: null,
+  'no-insider-buying': 'No open-market insider buying on record in the last 90 days.',
+  'listing-not-covered':
+    'Insider filings for this listing are not in our SEC Form 4 coverage yet.',
+  'lookup-unavailable': 'Insider data could not be checked for this ticker right now.',
+};
+
+// Fundamentals gap-fill budget. FMP's profile/ratios endpoints are one call per
+// symbol, so a list page spends at most this long on them and looks up at most
+// this many symbols; the 24h FMP caches make coverage converge across requests
+// instead of pushing a single request past the ~10s gateway limit.
+const FUNDAMENTALS_BUDGET_MS = 2000;
+const FUNDAMENTALS_MAX_SYMBOLS = 150;
+/** Above this row count, per-symbol lookups are pointless (they could never
+ *  cover the list) and the request is already the heaviest one we serve — such
+ *  lists are filled from the cached screener snapshot only. */
+const FUNDAMENTALS_PER_SYMBOL_MAX_ROWS = 200;
+/** Penny rows are far too many for per-symbol profiles — their sector/cap comes
+ *  from one cached `company-screener` snapshot of the sub-$5 market instead. */
+const PENNY_SNAPSHOT_QUERY = {
+  priceLowerThan: 5,
+  priceMoreThan: 0.01,
+  isActivelyTrading: true,
+  limit: 5000,
+};
+
 export interface StockListFilters {
   country?: string;
   exchange?: string;         // "Exchanges" filter: all / US / CA / DE
@@ -113,6 +165,12 @@ export interface StockListFilters {
   minIqs?: number;           // Insider Score band (now an open filter)
   sentiment?: string;        // pay-gated
   analystConsensus?: string; // pay-gated
+  /** OPTIONAL page window over the built rows. Omitted (the default) returns
+   *  the whole list exactly as before; `total` always reports the full count.
+   *  Exists because the penny-stock screener ships 1,000 rows in one response,
+   *  which sits close to the gateway's ~10s ceiling. */
+  limit?: number;
+  offset?: number;
 }
 
 @Injectable()
@@ -123,6 +181,7 @@ export class StockListsService {
     private readonly thirteenF: ThirteenFService,
     private readonly congress: CongressionalService,
     private readonly sec: SecClient,
+    private readonly fmp: FmpService,
   ) {}
 
   // Trump-family SEC holdings cache (DJT Form 4 data is expensive to fetch).
@@ -572,7 +631,43 @@ export class StockListsService {
     };
   }
 
+  /**
+   * A list page for the standard 14-column table. Every list is built by its
+   * own source (rankings / 13F / screener / curated basket), then run through
+   * the same two post-processing passes, so a row carries the same fields no
+   * matter which builder produced it:
+   *   1. buildDetail — the list's own rows (unchanged behaviour).
+   *   2. annotateInsiderCoverage — cross-reference the FULL scored Form 4
+   *      universe (most builders only join the top few hundred rankings) and
+   *      label why an insider column is empty when it is.
+   *   3. fillFundamentalGaps — real sector / market cap / trailing P/E from FMP
+   *      for rows whose own source carries none.
+   * Both passes are additive: no existing field is dropped or overwritten with
+   * a weaker value, and no financial figure is synthesized.
+   */
   async getDetail(slug: string, filters: StockListFilters): Promise<StockListDetail | null> {
+    const detail = await this.buildDetail(slug, filters);
+    if (!detail) return null;
+    // OPTIONAL page window (see StockListFilters.limit) — applied before the
+    // enrichment passes so a paged caller only pays for the rows it asked for.
+    // `total` keeps reporting the full list size.
+    const all = detail.rows as any[];
+    const paged =
+      filters.limit != null || filters.offset != null
+        ? all.slice(
+            Math.max(0, filters.offset ?? 0),
+            Math.max(0, filters.offset ?? 0) + (filters.limit ?? all.length),
+          )
+        : all;
+    const withInsider = await this.annotateInsiderCoverage(paged);
+    detail.rows = (await this.fillFundamentalGaps(slug, withInsider)) as any[];
+    return detail;
+  }
+
+  private async buildDetail(
+    slug: string,
+    filters: StockListFilters,
+  ): Promise<StockListDetail | null> {
     const meta = STOCK_LIST_META[slug];
     if (!meta && slug !== 'iqs-top-picks' && slug !== 'blue-sky') return null;
 
@@ -856,6 +951,163 @@ export class StockListsService {
       return { slug, ...meta, total: enriched.length, rows: enriched };
     }
     return null;
+  }
+
+  /** Ticker suffixes that mark a NON-US listing — the exchanges our lists cover
+   *  (.TO Toronto, .DE Xetra) plus the common European/Asian codes. A dotted
+   *  U.S. share class (BRK.B, BF.A) deliberately isn't in the set, so it keeps
+   *  the U.S. treatment. */
+  private static readonly NON_US_SUFFIX =
+    /\.(TO|V|CN|NE|DE|F|BE|MU|SG|HM|DU|SW|L|PA|AS|BR|LS|MI|MC|ST|HE|CO|OL|VI|IR|WA|AT|IS|TA|SA|MX|HK|SS|SZ|KS|KQ|TW|AX|NZ|SI|KL|BK|JK|NS|BO)$/;
+
+  /** Suffixed tickers (RY.TO, SAP.DE) are non-US listings. Our Form 4 pipeline
+   *  is SEC-only, so having nothing to say about them is missing coverage — not
+   *  evidence that no insider bought. */
+  private isNonUsListing(ticker?: string | null): boolean {
+    return StockListsService.NON_US_SUFFIX.test((ticker || '').toUpperCase());
+  }
+
+  /** The WHOLE scored Form 4 universe keyed by upper-case ticker, plus whether
+   *  the lookup actually saw all of it — only a complete lookup can prove the
+   *  negative ("no insider buying on record"). Shares IqsService's 10-minute
+   *  rankings cache with the sector lists, so it costs one query per window. */
+  private async insiderUniverse(): Promise<{
+    bySymbol: Map<string, RankingRow>;
+    complete: boolean;
+  }> {
+    try {
+      const { total, rows } = await this.iqs.getRankings({ limit: 5000, offset: 0 });
+      const bySymbol = new Map<string, RankingRow>();
+      for (const r of rows) {
+        const t = (r.ticker || '').toUpperCase();
+        if (t) bySymbol.set(t, r);
+      }
+      return { bySymbol, complete: rows.length >= total };
+    } catch {
+      return { bySymbol: new Map(), complete: false };
+    }
+  }
+
+  /**
+   * Cross-reference every row against the full scored insider universe and say
+   * what the insider columns can show.
+   *
+   * Two jobs. First, FILL: the individual builders only join the top 500–2000
+   * rankings (or, for the country/persona lists, a narrower slice), so plenty
+   * of rows that DO have Form 4 buys were shipping blank insider cells — those
+   * now pick up the same real aggregates the Top Insider Scores list renders.
+   * Nothing already on the row is overwritten (a 13F-derived avg cost stays).
+   * Second, LABEL: a row with no insider record gets an explicit
+   * `insiderCoverage` + `insiderCoverageNote` so the table can distinguish "no
+   * insider buying on record" from "we couldn't look it up". No insider value
+   * is ever synthesized — a stock with no Form 4 buying has nothing to show.
+   */
+  private async annotateInsiderCoverage(rows: any[]): Promise<any[]> {
+    if (!rows.length) return rows;
+    const { bySymbol, complete } = await this.insiderUniverse();
+    return rows.map((r) => {
+      const rk = bySymbol.get((r.ticker || '').toUpperCase());
+      if (rk) {
+        // ?? only fills what is absent; || is used for the boolean signal flags
+        // (a builder that defaulted them to false must not mask a real true).
+        r.iqs = r.iqs ?? rk.iqs;
+        r.reasoning = r.reasoning ?? rk.reasoning ?? null;
+        r.avgCost = r.avgCost ?? rk.avgCost ?? null;
+        r.lastBuyDate = r.lastBuyDate ?? rk.lastBuyDate ?? null;
+        r.totalPurchaseValue = r.totalPurchaseValue ?? rk.totalPurchaseValue ?? null;
+        r.distinctBuyers = r.distinctBuyers ?? rk.distinctBuyers ?? null;
+        r.perfVsAvgCostPct = r.perfVsAvgCostPct ?? rk.perfVsAvgCostPct ?? null;
+        r.insiderOwnershipPct = r.insiderOwnershipPct ?? rk.insiderOwnershipPct ?? null;
+        r.insiderOwnershipChangePct =
+          r.insiderOwnershipChangePct ?? rk.insiderOwnershipChangePct ?? null;
+        r.scoreUpdatedAt = r.scoreUpdatedAt ?? rk.scoreUpdatedAt ?? null;
+        r.hasCeoBuyer = !!(r.hasCeoBuyer || rk.hasCeoBuyer);
+        r.hasRepeatBuyer = !!(r.hasRepeatBuyer || rk.hasRepeatBuyer);
+        // The same company row also carries our own stored reference data —
+        // free sector / market cap before we go out to FMP for the rest.
+        if (!String(r.sector || '').trim() && rk.sector) r.sector = rk.sector;
+        if (r.marketCap == null && rk.marketCap != null) r.marketCap = rk.marketCap;
+      }
+      const hasInsiderData =
+        r.iqs != null ||
+        r.totalPurchaseValue != null ||
+        r.avgCost != null ||
+        r.lastBuyDate != null ||
+        r.distinctBuyers != null;
+      const coverage: InsiderCoverage = hasInsiderData
+        ? 'covered'
+        : this.isNonUsListing(r.ticker)
+          ? 'listing-not-covered'
+          : complete
+            ? 'no-insider-buying'
+            : 'lookup-unavailable';
+      return {
+        ...r,
+        insiderCoverage: coverage,
+        insiderCoverageNote: INSIDER_COVERAGE_NOTE[coverage],
+      };
+    });
+  }
+
+  /**
+   * Fill the reference columns — Sector, Market Cap, P/E — that a row's own
+   * source didn't carry, from FMP company profiles + TTM ratios. This is real
+   * reported data for the exact listing (the paid FMP plan covers penny stocks
+   * and non-US symbols, which Yahoo's quote feed frequently leaves blank); the
+   * insider columns are NOT filled here, and never guessed.
+   *
+   * Cost control: only rows that are actually missing something are looked up,
+   * capped at FUNDAMENTALS_MAX_SYMBOLS per request and bounded by a wall-clock
+   * budget inside FmpService, with 24h caches so repeat views converge to full
+   * coverage. Penny stocks (up to 1,000 rows) are far past what per-symbol
+   * profiles can serve, so they read a single cached screener snapshot of the
+   * sub-$5 market and never wait on it.
+   */
+  private async fillFundamentalGaps(slug: string, rows: any[]): Promise<any[]> {
+    if (!rows.length || !this.fmp.enabled) return rows;
+    // The table reads live-quote values first, then the row's own field, so a
+    // gap only exists when BOTH are empty — and we only ever write the row's
+    // own field, leaving the live-quote path untouched.
+    const capOf = (r: any) => r.live?.marketCap ?? r.marketCap ?? null;
+    const peOf = (r: any) => r.live?.peRatio ?? r.peRatio ?? null;
+    const noSector = (r: any) => !String(r.sector || '').trim();
+
+    if (slug === 'penny-stocks') {
+      // budgetMs 0: serve whatever the 12h snapshot already holds and let the
+      // fetch warm the cache in the background — this list is the one closest
+      // to the gateway timeout, so it must not wait on FMP at all.
+      const snapshot = await this.fmp.getScreenerSnapshot(PENNY_SNAPSHOT_QUERY, {
+        budgetMs: 0,
+      });
+      if (snapshot.size) {
+        for (const r of rows) {
+          const s = snapshot.get((r.ticker || '').toUpperCase());
+          if (!s) continue;
+          if (noSector(r) && s.sector) r.sector = s.sector;
+          if (capOf(r) == null && s.marketCap != null) r.marketCap = s.marketCap;
+        }
+      }
+    }
+
+    // Per-symbol lookups only pay off on a list small enough for them to cover
+    // (a 1,000-row screener stays with the snapshot above).
+    if (rows.length > FUNDAMENTALS_PER_SYMBOL_MAX_ROWS) return rows;
+    const gaps = rows
+      .filter((r) => r.ticker && (noSector(r) || capOf(r) == null || peOf(r) == null))
+      .slice(0, FUNDAMENTALS_MAX_SYMBOLS);
+    if (!gaps.length) return rows;
+    const filled = await this.fmp.getFundamentalsBatch(
+      gaps.map((r) => String(r.ticker)),
+      { concurrency: 8, budgetMs: FUNDAMENTALS_BUDGET_MS, withPe: true },
+    );
+    for (const r of rows) {
+      const f = filled.get((r.ticker || '').toUpperCase());
+      if (!f) continue;
+      if (noSector(r) && f.sector) r.sector = f.sector;
+      if (capOf(r) == null && f.marketCap != null) r.marketCap = f.marketCap;
+      if (peOf(r) == null && f.peRatio != null) r.peRatio = f.peRatio;
+    }
+    return rows;
   }
 
   /** Build a curated-basket list (large/small cap, penny, reits, faang) for a

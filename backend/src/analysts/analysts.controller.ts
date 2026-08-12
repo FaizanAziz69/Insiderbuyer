@@ -21,11 +21,14 @@ export class AnalystsController {
     return this.svc.getAnalystRatings(slug, Number.isFinite(n) && n > 0 ? Math.min(n, 50) : 20);
   }
 
-  /** Manual accumulation tick (also runs on the daily cron). */
+  /** Manual accumulation tick (also runs on the daily cron). Accumulates notes
+   *  and recomputes the persisted leaderboard; the wider budget here is safe
+   *  because nothing else shares this invocation, unlike the cron. */
   @Post('refresh')
   @UseGuards(AdminTokenGuard)
-  async refresh() {
-    return this.svc.refresh();
+  async refresh(@Body() body?: { boardBudgetMs?: number }) {
+    const b = Number(body?.boardBudgetMs);
+    return this.svc.refresh(Number.isFinite(b) && b > 0 ? Math.min(b, 45_000) : 40_000);
   }
 
   /** Deep per-symbol history backfill (paid FMP price-target-news). */
