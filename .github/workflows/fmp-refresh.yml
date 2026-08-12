@@ -75,6 +75,12 @@ jobs:
             sleep 2
           done
 
+      - name: Top up analyst rating history (keeps success rates deep)
+        run: |
+          resp=$(curl -s -X POST "$API/analysts/backfill-history" \
+            -H 'Content-Type: application/json' -d '{"pages":1}' -m 300 || echo '{}')
+          echo "analyst-history -> $resp"
+
       - name: Recalculate IQ Scores with the refreshed data (sliced loop)
         run: |
           cursor=""
