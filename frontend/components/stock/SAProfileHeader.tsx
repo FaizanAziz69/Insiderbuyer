@@ -147,17 +147,17 @@ const fmtDate = (iso: string) =>
 
 /* ── growth badges ─────────────────────────────────────────────────────── */
 
-/** The reference prints growth to one decimal with an explicit + sign. */
+/** The reference prints growth to one decimal with an explicit + sign.
+ *  It is a standalone element (not text appended to the figure) so `StatRow`
+ *  can treat it as its own flex item and drop it to a second line when the
+ *  column is too narrow, instead of the row growing past its grid track. */
 function Growth({ v }: { v: number | null | undefined }) {
   if (v == null || !Number.isFinite(v)) return null;
   return (
-    <>
-      {" "}
-      <span style={{ color: v >= 0 ? "var(--sa-up)" : "var(--sa-down)" }}>
-        {v >= 0 ? "+" : ""}
-        {v.toFixed(1)}%
-      </span>
-    </>
+    <span style={{ color: v >= 0 ? "var(--sa-up)" : "var(--sa-down)" }}>
+      {v >= 0 ? "+" : ""}
+      {v.toFixed(1)}%
+    </span>
   );
 }
 
@@ -216,7 +216,14 @@ function StatTable({ children }: { children: React.ReactNode }) {
 }
 
 /** One stat line. Stacks on mobile and becomes a real table row from `sm` up,
- *  exactly like the reference markup. */
+ *  exactly like the reference markup.
+ *
+ *  Neither cell may be `whitespace-nowrap`: a table cannot lay out narrower
+ *  than its min-content width, so a nowrap cell makes the whole table overflow
+ *  its grid track and paint its right-aligned value on top of the next
+ *  column's labels. The value keeps its pieces unbreakable via a wrapping flex
+ *  line instead — each piece stays whole, but a piece may move to a second
+ *  line when the column runs out of room. */
 function StatRow({
   label,
   href,
@@ -235,7 +242,7 @@ function StatRow({
       className="flex flex-col border-b py-1 sm:table-row sm:py-0"
       style={{ borderColor: "var(--sa-row-border)" }}
     >
-      <td className="whitespace-nowrap px-0.5 py-px min-[400px]:px-1 sm:py-2">
+      <td className="px-0.5 py-px align-baseline min-[400px]:px-1 sm:py-2">
         {href ? (
           <Link href={href} className="sa-dothref">
             {label}
@@ -245,8 +252,10 @@ function StatRow({
         )}
         {info ? <InfoGlyph /> : null}
       </td>
-      <td className="whitespace-nowrap px-0.5 py-px text-left font-semibold min-[400px]:px-1 sm:py-2 sm:text-right">
-        {children}
+      <td className="px-0.5 py-px align-baseline font-semibold min-[400px]:px-1 sm:py-2">
+        <span className="flex flex-wrap items-baseline gap-x-1 whitespace-nowrap sm:justify-end">
+          {children}
+        </span>
       </td>
     </tr>
   );
@@ -960,7 +969,12 @@ export function SAProfileHeader({
       </nav>
 
       {/* ── stats + chart ── */}
-      <div className="mt-4 grid grid-cols-1 items-start gap-x-4 gap-y-6 lg:grid-cols-[minmax(210px,236px)_minmax(210px,237px)_minmax(0,1fr)]">
+      {/* The two stat tracks are sized to their content (`max-content`) rather
+          than pinned to the reference's 236/237px: a table refuses to lay out
+          below its own min-content width, so any cap narrower than the widest
+          row made the table spill into the next track. `210px` keeps a narrow
+          ticker's column from collapsing, and the chart still takes the rest. */}
+      <div className="mt-4 grid grid-cols-1 items-start gap-x-4 gap-y-6 lg:grid-cols-[minmax(210px,max-content)_minmax(210px,max-content)_minmax(0,1fr)]">
         <StatTable>
           <StatRow label="Market Cap" href={`/companies/${ticker}?tab=financials`}>
             {abbr(stats?.marketCap)}
@@ -988,11 +1002,10 @@ export function SAProfileHeader({
             {stats?.forwardPE != null ? stats.forwardPE.toFixed(2) : "n/a"}
           </StatRow>
           <StatRow label="Dividend" href={`/companies/${ticker}?tab=ownership`}>
-            {stats?.dividendRate != null
-              ? `${sym}${stats.dividendRate.toFixed(2)}${
-                  stats?.dividendYield != null ? ` (${stats.dividendYield.toFixed(2)}%)` : ""
-                }`
-              : "n/a"}
+            {stats?.dividendRate != null ? `${sym}${stats.dividendRate.toFixed(2)}` : "n/a"}
+            {stats?.dividendRate != null && stats?.dividendYield != null && (
+              <span>({stats.dividendYield.toFixed(2)}%)</span>
+            )}
           </StatRow>
           <StatRow label="Ex-Dividend Date">
             {stats?.exDividendDate ? fmtDate(stats.exDividendDate) : "n/a"}
@@ -1018,13 +1031,13 @@ export function SAProfileHeader({
             {stats?.analystRating ? RATING_LABEL[stats.analystRating] || stats.analystRating : "n/a"}
           </StatRow>
           <StatRow label="Price Target" href={`/companies/${ticker}?tab=forecast`}>
-            {stats?.priceTarget != null
-              ? `${stats.priceTarget.toFixed(2)}${
-                  stats.priceTargetUpsidePct != null
-                    ? ` (${stats.priceTargetUpsidePct >= 0 ? "+" : ""}${stats.priceTargetUpsidePct.toFixed(2)}%)`
-                    : ""
-                }`
-              : "n/a"}
+            {stats?.priceTarget != null ? stats.priceTarget.toFixed(2) : "n/a"}
+            {stats?.priceTarget != null && stats.priceTargetUpsidePct != null && (
+              <span>
+                ({stats.priceTargetUpsidePct >= 0 ? "+" : ""}
+                {stats.priceTargetUpsidePct.toFixed(2)}%)
+              </span>
+            )}
           </StatRow>
           <StatRow label="Earnings Date">
             {stats?.earningsDate ? fmtDate(stats.earningsDate) : "n/a"}
