@@ -42,6 +42,7 @@ export class PeCacheService {
     if (!this.fmp?.enabled) {
       return { universe: 0, fetched: 0, written: 0, error: 'FMP_API_KEY not set' };
     }
+    await this.ensureTable();
     // Budget generously: this runs off the request path, and an empty universe
     // here would silently narrow the refresh to nothing.
     const snap = await this.fmp.getScreenerSnapshot(UNIVERSE_SCREENER_QUERY, {
@@ -78,6 +79,31 @@ export class PeCacheService {
       `P/E cache: ${written} symbols written from ratios-ttm-bulk (universe ${keep.size}).`,
     );
     return { universe: keep.size, fetched: pes.size, written };
+  }
+
+  /**
+   * Create the table if it isn't there yet.
+   *
+   * TypeORM's `synchronize` is deliberately OFF on serverless (it issues a
+   * catalog query per entity on every cold start), so a new entity never
+   * reaches production on its own — the first refresh failed with
+   * `relation "pe_ratio_cache" does not exist`. Turning DB_SYNC on to fix that
+   * would let TypeORM alter EVERY other table, so this creates just this one:
+   * idempotent, scoped, and matching the entity exactly.
+   */
+  private async ensureTable(): Promise<void> {
+    try {
+      await this.repo.query(
+        `CREATE TABLE IF NOT EXISTS pe_ratio_cache (
+           symbol varchar(12) NOT NULL,
+           "peRatio" numeric(18,6) NOT NULL,
+           "updatedAt" TIMESTAMP NOT NULL DEFAULT now(),
+           CONSTRAINT "PK_pe_ratio_cache" PRIMARY KEY (symbol)
+         )`,
+      );
+    } catch (e: any) {
+      this.logger.warn(`P/E cache table check failed: ${e?.message || e}`);
+    }
   }
 
   /**
