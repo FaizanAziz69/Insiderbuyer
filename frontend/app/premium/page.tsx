@@ -91,6 +91,20 @@ const CSS = String.raw`
 .sub3 .sq.hot{border:2px solid var(--bad);box-shadow:0 4px 14px rgba(210,51,61,.12)}
 .sub3 .sq.hot .ribbon{position:absolute;top:-10px;right:10px;background:var(--bad);color:#fff;font-family:var(--font-display),sans-serif;font-weight:600;font-size:10px;letter-spacing:.14em;padding:3px 8px;border-radius:4px}
 .sub3 .pricebox{max-width:560px;margin:28px auto 0;background:var(--bg-1);border:2px solid var(--text);border-radius:14px;padding:24px;box-shadow:var(--shadow-lg,0 8px 20px rgba(0,0,0,.1));text-align:center}
+.sub3 .plans{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 16px;text-align:left}
+@media (max-width:520px){.sub3 .plans{grid-template-columns:1fr}}
+.sub3 .plan{position:relative;border:1.5px solid var(--border);border-radius:12px;padding:14px 14px 12px;cursor:pointer;background:var(--bg-1);transition:border-color .15s ease,box-shadow .15s ease}
+.sub3 .plan.sel{border-color:var(--good);box-shadow:0 0 0 2px var(--good-soft),var(--shadow-sm,0 1px 2px rgba(0,0,0,.05))}
+.sub3 .plan .top{display:flex;align-items:center;gap:9px}
+.sub3 .plan .radio{width:18px;height:18px;border-radius:50%;border:2px solid var(--border-strong);flex:0 0 auto;position:relative}
+.sub3 .plan.sel .radio{border-color:var(--good)}
+.sub3 .plan.sel .radio::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--good)}
+.sub3 .plan .nm{font-family:var(--font-heading),sans-serif;font-weight:800;color:var(--text);font-size:15px}
+.sub3 .plan .bv{margin-left:auto;background:var(--good-soft);color:var(--good);font-family:var(--font-display),sans-serif;font-weight:600;font-size:10px;letter-spacing:.1em;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.sub3 .plan .amt{margin-top:8px;font-family:var(--font-heading),sans-serif;font-weight:900;font-size:26px;color:var(--text);line-height:1}
+.sub3 .plan .amt small{font-size:13px;color:var(--text-mute);font-weight:400;font-family:var(--font-sans),sans-serif}
+.sub3 .plan .note{margin-top:5px;font-size:11.5px;color:var(--text-mute);line-height:1.4}
+.sub3 .plan .note s{margin-right:4px}
 .sub3 .pricebox .tot{font-size:14px;color:var(--text-mute);letter-spacing:.06em}
 .sub3 .pricebox .tot s{margin-left:6px}
 .sub3 .pricebox .pv{font-size:42px;font-weight:900;color:var(--good);margin:6px 0;font-family:var(--font-heading),sans-serif}
@@ -277,6 +291,7 @@ export default function PremiumPage() {
   const { user } = useAuth();
   const { premium } = usePremium();
   const timer = useCountdown(15);
+  const [plan, setPlan] = useState<"annual" | "monthly">("annual");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
@@ -329,7 +344,7 @@ export default function PremiumPage() {
       const res = await fetch(`${API_BASE}/billing/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAuthToken() ?? ""}` },
-        body: JSON.stringify({ plan: "annual" }),
+        body: JSON.stringify({ plan }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.url) {
@@ -447,13 +462,44 @@ export default function PremiumPage() {
         </div>
         <div className="pricebox">
           <div className="tot mono">TOTAL VALUE <s className="tabular">$675.88</s></div>
-          <div className="pv tabular">$199 <small>/ one full year</small></div>
-          <span className="save">SAVE OVER 55% · JUST $16.58/MO, BILLED ANNUALLY</span><br />
+          <div className="plans" role="radiogroup" aria-label="Choose a plan">
+            <div
+              className={`plan${plan === "annual" ? " sel" : ""}`}
+              role="radio" aria-checked={plan === "annual"} tabIndex={0}
+              onClick={() => setPlan("annual")}
+              onKeyDown={(e) => e.key === "Enter" && setPlan("annual")}
+            >
+              <div className="top"><span className="radio" /><span className="nm">Annual</span><span className="bv">BEST VALUE · 55% OFF</span></div>
+              <div className="amt tabular">$199 <small>/ year</small></div>
+              <div className="note">Just $16.58/mo · all 4 special reports included free</div>
+            </div>
+            <div
+              className={`plan${plan === "monthly" ? " sel" : ""}`}
+              role="radio" aria-checked={plan === "monthly"} tabIndex={0}
+              onClick={() => setPlan("monthly")}
+              onKeyDown={(e) => e.key === "Enter" && setPlan("monthly")}
+            >
+              <div className="top"><span className="radio" /><span className="nm">Monthly</span></div>
+              <div className="amt tabular">$39.99 <small>/ month</small></div>
+              <div className="note">Full access, billed monthly · cancel anytime</div>
+            </div>
+          </div>
+          {plan === "annual" && (
+            <><span className="save">SAVE OVER 55% VS MONTHLY · BILLED ANNUALLY</span><br /></>
+          )}
           <button className="btn btn-wide" onClick={checkout} disabled={busy}>
-            {busy ? "Opening checkout…" : "Get Insider Access — $199/Year →"}
+            {busy
+              ? "Opening checkout…"
+              : plan === "annual"
+                ? "Get Insider Access — $199/Year →"
+                : "Get Insider Access — $39.99/Month →"}
           </button>
           {err && <div className="err">{err}</div>}
-          <p className="under">One payment · Everything included · 30-day money-back guarantee — reports are yours to keep</p>
+          <p className="under">
+            {plan === "annual"
+              ? "One payment · Everything included · 30-day money-back guarantee — reports are yours to keep"
+              : "Everything included · Cancel anytime · 30-day money-back guarantee"}
+          </p>
         </div>
       </div></section>
 
