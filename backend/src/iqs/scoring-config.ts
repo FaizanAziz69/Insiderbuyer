@@ -39,9 +39,9 @@ export const COMPONENT_WEIGHTS = {
  *  renders in the breakdown without moving the score until product sets a
  *  weight here. */
 export const BUYING_SUBWEIGHTS = {
-  volumeVsMarketCap: 0.22, // A
+  purchaseSize: 0.22, // A — ABSOLUTE $ bought (client 2026-08-13: no cap division)
   cluster: 0.18, // B
-  role: 0.18, // C
+  buyerSeniority: 0.18, // C — who is buying (dollar-weighted role multiplier)
   holdingChange: 0.08, // D — absolute commitment (avg % added per buyer)
   priceVsBuys: 0.12, // E — avg insider buy price vs current price
   stakeIncrease: 0.1, // F — ownership increase per insider (relative)
@@ -108,7 +108,8 @@ export const LITIGATION_DEDUCTION_CAP = 15;
 export const PEOPLE_SIGNALS_LIVE = process.env.IQS_PEOPLE_SIGNALS_LIVE === 'true';
 
 /** Role multipliers — applied to each transaction's contribution to the
- *  role-weighted sub-factors (A, C, E, F). Config-driven per spec §2C. */
+ *  role-weighted sub-factors (C, F) and pedigree. Config-driven per spec §2C.
+ *  Sub-factor C maps the dollar-weighted average of these straight to 0–100. */
 export const ROLE_MULTIPLIER: Record<InsiderRole, number> = {
   CEO: 1.0,
   CFO: 1.0,
@@ -130,10 +131,12 @@ export const WINDOWS = {
 
 /** Normalization knobs (clamps / scales) — spec §2E, §2F, §5, §6. */
 export const NORM = {
-  // A — purchase value / market cap, log-scaled. ~2% of cap ≈ strong.
-  volumeVsMarketCapDivisor: 0.02,
-  // C — role-weighted value / market cap.
-  roleDivisor: 0.06,
+  // A — ABSOLUTE purchase dollars, log-scaled (client 2026-08-13: a $100k buy
+  // is sizeable at ANY market cap, so cap division was removed). Score =
+  // ln(1 + $ ÷ divisor) ÷ ln(1 + capMultiple) × 100:
+  // $10k→~15, $50k→~39, $100k→~52, $250k→~70, $500k→~85, $1M+→100.
+  purchaseSizeDivisor: 10_000,
+  purchaseSizeCapMultiple: 100, // divisor × multiple = $1M ceiling
   // E — insider VWAP / current price, clamped then min-max to 0–100.
   //     >1 (stock below insider cost basis) = bullish end (OQ#1 default).
   priceRatioClamp: [0.5, 2.0] as [number, number],

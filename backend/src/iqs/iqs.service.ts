@@ -38,15 +38,15 @@ import {
   computeLitigationDeduction,
   computePedigreeScore,
   scoreBuySellBalance,
+  scoreBuyerSeniority,
   scoreCluster,
   scoreDilution,
   scoreHoldingChange,
   scoreInsiderOwnership,
   scoreMomentum,
   scorePriceVsBuys,
-  scoreRole,
+  scorePurchaseSize,
   scoreStakeIncrease,
-  scoreVolumeVsMarketCap,
 } from './iq-score-v2';
 import { InsiderProfile } from '../entities/insider-profile.entity';
 
@@ -469,9 +469,13 @@ export class IqsService {
       const insiderVwap = totalShares > 0 ? totalPurchaseValue / totalShares : null;
 
       // ── Component 1: Insider Buying (v2.1 sub-factors A–G, each 0–100) ──
-      const subVolume = scoreVolumeVsMarketCap(safeCap > 0 ? signalValue / safeCap : null);
+      // A — absolute plan-discounted dollars; C — dollar-weighted buyer
+      // seniority. Neither divides by market cap (client 2026-08-13).
+      const subVolume = scorePurchaseSize(signalValue > 0 ? signalValue : null);
       const subCluster = scoreCluster(buyers.size);
-      const subRole = scoreRole(safeCap > 0 ? roleWeightedValue / safeCap : null);
+      const subRole = scoreBuyerSeniority(
+        signalValue > 0 ? roleWeightedValue / signalValue : null,
+      );
       // D — holding change (absolute commitment).
       const subHolding = scoreHoldingChange(
         holdingChangePcts.length
@@ -526,9 +530,9 @@ export class IqsService {
       );
       const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
       const buyingScore = computeBuyingScore({
-        volumeVsMarketCap: subVolume,
+        purchaseSize: subVolume,
         cluster: subCluster,
-        role: subRole,
+        buyerSeniority: subRole,
         holdingChange: subHolding,
         priceVsBuys: subPriceVsBuys,
         stakeIncrease: subStake,
@@ -1361,13 +1365,13 @@ export class IqsService {
       .filter((t) => t.code === 'S')
       .reduce((a, t) => (t.value > 0 && t.value <= MAX_PLAUSIBLE_TX_VALUE ? a + t.value : a), 0);
 
-    // Step 6 — the v2.1 Buying sub-factors A–G.
-    const volumeRatio = safeCap > 0 ? signalValue / safeCap : null;
-    const roleRatio = safeCap > 0 ? roleWeightedValue / safeCap : null;
+    // Step 6 — the v2.1 Buying sub-factors A–G. A is absolute dollars and C
+    // is buyer seniority — neither divides by market cap (client 2026-08-13).
+    const avgRoleMult = signalValue > 0 ? roleWeightedValue / signalValue : null;
     const ownAvg = ownWeightSum > 0 ? ownWeightedSum / ownWeightSum : null;
-    const subVolume = scoreVolumeVsMarketCap(volumeRatio);
+    const subVolume = scorePurchaseSize(signalValue > 0 ? signalValue : null);
     const subCluster = counted.length ? scoreCluster(buyers.size) : null;
-    const subRole = scoreRole(roleRatio);
+    const subRole = scoreBuyerSeniority(avgRoleMult);
     const subHolding = scoreHoldingChange(avgHoldingChangePct);
     const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
     const subStake = scoreStakeIncrease(ownAvg);
@@ -1402,9 +1406,9 @@ export class IqsService {
     const subOwnershipG = scoreInsiderOwnership(ownershipFraction);
     const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
     const buyingScore = computeBuyingScore({
-      volumeVsMarketCap: subVolume,
+      purchaseSize: subVolume,
       cluster: subCluster,
-      role: subRole,
+      buyerSeniority: subRole,
       holdingChange: subHolding,
       priceVsBuys: subPriceVsBuys,
       stakeIncrease: subStake,
@@ -1614,9 +1618,11 @@ export class IqsService {
       buying: {
         subFactors: [
           {
-            key: 'A', name: 'Purchase size vs market cap', weight: BUYING_SUBWEIGHTS.volumeVsMarketCap,
-            input: volumeRatio, inputLabel: 'total $ bought ÷ market cap',
-            formula: 'ln(1 + ratio ÷ 0.02) ÷ ln(5) × 100 — ~2% of cap ≈ strong',
+            key: 'A', name: 'Purchase size', weight: BUYING_SUBWEIGHTS.purchaseSize,
+            input: signalValue > 0 ? +signalValue.toFixed(2) : null,
+            inputLabel: 'total $ bought (10b5-1 plan buys at half weight)',
+            formula:
+              'ln(1 + $ ÷ 10k) ÷ ln(101) × 100 — absolute dollars, NOT scaled by market cap: $100k ≈ 52, $1M+ = 100',
             score: subVolume,
           },
           {
@@ -1626,9 +1632,11 @@ export class IqsService {
             score: subCluster,
           },
           {
-            key: 'C', name: 'Role-weighted size vs cap', weight: BUYING_SUBWEIGHTS.role,
-            input: roleRatio, inputLabel: 'Σ($ × role multiplier) ÷ market cap',
-            formula: 'ln(1 + ratio ÷ 0.06) ÷ ln(5) × 100 — CEO/CFO/COO 1.0, Director 0.6, Other 0.4',
+            key: 'C', name: 'Buyer seniority (who is buying)', weight: BUYING_SUBWEIGHTS.buyerSeniority,
+            input: avgRoleMult != null ? +avgRoleMult.toFixed(4) : null,
+            inputLabel: 'dollar-weighted avg role multiplier of the buyers',
+            formula:
+              'avg role multiplier × 100 — all C-suite buying = 100, Directors = 60, Other/entities = 40',
             score: subRole,
           },
           {

@@ -31,12 +31,15 @@ const clamp01 = (x: number): number => clamp(x, 0, 1);
 
 // ── Buying sub-factors (each → 0–100 or null) ────────────────────────────
 
-/** A. Purchase value / market cap, log-scaled so micro-caps with outsized
- *  buys rank high without one filing blowing out the top. */
-export function scoreVolumeVsMarketCap(ratio: number | null): number | null {
-  if (ratio == null || !Number.isFinite(ratio) || ratio <= 0) return null;
-  const d = NORM.volumeVsMarketCapDivisor;
-  return clamp01(Math.log1p(ratio / d) / Math.log1p(4)) * 100;
+/** A. Purchase size — ABSOLUTE dollars bought (plan-discounted), log-scaled.
+ *  Deliberately NOT normalized by market cap (client decision 2026-08-13): a
+ *  $100k open-market buy is a real commitment whether the company is $50M or
+ *  $10B, so cap division punished exactly the large-cap conviction buys the
+ *  score exists to surface. $10k→~15, $100k→~52, $250k→~70, $1M+→100. */
+export function scorePurchaseSize(dollars: number | null): number | null {
+  if (dollars == null || !Number.isFinite(dollars) || dollars <= 0) return null;
+  const d = NORM.purchaseSizeDivisor;
+  return clamp01(Math.log1p(dollars / d) / Math.log1p(NORM.purchaseSizeCapMultiple)) * 100;
 }
 
 /** B. Cluster — distinct insider buyers, log-dampened. */
@@ -44,11 +47,19 @@ export function scoreCluster(distinctBuyers: number): number {
   return clamp01(Math.log(1 + distinctBuyers) / Math.log(1 + 6)) * 100;
 }
 
-/** C. Role-weighted purchase value / market cap. */
-export function scoreRole(roleWeightedRatio: number | null): number | null {
-  if (roleWeightedRatio == null || !Number.isFinite(roleWeightedRatio) || roleWeightedRatio <= 0)
+/** C. Buyer seniority — WHO is buying: the dollar-weighted average role
+ *  multiplier of the window's buyers, mapped straight to 0–100. All-C-suite
+ *  buying → 100, Directors-only → 60, Other/entities-only → 40. Replaces the
+ *  old role-weighted-value ÷ market-cap ratio (client decision 2026-08-13:
+ *  the cap-normalized version was both opaque and cap-punishing). */
+export function scoreBuyerSeniority(avgRoleMultiplier: number | null): number | null {
+  if (
+    avgRoleMultiplier == null ||
+    !Number.isFinite(avgRoleMultiplier) ||
+    avgRoleMultiplier <= 0
+  )
     return null;
-  return clamp01(Math.log1p(roleWeightedRatio / NORM.roleDivisor) / Math.log1p(4)) * 100;
+  return clamp01(avgRoleMultiplier) * 100;
 }
 
 /** D. Holding change (absolute commitment) — avg per-buyer % add, capped
@@ -123,9 +134,9 @@ export function scoreBuySellBalance(
 }
 
 export interface BuyingSubScores {
-  volumeVsMarketCap: number | null;
+  purchaseSize: number | null;
   cluster: number | null;
-  role: number | null;
+  buyerSeniority: number | null;
   holdingChange: number | null;
   priceVsBuys: number | null;
   stakeIncrease: number | null;
@@ -139,9 +150,9 @@ export interface BuyingSubScores {
  *  breakdowns without moving the score. */
 export function computeBuyingScore(sub: BuyingSubScores): number | null {
   const parts: Array<[number, number | null]> = [
-    [BUYING_SUBWEIGHTS.volumeVsMarketCap, sub.volumeVsMarketCap],
+    [BUYING_SUBWEIGHTS.purchaseSize, sub.purchaseSize],
     [BUYING_SUBWEIGHTS.cluster, sub.cluster],
-    [BUYING_SUBWEIGHTS.role, sub.role],
+    [BUYING_SUBWEIGHTS.buyerSeniority, sub.buyerSeniority],
     [BUYING_SUBWEIGHTS.holdingChange, sub.holdingChange],
     [BUYING_SUBWEIGHTS.priceVsBuys, sub.priceVsBuys],
     [BUYING_SUBWEIGHTS.stakeIncrease, sub.stakeIncrease],

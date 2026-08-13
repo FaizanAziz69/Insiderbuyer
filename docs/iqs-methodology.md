@@ -36,9 +36,9 @@ renormalize over whichever sub-factors have data:
 
 | # | Sub-factor | Weight | Formula |
 |---|---|---|---|
-| A | Purchase size vs market cap | 22% | `ln(1 + ratio/0.02) / ln(5) × 100` — ~2% of cap ≈ strong |
+| A | Purchase size (absolute $) | 22% | `ln(1 + $/10k) / ln(101) × 100` — absolute dollars bought, deliberately NOT divided by market cap (client decision 2026-08-13: a $100k buy is sizeable at any cap). $100k ≈ 52, $250k ≈ 70, $1M+ = 100. 10b5-1 plan buys count at half weight. |
 | B | Cluster | 18% | `ln(1 + buyers) / ln(7) × 100` — 6 buyers ≈ 100 |
-| C | Role-weighted size vs cap | 18% | same log curve, divisor 0.06; role multipliers CEO/CFO/COO 1.0, Director 0.6, Other 0.4 (spec §2C) |
+| C | Buyer seniority (who is buying) | 18% | dollar-weighted average role multiplier × 100 — all C-suite buying = 100, Directors-only = 60, Other/entities = 40 (CEO/CFO/COO 1.0, Director 0.6, Other 0.4). Replaced the cap-normalized role-weighted ratio 2026-08-13. |
 | D | Holding change | 8% | avg % each buyer added to their stake, capped at 100%; a genuine first-time buyer counts as the cap |
 | E | Cost basis vs price | 12% | `r = clamp(insiderVWAP ÷ price, 0.5, 2.0)`, min-maxed; r > 1 (stock below insider cost) = bullish |
 | F | Stake increase (per insider) | 10% | role-weighted avg of (shares bought ÷ previous holdings) per buyer, capped at doubling |
