@@ -41,6 +41,22 @@ export class MarketSnapshotService {
    *  movers list there, even though the $100M screener universe excludes it. */
   private static readonly US_EXCHANGES = new Set(['NASDAQ', 'NYSE', 'AMEX']);
 
+  /**
+   * Non-common-stock share classes, which we never want on a page that claims
+   * to list companies.
+   *
+   * FMP suffixes preferred shares `-P` plus a series letter (JPM-PK, BAC-PO,
+   * MS-PE, GS-PC), and warrants/units/rights `-W`/`-U`/`-R`. 290 preferred
+   * lines clear the $100M cap floor, and because they cluster in banking they
+   * took over the heatmap's Financial Services block with securities that are
+   * closer to bonds than to companies.
+   *
+   * Deliberately NOT a blanket "symbol contains a dash": BRK-B, BF-B, LEN-B,
+   * HEI-A, UHAL-B, MOG-A and CRD-A/B are ordinary dual-class common stock and
+   * must stay.
+   */
+  private static readonly NON_COMMON_SUFFIX = /-(?:P[A-Z]?|W[SI]?|U|R)$/;
+
   constructor(
     @InjectRepository(MarketProfileSnapshot)
     private readonly repo: Repository<MarketProfileSnapshot>,
@@ -112,8 +128,10 @@ export class MarketSnapshotService {
         error: this.fmp.lastError || 'bulk feed returned no rows',
       };
     }
-    const kept = Array.from(profiles.values()).filter((p) =>
-      MarketSnapshotService.US_EXCHANGES.has((p.exchange || '').toUpperCase()),
+    const kept = Array.from(profiles.values()).filter(
+      (p) =>
+        MarketSnapshotService.US_EXCHANGES.has((p.exchange || '').toUpperCase()) &&
+        !MarketSnapshotService.NON_COMMON_SUFFIX.test(p.symbol.toUpperCase()),
     );
     if (!kept.length) {
       return { universe: 0, fetched: profiles.size, written: 0, error: 'no US listings in feed' };

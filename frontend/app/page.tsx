@@ -187,7 +187,14 @@ function MarketHeatmapPanel() {
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
-  const rows = (data?.rows ?? []).map(heatToRanking);
+  // The endpoint now returns the whole $100M+ universe — thousands of rows.
+  // A 380px-tall treemap cannot draw that many tiles legibly: everything below
+  // the mega caps collapses into unlabelled dots. Take the largest companies
+  // only (the API sorts by market cap), which leaves the big tiles exactly the
+  // size they already were and simply removes the specks. The full map at
+  // /heatmaps/market still gets everything, and has search to reach the rest.
+  const TILES = 250;
+  const rows = (data?.rows ?? []).slice(0, TILES).map(heatToRanking);
 
   return (
     <aside
