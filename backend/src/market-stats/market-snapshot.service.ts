@@ -119,22 +119,31 @@ export class MarketSnapshotService {
       return { universe: 0, fetched: profiles.size, written: 0, error: 'no US listings in feed' };
     }
 
-    const str = (n: number | null) => (n == null ? null : String(n));
+    // The feed carries occasional garbage that is wider than the column it
+    // lands in — TOPS reports a lastDividend of 3.8e14, i.e. $380 trillion per
+    // share, which overflowed numeric(20,6) and failed the whole batch. Drop
+    // anything past a plausible bound rather than clamp: a clamped figure would
+    // render as a real number. Bounds are sanity limits, not column limits.
+    const sane = (n: number | null, max: number): string | null =>
+      n == null || !Number.isFinite(n) || Math.abs(n) > max ? null : String(n);
+    const str = (n: number | null) => sane(n, 1e9);
+    const bigint = (n: number | null): string | null =>
+      n == null || !Number.isFinite(n) || Math.abs(n) > 1e15 ? null : String(Math.round(n));
     const rows = kept.map((p) => ({
       symbol: p.symbol.slice(0, 16),
       name: (p.name || '').slice(0, 220),
       price: str(p.price),
       changeAbs: str(p.changeAbs),
-      changePct: str(p.changePct),
-      volume: p.volume == null ? null : String(Math.round(p.volume)),
-      avgVolume: p.avgVolume == null ? null : String(Math.round(p.avgVolume)),
-      marketCap: str(p.marketCap),
+      changePct: sane(p.changePct, 1e6),
+      volume: bigint(p.volume),
+      avgVolume: bigint(p.avgVolume),
+      marketCap: sane(p.marketCap, 1e16),
       sector: p.sector?.slice(0, 120) ?? null,
       industry: p.industry?.slice(0, 160) ?? null,
       exchange: p.exchange?.slice(0, 32) ?? null,
       fiftyTwoWeekLow: str(p.fiftyTwoWeekLow),
       fiftyTwoWeekHigh: str(p.fiftyTwoWeekHigh),
-      lastDividend: str(p.lastDividend),
+      lastDividend: sane(p.lastDividend, 1e6),
       isFundLike: p.isFundLike,
     }));
     let written = 0;
