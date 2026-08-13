@@ -1,0 +1,60 @@
+name: Market snapshot refresh
+
+# Keeps the FMP-backed market data fresh through the US trading session.
+#
+# Why this is not a Vercel cron: this project is on a plan that allows two cron
+# jobs at daily granularity, and the SEC ingest already owns one. Movers are an
+# intraday question — the read path rejects a snapshot older than 90 minutes
+# rather than publish this morning's gainers as today's — so a once-daily
+# refresh would leave those tables permanently falling back to the Yahoo
+# scrape. GitHub's scheduler has no such limit and costs nothing here.
+#
+# Stores no secrets: the deployed API already holds FMP_API_KEY and
+# DATABASE_URL, so this only has to call the refresh endpoints. Both are
+# stale-checked server-side, so an extra run is a cheap no-op rather than a
+# duplicate download.
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - '.github/workflows/market-snapshot.yml'
+  schedule:
+    # Every 30 minutes through US market hours (13:30–20:00 UTC), weekdays.
+    # GitHub queues scheduled runs under load, so treat the cadence as
+    # approximate — the 90-minute freshness window absorbs the drift.
+    - cron: '*/30 13-21 * * 1-5'
+    # One evening run so the tables are still warm outside the session.
+    - cron: '0 23 * * 1-5'
+
+concurrency:
+  group: market-snapshot
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The backend directly, NOT the frontend proxy: that proxy aborts at 9s
+      # (BACKEND_TIMEOUT_MS) and a bulk refresh runs right up against it.
+      API: https://insiderbuyer.vercel.app/api
+    steps:
+      - name: Refresh market snapshot (price / change / volume / cap / sector)
+        run: |
+          resp=$(curl -s -m 300 "$API/market-stats/snapshot-cron" || echo '{"error":"curl failed"}')
+          echo "snapshot -> $resp"
+          # A skipped run is success; only a hard error should fail the job.
+          case "$resp" in
+            *'"error"'*) echo "::error::snapshot refresh reported an error"; exit 1 ;;
+          esac
+
+      - name: Refresh trailing P/E cache
+        run: |
+          resp=$(curl -s -m 300 "$API/market-stats/pe-cron" || echo '{"error":"curl failed"}')
+          echo "pe -> $resp"
+
+      - name: Report coverage
+        run: |
+          echo "snapshot: $(curl -s -m 60 "$API/market-stats/snapshot-status")"
+          echo "pe:       $(curl -s -m 60 "$API/market-stats/pe-status")"
