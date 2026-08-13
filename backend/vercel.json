@@ -14,7 +14,6 @@
   },
   "crons": [
     { "path": "/api/ingest/cron", "schedule": "0 6 * * *" },
-    { "path": "/api/market-stats/pe-cron", "schedule": "0 7 * * *" },
-    { "path": "/api/market-stats/snapshot-cron", "schedule": "*/30 13-21 * * 1-5" }
+    { "path": "/api/market-stats/pe-cron", "schedule": "0 7 * * *" }
   ]
 }

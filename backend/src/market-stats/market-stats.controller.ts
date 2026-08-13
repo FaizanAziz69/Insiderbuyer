@@ -58,12 +58,26 @@ export class MarketStatsController {
     return this.peCache.status();
   }
 
-  /** Daily refresh target for the Vercel cron (crons issue a plain GET, so this
-   *  cannot be token-guarded). Re-fetches only when the table is stale, which
-   *  is also what keeps a public URL from pulling the bulk feed on every hit. */
+  /**
+   * Daily refresh target for the Vercel cron (crons issue a plain GET, so this
+   * cannot be token-guarded). Re-fetches only when the table is stale, which is
+   * also what keeps a public URL from pulling the bulk feeds on every hit.
+   *
+   * Both bulk refreshes run here rather than from separate cron entries: this
+   * project is on a plan that allows two cron jobs at daily granularity, and
+   * the SEC ingest already owns one of them. The snapshot runs second so a
+   * failure there cannot cost us the P/E refresh.
+   */
   @Get('pe-cron')
   async peCron() {
-    return this.peCache.refreshIfStale();
+    const pe = await this.peCache.refreshIfStale();
+    let snapshot: unknown;
+    try {
+      snapshot = await this.snapshot.refreshIfStale();
+    } catch (e: any) {
+      snapshot = { error: String(e?.message || e) };
+    }
+    return { pe, snapshot };
   }
 
   @Get('search')
