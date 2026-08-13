@@ -125,6 +125,24 @@ export interface RankingRow {
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
+/**
+ * Score rows to read: each company's OWN most recent one.
+ *
+ * These pages previously filtered on `asOfDate = (SELECT MAX(asOfDate) FROM
+ * iqs_scores)` — the newest date anywhere in the table. That makes them fail
+ * EMPTY rather than stale: a recalc stamps today onto the companies it
+ * reaches, so any run that stops early leaves the global max at today with
+ * only that partial set matching, and every company still carrying
+ * yesterday's date silently disappears. Measured 2026-08-13, the rankings
+ * board fell from 186 rows to 35 exactly this way, which also emptied the
+ * Insider Score column on Government Contracts.
+ *
+ * Per-company means an interrupted recalc now shows slightly stale scores
+ * instead of hiding companies outright.
+ */
+const LATEST_SCORE_PER_COMPANY =
+  's."asOfDate" = (SELECT MAX(s2."asOfDate") FROM iqs_scores s2 WHERE s2.company_id = s.company_id)';
+
 /** Normalize an "Exchanges" filter value to a stored Company.exchange code,
  *  or null for "All" / unknown (no filter). Accepts UI labels and codes:
  *  us/u.s./united states→US, ca/canada→CA, de/germany/deutschland→DE. */
@@ -244,12 +262,31 @@ export class IqsService {
     let cursor: string | null = null;
     if (opts?.limit && opts.limit > 0) {
       const after = opts.after || '';
+      // The walk key must be TOTAL and must use ONE comparison everywhere.
+      // Both properties were broken, and together they stopped every caller
+      // (including the nightly workflow) a few slices in:
+      //  - falling back to `c.id` put UUID cursors in the middle of the range.
+      //    A UUID starts lowercase, and 'c' > 'Z' in code-unit order, so the
+      //    next call's filter discarded EVERY tickered company and `remaining`
+      //    collapsed to ~1 — the loop concluded it was finished with ~1,300
+      //    companies unscored.
+      //  - the filter compared with `>` while the sort used localeCompare,
+      //    which order differently, so the slice boundary and the sort did not
+      //    even agree on what came next.
+      // Keying blanks behind ￿ keeps ticker-less filers last, where a
+      // cursor landing on one cannot strand the rest of the alphabet.
+      const key = (c: Company) =>
+        (c.ticker || '').trim().toUpperCase() || `￿${c.id}`;
       const sorted = allCompanies
-        .filter((c) => (c.ticker || c.id) > after)
-        .sort((a, b) => (a.ticker || a.id).localeCompare(b.ticker || b.id));
+        .filter((c) => key(c) > after)
+        .sort((a, b) => {
+          const ka = key(a);
+          const kb = key(b);
+          return ka < kb ? -1 : ka > kb ? 1 : 0;
+        });
       companies = sorted.slice(0, opts.limit);
       remaining = Math.max(0, sorted.length - companies.length);
-      cursor = companies.length ? companies[companies.length - 1].ticker || companies[companies.length - 1].id : null;
+      cursor = companies.length ? key(companies[companies.length - 1]) : null;
     }
     let updated = 0;
 
@@ -748,7 +785,7 @@ export class IqsService {
     const qb = this.scores
       .createQueryBuilder('s')
       .innerJoin(Company, 'c', 'c.id = s.company_id')
-      .where('s.asOfDate = (SELECT MAX("asOfDate") FROM iqs_scores)')
+      .where(LATEST_SCORE_PER_COMPANY)
       .select([
         's.id as id',
         's.company_id as "companyId"',
@@ -1739,7 +1776,7 @@ export class IqsService {
 
     const scores = await this.scores
       .createQueryBuilder('s')
-      .where('s.asOfDate = (SELECT MAX("asOfDate") FROM iqs_scores)')
+      .where(LATEST_SCORE_PER_COMPANY)
       .getMany();
     const avgIqs =
       scores.length > 0
@@ -2060,7 +2097,7 @@ export class IqsService {
     const qb = this.scores
       .createQueryBuilder('s')
       .innerJoin(Company, 'c', 'c.id = s.company_id')
-      .where('s.asOfDate = (SELECT MAX("asOfDate") FROM iqs_scores)')
+      .where(LATEST_SCORE_PER_COMPANY)
       .select([
         's.company_id as "companyId"',
         'c.ticker as ticker',
