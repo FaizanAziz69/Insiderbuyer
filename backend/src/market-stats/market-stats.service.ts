@@ -570,6 +570,10 @@ export class MarketStatsService {
   private static readonly FMP_EXCHANGE_CODE: Record<string, string> = {
     NASDAQ: 'NMS',
     NYSE: 'NYQ',
+    // Yahoo's code for NYSE American. onlyMajorExchanges does not list it, but
+    // snapshot rows bypass that filter — the feed's own exchange field is
+    // already authoritative, unlike the scrape's.
+    AMEX: 'ASE',
   };
 
   /** How old a snapshot may be and still be called "today's movers". Sized to
@@ -698,7 +702,12 @@ export class MarketStatsService {
   }
   async getMostActive(limit = 100) {
     const fromSnapshot = await this.snapshotMovers('volume', limit);
-    if (fromSnapshot.length) return fromSnapshot;
+    if (fromSnapshot.length) {
+      // The scraped payload carried trailingPE for about half these rows, so
+      // without this the move to FMP would have emptied a column that worked.
+      await this.fillPeRatios(fromSnapshot);
+      return fromSnapshot;
+    }
     const rows = await this.screenYahoo({
       key: 'most_active',
       sortField: 'dayvolume',

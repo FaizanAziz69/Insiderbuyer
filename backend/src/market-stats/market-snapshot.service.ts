@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MarketProfileSnapshot } from '../entities/market-profile.entity';
 import { FmpService } from '../fmp/fmp.service';
-import { UNIVERSE_SCREENER_QUERY } from './market-universe';
 
 /** What the movers/heatmap read path needs off a snapshot row. */
 export interface SnapshotRow {
@@ -37,6 +36,10 @@ export interface SnapshotRow {
 @Injectable()
 export class MarketSnapshotService {
   private readonly logger = new Logger(MarketSnapshotService.name);
+
+  /** US listings kept in the snapshot. AMEX is included because plenty of real
+   *  movers list there, even though the $100M screener universe excludes it. */
+  private static readonly US_EXCHANGES = new Set(['NASDAQ', 'NYSE', 'AMEX']);
 
   constructor(
     @InjectRepository(MarketProfileSnapshot)
@@ -94,26 +97,30 @@ export class MarketSnapshotService {
       return { universe: 0, fetched: 0, written: 0, error: 'FMP_API_KEY not set' };
     }
     await this.ensureTable();
-    const snap = await this.fmp.getScreenerSnapshot(UNIVERSE_SCREENER_QUERY, {
-      budgetMs: 30_000,
-    });
-    const keep = new Set(snap.keys());
-    if (!keep.size) {
-      return { universe: 0, fetched: 0, written: 0, error: 'empty screener universe' };
-    }
-
-    const profiles = await this.fmp.streamProfilesBulk(keep, opts);
+    // Deliberately NOT filtered to the $100M screener universe. The movers
+    // tables are where this is read, and a market's biggest movers are mostly
+    // small caps — filtering to the universe cut top gainers from 95 rows to
+    // 51 and losers from 55 to 20 against the scrape it replaces. Keep every
+    // US listing instead; ~14k rows is a small table and full coverage is the
+    // whole point.
+    const profiles = await this.fmp.streamProfilesBulk(undefined, opts);
     if (!profiles.size) {
       return {
-        universe: keep.size,
+        universe: 0,
         fetched: 0,
         written: 0,
         error: this.fmp.lastError || 'bulk feed returned no rows',
       };
     }
+    const kept = Array.from(profiles.values()).filter((p) =>
+      MarketSnapshotService.US_EXCHANGES.has((p.exchange || '').toUpperCase()),
+    );
+    if (!kept.length) {
+      return { universe: 0, fetched: profiles.size, written: 0, error: 'no US listings in feed' };
+    }
 
     const str = (n: number | null) => (n == null ? null : String(n));
-    const rows = Array.from(profiles.values(), (p) => ({
+    const rows = kept.map((p) => ({
       symbol: p.symbol.slice(0, 16),
       name: (p.name || '').slice(0, 220),
       price: str(p.price),
@@ -136,8 +143,10 @@ export class MarketSnapshotService {
       await this.repo.upsert(chunk, ['symbol']);
       written += chunk.length;
     }
-    this.logger.log(`Market snapshot: ${written} symbols written (universe ${keep.size}).`);
-    return { universe: keep.size, fetched: profiles.size, written };
+    this.logger.log(
+      `Market snapshot: ${written} US symbols written (${profiles.size} in feed).`,
+    );
+    return { universe: kept.length, fetched: profiles.size, written };
   }
 
   /** Refresh only when stale — see PeCacheService.refreshIfStale for why the
