@@ -138,6 +138,20 @@ const CSS = String.raw`
 .ia .ribbon .timer{color:var(--gold-dark)}
 .ia .mini-covers{cursor:pointer}
 .ia .bundle .label b{cursor:pointer}
+
+/* ── Offer stack (reframe 2026-08-13): itemized value stack above the plans ── */
+.ia .stack{max-width:780px;margin:0 auto 30px;background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 3px rgba(16,24,40,.05)}
+.ia .stack .stack-head{padding:16px 22px;background:var(--bg-alt);border-bottom:1px solid var(--line);font-family:'Archivo',sans-serif;font-weight:900;color:var(--ink);font-size:1.02rem;text-align:left}
+.ia .stack .srow{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:12px 22px;border-bottom:1px solid var(--line);font-size:.9rem;text-align:left}
+.ia .stack .srow .sname b{color:var(--ink)}
+.ia .stack .srow .sname small{display:block;color:var(--faint);font-size:.76rem;margin-top:1px}
+.ia .stack .sval{font-family:'IBM Plex Mono',monospace;color:var(--body);white-space:nowrap;font-weight:600;font-size:.82rem}
+.ia .stack .srow.bonus .sname b{color:var(--gold-dark)}
+.ia .stack .total{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:16px 22px;background:var(--navy);color:#fff;font-family:'Archivo',sans-serif;font-weight:900;font-size:1.02rem}
+.ia .stack .total .tv{color:#C4CEE2;text-decoration:line-through;font-size:1rem}
+.ia .stack .total .tp{color:var(--gold)}
+.ia .stack-note{max-width:780px;margin:-18px auto 30px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:var(--faint);letter-spacing:.03em}
+@media (max-width:560px){.ia .stack .srow{flex-direction:column;gap:2px}.ia .stack .total{flex-direction:column;gap:4px}}
 `;
 
 function useCountdown(): string {
@@ -344,8 +358,8 @@ export default function PremiumPage() {
         <div className="stars" aria-hidden="true"></div>
         <div className="wrap">
           <span className="boost">Give Your Portfolio the Insider Boost</span>
-          <h1>Make Smarter, Data&#8209;Driven <span className="gold-t">Investment Decisions</span></h1>
-          <p className="sub">We level the playing field by making institutional research tools and insider data available for everyone — with <b>Insider Access!</b></p>
+          <h1>The Highest-Conviction Insider Buys in the Market — <span className="gold-t">Ranked Live, #1 to #200</span></h1>
+          <p className="sub">Executives are wagering millions of their own money on their own stock right now. <b>Insider Access</b> shows you exactly where — every buy scored 0–99, re-ranked daily, alerted in real time.</p>
           <span className="you-will">With Insider Access, you will</span>
           <ul className="sparkles">
             <li><span className="sp">✦</span><span><b>Know exactly what insiders are doing</b> — one IQ Score, 0–99, on every stock</span></li>
@@ -358,7 +372,7 @@ export default function PremiumPage() {
             <a className="btn" href="#pricing">Upgrade Now</a>
             <a className="btn ghost" href="#iq-score">See how the IQ Score works</a>
           </div>
-          <span className="price-line">Just <b>$199.00</b> per year · 30-day money-back guarantee · 4 free reports at signup</span>
+          <span className="price-line">Everything for <b>$199/yr — that&rsquo;s 55&cent; a day</b> · 30-day money-back guarantee · 4 free reports at signup</span>
         </div>
         <div className="skyline" aria-hidden="true">
           <svg viewBox="0 0 1440 240" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax slice">
@@ -504,10 +518,35 @@ export default function PremiumPage() {
       <section className="pricing" id="pricing">
         <div className="wrap">
           <div className="sec-head">
-            <span className="kicker" style={{color:"#8DA0C4"}}>Don't wait</span>
-            <h2>Lock In the Best Price Now.</h2>
-            <p>Everything above. One price. Nothing held back — including today's free bundle.</p>
+            <span className="kicker" style={{color:"#8DA0C4"}}>The full stack</span>
+            <h2>Seven Tools That Sell Separately for $2,000+/yr.<br/>One Membership: <span style={{color:"var(--gold-dark)"}}>$199.</span></h2>
+            <p>You're not buying a newsletter. You're buying the whole desk — for less than 10&cent; on the dollar.</p>
           </div>
+          <div className="stack" aria-label="Everything included with Insider Access, itemized">
+            <div className="stack-head">Everything you get the minute you join</div>
+            {[
+              ["IQ Score Rankings", "Every US stock scored 0–99, re-ranked daily from live SEC filings — down to the #1 name", "$588/yr"],
+              ["Real-time insider alerts", "High-conviction buys, minutes after EDGAR — never weeks later", "$348/yr"],
+              ["Six rules-based IQ strategies", "SPX·IQ, RUT·IQ, TSX·IQ, AI·IQ, GLD·IQ, NRG·IQ — full holdings unlocked", "$470/yr"],
+              ["Insider & analyst success rates", "Every buyer and analyst ranked by how their past calls actually performed", "$228/yr"],
+              ["Politician trades & donors", "Congressional trades with committee seats, donors, lobbying and contracts", "$180/yr"],
+              ["Interviews & sector playbooks", "Exclusive insider interviews plus five sector playbooks", "$147/yr"],
+            ].map(([name, desc, val]) => (
+              <div className="srow" key={name as string}>
+                <div className="sname"><b>{name}</b><small>{desc}</small></div>
+                <span className="sval">comparable value {val}</span>
+              </div>
+            ))}
+            <div className="srow bonus">
+              <div className="sname"><b>⚡ Bonus: the 4-report stock-idea bundle</b><small>Top Stocks Insiders Are Buying · Analysts Love · Top Dividend · Critical Metals idea — free today</small></div>
+              <span className="sval">$120 value</span>
+            </div>
+            <div className="total">
+              <span>Total comparable value <span className="tv">$2,081/yr</span></span>
+              <span className="tp">Yours for $199/yr — 55&cent; a day</span>
+            </div>
+          </div>
+          <p className="stack-note">COMPARABLE VALUE = WHAT STANDALONE SCREENERS, ALERT SERVICES AND TRACKERS CHARGE FOR THE SAME JOB, PRICED SEPARATELY.</p>
           <div className="plans" role="radiogroup" aria-label="Choose your plan">
       <div className={"plan pick" + (plan === "annual" ? " sel" : "")} role="radio" aria-checked={plan === "annual"} tabIndex={0} onClick={() => setPlan("annual")} onKeyDown={(e) => e.key === "Enter" && setPlan("annual")}>
         <div className="top"><span className="radio"></span><span className="nm">Yearly</span><span className="badge">SAVE 59%</span></div>
@@ -550,7 +589,7 @@ export default function PremiumPage() {
       
       
       <div className="sticky-cta" id="stickyCta">
-        <div className="p">$199/yr — Insider Access<small>4 free reports · 30-day guarantee</small></div>
+        <div className="p">$2,081 of tools — $199/yr<small>55&cent;/day · 4 free reports · 30-day guarantee</small></div>
         <a className="btn" href="#pricing">Get Access</a>
       </div>
       
