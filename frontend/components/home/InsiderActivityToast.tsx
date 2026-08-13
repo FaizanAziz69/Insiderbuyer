@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { InsiderAvatar } from "@/components/InsiderAvatar";
 import { OptInModal } from "@/components/OptInModal";
+import { usePremium } from "@/components/premium/PremiumContext";
 
 /** A single insider activity the widget cycles through. */
 export interface InsiderActivity {
@@ -243,6 +244,10 @@ export function InsiderActivityToast({
 
   const router = useRouter();
   const [optInOpen, setOptInOpen] = useState(false);
+  // Subscribers see the real names — no blur, no unlock CTA. The blur is a
+  // tease for logged-out/free visitors only.
+  const { unlocked } = usePremium();
+  const lock = unlocked ? undefined : LOCK;
 
   const { data } = useSWR<TradesResponse>(
     // Buys only, server-side — the generic trades feed is often dominated by
@@ -251,7 +256,7 @@ export function InsiderActivityToast({
     fetcher,
     { refreshInterval: 3 * 60_000, revalidateOnFocus: false },
   );
-  const activities = useMemo<InsiderActivity[]>(() => {
+  const baseActivities = useMemo<InsiderActivity[]>(() => {
     if (provided) return provided;
     return (data?.rows || [])
       .filter((t) => {
@@ -280,17 +285,38 @@ export function InsiderActivityToast({
       }));
   }, [provided, data]);
 
-  const count = activities.length;
-
-  // Analyst coverage for the currently shown ticker: current price, mean price
-  // target and implied upside — the visible "tease" numbers on the card.
-  const curTicker = activities[idx]?.ticker || null;
+  // Analyst coverage for ALL candidate tickers in ONE call — feeds the
+  // price/target/upside row AND puts trades with complete coverage first, so
+  // the card doesn't open on a row of "—" (client 2026-08-14). One batched
+  // request replaces the old per-shown-ticker fetch on every rotation.
+  const symbolsParam = useMemo(
+    () => [...new Set(baseActivities.map((x) => x.ticker))].slice(0, 40).join(","),
+    [baseActivities],
+  );
   const { data: covData } = useSWR<{ rows: any[] }>(
-    curTicker ? `${API_BASE}/market-stats/analyst-ratings?symbols=${curTicker}` : null,
+    symbolsParam ? `${API_BASE}/market-stats/analyst-ratings?symbols=${symbolsParam}` : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
   );
-  const cov = covData?.rows?.[0] || null;
+  const covBySym = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const r of covData?.rows || []) m.set(String(r.symbol || "").toUpperCase(), r);
+    return m;
+  }, [covData]);
+
+  const activities = useMemo<InsiderActivity[]>(() => {
+    if (!covData) return baseActivities; // coverage loading — keep recency order
+    const full = (t: InsiderActivity) => {
+      const c = covBySym.get(t.ticker);
+      return c && c.price != null && c.targetMean != null && c.upsidePct != null;
+    };
+    // Stable partition: complete-coverage trades first, newest-first within
+    // each group; nothing is dropped so the feed never goes empty.
+    return [...baseActivities.filter(full), ...baseActivities.filter((t) => !full(t))];
+  }, [baseActivities, covData, covBySym]);
+
+  const count = activities.length;
+  const cov = covBySym.get(activities[idx]?.ticker || "") || null;
 
   // Baseline: on first load, acknowledge the current newest so existing trades
   // aren't counted as "new".
@@ -502,20 +528,20 @@ export function InsiderActivityToast({
                       </span>
                     </div>
 
-                    {/* Company name (locked) with the ticker directly beneath —
-                        both blurred until the visitor unlocks. */}
+                    {/* Company name with the ticker directly beneath — blurred
+                        as a tease for free visitors, plain for subscribers. */}
                     <div className="mt-3.5">
                       <div
                         className="text-[17px] font-bold leading-tight select-none"
-                        style={{ color: "rgba(255,255,255,0.95)", ...LOCK }}
-                        aria-hidden
+                        style={{ color: "rgba(255,255,255,0.95)", ...(lock || {}) }}
+                        aria-hidden={!unlocked}
                       >
                         {a.company || "Company Name"}
                       </div>
                       <div
                         className="mt-1 text-[13px] font-mono font-bold tracking-wide select-none"
-                        style={{ color: "rgba(255,255,255,0.7)", ...LOCK }}
-                        aria-hidden
+                        style={{ color: "rgba(255,255,255,0.7)", ...(lock || {}) }}
+                        aria-hidden={!unlocked}
                       >
                         {a.ticker}
                       </div>
@@ -555,16 +581,20 @@ export function InsiderActivityToast({
                       {a.pricePerShare > 0 && <> • ${a.pricePerShare.toFixed(2)}/share</>}
                     </div>
 
-                    {/* Insider — enlarged blurred-face avatar, name locked • time */}
+                    {/* Insider — avatar + name (blurred tease for free visitors) • time */}
                     <div className="mt-3 flex items-center gap-3">
-                      <span className="flex-shrink-0" style={{ filter: "blur(1.5px)" }} aria-hidden>
+                      <span
+                        className="flex-shrink-0"
+                        style={unlocked ? undefined : { filter: "blur(1.5px)" }}
+                        aria-hidden
+                      >
                         <InsiderAvatar name={a.insiderName} kind="insider" size={54} />
                       </span>
                       <span className="text-[12px] min-w-0" style={{ color: "rgba(255,255,255,0.55)" }}>
                         <span
                           className="font-semibold block select-none"
-                          style={{ color: "rgba(255,255,255,0.85)", ...LOCK }}
-                          aria-hidden
+                          style={{ color: "rgba(255,255,255,0.85)", ...(lock || {}) }}
+                          aria-hidden={!unlocked}
                         >
                           {a.insiderName || "Insider Name"}
                         </span>
@@ -586,15 +616,20 @@ export function InsiderActivityToast({
                       />
                     </div>
 
-                    {/* Unlock CTA → email/SMS opt-in → subscribe page */}
+                    {/* CTA — subscribers go straight to the stock page; free
+                        visitors get the email/SMS opt-in → subscribe funnel. */}
                     <button
                       type="button"
-                      onClick={() => setOptInOpen(true)}
+                      onClick={() =>
+                        unlocked
+                          ? router.push(`/companies/${encodeURIComponent(a.ticker)}`)
+                          : setOptInOpen(true)
+                      }
                       className="mt-3.5 w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 text-[13px] font-bold uppercase tracking-wider transition hover:brightness-110"
                       style={{ background: s.solid, color: "#052015", boxShadow: `0 6px 20px ${s.glow}` }}
                     >
-                      <Lock className="h-3.5 w-3.5" strokeWidth={2.6} />
-                      Unlock Insider Information
+                      {!unlocked && <Lock className="h-3.5 w-3.5" strokeWidth={2.6} />}
+                      {unlocked ? `View ${a.ticker}` : "Unlock Insider Information"}
                       <ArrowRight className="h-4 w-4" />
                     </button>
                   </div>
