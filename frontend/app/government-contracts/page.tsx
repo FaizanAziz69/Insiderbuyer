@@ -66,7 +66,6 @@ export default function GovernmentContractsPage() {
       (r.topAgency || "").toLowerCase().includes(q.toLowerCase()),
   );
 
-  const anyIqs = rows.some((r) => r.iqs != null);
   const allColumns: Column<GovRow>[] = [
     rankColumn<GovRow>(),
     {
@@ -110,9 +109,17 @@ export default function GovernmentContractsPage() {
       label: "Insider Score",
       pro: true,
       align: "center",
-      info: "Our 0–99 Insider Score for contractors that are also in our scored insider-buying universe. Blank when the company has no recent open-market insider buys.",
+      info: "Our 0–99 Insider Score, which is built from open-market insider buying. Most defence primes pay executives in stock and those executives sell rather than buy, so there is no score to compute — those rows read “No insider buying”.",
       sortValue: (r) => r.iqs ?? null,
-      render: (r) => (r.iqs != null ? <IqsScoreCell iqs={r.iqs} /> : <span className="text-faint text-[12px]">—</span>),
+      // A dash reads as missing data. It isn't: the score is derived from
+      // insider buying, so a contractor whose insiders never bought on the
+      // open market has nothing to score. Say that instead of leaving a gap.
+      render: (r) =>
+        r.iqs != null ? (
+          <IqsScoreCell iqs={r.iqs} />
+        ) : (
+          <span className="text-faint text-[11px] whitespace-nowrap">No insider buying</span>
+        ),
     },
     {
       key: "topAgency",
@@ -166,7 +173,10 @@ export default function GovernmentContractsPage() {
       render: (r) => <span className="text-[12.5px] text-mute">{r.sector || "—"}</span>,
     },
   ];
-  const columns = allColumns.filter((c) => c.key !== "iqs" || anyIqs);
+  // The Insider Score column stays even when nothing is scored. It used to be
+  // dropped whenever no row had a value, which hid the very thing the client
+  // asked to see; the cells now explain themselves instead of vanishing.
+  const columns = allColumns;
 
   return (
     <div className="w-full space-y-6">
