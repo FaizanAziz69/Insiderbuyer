@@ -26,6 +26,12 @@ export class MarketStatsController {
     return this.snapshot.status();
   }
 
+  /** Which filter emptied the snapshot read — diagnostics for fallback cases. */
+  @Get('snapshot-diagnose')
+  async snapshotDiagnose() {
+    return this.snapshot.diagnose();
+  }
+
   /** Intraday refresh target for the Vercel cron (every 30m during US market
    *  hours). Stale-checked for the same reason as pe-cron below, but with a
    *  window matched to that cadence — the movers read path rejects a snapshot

@@ -164,6 +164,41 @@ export class MarketSnapshotService {
     }
   }
 
+  /** Why a read fell back: which filter emptied the result. Diagnostics only. */
+  async diagnose(): Promise<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
+    const count = async (label: string, sql: string) => {
+      try {
+        const r = await this.repo.query(`SELECT COUNT(*)::int AS n FROM market_profile_snapshot ${sql}`);
+        out[label] = r?.[0]?.n ?? null;
+      } catch (e: any) {
+        out[label] = `ERR ${e?.message || e}`;
+      }
+    };
+    await count('total', '');
+    await count('notFund', 'WHERE "isFundLike" = false');
+    await count('hasPriceAndChange', 'WHERE price IS NOT NULL AND "changePct" IS NOT NULL');
+    await count('fresh90m', `WHERE "updatedAt" > NOW() - INTERVAL '5400 seconds'`);
+    await count('nasdaqNyse', `WHERE exchange IN ('NASDAQ','NYSE')`);
+    await count(
+      'gainersAll',
+      `WHERE "isFundLike" = false AND price IS NOT NULL AND "changePct" >= 10
+         AND exchange IN ('NASDAQ','NYSE') AND "updatedAt" > NOW() - INTERVAL '5400 seconds'`,
+    );
+    try {
+      const ex = await this.repo.query(
+        `SELECT exchange, COUNT(*)::int AS n FROM market_profile_snapshot GROUP BY exchange ORDER BY n DESC LIMIT 8`,
+      );
+      out.exchanges = ex;
+    } catch (e: any) {
+      out.exchanges = `ERR ${e?.message || e}`;
+    }
+    out.sampleQuery = (await this.query({ order: 'gainers', limit: 5, minChangePct: 10 })).map(
+      (r) => [r.symbol, r.changePct, r.exchange],
+    );
+    return out;
+  }
+
   /**
    * Movers/heatmap rows straight off the snapshot, already ordered.
    *
