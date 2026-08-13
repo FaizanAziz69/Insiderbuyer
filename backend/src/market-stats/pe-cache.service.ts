@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { PeRatioCache } from '../entities/pe-ratio-cache.entity';
+import { MarketProfileSnapshot } from '../entities/market-profile.entity';
 import { FmpService } from '../fmp/fmp.service';
 import { UNIVERSE_SCREENER_QUERY } from './market-universe';
 
@@ -22,6 +23,8 @@ export class PeCacheService {
   constructor(
     @InjectRepository(PeRatioCache)
     private readonly repo: Repository<PeRatioCache>,
+    @InjectRepository(MarketProfileSnapshot)
+    private readonly snapshotRepo: Repository<MarketProfileSnapshot>,
     @Optional() private readonly fmp?: FmpService,
   ) {}
 
@@ -29,9 +32,9 @@ export class PeCacheService {
    * Refill the table from FMP. Returns counts so the admin endpoint and the
    * daily cron both report something meaningful.
    *
-   * Only universe symbols are stored — the feed carries ~71k symbols worldwide
-   * against the few thousand US names we render, so filtering before the write
-   * keeps the table and the DB traffic small.
+   * Stored symbols = screener universe ∪ profile snapshot (the full set the
+   * pages can render) — the feed carries ~71k symbols worldwide, so filtering
+   * before the write still keeps the table and the DB traffic small.
    */
   async refresh(opts: { timeoutMs?: number } = {}): Promise<{
     universe: number;
@@ -49,6 +52,20 @@ export class PeCacheService {
       budgetMs: 30_000,
     });
     const keep = new Set(snap.keys());
+    // The list pages render the full US profile snapshot (~13k listings), not
+    // just the $100M+ screener universe — a profitable sub-$100M mover was
+    // getting a null P/E even though the bulk feed carries it. Keep every
+    // symbol EITHER source knows (same class of trap as the movers halving:
+    // never filter a feed to a narrower universe than the pages render).
+    try {
+      const snapRows: Array<{ symbol: string }> = await this.snapshotRepo
+        .createQueryBuilder('s')
+        .select('s.symbol', 'symbol')
+        .getRawMany();
+      for (const r of snapRows) if (r.symbol) keep.add(r.symbol.toUpperCase());
+    } catch (e: any) {
+      this.logger.warn(`P/E cache: snapshot symbol read failed: ${e?.message || e}`);
+    }
     if (!keep.size) {
       return { universe: 0, fetched: 0, written: 0, error: 'empty screener universe' };
     }
