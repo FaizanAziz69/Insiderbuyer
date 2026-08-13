@@ -872,12 +872,14 @@ export class IngestionService implements OnModuleInit {
     onlyMissing?: boolean;
   }): Promise<{ scanned: number; updated: number; remaining: number }> {
     const onlyMissing = opts?.onlyMissing !== false;
-    // Only score companies that have qualifying buys (a current IQS row) — no
-    // point spending LLM calls on names that never rank.
+    // Only score companies that have qualifying buys (a buys-backed IQS row,
+    // transactionCount > 0 — sells-only rows never rank) — no point spending
+    // LLM calls on names that never rank.
     const scored = await this.companies
       .createQueryBuilder('c')
       .innerJoin('iqs_scores', 's', 's.company_id = c.id')
       .where('c.exchange = :ex', { ex: 'US' })
+      .andWhere('s."transactionCount" > 0')
       .getMany();
     const pending = onlyMissing ? scored.filter((c) => c.mdaSentiment == null) : scored;
     const batch = pending.slice(0, opts?.limit ?? 12);

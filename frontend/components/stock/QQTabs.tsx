@@ -246,13 +246,16 @@ export function EtfHoldersCard({ ticker }: { ticker: string }) {
 }
 
 /** Smart-Score slot — our REAL Insider Score (no fake sign-up gate). */
-export function ScoreCardQQ({ ticker, iqs, dataCompleteness }: { ticker: string; iqs: number | null; dataCompleteness?: number | null }) {
+export function ScoreCardQQ({ ticker, iqs, dataCompleteness, reasoning }: { ticker: string; iqs: number | null; dataCompleteness?: number | null; reasoning?: string | null }) {
   const tier = iqs == null ? null : iqs >= 80 ? "Strong" : iqs >= 60 ? "Positive" : iqs >= 40 ? "Neutral" : "Weak";
   const color = iqs == null ? "var(--text-mute)" : iqs >= 80 ? "var(--good)" : iqs >= 60 ? "var(--accent)" : iqs >= 40 ? "var(--gold)" : "var(--bad)";
+  // A sells-only window scores below neutral — tell the reader WHY it's low
+  // instead of leaving a bare "Weak" (client 2026-08-14: sells must score).
+  const sellDriven = reasoning != null && /net insider selling/i.test(reasoning);
   return (
     <Card icon={<Gauge className="h-4 w-4" />} title={`${ticker} Insider Score`} subtitle="Our composite score: insider buying, sector, volume, tone & dilution">
       {iqs == null ? (
-        <Empty text={`No Insider Score for ${ticker} yet — it needs recent open-market insider buying.`} />
+        <Empty text={`No Insider Score for ${ticker} yet — no open-market insider buys or sells in the last 90 days.`} />
       ) : (
         <div className="flex items-center gap-5 py-4">
           <div className="h-24 w-24 rounded-xl flex items-center justify-center text-[34px] font-extrabold flex-shrink-0"
@@ -260,7 +263,10 @@ export function ScoreCardQQ({ ticker, iqs, dataCompleteness }: { ticker: string;
             {Math.round(iqs)}
           </div>
           <div className="min-w-0">
-            <div className="text-[17px] font-bold" style={{ color }}>{tier}</div>
+            <div className="text-[17px] font-bold" style={{ color }}>{sellDriven ? "Net Selling" : tier}</div>
+            {sellDriven && reasoning && (
+              <div className="text-[12.5px] text-soft mt-1 leading-snug">{reasoning}</div>
+            )}
             {dataCompleteness != null && (
               <div
                 className="text-[12px] text-mute mt-1"

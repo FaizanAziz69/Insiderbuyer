@@ -47,6 +47,19 @@ export function scoreCluster(distinctBuyers: number): number {
   return clamp01(Math.log(1 + distinctBuyers) / Math.log(1 + 6)) * 100;
 }
 
+/** Sells-only Buying component (client decision 2026-08-14: a window with
+ *  insider SELLING but no qualifying buys must still produce a score, not a
+ *  blank page). Sell dollars run through the same log curve as sub-factor A
+ *  and pull the component DOWN from neutral: $10k sold ≈ 42, $100k ≈ 24,
+ *  $1M+ = 0 — so heavy distribution lands the composite in "Weak" territory
+ *  while a token sale stays near neutral. Null when there are no sells
+ *  (a quiet company is still unscored). */
+export function scoreSellsOnlyBuying(sellDollars: number | null): number | null {
+  const pressure = scorePurchaseSize(sellDollars);
+  if (pressure == null) return null;
+  return NEUTRAL * (1 - pressure / 100);
+}
+
 /** C. Buyer seniority — WHO is buying: the dollar-weighted average role
  *  multiplier of the window's buyers, mapped straight to 0–100. All-C-suite
  *  buying → 100, Directors-only → 60, Other/entities-only → 40. Replaces the

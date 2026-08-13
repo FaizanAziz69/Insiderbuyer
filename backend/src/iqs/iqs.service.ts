@@ -46,6 +46,7 @@ import {
   scoreMomentum,
   scorePriceVsBuys,
   scorePurchaseSize,
+  scoreSellsOnlyBuying,
   scoreStakeIncrease,
 } from './iq-score-v2';
 import { InsiderProfile } from '../entities/insider-profile.entity';
@@ -210,7 +211,6 @@ export class IqsService {
       data = raw.map((t, i) => {
         const shares = Number(t.sharesBought) || 0;
         const price = Number(t.pricePerShare) || 0;
-        const isSell = t.transactionCode === 'S';
         const role = t.rawTitle || (t.isDirector ? 'Director' : t.isOfficer ? 'Officer' : 'Insider');
         return {
           id: `sec-${sym}-${i}`,
@@ -218,7 +218,16 @@ export class IqsService {
           role,
           rawTitle: t.rawTitle || '',
           transactionCode: t.transactionCode,
-          type: isSell ? 'SELL' : 'BUY',
+          // Only an open-market purchase is a BUY. Option exercises (M),
+          // grants (A) etc. previously fell through to 'BUY' and inflated the
+          // page's "Recent Insider Activity" buy count/value (NNE showed
+          // "29 buys, $3.64M" that were all exercises next to 65 sells).
+          type:
+            t.transactionCode === 'P'
+              ? 'BUY'
+              : t.transactionCode === 'S'
+                ? 'SELL'
+                : 'OTHER',
           plannedBuy: (t as any).plannedBuy === true,
           sharesBought: shares,
           pricePerShare: price,
@@ -234,6 +243,184 @@ export class IqsService {
     }
     this.liveTxCache.set(sym, { ts: Date.now(), data });
     return data;
+  }
+
+  /** Score a ticker we have NOT ingested from its live SEC transactions —
+   *  the same math as recalculateAll, including the 2026-08-14 sells-only
+   *  rule — so a quote-only page (e.g. NNE) renders a real gauge instead of
+   *  "no score yet". Live rows carry no previousHoldings, so the stake /
+   *  ownership sub-factors stay null and dataCompleteness reports it.
+   *  Returns a score-row-shaped object, or null when the 90-day window has
+   *  no open-market buys OR sells. */
+  private async scoreFromLiveTx(
+    sym: string,
+    transactions: any[],
+    quote: any,
+  ): Promise<Record<string, unknown> | null> {
+    const sinceStr = new Date(Date.now() - WINDOWS.buys * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    const windowTxs = (transactions || []).filter(
+      (t) =>
+        (t.transactionCode === 'P' || t.transactionCode === 'S') &&
+        String(t.transactionDate) >= sinceStr,
+    );
+    if (!windowTxs.length) return null;
+
+    const lastPrice = Number(quote?.price) || 0;
+
+    // Round-trip guard — same rule as recalculateAll.
+    const sharesBySide = new Map<string, { buy: number; sell: number }>();
+    for (const t of windowTxs) {
+      const key = (t.insiderName || '').toLowerCase();
+      const e = sharesBySide.get(key) || { buy: 0, sell: 0 };
+      const sh = Number(t.sharesBought) || 0;
+      if (t.transactionCode === 'P') e.buy += sh;
+      else e.sell += sh;
+      sharesBySide.set(key, e);
+    }
+    const isRoundTripper = (name: string): boolean => {
+      const e = sharesBySide.get((name || '').toLowerCase());
+      if (!e || e.buy <= 0) return false;
+      return e.sell >= e.buy * 0.5;
+    };
+
+    let totalSellValue = 0;
+    const sellers = new Set<string>();
+    for (const t of windowTxs) {
+      if (t.transactionCode !== 'S') continue;
+      const v = Number(t.totalValue) || 0;
+      if (v > 0 && v <= MAX_PLAUSIBLE_TX_VALUE) {
+        totalSellValue += v;
+        sellers.add((t.insiderName || '').toLowerCase());
+      }
+    }
+
+    let totalPurchaseValue = 0;
+    let signalValue = 0;
+    let totalShares = 0;
+    let roleWeightedValue = 0;
+    let buyFilings = 0;
+    const buyers = new Set<string>();
+    const buyerLeaders = new Set<string>();
+    for (const t of windowTxs) {
+      if (t.transactionCode !== 'P' || isRoundTripper(t.insiderName)) continue;
+      const shares = Number(t.sharesBought) || 0;
+      const px = Number(t.pricePerShare) || 0;
+      if (!isPlausibleTx(shares, px, lastPrice)) continue;
+      const role = normalizeRole(
+        t.rawTitle || t.role || '',
+        /director/i.test(t.role || ''),
+        /officer/i.test(t.role || ''),
+      );
+      const roleMult = ROLE_MULTIPLIER[role] ?? ROLE_MULTIPLIER.Other;
+      const planMult = t.plannedBuy ? PLANNED_BUY_MULTIPLIER : 1;
+      const value = shares * px;
+      totalPurchaseValue += value;
+      signalValue += value * planMult;
+      totalShares += shares;
+      roleWeightedValue += value * roleMult * planMult;
+      buyFilings++;
+      buyers.add((t.insiderName || '').toLowerCase());
+      if (role === 'CEO' || role === 'CFO' || role === 'COO') buyerLeaders.add(role);
+    }
+
+    const sellsOnly = totalPurchaseValue <= 0 || buyers.size === 0;
+    if (sellsOnly && !(totalSellValue > 0)) return null;
+
+    const insiderVwap = totalShares > 0 ? totalPurchaseValue / totalShares : null;
+    const subVolume = scorePurchaseSize(signalValue > 0 ? signalValue : null);
+    const subCluster = buyers.size > 0 ? scoreCluster(buyers.size) : null;
+    const subRole = scoreBuyerSeniority(
+      signalValue > 0 ? roleWeightedValue / signalValue : null,
+    );
+    const subPriceVsBuys = scorePriceVsBuys(insiderVwap, lastPrice > 0 ? lastPrice : null);
+    const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
+    const buyingScore = sellsOnly
+      ? scoreSellsOnlyBuying(totalSellValue)
+      : computeBuyingScore({
+          purchaseSize: subVolume,
+          cluster: subCluster,
+          buyerSeniority: subRole,
+          holdingChange: null, // live rows have no previousHoldings
+          priceVsBuys: subPriceVsBuys,
+          stakeIncrease: null,
+          insiderOwnership: null,
+          buySellBalance: subBalance,
+        });
+
+    // Sector + momentum from the live quote; MD&A / dilution unknown → the
+    // composite's neutral fallback.
+    const sectorScore = await this.sectorSentiment
+      .getScoreFor(quote?.sector ?? null, quote?.industry ?? null)
+      .catch(() => null);
+    const shortVol = Number(quote?.avgVol10d ?? 0);
+    const longVol = Number(quote?.avgVolume ?? 0);
+    const relVol = shortVol > 0 && longVol > 0 ? shortVol / longVol : null;
+    const recentDollarVol = lastPrice > 0 && shortVol > 0 ? lastPrice * shortVol : null;
+    const momentumScore = scoreMomentum(relVol, recentDollarVol);
+
+    const composite = assembleComposite(
+      {
+        buying: buyingScore,
+        sector: sectorScore,
+        mda: null,
+        momentum: momentumScore,
+        pedigree: null,
+        dilution: null,
+      },
+      0,
+    );
+    if (composite.score == null) return null;
+
+    const fmtUsd = (v: number) =>
+      new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        notation: 'compact',
+        maximumFractionDigits: 1,
+      }).format(v);
+    const reasoning = sellsOnly
+      ? `No open-market insider buying in the last 90 days — ` +
+        `${sellers.size} insider${sellers.size === 1 ? '' : 's'} sold ${fmtUsd(totalSellValue)}. ` +
+        `The score reflects net insider selling.`
+      : `${buyers.size} insider${buyers.size === 1 ? '' : 's'}` +
+        `${buyerLeaders.size ? ` (incl. ${[...buyerLeaders].join(', ')})` : ''}` +
+        ` bought ${fmtUsd(totalPurchaseValue)} across ${buyFilings} filing${buyFilings === 1 ? '' : 's'}` +
+        ` in the last 90 days` +
+        `${totalSellValue > 0 ? `. Insiders also sold ${fmtUsd(totalSellValue)} in the same window` : ''}.`;
+
+    const round2 = (x: number | null): number | null => (x == null ? null : +x.toFixed(2));
+    return {
+      asOfDate: new Date().toISOString().slice(0, 10),
+      iqs: +Number(composite.score).toFixed(2),
+      buyingScore: round2(buyingScore),
+      sectorSentiment: round2(sectorScore),
+      mdaSentiment: null,
+      momentumScore: round2(momentumScore),
+      pedigreeScore: null,
+      dilutionScore: null,
+      dataCompleteness: +composite.dataCompleteness.toFixed(4),
+      subVolumeVsMcap: round2(subVolume),
+      subCluster: round2(subCluster),
+      subRole: round2(subRole),
+      subHoldingChange: null,
+      subPriceVsBuys: round2(subPriceVsBuys),
+      subOwnershipPct: null,
+      subInsiderOwnership: null,
+      subBuySellBalance: round2(subBalance),
+      insiderWeight: +(subRole ?? 0).toFixed(2),
+      transactionWeight: +(subVolume ?? 0).toFixed(2),
+      convictionWeight: 0,
+      historicalSuccessWeight: 50,
+      clusterWeight: +(subCluster ?? 0).toFixed(2),
+      marketTimingWeight: 50,
+      reasoning,
+      distinctBuyers: buyers.size,
+      transactionCount: buyFilings,
+      totalPurchaseValue: +totalPurchaseValue.toFixed(2),
+      liveComputed: true, // not a stored row — computed from live SEC data
+    };
   }
 
   /** IQ Score v2 — 0–100 composite (see scoring-config.ts / iq-score-v2.ts):
@@ -371,18 +558,24 @@ export class IqsService {
         (t) => t.transactionCode === 'P' && !isRoundTripper(t.insiderName),
       );
 
-      if (!txs.length) {
-        await this.scores.delete({ companyId: company.id });
-        return;
-      }
-
       // Insider selling dollars over the same window — feeds the Buy/Sell
-      // Balance sub-factor (same parse guard as the buy side).
+      // Balance sub-factor, and (client 2026-08-14) alone is enough to score:
+      // a sells-only window produces a LOW score instead of no score.
       let totalSellValue = 0;
+      const sellers = new Set<string>();
       for (const t of allTxs) {
         if (t.transactionCode !== 'S') continue;
         const v = Number(t.sharesBought) * Number(t.pricePerShare);
-        if (Number.isFinite(v) && v > 0 && v <= MAX_PLAUSIBLE_TX_VALUE) totalSellValue += v;
+        if (Number.isFinite(v) && v > 0 && v <= MAX_PLAUSIBLE_TX_VALUE) {
+          totalSellValue += v;
+          sellers.add(t.insiderName.toLowerCase());
+        }
+      }
+
+      // No buys AND no sells in the window → genuinely nothing to score.
+      if (!txs.length && !(totalSellValue > 0)) {
+        await this.scores.delete({ companyId: company.id });
+        return;
       }
 
       // Prefer the LIVE market quote for price + market cap; fall back to the
@@ -455,10 +648,12 @@ export class IqsService {
         }
       }
 
-      // Every window buy was a guarded-out artifact → the company has no
-      // REAL qualifying buying; drop it from the ranking exactly like the
-      // no-transactions case (matches the explainer's "no score" behavior).
-      if (totalPurchaseValue <= 0 || buyers.size === 0) {
+      // Every window buy was a guarded-out artifact → no REAL qualifying
+      // buying. With sells in the window the sells-only path below still
+      // scores the company; with neither, drop it from the ranking exactly
+      // like the no-transactions case.
+      const sellsOnly = totalPurchaseValue <= 0 || buyers.size === 0;
+      if (sellsOnly && !(totalSellValue > 0)) {
         await this.scores.delete({ companyId: company.id });
         return;
       }
@@ -472,7 +667,9 @@ export class IqsService {
       // A — absolute plan-discounted dollars; C — dollar-weighted buyer
       // seniority. Neither divides by market cap (client 2026-08-13).
       const subVolume = scorePurchaseSize(signalValue > 0 ? signalValue : null);
-      const subCluster = scoreCluster(buyers.size);
+      // Sells-only rows carry no buying sub-factor data (null, not 0) so the
+      // breakdown card shows "no buying" rather than a measured zero cluster.
+      const subCluster = buyers.size > 0 ? scoreCluster(buyers.size) : null;
       const subRole = scoreBuyerSeniority(
         signalValue > 0 ? roleWeightedValue / signalValue : null,
       );
@@ -529,16 +726,21 @@ export class IqsService {
         rawOwnFraction != null && rawOwnFraction <= 0.98 ? rawOwnFraction : null,
       );
       const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
-      const buyingScore = computeBuyingScore({
-        purchaseSize: subVolume,
-        cluster: subCluster,
-        buyerSeniority: subRole,
-        holdingChange: subHolding,
-        priceVsBuys: subPriceVsBuys,
-        stakeIncrease: subStake,
-        insiderOwnership: subOwnershipG,
-        buySellBalance: subBalance,
-      });
+      // Sells-only (client 2026-08-14): the Buying component comes from sell
+      // pressure alone — below neutral, floored at 0 for $1M+ of selling —
+      // instead of renormalizing over sub-factors that have no buying data.
+      const buyingScore = sellsOnly
+        ? scoreSellsOnlyBuying(totalSellValue)
+        : computeBuyingScore({
+            purchaseSize: subVolume,
+            cluster: subCluster,
+            buyerSeniority: subRole,
+            holdingChange: subHolding,
+            priceVsBuys: subPriceVsBuys,
+            stakeIncrease: subStake,
+            insiderOwnership: subOwnershipG,
+            buySellBalance: subBalance,
+          });
 
       // ── Component 5 (NEW v2.1 §6): Insider Pedigree + §7 litigation ─────
       // Profiles resolve by reporting-person CIK first (§6.3.1 — "never off
@@ -588,14 +790,18 @@ export class IqsService {
           notation: 'compact',
           maximumFractionDigits: 1,
         }).format(v);
-      const reasoning =
-        `${buyers.size} insider${buyers.size === 1 ? '' : 's'}` +
-        `${leaders.length ? ` (incl. ${leaders.join(', ')})` : ''}` +
-        ` bought ${fmtUsd(totalPurchaseValue)} across ${txs.length} filing${txs.length === 1 ? '' : 's'}` +
-        ` in the last 90 days` +
-        `${avgAddPct != null ? `, growing their personal stakes ~${Math.min(999, avgAddPct).toFixed(0)}% on average` : ''}` +
-        `${ownPct != null ? `; insiders now hold ~${ownPct.toFixed(1)}% of the company` : ''}` +
-        `${totalSellValue > 0 ? `. Insiders also sold ${fmtUsd(totalSellValue)} in the same window` : ''}.`;
+      const reasoning = sellsOnly
+        ? `No open-market insider buying in the last 90 days — ` +
+          `${sellers.size} insider${sellers.size === 1 ? '' : 's'} sold ${fmtUsd(totalSellValue)}` +
+          `${ownPct != null ? `; insiders still hold ~${ownPct.toFixed(1)}% of the company` : ''}. ` +
+          `The score reflects net insider selling.`
+        : `${buyers.size} insider${buyers.size === 1 ? '' : 's'}` +
+          `${leaders.length ? ` (incl. ${leaders.join(', ')})` : ''}` +
+          ` bought ${fmtUsd(totalPurchaseValue)} across ${txs.length} filing${txs.length === 1 ? '' : 's'}` +
+          ` in the last 90 days` +
+          `${avgAddPct != null ? `, growing their personal stakes ~${Math.min(999, avgAddPct).toFixed(0)}% on average` : ''}` +
+          `${ownPct != null ? `; insiders now hold ~${ownPct.toFixed(1)}% of the company` : ''}` +
+          `${totalSellValue > 0 ? `. Insiders also sold ${fmtUsd(totalSellValue)} in the same window` : ''}.`;
 
       // ── Component 2: Sector Sentiment (from daily cache) ────────────────
       const sectorScore = await this.sectorSentiment
@@ -790,6 +996,9 @@ export class IqsService {
       .createQueryBuilder('s')
       .innerJoin(Company, 'c', 'c.id = s.company_id')
       .where(LATEST_SCORE_PER_COMPANY)
+      // The board ranks insider BUYING — sells-only rows (transactionCount 0,
+      // scored since 2026-08-14) belong on company pages, not here.
+      .andWhere('s."transactionCount" > 0')
       .select([
         's.id as id',
         's.company_id as "companyId"',
@@ -1075,7 +1284,10 @@ export class IqsService {
     const lastPriceForSanity = company.lastPrice != null ? Number(company.lastPrice) : null;
     let transactions: any[] = txRows.map((t) => ({
       ...t,
-      type: t.transactionCode === 'S' ? 'SELL' : 'BUY',
+      // Same rule as the live-SEC mapper: only code P is a BUY — anything
+      // else typed 'BUY' double-counts exercises/grants in the flow summary.
+      type:
+        t.transactionCode === 'P' ? 'BUY' : t.transactionCode === 'S' ? 'SELL' : 'OTHER',
       sharesBought: Number(t.sharesBought),
       pricePerShare: Number(t.pricePerShare),
       totalValue: Number(t.totalValue),
@@ -1157,9 +1369,19 @@ export class IqsService {
     // ingested (e.g. mega-caps the user clicks into).
     const transactions = await this.getLiveInsiderTx(sym);
 
+    // Same composite as stored scores, computed from the live filings — so
+    // an uningested ticker with real window activity (buys OR, since
+    // 2026-08-14, sells alone) still gets a gauge instead of "no score yet".
+    let score: Record<string, unknown> | null = null;
+    try {
+      score = await this.scoreFromLiveTx(sym, transactions, quote);
+    } catch {
+      score = null;
+    }
+
     return {
       company,
-      score: null,
+      score,
       scoreHistory: [],
       transactions,
       congressionalTrades,
@@ -1405,16 +1627,23 @@ export class IqsService {
       rawOwnFraction != null && rawOwnFraction <= 0.98 ? rawOwnFraction : null;
     const subOwnershipG = scoreInsiderOwnership(ownershipFraction);
     const subBalance = scoreBuySellBalance(totalPurchaseValue, totalSellValue);
-    const buyingScore = computeBuyingScore({
-      purchaseSize: subVolume,
-      cluster: subCluster,
-      buyerSeniority: subRole,
-      holdingChange: subHolding,
-      priceVsBuys: subPriceVsBuys,
-      stakeIncrease: subStake,
-      insiderOwnership: subOwnershipG,
-      buySellBalance: subBalance,
-    });
+    // Same sells-only rule as recalculateAll (client 2026-08-14): with no
+    // qualifying buys the Buying component comes from sell pressure alone,
+    // NOT from renormalizing over ownership/balance — that quietly produced
+    // a neutral-looking number for heavy sellers.
+    const sellsOnly = totalPurchaseValue <= 0 || buyers.size === 0;
+    const buyingScore = sellsOnly
+      ? scoreSellsOnlyBuying(totalSellValue)
+      : computeBuyingScore({
+          purchaseSize: subVolume,
+          cluster: subCluster,
+          buyerSeniority: subRole,
+          holdingChange: subHolding,
+          priceVsBuys: subPriceVsBuys,
+          stakeIncrease: subStake,
+          insiderOwnership: subOwnershipG,
+          buySellBalance: subBalance,
+        });
 
     // Step 7 — the other components, each with its source.
     const sectorScore = await this.sectorSentiment
@@ -1751,8 +1980,10 @@ export class IqsService {
         score: composite.score,
         scoreNote:
           composite.score == null
-            ? 'No qualifying insider buying in the last 90 days — this company gets no score'
-            : null,
+            ? 'No open-market insider buys OR sells in the last 90 days — this company gets no score'
+            : sellsOnly
+              ? 'No qualifying buying in the window — the Buying component is derived from insider SELL pressure (all-selling scores below neutral), so the composite lands low rather than not existing'
+              : null,
       },
     };
   }
@@ -1785,6 +2016,9 @@ export class IqsService {
     const scores = await this.scores
       .createQueryBuilder('s')
       .where(LATEST_SCORE_PER_COMPANY)
+      // Buys-backed rows only — sells-only scores would drag the site-wide
+      // average/confidence stats toward "Weak" for reasons users can't see.
+      .andWhere('s."transactionCount" > 0')
       .getMany();
     const avgIqs =
       scores.length > 0
@@ -2106,6 +2340,8 @@ export class IqsService {
       .createQueryBuilder('s')
       .innerJoin(Company, 'c', 'c.id = s.company_id')
       .where(LATEST_SCORE_PER_COMPANY)
+      // Ideas are buy ideas — exclude sells-only score rows.
+      .andWhere('s."transactionCount" > 0')
       .select([
         's.company_id as "companyId"',
         'c.ticker as ticker',

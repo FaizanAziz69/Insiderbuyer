@@ -613,6 +613,7 @@ export default function CompanyPage({
                     ? Number((data.score as any).dataCompleteness)
                     : null
                 }
+                reasoning={data.score ? ((data.score as any).reasoning ?? null) : null}
               />
               <BullBearCard
                 ticker={sym}
