@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
 import { FmpService } from '../fmp/fmp.service';
+import { PeCacheService } from './pe-cache.service';
 import { REFERENCE_QUOTES, ReferenceQuote } from './reference-quotes';
 import {
   EXCLUDED_UNIVERSE_INDUSTRIES,
@@ -339,8 +340,8 @@ export class MarketStatsService {
     maxSymbols = 120,
     budgetMs = 2_500,
   ): Promise<void> {
-    if (!this.fmp?.enabled || !rows.length || budgetMs <= 0) return;
-    const pending: string[] = [];
+    if (!rows.length) return;
+    let pending: string[] = [];
     const seen = new Set<string>();
     for (const r of rows) {
       if (r.peRatio != null) continue;
@@ -349,6 +350,26 @@ export class MarketStatsService {
       seen.add(sym);
       pending.push(sym);
     }
+    if (!pending.length) return;
+
+    // The bulk cache answers the whole page in ONE indexed query, so it runs
+    // before the budgeted per-symbol sweep and is NOT capped by maxSymbols —
+    // that cap only ever existed to bound HTTP fan-out. Whatever the table is
+    // missing (a symbol refreshed since the last bulk run, or a refresh that
+    // never happened) still falls through to the original path below, so this
+    // is strictly additive: worst case it fills nothing and behaviour is
+    // exactly what it was.
+    const cached = await this.peCache?.lookup(pending);
+    if (cached?.size) {
+      for (const r of rows) {
+        if (r.peRatio != null) continue;
+        const pe = cached.get((r.symbol || '').toUpperCase());
+        if (pe != null) r.peRatio = pe;
+      }
+      pending = pending.filter((s) => !cached.has(s));
+    }
+
+    if (!this.fmp?.enabled || budgetMs <= 0) return;
     const todo = pending.slice(0, maxSymbols);
     if (!todo.length) return;
     const deadline = Date.now() + budgetMs;
@@ -377,7 +398,10 @@ export class MarketStatsService {
     }
   }
 
-  constructor(@Optional() private readonly fmp?: FmpService) {
+  constructor(
+    @Optional() private readonly fmp?: FmpService,
+    @Optional() private readonly peCache?: PeCacheService,
+  ) {
     this.http = axios.create({
       timeout: 10_000,
       // Force IPv4 — Node resolves Yahoo's hosts (fc.yahoo.com especially) to

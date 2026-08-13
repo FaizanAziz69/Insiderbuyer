@@ -1,9 +1,38 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { AdminTokenGuard } from '../common/admin-token.guard';
 import { MarketStatsService } from './market-stats.service';
+import { PeCacheService } from './pe-cache.service';
 
 @Controller('market-stats')
 export class MarketStatsController {
-  constructor(private readonly svc: MarketStatsService) {}
+  constructor(
+    private readonly svc: MarketStatsService,
+    private readonly peCache: PeCacheService,
+  ) {}
+
+  /** Refill `pe_ratio_cache` from FMP's bulk TTM ratios. Guarded: it is one
+   *  ~70MB download and a few thousand upserts, so it must not be an open
+   *  endpoint. Safe to re-run — a failed fetch leaves the existing rows alone. */
+  @Post('pe-refresh')
+  @UseGuards(AdminTokenGuard)
+  async peRefresh() {
+    const result = await this.peCache.refresh();
+    return { ...result, status: await this.peCache.status() };
+  }
+
+  /** Row count + last write time, so coverage can be checked without a refresh. */
+  @Get('pe-status')
+  async peStatus() {
+    return this.peCache.status();
+  }
+
+  /** Daily refresh target for the Vercel cron (crons issue a plain GET, so this
+   *  cannot be token-guarded). Re-fetches only when the table is stale, which
+   *  is also what keeps a public URL from pulling the bulk feed on every hit. */
+  @Get('pe-cron')
+  async peCron() {
+    return this.peCache.refreshIfStale();
+  }
 
   @Get('search')
   async search(@Query('q') q?: string, @Query('limit') limit?: string) {

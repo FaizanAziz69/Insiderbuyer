@@ -761,6 +761,85 @@ export class FmpService {
     return data;
   }
 
+  /**
+   * Trailing P/E for EVERY symbol FMP carries, from the one `ratios-ttm-bulk`
+   * call — the batched counterpart to getPeRatioTtm above.
+   *
+   * The per-symbol endpoint cannot be batched (`ratios-ttm?symbol=AAPL,MSFT`
+   * returns zero rows, `batch-quote` has no `pe`), which is what forced the
+   * request-path gap-filler and left the P/E column mostly em-dashes. This
+   * feed answers the same question for ~71k symbols at once.
+   *
+   * It is a ~70MB CSV, so it is STREAMED and parsed line by line — buffering it
+   * would blow the function's memory for no reason. Pass `keep` to retain only
+   * the symbols you actually render; everything else is discarded as it
+   * arrives. Never throws: a failure yields whatever was parsed before it.
+   */
+  async streamPeRatiosBulk(
+    keep?: Set<string>,
+    opts: { timeoutMs?: number } = {},
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (!this.enabled) return out;
+    const readline = await import('readline');
+    try {
+      const res = await this.http.get(`${this.base}/ratios-ttm-bulk`, {
+        params: { part: 0, apikey: this.key },
+        responseType: 'stream',
+        timeout: opts.timeoutMs ?? 120_000,
+        headers: { Accept: 'text/csv' },
+        maxRedirects: 5,
+      });
+      const rl = readline.createInterface({ input: res.data, crlfDelay: Infinity });
+      let peIdx = -1;
+      for await (const line of rl) {
+        if (!line) continue;
+        const cells = this.parseCsvLine(line);
+        if (peIdx < 0) {
+          peIdx = cells.indexOf('priceToEarningsRatioTTM');
+          // A feed that renamed the column must fail loudly rather than
+          // silently write an empty table over a working one.
+          if (peIdx < 0) {
+            this.lastError = `ratios-ttm-bulk: no priceToEarningsRatioTTM column (got ${cells.slice(0, 6).join(',')})`;
+            this.log.warn(`FMP ${this.lastError}`);
+            rl.close();
+            break;
+          }
+          continue;
+        }
+        const symbol = (cells[0] || '').toUpperCase();
+        if (!symbol || (keep && !keep.has(symbol))) continue;
+        const pe = this.num(cells[peIdx]);
+        if (pe == null) continue;
+        out.set(symbol, +pe.toFixed(4));
+      }
+    } catch (e: any) {
+      this.lastError = `ratios-ttm-bulk: ${e?.response?.status || ''} ${e?.message || e}`;
+      this.log.warn(`FMP ${this.lastError}`);
+    }
+    return out;
+  }
+
+  /** Split one CSV row. The bulk feeds quote every cell, and company names do
+   *  contain commas, so a plain `split(',')` corrupts the row. */
+  private parseCsvLine(line: string): string[] {
+    const out: string[] = [];
+    let cur = '';
+    let quoted = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (quoted) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i++; } else quoted = false;
+        } else cur += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ',') { out.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  }
+
   /** True when we asked FMP for this symbol's profile recently and it had none
    *  (a delisted or OTC ticker FMP doesn't carry). The miss is remembered for
    *  PROFILE_TTL_MS like any other answer, so a caller filling gaps under a
