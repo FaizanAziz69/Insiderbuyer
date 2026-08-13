@@ -177,9 +177,26 @@ body {
 /* Site-wide readability zoom. Enlarges EVERYTHING proportionally — text
    (including fixed-px Tailwind classes), spacing, logos, charts — so the whole
    site reads bigger without touching hundreds of per-component sizes. Tune the
-   single value below (1.0 = original, 1.08 = 8% larger). */
-body {
-  zoom: 1.10;
+   single value below (1.0 = original, 1.08 = 8% larger).
+   DESKTOP ONLY (2026-08-14): on phones the extra 10% squeezed a 390px screen
+   down to ~355px of layout, so every page overflowed and read as "the whole
+   site is zoomed in". */
+@media (min-width: 768px) {
+  body {
+    zoom: 1.10;
+  }
+}
+
+/* iOS Safari auto-zooms the page when focusing any input under 16px and
+   never zooms back out — the opt-in modal's 14px email field left the site
+   stuck zoomed-in after tapping "Unlock Insider Information". Keep every
+   form control at 16px on touch screens so the zoom never triggers. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* Headings — publication weight: 600 (bold = 600), tight leading */

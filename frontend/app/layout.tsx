@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Condensed, Figtree, Libre_Franklin } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
@@ -40,6 +40,15 @@ export const metadata: Metadata = {
   title: "Insider Buying — Live SEC Form 4 + Congressional Trades",
   description:
     "Track insider buys and sells in real-time. SEC Form 4 analysis reveals where smart money is accumulating.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Stops iOS Safari from auto-zooming into sub-16px inputs and staying
+  // zoomed (the "everything is zoomed in" bug after the opt-in modal).
+  // Pinch-zoom still works — iOS ≥10 ignores maximumScale for user gestures.
+  maximumScale: 1,
 };
 
 const themeScript = `
