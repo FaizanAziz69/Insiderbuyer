@@ -634,6 +634,71 @@ export class MarketStatsService {
     }));
   }
 
+  /** Every US listing under $5, most-traded first — the penny screener as a
+   *  snapshot filter. Dollar volume is not stored, so share volume orders it;
+   *  the scrape it replaces ordered by dollar volume. */
+  private async snapshotPenny(limit: number): Promise<MarketStatRow[]> {
+    if (!this.snapshot) return [];
+    const rows = await this.snapshot.query({
+      order: 'volume',
+      limit,
+      maxPrice: 5,
+      exchanges: Object.keys(MarketStatsService.FMP_EXCHANGE_CODE),
+      maxAgeMs: this.SNAPSHOT_MOVER_MAX_AGE_MS,
+    });
+    return rows.map<MarketStatRow>((r) => ({
+      symbol: r.symbol,
+      name: r.name,
+      price: r.price,
+      changeAbs: r.changeAbs,
+      changePct: r.changePct,
+      volume: r.volume,
+      avgVolume: r.avgVolume,
+      marketCap: r.marketCap,
+      sector: this.sectorFor(r.symbol, r.sector),
+      exchange: MarketStatsService.FMP_EXCHANGE_CODE[r.exchange || ''] ?? r.exchange,
+      fiftyTwoWeekHigh: r.fiftyTwoWeekHigh,
+      fiftyTwoWeekLow: r.fiftyTwoWeekLow,
+    }));
+  }
+
+  /**
+   * The $100M+ heatmap straight off the snapshot, cap-ordered.
+   *
+   * The cap floor is applied to the cap we PUBLISH for the same reason the
+   * sweep version applies it — a tile labelled $9M on a page promising "$100M
+   * and above" is a contradiction a client would spot.
+   */
+  private async snapshotHeatmap(): Promise<MarketStatRow[]> {
+    if (!this.snapshot) return [];
+    const rows = await this.snapshot.query({
+      order: 'cap',
+      limit: 6000,
+      minMarketCap: UNIVERSE_MIN_MARKET_CAP,
+      exchanges: Object.keys(MarketStatsService.FMP_EXCHANGE_CODE),
+      // Tiles are coloured by day change, so the same intraday freshness rule
+      // as the movers applies.
+      maxAgeMs: this.SNAPSHOT_MOVER_MAX_AGE_MS,
+    });
+    return rows
+      .filter((r) => r.price > 0)
+      .map<MarketStatRow>((r) => ({
+        symbol: r.symbol,
+        name: r.name,
+        price: r.price,
+        changeAbs: r.changeAbs,
+        changePct: r.changePct,
+        volume: r.volume,
+        avgVolume: r.avgVolume,
+        marketCap: r.marketCap,
+        // "Other" rather than null so the heatmap groups cleanly.
+        sector: this.sectorFor(r.symbol, r.sector) ?? 'Other',
+        exchange: MarketStatsService.FMP_EXCHANGE_CODE[r.exchange || ''] ?? r.exchange,
+        fiftyTwoWeekHigh: r.fiftyTwoWeekHigh,
+        fiftyTwoWeekLow: r.fiftyTwoWeekLow,
+      }));
+  }
+
   async getTopGainers(limit = 500) {
     // Licensed snapshot first; the Yahoo scrape below stays as the fallback.
     const fromSnapshot = await this.snapshotMovers('gainers', limit);
@@ -732,6 +797,14 @@ export class MarketStatsService {
   async getPennyStocks(limit = 250): Promise<MarketStatRow[]> {
     if (this.pennyCache && Date.now() - this.pennyCache.ts < this.PENNY_CACHE_MS) {
       return this.pennyCache.data.slice(0, limit);
+    }
+    // "Every US equity under $5" is a filter over the snapshot, not a paginated
+    // scrape. Note this does NOT go through the shared penny cache, which
+    // memoises whatever limit its first caller asked for.
+    const fromSnapshot = await this.snapshotPenny(limit);
+    if (fromSnapshot.length) {
+      await this.fillPeRatios(fromSnapshot);
+      return fromSnapshot;
     }
     try {
       const auth = await this.getAuth();
@@ -1539,6 +1612,19 @@ export class MarketStatsService {
     const key = `${query.toLowerCase()}|${limit}`;
     const cached = this.searchCache.get(key);
     if (cached && Date.now() - cached.ts < this.SEARCH_TTL_MS) return cached.data;
+    // The snapshot already holds every US listing, so the typeahead is a local
+    // index lookup rather than a round trip to Yahoo on each keystroke.
+    const fromSnapshot = (await this.snapshot?.search(query, limit)) ?? [];
+    if (fromSnapshot.length) {
+      const rows = fromSnapshot.map((r) => ({
+        symbol: r.symbol,
+        name: r.name,
+        exchange: r.exchange,
+        type: 'EQUITY' as string | null,
+      }));
+      this.searchCache.set(key, { ts: Date.now(), data: rows });
+      return rows;
+    }
     try {
       const { data } = await this.http.get(
         `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=15&newsCount=0&enableFuzzyQuery=false`,
@@ -2748,6 +2834,13 @@ export class MarketStatsService {
     return this.cachedTool(
       "heatmap",
       async () => {
+        // The snapshot answers the whole heatmap in one indexed query. The
+        // sweep below asks Yahoo for ~4,300 quotes under a wall-clock budget,
+        // so it was structurally incapable of completing on a cold instance —
+        // that is why this page shipped partial for so long. Falls through
+        // unchanged when the snapshot is empty or stale.
+        const fromSnapshot = await this.snapshotHeatmap();
+        if (fromSnapshot.length) return fromSnapshot;
         const deadline = Date.now() + this.HEATMAP_BUDGET_MS;
         const syms = await this.loadUniverse(this.UNIVERSE_BUDGET_MS);
         const quotes = await this.getQuoteBatch(syms, { deadlineMs: deadline });

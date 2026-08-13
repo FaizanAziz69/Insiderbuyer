@@ -182,6 +182,58 @@ export class MarketSnapshotService {
     }
   }
 
+  /**
+   * Ticker/name lookup for the search box. Exact ticker first, then prefix,
+   * then anything containing the term — largest company first inside each
+   * band, so "AP" offers AAPL before an obscure microcap.
+   *
+   * No freshness window: a listing's existence does not go stale the way a
+   * day's price change does, and an empty search box is worse than one
+   * answering from this morning's table.
+   */
+  async search(qRaw: string, limit = 8): Promise<SnapshotRow[]> {
+    const q = (qRaw || '').trim();
+    if (!q) return [];
+    try {
+      const rows = await this.repo
+        .createQueryBuilder('m')
+        .where('m."isFundLike" = false')
+        .andWhere('(UPPER(m.symbol) LIKE :pre OR UPPER(m.name) LIKE :any)', {
+          pre: `${q.toUpperCase()}%`,
+          any: `%${q.toUpperCase()}%`,
+        })
+        .orderBy(
+          `CASE WHEN UPPER(m.symbol) = :exact THEN 0
+                WHEN UPPER(m.symbol) LIKE :pre THEN 1
+                ELSE 2 END`,
+          'ASC',
+        )
+        .addOrderBy('m."marketCap"', 'DESC', 'NULLS LAST')
+        .setParameter('exact', q.toUpperCase())
+        .limit(Math.max(1, Math.min(limit, 50)))
+        .getMany();
+      return rows.map((r) => ({
+        symbol: r.symbol,
+        name: r.name,
+        price: Number(r.price ?? 0),
+        changeAbs: Number(r.changeAbs ?? 0),
+        changePct: Number(r.changePct ?? 0),
+        volume: Number(r.volume ?? 0),
+        avgVolume: Number(r.avgVolume ?? 0),
+        marketCap: r.marketCap == null ? null : Number(r.marketCap),
+        sector: r.sector,
+        industry: r.industry,
+        exchange: r.exchange,
+        fiftyTwoWeekLow: null,
+        fiftyTwoWeekHigh: null,
+        lastDividend: null,
+      }));
+    } catch (e: any) {
+      this.logger.warn(`Snapshot search failed: ${e?.message || e}`);
+      return [];
+    }
+  }
+
   /** Why a read fell back: which filter emptied the result. Diagnostics only. */
   async diagnose(): Promise<Record<string, unknown>> {
     const out: Record<string, unknown> = {};
@@ -228,6 +280,8 @@ export class MarketSnapshotService {
     order: 'gainers' | 'losers' | 'volume' | 'cap';
     limit: number;
     minChangePct?: number;
+    minMarketCap?: number;
+    maxPrice?: number;
     exchanges?: string[];
     maxAgeMs?: number;
   }): Promise<SnapshotRow[]> {
@@ -245,6 +299,12 @@ export class MarketSnapshotService {
       if (opts.minChangePct != null) {
         const cmp = opts.order === 'losers' ? '<=' : '>=';
         qb.andWhere(`m."changePct" ${cmp} :min`, { min: opts.minChangePct });
+      }
+      if (opts.minMarketCap != null) {
+        qb.andWhere('m."marketCap" >= :mcap', { mcap: opts.minMarketCap });
+      }
+      if (opts.maxPrice != null) {
+        qb.andWhere('m.price <= :maxPrice AND m.price > 0', { maxPrice: opts.maxPrice });
       }
       const dir =
         opts.order === 'gainers' ? { col: 'm."changePct"', d: 'DESC' as const }
