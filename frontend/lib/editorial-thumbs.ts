@@ -89,7 +89,8 @@ export interface ThumbInput {
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
   "editorial-trump-3b-critical-minerals-2026-08-08": "trump-social-posts",
-  "editorial-ackman-letter-top-13-positions-2026-08-13": "bill-ackman-letter",
+  // 2026-08-14: swapped from bill-ackman-letter to the Uber-stake photo (client).
+  "editorial-ackman-letter-top-13-positions-2026-08-13": "ackman-uber-stake",
   "editorial-tom-lee-generational-rally-2026-08-13": "tom-lee-rally",
 };
 
@@ -134,8 +135,10 @@ const HOME_ORDER: string[] = [
   // Top Stories range (0–5): market/finance scenes + marquee investors
   "insiders-most-money", "abudhabi-bitcoin-etf", "billionaires-super-stocks",
   "apple-500b-investment", "buffett-40pct-stock", "englander-nvidia-etf",
-  // Popular range (6–11)
-  "cathie-wood-bargain", "ackman-uber-stake", "ryan-cohen-alibaba",
+  // Popular range (6–11) — ackman-uber-stake moved to the letter-article pin
+  // (2026-08-14), its old slot takes the freed-up letter photo instead so
+  // home covers stay unique.
+  "cathie-wood-bargain", "bill-ackman-letter", "ryan-cohen-alibaba",
   "jamie-dimon-doge", "carl-icahn-fertilizer", "buffett-value-stock",
   // Stock Ideas range (12–17)
   "chamath-perimeter-ai", "vimeo-insider-buys", "lutnick-cantor",
