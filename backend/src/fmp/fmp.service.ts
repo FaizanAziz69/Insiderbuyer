@@ -775,6 +775,10 @@ export class FmpService {
    * the symbols you actually render; everything else is discarded as it
    * arrives. Never throws: a failure yields whatever was parsed before it.
    */
+  /** Largest trailing P/E worth storing. Above this the denominator is noise,
+   *  not earnings, and no table would render the number usefully. */
+  private readonly PE_SANE_MAX = 1_000_000;
+
   async streamPeRatiosBulk(
     keep?: Set<string>,
     opts: { timeoutMs?: number } = {},
@@ -811,6 +815,11 @@ export class FmpService {
         if (!symbol || (keep && !keep.has(symbol))) continue;
         const pe = this.num(cells[peIdx]);
         if (pe == null) continue;
+        // A company whose TTM earnings round to about nothing produces a ratio
+        // in the billions — arithmetically true, meaningless as a multiple, and
+        // wide enough to overflow the numeric column it gets stored in. Drop it
+        // rather than clamp: a fabricated ceiling would render as a real P/E.
+        if (Math.abs(pe) > this.PE_SANE_MAX) continue;
         out.set(symbol, +pe.toFixed(4));
       }
     } catch (e: any) {
