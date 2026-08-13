@@ -107,6 +107,7 @@ export class MarketSnapshotService {
     universe: number;
     fetched: number;
     written: number;
+    purged?: number;
     error?: string;
   }> {
     if (!this.fmp?.enabled) {
@@ -170,10 +171,26 @@ export class MarketSnapshotService {
       await this.repo.upsert(chunk, ['symbol']);
       written += chunk.length;
     }
+    // Upsert only ever adds or updates, so anything the filters started
+    // excluding stays in the table forever unless it is deleted — the
+    // preferred lines were still on the heat map after the write that stopped
+    // accepting them. Purge them here so the fix applies to rows already
+    // stored, not just to future writes.
+    let purged = 0;
+    try {
+      const res = await this.repo.query(
+        `DELETE FROM market_profile_snapshot
+          WHERE symbol ~ '-(P[A-Z]?|W[SI]?|U|R)$'`,
+      );
+      purged = Array.isArray(res) ? res.length : (res?.[1] ?? 0);
+    } catch (e: any) {
+      this.logger.warn(`Snapshot purge failed: ${e?.message || e}`);
+    }
+
     this.logger.log(
-      `Market snapshot: ${written} US symbols written (${profiles.size} in feed).`,
+      `Market snapshot: ${written} US symbols written (${profiles.size} in feed), ${purged} non-common purged.`,
     );
-    return { universe: kept.length, fetched: profiles.size, written };
+    return { universe: kept.length, fetched: profiles.size, written, purged };
   }
 
   /** Refresh only when stale — see PeCacheService.refreshIfStale for why the
