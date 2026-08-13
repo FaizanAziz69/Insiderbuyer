@@ -85,9 +85,13 @@ export function SitePopups() {
     }
     const seen = readSeen();
     let pick: PopupId | null = null;
-    if (pathname.startsWith("/premium")) {
-      if (!seen["new-member-offer"]) pick = "new-member-offer";
-    } else if (!pathname.startsWith("/login") && !pathname.startsWith("/score-explainer")) {
+    // /premium brings its own exit-intent reports popup (2026-08-14 sales
+    // design) — never stack a second global offer on top of the checkout page.
+    if (
+      !pathname.startsWith("/premium") &&
+      !pathname.startsWith("/login") &&
+      !pathname.startsWith("/score-explainer")
+    ) {
       // Alternate the two site-wide offers across visits.
       if (!seen["insider-alerts"]) pick = "insider-alerts";
       else if (!seen["critical-metals"]) pick = "critical-metals";
@@ -98,7 +102,7 @@ export function SitePopups() {
         setActive(pick);
         markSeen(pick!);
       }
-    }, pathname.startsWith("/premium") ? 2500 : 9000);
+    }, 9000);
     return () => {
       cancelled = true;
       clearTimeout(t);
