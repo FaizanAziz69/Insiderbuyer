@@ -1,4 +1,4 @@
-import { Injectable, Optional, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -1491,6 +1491,51 @@ export class ContentService {
         `publish gate: phase ${phase} daily volume cap (${dailyCap}) reached — skipped ${slug}`,
       );
     }
+  }
+
+  /** Hand-written editorial (admin): upsert a fully-authored article by slug —
+   *  custom title/body/image, no AI generation, exempt from the volume ramp.
+   *  Same route the hand-inserted editorials previously took via SQL. */
+  async publishEditorial(input: {
+    slug: string;
+    title: string;
+    summary: string;
+    body: string;
+    kind?: BlogKind;
+    eyebrow?: string | null;
+    imageUrl?: string | null;
+    ticker?: string | null;
+    sector?: string | null;
+    tags?: string[];
+    featuredTickers?: string[];
+  }) {
+    const slug = (input.slug || '').trim().toLowerCase();
+    if (!slug || !input.title?.trim() || !input.summary?.trim() || !input.body?.trim()) {
+      throw new BadRequestException('slug, title, summary and body are required');
+    }
+    // Paywall consistency: no article may print a numeric Insider Score.
+    const SCORE_LEAK = /((?:Insider|IQ) Scores?)(?: of|:)? ?[0-9]+(?:\.[0-9]+)?/gi;
+    const existing = await this.repo.findOne({ where: { slug } });
+    const post = this.repo.create({
+      ...(existing ? { id: existing.id } : {}),
+      slug,
+      kind: input.kind ?? 'editorial',
+      ticker: input.ticker ?? null,
+      sector: input.sector ?? null,
+      topic: null,
+      title: input.title.replace(SCORE_LEAK, '$1'),
+      eyebrow: input.eyebrow ?? null,
+      summary: input.summary.replace(SCORE_LEAK, '$1'),
+      body: input.body.replace(SCORE_LEAK, '$1'),
+      imagePrompt: null,
+      imageUrl: input.imageUrl ?? null,
+      tags: input.tags ?? [],
+      featuredTickers: input.featuredTickers ?? [],
+      iqsAtGeneration: null,
+      inputSnapshot: { source: 'manual-editorial' },
+    });
+    await this.repo.save(post);
+    return { slug: post.slug, id: post.id, updated: !!existing };
   }
 
   private async persist(opts: {

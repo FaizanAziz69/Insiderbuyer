@@ -28,6 +28,8 @@ const THUMBS: Thumb[] = [
   { file: "englander-nvidia-etf", tickers: ["NVDA"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
   // Specific topic
+  { file: "bill-ackman-letter", kw: ["ackman", "pershing"] },
+  { file: "tom-lee-rally", kw: ["tom-lee", "fundstrat"] },
   { file: "chamath-perimeter-ai", kw: ["artificial-intelligence", "medical-imaging", "\bai\b", "semis", "semiconductor"] },
   { file: "carl-icahn-fertilizer", kw: ["fertilizer", "chemical", "metals-and-mining", "materials"] },
   { file: "zefiro-methane-ceo", kw: ["methane", "energy", "oil", "petroleum"] },
@@ -87,6 +89,8 @@ export interface ThumbInput {
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
   "editorial-trump-3b-critical-minerals-2026-08-08": "trump-social-posts",
+  "editorial-ackman-letter-top-13-positions-2026-08-13": "bill-ackman-letter",
+  "editorial-tom-lee-generational-rally-2026-08-13": "tom-lee-rally",
 };
 
 function candidatesFor(opts: ThumbInput): Thumb[] {

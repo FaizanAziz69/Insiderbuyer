@@ -58,6 +58,30 @@ export class ContentController {
     return { format: format.key, ref: format.ref, article };
   }
 
+  /** Publish a hand-written editorial (custom title/body/image), upserted by
+   *  slug. Body: { slug, title, summary, body, imageUrl?, eyebrow?, tags?,
+   *  featuredTickers?, ticker?, sector?, kind? }. */
+  @Post('editorial')
+  @UseGuards(AdminTokenGuard)
+  async publishEditorial(
+    @Body()
+    body: {
+      slug: string;
+      title: string;
+      summary: string;
+      body: string;
+      kind?: BlogKind;
+      eyebrow?: string | null;
+      imageUrl?: string | null;
+      ticker?: string | null;
+      sector?: string | null;
+      tags?: string[];
+      featuredTickers?: string[];
+    },
+  ) {
+    return this.content.publishEditorial(body);
+  }
+
   /** Publish one series format NOW with live data (e.g. quiet-whales) —
    *  bypasses the 2-per-day rotation. */
   @Post('series/:key/publish')
