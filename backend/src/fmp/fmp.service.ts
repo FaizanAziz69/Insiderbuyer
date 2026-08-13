@@ -114,6 +114,7 @@ export class FmpService {
           sector: p.sector || null,
           industry: p.industry || null,
           employees: Number(p.fullTimeEmployees) || null,
+          currency: p.currency || null,
           website: p.website || null,
           phone: p.phone || null,
           description: p.description || null,
@@ -1199,6 +1200,419 @@ export class FmpService {
     if (top.length) this.civicFallbackCache.set(ck, { ts: Date.now(), data: top });
     return top;
   }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // Price history — the licensed replacement for Yahoo's v8 chart endpoint.
+  //
+  // Verified 2026-08-13 against the production key:
+  //   GET /stable/historical-price-eod/full?symbol=AAPL&from=…&to=…
+  //   GET /stable/historical-price-eod/light?symbol=AAPL&from=…
+  //   GET /stable/historical-price-eod/dividend-adjusted?symbol=AAPL&from=…
+  //   GET /stable/historical-chart/{1min|5min|30min|1hour}?symbol=…&from=…&to=…
+  //
+  // Two behaviours the callers depend on and that are NOT documented:
+  //  • Every one of these returns NEWEST FIRST. `toBars` reverses, so callers
+  //    always get ascending series like Yahoo's chart did.
+  //  • `historical-price-eod/*` is HARD CAPPED AT 5,000 ROWS — a `from` of
+  //    1980-01-01 returns the most recent 5,000 sessions (≈20 years) and simply
+  //    stops, with no error and no flag. That is what bounds the chart's "Max"
+  //    range; asking for more does not widen it.
+  //  • `historical-chart/*` timestamps are US-EASTERN WALL CLOCK with no zone
+  //    ("2026-08-12 15:59:00"), unlike the EOD feeds' plain dates. Parsing them
+  //    as UTC would shift every intraday point by 4–5 hours, so they go through
+  //    `etToEpochMs`.
+  // ══════════════════════════════════════════════════════════════════════
+
+  private readonly historyCache = new Map<string, { ts: number; data: FmpBar[] }>();
+  private readonly HISTORY_TTL_MS = 30 * 60_000;
+  private readonly INTRADAY_TTL_MS = 60_000;
+
+  /** Daily OHLCV bars, ASCENDING. `light` drops OHLC for a ~4x smaller payload
+   *  (close + volume only); `adjusted` returns dividend-adjusted closes, which
+   *  is what a return calculation wants. Empty on any failure, so every caller
+   *  can treat empty as "fall back". */
+  async getEodBars(
+    symbolRaw: string,
+    opts: { from?: string; to?: string; light?: boolean; adjusted?: boolean; ttlMs?: number } = {},
+  ): Promise<FmpBar[]> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return [];
+    const variant = opts.adjusted ? 'dividend-adjusted' : opts.light ? 'light' : 'full';
+    const key = `eod:${symbol}:${variant}:${opts.from || ''}:${opts.to || ''}`;
+    const hit = this.historyCache.get(key);
+    if (hit && Date.now() - hit.ts < (opts.ttlMs ?? this.HISTORY_TTL_MS)) return hit.data;
+    const params: Record<string, any> = { symbol };
+    if (opts.from) params.from = opts.from;
+    if (opts.to) params.to = opts.to;
+    const rows = await this.get(`historical-price-eod/${variant}`, params);
+    const bars = this.toBars(rows, false);
+    // Only a non-empty answer is cached: a cached empty would pin the caller to
+    // its fallback for the whole TTL after one blip.
+    if (bars.length) this.historyCache.set(key, { ts: Date.now(), data: bars });
+    return bars;
+  }
+
+  /** Intraday OHLCV bars, ASCENDING, with true epoch `t` (see the note on
+   *  Eastern wall-clock timestamps above). Cached 60s — intraday goes stale
+   *  within the minute. */
+  async getIntradayBars(
+    symbolRaw: string,
+    interval: '1min' | '5min' | '15min' | '30min' | '1hour' | '4hour',
+    from: string,
+    to: string,
+  ): Promise<FmpBar[]> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return [];
+    const key = `intra:${symbol}:${interval}:${from}:${to}`;
+    const hit = this.historyCache.get(key);
+    if (hit && Date.now() - hit.ts < this.INTRADAY_TTL_MS) return hit.data;
+    const rows = await this.get(`historical-chart/${interval}`, { symbol, from, to });
+    const bars = this.toBars(rows, true);
+    if (bars.length) this.historyCache.set(key, { ts: Date.now(), data: bars });
+    return bars;
+  }
+
+  /** Normalise any of the history feeds into one ascending bar array.
+   *  `light` rows carry `price` instead of `close` and no OHLC; adjusted rows
+   *  carry `adjClose`/`adjOpen`/… — all three shapes are folded here so callers
+   *  never branch on which variant they asked for. */
+  private toBars(rows: any[], intraday: boolean): FmpBar[] {
+    const out: FmpBar[] = [];
+    for (const r of rows || []) {
+      const raw = String(r?.date || '');
+      if (!raw) continue;
+      const close = this.num(r?.close ?? r?.adjClose ?? r?.price);
+      if (close == null || close <= 0) continue;
+      const t = intraday
+        ? this.etToEpochMs(raw)
+        : Date.parse(`${raw.slice(0, 10)}T00:00:00Z`);
+      if (!Number.isFinite(t)) continue;
+      out.push({
+        t,
+        date: intraday ? new Date(t).toISOString() : raw.slice(0, 10),
+        open: this.num(r?.open ?? r?.adjOpen),
+        high: this.num(r?.high ?? r?.adjHigh),
+        low: this.num(r?.low ?? r?.adjLow),
+        close,
+        volume: this.num(r?.volume) ?? 0,
+      });
+    }
+    // Every FMP history feed is newest-first; callers all want ascending.
+    out.sort((a, b) => a.t - b.t);
+    return out;
+  }
+
+  /** "2026-08-12 15:59:00" (US Eastern, no zone) → epoch ms. Tries both ET
+   *  offsets and keeps the one that round-trips through the New York calendar,
+   *  so DST is handled without a tz library and without a hard-coded -4. */
+  private etToEpochMs(naive: string): number {
+    const asUtc = Date.parse(`${naive.slice(0, 19).replace(' ', 'T')}Z`);
+    if (!Number.isFinite(asUtc)) return NaN;
+    const want = naive.slice(0, 19).replace('T', ' ');
+    for (const offsetHours of [4, 5]) {
+      const ms = asUtc + offsetHours * 3_600_000;
+      if (this.nyWallClock(ms) === want) return ms;
+    }
+    return asUtc + 4 * 3_600_000; // EDT — the common case
+  }
+
+  private nyWallClock(ms: number): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York',
+      hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(new Date(ms));
+    const g = (t: string) => parts.find((p) => p.type === t)?.value || '';
+    return `${g('year')}-${g('month')}-${g('day')} ${g('hour')}:${g('minute')}:${g('second')}`;
+  }
+
+  /**
+   * Multi-period % price changes for MANY symbols in one call.
+   *
+   * Verified: `stock-price-change` accepts a comma-separated `symbol` list and
+   * returned all 50 rows for a 50-symbol request. That is the whole reason the
+   * heatmap's returns no longer cost one HTTP request per symbol.
+   *
+   * Keys are FMP's own: 1D, 5D, 1M, 3M, 6M, ytd, 1Y, 3Y, 5Y, 10Y, max.
+   */
+  async getPriceChanges(symbolsRaw: string[]): Promise<Map<string, Record<string, number | null>>> {
+    const out = new Map<string, Record<string, number | null>>();
+    const symbols = Array.from(
+      new Set((symbolsRaw || []).filter(Boolean).map((s) => s.toUpperCase())),
+    );
+    if (!this.enabled || !symbols.length) return out;
+    const chunks: string[][] = [];
+    for (let i = 0; i < symbols.length; i += 50) chunks.push(symbols.slice(i, i + 50));
+    // Chunks are independent, and a 150-symbol heatmap is three of them —
+    // running those in sequence spent ~3s of a ~10s request budget for nothing.
+    const pages = await Promise.all(
+      chunks.map((c) => this.get('stock-price-change', { symbol: c.join(',') })),
+    );
+    for (const r of pages.flat()) {
+      const sym = String(r?.symbol || '').toUpperCase();
+      if (!sym) continue;
+      const rec: Record<string, number | null> = {};
+      for (const k of ['1D', '5D', '1M', '3M', '6M', 'ytd', '1Y', '3Y', '5Y', '10Y', 'max']) {
+        rec[k] = this.num(r?.[k]);
+      }
+      out.set(sym, rec);
+    }
+    return out;
+  }
+
+  // ── Financial statements ─────────────────────────────────────────────
+  private readonly statementCache = new Map<string, { ts: number; data: FmpStatements }>();
+  private readonly STATEMENT_TTL_MS = 12 * 60 * 60_000;
+
+  /** Income / balance / cash-flow statements for one symbol, NEWEST FIRST as
+   *  FMP returns them. All three in parallel — the Financials tab needs the set,
+   *  and three requests at once cost the same wall clock as one. Returns empty
+   *  arrays (never throws) so a caller can fall back. */
+  async getStatements(
+    symbolRaw: string,
+    period: 'annual' | 'quarter',
+    limit = 8,
+  ): Promise<FmpStatements> {
+    const empty: FmpStatements = { income: [], balance: [], cashflow: [] };
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return empty;
+    const key = `stmt:${symbol}:${period}:${limit}`;
+    const hit = this.statementCache.get(key);
+    if (hit && Date.now() - hit.ts < this.STATEMENT_TTL_MS) return hit.data;
+    const params = { symbol, period, limit };
+    const [income, balance, cashflow] = await Promise.all([
+      this.get('income-statement', params),
+      this.get('balance-sheet-statement', params),
+      this.get('cash-flow-statement', params),
+    ]);
+    const data: FmpStatements = { income, balance, cashflow };
+    if (income.length || balance.length || cashflow.length) {
+      this.statementCache.set(key, { ts: Date.now(), data });
+    }
+    return data;
+  }
+
+  // ── Per-symbol fundamentals for the Overview stats grid ──────────────
+  private readonly statsBitCache = new Map<string, { ts: number; data: any }>();
+  private readonly STATS_BIT_TTL_MS = 6 * 60 * 60_000;
+
+  private async statsBit<T>(key: string, fetch: () => Promise<T>, ttlMs?: number): Promise<T> {
+    const hit = this.statsBitCache.get(key);
+    if (hit && Date.now() - hit.ts < (ttlMs ?? this.STATS_BIT_TTL_MS)) return hit.data as T;
+    const data = await fetch();
+    this.statsBitCache.set(key, { ts: Date.now(), data });
+    return data;
+  }
+
+  /** Live quote for ONE symbol — price, open, previous close, day range, 52-week
+   *  range, volume, market cap. Cached 60s. */
+  async getQuoteOne(symbolRaw: string): Promise<any | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    return this.statsBit(`q:${symbol}`, async () => {
+      const rows = await this.get('quote', { symbol });
+      return rows?.[0] ?? null;
+    }, 60_000);
+  }
+
+  /** Trailing-twelve-month ratios for one symbol. NOTE: `ratios-ttm` takes ONE
+   *  symbol per request — `?symbol=AAPL,MSFT` returns ZERO rows, verified. */
+  async getRatiosTtm(symbolRaw: string): Promise<any | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    return this.statsBit(`rt:${symbol}`, async () => {
+      const rows = await this.get('ratios-ttm', { symbol });
+      return rows?.[0] ?? null;
+    });
+  }
+
+  /** TTM income statement — the revenue / net income / EPS the Overview grid
+   *  labels "(ttm)". Yahoo served these off `financialData` + `defaultKeyStatistics`. */
+  async getIncomeStatementTtm(symbolRaw: string): Promise<any | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    return this.statsBit(`ittm:${symbol}`, async () => {
+      const rows = await this.get('income-statement-ttm', { symbol });
+      return rows?.[0] ?? null;
+    });
+  }
+
+  /** Most recent ex-dividend date for one symbol (the `date` field on FMP's
+   *  dividend rows IS the ex-date). Null for non-payers. */
+  async getLatestExDividend(symbolRaw: string): Promise<string | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    return this.statsBit(`exdiv:${symbol}`, async () => {
+      const rows = await this.get('dividends', { symbol, limit: 1 });
+      const d = String(rows?.[0]?.date || '').slice(0, 10);
+      return d || null;
+    });
+  }
+
+  /** Next scheduled earnings date (>= today). The feed carries both reported
+   *  and upcoming rows, so this picks the EARLIEST future one rather than
+   *  row 0, which is whichever end of the window FMP sorted to. */
+  async getNextEarningsDate(symbolRaw: string): Promise<string | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    return this.statsBit(`earn:${symbol}`, async () => {
+      const rows = await this.get('earnings', { symbol, limit: 12 });
+      const today = new Date().toISOString().slice(0, 10);
+      const future = rows
+        .map((r: any) => String(r?.date || '').slice(0, 10))
+        .filter((d: string) => d && d >= today)
+        .sort();
+      return future[0] ?? null;
+    });
+  }
+
+  /** Consensus EPS for the NEXT fiscal year — the denominator of forward P/E,
+   *  which FMP publishes no ready-made ratio for. Null when uncovered or when
+   *  the estimate is a loss (a negative forward P/E is not a multiple). */
+  async getForwardEps(symbolRaw: string): Promise<number | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    return this.statsBit(`fweps:${symbol}`, async () => {
+      const rows = await this.get('analyst-estimates', { symbol, period: 'annual', limit: 8 });
+      // Forward P/E is quoted against the fiscal year AFTER the one in
+      // progress — that is the convention Yahoo's `forwardPE` used and what
+      // this page has always shown. "More than 12 months out" selects exactly
+      // that year for any fiscal calendar without needing to know where the
+      // company's year ends: the in-progress year always closes within 12
+      // months, the one after it never does. Taking the in-progress year
+      // instead put Apple at 34.3 against Yahoo's 31.8.
+      const horizon = new Date(Date.now() + 366 * 86_400_000).toISOString().slice(0, 10);
+      const future = rows
+        .map((r: any) => ({ date: String(r?.date || '').slice(0, 10), eps: this.num(r?.epsAvg) }))
+        .filter((r) => r.date && r.date > horizon && r.eps != null)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      const next = future[0]?.eps ?? null;
+      // Deliberately NOT "the first year with positive EPS". Rivian is forecast
+      // to lose money next year; skipping ahead to the first profitable year
+      // produced a confident-looking forward P/E of 49 built on a 2030
+      // estimate. A company with no forward earnings has no forward multiple.
+      return next != null && next > 0 ? next : null;
+    });
+  }
+
+  /** Named executives + pay, for the profile's officer list. FMP publishes no
+   *  officer roster, so this reads the DEF 14A compensation table instead:
+   *  one row per executive per year, `nameAndPosition` a single unseparated
+   *  string ("Luca Maestri Former Senior Vice President, Chief Financial
+   *  Officer"). Split at the first title word — everything before it is the
+   *  person. Latest filing year only, highest paid first. */
+  async getOfficers(symbolRaw: string): Promise<Array<{ name: string; title: string | null; pay: number | null }>> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return [];
+    return this.statsBit(`offi:${symbol}`, async () => {
+      const rows = await this.get('governance-executive-compensation', { symbol });
+      if (!rows.length) return [];
+      const latest = Math.max(...rows.map((r: any) => this.num(r?.year) ?? 0));
+      const TITLE =
+        /\b(former|interim|chief|president|vice|senior|executive|principal|chair|chairman|chairwoman|general counsel|head of|managing|group|global|corporate|treasurer|secretary|ceo|cfo|coo|cto|cao|clo|evp|svp)\b/i;
+      const seen = new Set<string>();
+      const out: Array<{ name: string; title: string | null; pay: number | null }> = [];
+      for (const r of rows) {
+        if ((this.num(r?.year) ?? 0) !== latest) continue;
+        const combined = String(r?.nameAndPosition || '').trim();
+        if (!combined) continue;
+        const m = combined.match(TITLE);
+        const name = (m && m.index ? combined.slice(0, m.index) : combined).trim().replace(/[,;]$/, '');
+        const title = m && m.index ? combined.slice(m.index).trim() : null;
+        if (!name || seen.has(name.toLowerCase())) continue;
+        seen.add(name.toLowerCase());
+        out.push({ name, title, pay: this.num(r?.total) });
+      }
+      out.sort((a, b) => (b.pay ?? 0) - (a.pay ?? 0));
+      return out.slice(0, 6);
+    }, 24 * 60 * 60_000);
+  }
+
+  // ── ETF ownership of a stock ─────────────────────────────────────────
+  private etfDirectory: { ts: number; map: Map<string, string> } | null = null;
+  private readonly ETF_DIRECTORY_TTL_MS = 24 * 60 * 60_000;
+
+  /** symbol → fund name for every ETF FMP lists (~14.5k rows, ~1.3MB).
+   *  Loaded once per instance because `etf/asset-exposure` returns bare symbols
+   *  AND mixes in mutual-fund share classes of the same fund (VTI, VTSAX,
+   *  VSMPX and VITSX all report an identical AAPL position). Intersecting with
+   *  this list is what keeps the holders table to actual ETFs and gives each
+   *  row a name. */
+  private async getEtfDirectory(): Promise<Map<string, string>> {
+    if (this.etfDirectory && Date.now() - this.etfDirectory.ts < this.ETF_DIRECTORY_TTL_MS) {
+      return this.etfDirectory.map;
+    }
+    const map = new Map<string, string>();
+    const rows = await this.get('etf-list');
+    for (const r of rows) {
+      const sym = String(r?.symbol || '').toUpperCase();
+      if (sym) map.set(sym, String(r?.name || sym));
+    }
+    if (map.size) this.etfDirectory = { ts: Date.now(), map };
+    return map;
+  }
+
+  /** ETFs holding a given stock, largest dollar position first.
+   *
+   *  Replaces a reverse index built by asking Yahoo for 24 hand-picked ETFs'
+   *  top-10 holdings — this is every ETF FMP tracks, with the fund's ACTUAL
+   *  position rather than an AUM x weight estimate. Foreign listings are
+   *  dropped (a Toronto-listed wrapper is not a useful row on a US page). */
+  async getEtfExposure(
+    symbolRaw: string,
+    limit = 10,
+  ): Promise<Array<{ etf: string; name: string; est: number | null; pct: number }>> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return [];
+    const ck = `etfx:${symbol}`;
+    const hit = this.statsBitCache.get(ck);
+    if (hit && Date.now() - hit.ts < this.ETF_DIRECTORY_TTL_MS) return hit.data;
+    const [rows, directory] = await Promise.all([
+      this.get('etf/asset-exposure', { symbol }),
+      this.getEtfDirectory(),
+    ]);
+    if (!rows.length) return [];
+    const out: Array<{ etf: string; name: string; est: number | null; pct: number }> = [];
+    for (const r of rows) {
+      const etf = String(r?.symbol || '').toUpperCase();
+      // A dot means a non-US listing (ZWH.TO, XEIN.DE). `directory` is the
+      // ETF/mutual-fund discriminator; without it VTSAX would sit beside VTI
+      // reporting the same position.
+      if (!etf || etf.includes('.') || !directory.has(etf)) continue;
+      const pct = this.num(r?.weightPercentage);
+      out.push({
+        etf,
+        name: directory.get(etf) || etf,
+        est: this.num(r?.marketValue),
+        pct: pct == null ? 0 : +pct.toFixed(2),
+      });
+    }
+    out.sort((a, b) => (b.est ?? 0) - (a.est ?? 0));
+    const top = out.slice(0, limit);
+    if (top.length) this.statsBitCache.set(ck, { ts: Date.now(), data: top });
+    return top;
+  }
+}
+
+/** One OHLCV bar from an FMP history feed, normalised and ASCENDING.
+ *  `t` is a true epoch in ms; `date` is `YYYY-MM-DD` for daily bars and a full
+ *  ISO instant for intraday ones — the shape the chart route already emits. */
+export interface FmpBar {
+  t: number;
+  date: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number;
+  volume: number;
+}
+
+/** Raw statement rows as FMP returns them (newest first). */
+export interface FmpStatements {
+  income: any[];
+  balance: any[];
+  cashflow: any[];
 }
 
 /** One symbol's row from FMP's bulk company-profile feed. */

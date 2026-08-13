@@ -1,7 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
-import { FmpService } from '../fmp/fmp.service';
+import { FmpBar, FmpService } from '../fmp/fmp.service';
 import { MarketSnapshotService } from './market-snapshot.service';
 import { PeCacheService } from './pe-cache.service';
 import { REFERENCE_QUOTES, ReferenceQuote } from './reference-quotes';
@@ -1189,6 +1189,27 @@ export class MarketStatsService {
    *  symbol, from a single 6-month daily chart. Powers Sector Sentiment
    *  (component 2) and per-stock Volume Momentum (component 4). Cached 1h;
    *  missing data → nulls. */
+  /** The momentum math itself, over aligned ascending close / dollar-volume
+   *  series. Shared by both sources so a migration cannot let the two drift. */
+  private static momentumFrom(closes: number[], dollarVol: number[]): MomentumSeries {
+    const n = closes.length;
+    const last = closes[n - 1];
+    const ret = (back: number): number | null =>
+      n > back && closes[n - 1 - back] > 0 ? (last / closes[n - 1 - back] - 1) * 100 : null;
+    const avgTail = (arr: number[], k: number): number | null => {
+      const slice = arr.slice(Math.max(0, arr.length - k)).filter((x) => x > 0);
+      return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : null;
+    };
+    const avg20 = avgTail(dollarVol, 20);
+    const avg90 = avgTail(dollarVol, 90);
+    return {
+      ret20: ret(20),
+      ret60: ret(60),
+      relVol: avg20 != null && avg90 != null && avg90 > 0 ? avg20 / avg90 : null,
+      recentDollarVol: avg20,
+    };
+  }
+
   async getMomentumSeries(symbol: string): Promise<MomentumSeries> {
     const key = symbol.toUpperCase();
     const cached = this.momentumCache.get(key);
@@ -1199,6 +1220,27 @@ export class MarketStatsService {
       relVol: null,
       recentDollarVol: null,
     };
+    // Licensed path first. `light` carries exactly the two series this needs —
+    // close and volume — so the 6-month window is a small payload.
+    if (this.fmp?.enabled) {
+      try {
+        const bars = await this.fmp.getEodBars(key, {
+          from: MarketStatsService.rangeStartIso('6mo'),
+          light: true,
+          ttlMs: this.MOMENTUM_TTL_MS,
+        });
+        if (bars.length >= 21) {
+          const out = MarketStatsService.momentumFrom(
+            bars.map((b) => b.close),
+            bars.map((b) => (b.volume > 0 ? b.close * b.volume : 0)),
+          );
+          this.momentumCache.set(key, { ts: Date.now(), data: out });
+          return out;
+        }
+      } catch {
+        /* FMP unavailable — fall through to Yahoo */
+      }
+    }
     try {
       const host = key.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
       const { data } = await this.http.get(
@@ -1223,23 +1265,7 @@ export class MarketStatsService {
         this.momentumCache.set(key, { ts: Date.now(), data: empty });
         return empty;
       }
-      const last = closes[n - 1];
-      const ret = (back: number): number | null =>
-        n > back && closes[n - 1 - back] > 0
-          ? (last / closes[n - 1 - back] - 1) * 100
-          : null;
-      const avgTail = (arr: number[], k: number): number | null => {
-        const slice = arr.slice(Math.max(0, arr.length - k)).filter((x) => x > 0);
-        return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : null;
-      };
-      const avg20 = avgTail(dollarVol, 20);
-      const avg90 = avgTail(dollarVol, 90);
-      const out: MomentumSeries = {
-        ret20: ret(20),
-        ret60: ret(60),
-        relVol: avg20 != null && avg90 != null && avg90 > 0 ? avg20 / avg90 : null,
-        recentDollarVol: avg20,
-      };
+      const out = MarketStatsService.momentumFrom(closes, dollarVol);
       this.momentumCache.set(key, { ts: Date.now(), data: out });
       return out;
     } catch {
@@ -1251,6 +1277,19 @@ export class MarketStatsService {
   private closeHistCache = new Map<string, { ts: number; data: Array<{ t: number; c: number }> }>();
   private readonly CLOSE_HIST_TTL_MS = 6 * 60 * 60_000;
 
+  /** A Yahoo range token ('6mo', '5y', 'max') → the `from=` date FMP wants.
+   *  Kept generous rather than exact: a few extra sessions cost nothing and a
+   *  short window would silently truncate a caller's lookback. */
+  private static rangeStartIso(range: string): string {
+    const DAYS: Record<string, number> = {
+      '1mo': 35, '3mo': 95, '6mo': 190, '1y': 370, '2y': 740,
+      '5y': 1830, '10y': 3660,
+    };
+    if (range === 'max') return '1980-01-01';
+    const days = DAYS[range] ?? 370;
+    return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  }
+
   /** Daily close history for a symbol (cached 6h). Returns ascending
    *  [{t: epoch-ms, c: close}]. Powers per-trade excess return + estimated
    *  portfolio value over time on politician/insider profiles. */
@@ -1258,6 +1297,26 @@ export class MarketStatsService {
     const key = `${symbol.toUpperCase()}|${range}`;
     const cached = this.closeHistCache.get(key);
     if (cached && Date.now() - cached.ts < this.CLOSE_HIST_TTL_MS) return cached.data;
+    // Licensed path first. `dividend-adjusted` is the analogue of the adjclose
+    // series this used to read off Yahoo — the callers here score forward
+    // returns on a trade, so a series that ignores dividends understates every
+    // holding period.
+    if (this.fmp?.enabled) {
+      try {
+        const bars = await this.fmp.getEodBars(symbol, {
+          from: MarketStatsService.rangeStartIso(range),
+          adjusted: true,
+          ttlMs: this.CLOSE_HIST_TTL_MS,
+        });
+        if (bars.length) {
+          const data = bars.map((b) => ({ t: b.t, c: b.close }));
+          this.closeHistCache.set(key, { ts: Date.now(), data });
+          return data;
+        }
+      } catch {
+        /* FMP unavailable — fall through to Yahoo */
+      }
+    }
     let out: Array<{ t: number; c: number }> = [];
     try {
       const host = symbol.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
@@ -1324,6 +1383,37 @@ export class MarketStatsService {
         toFetch.push(sym);
       }
     }
+    // Licensed path first, and a structural win: `stock-price-change` takes a
+    // COMMA-SEPARATED SYMBOL LIST (verified at 50 symbols per call), so a
+    // 150-symbol heatmap costs three requests instead of 150 charts. Whatever
+    // FMP doesn't answer for still goes through the per-symbol Yahoo path
+    // below, so coverage can only improve.
+    if (this.fmp?.enabled && toFetch.length) {
+      try {
+        const changes = await this.fmp.getPriceChanges(toFetch);
+        const r2 = (v: number | null | undefined) =>
+          v == null || !Number.isFinite(v) ? null : +v.toFixed(2);
+        for (let i = toFetch.length - 1; i >= 0; i--) {
+          const c = changes.get(toFetch[i]);
+          if (!c) continue;
+          const data: PeriodReturns = {
+            d1: r2(c['1D']),
+            d7: r2(c['5D']),
+            d30: r2(c['1M']),
+            d180: r2(c['6M']),
+            y1: r2(c['1Y']),
+          };
+          // A row of all-nulls is not an answer; leave it for the chart path.
+          if (Object.values(data).every((v) => v == null)) continue;
+          this.returnsCache.set(toFetch[i], { ts: Date.now(), data });
+          out[toFetch[i]] = data;
+          toFetch.splice(i, 1);
+        }
+      } catch {
+        /* FMP unavailable — every symbol falls through below */
+      }
+    }
+
     for (let i = 0; i < toFetch.length; i += this.QUOTE_CONCURRENCY) {
       const chunk = toFetch.slice(i, i + this.QUOTE_CONCURRENCY);
       const settled = await Promise.all(
@@ -1578,6 +1668,21 @@ export class MarketStatsService {
   }
 
   private async fetchSpark(symbol: string): Promise<number[]> {
+    // Licensed path first — the `light` EOD feed is close + volume only, so a
+    // sparkline costs a few hundred bytes per symbol. Empty ⇒ fall through.
+    if (this.fmp?.enabled) {
+      try {
+        const bars = await this.fmp.getEodBars(symbol, {
+          // ~16 calendar days to be sure of 7 SESSIONS across a holiday week.
+          from: new Date(Date.now() - 16 * 86_400_000).toISOString().slice(0, 10),
+          light: true,
+          ttlMs: this.SPARK_TTL_MS,
+        });
+        if (bars.length) return bars.map((b) => b.close).slice(-7);
+      } catch {
+        /* FMP unavailable — fall through to Yahoo */
+      }
+    }
     try {
       const host = symbol.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
       const { data } = await this.http.get(
@@ -2005,6 +2110,156 @@ export class MarketStatsService {
   private statsCache = new Map<string, { ts: number; data: StockStats }>();
   private readonly STATS_TTL_MS = 15 * 60_000;
 
+  /** Yahoo's `recommendationKey` vocabulary, which the frontend's rating label
+   *  map is keyed on. FMP's `grades-consensus.consensus` is title-case English
+   *  ("Strong Buy"), so it is translated rather than passed through — an
+   *  untranslated "Buy" would fall through the label map and render raw. */
+  private static readonly FMP_CONSENSUS_KEY: Record<string, string> = {
+    'strong buy': 'strong_buy',
+    buy: 'buy',
+    outperform: 'buy',
+    hold: 'hold',
+    neutral: 'hold',
+    underperform: 'underperform',
+    sell: 'sell',
+    'strong sell': 'strong_sell',
+  };
+
+  /**
+   * The whole Overview stats grid from FMP. Null when FMP cannot price the
+   * symbol at all, which is the signal for `getStockStats` to fall through to
+   * the Yahoo path untouched.
+   *
+   * Every field the Yahoo path produced has a source here — checked column by
+   * column against `StockStats`, because the way a migration silently loses a
+   * column is by quietly leaving it null:
+   *   price/open/prevClose/day+52w range/volume/cap → `quote`
+   *   currency, beta                                → `profile`
+   *   revenue, netIncome, eps (ttm)                 → `income-statement-ttm`
+   *   P/E, dividend rate, dividend yield            → `ratios-ttm`
+   *   sharesOut                                     → `shares-float`
+   *   ex-dividend date                              → `dividends`
+   *   earnings date                                 → `earnings`
+   *   analyst rating                                → `grades-consensus`
+   *   price target                                  → `price-target-consensus`
+   *   forward P/E                                   → price ÷ `analyst-estimates`
+   * Everything is requested in parallel; the per-piece caches in FmpService
+   * mean a warm instance re-fetches only the quote.
+   */
+  private async stockStatsFromFmp(symbol: string): Promise<StockStats | null> {
+    if (!this.fmp?.enabled || !symbol) return null;
+    try {
+      const [quote, profile, ratios, ttm, shares, exDiv, earnDate, grades, target, fwdEps] =
+        await Promise.all([
+          this.fmp.getQuoteOne(symbol),
+          this.fmp.getCompanyProfile(symbol),
+          this.fmp.getRatiosTtm(symbol),
+          this.fmp.getIncomeStatementTtm(symbol),
+          this.fmp.getSharesOutstanding(symbol),
+          this.fmp.getLatestExDividend(symbol),
+          this.fmp.getNextEarningsDate(symbol),
+          this.fmp.getGradesConsensus(symbol),
+          this.fmp.getPriceTargetConsensus(symbol),
+          this.fmp.getForwardEps(symbol),
+        ]);
+      const n = (v: any): number | null => {
+        const x = Number(v);
+        return Number.isFinite(x) ? x : null;
+      };
+      /** For fields where FMP writes 0 to mean "we don't have it" (market cap,
+       *  beta). Rendering that 0 would state a fact the feed never asserted. */
+      const pos = (v: any): number | null => {
+        const x = n(v);
+        return x != null && x > 0 ? x : null;
+      };
+      const cap = (v: any): number | null => {
+        const x = pos(v);
+        return x == null ? null : Math.round(x);
+      };
+      const price = n(quote?.price) ?? n(profile?.price);
+      // No price means no stats grid worth rendering — hand the symbol back to
+      // the Yahoo path rather than emitting a row of em-dashes.
+      if (price == null || price <= 0) return null;
+
+      const divYield = n(ratios?.dividendYieldTTM);
+      const divRate = n(ratios?.dividendPerShareTTM);
+      const sharesOut = shares ?? n(quote?.sharesOutstanding);
+      const priceTarget = target?.targetConsensus ?? target?.targetMedian ?? null;
+
+      // Share-class correction. FMP reports Berkshire's TTM EPS per CLASS A
+      // share ($17,895 off 1.44M A-shares) while the quote, the market cap and
+      // shares-float are all class B — so BRK-B came out at EPS 17,895 and a
+      // P/E of 0.03, and `ratios-ttm` inherits the same defect because it is
+      // built from that EPS. Net income and the share count are both
+      // per-listing and agree with the quoted price, so when the two EPS
+      // figures disagree by more than 5x the derived one wins and the P/E is
+      // rebuilt from it. Normal names are untouched (AAPL: 8.73 vs 8.78).
+      const epsStmt = n(ttm?.epsDiluted) ?? n(ttm?.eps);
+      const niTtm = n(ttm?.netIncome);
+      const epsDerived = niTtm != null && sharesOut ? niTtm / sharesOut : null;
+      const shareClassSkew =
+        epsStmt != null && epsDerived != null && epsStmt !== 0 && epsDerived !== 0 &&
+        (Math.abs(epsStmt / epsDerived) > 5 || Math.abs(epsDerived / epsStmt) > 5);
+      const eps = shareClassSkew ? +(epsDerived as number).toFixed(2) : epsStmt;
+      const pe = shareClassSkew
+        ? eps && eps > 0 ? price / eps : null
+        : n(ratios?.priceToEarningsRatioTTM);
+      const consensus = grades?.consensus
+        ? MarketStatsService.FMP_CONSENSUS_KEY[grades.consensus.toLowerCase()] ??
+          grades.consensus.toLowerCase().replace(/\s+/g, '_')
+        : null;
+
+      return {
+        symbol,
+        name: quote?.name || profile?.name || REFERENCE_QUOTES[symbol]?.name || symbol,
+        currency: profile?.currency || 'USD',
+        price,
+        change: round2(quote?.change),
+        // `changePercentage` is already a percent — unlike Yahoo's
+        // regularMarketChangePercent, which is a fraction and was multiplied by
+        // 100 below. Multiplying here would report a 0.87% day as 87%.
+        changePct: round2(quote?.changePercentage),
+        // A ZERO cap is FMP saying "unknown", not "$0" — a fresh IPO like ATTO
+        // quotes at $18 with marketCap 0. `??` would keep the 0, so the check
+        // is on positivity and the computable sharesOut x price stands in, the
+        // same fallback the Yahoo path used.
+        marketCap:
+          cap(quote?.marketCap) ??
+          cap(profile?.marketCap) ??
+          (sharesOut ? Math.round(sharesOut * price) : null),
+        revenue: n(ttm?.revenue),
+        netIncome: niTtm,
+        eps,
+        sharesOut,
+        // A loss-making company has no meaningful trailing multiple: Yahoo
+        // omitted `trailingPE` outright and the P/E cache drops non-positives,
+        // so a negative here must stay an em-dash rather than render.
+        peRatio: pe != null && pe > 0 ? +pe.toFixed(2) : null,
+        forwardPE: fwdEps && fwdEps > 0 ? +(price / fwdEps).toFixed(2) : null,
+        dividendRate: divRate && divRate > 0 ? divRate : null,
+        // FMP reports the yield as a FRACTION (0.0035), same convention as
+        // Yahoo's summaryDetail.dividendYield, so the x100 carries over.
+        dividendYield: divYield && divYield > 0 ? +(divYield * 100).toFixed(2) : null,
+        exDividendDate: exDiv,
+        volume: n(quote?.volume),
+        open: n(quote?.open),
+        previousClose: n(quote?.previousClose),
+        dayLow: n(quote?.dayLow),
+        dayHigh: n(quote?.dayHigh),
+        week52Low: n(quote?.yearLow),
+        week52High: n(quote?.yearHigh),
+        beta: pos(profile?.beta),
+        analystRating: consensus,
+        priceTarget,
+        priceTargetUpsidePct:
+          priceTarget && price ? +(((priceTarget - price) / price) * 100).toFixed(2) : null,
+        earningsDate: earnDate,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   /** Full fundamentals for one ticker: price, market cap, revenue, net income,
    *  EPS, P/E, forward P/E, dividend, ex-div, volume, day/52-wk range, beta,
    *  analyst rating, price target and next earnings date. Cached 15 min. */
@@ -2012,6 +2267,14 @@ export class MarketStatsService {
     const symbol = (symbolRaw || '').toUpperCase();
     const cached = this.statsCache.get(symbol);
     if (cached && Date.now() - cached.ts < this.STATS_TTL_MS) return cached.data;
+
+    // Licensed path first. Returns null when FMP can't price the symbol, and
+    // the Yahoo scrape below then runs exactly as it always did.
+    const licensed = await this.stockStatsFromFmp(symbol);
+    if (licensed) {
+      this.statsCache.set(symbol, { ts: Date.now(), data: licensed });
+      return licensed;
+    }
 
     const modules =
       'price,summaryDetail,financialData,defaultKeyStatistics,calendarEvents';
@@ -2171,6 +2434,65 @@ export class MarketStatsService {
     const cacheKey = `profile:${symbol}`;
     const c = this.detailCache.get(cacheKey);
     if (c && Date.now() - c.ts < this.DETAIL_TTL_MS) return c.data;
+
+    // Licensed path first. FMP's profile carries every field the page renders
+    // except an officer roster, which is reconstructed from the DEF 14A
+    // compensation table (see FmpService.getOfficers). A profile with neither a
+    // description nor a sector is not worth serving, so that falls through to
+    // the Yahoo scrape below unchanged.
+    if (this.fmp?.enabled) {
+      try {
+        const [f, officers] = await Promise.all([
+          this.fmp.getCompanyProfile(symbol),
+          this.fmp.getOfficers(symbol),
+        ]);
+        if (f && (f.description || f.sector)) {
+          const data = {
+            symbol,
+            name: f.name || symbol,
+            exchange: f.exchangeFullName || f.exchange || null,
+            sector: f.sector || null,
+            industry: f.industry || null,
+            employees: f.employees ?? null,
+            website: f.website || null,
+            phone: f.phone || null,
+            description: f.description || null,
+            address: f.address || null,
+            country: f.country || null,
+            officers: officers.length
+              ? officers.map((o) => ({ name: o.name, title: o.title, pay: o.pay }))
+              : f.ceo
+                ? [{ name: f.ceo, title: 'Chief Executive Officer', pay: null }]
+                : [],
+          };
+          // Officers are the one thing FMP has no roster for — it is
+          // reconstructed from the DEF 14A pay table, which does not exist for
+          // a company that has never filed a proxy (a fresh IPO) nor for a
+          // foreign private issuer. Rather than lose the section on those, top
+          // it up from Yahoo — and ONLY the officers, so the rest of the page
+          // stays on licensed data either way.
+          if (!data.officers.length) {
+            try {
+              const y = await this.fetchModules(symbol, 'assetProfile');
+              data.officers = (y?.assetProfile?.companyOfficers || [])
+                .slice(0, 6)
+                .map((o: any) => ({
+                  name: o.name || null,
+                  title: o.title || null,
+                  pay: o.totalPay?.raw ?? null,
+                }));
+            } catch {
+              /* no officer list available from either source */
+            }
+          }
+          this.detailCache.set(cacheKey, { ts: Date.now(), data });
+          return data;
+        }
+      } catch {
+        /* FMP unavailable — fall through to Yahoo */
+      }
+    }
+
     const r = await this.fetchModules(symbol, 'assetProfile,price,summaryDetail');
     const p = r?.assetProfile ?? {};
     const price = r?.price ?? {};
@@ -2253,6 +2575,112 @@ export class MarketStatsService {
     return out;
   }
 
+  /** Year-over-year % change, or null when either side is missing/zero. */
+  private static yoyPct(cur: number | null, prev: number | null): number | null {
+    return cur != null && prev != null && prev !== 0
+      ? +(((cur - prev) / Math.abs(prev)) * 100).toFixed(2)
+      : null;
+  }
+
+  /**
+   * Annual income / balance / cash-flow tables from FMP's statement endpoints,
+   * in the exact row shape the Yahoo fundamentals-timeseries path emits.
+   * Null when FMP has no statements for the symbol, so the caller falls back.
+   *
+   * Two fields have no direct FMP column and are DERIVED rather than dropped:
+   *  • `workingCapital` — current assets − current liabilities, which is the
+   *    definition Yahoo's `annualWorkingCapital` reports.
+   *  • the three growth rows — computed here exactly as the Yahoo path does.
+   */
+  private async annualFinancialsFromFmp(symbol: string): Promise<any | null> {
+    if (!this.fmp?.enabled || !symbol) return null;
+    try {
+      const { income, balance, cashflow } = await this.fmp.getStatements(symbol, 'annual', 5);
+      if (!income.length && !balance.length && !cashflow.length) return null;
+      const n = (v: any): number | null => {
+        const x = Number(v);
+        return Number.isFinite(x) ? x : null;
+      };
+      const pct = (a: number | null, b: number | null) =>
+        a != null && b ? +((a / b) * 100).toFixed(2) : null;
+      // FMP returns newest first; the tables (and the growth pass below) read
+      // oldest-first, the same order `datesFor(...).sort()` produced.
+      const asc = <T>(rows: T[]) => rows.slice().reverse();
+
+      const incomeRows = asc(income).map((r: any) => {
+        const revenue = n(r.revenue);
+        const grossProfit = n(r.grossProfit);
+        const operatingIncome = n(r.operatingIncome);
+        const netIncome = n(r.netIncome);
+        return {
+          date: String(r.date || '').slice(0, 10),
+          revenue,
+          costOfRevenue: n(r.costOfRevenue),
+          grossProfit,
+          grossMargin: pct(grossProfit, revenue),
+          sga: n(r.sellingGeneralAndAdministrativeExpenses),
+          researchDevelopment: n(r.researchAndDevelopmentExpenses),
+          operatingExpense: n(r.operatingExpenses),
+          operatingIncome,
+          operatingMargin: pct(operatingIncome, revenue),
+          ebitda: n(r.ebitda),
+          interestExpense: n(r.interestExpense),
+          pretaxIncome: n(r.incomeBeforeTax),
+          taxProvision: n(r.incomeTaxExpense),
+          netIncome,
+          profitMargin: pct(netIncome, revenue),
+          basicEPS: n(r.eps),
+          dilutedEPS: n(r.epsDiluted),
+          dilutedShares: n(r.weightedAverageShsOutDil),
+        };
+      });
+
+      const balanceRows = asc(balance).map((r: any) => {
+        const currentAssets = n(r.totalCurrentAssets);
+        const currentLiabilities = n(r.totalCurrentLiabilities);
+        return {
+          date: String(r.date || '').slice(0, 10),
+          totalAssets: n(r.totalAssets),
+          currentAssets,
+          cash: n(r.cashAndCashEquivalents),
+          totalLiabilities: n(r.totalLiabilities),
+          currentLiabilities,
+          totalDebt: n(r.totalDebt),
+          totalEquity: n(r.totalStockholdersEquity),
+          retainedEarnings: n(r.retainedEarnings),
+          workingCapital:
+            currentAssets != null && currentLiabilities != null
+              ? currentAssets - currentLiabilities
+              : null,
+        };
+      });
+
+      const cashflowRows = asc(cashflow).map((r: any) => ({
+        date: String(r.date || '').slice(0, 10),
+        operatingCashflow: n(r.operatingCashFlow),
+        capex: n(r.capitalExpenditure),
+        freeCashflow: n(r.freeCashFlow),
+        investingCashflow: n(r.netCashProvidedByInvestingActivities),
+        financingCashflow: n(r.netCashProvidedByFinancingActivities),
+        buyback: n(r.commonStockRepurchased),
+        endCashPosition: n(r.cashAtEndOfPeriod),
+      }));
+
+      for (let i = 0; i < incomeRows.length; i++) {
+        const p = i > 0 ? incomeRows[i - 1] : null;
+        (incomeRows[i] as any).revenueGrowth = MarketStatsService.yoyPct(
+          incomeRows[i].revenue, p?.revenue ?? null);
+        (incomeRows[i] as any).netIncomeGrowth = MarketStatsService.yoyPct(
+          incomeRows[i].netIncome, p?.netIncome ?? null);
+        (incomeRows[i] as any).epsGrowth = MarketStatsService.yoyPct(
+          incomeRows[i].dilutedEPS, p?.dilutedEPS ?? null);
+      }
+      return { symbol, income: incomeRows, balance: balanceRows, cashflow: cashflowRows };
+    } catch {
+      return null;
+    }
+  }
+
   /** Annual financials — income statement, balance sheet, cash-flow — sourced
    *  from the fundamentals-timeseries API so the tables are as deep as the ones
    *  on stockanalysis.com (revenue → margins → EPS → debt → free cash flow). */
@@ -2261,6 +2689,12 @@ export class MarketStatsService {
     const cacheKey = `fin:${symbol}`;
     const c = this.detailCache.get(cacheKey);
     if (c && Date.now() - c.ts < this.DETAIL_TTL_MS) return c.data;
+
+    const licensed = await this.annualFinancialsFromFmp(symbol);
+    if (licensed) {
+      this.detailCache.set(cacheKey, { ts: Date.now(), data: licensed });
+      return licensed;
+    }
 
     const incomeTypes = [
       'annualTotalRevenue', 'annualCostOfRevenue', 'annualGrossProfit',
@@ -2373,6 +2807,83 @@ export class MarketStatsService {
     return data;
   }
 
+  /**
+   * Quarterly statements from FMP, mapped onto the Yahoo timeseries key names
+   * the Financials tab renders (`TotalRevenue`, `StockholdersEquity`, …) so the
+   * frontend needs no change. 13 quarters, newest first — the depth the YoY
+   * growth row needs, which is exactly what the Yahoo path could rarely supply
+   * (its quarterly feed usually carried revenue for only the newest 1–2
+   * quarters, which is why an FMP backfill was already bolted onto it).
+   *
+   * Null when FMP has nothing, so the Yahoo path still runs.
+   */
+  private async quarterlyStatementsFromFmp(symbol: string): Promise<any | null> {
+    if (!this.fmp?.enabled || !symbol) return null;
+    try {
+      const { income, balance, cashflow } = await this.fmp.getStatements(symbol, 'quarter', 13);
+      if (!income.length && !balance.length && !cashflow.length) return null;
+      const n = (v: any): number | null => {
+        const x = Number(v);
+        return Number.isFinite(x) ? x : null;
+      };
+      // FMP is already newest-first, which is the order this endpoint emits.
+      const rows = (src: any[], map: Record<string, string>) =>
+        src
+          .map((r: any) => {
+            const values: Record<string, number | null> = {};
+            for (const [key, field] of Object.entries(map)) values[key] = n(r?.[field]);
+            return { date: String(r?.date || '').slice(0, 10), values };
+          })
+          .filter((r) => !!r.date);
+
+      return {
+        symbol,
+        income: rows(income, {
+          TotalRevenue: 'revenue',
+          CostOfRevenue: 'costOfRevenue',
+          GrossProfit: 'grossProfit',
+          SellingGeneralAndAdministration: 'sellingGeneralAndAdministrativeExpenses',
+          ResearchAndDevelopment: 'researchAndDevelopmentExpenses',
+          OperatingExpense: 'operatingExpenses',
+          OperatingIncome: 'operatingIncome',
+          PretaxIncome: 'incomeBeforeTax',
+          TaxProvision: 'incomeTaxExpense',
+          NetIncome: 'netIncome',
+          BasicEPS: 'eps',
+          DilutedEPS: 'epsDiluted',
+          BasicAverageShares: 'weightedAverageShsOut',
+          // Carried alongside the EPS fields for the same reason the Yahoo path
+          // carried it: per-quarter EPS is reported at the filing's 2dp, so a
+          // TTM figure summed from four of them drifts. A caller needing
+          // precision divides NetIncome by this instead.
+          DilutedAverageShares: 'weightedAverageShsOutDil',
+        }),
+        balance: rows(balance, {
+          TotalAssets: 'totalAssets',
+          CurrentAssets: 'totalCurrentAssets',
+          CashAndCashEquivalents: 'cashAndCashEquivalents',
+          TotalLiabilitiesNetMinorityInterest: 'totalLiabilities',
+          CurrentLiabilities: 'totalCurrentLiabilities',
+          TotalDebt: 'totalDebt',
+          LongTermDebt: 'longTermDebt',
+          StockholdersEquity: 'totalStockholdersEquity',
+          RetainedEarnings: 'retainedEarnings',
+        }),
+        cashflow: rows(cashflow, {
+          OperatingCashFlow: 'operatingCashFlow',
+          CapitalExpenditure: 'capitalExpenditure',
+          FreeCashFlow: 'freeCashFlow',
+          InvestingCashFlow: 'netCashProvidedByInvestingActivities',
+          FinancingCashFlow: 'netCashProvidedByFinancingActivities',
+          RepurchaseOfCapitalStock: 'commonStockRepurchased',
+          EndCashPosition: 'cashAtEndOfPeriod',
+        }),
+      };
+    } catch {
+      return null;
+    }
+  }
+
   /** Quarterly income/balance/cash-flow statements — period-per-column table
    *  data for the Financials tab (newest first, up to 7 quarters + YoY). */
   async getQuarterlyStatements(symbolRaw: string): Promise<any> {
@@ -2380,6 +2891,13 @@ export class MarketStatsService {
     const cacheKey = `stmtq:${symbol}`;
     const c = this.detailCache.get(cacheKey);
     if (c && Date.now() - c.ts < this.DETAIL_TTL_MS) return c.data;
+
+    const licensed = await this.quarterlyStatementsFromFmp(symbol);
+    if (licensed) {
+      this.detailCache.set(cacheKey, { ts: Date.now(), data: licensed });
+      return licensed;
+    }
+
     const Q = (names: string[]) => names.map((n) => `quarterly${n}`);
     // `DilutedAverageShares` is requested alongside the EPS fields (same
     // endpoint, no extra request) because Yahoo reports BasicEPS/DilutedEPS at
@@ -2441,6 +2959,55 @@ export class MarketStatsService {
     const cacheKey = `fcast:${symbol}`;
     const c = this.detailCache.get(cacheKey);
     if (c && Date.now() - c.ts < this.DETAIL_TTL_MS) return c.data;
+
+    // Licensed path first: `grades-consensus` is the rating breakdown and
+    // `price-target-consensus` the targets. Both must be empty before this
+    // falls through — a name with ratings but no published target still gets a
+    // real ratings bar, which is what the page mostly shows.
+    if (this.fmp?.enabled) {
+      try {
+        const [quote, grades, target] = await Promise.all([
+          this.fmp.getQuoteOne(symbol),
+          this.fmp.getGradesConsensus(symbol),
+          this.fmp.getPriceTargetConsensus(symbol),
+        ]);
+        const gTotal = grades
+          ? grades.strongBuy + grades.buy + grades.hold + grades.sell + grades.strongSell
+          : 0;
+        const hasTarget =
+          !!target && (target.targetConsensus != null || target.targetMedian != null);
+        if (gTotal > 0 || hasTarget) {
+          const data = {
+            symbol,
+            lastPrice: Number(quote?.price) || null,
+            targetMean: target?.targetConsensus ?? null,
+            targetHigh: target?.targetHigh ?? null,
+            targetLow: target?.targetLow ?? null,
+            targetMedian: target?.targetMedian ?? null,
+            // FMP publishes no "number of analyst opinions" separate from the
+            // rating breakdown, so the breakdown total IS the count — the same
+            // substitution the existing FMP fallback already made.
+            analysts: gTotal || null,
+            recommendationKey: grades?.consensus
+              ? MarketStatsService.FMP_CONSENSUS_KEY[grades.consensus.toLowerCase()] ??
+                grades.consensus.toLowerCase().replace(/\s+/g, '_')
+              : null,
+            trend: {
+              strongBuy: grades?.strongBuy ?? 0,
+              buy: grades?.buy ?? 0,
+              hold: grades?.hold ?? 0,
+              sell: grades?.sell ?? 0,
+              strongSell: grades?.strongSell ?? 0,
+            },
+          };
+          this.detailCache.set(cacheKey, { ts: Date.now(), data });
+          return data;
+        }
+      } catch {
+        /* FMP unavailable — fall through to Yahoo */
+      }
+    }
+
     const r = await this.fetchModules(symbol, 'financialData,recommendationTrend,price');
     const fd = r?.financialData ?? {};
     const price = r?.price ?? {};
@@ -2521,6 +3088,19 @@ export class MarketStatsService {
    *  major ETF's top 10 appear — honest empty state otherwise. */
   async getEtfHolders(symbolRaw: string): Promise<{ etf: string; name: string; est: number | null; pct: number }[]> {
     const symbol = (symbolRaw || '').toUpperCase();
+    // Licensed path first, and strictly better data: `etf/asset-exposure`
+    // answers "which ETFs hold this stock" directly, across every fund FMP
+    // tracks and with the fund's REAL position value — where the Yahoo index
+    // below can only see the top-10 holdings of 24 hand-picked ETFs and has to
+    // estimate the dollar figure as AUM x weight. Empty ⇒ fall through.
+    if (this.fmp?.enabled) {
+      try {
+        const rows = await this.fmp.getEtfExposure(symbol, 10);
+        if (rows.length) return rows;
+      } catch {
+        /* FMP unavailable — fall through to the Yahoo index */
+      }
+    }
     if (!this.etfIndex || Date.now() - this.etfIndex.ts > 24 * 60 * 60_000) {
       const map = new Map<string, { etf: string; name: string; est: number | null; pct: number }[]>();
       // Small batches to stay friendly with Yahoo.
@@ -2551,6 +3131,230 @@ export class MarketStatsService {
       this.etfIndex = { ts: Date.now(), map };
     }
     return (this.etfIndex.map.get(symbol) || []).sort((a, b) => (b.est ?? 0) - (a.est ?? 0)).slice(0, 10);
+  }
+
+  /**
+   * How each frontend range is served from FMP.
+   *
+   *  • `intraday` ranges come from `historical-chart/{interval}`, which is
+   *    requested over a few CALENDAR days and then cut to whole SESSIONS —
+   *    asking for "the last 5 days" of a feed that skips weekends and holidays
+   *    otherwise returns three sessions on a short week.
+   *  • daily ranges come from `historical-price-eod/full`, fetched with a
+   *    two-week head start so the close immediately BEFORE the window is
+   *    available as `rangePreviousClose`.
+   *  • `agg` folds daily bars into weekly/monthly ones locally. FMP has no
+   *    weekly feed, and shipping 1,250 daily bars for a 5-year chart is payload
+   *    the renderer throws away.
+   *  • `max` asks from 1980 but `historical-price-eod` is HARD CAPPED AT 5,000
+   *    ROWS, so it resolves to the most recent ~20 years. That is the honest
+   *    ceiling of this feed, hence the monthly bars rather than a claim of more.
+   */
+  private static readonly FMP_RANGE_PLAN: Record<
+    string,
+    { intraday?: '1min' | '30min'; sessions?: number; lookbackDays?: number; windowDays?: number; ytd?: boolean; from?: string; agg?: 'week' | 'month'; deep?: boolean }
+  > = {
+    '1d': { intraday: '1min', sessions: 1, lookbackDays: 7 },
+    '5d': { intraday: '30min', sessions: 5, lookbackDays: 12 },
+    '1mo': { windowDays: 33 },
+    ytd: { ytd: true },
+    '3mo': { windowDays: 92 },
+    '6mo': { windowDays: 183 },
+    '1y': { windowDays: 366 },
+    '2y': { windowDays: 731, agg: 'week' },
+    '5y': { windowDays: 1827, agg: 'week' },
+    max: { from: '1980-01-01', agg: 'month', deep: true },
+  };
+
+  /**
+   * Daily bars back to `fromIso`, paging around the feed's 5,000-row ceiling.
+   *
+   * One request returns only the most recent 5,000 sessions — about 20 years —
+   * so a single call left the Max chart starting in 2006 against the 1984 the
+   * Yahoo chart reached. `deep` fires a SECOND request in parallel, cut off
+   * just inside the first page's reach, which together cover ~40 years. The two
+   * pages are merged on date, so an overlap is harmless and a symbol with less
+   * history than one page simply ignores the second.
+   */
+  private async dailyBarsDeep(symbol: string, fromIso: string, deep: boolean): Promise<FmpBar[]> {
+    const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+    const year = 365.25 * 86_400_000;
+    const pages = await Promise.all([
+      this.fmp!.getEodBars(symbol, { from: fromIso }),
+      deep
+        ? this.fmp!.getEodBars(symbol, { from: fromIso, to: iso(Date.now() - 19 * year) })
+        : Promise.resolve([] as FmpBar[]),
+    ]);
+    if (!pages[1].length) return pages[0];
+    const byDate = new Map<string, FmpBar>();
+    for (const b of [...pages[1], ...pages[0]]) byDate.set(b.date, b);
+    return Array.from(byDate.values()).sort((a, b) => a.t - b.t);
+  }
+
+  /** `YYYY-MM-DD` of an instant in US-Eastern — the trading session a bar
+   *  belongs to. Grouping intraday bars by their UTC date would split a session
+   *  in half, since 16:00 ET is 20:00 UTC but 09:30 ET is 13:30 UTC on days
+   *  where those straddle midnight for other zones. */
+  private static readonly ET_DAY = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  /** Fold daily bars into weekly or monthly ones: first open, extreme high/low,
+   *  last close, summed volume, stamped at the last bar of the period. */
+  private static aggregateBars(bars: FmpBar[], unit: 'week' | 'month'): FmpBar[] {
+    const groups = new Map<string, FmpBar[]>();
+    for (const b of bars) {
+      // 1970-01-01 was a Thursday, so +3 days aligns bucket boundaries to Monday.
+      const key =
+        unit === 'month'
+          ? b.date.slice(0, 7)
+          : String(Math.floor((b.t + 3 * 86_400_000) / (7 * 86_400_000)));
+      const g = groups.get(key);
+      if (g) g.push(b);
+      else groups.set(key, [b]);
+    }
+    const out: FmpBar[] = [];
+    for (const g of groups.values()) {
+      const last = g[g.length - 1];
+      const highs = g.map((b) => b.high).filter((v): v is number => v != null);
+      const lows = g.map((b) => b.low).filter((v): v is number => v != null);
+      out.push({
+        t: last.t,
+        date: last.date,
+        open: g[0].open,
+        high: highs.length ? Math.max(...highs) : null,
+        low: lows.length ? Math.min(...lows) : null,
+        close: last.close,
+        volume: g.reduce((s, b) => s + (b.volume || 0), 0),
+      });
+    }
+    return out.sort((a, b) => a.t - b.t);
+  }
+
+  /**
+   * The chart, from FMP. Returns null when the feed gives nothing back, which
+   * is the signal for `getPriceHistory` to fall through to the Yahoo v8 chart.
+   *
+   * The emitted shape is byte-for-byte the one the Yahoo path produces —
+   * `{ symbol, range, interval, intraday, bars[], previousClose,
+   * rangePreviousClose }` with Yahoo's own interval labels ('1m', '1wk', …) —
+   * so nothing downstream has to know which source answered.
+   */
+  private async priceHistoryFromFmp(
+    symbol: string,
+    range: string,
+    interval: string,
+    intraday: boolean,
+  ): Promise<any | null> {
+    const plan = MarketStatsService.FMP_RANGE_PLAN[range];
+    if (!this.fmp?.enabled || !plan) return null;
+    const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+    const day = 86_400_000;
+    try {
+      let bars: FmpBar[] = [];
+      let previousClose: number | null = null;
+      let rangePreviousClose: number | null = null;
+      // Reported back to the caller, so a range whose fold is chosen from the
+      // data (see 'max' below) never labels itself as bars it did not return.
+      let effectiveInterval = interval;
+
+      if (plan.intraday) {
+        const raw = await this.fmp.getIntradayBars(
+          symbol,
+          plan.intraday,
+          iso(Date.now() - (plan.lookbackDays ?? 7) * day),
+          // Tomorrow, so a bar printed moments ago is never excluded by a
+          // timezone difference between this process and the feed.
+          iso(Date.now() + day),
+        );
+        if (!raw.length) return null;
+        // Whole sessions only — see FMP_RANGE_PLAN.
+        const sessions = new Map<string, FmpBar[]>();
+        for (const b of raw) {
+          const d = MarketStatsService.ET_DAY.format(new Date(b.t));
+          const g = sessions.get(d);
+          if (g) g.push(b);
+          else sessions.set(d, [b]);
+        }
+        const dates = Array.from(sessions.keys()).sort();
+        const kept = dates.slice(-(plan.sessions ?? 1));
+        bars = kept.flatMap((d) => sessions.get(d) || []);
+        const beforeIdx = dates.indexOf(kept[0]) - 1;
+        if (beforeIdx >= 0) {
+          const prior = sessions.get(dates[beforeIdx]) || [];
+          rangePreviousClose = prior.length ? prior[prior.length - 1].close : null;
+        }
+        // On a single-session chart the two baselines are the same close.
+        previousClose = rangePreviousClose;
+      } else {
+        const windowStartMs = plan.ytd
+          ? Date.parse(`${new Date().getUTCFullYear()}-01-01T00:00:00Z`)
+          : plan.from
+            ? Date.parse(`${plan.from}T00:00:00Z`)
+            : Date.now() - (plan.windowDays ?? 366) * day;
+        // Two weeks of head start so the close BEFORE the window is in hand.
+        const daily = await this.dailyBarsDeep(
+          symbol,
+          iso(Math.max(0, windowStartMs - 14 * day)),
+          !!plan.deep,
+        );
+        if (!daily.length) return null;
+        const inWindow = daily.filter((b) => b.t >= windowStartMs);
+        const before = daily.filter((b) => b.t < windowStartMs);
+        rangePreviousClose = before.length ? before[before.length - 1].close : null;
+        // The prior trading day's close — the reference the day's move is
+        // measured from. Yahoo only ever sent this on the 1d range; it is
+        // available on every range here, and a caller that already handles null
+        // is unaffected by it now being present.
+        previousClose = daily.length >= 2 ? daily[daily.length - 2].close : null;
+        bars = inWindow.length ? inWindow : daily;
+        // Yahoo's "max" adapted its granularity to how much history exists, and
+        // a fixed monthly fold does not: Rivian listed in 2021, so monthly bars
+        // gave its Max chart 58 points against Yahoo's 250. Pick the fold from
+        // the span actually returned instead.
+        const agg =
+          plan.agg === 'month' && bars.length > 1
+            ? (bars[bars.length - 1].t - bars[0].t) / (365.25 * 86_400_000) > 15
+              ? 'month'
+              : (bars[bars.length - 1].t - bars[0].t) / (365.25 * 86_400_000) > 3
+                ? 'week'
+                : undefined
+            : plan.agg;
+        if (agg) bars = MarketStatsService.aggregateBars(bars, agg);
+        if (plan.agg === 'month') {
+          effectiveInterval = agg === 'month' ? '1mo' : agg === 'week' ? '1wk' : '1d';
+        }
+      }
+
+      if (!bars.length) return null;
+      const out = {
+        symbol,
+        range,
+        interval: effectiveInterval,
+        intraday,
+        bars: bars.map((b, i) => {
+          const prev = i > 0 ? bars[i - 1].close : b.close;
+          return {
+            t: b.t,
+            date: intraday ? b.date : b.date.slice(0, 10),
+            open: round2(b.open),
+            high: round2(b.high),
+            low: round2(b.low),
+            close: round2(b.close),
+            volume: b.volume || 0,
+            changePct: prev ? +(((b.close - prev) / prev) * 100).toFixed(2) : 0,
+          };
+        }),
+        previousClose,
+        rangePreviousClose,
+      };
+      return out;
+    } catch {
+      return null;
+    }
   }
 
   /** Daily OHLCV history for the history tab + chart. */
@@ -2590,6 +3394,13 @@ export class MarketStatsService {
     // Intraday data goes stale fast — cache it for only 1 minute.
     const ttl = intraday ? 60_000 : this.DETAIL_TTL_MS;
     if (c && Date.now() - c.ts < ttl) return c.data;
+
+    const licensed = await this.priceHistoryFromFmp(symbol, safeRange, interval, intraday);
+    if (licensed) {
+      this.detailCache.set(cacheKey, { ts: Date.now(), data: licensed });
+      return licensed;
+    }
+
     try {
       const host = symbol.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
       const { data } = await this.http.get(
@@ -3143,6 +3954,25 @@ export class MarketStatsService {
 
     const range =
       days <= 35 ? '1mo' : days <= 95 ? '3mo' : days <= 185 ? '6mo' : days <= 370 ? '1y' : '2y';
+    // Licensed path first. NOTE the unit: this method returns `t` in SECONDS
+    // (the earnings backtest joins it against Yahoo-style timestamps), while
+    // getCloseHistory returns milliseconds. FmpBar.t is ms, hence the divide.
+    if (this.fmp?.enabled) {
+      try {
+        const bars = await this.fmp.getEodBars(sym, {
+          from: MarketStatsService.rangeStartIso(range),
+          light: true,
+          ttlMs: 6 * 60 * 60_000,
+        });
+        if (bars.length) {
+          const data = bars.map((b) => ({ t: Math.round(b.t / 1000), c: b.close }));
+          this.dailyClosesCache.set(sym, { ts: Date.now(), data });
+          return data;
+        }
+      } catch {
+        /* FMP unavailable — fall through to Yahoo */
+      }
+    }
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const host = sym.charCodeAt(0) % 2 === 0 ? 'query1' : 'query2';
