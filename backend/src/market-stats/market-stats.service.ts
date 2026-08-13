@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
 import { FmpService } from '../fmp/fmp.service';
+import { MarketSnapshotService } from './market-snapshot.service';
 import { PeCacheService } from './pe-cache.service';
 import { REFERENCE_QUOTES, ReferenceQuote } from './reference-quotes';
 import {
@@ -401,6 +402,7 @@ export class MarketStatsService {
   constructor(
     @Optional() private readonly fmp?: FmpService,
     @Optional() private readonly peCache?: PeCacheService,
+    @Optional() private readonly snapshot?: MarketSnapshotService,
   ) {
     this.http = axios.create({
       timeout: 10_000,
@@ -562,7 +564,79 @@ export class MarketStatsService {
    *  not a curated shortlist). */
   private readonly MOVER_MIN_PCT = 10;
 
+  /** FMP names exchanges; Yahoo codes them, and every filter downstream (plus
+   *  the rendered column) speaks Yahoo. Translate so a snapshot-backed row is
+   *  indistinguishable from a scraped one. */
+  private static readonly FMP_EXCHANGE_CODE: Record<string, string> = {
+    NASDAQ: 'NMS',
+    NYSE: 'NYQ',
+  };
+
+  /** How old a snapshot may be and still be called "today's movers". Sized to
+   *  the intraday refresh cadence plus slack, so one missed cron degrades to
+   *  the live scrape instead of publishing stale movers. */
+  private readonly SNAPSHOT_MOVER_MAX_AGE_MS = 90 * 60_000;
+
+  /**
+   * Movers straight off the licensed FMP snapshot, shaped exactly like the
+   * scraped rows.
+   *
+   * Returns [] whenever the snapshot can't answer — table empty, stale, or
+   * fewer rows than a real market day produces — so each caller falls through
+   * to the Yahoo path unchanged. That "empty means fall back" contract is what
+   * makes this safe to ship: the worst case is the behaviour we already had.
+   */
+  private async snapshotMovers(
+    order: 'gainers' | 'losers' | 'volume',
+    limit: number,
+  ): Promise<MarketStatRow[]> {
+    if (!this.snapshot) return [];
+    const rows = await this.snapshot.query({
+      order,
+      limit,
+      minChangePct:
+        order === 'gainers' ? this.MOVER_MIN_PCT
+        : order === 'losers' ? -this.MOVER_MIN_PCT
+        : undefined,
+      exchanges: Object.keys(MarketStatsService.FMP_EXCHANGE_CODE),
+      // Movers are an INTRADAY question. A snapshot older than this would
+      // answer "who moved this morning" while the page claims "today", so it is
+      // rejected and the live scrape answers instead. This is why the snapshot
+      // is refreshed through the session rather than once a day.
+      maxAgeMs: this.SNAPSHOT_MOVER_MAX_AGE_MS,
+    });
+    if (!rows.length) return [];
+    return rows.map<MarketStatRow>((r) => ({
+      symbol: r.symbol,
+      name: r.name,
+      price: r.price,
+      changeAbs: r.changeAbs,
+      changePct: r.changePct,
+      volume: r.volume,
+      avgVolume: r.avgVolume,
+      marketCap: r.marketCap,
+      // Route through sectorFor so snapshot names land in the SAME TRBC buckets
+      // as the curated ones instead of forming a parallel set of headings.
+      sector: this.sectorFor(r.symbol, r.sector),
+      exchange: MarketStatsService.FMP_EXCHANGE_CODE[r.exchange || ''] ?? r.exchange,
+      fiftyTwoWeekHigh: r.fiftyTwoWeekHigh,
+      fiftyTwoWeekLow: r.fiftyTwoWeekLow,
+      peRatio: null,
+      dividendRate: r.lastDividend,
+      dividendYield:
+        r.lastDividend != null && r.price > 0
+          ? +((r.lastDividend / r.price) * 100).toFixed(2)
+          : null,
+    }));
+  }
+
   async getTopGainers(limit = 500) {
+    // Licensed snapshot first; the Yahoo scrape below stays as the fallback.
+    const fromSnapshot = await this.snapshotMovers('gainers', limit);
+    if (fromSnapshot.length) {
+      await this.fillPeRatios(fromSnapshot);
+      return fromSnapshot;
+    }
     // Mirrors getTopLosers exactly: Yahoo's screener is unreliable when asked to
     // SORT on percentchange (it 500s outright on ASC, and intermittently on deep
     // DESC pages), which used to collapse this endpoint onto the predefined
@@ -593,6 +667,11 @@ export class MarketStatsService {
     return rows;
   }
   async getTopLosers(limit = 500) {
+    const fromSnapshot = await this.snapshotMovers('losers', limit);
+    if (fromSnapshot.length) {
+      await this.fillPeRatios(fromSnapshot);
+      return fromSnapshot;
+    }
     // Yahoo's screener 500s on an ASC percentchange sort, so pull a large pool
     // of decliners ordered by volume (works) and sort biggest-loss-first here.
     const pool = await this.screenYahoo({
@@ -618,6 +697,8 @@ export class MarketStatsService {
     return rows;
   }
   async getMostActive(limit = 100) {
+    const fromSnapshot = await this.snapshotMovers('volume', limit);
+    if (fromSnapshot.length) return fromSnapshot;
     const rows = await this.screenYahoo({
       key: 'most_active',
       sortField: 'dayvolume',

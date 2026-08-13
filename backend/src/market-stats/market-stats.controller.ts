@@ -26,11 +26,14 @@ export class MarketStatsController {
     return this.snapshot.status();
   }
 
-  /** Daily refresh target for the Vercel cron; stale-checked for the same
-   *  reason as pe-cron below. */
+  /** Intraday refresh target for the Vercel cron (every 30m during US market
+   *  hours). Stale-checked for the same reason as pe-cron below, but with a
+   *  window matched to that cadence — the movers read path rejects a snapshot
+   *  older than 90 minutes, so a daily window would leave it permanently
+   *  falling back to the scrape. */
   @Get('snapshot-cron')
   async snapshotCron() {
-    return this.snapshot.refreshIfStale();
+    return this.snapshot.refreshIfStale(20 * 60_000);
   }
 
   /** Refill `pe_ratio_cache` from FMP's bulk TTM ratios. Guarded: it is one
