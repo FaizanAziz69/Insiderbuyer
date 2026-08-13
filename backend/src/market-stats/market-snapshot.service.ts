@@ -55,7 +55,7 @@ export class MarketSnapshotService {
    * HEI-A, UHAL-B, MOG-A and CRD-A/B are ordinary dual-class common stock and
    * must stay.
    */
-  private static readonly NON_COMMON_SUFFIX = /-(?:P[A-Z]?|W[SI]?|U|R)$/;
+  private static readonly NON_COMMON_SUFFIX = /-(?:P[A-Z]?|W[A-Z]?|U|R)$/;
 
   constructor(
     @InjectRepository(MarketProfileSnapshot)
@@ -180,9 +180,11 @@ export class MarketSnapshotService {
     try {
       const res = await this.repo.query(
         `DELETE FROM market_profile_snapshot
-          WHERE symbol ~ '-(P[A-Z]?|W[SI]?|U|R)$'`,
+          WHERE symbol ~ '-(P[A-Z]?|W[A-Z]?|U|R)$'`,
       );
-      purged = Array.isArray(res) ? res.length : (res?.[1] ?? 0);
+      // node-postgres returns [rows, affectedCount] for a DELETE, so the array
+      // LENGTH is always 2 — the count lives in the second slot.
+      purged = Array.isArray(res) ? Number(res[1] ?? 0) : 0;
     } catch (e: any) {
       this.logger.warn(`Snapshot purge failed: ${e?.message || e}`);
     }
