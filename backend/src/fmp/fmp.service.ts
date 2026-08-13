@@ -829,6 +829,84 @@ export class FmpService {
     return out;
   }
 
+  /**
+   * Price, day change, volume, cap, sector and industry for EVERY symbol, from
+   * the one `profile-bulk` call — the licensed replacement for scraping Yahoo's
+   * screener for the movers tables and heatmaps.
+   *
+   * Measured 2026-08-13: 22,799 rows, ~29MB, and the prices match a live
+   * `batch-quote` exactly, so this is a real snapshot rather than end-of-day.
+   * Streamed and filtered by `keep` for the same reason as the ratios feed.
+   */
+  async streamProfilesBulk(
+    keep?: Set<string>,
+    opts: { timeoutMs?: number } = {},
+  ): Promise<Map<string, FmpBulkProfile>> {
+    const out = new Map<string, FmpBulkProfile>();
+    if (!this.enabled) return out;
+    const readline = await import('readline');
+    try {
+      const res = await this.http.get(`${this.base}/profile-bulk`, {
+        params: { part: 0, apikey: this.key },
+        responseType: 'stream',
+        timeout: opts.timeoutMs ?? 120_000,
+        headers: { Accept: 'text/csv' },
+        maxRedirects: 5,
+      });
+      const rl = readline.createInterface({ input: res.data, crlfDelay: Infinity });
+      let idx: Record<string, number> | null = null;
+      for await (const line of rl) {
+        if (!line) continue;
+        const cells = this.parseCsvLine(line);
+        if (!idx) {
+          const need = [
+            'symbol', 'price', 'marketCap', 'lastDividend', 'range', 'change',
+            'changePercentage', 'volume', 'averageVolume', 'companyName',
+            'exchange', 'industry', 'sector', 'isEtf', 'isFund',
+          ];
+          const map: Record<string, number> = {};
+          for (const k of need) map[k] = cells.indexOf(k);
+          if (map.symbol < 0 || map.changePercentage < 0) {
+            this.lastError = `profile-bulk: unexpected header (${cells.slice(0, 6).join(',')})`;
+            this.log.warn(`FMP ${this.lastError}`);
+            rl.close();
+            break;
+          }
+          idx = map;
+          continue;
+        }
+        const symbol = (cells[idx.symbol] || '').toUpperCase();
+        if (!symbol || (keep && !keep.has(symbol))) continue;
+        const at = (k: string) => (idx![k] >= 0 ? cells[idx![k]] : '');
+        // "223.78-344.57" — a negative low would make this ambiguous, but
+        // prices are never negative, so splitting on the single dash is safe.
+        const [lo, hi] = String(at('range') || '').split('-');
+        const truthy = (v: string) => /^(true|1)$/i.test(String(v || '').trim());
+        out.set(symbol, {
+          symbol,
+          name: at('companyName') || '',
+          price: this.num(at('price')),
+          changeAbs: this.num(at('change')),
+          changePct: this.num(at('changePercentage')),
+          volume: this.num(at('volume')),
+          avgVolume: this.num(at('averageVolume')),
+          marketCap: this.num(at('marketCap')),
+          sector: at('sector') || null,
+          industry: at('industry') || null,
+          exchange: at('exchange') || null,
+          fiftyTwoWeekLow: this.num(lo),
+          fiftyTwoWeekHigh: this.num(hi),
+          lastDividend: this.num(at('lastDividend')),
+          isFundLike: truthy(at('isEtf')) || truthy(at('isFund')),
+        });
+      }
+    } catch (e: any) {
+      this.lastError = `profile-bulk: ${e?.response?.status || ''} ${e?.message || e}`;
+      this.log.warn(`FMP ${this.lastError}`);
+    }
+    return out;
+  }
+
   /** Split one CSV row. The bulk feeds quote every cell, and company names do
    *  contain commas, so a plain `split(',')` corrupts the row. */
   private parseCsvLine(line: string): string[] {
@@ -1121,6 +1199,26 @@ export class FmpService {
     if (top.length) this.civicFallbackCache.set(ck, { ts: Date.now(), data: top });
     return top;
   }
+}
+
+/** One symbol's row from FMP's bulk company-profile feed. */
+export interface FmpBulkProfile {
+  symbol: string;
+  name: string;
+  price: number | null;
+  changeAbs: number | null;
+  changePct: number | null;
+  volume: number | null;
+  avgVolume: number | null;
+  marketCap: number | null;
+  sector: string | null;
+  industry: string | null;
+  exchange: string | null;
+  fiftyTwoWeekLow: number | null;
+  fiftyTwoWeekHigh: number | null;
+  lastDividend: number | null;
+  /** ETF or mutual fund — excluded from stock lists and from P/E coverage. */
+  isFundLike: boolean;
 }
 
 /** Region labels that are acronyms, not shouted words — kept as-is when

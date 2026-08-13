@@ -48,6 +48,7 @@ import { InsiderProfile } from './entities/insider-profile.entity';
 import { HistoricalInsiderBuy } from './entities/historical-insider-buy.entity';
 import { GovContractCache } from './entities/gov-contract-cache.entity';
 import { PeRatioCache } from './entities/pe-ratio-cache.entity';
+import { MarketProfileSnapshot } from './entities/market-profile.entity';
 
 @Module({
   imports: [
@@ -95,6 +96,7 @@ import { PeRatioCache } from './entities/pe-ratio-cache.entity';
           HistoricalInsiderBuy,
           GovContractCache,
           PeRatioCache,
+          MarketProfileSnapshot,
         ],
         // Schema sync issues a catalog query per entity on every boot. Fine
         // locally; on serverless it repeats forever. Set DB_SYNC=true for a

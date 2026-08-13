@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AdminTokenGuard } from '../common/admin-token.guard';
+import { MarketSnapshotService } from './market-snapshot.service';
 import { MarketStatsService } from './market-stats.service';
 import { PeCacheService } from './pe-cache.service';
 
@@ -8,7 +9,29 @@ export class MarketStatsController {
   constructor(
     private readonly svc: MarketStatsService,
     private readonly peCache: PeCacheService,
+    private readonly snapshot: MarketSnapshotService,
   ) {}
+
+  /** Refill `market_profile_snapshot` from FMP's bulk profiles — the licensed
+   *  source behind the movers tables and heatmaps. */
+  @Post('snapshot-refresh')
+  @UseGuards(AdminTokenGuard)
+  async snapshotRefresh() {
+    const result = await this.snapshot.refresh();
+    return { ...result, status: await this.snapshot.status() };
+  }
+
+  @Get('snapshot-status')
+  async snapshotStatus() {
+    return this.snapshot.status();
+  }
+
+  /** Daily refresh target for the Vercel cron; stale-checked for the same
+   *  reason as pe-cron below. */
+  @Get('snapshot-cron')
+  async snapshotCron() {
+    return this.snapshot.refreshIfStale();
+  }
 
   /** Refill `pe_ratio_cache` from FMP's bulk TTM ratios. Guarded: it is one
    *  ~70MB download and a few thousand upserts, so it must not be an open
