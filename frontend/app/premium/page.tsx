@@ -701,7 +701,9 @@ export default function PremiumPage() {
       {!premium && (
         <div className="sticky-bar" role="complementary" aria-label="Quick checkout">
           <div className="st">Insider Access · full year<br /><b className="tabular">$199</b> · over 55% off + all reports</div>
-          <button className="btn" onClick={scrollToCheckout}>Get Access →</button>
+          <button className="btn" onClick={() => checkout("annual")} disabled={busy}>
+            {busy ? "Opening checkout…" : "Get Access →"}
+          </button>
         </div>
       )}
 
