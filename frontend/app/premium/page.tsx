@@ -347,15 +347,20 @@ export default function PremiumPage() {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
-  const checkout = async () => {
+  // planOverride: some CTAs advertise a specific plan (e.g. the closing
+  // "$199/Year" button) regardless of the selector state. Passed as a plain
+  // string only — `onClick={checkout}` hands us a click event, which the
+  // validity check below ignores.
+  const checkout = async (planOverride?: unknown) => {
     if (busy) return;
     if (!user) { setLoginOpen(true); return; }
+    const chosen = planOverride === "annual" || planOverride === "monthly" ? planOverride : plan;
     setBusy(true); setErr(null);
     try {
       const res = await fetch(`${API_BASE}/billing/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAuthToken() ?? ""}` },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan: chosen }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.url) {
@@ -665,7 +670,9 @@ export default function PremiumPage() {
       <section className="band"><div className="wrap">
         <h2>If You&rsquo;re Not on the Inside,<br />You&rsquo;re on the Outside.</h2>
         <p style={{ fontStyle: "italic" }}>The rich get richer because they watch what insiders do — not what pundits say.</p>
-        <button className="btn" onClick={scrollToCheckout}>Get Insider Access — $199/Year →</button>
+        <button className="btn" onClick={() => checkout("annual")} disabled={busy}>
+          {busy ? "Opening checkout…" : "Get Insider Access — $199/Year →"}
+        </button>
         <p className="under" style={{ color: "#9db9c9" }}>Over 55% off · All special reports free · 30-day money-back guarantee</p>
       </div></section>
 
