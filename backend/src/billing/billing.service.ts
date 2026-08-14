@@ -38,7 +38,7 @@ const PRODUCT_NAME = 'Insider Premium';
 const GRACE_MS = 24 * 60 * 60 * 1000;
 
 const FRONTEND_URL = (
-  process.env.FRONTEND_URL || 'https://insiderbuyer-hwrc.vercel.app'
+  process.env.FRONTEND_URL || 'https://insiderbuying.com'
 ).replace(/\/$/, '');
 
 @Injectable()

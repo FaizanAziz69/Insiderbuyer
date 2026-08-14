@@ -41,10 +41,10 @@ export class EmailFlowsService {
     return process.env.EMAIL_FROM || 'Insider Buying <devs@insiderbuying.com>';
   }
   private get subscribeUrl(): string {
-    return process.env.EMAIL_SALES_URL || 'https://insiderbuyer-hwrc.vercel.app/premium';
+    return process.env.EMAIL_SALES_URL || 'https://insiderbuying.com/premium';
   }
   private get siteUrl(): string {
-    return process.env.SITE_URL || 'https://insiderbuyer-hwrc.vercel.app';
+    return process.env.SITE_URL || 'https://insiderbuying.com';
   }
   get enabled(): boolean {
     return !!this.apiKey;

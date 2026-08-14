@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { maskScoreText } from "@/lib/sanitizeArticleHtml";
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:4000";
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuyer-hwrc.vercel.app";
+const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuying.com";
 
 /** Per-article SEO: unique <title>, meta description, canonical, OpenGraph +
  *  Twitter cards — pulled from the article itself at request time. */

@@ -40,7 +40,7 @@ const CSS = String.raw`
 .sub3 .hl{background:var(--gold-soft,rgba(255,199,0,.25));background:rgba(255,199,0,.28);padding:0 3px}
 .sub3 .mono{font-family:var(--font-display),sans-serif;font-weight:600;letter-spacing:.1em;text-transform:uppercase}
 
-.sub3 .strip{position:sticky;top:0;z-index:50;background:var(--brand-surface);color:#e7f0f5;font-family:var(--font-display),sans-serif;font-weight:600;font-size:13px;letter-spacing:.08em;text-align:center;padding:9px 12px}
+.sub3 .strip{position:sticky;top:0;z-index:30;background:var(--brand-surface);color:#e7f0f5;font-family:var(--font-display),sans-serif;font-weight:600;font-size:13px;letter-spacing:.08em;text-align:center;padding:9px 12px}
 .sub3 .strip b{color:var(--gold,#ffc700);color:#ffc700}
 .sub3 .strip .t{background:rgba(255,255,255,.14);padding:2px 8px;border-radius:4px;font-variant-numeric:tabular-nums}
 

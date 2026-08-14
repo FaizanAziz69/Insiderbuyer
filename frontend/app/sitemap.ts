@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:4000";
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuyer-hwrc.vercel.app";
+const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuying.com";
 
 const STATIC_ROUTES = [
   "", "/insights", "/editorial", "/stock-lists", "/companies", "/trades",
