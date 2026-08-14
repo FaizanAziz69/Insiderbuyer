@@ -563,7 +563,9 @@ export default function PremiumPage() {
           <div className="step"><div className="sn">STEP 03</div><div className="st">You get the alert</div><div className="sd">High-conviction buys hit your inbox while they&rsquo;re fresh — not weeks later on the news.</div></div>
         </div>
         <p style={{ marginTop: 26 }}>
-          <button className="btn" onClick={scrollToCheckout}>Get Insider Access — $199/Year →</button>
+          <button className="btn" onClick={() => checkout("annual")} disabled={busy}>
+            {busy ? "Opening checkout…" : "Get Insider Access — $199/Year →"}
+          </button>
         </p>
       </div></section>
 
@@ -649,7 +651,9 @@ export default function PremiumPage() {
           ))}
           <div className="board-cta">
             <div className="bc">Names, filings &amp; full histories unlocked for members</div>
-            <button className="btn" onClick={scrollToCheckout}>Unlock the Full Database →</button>
+            <button className="btn" onClick={() => checkout("annual")} disabled={busy}>
+              {busy ? "Opening checkout…" : "Unlock the Full Database →"}
+            </button>
           </div>
         </div>
       </div></section>
