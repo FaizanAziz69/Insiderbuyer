@@ -30,6 +30,7 @@ const THUMBS: Thumb[] = [
   // Specific topic
   { file: "bill-ackman-letter", kw: ["ackman", "pershing"] },
   { file: "tom-lee-rally", kw: ["tom-lee", "fundstrat"] },
+  { file: "jensen-huang-2026", kw: ["jensen-huang", "sustainable-energy"] },
   { file: "chamath-perimeter-ai", kw: ["artificial-intelligence", "medical-imaging", "\bai\b", "semis", "semiconductor"] },
   { file: "carl-icahn-fertilizer", kw: ["fertilizer", "chemical", "metals-and-mining", "materials"] },
   { file: "zefiro-methane-ceo", kw: ["methane", "energy", "oil", "petroleum"] },
@@ -92,6 +93,7 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // 2026-08-14: swapped from bill-ackman-letter to the Uber-stake photo (client).
   "editorial-ackman-letter-top-13-positions-2026-08-13": "ackman-uber-stake",
   "editorial-tom-lee-generational-rally-2026-08-13": "tom-lee-rally",
+  "editorial-jensen-huang-sustainable-energy-2026-08-14": "jensen-huang-2026",
 };
 
 function candidatesFor(opts: ThumbInput): Thumb[] {
