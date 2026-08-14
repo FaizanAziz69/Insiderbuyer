@@ -336,6 +336,17 @@ export default function PremiumPage() {
     return () => { clearTimeout(t); document.removeEventListener("mouseout", onMouseOut); };
   }, [premium]);
 
+  // Returning from Stripe via the browser Back button restores this page from
+  // the back/forward cache with `busy` still true, leaving every checkout
+  // button stuck on "Opening checkout…" — reset it whenever the page is shown.
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setBusy(false);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   const checkout = async () => {
     if (busy) return;
     if (!user) { setLoginOpen(true); return; }
