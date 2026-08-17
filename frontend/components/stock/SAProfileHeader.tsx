@@ -204,10 +204,10 @@ function InfoGlyph() {
   );
 }
 
-function StatTable({ children }: { children: React.ReactNode }) {
+function StatTable({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <table
-      className="w-full table-auto border-collapse"
+      className={`w-full table-auto border-collapse ${className}`}
       style={{ fontSize: "14.4px", lineHeight: "20.8px", color: "var(--sa-text)" }}
     >
       <tbody>{children}</tbody>
@@ -583,7 +583,7 @@ function SAChart({ ticker, previousClose }: { ticker: string; previousClose?: nu
         {/* plot */}
         <div
           ref={wrapRef}
-          className="relative min-w-0 flex-1"
+          className="relative min-w-0 flex-1 overflow-hidden"
           style={{ height: PLOT_H + AXIS_H }}
           onMouseMove={onMove}
           onMouseLeave={() => setHover(null)}
@@ -831,6 +831,40 @@ export function SAProfileHeader({
   const isUS = !country || country === "United States" || country === "USA";
   const ex = exchangeLabel(exchange);
 
+  /* Action buttons render twice: top-right on desktop (reference layout),
+     below the chart on mobile — so both spots share one definition. */
+  type Action = {
+    label: string;
+    icon: typeof Maximize2;
+    href?: string;
+    onClick?: () => void;
+  };
+  const actions: Action[] = [
+    { label: "Full Chart", icon: Maximize2, href: `/chart/${encodeURIComponent(ticker)}` },
+    { label: watching ? "Watching" : "Watchlist", icon: Plus, onClick: () => toggle(ticker) },
+    { label: "Alerts", icon: Bell, href: "/alerts" },
+    { label: "Compare", icon: Copy, href: `/compare?symbols=${encodeURIComponent(ticker)}` },
+  ];
+  const renderAction = (b: Action, extra = "") => {
+    const inner = (
+      <>
+        <b.icon className="h-[17px] w-[17px]" />
+        {b.label}
+      </>
+    );
+    const cls = `inline-flex items-center gap-2 px-4 h-[42px] rounded-lg text-[15px] font-semibold ${extra}`;
+    const style = { background: "var(--brand-surface)", color: "#fff" } as const;
+    return b.href ? (
+      <Link key={b.label} href={b.href} className={cls} style={style}>
+        {inner}
+      </Link>
+    ) : (
+      <button key={b.label} type="button" onClick={b.onClick} className={cls} style={style}>
+        {inner}
+      </button>
+    );
+  };
+
   return (
     <section className="sa-head w-full" style={{ fontFamily: SA_FONT, color: "var(--sa-text)" }}>
       {/* ── name row + actions ── */}
@@ -862,32 +896,10 @@ export function SAProfileHeader({
               : `${country || "United States"} · Delayed Price · Currency is ${currency}`}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5 pt-1">
-          {[
-            { label: "Full Chart", icon: Maximize2, href: `/chart/${encodeURIComponent(ticker)}` },
-            { label: watching ? "Watching" : "Watchlist", icon: Plus, onClick: () => toggle(ticker) },
-            { label: "Alerts", icon: Bell, href: "/alerts" },
-            { label: "Compare", icon: Copy, href: `/compare?symbols=${encodeURIComponent(ticker)}` },
-          ].map((b) => {
-            const inner = (
-              <>
-                <b.icon className="h-[17px] w-[17px]" />
-                {b.label}
-              </>
-            );
-            const cls =
-              "inline-flex items-center gap-2 px-4 h-[42px] rounded-lg text-[15px] font-semibold";
-            const style = { background: "var(--brand-surface)", color: "#fff" } as const;
-            return b.href ? (
-              <Link key={b.label} href={b.href} className={cls} style={style}>
-                {inner}
-              </Link>
-            ) : (
-              <button key={b.label} type="button" onClick={b.onClick} className={cls} style={style}>
-                {inner}
-              </button>
-            );
-          })}
+        {/* Desktop keeps the reference's top-right action row; on mobile the
+            same actions render below the chart (as the reference does). */}
+        <div className="hidden flex-wrap items-center gap-2.5 pt-1 lg:flex">
+          {actions.map((b) => renderAction(b))}
         </div>
       </div>
 
@@ -974,7 +986,10 @@ export function SAProfileHeader({
           below its own min-content width, so any cap narrower than the widest
           row made the table spill into the next track. `210px` keeps a narrow
           ticker's column from collapsing, and the chart still takes the rest. */}
-      <div className="mt-4 grid grid-cols-1 items-start gap-x-4 gap-y-6 lg:grid-cols-[minmax(210px,max-content)_minmax(210px,max-content)_minmax(0,1fr)]">
+      {/* Mobile follows the reference's phone layout: chart first, then the
+          action buttons, then the two stat lists side by side (grid-cols-2).
+          Desktop keeps the reference's three tracks: stats, stats, chart. */}
+      <div className="mt-4 grid grid-cols-2 items-start gap-x-5 gap-y-6 lg:grid-cols-[minmax(210px,max-content)_minmax(210px,max-content)_minmax(0,1fr)]">
         <StatTable>
           <StatRow label="Market Cap" href={`/companies/${ticker}?tab=financials`}>
             {abbr(stats?.marketCap)}
@@ -1044,8 +1059,19 @@ export function SAProfileHeader({
           </StatRow>
         </StatTable>
 
-        <div className="min-w-0 lg:border-l lg:pl-7" style={{ borderColor: "var(--sa-row-border)" }}>
+        <div
+          className="-order-2 col-span-2 min-w-0 lg:order-none lg:col-span-1 lg:border-l lg:pl-7"
+          style={{ borderColor: "var(--sa-row-border)" }}
+        >
           <SAChart ticker={ticker} previousClose={stats?.previousClose ?? null} />
+        </div>
+
+        {/* Mobile action buttons — Full Chart full-width, the rest 3-across. */}
+        <div className="-order-1 col-span-2 flex flex-col gap-2.5 lg:hidden">
+          {renderAction(actions[0], "justify-center w-full")}
+          <div className="grid grid-cols-3 gap-2.5">
+            {actions.slice(1).map((b) => renderAction(b, "justify-center px-2 text-[14px]"))}
+          </div>
         </div>
       </div>
     </section>
