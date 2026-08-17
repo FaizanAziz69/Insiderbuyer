@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { Mail, Briefcase, Newspaper } from "lucide-react";
 
-export const metadata = {
-  title: "Contact Us — Insider Buying",
-  description: "Get in touch with the Insider Buying team.",
-};
+import { pageMetadata } from "@/lib/seo-meta";
+
+export const metadata = pageMetadata("/contact");
 
 // TODO: replace with the client's official contact address once provided.
 const CONTACT_EMAIL = "admin@insiderbuying.com";

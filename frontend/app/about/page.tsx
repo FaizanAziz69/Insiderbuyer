@@ -1,10 +1,8 @@
 import Link from "next/link";
 
-export const metadata = {
-  title: "About Us — Insider Buying",
-  description:
-    "Who we are and how Insider Buying turns SEC Form 4 filings into the Insider Score.",
-};
+import { pageMetadata } from "@/lib/seo-meta";
+
+export const metadata = pageMetadata("/about");
 
 export default function AboutPage() {
   return (

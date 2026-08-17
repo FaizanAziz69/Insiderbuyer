@@ -1,8 +1,6 @@
-export const metadata = {
-  title: "Disclaimer — Insider Buying",
-  description:
-    "Important disclaimer regarding the information, data and scores provided by Insider Buying.",
-};
+import { pageMetadata } from "@/lib/seo-meta";
+
+export const metadata = pageMetadata("/disclaimer");
 
 const SECTIONS: { h: string; p: string }[] = [
   {

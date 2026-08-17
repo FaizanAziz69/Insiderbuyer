@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { maskScoreText } from "@/lib/sanitizeArticleHtml";
+import { seoEntry } from "@/lib/seo-meta";
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:4000";
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuying.com";
@@ -12,6 +13,9 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  // SEO-team copy takes precedence over article-derived metadata. Still
+  // masked: some of the supplied descriptions quote raw Insider Scores.
+  const override = seoEntry(`/insights/${slug}`);
   try {
     const res = await fetch(`${BACKEND}/api/content/blogs/${encodeURIComponent(slug)}`, {
       next: { revalidate: 600 },
@@ -23,8 +27,12 @@ export async function generateMetadata({
     // Always masked: metadata is rendered for crawlers and social unfurls,
     // where no subscription applies, and a leaked score in an OG card is
     // public forever.
-    const title = `${maskScoreText(post.title)} | Insider Buying`;
-    const description = maskScoreText(String(post.summary || "")).slice(0, 160);
+    const title = override
+      ? maskScoreText(override.t)
+      : `${maskScoreText(post.title)} | Insider Buying`;
+    const description = maskScoreText(
+      override?.d || String(post.summary || ""),
+    ).slice(0, 160);
     const url = `${SITE}/insights/${slug}`;
     const image = post.imageUrl || undefined;
     return {
@@ -47,6 +55,13 @@ export async function generateMetadata({
       },
     };
   } catch {
+    if (override) {
+      return {
+        title: maskScoreText(override.t),
+        description: maskScoreText(override.d),
+        alternates: { canonical: `${SITE}/insights/${slug}` },
+      };
+    }
     return {
       title: "Insider Buying — Live SEC Form 4 + Congressional Trades",
     };

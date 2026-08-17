@@ -6,6 +6,7 @@ import { PostHogProvider } from "@/components/PostHogProvider";
 import { SitePopups } from "@/components/SitePopups";
 import { PremiumProvider } from "@/components/premium/PremiumContext";
 import { AuthProvider } from "@/lib/auth";
+import { seoEntry } from "@/lib/seo-meta";
 
 const barlow = Barlow({
   subsets: ["latin"],
@@ -36,9 +37,14 @@ const barlowCondensed = Barlow_Condensed({
 });
 
 
+// Homepage copy from the SEO team's on-page optimization sheet; also the
+// site-wide default for routes without their own metadata.
+const home = seoEntry("/");
+
 export const metadata: Metadata = {
-  title: "Insider Buying — Live SEC Form 4 + Congressional Trades",
+  title: home?.t ?? "Insider Buying — Live SEC Form 4 + Congressional Trades",
   description:
+    home?.d ??
     "Track insider buys and sells in real-time. SEC Form 4 analysis reveals where smart money is accumulating.",
 };
 
