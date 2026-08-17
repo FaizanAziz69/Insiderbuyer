@@ -95,7 +95,7 @@ export function RightRailStockLists() {
 
       {/* Investing Tools */}
       <section>
-        <SectionHeading title="Investing Tools" link={{ href: "/market-data", label: "Calendars and Tools" }} />
+        <SectionHeading title="Investing Tools" link={{ href: "/earnings", label: "Calendars and Tools" }} />
         <PillCloud pills={INVESTING_TOOL_PILLS} />
       </section>
 
