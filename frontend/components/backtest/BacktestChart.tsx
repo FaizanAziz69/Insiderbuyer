@@ -369,7 +369,7 @@ export function BacktestChart({
           Start/Market toggles right. */}
       {controls ? (
         <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
-          <div className="inline-flex flex-wrap gap-1">
+          <div className="flex w-full gap-1 sm:w-auto sm:inline-flex sm:flex-wrap">
             {RANGES.map((r) => {
               const on = r === range;
               return (
@@ -377,7 +377,7 @@ export function BacktestChart({
                   key={r}
                   type="button"
                   onClick={() => { setRange(r); setHover(null); }}
-                  className="px-3 py-1.5 rounded-md text-[12px] font-bold transition"
+                  className="flex-1 px-0 sm:flex-none sm:px-3 py-1.5 rounded-md text-[12px] font-bold transition"
                   style={{
                     background: on ? "var(--accent)" : "transparent",
                     color: on ? "var(--on-accent)" : "var(--text-mute)",

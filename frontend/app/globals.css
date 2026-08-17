@@ -790,6 +790,21 @@ body {
 .table-base tbody tr:last-child td {
   border-bottom: none;
 }
+/* Phone: the stockanalysis.com reference keeps list rows compact (~half our
+   desktop row height) and lets the table scroll sideways. Tighter cells do
+   most of that; the pages' own two-line company cells stay intact. */
+@media (max-width: 640px) {
+  .table-base {
+    font-size: 14px;
+  }
+  .table-base thead th {
+    font-size: 11px;
+    padding: 8px 8px;
+  }
+  .table-base tbody td {
+    padding: 8px 8px;
+  }
+}
 
 /* ============ BADGES ============ */
 
