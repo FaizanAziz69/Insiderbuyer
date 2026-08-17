@@ -402,9 +402,10 @@ export function DataTable<T>({
     groupStartKeys.has(key) ? { borderLeft: "2px solid var(--border-strong)" } : undefined;
   // The identity column stockanalysis.com pins on phones while the rest of the
   // row scrolls; .col-sticky only takes effect under the 640px media query.
-  const stickyKey = columns.find((c) =>
-    /^(ticker|symbol|company|stock)$/i.test(c.key)
-  )?.key;
+  // Priority order, so ticker wins over e.g. a later sector/company column.
+  const stickyKey = ["ticker", "symbol", "company", "stock", "analyst", "politician", "insiderName"]
+    .map((k) => columns.find((c) => c.key.toLowerCase() === k.toLowerCase())?.key)
+    .find(Boolean);
 
   return (
     <div>
