@@ -201,6 +201,9 @@ const CSS = String.raw`
 /* the marker-pen wash needs less alpha and warm ink over a deep surface */
 :root[data-theme="dark"] .sub3 .hl{background:rgba(255,199,0,.14);color:#ffe9b0}
 :root[data-theme="dark"] .sub3 .sq.hot{box-shadow:0 4px 14px rgba(232,75,86,.22)}
+/* two of the bubble marks are brand-black (PLTR) or near-black navy (SMCI) —
+   on a dark card the chip disappears, so give every one a hairline ring */
+:root[data-theme="dark"] .sub3 .bub .logo{box-shadow:0 0 0 1px rgba(255,255,255,.22)}
 
 `;
 
