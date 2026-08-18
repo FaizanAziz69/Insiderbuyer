@@ -804,21 +804,6 @@ body {
   .table-base tbody td {
     padding: 8px 8px;
   }
-  /* SA-style: pin the identity column (ticker/company) while the rest of the
-     row scrolls sideways. Opaque background so scrolled cells pass under it. */
-  .table-base thead th.col-sticky,
-  .table-base tbody td.col-sticky {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    border-right: 1px solid var(--border);
-  }
-  .table-base thead th.col-sticky {
-    background: var(--bg-1);
-  }
-  .table-base tbody td.col-sticky {
-    background: var(--bg-2);
-  }
 }
 
 /* ============ BADGES ============ */

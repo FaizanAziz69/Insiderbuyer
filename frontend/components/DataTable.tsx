@@ -400,12 +400,6 @@ export function DataTable<T>({
   }
   const boundaryStyle = (key: string): React.CSSProperties | undefined =>
     groupStartKeys.has(key) ? { borderLeft: "2px solid var(--border-strong)" } : undefined;
-  // The identity column stockanalysis.com pins on phones while the rest of the
-  // row scrolls; .col-sticky only takes effect under the 640px media query.
-  // Priority order, so ticker wins over e.g. a later sector/company column.
-  const stickyKey = ["ticker", "symbol", "company", "stock", "analyst", "politician", "insiderName"]
-    .map((k) => columns.find((c) => c.key.toLowerCase() === k.toLowerCase())?.key)
-    .find(Boolean);
 
   return (
     <div>
@@ -576,7 +570,7 @@ export function DataTable<T>({
                 const sortable = c.sortable !== false;
                 const active = sort?.key === c.key;
                 return (
-                  <th key={c.key} className={`${alignClass[a]} ${c.className ?? ""}${c.key === stickyKey ? " col-sticky" : ""}`} style={boundaryStyle(c.key)}>
+                  <th key={c.key} className={`${alignClass[a]} ${c.className ?? ""}`} style={boundaryStyle(c.key)}>
                     <span className={`inline-flex items-center gap-1 ${a === "right" ? "flex-row-reverse" : ""}`}>
                       <button
                         type="button"
@@ -628,7 +622,7 @@ export function DataTable<T>({
                   {columns.map((c) => (
                     <td
                       key={c.key}
-                      className={`${alignClass[c.align ?? "left"]} ${c.className ?? ""}${c.key === stickyKey ? " col-sticky" : ""}`}
+                      className={`${alignClass[c.align ?? "left"]} ${c.className ?? ""}`}
                       style={boundaryStyle(c.key)}
                     >
                       {c.render(row, safePage * PAGE_SIZE + i)}

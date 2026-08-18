@@ -176,6 +176,32 @@ const CSS = String.raw`
 .sub3 .sticky-bar .st b{color:var(--good)}
 .sub3 .sticky-bar .btn{font-size:14px;padding:11px 18px;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.sub3 *{transition:none!important}}
+/* ── Dark mode (client 2026-08-18: "subscribe page on dark mode with dark
+      color", light mode is already signed off). The page carries its own
+      scoped palette, so dark is a token swap inside .sub3 and the light
+      design is untouched. --bg-1 becomes the CARD surface and the page takes
+      the deeper site background, because in light mode both were one white. */
+:root[data-theme="dark"] .sub3{
+  --bg-1:#0c1428; --bg-3:#182338; --border:#1f2c45; --border-strong:#2f3e5c;
+  --text:#f0f4fa; --text-soft:#c9d3e3; --text-mute:#8794ab; --text-faint:#5d6b85;
+  --accent:#20d0ff; --accent-hover:#6ddfff; --on-accent:#042033;
+  /* one token carries the offer strip, the two dark bands, the leaderboard
+     head and the score tag — lifted off the page background so each of those
+     still reads as a band instead of blending into the page */
+  --brand-surface:#182338;
+  --good:#1bb471; --good-strong:#11824d; --good-soft:rgba(27,180,113,.16);
+  --bad:#e84b56; --gold-ink:#e3bd5c;
+  --bt-strategy:#4590c6; --bt-benchmark:#b87a22;
+  background:#050a18;
+}
+/* a 2px near-black border is a light-mode device; on dark it reads as glare,
+   so the purchase green carries the same emphasis instead */
+:root[data-theme="dark"] .sub3 .pricebox{border-color:var(--good)}
+:root[data-theme="dark"] .sub3 .sticky-bar{border-top-color:var(--border-strong);box-shadow:0 -8px 24px rgba(0,0,0,.5)}
+/* the marker-pen wash needs less alpha and warm ink over a deep surface */
+:root[data-theme="dark"] .sub3 .hl{background:rgba(255,199,0,.14);color:#ffe9b0}
+:root[data-theme="dark"] .sub3 .sq.hot{box-shadow:0 4px 14px rgba(232,75,86,.22)}
+
 `;
 
 /* ── Data hooks ──────────────────────────────────────────────────────────── */
@@ -250,11 +276,13 @@ function CheckoutOutcome() {
     })();
   }, [refreshPremium]);
   if (state === "none") return null;
+  // Scoped .sub3 tokens, not fixed hex — this banner renders inside the page
+  // wrapper, so it follows the light/dark palette swap with everything else.
   const palette: Record<string, { bg: string; bd: string; fg: string }> = {
-    success: { bg: "#ECFDF3", bd: "#12B76A", fg: "#087443" },
-    syncing: { bg: "#EFF4FF", bd: "#1D4ED8", fg: "#1D4ED8" },
-    cancelled: { bg: "#F7F9FC", bd: "#D0D5DD", fg: "#475467" },
-    error: { bg: "#FEF3F2", bd: "#F04438", fg: "#B42318" },
+    success: { bg: "var(--good-soft)", bd: "var(--good)", fg: "var(--good)" },
+    syncing: { bg: "var(--accent-soft)", bd: "var(--accent)", fg: "var(--accent)" },
+    cancelled: { bg: "var(--bg-3)", bd: "var(--border-strong)", fg: "var(--text-mute)" },
+    error: { bg: "var(--bad-soft)", bd: "var(--bad)", fg: "var(--bad)" },
   };
   const msg: Record<string, string> = {
     success: "🎉 You're in — your subscription is active and every paywall is unlocked.",
@@ -386,7 +414,7 @@ export default function PremiumPage() {
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <CheckoutOutcome />
       {premium && (
-        <div style={{ maxWidth: 720, margin: "18px auto 0", padding: "14px 20px", borderRadius: 12, textAlign: "center", fontWeight: 700, fontSize: 14.5, background: "#ECFDF3", border: "1px solid #12B76A", color: "#087443" }}>
+        <div style={{ maxWidth: 720, margin: "18px auto 0", padding: "14px 20px", borderRadius: 12, textAlign: "center", fontWeight: 700, fontSize: 14.5, background: "var(--good-soft)", border: "1px solid var(--good)", color: "var(--good)" }}>
           You&rsquo;re subscribed — every paywall is unlocked.
         </div>
       )}
