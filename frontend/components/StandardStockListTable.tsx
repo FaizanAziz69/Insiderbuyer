@@ -501,16 +501,26 @@ export function StandardStockListTable({
   // survives and shows its PRO pill and unlock CTA (client spec: ungated lists
   // stay browsable with premium COLUMNS gated in place); and a column dropped
   // here is gone from `visible`, so a hidden column can never render a gate.
+  // Holdings-backed persona lists are portfolio pages first: two Form 4 hits
+  // among 178 positions don't justify five near-empty insider columns
+  // (client 2026-08-20, eric-sprott). There an insider column needs a real
+  // presence (≥5% of rows, min 3); everywhere else one row is enough.
+  const isHoldingsList = rows.some((r) => r.weightPct != null);
+  const insiderColThreshold = isHoldingsList
+    ? Math.max(3, Math.ceil(rows.length * 0.05))
+    : 1;
+  const enough = (pred: (r: StandardRow) => boolean) =>
+    rows.filter(pred).length >= insiderColThreshold;
   const hasAny = {
     upside:
       !analystData ||
       rows.some((r) => upsideBySym.get((r.ticker || "").toUpperCase())?.target != null),
-    iqs: rows.some((r) => r.iqs != null),
-    roi: rows.some((r) => r.perfVsAvgCostPct != null),
-    why: rows.some((r) => !!r.reasoning),
-    bought: rows.some((r) => (r.totalPurchaseValue ?? 0) > 0),
-    indicators: rows.some(
-      (r) => r.hasCeoBuyer || r.hasRepeatBuyer || (r.distinctBuyers ?? 0) >= 2 || (r.totalPurchaseValue ?? 0) >= 1_000_000,
+    iqs: enough((r) => r.iqs != null),
+    roi: enough((r) => r.perfVsAvgCostPct != null),
+    why: enough((r) => !!r.reasoning),
+    bought: enough((r) => (r.totalPurchaseValue ?? 0) > 0),
+    indicators: enough(
+      (r) => !!r.hasCeoBuyer || !!r.hasRepeatBuyer || (r.distinctBuyers ?? 0) >= 2 || (r.totalPurchaseValue ?? 0) >= 1_000_000,
     ),
     lastUpdated: rows.some((r) => r.lastBuyDate || r.scoreUpdatedAt),
     pe: rows.some((r) => pe(r) != null),
