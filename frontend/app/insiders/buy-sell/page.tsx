@@ -85,7 +85,11 @@ export default function InsiderBuySellPage() {
     {
       key: "insider",
       label: "Insider",
+      // Filter by ROLE, not by name — a name dropdown listed hundreds of
+      // insiders (client 2026-08-20; same fix TradesTable already carries).
       filterable: true,
+      filterLabel: (r) => r.role,
+      filterLabelText: "Role",
       sortValue: (r) => r.insiderName,
       render: (r) => (
         <span className="inline-flex items-center gap-2.5 min-w-0">
