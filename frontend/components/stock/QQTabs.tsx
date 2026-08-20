@@ -4,8 +4,10 @@ import useSWR from "swr";
 import Link from "next/link";
 import {
   Landmark, FileText, Scale, Newspaper, Tv, Layers, PieChart, Award,
-  BadgeDollarSign, Users, TrendingUp, Gauge,
+  BadgeDollarSign, Users, TrendingUp, Gauge, Lock,
 } from "lucide-react";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { UnlockCta } from "@/components/premium/PremiumValue";
 import { API_BASE, fetcher, formatCurrency, formatDate, formatNumber } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { Card, Empty, CongressTradingCard, RevenueBreakdownCard, WhaleActivityCard, BullBearCard } from "@/components/stock/StockCivicGrid";
@@ -245,13 +247,38 @@ export function EtfHoldersCard({ ticker }: { ticker: string }) {
   );
 }
 
-/** Smart-Score slot — our REAL Insider Score (no fake sign-up gate). */
+/** Smart-Score slot — our REAL Insider Score, paygated for visitors (client
+ *  2026-08-20: the score is premium info and was rendering free on stock
+ *  pages). Locked = blurred decoy only — the real value never hits the DOM. */
 export function ScoreCardQQ({ ticker, iqs, dataCompleteness, reasoning }: { ticker: string; iqs: number | null; dataCompleteness?: number | null; reasoning?: string | null }) {
+  const { unlocked } = usePremium();
   const tier = iqs == null ? null : iqs >= 80 ? "Strong" : iqs >= 60 ? "Positive" : iqs >= 40 ? "Neutral" : "Weak";
   const color = iqs == null ? "var(--text-mute)" : iqs >= 80 ? "var(--good)" : iqs >= 60 ? "var(--accent)" : iqs >= 40 ? "var(--gold)" : "var(--bad)";
   // A sells-only window scores below neutral — tell the reader WHY it's low
   // instead of leaving a bare "Weak" (client 2026-08-14: sells must score).
   const sellDriven = reasoning != null && /net insider selling/i.test(reasoning);
+  if (iqs != null && !unlocked) {
+    return (
+      <Card icon={<Gauge className="h-4 w-4" />} title={`${ticker} Insider Score`} subtitle="Our composite score: insider buying, sector, volume, tone & dilution">
+        <div className="flex items-center gap-5 py-4">
+          <div
+            className="relative h-24 w-24 rounded-xl flex items-center justify-center text-[34px] font-extrabold flex-shrink-0"
+            style={{ background: "var(--bg-3)", border: "2px solid var(--border)" }}
+          >
+            <span aria-hidden className="select-none pointer-events-none tabular" style={{ filter: "blur(7px)" }}>88</span>
+            <Lock className="absolute h-5 w-5" style={{ color: "var(--premium)" }} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[15px] font-bold">Members only</div>
+            <p className="text-[12.5px] text-mute mt-1 mb-3 leading-snug">
+              The live Insider Score for {ticker} is included with Insider Access.
+            </p>
+            <UnlockCta label="Insider Score" />
+          </div>
+        </div>
+      </Card>
+    );
+  }
   return (
     <Card icon={<Gauge className="h-4 w-4" />} title={`${ticker} Insider Score`} subtitle="Our composite score: insider buying, sector, volume, tone & dilution">
       {iqs == null ? (

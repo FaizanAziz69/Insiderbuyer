@@ -92,7 +92,7 @@ export const STOCK_LIST_COLUMN_ORDER = [
   "marketCap",
   "sector",
   "pe", // PE Ratio
-  "ownership", // not in the client's list; retained deliberately
+  // "ownership" removed 2026-08-20 (client: "just remove for now")
   "spark7d", // 7D chart
 ] as const;
 
@@ -110,7 +110,7 @@ const Ind = ({ label, color }: { label: string; color: string }) => (
 /** The columns whose values all come from our Form 4 pipeline — when every one
  *  of them is empty across the whole list, the list simply has no insider
  *  activity behind it and the table says so once instead of silently. */
-const INSIDER_COLUMN_KEYS = ["iqs", "roi", "why", "bought", "indicators", "lastUpdated", "ownership"];
+const INSIDER_COLUMN_KEYS = ["iqs", "roi", "why", "bought", "indicators", "lastUpdated"];
 
 /**
  * The "—" an insider-derived cell shows when there is nothing to show, with the
@@ -411,40 +411,7 @@ export function StandardStockListTable({
         );
       },
     },
-    ownership: {
-      key: "ownership",
-      label: "Insider Ownership",
-      pro: true,
-      align: "right",
-      info: "Share of the company held by its insiders, with the 90-day change in percentage points.",
-      sortValue: (r) => r.insiderOwnershipPct ?? -1,
-      render: (r) =>
-        r.insiderOwnershipPct == null ? (
-          <NoInsiderValue row={r} />
-        ) : (
-          <PremiumValue label="Insider Ownership">
-          <span className="inline-flex flex-col items-end leading-tight">
-            <span className="tabular text-[13.5px] font-bold">
-              {r.insiderOwnershipPct.toFixed(1)}%
-            </span>
-            {r.insiderOwnershipChangePct != null &&
-              (r.insiderOwnershipChangePct === 0 ? (
-                <span className="tabular text-[11px] font-semibold text-mute">~0pp 90d</span>
-              ) : (
-                <span
-                  className="tabular text-[11px] font-semibold"
-                  style={{
-                    color: r.insiderOwnershipChangePct >= 0 ? "var(--good)" : "var(--bad)",
-                  }}
-                >
-                  {r.insiderOwnershipChangePct >= 0 ? "+" : ""}
-                  {r.insiderOwnershipChangePct.toFixed(2)}pp 90d
-                </span>
-              ))}
-          </span>
-          </PremiumValue>
-        ),
-    },
+    // "ownership" column def removed 2026-08-20 with its key above.
     spark7d: {
       key: "spark7d",
       label: "7D",
@@ -497,7 +464,6 @@ export function StandardStockListTable({
     ),
     lastUpdated: rows.some((r) => r.lastBuyDate || r.scoreUpdatedAt),
     pe: rows.some((r) => pe(r) != null),
-    ownership: rows.some((r) => r.insiderOwnershipPct != null),
     spark7d: rows.length > 0,
   } as Record<string, boolean>;
   const visible = columns.filter((c) => {

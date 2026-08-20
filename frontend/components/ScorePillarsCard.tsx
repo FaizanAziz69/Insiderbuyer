@@ -2,6 +2,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { API_BASE, fetcher } from "@/lib/api";
+import { usePremium } from "@/components/premium/PremiumContext";
 
 interface Pillar {
   key: string;
@@ -32,12 +33,17 @@ function pillarColor(v: number) {
  */
 export function ScorePillarsCard({ ticker }: { ticker: string }) {
   const sym = ticker.toUpperCase();
+  const { unlocked } = usePremium();
   const { data } = useSWR<CompositeResponse>(
     `${API_BASE}/scores/${encodeURIComponent(sym)}`,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
   );
 
+  // Paygated (client 2026-08-20): the pillar values ARE the score's
+  // components — visitors don't get this breakdown (the locked Insider Score
+  // panel above already carries the unlock CTA, no need for a second one).
+  if (!unlocked) return null;
   if (!data || !data.pillars?.some((p) => p.value != null)) return null;
 
   return (

@@ -363,38 +363,8 @@ export default function InsiderHotStocksPage() {
         </span>
       ),
     },
-    {
-      key: "ownership",
-      label: "Insider Ownership",
-      pro: true,
-      info: "Share of the company held by its insiders (their latest reported holdings ÷ shares outstanding), with the change over the last 90 days in percentage points. Higher aligned ownership is a stronger signal.",
-      align: "right",
-      sortValue: (r) => r.insiderOwnershipPct ?? -1,
-      render: (r) =>
-        r.insiderOwnershipPct == null ? (
-          <span className="text-faint text-[12px]">—</span>
-        ) : (
-          <span className="inline-flex flex-col items-end leading-tight">
-            <span className="tabular text-[13.5px] font-bold">
-              {r.insiderOwnershipPct.toFixed(1)}%
-            </span>
-            {r.insiderOwnershipChangePct != null &&
-              (r.insiderOwnershipChangePct === 0 ? (
-                <span className="tabular text-[11px] font-semibold text-mute">
-                  ~0pp 90d
-                </span>
-              ) : (
-                <span
-                  className="tabular text-[11px] font-semibold"
-                  style={{ color: r.insiderOwnershipChangePct >= 0 ? "var(--good)" : "var(--bad)" }}
-                >
-                  {r.insiderOwnershipChangePct >= 0 ? "+" : ""}
-                  {r.insiderOwnershipChangePct.toFixed(2)}pp 90d
-                </span>
-              ))}
-          </span>
-        ),
-    },
+    // Insider Ownership column removed 2026-08-20 (client: "just remove for
+    // now") — data still flows on the row, only the column is gone.
     {
       key: "spark7d",
       label: "7D",
@@ -512,10 +482,9 @@ export default function InsiderHotStocksPage() {
                 company insiders and rolls them up to a company level over a
                 decaying trailing window. The top 10 companies by insider-buying
                 are equally weighted and rebalanced at the start of every week.
-                It tests the raw insider-buying signal, not the live IQ Score
-                (stored as-of-today, which would leak future information).
-                Returns are gross of costs; past performance does not predict
-                future results.
+                It tests the raw insider-buying signal itself, not the live
+                Insider Score. Returns are gross of costs; past performance
+                does not predict future results.
               </p>
               <div className="grid grid-cols-2 gap-x-6 gap-y-4 mt-5">
                 {facts.map((f) => (

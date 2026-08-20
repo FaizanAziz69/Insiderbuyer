@@ -204,7 +204,6 @@ export default function StockListDetailPage({
                       bullets: [
                         "The full ranked list, not just the preview",
                         "Insider Scores, ROI vs insider cost and signals",
-                        "Insider ownership with 90-day change",
                         "Every new Form 4 the moment it lands",
                       ],
                     }

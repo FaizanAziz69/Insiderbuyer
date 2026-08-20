@@ -1,5 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
+import { usePremium } from "@/components/premium/PremiumContext";
 
 interface Point {
   asOfDate: string;
@@ -15,6 +16,10 @@ export function IqsTrendChart({
   history: Point[];
   height?: number;
 }) {
+  // Paygated (client 2026-08-20): score history is the Insider Score itself
+  // over time — visitors don't get the chart at all (no decoy worth drawing).
+  const { unlocked } = usePremium();
+  if (!unlocked) return null;
   if (!history || history.length === 0) return null;
 
   const W = 720;

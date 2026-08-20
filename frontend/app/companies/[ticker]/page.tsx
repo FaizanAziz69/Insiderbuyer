@@ -12,10 +12,13 @@ import {
   FileText,
   Calendar,
   ExternalLink,
+  Lock,
   Maximize2,
   Plus,
   Star,
 } from "lucide-react";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { UnlockCta } from "@/components/premium/PremiumValue";
 import { useWatchlist } from "@/lib/watchlist";
 import {
   API_BASE,
@@ -1062,6 +1065,7 @@ function ringColorForTier(iqs: number): string {
 }
 
 function SmartScorePanel({ score }: { score: NonNullable<CompanyDetail["score"]> }) {
+  const { unlocked } = usePremium();
   const iqs = Math.round(Number(score.iqs) || 0);
   const ring = ringColorForTier(iqs);
   const R = 52;
@@ -1069,6 +1073,46 @@ function SmartScorePanel({ score }: { score: NonNullable<CompanyDetail["score"]>
   const off = C * (1 - Math.max(0, Math.min(100, iqs)) / 100);
   const weights = SCORE_FACTORS.map((f) => Math.max(0, Number(score[f.key]) || 0));
   const maxW = Math.max(...weights, 0.0001);
+  // Paygated (client 2026-08-20): visitors get a blurred decoy, never the
+  // real score or factor weights — same strict rule as PremiumValue.
+  if (!unlocked) {
+    return (
+      <section className="card p-5">
+        <h2 className="text-[16px] font-semibold">Insider Score</h2>
+        <p className="text-[12px] text-mute mb-4">
+          Our 0&ndash;100 Insider Score and the signals behind it.
+        </p>
+        <div className="flex flex-col sm:flex-row items-center gap-6">
+          <div
+            className="relative flex items-center justify-center flex-shrink-0"
+            style={{ width: 132, height: 132 }}
+          >
+            <svg width={132} height={132}>
+              <circle cx={66} cy={66} r={R} fill="none" stroke="var(--bg-3)" strokeWidth={11} />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span
+                aria-hidden
+                className="text-[34px] font-extrabold tabular leading-none select-none pointer-events-none"
+                style={{ filter: "blur(8px)" }}
+              >
+                88
+              </span>
+              <Lock className="h-4 w-4 mt-1.5" style={{ color: "var(--premium)" }} />
+            </div>
+          </div>
+          <div className="text-center sm:text-left">
+            <div className="text-[14px] font-bold mb-1">Members only</div>
+            <p className="text-[12.5px] text-mute mb-3 leading-snug max-w-[340px]">
+              The live Insider Score and its full factor breakdown are included
+              with Insider Access.
+            </p>
+            <UnlockCta label="Insider Score" />
+          </div>
+        </div>
+      </section>
+    );
+  }
   return (
     <section className="card p-5">
       <h2 className="text-[16px] font-semibold">Insider Score</h2>
