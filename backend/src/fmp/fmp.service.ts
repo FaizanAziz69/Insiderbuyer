@@ -908,6 +908,168 @@ export class FmpService {
     return out;
   }
 
+  /**
+   * Daily average % change for one sector on one exchange, ascending by date —
+   * the real data behind the sector-rotation chart (which rendered a seeded
+   * fake SVG until 2026-08-13). One light JSON call per sector×exchange.
+   */
+  async getHistoricalSectorPerformance(
+    sector: string,
+    from: string,
+    to: string,
+    exchange?: string,
+  ): Promise<Array<{ date: string; averageChange: number }>> {
+    const rows = await this.get('historical-sector-performance', {
+      sector,
+      from,
+      to,
+      ...(exchange ? { exchange } : {}),
+    });
+    return rows
+      .map((r: any) => ({
+        date: String(r?.date || '').slice(0, 10),
+        averageChange: this.num(r?.averageChange) ?? 0,
+      }))
+      .filter((r) => r.date)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  /**
+   * Float and shares outstanding for EVERY symbol, from `shares-float-all` —
+   * the batched counterpart to getSharesFloat above, and what lets the short
+   * squeeze page compute %-of-float without Yahoo's one-symbol-per-request
+   * quoteSummary.
+   *
+   * Unlike the other bulk feeds this one is JSON and PAGINATED, so it is
+   * fetched page by page rather than streamed. Measured 2026-08-13: ~1,000
+   * rows/page at the default limit; requested at 5,000/page it completes the
+   * worldwide set in ~16 calls. Never throws: a mid-run failure yields the
+   * pages fetched before it.
+   */
+  async getSharesFloatAllBulk(
+    keep?: Set<string>,
+    opts: { timeoutMs?: number } = {},
+  ): Promise<Map<string, { freeFloatPct: number | null; floatShares: number | null; outstandingShares: number | null }>> {
+    const out = new Map<
+      string,
+      { freeFloatPct: number | null; floatShares: number | null; outstandingShares: number | null }
+    >();
+    if (!this.enabled) return out;
+    const deadline = Date.now() + (opts.timeoutMs ?? 180_000);
+    const LIMIT = 5_000;
+    // Page cap is a runaway guard, not an expected bound — the feed is ~80k
+    // rows today, i.e. ~16 pages.
+    for (let page = 0; page < 40 && Date.now() < deadline; page++) {
+      let rows: any[];
+      try {
+        const { data } = await this.http.get(`${this.base}/shares-float-all`, {
+          params: { page, limit: LIMIT, apikey: this.key },
+          timeout: 30_000,
+        });
+        if (!Array.isArray(data)) {
+          this.lastError = `shares-float-all: non-array page ${page}`;
+          this.log.warn(`FMP ${this.lastError}`);
+          break;
+        }
+        rows = data;
+      } catch (e: any) {
+        this.lastError = `shares-float-all: page ${page} ${e?.response?.status || ''} ${e?.message || e}`;
+        this.log.warn(`FMP ${this.lastError}`);
+        break;
+      }
+      for (const r of rows) {
+        const symbol = String(r?.symbol || '').toUpperCase();
+        if (!symbol || (keep && !keep.has(symbol))) continue;
+        // Zero shares outstanding is the feed saying "unknown", not a real
+        // count — dropping it keeps the read path's null-checks meaningful.
+        const shares = (v: any): number | null => {
+          const n = this.num(v);
+          return n != null && n > 0 && n < 1e15 ? Math.round(n) : null;
+        };
+        const pct = this.num(r?.freeFloat);
+        out.set(symbol, {
+          freeFloatPct: pct != null && pct > 0 && pct <= 100 ? +pct.toFixed(4) : null,
+          floatShares: shares(r?.floatShares),
+          outstandingShares: shares(r?.outstandingShares),
+        });
+      }
+      if (rows.length < LIMIT) break; // last page
+    }
+    return out;
+  }
+
+  /**
+   * Average analyst price target for EVERY covered symbol, from
+   * `price-target-summary-bulk` — the batched counterpart to
+   * getPriceTargetConsensus above.
+   *
+   * This is what fills the target/upside column on LIST pages: the per-symbol
+   * consensus endpoint could never run for a whole table inside the request
+   * budget, so most rows rendered em-dashes. The window picked per row is the
+   * most recent non-empty of month → quarter → year; the all-time average is
+   * deliberately ignored because it blends in targets from years ago.
+   * CSV, streamed like the other bulk feeds. Never throws.
+   */
+  async streamPriceTargetSummaryBulk(
+    keep?: Set<string>,
+    opts: { timeoutMs?: number } = {},
+  ): Promise<Map<string, { count: number; avgTarget: number }>> {
+    const out = new Map<string, { count: number; avgTarget: number }>();
+    if (!this.enabled) return out;
+    const readline = await import('readline');
+    try {
+      const res = await this.http.get(`${this.base}/price-target-summary-bulk`, {
+        params: { part: 0, apikey: this.key },
+        responseType: 'stream',
+        timeout: opts.timeoutMs ?? 120_000,
+        headers: { Accept: 'text/csv' },
+        maxRedirects: 5,
+      });
+      const rl = readline.createInterface({ input: res.data, crlfDelay: Infinity });
+      let idx: Record<string, number> | null = null;
+      for await (const line of rl) {
+        if (!line) continue;
+        const cells = this.parseCsvLine(line);
+        if (!idx) {
+          const need = [
+            'symbol',
+            'lastMonthCount', 'lastMonthAvgPriceTarget',
+            'lastQuarterCount', 'lastQuarterAvgPriceTarget',
+            'lastYearCount', 'lastYearAvgPriceTarget',
+          ];
+          const map: Record<string, number> = {};
+          for (const k of need) map[k] = cells.indexOf(k);
+          if (map.symbol < 0 || map.lastQuarterAvgPriceTarget < 0) {
+            this.lastError = `price-target-summary-bulk: unexpected header (${cells.slice(0, 6).join(',')})`;
+            this.log.warn(`FMP ${this.lastError}`);
+            rl.close();
+            break;
+          }
+          idx = map;
+          continue;
+        }
+        const symbol = (cells[idx.symbol] || '').toUpperCase();
+        if (!symbol || (keep && !keep.has(symbol))) continue;
+        const at = (k: string) => this.num(cells[idx![k]]);
+        const windows: Array<[number | null, number | null]> = [
+          [at('lastMonthCount'), at('lastMonthAvgPriceTarget')],
+          [at('lastQuarterCount'), at('lastQuarterAvgPriceTarget')],
+          [at('lastYearCount'), at('lastYearAvgPriceTarget')],
+        ];
+        for (const [count, avg] of windows) {
+          if (count && count > 0 && avg && avg > 0 && avg < 1e9) {
+            out.set(symbol, { count, avgTarget: +avg.toFixed(4) });
+            break;
+          }
+        }
+      }
+    } catch (e: any) {
+      this.lastError = `price-target-summary-bulk: ${e?.response?.status || ''} ${e?.message || e}`;
+      this.log.warn(`FMP ${this.lastError}`);
+    }
+    return out;
+  }
+
   /** Split one CSV row. The bulk feeds quote every cell, and company names do
    *  contain commas, so a plain `split(',')` corrupts the row. */
   private parseCsvLine(line: string): string[] {

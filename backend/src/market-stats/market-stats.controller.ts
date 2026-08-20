@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AdminTokenGuard } from '../common/admin-token.guard';
+import { FundamentalsCacheService } from './fundamentals-cache.service';
 import { MarketSnapshotService } from './market-snapshot.service';
 import { MarketStatsService } from './market-stats.service';
 import { PeCacheService } from './pe-cache.service';
@@ -10,6 +11,7 @@ export class MarketStatsController {
     private readonly svc: MarketStatsService,
     private readonly peCache: PeCacheService,
     private readonly snapshot: MarketSnapshotService,
+    private readonly fundamentals: FundamentalsCacheService,
   ) {}
 
   /** Refill `market_profile_snapshot` from FMP's bulk profiles — the licensed
@@ -77,7 +79,39 @@ export class MarketStatsController {
     } catch (e: any) {
       snapshot = { error: String(e?.message || e) };
     }
-    return { pe, snapshot };
+    // Fundamentals ride the same daily cron slot (the plan allows two cron
+    // jobs and both are taken). Last in the chain and try-caught, so a failure
+    // here cannot cost the P/E or snapshot refreshes — and vice versa.
+    let fundamentals: unknown;
+    try {
+      fundamentals = await this.fundamentals.refreshIfStale();
+    } catch (e: any) {
+      fundamentals = { error: String(e?.message || e) };
+    }
+    return { pe, snapshot, fundamentals };
+  }
+
+  /** Refill `fundamentals_cache` (float + analyst price-target summary) from
+   *  FMP's bulk feeds. Guarded like pe-refresh: multi-megabyte downloads and
+   *  thousands of upserts must not sit on an open endpoint. */
+  @Post('fundamentals-refresh')
+  @UseGuards(AdminTokenGuard)
+  async fundamentalsRefresh() {
+    const result = await this.fundamentals.refresh();
+    return { ...result, status: await this.fundamentals.status() };
+  }
+
+  @Get('fundamentals-status')
+  async fundamentalsStatus() {
+    return this.fundamentals.status();
+  }
+
+  /** Refresh target for the GitHub workflow (plain GET, so it cannot be
+   *  token-guarded) — the staleness window is what stops a public URL from
+   *  triggering the bulk downloads on every hit, same as pe-cron. */
+  @Get('fundamentals-cron')
+  async fundamentalsCron() {
+    return this.fundamentals.refreshIfStale();
   }
 
   @Get('search')
@@ -170,6 +204,13 @@ export class MarketStatsController {
   @Get('heatmap')
   async heatmap() {
     return { rows: await this.svc.getMarketHeatmap() };
+  }
+
+  /** Cumulative sector returns for the rotation chart — real FMP data. */
+  @Get('sector-rotation')
+  async sectorRotation(@Query('days') days?: string) {
+    const n = Number(days);
+    return { rows: await this.svc.getSectorRotation(Number.isFinite(n) && n > 0 ? n : 90) };
   }
 
   @Get('analyst-ratings')

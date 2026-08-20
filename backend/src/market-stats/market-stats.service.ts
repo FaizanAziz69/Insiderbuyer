@@ -3,6 +3,7 @@ import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
 import { FmpBar, FmpService } from '../fmp/fmp.service';
 import { MarketSnapshotService } from './market-snapshot.service';
+import { FundamentalsCacheService, FundamentalsRow } from './fundamentals-cache.service';
 import { PeCacheService } from './pe-cache.service';
 import { REFERENCE_QUOTES, ReferenceQuote } from './reference-quotes';
 import {
@@ -118,6 +119,15 @@ export interface MarketStatRow {
 }
 
 /** Full stockanalysis.com-style fundamentals for a single ticker. */
+/** One sector's line on the rotation chart. */
+export interface SectorRotationSeries {
+  sector: string;
+  /** Whole-window cumulative return, percent. */
+  cumulativePct: number;
+  latestDailyPct: number | null;
+  series: Array<{ date: string; cumPct: number }>;
+}
+
 export interface StockStats {
   symbol: string;
   name: string | null;
@@ -403,6 +413,7 @@ export class MarketStatsService {
     @Optional() private readonly fmp?: FmpService,
     @Optional() private readonly peCache?: PeCacheService,
     @Optional() private readonly snapshot?: MarketSnapshotService,
+    @Optional() private readonly fundamentals?: FundamentalsCacheService,
   ) {
     this.http = axios.create({
       timeout: 10_000,
@@ -2183,8 +2194,21 @@ export class MarketStatsService {
 
       const divYield = n(ratios?.dividendYieldTTM);
       const divRate = n(ratios?.dividendPerShareTTM);
-      const sharesOut = shares ?? n(quote?.sharesOutstanding);
-      const priceTarget = target?.targetConsensus ?? target?.targetMedian ?? null;
+      // Bulk-cache fallback for the two cells the per-symbol endpoints most
+      // often miss (thin names): shares outstanding from the float feed and
+      // the average analyst target from the price-target summary. The live
+      // endpoints win where they answered.
+      let cachedFund: FundamentalsRow | undefined;
+      if ((shares == null && quote?.sharesOutstanding == null) || target == null) {
+        cachedFund = (await this.fundamentals?.lookup([symbol]))?.get(symbol);
+      }
+      const sharesOut =
+        shares ?? n(quote?.sharesOutstanding) ?? cachedFund?.outstandingShares ?? null;
+      const priceTarget =
+        target?.targetConsensus ??
+        target?.targetMedian ??
+        cachedFund?.ptAvgTarget ??
+        null;
 
       // Share-class correction. FMP reports Berkshire's TTM EPS per CLASS A
       // share ($17,895 off 1.44M A-shares) while the quote, the market cap and
@@ -3577,6 +3601,26 @@ export class MarketStatsService {
         totalRatings,
       });
     }
+    // Bulk-cache fill for the target column: Yahoo's per-symbol summary sweep
+    // above is time-boxed, so on a universe build most rows arrive with no
+    // targetMean and the upside column rendered em-dashes past the first
+    // screenful. The fundamentals cache answers every symbol in ONE indexed
+    // query, so it fills whatever the sweep didn't reach — the sweep's numbers
+    // win where both exist because they carry high/low alongside the mean.
+    if (this.fundamentals) {
+      const blank = rows.filter((r) => r.targetMean == null);
+      if (blank.length) {
+        const cached = await this.fundamentals.lookup(blank.map((r) => r.symbol));
+        for (const r of blank) {
+          const f = cached.get(r.symbol.toUpperCase());
+          if (!f?.ptAvgTarget) continue;
+          r.targetMean = f.ptAvgTarget;
+          r.upsidePct =
+            r.price ? +(((f.ptAvgTarget - r.price) / r.price) * 100).toFixed(2) : null;
+          if (r.numAnalysts == null && f.ptCount) r.numAnalysts = f.ptCount;
+        }
+      }
+    }
     // FMP grades-consensus fallback for rows Yahoo left without a trend
     // breakdown (foreign listings, thin coverage) — bounded concurrency so a
     // universe refresh doesn't hammer FMP.
@@ -3935,7 +3979,101 @@ export class MarketStatsService {
         marketCap: q?.marketCap ?? ref?.marketCap ?? null,
       });
     }
+    // %-of-float fill from the fundamentals cache: Yahoo carries sharesShort
+    // for far more names than it carries shortPercentOfFloat, so rows arrived
+    // with the headline column blank — and since the table SORTS by that
+    // column, those rows also sank to the bottom regardless of how shorted
+    // the stock actually was. Yahoo's own percentage wins where present; this
+    // only computes the cells Yahoo left empty, from FMP's licensed float.
+    if (this.fundamentals) {
+      const blank = rows.filter((r) => r.shortPctFloat == null || r.shortRatio == null);
+      if (blank.length) {
+        const cached = await this.fundamentals.lookup(blank.map((r) => r.symbol));
+        for (const r of blank) {
+          const f = cached.get(r.symbol.toUpperCase());
+          if (!f) continue;
+          if (r.shortPctFloat == null && f.floatShares && r.sharesShort) {
+            const pct = (r.sharesShort / f.floatShares) * 100;
+            // A short position above 100% of float is real (GME 2021) but above
+            // 500% the float figure is stale garbage, not a squeeze signal.
+            if (Number.isFinite(pct) && pct > 0 && pct < 500) {
+              r.shortPctFloat = +pct.toFixed(2);
+            }
+          }
+          // Days-to-cover = shares short / average daily volume.
+          const avgVol = quotes.get(r.symbol)?.avgVolume;
+          if (r.shortRatio == null && avgVol && r.sharesShort) {
+            const ratio = r.sharesShort / avgVol;
+            if (Number.isFinite(ratio) && ratio > 0 && ratio < 1000) {
+              r.shortRatio = +ratio.toFixed(2);
+            }
+          }
+        }
+      }
+    }
     rows.sort((a, b) => (b.shortPctFloat ?? 0) - (a.shortPctFloat ?? 0));
+    return rows;
+  }
+
+  /** FMP's sector taxonomy — the same 11 names `profile-bulk` stamps on every
+   *  company, so the rotation chart groups exactly like the sector heatmap. */
+  private static readonly FMP_SECTORS = [
+    'Technology', 'Financial Services', 'Healthcare', 'Consumer Cyclical',
+    'Consumer Defensive', 'Communication Services', 'Industrials', 'Energy',
+    'Basic Materials', 'Real Estate', 'Utilities',
+  ];
+
+  /**
+   * Sector rotation — cumulative % return per sector over the window, built
+   * from FMP's historical-sector-performance feed (22 light JSON calls:
+   * 11 sectors × NASDAQ+NYSE, averaged per day so a NASDAQ-heavy sector and a
+   * NYSE-heavy one are read on the same footing). Replaces the seeded fake
+   * SVG the /charts/rotation page rendered before 2026-08-13.
+   */
+  async getSectorRotation(days = 90): Promise<SectorRotationSeries[]> {
+    const span = Math.max(7, Math.min(days, 366));
+    // Require most sectors present before caching — a partial build (FMP
+    // hiccup mid-fan-out) should be retried next request, not pinned for the
+    // whole TTL.
+    return this.cachedTool(`sector-rotation:${span}`, () => this.buildSectorRotation(span), 8);
+  }
+  private async buildSectorRotation(days: number): Promise<SectorRotationSeries[]> {
+    if (!this.fmp?.enabled) return [];
+    const to = new Date().toISOString().slice(0, 10);
+    const from = new Date(Date.now() - days * 24 * 60 * 60_000).toISOString().slice(0, 10);
+    const out = await Promise.all(
+      MarketStatsService.FMP_SECTORS.map(async (sector) => {
+        const [nasdaq, nyse] = await Promise.all([
+          this.fmp!.getHistoricalSectorPerformance(sector, from, to, 'NASDAQ'),
+          this.fmp!.getHistoricalSectorPerformance(sector, from, to, 'NYSE'),
+        ]);
+        // Average the exchanges per day where both reported; either alone
+        // still counts, so a sector listed mostly on one exchange isn't lost.
+        const byDate = new Map<string, number[]>();
+        for (const r of [...nasdaq, ...nyse]) {
+          if (!byDate.has(r.date)) byDate.set(r.date, []);
+          byDate.get(r.date)!.push(r.averageChange);
+        }
+        const dates = Array.from(byDate.keys()).sort();
+        if (!dates.length) return null;
+        let cum = 1;
+        const series = dates.map((date) => {
+          const vals = byDate.get(date)!;
+          const dayPct = vals.reduce((a, b) => a + b, 0) / vals.length;
+          cum *= 1 + dayPct / 100;
+          return { date, cumPct: +((cum - 1) * 100).toFixed(2) };
+        });
+        const lastDay = byDate.get(dates[dates.length - 1])!;
+        return {
+          sector,
+          cumulativePct: series[series.length - 1].cumPct,
+          latestDailyPct: +(lastDay.reduce((a, b) => a + b, 0) / lastDay.length).toFixed(2),
+          series,
+        } as SectorRotationSeries;
+      }),
+    );
+    const rows = out.filter((r): r is SectorRotationSeries => !!r);
+    rows.sort((a, b) => b.cumulativePct - a.cumulativePct);
     return rows;
   }
 

@@ -75,6 +75,11 @@ jobs:
             sleep 2
           done
 
+      - name: Refresh fundamentals cache (float + analyst price targets, bulk FMP)
+        run: |
+          resp=$(curl -s "$API/market-stats/fundamentals-cron" -m 280 || echo '{}')
+          echo "fundamentals-cron -> $resp"
+
       - name: Top up analyst rating history (keeps success rates deep)
         run: |
           resp=$(curl -s -X POST "$API/analysts/backfill-history" \
