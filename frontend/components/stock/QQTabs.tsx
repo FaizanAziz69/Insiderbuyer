@@ -218,8 +218,8 @@ export function EtfHoldersCard({ ticker }: { ticker: string }) {
       ) : rows.length === 0 ? (
         <Empty text={`${ticker} isn't in the disclosed top holdings of the major ETFs we track.`} />
       ) : (
-        {/* Top 6, no inner scroll — the 300px scroll box clipped rows halfway
-            at the card edge (client 2026-08-20: "content spilling out"). */}
+        // Top 6, no inner scroll — the 300px scroll box clipped rows halfway
+        // at the card edge (client 2026-08-20: "content spilling out").
         <div>
           <table className="w-full text-[12.5px]">
             <thead>
