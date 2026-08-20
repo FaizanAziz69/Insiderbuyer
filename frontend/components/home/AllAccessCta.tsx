@@ -54,7 +54,7 @@ export function AllAccessCta() {
             className="text-[22px] sm:text-[28px] font-semibold tracking-tight leading-tight"
             style={{ letterSpacing: "-0.01em" }}
           >
-            Get the insider information with{" "}
+            Get Insider Intel with{" "}
             <span className="text-accent">Insider Access</span>
           </h2>
           {/* No free trial exists in checkout — the guarantee is a 30-day

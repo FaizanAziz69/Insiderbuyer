@@ -218,16 +218,18 @@ export function EtfHoldersCard({ ticker }: { ticker: string }) {
       ) : rows.length === 0 ? (
         <Empty text={`${ticker} isn't in the disclosed top holdings of the major ETFs we track.`} />
       ) : (
-        <div className="overflow-auto scrollbar-visible" style={{ maxHeight: 300 }}>
+        {/* Top 6, no inner scroll — the 300px scroll box clipped rows halfway
+            at the card edge (client 2026-08-20: "content spilling out"). */}
+        <div>
           <table className="w-full text-[12.5px]">
-            <thead className="sticky top-0 z-10" style={{ background: "var(--bg-2)" }}>
+            <thead>
               <tr className="text-[10px] uppercase tracking-wider text-mute text-left">
                 <th className="font-bold px-2.5 py-1.5">ETF</th>
                 <th className="font-bold px-2.5 py-1.5 text-right">Est. Holding Size</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.slice(0, 6).map((r) => (
                 <tr key={r.etf} style={{ borderTop: "1px solid var(--border)" }}>
                   <td className="px-2.5 py-2">
                     <span className="font-mono font-bold text-accent">{r.etf}</span>

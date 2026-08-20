@@ -185,7 +185,8 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Popular Articles", href: "/insights?sort=popular", icon: TrendingUp },
           { label: "Market Movers", href: "/articles/market-movers", icon: Flame },
           { label: "Stock Ideas", href: "/lists", icon: Sparkles },
-          { label: "Reports & Advertorials", href: "/reports", icon: FileText },
+          // "Reports & Advertorials" (/reports) hidden 2026-08-21 — client:
+          // the page has wrong content, remove links for now.
           { label: "For Business / API", href: "/business", icon: Briefcase },
         ],
       },

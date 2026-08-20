@@ -96,10 +96,11 @@ export function Footer() {
             <div className="label-mini mb-3">Research</div>
             <ul className="space-y-2 text-[13px]">
               <li><Link href="/learn/insider-buying" className="text-soft hover:text-accent transition">Intro to Insider Buying</Link></li>
-              <li><Link href="/reports" className="text-soft hover:text-accent transition">Reports &amp; Features</Link></li>
+              {/* "Reports & Features" and "About Us" removed 2026-08-21 (client:
+                  wrong content on those pages, "remove for now") — restore the
+                  two <li>s when the pages are rewritten. */}
               <li><Link href="/premium" className="text-soft hover:text-accent transition">Insider Access</Link></li>
               <li><Link href="/business" className="text-soft hover:text-accent transition">For Business / API</Link></li>
-              <li><Link href="/about" className="text-soft hover:text-accent transition">About Us</Link></li>
               <li><Link href="/contact" className="text-soft hover:text-accent transition">Contact Us</Link></li>
             </ul>
           </div>

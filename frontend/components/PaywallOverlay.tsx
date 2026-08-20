@@ -23,7 +23,7 @@ interface Props {
  */
 export function PaywallOverlay({
   children,
-  title = "Get the insider information on this company",
+  title = "Get Insider Intel on this company",
   subtitle = "The full breakdown is one click away",
   bullets = [
     "Full financials, forecasts and ownership data",

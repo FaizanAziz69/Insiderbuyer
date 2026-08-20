@@ -37,11 +37,9 @@ export function PremiumRowWall({
     >
       <PaywallCta
         size="lg"
-        subtitle={
-          total
-            ? `You're seeing ${FREE_ROWS} of ${total} ranked names — the strongest signals sit behind this wall.`
-            : `The strongest ${label.toLowerCase()} signals sit behind this wall.`
-        }
+        // Client 2026-08-21: the "You're seeing X of Y ranked names" line is
+        // gone — one generic subtitle regardless of row counts.
+        subtitle={`The strongest ${label.toLowerCase()} signals sit behind this wall.`}
         bullets={bullets}
       />
     </div>

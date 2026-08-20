@@ -120,7 +120,7 @@ const SIZES = {
 
 export function PaywallCta({
   eyebrow,
-  title = `Get the insider information`,
+  title = `Get Insider Intel`,
   subtitle,
   bullets,
   proof,

@@ -79,7 +79,9 @@ export function RevenueBreakdownCard({ ticker }: { ticker: string }) {
           <RevenueDonut rows={rows} hover={hover} setHover={setHover}
             centerTop={hover != null && rows[hover] ? rows[hover].pct.toFixed(1) + "%" : formatCurrency(rows.reduce((s, r) => s + r.revenue, 0))}
             centerBottom={hover != null && rows[hover] ? rows[hover].name : "Total"} />
-          <div className="w-full overflow-auto scrollbar-visible" style={{ maxHeight: 190 }}>
+          {/* No fixed-height scroll box — it clipped the segment table halfway
+              at the card edge (client 2026-08-20: "content spilling out"). */}
+          <div className="w-full">
             <table className="w-full text-[12.5px]">
               <thead className="sticky top-0 z-10" style={{ background: "var(--bg-2)" }}>
                 <tr className="text-[10px] uppercase tracking-wider text-mute text-left">

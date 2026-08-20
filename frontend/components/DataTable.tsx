@@ -571,14 +571,18 @@ export function DataTable<T>({
                 const active = sort?.key === c.key;
                 return (
                   <th key={c.key} className={`${alignClass[a]} ${c.className ?? ""}`} style={boundaryStyle(c.key)}>
-                    <span className={`inline-flex items-center gap-1 ${a === "right" ? "flex-row-reverse" : ""}`}>
+                    {/* One fixed order on every column — [PRO] Label ⇅ (i) —
+                        right-aligned columns used to flex-row-reverse, which
+                        flipped the PRO pill to the other side of the label
+                        (client 2026-08-20: "make it consistent, before the
+                        label always"). */}
+                    <span className="inline-flex items-center gap-1">
+                      {c.pro && <ProTag />}
                       <button
                         type="button"
                         disabled={!sortable}
                         onClick={() => toggle(c.key, sortable)}
-                        className={`inline-flex items-center gap-1 ${
-                          a === "right" ? "flex-row-reverse" : ""
-                        } ${sortable ? "cursor-pointer hover:text-accent" : "cursor-default"}`}
+                        className={`inline-flex items-center gap-1 ${sortable ? "cursor-pointer hover:text-accent" : "cursor-default"}`}
                         style={{ font: "inherit", letterSpacing: "inherit", textTransform: "inherit", color: active ? "var(--accent)" : "inherit" }}
                       >
                         <span>{c.label}</span>
@@ -593,7 +597,6 @@ export function DataTable<T>({
                             <ChevronsUpDown className="h-3 w-3 opacity-30" />
                           ))}
                       </button>
-                      {c.pro && <ProTag />}
                       {c.info && <HeaderInfo text={c.info} />}
                     </span>
                   </th>

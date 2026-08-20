@@ -43,7 +43,7 @@ export function PremiumCTA() {
             className="mt-4 text-2xl sm:text-3xl font-bold tracking-tight"
             style={{ letterSpacing: "-0.4px" }}
           >
-            Get the insider information
+            Get Insider Intel
           </h2>
           <p className="mt-2 text-soft max-w-xl">
             Unlock the screener, real-time alerts, full insider rankings, and AI-generated market

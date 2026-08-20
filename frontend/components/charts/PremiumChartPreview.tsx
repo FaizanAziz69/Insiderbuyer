@@ -266,7 +266,7 @@ export function PremiumChartPreview({
                 >
                   <Lock className="h-5 w-5 text-white" />
                 </div>
-                <h2 className="text-xl font-bold tracking-tight mb-1.5">Get the insider information</h2>
+                <h2 className="text-xl font-bold tracking-tight mb-1.5">Get Insider Intel</h2>
                 <p className="text-soft text-sm mb-4">{description}</p>
                 <Link href="/premium" className="btn-primary">
                   Unlock Insider Access

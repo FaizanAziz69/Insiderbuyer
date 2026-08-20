@@ -107,7 +107,7 @@ function HeroSide() {
         className="mt-4 text-[25px] font-semibold leading-[1.08] tracking-tight sm:text-[34px]"
         style={{ letterSpacing: "-0.02em" }}
       >
-        Get the insider information with{" "}
+        Get Insider Intel with{" "}
         <span
           style={{
             background: ACCENT_GRADIENT,
