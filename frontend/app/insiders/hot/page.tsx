@@ -246,7 +246,7 @@ export default function InsiderHotStocksPage() {
     },
     {
       key: "perfVsCost",
-      label: "ROI",
+      label: "Insider ROI",
       pro: true,
       info: "How far the live price sits above or below the insiders' 90-day average purchase price (volume-weighted). Positive means the stock trades above what insiders paid; negative means you can buy below their cost.",
       align: "right",

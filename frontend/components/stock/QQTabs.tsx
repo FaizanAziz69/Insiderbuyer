@@ -260,7 +260,9 @@ export function ScoreCardQQ({ ticker, iqs, dataCompleteness, reasoning }: { tick
   if (iqs != null && !unlocked) {
     return (
       <Card icon={<Gauge className="h-4 w-4" />} title={`${ticker} Insider Score`} subtitle="Our composite score: insider buying, sector, volume, tone & dilution">
-        <div className="flex items-center gap-5 py-4">
+        {/* flex-1: the grid stretches this card to its row partner's height,
+            so center the block instead of leaving dead space below it. */}
+        <div className="flex flex-1 items-center gap-5 py-4">
           <div
             className="relative h-24 w-24 rounded-xl flex items-center justify-center text-[34px] font-extrabold flex-shrink-0"
             style={{ background: "var(--bg-3)", border: "2px solid var(--border)" }}
@@ -284,7 +286,7 @@ export function ScoreCardQQ({ ticker, iqs, dataCompleteness, reasoning }: { tick
       {iqs == null ? (
         <Empty text={`No Insider Score for ${ticker} yet — no open-market insider buys or sells in the last 90 days.`} />
       ) : (
-        <div className="flex items-center gap-5 py-4">
+        <div className="flex flex-1 items-center gap-5 py-4">
           <div className="h-24 w-24 rounded-xl flex items-center justify-center text-[34px] font-extrabold flex-shrink-0"
             style={{ background: "color-mix(in srgb, currentColor 12%, transparent)", color, border: `2px solid ${color}` }}>
             {Math.round(iqs)}

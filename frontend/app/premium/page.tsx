@@ -175,6 +175,56 @@ const CSS = String.raw`
 .sub3 .sticky-bar .st{font-size:12.5px;line-height:1.35;color:var(--text-soft)}
 .sub3 .sticky-bar .st b{color:var(--good)}
 .sub3 .sticky-bar .btn{font-size:14px;padding:11px 18px;white-space:nowrap}
+/* ── Mobile compaction (client 2026-08-20: match TipRanks-plans density —
+     every size on the page was desktop-scale on phones) ── */
+@media (max-width:640px){
+  .sub3 .wrap{padding:0 16px}
+  .sub3 section{padding:28px 0}
+  .sub3 h2{font-size:21px}
+  .sub3 .kicker{font-size:10.5px;margin-bottom:8px}
+  .sub3 .strip{font-size:11px;padding:7px 10px;letter-spacing:.05em}
+  .sub3 .hero{padding:22px 0 30px}
+  .sub3 .eyebrow{font-size:10px;padding:4px 10px;margin-bottom:14px;letter-spacing:.14em}
+  .sub3 .hero h1{font-size:25px;line-height:1.2;padding:0 4px}
+  .sub3 .hero .sub{font-size:14px;margin-top:12px}
+  .sub3 .coffee{margin-top:16px;padding:10px 14px;gap:8px}
+  .sub3 .coffee .c1{font-size:12px}
+  .sub3 .coffee .c2{font-size:20px}
+  /* the three proof stats sit as one even row instead of a 2+1 wrap */
+  .sub3 .social{gap:8px;margin-top:18px;flex-wrap:nowrap}
+  .sub3 .snum{flex:1 1 0;min-width:0}
+  .sub3 .snum b{font-size:16px}
+  .sub3 .snum span{font-size:9px;letter-spacing:.05em}
+  .sub3 .hero .btn{margin-top:20px}
+  .sub3 .btn{font-size:15px;padding:13px 20px}
+  .sub3 .under{font-size:11px;margin-top:10px}
+  .sub3 .iq-num{font-size:52px}
+  .sub3 .factors{gap:8px;margin-top:16px}
+  .sub3 .sq{min-height:0;padding:14px 12px}
+  .sub3 .sq .ic{font-size:22px}
+  .sub3 .sq .st{font-size:14px;margin-top:8px}
+  .sub3 .sq .sd{font-size:12.5px}
+  .sub3 .pricebox{padding:18px 14px;margin-top:20px}
+  .sub3 .pricebox .pv{font-size:34px}
+  .sub3 .plan .amt{font-size:22px}
+  .sub3 .band .big{font-size:17px}
+  .sub3 .steps{gap:10px;margin-top:18px}
+  .sub3 .step{padding:13px}
+  .sub3 .step .st{font-size:14px}
+  .sub3 .step .sd{font-size:12.5px}
+  .sub3 .chart-card{padding:16px 10px}
+  .sub3 .row{padding:10px 12px;gap:10px}
+  .sub3 .ava{width:36px;height:36px;font-size:13px}
+  .sub3 .rname .nm{font-size:13.5px}
+  .sub3 .rstat .sr{font-size:14px}
+  .sub3 .badge{width:96px;height:96px}
+  .sub3 .badge b{font-size:25px}
+  .sub3 .guar{gap:16px}
+  .sub3 .sticky-bar{padding:8px 10px;gap:10px}
+  .sub3 .sticky-bar .st{font-size:11px}
+  .sub3 .sticky-bar .btn{font-size:13px;padding:10px 14px}
+  .sub3 .legal{padding-bottom:110px}
+}
 @media (prefers-reduced-motion:reduce){.sub3 *{transition:none!important}}
 /* ── Dark mode (client 2026-08-18: "subscribe page on dark mode with dark
       color", light mode is already signed off). The page carries its own
