@@ -598,7 +598,10 @@ export default function CompanyPage({
             />
 
             {/* Reference-layout 2-column card grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+            {/* civic-grid: cards render conditionally, so an odd count leaves
+                the last card beside an empty white cell (client 2026-08-20,
+                DGICA) — globals.css spans the last odd child full-width. */}
+            <div className="civic-grid grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
               <CongressTradingCard ticker={sym} />
               <WhaleActivityCard ticker={sym} companyName={data.company.name} />
               <InsiderNetSharesCard ticker={sym} transactions={data.transactions as never} />

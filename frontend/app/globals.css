@@ -1692,3 +1692,11 @@ h1, h2, h3 {
   text-underline-offset: 4px;
 }
 .sa-head .sa-dothref:hover { text-decoration-color: var(--sa-text); }
+
+/* Company-page civic card grid: cards render conditionally, so an odd count
+   would leave the last card beside an empty white cell — span it instead. */
+@media (min-width: 1024px) {
+  .civic-grid > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
