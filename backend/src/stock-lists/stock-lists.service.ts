@@ -1142,6 +1142,13 @@ export class StockListsService {
       const byTicker = new Map(rankRows.map((r) => [r.ticker, r]));
       const live = await this.fetchLiveQuotes(rows.map((r) => r.ticker));
       const withIqs = rows.map((h) => {
+        // Form 4-sourced personal positions carry no reported value (the
+        // filing has only shares) — price them from the live quote so they
+        // rank in the same dollars as the 13F lines.
+        const lv = live.get((h.ticker || '').toUpperCase());
+        const dollarValue =
+          h.dollarValue ||
+          (h.sharesHeld && lv?.price ? Math.round(h.sharesHeld * lv.price) : 0);
         const rk = byTicker.get(h.ticker);
         // 13F discloses no true cost basis, so we approximate avg cost as the
         // reported position value per share (value ÷ shares from the filing).
@@ -1152,12 +1159,24 @@ export class StockListsService {
             : null;
         return {
           ...h,
+          dollarValue,
           iqs: rk?.iqs ?? undefined,
           lastBuyDate: rk?.lastBuyDate ?? h.lastReported ?? null,
           avgCost: rk?.avgCost ?? reportedPerShare,
         };
       });
-      const annotated = this.enrichRows(withIqs, live) as any[];
+      // Rank by portfolio weight, highest first (client 2026-08-19), and say
+      // what each position IS as a share of the disclosed book.
+      withIqs.sort((a, b) => (b.dollarValue || 0) - (a.dollarValue || 0));
+      const totalValue = withIqs.reduce((s, h) => s + (h.dollarValue || 0), 0);
+      const weighted = withIqs.map((h) => ({
+        ...h,
+        weightPct:
+          totalValue > 0 && h.dollarValue
+            ? +((h.dollarValue / totalValue) * 100).toFixed(2)
+            : null,
+      }));
+      const annotated = this.enrichRows(weighted, live) as any[];
       return { slug, ...meta, total: annotated.length, rows: annotated };
     }
 

@@ -579,7 +579,7 @@ export const STOCK_LIST_META: Record<
   'eric-sprott': {
     title: "Eric Sprott's Precious Metals Book",
     description:
-      "Selected precious-metals positions held across Sprott Inc.'s funds and Eric Sprott's personal accounts — primarily senior and mid-tier gold and silver miners.",
+      "The full US portfolio disclosed in SEC filings: every position from Sprott Inc.'s latest 13F plus Eric Sprott's personal Form 4 stakes (held via 2176423 Ontario Ltd), ranked by portfolio weight.",
     kind: 'persona',
   },
   'trump-family': {

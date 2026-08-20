@@ -185,7 +185,15 @@ export default function StockListDetailPage({
           <StandardStockListTable
             rows={toStandardRows(rows)}
             countdownRank={isBlueSky}
-            initialSort={isBlueSky ? { key: "upside", dir: "asc" } : undefined}
+            initialSort={
+              isBlueSky
+                ? { key: "upside", dir: "asc" }
+                : // Holdings-backed persona lists open ranked by portfolio
+                  // weight, highest first (client 2026-08-19).
+                  rows.some((r) => (r as any).weightPct != null)
+                  ? { key: "weight", dir: "desc" }
+                  : undefined
+            }
             initialFilters={capDefault ? { marketCap: capDefault } : undefined}
             gate={
               isBlueSky

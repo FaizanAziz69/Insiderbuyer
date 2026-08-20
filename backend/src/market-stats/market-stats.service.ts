@@ -3001,13 +3001,41 @@ export class MarketStatsService {
         const hasTarget =
           !!target && (target.targetConsensus != null || target.targetMedian != null);
         if (gTotal > 0 || hasTarget) {
+          let tMean = target?.targetConsensus ?? null;
+          let tHigh = target?.targetHigh ?? null;
+          let tLow = target?.targetLow ?? null;
+          let tMedian = target?.targetMedian ?? null;
+          // FMP knows the ratings but publishes no consensus target for
+          // thinner names — this branch used to return early with all-dash
+          // targets beside a real ratings donut (client 2026-08-19: DGICA
+          // showed "2 analysts" and no numbers). Yahoo's financialData still
+          // carries mean/high/low for these — the same source the
+          // analyst-ratings list uses — so fill from there, then from the
+          // bulk price-target cache as a last resort.
+          if (tMean == null && tMedian == null) {
+            try {
+              const y = await this.fetchModules(symbol, 'financialData');
+              const fd = y?.financialData ?? {};
+              const num = (v: any) => (typeof v === 'number' ? v : (v?.raw ?? null));
+              tMean = num(fd.targetMeanPrice);
+              tHigh = num(fd.targetHighPrice);
+              tLow = num(fd.targetLowPrice);
+              tMedian = num(fd.targetMedianPrice);
+            } catch {
+              /* Yahoo down — try the cache below */
+            }
+            if (tMean == null && tMedian == null) {
+              const f = (await this.fundamentals?.lookup([symbol]))?.get(symbol);
+              if (f?.ptAvgTarget) tMean = f.ptAvgTarget;
+            }
+          }
           const data = {
             symbol,
             lastPrice: Number(quote?.price) || null,
-            targetMean: target?.targetConsensus ?? null,
-            targetHigh: target?.targetHigh ?? null,
-            targetLow: target?.targetLow ?? null,
-            targetMedian: target?.targetMedian ?? null,
+            targetMean: tMean,
+            targetHigh: tHigh,
+            targetLow: tLow,
+            targetMedian: tMedian,
             // FMP publishes no "number of analyst opinions" separate from the
             // rating breakdown, so the breakdown total IS the count — the same
             // substitution the existing FMP fallback already made.

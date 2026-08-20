@@ -19,6 +19,20 @@ const PERSONA_CIK: Record<string, string> = {
   'eric-sprott': '0001512920', // Sprott Inc (current 13F filer)
 };
 
+/**
+ * Individual insiders don't file 13Fs — their US positions are disclosed on
+ * their own Form 4s, whose newest filing per issuer carries the running
+ * balance (sharesOwnedFollowingTransaction). Merged ON TOP of the 13F rows:
+ * this is how Eric Sprott's personal 37M-share HYMC stake (held via 2176423
+ * Ontario Ltd, absent from Sprott Inc's 13F) reaches his list — the client
+ * flagged it missing 2026-08-19.
+ */
+const PERSONA_FORM4_CIK: Record<string, string> = {
+  // Eric Sprott personally; 2176423 Ontario Ltd (CIK 1925668) co-files the
+  // exact same Form 4s, so one CIK covers both reporting persons.
+  'eric-sprott': '0001491714',
+};
+
 /** Corporate-form tokens dropped from both sides before name matching. */
 const DROP = new Set([
   'INC', 'INCORPORATED', 'CORP', 'CORPORATION', 'CO', 'COMPANY', 'COS',
@@ -101,27 +115,130 @@ export class ThirteenFService {
   }
 
   hasCik(slug: string): boolean {
-    return !!PERSONA_CIK[slug];
+    return !!PERSONA_CIK[slug] || !!PERSONA_FORM4_CIK[slug];
   }
 
-  /** Latest reported 13F holdings for a persona, or null if not a filer /
-   *  fetch failed (caller falls back to the curated list). */
+  /** Latest reported holdings for a persona — the full 13F book plus, where
+   *  the persona is also an individual Form 4 filer, their personal insider
+   *  positions (which win over a fund-side 13F line in the same name). Null
+   *  if not a filer / fetch failed (caller falls back to the curated list). */
   async getHoldings(slug: string): Promise<PersonaHolding[] | null> {
     const cik = PERSONA_CIK[slug];
-    if (!cik) return null;
+    const f4cik = PERSONA_FORM4_CIK[slug];
+    if (!cik && !f4cik) return null;
     const cached = this.cache.get(slug);
     if (cached && Date.now() - cached.ts < this.TTL_MS) return cached.rows;
     try {
-      const rows = await this.fetchLatest(cik);
+      let thirteenF: PersonaHolding[] = [];
+      if (cik) {
+        try {
+          thirteenF = await this.fetchLatest(cik);
+        } catch (e: any) {
+          this.log.warn(`13F fetch failed for ${slug}: ${e?.message || e}`);
+        }
+      }
+      let personal: PersonaHolding[] = [];
+      if (f4cik) {
+        try {
+          personal = await this.fetchForm4Holdings(f4cik);
+        } catch (e: any) {
+          this.log.warn(`Form 4 fetch failed for ${slug}: ${e?.message || e}`);
+        }
+      }
+      const personalTickers = new Set(personal.map((p) => p.ticker));
+      const rows = [
+        ...personal,
+        ...thirteenF.filter((r) => !personalTickers.has(r.ticker)),
+      ];
       if (rows.length) {
         this.cache.set(slug, { ts: Date.now(), rows });
         return rows;
       }
       return null;
     } catch (e: any) {
-      this.log.warn(`13F fetch failed for ${slug}: ${e?.message || e}`);
+      this.log.warn(`holdings fetch failed for ${slug}: ${e?.message || e}`);
       return null;
     }
+  }
+
+  /**
+   * An individual filer's current US positions from their own Form 4s: walk
+   * the recent filings newest-first, take the FIRST filing seen per issuer,
+   * and read the final post-transaction balance per ownership bucket (direct
+   * vs each indirect nature — later lines in a filing overwrite earlier ones,
+   * then the buckets sum). dollarValue is left 0 — Form 4 carries no position
+   * value, so stock-lists prices it from the live quote.
+   */
+  private async fetchForm4Holdings(cik: string): Promise<PersonaHolding[]> {
+    const cik10 = cik.padStart(10, '0');
+    const cikNum = String(Number(cik));
+    const sub = await this.http.get(
+      `https://data.sec.gov/submissions/CIK${cik10}.json`,
+    );
+    const recent = sub.data?.filings?.recent;
+    if (!recent) return [];
+
+    const seen = new Set<string>();
+    const out: PersonaHolding[] = [];
+    let opened = 0;
+    for (let i = 0; i < recent.form.length && opened < 40; i++) {
+      const form = String(recent.form[i]);
+      if (form !== '4' && form !== '4/A') continue;
+      opened++;
+      const accnd = String(recent.accessionNumber[i]).replace(/-/g, '');
+      const filed = String(recent.filingDate[i]);
+      try {
+        const folder = `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accnd}`;
+        const list = await this.http.get(`${folder}/index.json`);
+        const items: any[] = list.data?.directory?.item || [];
+        const doc = items.find(
+          (it) => /\.xml$/i.test(it.name) && !/primary/i.test(it.name),
+        );
+        if (!doc) continue;
+        const xmlRes = await this.http.get(`${folder}/${doc.name}`, {
+          responseType: 'text',
+        });
+        const od = this.xml.parse(xmlRes.data)?.ownershipDocument;
+        if (!od) continue;
+        const ticker = String(od.issuer?.issuerTradingSymbol || '')
+          .trim()
+          .toUpperCase();
+        if (!ticker || ticker === 'NONE' || seen.has(ticker)) continue;
+        seen.add(ticker);
+
+        const table = od.nonDerivativeTable;
+        const asArray = (v: any) => (Array.isArray(v) ? v : v ? [v] : []);
+        const entries = [
+          ...asArray(table?.nonDerivativeTransaction),
+          ...asArray(table?.nonDerivativeHolding),
+        ];
+        const byNature = new Map<string, number>();
+        for (const e of entries) {
+          const raw =
+            e?.postTransactionAmounts?.sharesOwnedFollowingTransaction;
+          const shares = Number(raw?.value ?? raw) || 0;
+          const diRaw = e?.ownershipNature?.directOrIndirectOwnership;
+          const natRaw = e?.ownershipNature?.natureOfOwnership;
+          const di = String(diRaw?.value ?? diRaw ?? 'D');
+          const nat = String(natRaw?.value ?? natRaw ?? '');
+          if (shares > 0) byNature.set(`${di}|${nat}`, shares);
+        }
+        const total = Array.from(byNature.values()).reduce((a, b) => a + b, 0);
+        if (total > 0) {
+          out.push({
+            ticker,
+            name: titleCase(String(od.issuer?.issuerName || ticker)),
+            sector: '',
+            sharesHeld: total,
+            dollarValue: 0,
+            lastReported: filed,
+          });
+        }
+      } catch {
+        continue; // one unreadable filing must not sink the rest
+      }
+    }
+    return out;
   }
 
   private async fetchLatest(cik: string): Promise<PersonaHolding[]> {
@@ -187,9 +304,10 @@ export class ThirteenFService {
       }
     }
 
+    // FULL book, not a teaser — the client asked for the complete portfolio
+    // (2026-08-19). Was .slice(0, 30), which hid 80% of Sprott Inc's 268 lines.
     const rows: PersonaHolding[] = Array.from(byKey.values())
       .sort((a, b) => b.value - a.value)
-      .slice(0, 30)
       .map((h) => ({
         ticker: h.ticker,
         name: h.name,
@@ -241,9 +359,12 @@ export class ThirteenFService {
     const exact = index.get(key);
     if (exact) return exact;
     // Fallback: progressively trim trailing tokens (handles extra descriptors
-    // like "DEL", "MD", "USA" the 13F sometimes appends).
+    // like "DEL", "MD", "USA" the 13F sometimes appends). Never trim down to a
+    // single token: "SPROTT FOCUS TR" and "SPROTT ASSET MANAGEMENT LP" both
+    // collapsed to "SPROTT" and inflated the SII line by $200M+ — distinct
+    // issuers sharing a first word must fail to resolve, not merge.
     const toks = key.split(' ');
-    for (let n = toks.length - 1; n >= 1; n--) {
+    for (let n = toks.length - 1; n >= 2; n--) {
       const hit = index.get(toks.slice(0, n).join(' '));
       if (hit) return hit;
     }

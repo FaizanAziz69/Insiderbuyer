@@ -31,6 +31,11 @@ export interface StandardRow {
   perfVsAvgCostPct?: number | null;
   insiderOwnershipPct?: number | null;
   insiderOwnershipChangePct?: number | null;
+  /** Portfolio-holdings fields — present only on persona lists backed by
+   *  real filings (13F / Form 4). */
+  sharesHeld?: number | null;
+  dollarValue?: number | null;
+  weightPct?: number | null;
   lastBuyDate?: string | null;
   scoreUpdatedAt?: string | null;
   marketCap?: number | null;
@@ -83,6 +88,11 @@ export const STOCK_LIST_COLUMN_ORDER = [
   "ticker", // Company name
   "upside", // Analyst price target
   "price",
+  // Portfolio-holdings columns — carry data only on persona lists backed by
+  // real filings (13F / Form 4); hidden everywhere else via hasAny.
+  "weight", // % of the disclosed portfolio (client 2026-08-19: rank by this)
+  "sharesHeld",
+  "heldValue",
   "iqs", // Insider Score
   "roi", // not in the client's list; confirmed to stay, in this slot
   "why", // not in the client's list; confirmed to stay, in this slot
@@ -280,6 +290,46 @@ export function StandardStockListTable({
         );
       },
     },
+    weight: {
+      key: "weight",
+      label: "Weight",
+      align: "right",
+      info: "This position's share of the investor's total disclosed portfolio value.",
+      sortValue: (r) => r.weightPct ?? null,
+      render: (r) =>
+        r.weightPct == null ? (
+          <span className="text-faint text-[12px]">—</span>
+        ) : (
+          <span className="tabular text-[14px] font-bold">{r.weightPct.toFixed(2)}%</span>
+        ),
+    },
+    sharesHeld: {
+      key: "sharesHeld",
+      label: "Shares Held",
+      align: "right",
+      sortValue: (r) => r.sharesHeld ?? null,
+      render: (r) =>
+        r.sharesHeld == null ? (
+          <span className="text-faint text-[12px]">—</span>
+        ) : (
+          <span className="tabular text-[13.5px] font-semibold">
+            {Number(r.sharesHeld).toLocaleString()}
+          </span>
+        ),
+    },
+    heldValue: {
+      key: "heldValue",
+      label: "Value",
+      align: "right",
+      info: "Position value — as reported on the latest 13F, or shares × live price for positions disclosed on Form 4.",
+      sortValue: (r) => r.dollarValue ?? null,
+      render: (r) =>
+        !r.dollarValue ? (
+          <span className="text-faint text-[12px]">—</span>
+        ) : (
+          <span className="tabular text-[13.5px] font-bold">{formatCurrency(r.dollarValue)}</span>
+        ),
+    },
     iqs: {
       key: "iqs",
       label: "Insider Score",
@@ -464,6 +514,9 @@ export function StandardStockListTable({
     ),
     lastUpdated: rows.some((r) => r.lastBuyDate || r.scoreUpdatedAt),
     pe: rows.some((r) => pe(r) != null),
+    weight: rows.some((r) => r.weightPct != null),
+    sharesHeld: rows.some((r) => r.sharesHeld != null),
+    heldValue: rows.some((r) => !!r.dollarValue),
     spark7d: rows.length > 0,
   } as Record<string, boolean>;
   const visible = columns.filter((c) => {
