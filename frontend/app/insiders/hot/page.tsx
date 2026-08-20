@@ -363,8 +363,43 @@ export default function InsiderHotStocksPage() {
         </span>
       ),
     },
-    // Insider Ownership column removed 2026-08-20 (client: "just remove for
-    // now") — data still flows on the row, only the column is gone.
+    {
+      key: "ownership",
+      label: "Insider Ownership",
+      pro: true,
+      info: "Share of the company owned by its insiders (latest reported holdings ÷ shares outstanding), and how that stake moved over the last 90 days.",
+      align: "right",
+      sortValue: (r) => r.insiderOwnershipPct ?? -1,
+      // Plain language (client 2026-08-20: "nobody knows what those numbers
+      // and letters mean" — the old "+0.19pp 90d" is gone): headline % plus
+      // "up from X%" computed from the 90-day change.
+      render: (r) => {
+        if (r.insiderOwnershipPct == null)
+          return <span className="text-faint text-[12px]">—</span>;
+        const chg = r.insiderOwnershipChangePct;
+        const prev = chg != null ? Math.max(0, r.insiderOwnershipPct - chg) : null;
+        return (
+          <span className="inline-flex flex-col items-end leading-tight">
+            <span className="tabular text-[13.5px] font-bold">
+              {r.insiderOwnershipPct.toFixed(1)}% of company
+            </span>
+            {prev != null &&
+              (Math.abs(chg!) < 0.005 ? (
+                <span className="tabular text-[11px] font-semibold text-mute">
+                  unchanged past 90 days
+                </span>
+              ) : (
+                <span
+                  className="tabular text-[11px] font-semibold"
+                  style={{ color: chg! >= 0 ? "var(--good)" : "var(--bad)" }}
+                >
+                  {chg! >= 0 ? "up" : "down"} from {prev.toFixed(1)}% in 90 days
+                </span>
+              ))}
+          </span>
+        );
+      },
+    },
     {
       key: "spark7d",
       label: "7D",

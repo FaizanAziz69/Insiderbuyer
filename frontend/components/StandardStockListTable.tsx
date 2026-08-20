@@ -102,7 +102,7 @@ export const STOCK_LIST_COLUMN_ORDER = [
   "marketCap",
   "sector",
   "pe", // PE Ratio
-  // "ownership" removed 2026-08-20 (client: "just remove for now")
+  "ownership", // Insider Ownership — plain-language wording (client 2026-08-20)
   "spark7d", // 7D chart
 ] as const;
 
@@ -120,7 +120,7 @@ const Ind = ({ label, color }: { label: string; color: string }) => (
 /** The columns whose values all come from our Form 4 pipeline — when every one
  *  of them is empty across the whole list, the list simply has no insider
  *  activity behind it and the table says so once instead of silently. */
-const INSIDER_COLUMN_KEYS = ["iqs", "roi", "why", "bought", "indicators", "lastUpdated"];
+const INSIDER_COLUMN_KEYS = ["iqs", "roi", "why", "bought", "indicators", "lastUpdated", "ownership"];
 
 /**
  * The "—" an insider-derived cell shows when there is nothing to show, with the
@@ -461,7 +461,43 @@ export function StandardStockListTable({
         );
       },
     },
-    // "ownership" column def removed 2026-08-20 with its key above.
+    ownership: {
+      key: "ownership",
+      label: "Insider Ownership",
+      pro: true,
+      align: "right",
+      info: "Share of the company owned by its insiders, and how that stake moved over the last 90 days.",
+      sortValue: (r) => r.insiderOwnershipPct ?? -1,
+      // Plain language (client 2026-08-20: "nobody knows what those numbers
+      // and letters mean"): headline % plus "up from X%" instead of "pp 90d".
+      render: (r) => {
+        if (r.insiderOwnershipPct == null) return <NoInsiderValue row={r} />;
+        const chg = r.insiderOwnershipChangePct;
+        const prev = chg != null ? Math.max(0, r.insiderOwnershipPct - chg) : null;
+        return (
+          <PremiumValue label="Insider Ownership">
+            <span className="inline-flex flex-col items-end leading-tight">
+              <span className="tabular text-[13.5px] font-bold">
+                {r.insiderOwnershipPct.toFixed(1)}% of company
+              </span>
+              {prev != null &&
+                (Math.abs(chg!) < 0.005 ? (
+                  <span className="tabular text-[11px] font-semibold text-mute">
+                    unchanged past 90 days
+                  </span>
+                ) : (
+                  <span
+                    className="tabular text-[11px] font-semibold"
+                    style={{ color: chg! >= 0 ? "var(--good)" : "var(--bad)" }}
+                  >
+                    {chg! >= 0 ? "up" : "down"} from {prev.toFixed(1)}% in 90 days
+                  </span>
+                ))}
+            </span>
+          </PremiumValue>
+        );
+      },
+    },
     spark7d: {
       key: "spark7d",
       label: "7D",
@@ -524,6 +560,7 @@ export function StandardStockListTable({
     ),
     lastUpdated: rows.some((r) => r.lastBuyDate || r.scoreUpdatedAt),
     pe: rows.some((r) => pe(r) != null),
+    ownership: enough((r) => r.insiderOwnershipPct != null),
     weight: rows.some((r) => r.weightPct != null),
     sharesHeld: rows.some((r) => r.sharesHeld != null),
     heldValue: rows.some((r) => !!r.dollarValue),
