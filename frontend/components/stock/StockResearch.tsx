@@ -15,6 +15,13 @@ import {
    Shared types
    ══════════════════════════════════════════════════════════════════════════ */
 type FinRow = { date: string; [k: string]: number | string | null };
+type EarningsQ = {
+  date: string;
+  epsActual: number | null;
+  epsEstimated: number | null;
+  revenueActual: number | null;
+  revenueEstimated: number | null;
+};
 interface OHLCBar {
   date: string;
   close: number;
@@ -39,6 +46,60 @@ function compact(n: number): string {
   if (a >= 1e6) return `${(n / 1e6).toFixed(0)}M`;
   if (a >= 1e3) return `${(n / 1e3).toFixed(0)}K`;
   return n.toFixed(0);
+}
+
+/** Estimate-vs-actual pairs — muted bar = consensus estimate, coloured bar =
+ *  reported (green beat / red miss). A quarter with no actual yet (the
+ *  upcoming report) shows just its estimate. */
+function PairedBarChart({
+  data,
+}: {
+  data: { label: string; est: number | null; act: number | null }[];
+}) {
+  const pts = data.filter((d) => d.est != null || d.act != null);
+  if (pts.length === 0) return <NoData />;
+  const W = Math.max(220, pts.length * 74);
+  const H = 172;
+  const pad = { t: 22, b: 46 };
+  const plotH = H - pad.t - pad.b;
+  const vals = pts.flatMap((p) => [p.est, p.act]).filter((v): v is number => v != null);
+  const max = Math.max(0, ...vals);
+  const min = Math.min(0, ...vals);
+  const span = max - min || 1;
+  const zeroY = pad.t + ((max - 0) / span) * plotH;
+  const slot = W / pts.length;
+  const bw = slot * 0.26;
+  const y = (v: number) => pad.t + ((max - v) / span) * plotH;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H }} preserveAspectRatio="none">
+      {pts.map((p, i) => {
+        const cx = (i + 0.5) * slot;
+        const bars: { v: number; x: number; fill: string; op: number }[] = [];
+        if (p.est != null) bars.push({ v: p.est, x: cx - (p.act != null ? bw + 1 : bw / 2), fill: "var(--text-mute)", op: 0.55 });
+        if (p.act != null)
+          bars.push({ v: p.act, x: cx + (p.est != null ? 1 : -bw / 2), fill: p.est != null && p.act < p.est ? BAD : GOOD, op: 0.9 });
+        return (
+          <g key={i}>
+            {bars.map((b, j) => {
+              const top = Math.min(y(b.v), zeroY);
+              const h = Math.abs(y(b.v) - zeroY);
+              return <rect key={j} x={b.x} y={top} width={bw} height={Math.max(1, h)} rx={2} fill={b.fill} opacity={b.op} />;
+            })}
+            {p.act != null ? (
+              <text x={cx} y={Math.min(y(p.act), zeroY) - 6} textAnchor="middle" fontSize="10" fontWeight="700"
+                fill={p.est != null && p.act < p.est ? BAD : GOOD}>{`$${p.act.toFixed(2)}`}</text>
+            ) : p.est != null ? (
+              <text x={cx} y={Math.min(y(p.est), zeroY) - 6} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--text-mute)">{`$${p.est.toFixed(2)}`}</text>
+            ) : null}
+            <text x={cx} y={H - 28} textAnchor="middle" fontSize="10" fill="var(--text-mute)">{p.label}</text>
+            {p.act == null && p.est != null ? (
+              <text x={cx} y={H - 16} textAnchor="middle" fontSize="9" fill="var(--text-mute)">upcoming</text>
+            ) : null}
+          </g>
+        );
+      })}
+    </svg>
+  );
 }
 
 /** Vertical bar chart — baseline at 0, positive green / negative red. */
@@ -267,6 +328,13 @@ export function FinancialsSection({ ticker }: { ticker: string }) {
     dedupingInterval: 10 * 60_000,
   });
   const f = data?.financials;
+  // Estimate-vs-actual quarters for the Earnings tab. Fetched lazily — SWR
+  // only fires once the tab is opened, because the key is null until then.
+  const { data: earnData } = useSWR<{ rows: EarningsQ[] }>(
+    tab === "Earnings" ? `${API_BASE}/market-stats/earnings-history?symbol=${encodeURIComponent(ticker)}` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
+  );
 
   if (isLoading) return <div className="card p-5 h-80 shimmer rounded-lg" />;
   if (!f || (!f.income.length && !f.balance.length && !f.cashflow.length))
@@ -415,8 +483,28 @@ export function FinancialsSection({ ticker }: { ticker: string }) {
           </div>
         )}
 
-        {tab === "Earnings" && (
+        {tab === "Earnings" && (() => {
+          // Last 8 reported quarters plus any upcoming estimates.
+          const quarters = (earnData?.rows ?? []).filter((r) => r.epsActual != null).slice(-8);
+          const upcoming = (earnData?.rows ?? []).filter(
+            (r) => r.epsActual == null && r.epsEstimated != null && r.date > (quarters[quarters.length - 1]?.date ?? ""),
+          ).slice(0, 1);
+          const qLabel = (d: string) => {
+            const m = Number(String(d).slice(5, 7));
+            return `Q${Math.ceil(m / 3)} '${String(d).slice(2, 4)}`;
+          };
+          const eps = [...quarters, ...upcoming].map((r) => ({ label: qLabel(r.date), est: r.epsEstimated, act: r.epsActual }));
+          return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2">
+              <ChartTitle>EPS — Analyst Estimate vs Actual (quarterly)</ChartTitle>
+              <PairedBarChart data={eps} />
+              <div className="flex gap-4 mt-1 text-[11px] text-mute">
+                <span className="inline-flex items-center gap-1"><Dot c="var(--text-mute)" /> Consensus estimate</span>
+                <span className="inline-flex items-center gap-1"><Dot c={GOOD} /> Actual (beat)</span>
+                <span className="inline-flex items-center gap-1"><Dot c={BAD} /> Actual (miss)</span>
+              </div>
+            </div>
             <div>
               <ChartTitle>Diluted EPS (Actual)</ChartTitle>
               <BarChart data={series(income, "dilutedEPS")} unit="eps" />
@@ -425,12 +513,9 @@ export function FinancialsSection({ ticker }: { ticker: string }) {
               <ChartTitle>Basic EPS (Actual)</ChartTitle>
               <BarChart data={series(income, "basicEPS")} unit="eps" />
             </div>
-            <p className="md:col-span-2 text-[12px] text-faint">
-              Estimated EPS (analyst consensus forecast) is not available from our current
-              data source, so only reported (actual) EPS is shown.
-            </p>
           </div>
-        )}
+          );
+        })()}
       </div>
     </section>
   );

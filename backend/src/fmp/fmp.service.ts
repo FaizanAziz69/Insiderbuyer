@@ -1629,6 +1629,38 @@ export class FmpService {
     });
   }
 
+  /** Quarterly earnings scorecard: analyst-consensus estimate beside the
+   *  reported figure, plus the estimate for the upcoming quarter (epsActual
+   *  null until it reports). Oldest-first so charts read left to right. The
+   *  stock page's Earnings tab renders this — until 2026-08-21 it apologised
+   *  that "estimated EPS is not available from our current data source",
+   *  which stopped being true the day the FMP migration landed. */
+  async getEarningsHistory(symbolRaw: string): Promise<
+    {
+      date: string;
+      epsActual: number | null;
+      epsEstimated: number | null;
+      revenueActual: number | null;
+      revenueEstimated: number | null;
+    }[]
+  > {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return [];
+    return this.statsBit(`earnhist:${symbol}`, async () => {
+      const rows = await this.get('earnings', { symbol, limit: 40 });
+      return (Array.isArray(rows) ? rows : [])
+        .map((r: any) => ({
+          date: String(r?.date || '').slice(0, 10),
+          epsActual: this.num(r?.epsActual),
+          epsEstimated: this.num(r?.epsEstimated),
+          revenueActual: this.num(r?.revenueActual),
+          revenueEstimated: this.num(r?.revenueEstimated),
+        }))
+        .filter((r) => r.date && (r.epsActual != null || r.epsEstimated != null))
+        .sort((a, b) => a.date.localeCompare(b.date));
+    });
+  }
+
   /** Consensus EPS for the NEXT fiscal year — the denominator of forward P/E,
    *  which FMP publishes no ready-made ratio for. Null when uncovered or when
    *  the estimate is a loss (a negative forward P/E is not a multiple). */

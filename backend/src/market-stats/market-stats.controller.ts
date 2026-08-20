@@ -240,6 +240,12 @@ export class MarketStatsController {
     return this.svc.getForecast(symbol);
   }
 
+  @Get('earnings-history')
+  async earningsHistory(@Query('symbol') symbol?: string) {
+    if (!symbol) return { rows: [] };
+    return this.svc.getEarningsHistory(symbol);
+  }
+
   @Get('etf-holders')
   async etfHolders(@Query('symbol') symbol?: string) {
     if (!symbol) return { rows: [] };

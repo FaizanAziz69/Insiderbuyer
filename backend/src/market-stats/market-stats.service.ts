@@ -2978,6 +2978,20 @@ export class MarketStatsService {
   }
 
   /** Analyst forecast block: price targets + recommendation trend counts. */
+  /** Quarterly EPS/revenue: consensus estimate vs reported, FMP-only (there
+   *  is no Yahoo fall-through — the old source genuinely lacked this, which
+   *  is why the page used to disclaim it). */
+  async getEarningsHistory(symbolRaw: string): Promise<{ rows: any[] }> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    const cacheKey = `earnhist:${symbol}`;
+    const c = this.detailCache.get(cacheKey);
+    if (c && Date.now() - c.ts < this.DETAIL_TTL_MS) return c.data;
+    const rows = this.fmp?.enabled ? await this.fmp.getEarningsHistory(symbol) : [];
+    const data = { rows };
+    this.detailCache.set(cacheKey, { ts: Date.now(), data });
+    return data;
+  }
+
   async getForecast(symbolRaw: string): Promise<any> {
     const symbol = (symbolRaw || '').toUpperCase();
     const cacheKey = `fcast:${symbol}`;
