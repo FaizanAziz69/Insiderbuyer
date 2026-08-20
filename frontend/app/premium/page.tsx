@@ -183,9 +183,11 @@ const CSS = String.raw`
   .sub3 h2{font-size:21px}
   .sub3 .kicker{font-size:10.5px;margin-bottom:8px}
   .sub3 .strip{font-size:11px;padding:7px 10px;letter-spacing:.05em}
-  .sub3 .hero{padding:22px 0 30px}
+  /* .hero's padding shorthand overrides .wrap's side padding (same element,
+     later rule) — that's why the h1 sat edge-to-edge; restore sides here. */
+  .sub3 .hero{padding:22px 16px 30px}
   .sub3 .eyebrow{font-size:10px;padding:4px 10px;margin-bottom:14px;letter-spacing:.14em}
-  .sub3 .hero h1{font-size:25px;line-height:1.2;padding:0 4px}
+  .sub3 .hero h1{font-size:25px;line-height:1.2}
   .sub3 .hero .sub{font-size:14px;margin-top:12px}
   .sub3 .coffee{margin-top:16px;padding:10px 14px;gap:8px}
   .sub3 .coffee .c1{font-size:12px}
