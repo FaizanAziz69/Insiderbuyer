@@ -474,14 +474,17 @@ export function StandardStockListTable({
         if (r.insiderOwnershipPct == null) return <NoInsiderValue row={r} />;
         const chg = r.insiderOwnershipChangePct;
         const prev = chg != null ? Math.max(0, r.insiderOwnershipPct - chg) : null;
+        // Small stakes need 2 decimals or "0.0% of company" reads absurd.
+        const fmt = (v: number) => (v >= 1 ? v.toFixed(1) : v.toFixed(2));
+        const same = prev != null && fmt(prev) === fmt(r.insiderOwnershipPct);
         return (
           <PremiumValue label="Insider Ownership">
             <span className="inline-flex flex-col items-end leading-tight">
               <span className="tabular text-[13.5px] font-bold">
-                {r.insiderOwnershipPct.toFixed(1)}% of company
+                {fmt(r.insiderOwnershipPct)}% of company
               </span>
               {prev != null &&
-                (Math.abs(chg!) < 0.005 ? (
+                (same ? (
                   <span className="tabular text-[11px] font-semibold text-mute">
                     unchanged past 90 days
                   </span>
@@ -490,7 +493,7 @@ export function StandardStockListTable({
                     className="tabular text-[11px] font-semibold"
                     style={{ color: chg! >= 0 ? "var(--good)" : "var(--bad)" }}
                   >
-                    {chg! >= 0 ? "up" : "down"} from {prev.toFixed(1)}% in 90 days
+                    {chg! >= 0 ? "up" : "down"} from {fmt(prev)}% in 90 days
                   </span>
                 ))}
             </span>
