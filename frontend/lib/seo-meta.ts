@@ -164,10 +164,26 @@ export function pageMetadata(
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, siteName: "Insider Buying" },
-    twitter: { card: "summary", title, description },
+    openGraph: {
+      title,
+      description,
+      url,
+      siteName: "Insider Buying",
+      type: "website",
+      images: [OG_IMAGE],
+    },
+    twitter: { card: "summary_large_image", title, description, images: [OG_IMAGE.url] },
   };
 }
+
+/** Branded link-preview card (client 2026-08-22: shared links must show the
+ *  logo). Absolute URL — WhatsApp/Slack/Twitter don't resolve relative ones. */
+export const OG_IMAGE = {
+  url: `${SITE}/og-image.png`,
+  width: 1200,
+  height: 859,
+  alt: "Insider Buying",
+};
 
 /** Turn a URL slug into readable words for fallback titles. */
 export function humanizeSlug(slug: string): string {

@@ -6,7 +6,7 @@ import { PostHogProvider } from "@/components/PostHogProvider";
 import { SitePopups } from "@/components/SitePopups";
 import { PremiumProvider } from "@/components/premium/PremiumContext";
 import { AuthProvider } from "@/lib/auth";
-import { seoEntry } from "@/lib/seo-meta";
+import { OG_IMAGE, seoEntry } from "@/lib/seo-meta";
 
 const barlow = Barlow({
   subsets: ["latin"],
@@ -41,11 +41,31 @@ const barlowCondensed = Barlow_Condensed({
 // site-wide default for routes without their own metadata.
 const home = seoEntry("/");
 
+const defaultTitle = home?.t ?? "Insider Buying — Live SEC Form 4 + Congressional Trades";
+const defaultDescription =
+  home?.d ??
+  "Track insider buys and sells in real-time. SEC Form 4 analysis reveals where smart money is accumulating.";
+
 export const metadata: Metadata = {
-  title: home?.t ?? "Insider Buying — Live SEC Form 4 + Congressional Trades",
-  description:
-    home?.d ??
-    "Track insider buys and sells in real-time. SEC Form 4 analysis reveals where smart money is accumulating.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuying.com"),
+  title: defaultTitle,
+  description: defaultDescription,
+  // Branded link previews (client 2026-08-22): every shared link shows the
+  // logo card. Route-level metadata (pageMetadata / article layouts) can
+  // override, but inherits this image unless it sets its own.
+  openGraph: {
+    title: defaultTitle,
+    description: defaultDescription,
+    siteName: "Insider Buying",
+    type: "website",
+    images: [OG_IMAGE],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: defaultTitle,
+    description: defaultDescription,
+    images: [OG_IMAGE.url],
+  },
 };
 
 export const viewport: Viewport = {
