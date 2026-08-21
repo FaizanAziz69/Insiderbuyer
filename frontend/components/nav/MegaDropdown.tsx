@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { ChevronDown, Lock } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NavGroup } from "@/lib/nav-config";
 
 interface Props {
@@ -11,7 +11,23 @@ interface Props {
 export function MegaDropdown({ group }: Props) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const closeTimer = useRef<number | null>(null);
+  const [shift, setShift] = useState(0);
+
+  // The panel sizes to its content so single-line labels can make it wider
+  // than the space right of the trigger — pull it left just enough to stay
+  // inside the viewport.
+  useLayoutEffect(() => {
+    if (!open) {
+      setShift(0);
+      return;
+    }
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const overflow = rect.right - (window.innerWidth - 12);
+    if (overflow > 0) setShift(-Math.min(overflow, Math.max(rect.left - 12, 0)));
+  }, [open]);
 
   // Hover-open with grace period so the panel doesn't snap shut crossing the gap.
   function scheduleClose() {
@@ -143,8 +159,11 @@ export function MegaDropdown({ group }: Props) {
           onMouseLeave={scheduleClose}
         >
           <div
+            ref={panelRef}
             className="rounded-xl shadow-xl overflow-hidden"
             style={{
+              transform: shift ? `translateX(${shift}px)` : undefined,
+              width: "max-content",
               minWidth: 640,
               maxWidth: "calc(100vw - 24px)",
               background: "var(--bg-2)",
@@ -158,11 +177,11 @@ export function MegaDropdown({ group }: Props) {
             <div
               className="grid gap-6 p-5"
               style={{
-                gridTemplateColumns: `repeat(${group.columns.length}, minmax(0, 1fr))`,
+                gridTemplateColumns: `repeat(${group.columns.length}, minmax(max-content, 1fr))`,
               }}
             >
               {group.columns.map((col, ci) => (
-                <div key={col.title ?? `col-${ci}`} className="min-w-0">
+                <div key={col.title ?? `col-${ci}`}>
                   {col.title && (
                     <div className="text-[10px] uppercase tracking-[0.18em] font-bold text-accent mb-3">
                       {col.title}
@@ -184,8 +203,8 @@ export function MegaDropdown({ group }: Props) {
                                 style={{ color: "var(--accent)" }}
                               />
                             )}
-                            <div className="min-w-0">
-                              <div className="text-[13px] font-semibold leading-tight group-hover:text-accent transition flex items-center gap-1.5">
+                            <div>
+                              <div className="text-[13px] font-semibold leading-tight group-hover:text-accent transition flex items-center gap-1.5 whitespace-nowrap">
                                 {link.label}
                                 {link.badge === "premium" && (
                                   <span
