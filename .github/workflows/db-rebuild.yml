@@ -1,0 +1,122 @@
+name: DB rebuild (new Neon project)
+# One-shot rebuild pipeline after the 2026-08-21 Neon quota loss: drives the
+# 100-day SEC ingest to completion on the deployed API, then repairs company
+# facts, dilution, gov contracts, rescores everything, regenerates daily
+# content and the backtest event store. Runs entirely on GitHub runners —
+# safe to close the laptop. Stores no secrets (endpoints are open by design).
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - '.github/workflows/db-rebuild.yml'
+
+concurrency:
+  group: db-rebuild
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      API: https://insiderbuyer.vercel.app/api
+    steps:
+      - name: Drive 100-day SEC ingest to completion (300s slices, timeouts expected)
+        run: |
+          zero_runs=0
+          for i in $(seq 1 20); do
+            resp=$(curl -s -X POST "$API/ingest" \
+              -H 'Content-Type: application/json' \
+              -d '{"daysBack":100}' -m 320 || echo 'TIMEOUT')
+            echo "ingest #$i -> $(echo "$resp" | head -c 200)"
+            # A completed pass returns quickly with transactions:0 — two in a
+            # row means every filing is already processed.
+            if echo "$resp" | grep -q '"transactions":0'; then
+              zero_runs=$((zero_runs+1))
+            else
+              zero_runs=0
+            fi
+            if [ "$zero_runs" -ge 2 ]; then echo "ingest complete"; break; fi
+            sleep 5
+          done
+
+      - name: Refresh ALL company facts (cap / sector / exchange) from FMP
+        run: |
+          cursor=""
+          for i in $(seq 1 400); do
+            resp=$(curl -s -X POST "$API/ingest/repair-facts" \
+              -H 'Content-Type: application/json' \
+              -d "{\"all\":true,\"limit\":40,\"after\":\"$cursor\"}" -m 90 || echo '{}')
+            echo "repair #$i -> $resp"
+            remaining=$(echo "$resp" | grep -o '"remaining":[0-9]*' | grep -o '[0-9]*' || echo "")
+            cursor=$(echo "$resp" | grep -o '"cursor":"[^"]*"' | sed 's/"cursor":"//;s/"//' || echo "")
+            if [ "$remaining" = "0" ] || [ -z "$cursor" ]; then echo "repair complete"; break; fi
+            sleep 2
+          done
+
+      - name: Backfill dilution for all scored companies
+        run: |
+          for i in $(seq 1 200); do
+            resp=$(curl -s -X POST "$API/ingest/dilution" \
+              -H 'Content-Type: application/json' -d '{"limit":60,"onlyMissing":true}' -m 90 || echo '{}')
+            echo "dilution #$i -> $resp"
+            remaining=$(echo "$resp" | grep -o '"remaining":[0-9]*' | grep -o '[0-9]*' || echo "")
+            if [ "$remaining" = "0" ]; then echo "dilution complete"; break; fi
+            sleep 2
+          done
+
+      - name: Refresh government-contract totals (sliced loop)
+        run: |
+          cursor=""
+          for i in $(seq 1 30); do
+            resp=$(curl -s -X POST "$API/gov-contracts/refresh" \
+              -H 'Content-Type: application/json' \
+              -d "{\"limit\":6,\"after\":\"$cursor\"}" -m 90 || echo '{}')
+            echo "gov-contracts #$i -> $resp"
+            remaining=$(echo "$resp" | grep -o '"remaining":[0-9]*' | grep -o '[0-9]*' || echo "")
+            cursor=$(echo "$resp" | grep -o '"cursor":"[^"]*"' | sed 's/"cursor":"//;s/"//' || echo "")
+            if [ "$remaining" = "0" ] || [ -z "$cursor" ]; then echo "gov-contracts complete"; break; fi
+            sleep 2
+          done
+
+      - name: Recalculate ALL Insider Scores (sliced loop)
+        run: |
+          cursor=""
+          for i in $(seq 1 400); do
+            resp=$(curl -s -X POST "$API/recalculate" \
+              -H 'Content-Type: application/json' \
+              -d "{\"limit\":40,\"after\":\"$cursor\"}" -m 90 || echo '{}')
+            echo "recalc #$i -> $resp"
+            remaining=$(echo "$resp" | grep -o '"remaining":[0-9]*' | grep -o '[0-9]*' || echo "")
+            cursor=$(echo "$resp" | grep -o '"cursor":"[^"]*"' | sed 's/"cursor":"//;s/"//' || echo "")
+            if [ "$remaining" = "0" ] || [ -z "$cursor" ]; then echo "recalc complete"; break; fi
+            sleep 1
+          done
+
+      - name: Regenerate daily briefings, idea cards and topic articles
+        run: |
+          for i in 1 2; do
+            resp=$(curl -s -X POST "$API/content/refresh" -m 300 || echo '{}')
+            echo "content #$i -> $(echo "$resp" | head -c 300)"
+            sleep 5
+          done
+
+      - name: Rebuild 10-year backtest event store (sliced by symbol offset)
+        run: |
+          offset=0
+          for i in $(seq 1 60); do
+            resp=$(curl -s -X POST "$API/backtest/backfill-buys" \
+              -H 'Content-Type: application/json' \
+              -d "{\"limit\":40,\"offset\":$offset}" -m 300 || echo '{}')
+            echo "backtest #$i (offset $offset) -> $(echo "$resp" | head -c 200)"
+            next=$(echo "$resp" | grep -o '"nextOffset":[0-9]*' | grep -o '[0-9]*' || echo "")
+            if [ -z "$next" ]; then echo "backtest backfill complete"; break; fi
+            offset=$next
+            sleep 2
+          done
+
+      - name: Warm politician leaderboard cache
+        run: |
+          resp=$(curl -s -X POST "$API/congressional-trades/refresh-politicians" -m 120 || echo '{}')
+          echo "refresh-politicians -> $resp"
