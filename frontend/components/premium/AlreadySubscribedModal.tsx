@@ -130,7 +130,7 @@ export function AlreadySubscribedModal({
           </div>
 
           <p className="mt-3 text-[14px] leading-relaxed" style={{ color: "var(--text-soft)" }}>
-            You&rsquo;re already subscribed — every paywall is unlocked for you,
+            You&rsquo;re already subscribed — everything is unlocked for you,
             with real-time alerts and all special reports included. ✨
           </p>
 

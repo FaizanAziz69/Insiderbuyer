@@ -26,7 +26,7 @@ const SECTIONS: LegalSection[] = [
   },
   {
     h: "Acceptable use",
-    p: "You may not scrape, bulk-download, resell or redistribute our data, scores or content; circumvent paywalls or access controls; interfere with the operation of the service; or use it for any unlawful purpose. Automated access requires our prior written permission.",
+    p: "You may not scrape, bulk-download, resell or redistribute our data, scores or content; circumvent subscription or access controls; interfere with the operation of the service; or use it for any unlawful purpose. Automated access requires our prior written permission.",
   },
   {
     h: "Intellectual property",
