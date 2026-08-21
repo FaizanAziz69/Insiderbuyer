@@ -183,13 +183,13 @@ export default function GovernmentContractsPage() {
       <header>
         <div className="flex items-center gap-2 text-mute text-sm mb-1">
           <Landmark className="h-4 w-4" />
-          <span className="font-mono uppercase tracking-wider text-[11px]">Government & Big Contracts</span>
+          <span className="font-mono uppercase tracking-wider text-[11px]">Government Contracts</span>
         </div>
         <h1
           className="text-[32px] sm:text-[40px] font-semibold tracking-tight"
           style={{ letterSpacing: "-0.6px" }}
         >
-          Government & Big Contract Stocks
+          Government Contract Tracker
         </h1>
         <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
           Public companies winning the largest U.S. federal contracts — ranked by
