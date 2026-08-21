@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MessageSquareText } from "lucide-react";
+import { effectiveZoom } from "@/lib/zoom";
 
 /**
  * "Why this score" cell: a small icon that reveals the stock's reasoning
@@ -30,20 +31,26 @@ export function ReasoningTip({ text }: { text?: string | null }) {
     const place = () => {
       const el = triggerRef.current;
       if (!el) return;
+      // Rects/innerWidth are visual px; style values land in body's zoomed
+      // coordinate space — compute visually, write divided by the zoom.
+      const zoom = effectiveZoom();
       const r = el.getBoundingClientRect();
       const width = Math.min(320, window.innerWidth - margin * 2);
       let left = r.left + r.width / 2 - width / 2;
       left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
-      const h = tipRef.current?.offsetHeight ?? 0;
+      const h = (tipRef.current?.offsetHeight ?? 0) * zoom;
       const below = r.bottom + GAP;
-      const top =
+      const topVisual =
         h && below + h > window.innerHeight - margin
           ? Math.max(margin, r.top - GAP - h)
           : below;
+      const top = topVisual / zoom;
+      left = left / zoom;
+      const widthZ = width / zoom;
       setPos((prev) =>
-        prev && prev.top === top && prev.left === left && prev.width === width
+        prev && prev.top === top && prev.left === left && prev.width === widthZ
           ? prev
-          : { top, left, width },
+          : { top, left, width: widthZ },
       );
       raf = requestAnimationFrame(place);
     };

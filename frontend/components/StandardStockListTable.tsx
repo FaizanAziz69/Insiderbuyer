@@ -466,7 +466,7 @@ export function StandardStockListTable({
       label: "Insider Ownership",
       pro: true,
       align: "right",
-      info: "Share of the company owned by its insiders, and how that stake moved over the last 90 days.",
+      info: "Share of the company owned by its insiders, and how insider ownership moved over the last 90 days.",
       sortValue: (r) => r.insiderOwnershipPct ?? -1,
       // Plain language (client 2026-08-20: "nobody knows what those numbers
       // and letters mean"): headline % plus "up from X%" instead of "pp 90d".

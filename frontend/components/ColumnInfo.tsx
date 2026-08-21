@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Info } from "lucide-react";
+import { effectiveZoom } from "@/lib/zoom";
 
 /** Small "PRO" pill for paygated columns. */
 export function ProTag() {
@@ -23,7 +24,7 @@ export function ProTag() {
 export function HeaderInfo({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const ref = useRef<HTMLButtonElement | null>(null);
   const tipRef = useRef<HTMLDivElement | null>(null);
 
@@ -34,14 +35,18 @@ export function HeaderInfo({ text }: { text: string }) {
     const place = () => {
       const el = ref.current;
       if (!el) return;
+      // Rects and innerWidth are VISUAL px; style top/left/width land in
+      // body's zoomed coordinate space — compute visually, write divided.
+      const zoom = effectiveZoom();
       const r = el.getBoundingClientRect();
       const margin = 8;
       const w = Math.min(280, window.innerWidth - margin * 2);
       let left = r.left + r.width / 2 - w / 2;
       left = Math.max(margin, Math.min(left, window.innerWidth - w - margin));
-      const h = tipRef.current?.offsetHeight ?? 0;
+      const h = (tipRef.current?.offsetHeight ?? 0) * zoom;
       const top = r.bottom + 6 + h > window.innerHeight - margin ? Math.max(margin, r.top - 6 - h) : r.bottom + 6;
-      setPos((p) => (p && p.top === top && p.left === left ? p : { top, left }));
+      const next = { top: top / zoom, left: left / zoom, width: w / zoom };
+      setPos((p) => (p && p.top === next.top && p.left === next.left && p.width === next.width ? p : next));
       raf = requestAnimationFrame(place);
     };
     raf = requestAnimationFrame(place);
@@ -71,7 +76,10 @@ export function HeaderInfo({ text }: { text: string }) {
         onMouseLeave={() => setOpen(false)}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((v) => !v); }}
+        // Open, never toggle: on touch the tap fires mouseenter (open) and
+        // then click — a toggle would close it in the same tap. Dismissal is
+        // the outside-tap / scroll listener.
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true); }}
         className="inline-flex items-center justify-center h-4 w-4 rounded-full align-middle"
         style={{ color: "var(--text-mute)" }}
       >
@@ -86,7 +94,7 @@ export function HeaderInfo({ text }: { text: string }) {
             style={{
               top: pos.top,
               left: pos.left,
-              width: Math.min(280, typeof window !== "undefined" ? window.innerWidth - 16 : 280),
+              width: pos.width,
               background: "var(--bg-1)",
               border: "1px solid var(--border-strong)",
               boxShadow: "0 16px 40px rgba(0,0,0,0.28)",

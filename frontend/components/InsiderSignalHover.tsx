@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import useSWR from "swr";
 import { API_BASE, fetcher, formatCurrency, formatDate } from "@/lib/api";
+import { effectiveZoom } from "@/lib/zoom";
 
 interface Txn {
   insiderName: string;
@@ -56,12 +57,15 @@ export function InsiderSignalHover({
   function place() {
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
-    const W = 340;
-    const left = Math.min(Math.max(8, r.left + r.width / 2 - W / 2), window.innerWidth - W - 8);
+    // Rects are visual px; style values land in body's zoomed space — divide.
+    const zoom = effectiveZoom();
+    const W = 340 * zoom;
+    const left =
+      Math.min(Math.max(8, r.left + r.width / 2 - W / 2), window.innerWidth - W - 8) / zoom;
     setPos(
       r.top > 260
-        ? { left, bottom: window.innerHeight - r.top + 8 }
-        : { left, top: r.bottom + 8 },
+        ? { left, bottom: (window.innerHeight - r.top + 8) / zoom }
+        : { left, top: (r.bottom + 8) / zoom },
     );
   }
   function show() {

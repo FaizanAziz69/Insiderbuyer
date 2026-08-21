@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { effectiveZoom } from "@/lib/zoom";
 
 /**
  * Tiny inline 7-day price sparkline — green if up over the window, red if
@@ -37,13 +38,18 @@ export function Sparkline({
     const place = () => {
       const el = wrapRef.current;
       if (!el) return;
+      // Rects/innerWidth are VISUAL px but style top/left land in body's
+      // zoomed coordinate space (desktop body{zoom:1.1}) — compute visually,
+      // write divided, and scale the offset* measurements up to visual.
+      const zoom = effectiveZoom();
       const r = el.getBoundingClientRect();
-      const w = tipRef.current?.offsetWidth ?? 150;
-      const h = tipRef.current?.offsetHeight ?? 56;
+      const w = (tipRef.current?.offsetWidth ?? 150) * zoom;
+      const h = (tipRef.current?.offsetHeight ?? 56) * zoom;
       let left = r.left + r.width / 2 - w / 2;
       left = Math.max(margin, Math.min(left, window.innerWidth - w - margin));
       const above = r.top - GAP - h;
-      const top = above >= margin ? above : r.bottom + GAP;
+      const top = (above >= margin ? above : r.bottom + GAP) / zoom;
+      left = left / zoom;
       setPos((prev) =>
         prev && prev.top === top && prev.left === left ? prev : { top, left },
       );
@@ -102,11 +108,13 @@ export function Sparkline({
           setHoverIdx(null);
         }}
         onMouseMove={(e) => setHoverIdx(idxFromX(e.clientX))}
+        // Open, never toggle: a touch tap fires mouseenter (open) then click —
+        // toggling would close it in the same tap. Outside-tap/scroll closes.
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
           setHoverIdx(idxFromX(e.clientX));
-          setOpen((v) => !v);
+          setOpen(true);
         }}
       >
         <svg

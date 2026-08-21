@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import useSWR, { useSWRConfig } from "swr";
 import { Sparkles } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
+import { effectiveZoom } from "@/lib/zoom";
 
 /** SWR key for one ticker's explainer — shared by the hover popover and the
  *  page-level prewarm so a seeded cache makes hovers instant. */
@@ -99,6 +100,9 @@ export function AiCatalyst({
   function place() {
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
+    // Rects/innerWidth are visual px; style values land in body's zoomed
+    // coordinate space — every value written below is divided by the zoom.
+    const zoom = effectiveZoom();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     // Width: a wide, readable banner on desktop (so the AI text doesn't wrap
@@ -114,7 +118,13 @@ export function AiCatalyst({
       const left = Math.round((vw - W) / 2); // horizontally centered
       const maxH = Math.min(340, vh - 100);
       const top = Math.max(70, Math.round((vh - maxH) / 2)); // vertically centered
-      setPos({ left, top, width: W, maxHeight: maxH, centered: true });
+      setPos({
+        left: left / zoom,
+        top: top / zoom,
+        width: W / zoom,
+        maxHeight: maxH / zoom,
+        centered: true,
+      });
       return;
     }
     // Desktop: RIGHT-ANCHORED left flyout — positioned via CSS `right`
@@ -125,7 +135,12 @@ export function AiCatalyst({
     const spaceLeft = vw - right - 8; // room left of the anchor
     const W = Math.max(220, Math.min(340, spaceLeft));
     const top = Math.min(Math.max(8, r.top + r.height / 2 - 110), Math.max(8, vh - 260));
-    setPos({ right, top, width: W, maxHeight: Math.max(180, vh - top - 12) });
+    setPos({
+      right: right / zoom,
+      top: top / zoom,
+      width: W / zoom,
+      maxHeight: Math.max(180, vh - top - 12) / zoom,
+    });
   }
 
   function show() {

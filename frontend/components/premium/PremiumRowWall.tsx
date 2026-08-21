@@ -38,8 +38,9 @@ export function PremiumRowWall({
       <PaywallCta
         size="lg"
         // Client 2026-08-21: the "You're seeing X of Y ranked names" line is
-        // gone — one generic subtitle regardless of row counts.
-        subtitle={`The strongest ${label.toLowerCase()} signals sit behind this wall.`}
+        // gone — one generic subtitle regardless of row counts. Reworded same
+        // day per client: lead with "not every insider is worth following".
+        subtitle="Not every insider is worth following — unlock the signals that show which ones are."
         bullets={bullets}
       />
     </div>

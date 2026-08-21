@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { effectiveZoom } from "@/lib/zoom";
 
 interface Props {
   className?: string;
@@ -17,13 +18,16 @@ export function IqsTooltip({ className = "", children }: Props) {
 
   useEffect(() => {
     if (!open || !triggerRef.current) return;
+    // Rects/innerWidth are visual px; style values land in body's zoomed
+    // coordinate space — compute visually, write divided by the zoom.
+    const zoom = effectiveZoom();
     const r = triggerRef.current.getBoundingClientRect();
-    const TIP_W = 300;
+    const TIP_W = 300 * zoom;
     const margin = 8;
     let left = r.left + r.width / 2 - TIP_W / 2;
     left = Math.max(margin, Math.min(left, window.innerWidth - TIP_W - margin));
     const top = r.bottom + 8;
-    setPos({ top, left });
+    setPos({ top: top / zoom, left: left / zoom });
   }, [open]);
 
   return (

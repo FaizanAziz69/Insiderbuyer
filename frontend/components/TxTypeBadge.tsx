@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Info } from "lucide-react";
+import { effectiveZoom } from "@/lib/zoom";
 
 /** Plain-language explanation of each Form 4 transaction nature — the context
  *  the client asked for (an open-market buy is very different from IPO/PIPE
@@ -55,7 +56,7 @@ export function TxTypeBadge({ txType, txLabel }: { txType?: string; txLabel?: st
   const label = txLabel || info.label;
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const ref = useRef<HTMLButtonElement | null>(null);
   const tipRef = useRef<HTMLDivElement | null>(null);
 
@@ -66,14 +67,20 @@ export function TxTypeBadge({ txType, txLabel }: { txType?: string; txLabel?: st
     const place = () => {
       const el = ref.current;
       if (!el) return;
+      // Rects/innerWidth are visual px; style values land in body's zoomed
+      // coordinate space — compute visually, write divided by the zoom.
+      const zoom = effectiveZoom();
       const r = el.getBoundingClientRect();
       const margin = 8;
       const w = Math.min(300, window.innerWidth - margin * 2);
       let left = r.left + r.width / 2 - w / 2;
       left = Math.max(margin, Math.min(left, window.innerWidth - w - margin));
-      const h = tipRef.current?.offsetHeight ?? 0;
-      const top = r.bottom + 6 + h > window.innerHeight - margin ? Math.max(margin, r.top - 6 - h) : r.bottom + 6;
-      setPos((p) => (p && p.top === top && p.left === left ? p : { top, left }));
+      const h = (tipRef.current?.offsetHeight ?? 0) * zoom;
+      const topVisual = r.bottom + 6 + h > window.innerHeight - margin ? Math.max(margin, r.top - 6 - h) : r.bottom + 6;
+      const top = topVisual / zoom;
+      left = left / zoom;
+      const width = w / zoom;
+      setPos((p) => (p && p.top === top && p.left === left && p.width === width ? p : { top, left, width }));
       raf = requestAnimationFrame(place);
     };
     raf = requestAnimationFrame(place);
@@ -100,10 +107,12 @@ export function TxTypeBadge({ txType, txLabel }: { txType?: string; txLabel?: st
         type="button"
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
+        // Open, never toggle: a touch tap fires mouseenter (open) then click —
+        // toggling would close it in the same tap. Outside-tap/scroll closes.
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          setOpen((v) => !v);
+          setOpen(true);
         }}
         className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold whitespace-nowrap transition"
         style={{
@@ -125,7 +134,7 @@ export function TxTypeBadge({ txType, txLabel }: { txType?: string; txLabel?: st
             style={{
               top: pos.top,
               left: pos.left,
-              width: Math.min(300, typeof window !== "undefined" ? window.innerWidth - 16 : 300),
+              width: pos.width,
               background: "var(--bg-1)",
               border: "1px solid var(--border-strong)",
               boxShadow: "0 16px 40px rgba(0,0,0,0.28)",

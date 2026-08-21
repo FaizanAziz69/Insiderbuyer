@@ -6,6 +6,7 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { RankingRow, formatCurrency, formatNumber } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { track } from "@/lib/analytics";
+import { effectiveZoom } from "@/lib/zoom";
 
 export type ColorBy =
   | "change"
@@ -785,15 +786,18 @@ function HeatmapTooltip({
   const price = r.livePrice ?? r.lastPrice ?? null;
   const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
-  const W = 232;
+  // clientX/rects are visual px; style left/top land in body's zoomed
+  // coordinate space — compute visually, write divided by the zoom.
+  const zoom = typeof document !== "undefined" ? effectiveZoom() : 1;
+  const W = 232 * zoom;
   const GAP = 16;
   // Flip the card to the LEFT of the cursor when it would spill past the
   // heatmap's right edge (right-side tiles), otherwise open to the right.
   const rightLimit = Math.min(vw - 8, (boundsRight ?? vw) - 4);
   const openLeft = hover.x + GAP + W > rightLimit;
   let left = openLeft ? hover.x - GAP - W : hover.x + GAP;
-  left = Math.max(8, Math.min(left, vw - W - 8));
-  const top = Math.max(8, Math.min(hover.y + 16, vh - 170));
+  left = Math.max(8, Math.min(left, vw - W - 8)) / zoom;
+  const top = Math.max(8, Math.min(hover.y + 16, vh - 170)) / zoom;
   // Portal to <body> so `position: fixed` is relative to the viewport, not a
   // transformed ancestor (framer-motion tiles / page wrappers create a
   // containing block that would otherwise let the card run off-screen).
@@ -804,7 +808,7 @@ function HeatmapTooltip({
         position: "fixed",
         left,
         top,
-        width: W,
+        width: W / zoom,
         zIndex: 100,
         pointerEvents: "none",
         borderRadius: 10,

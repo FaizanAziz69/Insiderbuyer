@@ -367,7 +367,7 @@ export default function InsiderHotStocksPage() {
       key: "ownership",
       label: "Insider Ownership",
       pro: true,
-      info: "Share of the company owned by its insiders (latest reported holdings ÷ shares outstanding), and how that stake moved over the last 90 days.",
+      info: "Share of the company owned by its insiders (latest reported holdings ÷ shares outstanding), and how insider ownership moved over the last 90 days.",
       align: "right",
       sortValue: (r) => r.insiderOwnershipPct ?? -1,
       // Plain language (client 2026-08-20: "nobody knows what those numbers

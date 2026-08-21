@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronDown, Lock } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NavGroup } from "@/lib/nav-config";
+import { effectiveZoom } from "@/lib/zoom";
 
 interface Props {
   group: NavGroup;
@@ -25,8 +26,11 @@ export function MegaDropdown({ group }: Props) {
     }
     const rect = panelRef.current?.getBoundingClientRect();
     if (!rect) return;
+    // Rect is visual px; translateX applies inside body's zoom — divide.
+    const zoom = effectiveZoom();
     const overflow = rect.right - (window.innerWidth - 12);
-    if (overflow > 0) setShift(-Math.min(overflow, Math.max(rect.left - 12, 0)));
+    if (overflow > 0)
+      setShift(-Math.min(overflow, Math.max(rect.left - 12, 0)) / zoom);
   }, [open]);
 
   // Hover-open with grace period so the panel doesn't snap shut crossing the gap.

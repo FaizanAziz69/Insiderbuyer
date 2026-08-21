@@ -5,6 +5,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { X } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
+import { effectiveZoom } from "@/lib/zoom";
 
 interface RatingRow {
   symbol: string;
@@ -23,7 +24,7 @@ interface RatingRow {
 export function AnalystRatingsPopover({ name, slug }: { name: string; slug: string }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
 
@@ -35,16 +36,19 @@ export function AnalystRatingsPopover({ name, slug }: { name: string; slug: stri
     const place = () => {
       const el = btnRef.current;
       if (!el) return;
+      // Rects/innerWidth are visual px; style values land in body's zoomed
+      // coordinate space — compute visually, write divided by the zoom.
+      const zoom = effectiveZoom();
       const r = el.getBoundingClientRect();
       const margin = 8;
       const w = Math.min(340, window.innerWidth - margin * 2);
       let left = Math.max(margin, Math.min(r.left, window.innerWidth - w - margin));
-      const h = popRef.current?.offsetHeight ?? 320;
+      const h = (popRef.current?.offsetHeight ?? 320) * zoom;
       const top =
         r.bottom + 6 + h > window.innerHeight - margin
           ? Math.max(margin, r.top - 6 - h)
           : r.bottom + 6;
-      setPos({ top, left });
+      setPos({ top: top / zoom, left: left / zoom, width: w / zoom });
     };
     place();
     window.addEventListener("resize", place);
@@ -106,7 +110,7 @@ export function AnalystRatingsPopover({ name, slug }: { name: string; slug: stri
             style={{
               top: pos.top,
               left: pos.left,
-              width: Math.min(340, window.innerWidth - 16),
+              width: pos.width,
               background: "var(--bg-1)",
               border: "1px solid var(--border-strong)",
               boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
