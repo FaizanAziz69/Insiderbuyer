@@ -575,6 +575,11 @@ export class MarketStatsService {
    *  not a curated shortlist). */
   private readonly MOVER_MIN_PCT = 10;
 
+  /** Top Gainers only lists companies worth $25M+ (client, 2026-08-21) — the
+   *  sub-$25M tail is warrants and shells. Rows with an unknown cap (fresh
+   *  IPOs report 0) drop too. Losers/most-active are deliberately untouched. */
+  private readonly GAINER_MIN_MARKET_CAP = 25_000_000;
+
   /** FMP names exchanges; Yahoo codes them, and every filter downstream (plus
    *  the rendered column) speaks Yahoo. Translate so a snapshot-backed row is
    *  indistinguishable from a scraped one. */
@@ -604,11 +609,13 @@ export class MarketStatsService {
   private async snapshotMovers(
     order: 'gainers' | 'losers' | 'volume',
     limit: number,
+    minMarketCap?: number,
   ): Promise<MarketStatRow[]> {
     if (!this.snapshot) return [];
     const rows = await this.snapshot.query({
       order,
       limit,
+      minMarketCap,
       minChangePct:
         order === 'gainers' ? this.MOVER_MIN_PCT
         : order === 'losers' ? -this.MOVER_MIN_PCT
@@ -712,7 +719,11 @@ export class MarketStatsService {
 
   async getTopGainers(limit = 500) {
     // Licensed snapshot first; the Yahoo scrape below stays as the fallback.
-    const fromSnapshot = await this.snapshotMovers('gainers', limit);
+    const fromSnapshot = await this.snapshotMovers(
+      'gainers',
+      limit,
+      this.GAINER_MIN_MARKET_CAP,
+    );
     if (fromSnapshot.length) {
       await this.fillPeRatios(fromSnapshot);
       return fromSnapshot;
@@ -740,6 +751,7 @@ export class MarketStatsService {
       [...base].sort((a, b) => b.changePct - a.changePct),
     )
       .filter((r) => r.changePct >= this.MOVER_MIN_PCT)
+      .filter((r) => (r.marketCap ?? 0) >= this.GAINER_MIN_MARKET_CAP)
       .slice(0, limit);
     // "P/E" is a rendered column here and the screener payload omits trailingPE
     // for ~3 of every 4 movers — fill it from FMP's batch quote.
