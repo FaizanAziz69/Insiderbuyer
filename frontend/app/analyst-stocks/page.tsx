@@ -49,8 +49,19 @@ export default function AnalystStocksPage() {
     { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
   // Only genuinely covered names with a consensus rating belong on this list.
-  const rows = (data?.rows || [])
+  // Top 100 only (client 2026-08-21: "top 100 kafi ha"): rank by consensus
+  // strength, then analyst-implied upside, keep the best 100 and hand them to
+  // the table already reversed so the display counts down #100 → #1 with #1
+  // behind the wall. Spread before sort — the SWR-cached array must not mutate.
+  const rows = [...(data?.rows || [])]
     .filter((r) => r.recommendation && r.price > 0)
+    .sort(
+      (a, b) =>
+        (recOf(b.recommendation)?.rank ?? -1) - (recOf(a.recommendation)?.rank ?? -1) ||
+        (b.upsidePct ?? -9999) - (a.upsidePct ?? -9999),
+    )
+    .slice(0, 100)
+    .reverse()
     .filter(
       (r) =>
         !q ||
@@ -172,9 +183,9 @@ export default function AnalystStocksPage() {
           Top Analyst Stocks
         </h1>
         <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
-          The stocks Wall Street rates most highly right now — ranked by
-          consensus recommendation and the analyst-implied upside to the mean
-          price target, across every name with genuine sell-side coverage.
+          The top 100 stocks Wall Street rates most highly right now — ranked
+          by consensus recommendation and the analyst-implied upside to the
+          mean price target, from every name with genuine sell-side coverage.
           Refreshed with live quotes. Informational, not investment advice.
         </p>
       </header>
@@ -215,13 +226,12 @@ export default function AnalystStocksPage() {
           <DataTable<StockRow>
             rows={rows}
             rowKey={(r) => r.symbol}
-            initialSort={{ key: "recommendation", dir: "asc" }}
             empty="No covered stocks match your search."
             columns={columns}
             gate={{
               label: "Top Analyst Stocks",
               bullets: [
-                "Every covered stock, ranked by consensus + upside",
+                "The top 100 stocks, ranked by consensus + upside down to #1",
                 "Buy-rating counts from top Wall Street analysts",
                 "Mean price targets and implied upside",
                 "Updated with live quotes all session",
