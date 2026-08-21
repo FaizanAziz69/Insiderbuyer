@@ -230,12 +230,8 @@ export default function HotSectorsPage() {
         </p>
       </header>
 
-      {/* Paid product (client spec): Hot Sectors is one of the paywalled
-          products, so it uses the site-standard row wall — the same
-          `gate={{ label, bullets }}` every other gated leaderboard passes to
-          DataTable. It replaces a PaywallOverlay that blurred the whole table
-          with CSS: that kept every sector's real numbers in the DOM, where
-          view-source reads them. The wall renders only the free rows. */}
+      {/* Free page (client 2026-08-21): the row wall was removed so every
+          sector shows for all visitors. */}
       <div className="card overflow-hidden">
         {isLoading ? (
           <div className="text-center text-mute py-12">Loading sectors…</div>
@@ -246,19 +242,6 @@ export default function HotSectorsPage() {
             initialSort={{ key: "hotScore", dir: "desc" }}
             empty="No sector data available."
             columns={columns}
-            gate={{
-              label: "Hot Sectors",
-              // The site default is FREE_ROWS (6), but this table is only ~8
-              // rows long — six free would give the whole ranking away. Three
-              // names the hottest themes and still sells the rest.
-              freeRows: 3,
-              bullets: [
-                "Every sector ranked by live heat score",
-                "10%+ gainer breadth and momentum per theme",
-                "Insider buy/sell pressure across each basket",
-                "YTD performance vs the S&P 500",
-              ],
-            }}
           />
         )}
       </div>

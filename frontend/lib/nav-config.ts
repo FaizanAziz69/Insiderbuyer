@@ -67,6 +67,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Top Analysts", href: "/analyst-ratings", icon: Star },
           { label: "Insider Trades", href: "/trades", icon: Activity },
           { label: "Upcoming Earnings", href: "/earnings", icon: Calendar },
+          { label: "Congressional Trades", href: "/congressional-trades", icon: Landmark },
         ],
       },
       {
@@ -74,6 +75,8 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Top Gainers", href: "/market-data/top-gainers", icon: TrendingUp, badge: "popular" },
           { label: "Top Losers", href: "/market-data/top-losers", icon: TrendingUp },
           { label: "Short Squeeze List", href: "/short-squeeze", icon: Flame },
+          { label: "Short Interest", href: "/short-interest", icon: TrendingUp },
+          { label: "IPOs", href: "/ipos", icon: Rocket },
         ],
       },
       {
@@ -81,6 +84,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Market Heatmap", href: "/heatmaps/market", icon: Flame },
           { label: "Sector Heatmap", href: "/sectors", icon: Building2 },
           { label: "Top Insiders", href: "/insiders", icon: Users, badge: "popular" },
+          { label: "Dividends", href: "/dividends", icon: Coins },
         ],
       },
     ],
@@ -101,6 +105,7 @@ export const NAV_GROUPS: NavGroup[] = [
         links: [
           { label: "Hot Sectors", href: "/stock-lists/hot-sectors", icon: Flame, badge: "new" },
           { label: "Government Contracts", href: "/government-contracts", icon: Briefcase, badge: "new" },
+          { label: "Stock Ideas", href: "/lists", icon: Sparkles },
           { label: "Top Analyst Stocks", href: "/analyst-stocks", icon: Star },
           { label: "Blue Sky Stocks", href: "/stock-lists/blue-sky", icon: Rocket, badge: "premium" },
           { label: "Large Cap", href: "/stock-lists/large-cap", icon: Building2 },
@@ -168,14 +173,9 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Semiconductors", href: "/topics/semis", icon: Cpu },
         ],
       },
-      {
-        links: [
-          { label: "Dividends", href: "/dividends", icon: Coins },
-          { label: "Short Interest", href: "/short-interest", icon: TrendingUp },
-          { label: "IPOs", href: "/ipos", icon: Rocket },
-          { label: "Congressional Trades", href: "/congressional-trades", icon: Landmark },
-        ],
-      },
+      // Data pages (Dividends, Short Interest, IPOs, Congressional Trades,
+      // Stock Ideas) moved to Stock Data / Stock Lists 2026-08-21 — client:
+      // News & Analysis should carry only news and articles.
       {
         links: [
           { label: "Editorial Desk", href: "/editorial", icon: Newspaper, badge: "new" },
@@ -184,7 +184,6 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Latest Financial News", href: "/insights?sort=latest", icon: Newspaper },
           { label: "Popular Articles", href: "/insights?sort=popular", icon: TrendingUp },
           { label: "Market Movers", href: "/articles/market-movers", icon: Flame },
-          { label: "Stock Ideas", href: "/lists", icon: Sparkles },
           // "Reports & Advertorials" (/reports) hidden 2026-08-21 — client:
           // the page has wrong content, remove links for now.
           { label: "For Business / API", href: "/business", icon: Briefcase },
