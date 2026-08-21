@@ -320,9 +320,20 @@ function CheckoutOutcome({ onSuccess }: { onSuccess: () => void }) {
     const params = new URLSearchParams(window.location.search);
     const outcome = params.get("checkout");
     if (!outcome) return;
+    const sessionIdParam = params.get("session_id");
+    // Consume the outcome from the URL immediately — otherwise a refresh (or
+    // a bookmarked ?checkout=success link) replays the celebration forever.
+    params.delete("checkout");
+    params.delete("session_id");
+    const qs = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash,
+    );
     if (outcome === "cancelled") { setState("cancelled"); return; }
     if (outcome !== "success") return;
-    const sessionId = params.get("session_id");
+    const sessionId = sessionIdParam;
     setState("syncing");
     (async () => {
       try {
