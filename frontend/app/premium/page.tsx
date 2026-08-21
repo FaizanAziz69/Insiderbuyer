@@ -528,12 +528,6 @@ export default function PremiumPage() {
         <h2>Check What Insiders Are <em style={{ fontStyle: "italic", color: "var(--bad)" }}>Really</em> Doing</h2>
         <div className="iq-flex">
           <div className="iq-txt">
-            <p>
-              Thousands of insider filings hit the SEC every week — and most are noise. Automatic
-              plans, tax sales, option exercises. The Insider Score cuts through all of it: every
-              stock scored <b>0 to 99</b> based on the <span className="hl">quality</span> of its
-              insider buying, re-ranked daily, minutes after each filing hits EDGAR.
-            </p>
             <p style={{ marginBottom: 0 }}>
               One number tells you whether the people who know the company best are betting their
               own money on it — <b>right now.</b>
@@ -763,10 +757,13 @@ export default function PremiumPage() {
       <section><div className="wrap guar">
         <div className="badge"><b>30</b><span>DAY GUARANTEE</span></div>
         <div className="gtxt">
-          <h2>Try Everything for a Full Month. Risk Nothing.</h2>
+          {/* Client 2026-08-22: must read as a money-back guarantee on a paid
+              plan, never as a free month. */}
+          <h2>30-Day Money-Back Guarantee</h2>
           <p>
-            Explore every score, every ranked insider, every alert for 30 days. Not for you? One
-            email gets a full refund — no questions asked. <b>And the reports are yours to keep.</b>
+            Subscribe with confidence — if Insider Access isn&rsquo;t for you, email us within 30
+            days of purchase and we&rsquo;ll refund you in full, no questions asked.{" "}
+            <b>And the reports are yours to keep.</b>
           </p>
         </div>
       </div></section>
