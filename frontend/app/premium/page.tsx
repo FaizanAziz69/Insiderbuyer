@@ -305,9 +305,17 @@ function useCountdown(minutes = 15): string {
   return `${m < 10 ? "0" : ""}${m}:${s < 10 ? "0" : ""}${s}`;
 }
 
-function CheckoutOutcome() {
+function CheckoutOutcome({ onSuccess }: { onSuccess: () => void }) {
   const { refreshPremium } = usePremium();
   const [state, setState] = useState<"none" | "syncing" | "success" | "cancelled" | "error">("none");
+  // Success no longer renders the green banner (client 2026-08-21) — it opens
+  // the celebratory thank-you modal instead, once per landing.
+  const firedRef = useRef(false);
+  useEffect(() => {
+    if (state !== "success" || firedRef.current) return;
+    firedRef.current = true;
+    onSuccess();
+  }, [state, onSuccess]);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const outcome = params.get("checkout");
@@ -331,17 +339,15 @@ function CheckoutOutcome() {
       } catch { setState("error"); }
     })();
   }, [refreshPremium]);
-  if (state === "none") return null;
+  if (state === "none" || state === "success") return null;
   // Scoped .sub3 tokens, not fixed hex — this banner renders inside the page
   // wrapper, so it follows the light/dark palette swap with everything else.
   const palette: Record<string, { bg: string; bd: string; fg: string }> = {
-    success: { bg: "var(--good-soft)", bd: "var(--good)", fg: "var(--good)" },
     syncing: { bg: "var(--accent-soft)", bd: "var(--accent)", fg: "var(--accent)" },
     cancelled: { bg: "var(--bg-3)", bd: "var(--border-strong)", fg: "var(--text-mute)" },
     error: { bg: "var(--bad-soft)", bd: "var(--bad)", fg: "var(--bad)" },
   };
   const msg: Record<string, string> = {
-    success: "🎉 You're in — your subscription is active and every paywall is unlocked.",
     syncing: "Finalizing your subscription…",
     cancelled: "Checkout cancelled — no charge was made.",
     error: "We couldn't confirm the payment automatically. If you were charged, refresh in a minute or contact support.",
@@ -473,7 +479,7 @@ export default function PremiumPage() {
   return (
     <div className="sub3" style={{ width: "100vw", position: "relative", left: "50%", marginLeft: "-50vw", marginTop: "-2rem" }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <CheckoutOutcome />
+      <CheckoutOutcome onSuccess={() => setThanksOpen(true)} />
 
       {/* countdown strip */}
       <div className="strip">
