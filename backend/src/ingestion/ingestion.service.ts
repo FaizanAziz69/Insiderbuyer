@@ -93,7 +93,7 @@ export class IngestionService implements OnModuleInit {
   async runIngestion(daysBack = 7): Promise<{ filings: number; transactions: number; companies: number }> {
     if (this.running) return { filings: 0, transactions: 0, companies: 0 };
     this.running = true;
-    const deadline = Date.now() + 50000;
+    const deadline = Date.now() + (Number(process.env.INGEST_BUDGET_MS) || 50000);
     const summary = { filings: 0, transactions: 0, companies: 0 };
     try {
       this.logger.log(`Fetching SEC Form 4 filings (${daysBack}d back)...`);

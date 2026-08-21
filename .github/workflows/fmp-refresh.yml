@@ -4,6 +4,7 @@ name: FMP full data refresh
 # trigger: ownership-change fix
 # trigger: rebuild data on new Neon project
 # trigger: fill sectors/caps for analyst main-sector + gov iqs
+# trigger: rebuild on new Neon project insiderbuying-prod 2026-08-21
 
 # Cloud-driven full refresh of company data from FMP (price, market cap,
 # sector/industry, shares outstanding, dilution) followed by a score recalc.
