@@ -55,13 +55,68 @@ export function MegaDropdown({ group }: Props) {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
+  // Mini "live score" preview shown on the premium callouts (client
+  // 2026-08-22): fills the right half of the full-width card instead of
+  // leaving it empty, and gives the lock something concrete to sell.
+  function ScorePreview() {
+    return (
+      <div
+        aria-hidden
+        className="hidden sm:flex flex-col items-center flex-shrink-0 rounded-lg px-4 py-2.5"
+        style={{
+          background: "var(--bg-1)",
+          border: "1px solid var(--border)",
+          minWidth: 170,
+        }}
+      >
+        <div
+          className="text-[8px] font-mono font-bold uppercase tracking-[0.18em] px-1.5 py-0.5 rounded"
+          style={{ background: "var(--brand-surface)", color: "#fff" }}
+        >
+          Live Score · Sample
+        </div>
+        <div className="flex items-baseline gap-1 mt-0.5">
+          <span
+            className="text-[26px] font-extrabold leading-none tabular"
+            style={{ color: "var(--good)" }}
+          >
+            92
+          </span>
+          <span className="text-[9px] font-mono text-mute uppercase tracking-wider">
+            / 99 · Insider Score
+          </span>
+        </div>
+        <div className="w-full mt-1.5 relative">
+          <div
+            className="h-1.5 rounded-full w-full"
+            style={{
+              background:
+                "linear-gradient(90deg, var(--bad) 0%, #e8b54d 50%, var(--good) 100%)",
+            }}
+          />
+          <div
+            className="absolute -top-0.5 h-2.5 w-[3px] rounded-sm"
+            style={{ left: "88%", background: "var(--text)" }}
+          />
+        </div>
+        <div className="w-full flex justify-between mt-1 text-[7px] font-mono uppercase tracking-[0.14em] text-faint">
+          <span>Weak</span>
+          <span>Neutral</span>
+          <span style={{ color: "var(--good)" }}>Strong</span>
+        </div>
+      </div>
+    );
+  }
+
   // Callout cards (e.g. the Insider Access upsell). Rendered at the top or
-  // bottom of the panel depending on the group's calloutPosition.
+  // bottom of the panel depending on the group's calloutPosition. Each card
+  // spans the FULL panel width (client 2026-08-22 — no dead space on the
+  // right); premium ones carry the live-score preview on the right.
   function renderCallouts(g: NavGroup, position: "top" | "bottom") {
     if (!g.callouts || g.callouts.length === 0) return null;
     return (
       <div
-        className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 ${
+        className={`flex flex-col gap-3 p-3 ${
           position === "top" ? "border-b" : "border-t"
         }`}
         style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
@@ -73,7 +128,7 @@ export function MegaDropdown({ group }: Props) {
               key={c.href + c.title}
               href={c.href}
               onClick={() => setOpen(false)}
-              className="flex items-start gap-3 p-3 rounded-lg transition"
+              className="flex items-center gap-3 p-3 rounded-lg transition w-full"
               style={
                 c.premium
                   ? {
@@ -103,7 +158,7 @@ export function MegaDropdown({ group }: Props) {
                   style={{ color: c.premium ? "var(--premium-ink)" : "#fff" }}
                 />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="text-[13px] font-bold leading-tight flex items-center gap-1.5" style={{ color: "var(--accent)" }}>
                   {c.title}
                   {c.premium && (
@@ -125,6 +180,7 @@ export function MegaDropdown({ group }: Props) {
                   {c.description}
                 </div>
               </div>
+              {c.premium && <ScorePreview />}
             </Link>
           );
         })}
