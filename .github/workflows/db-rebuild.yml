@@ -30,9 +30,9 @@ jobs:
               -H 'Content-Type: application/json' \
               -d '{"daysBack":100}' -m 320 || echo 'TIMEOUT')
             echo "ingest #$i -> $(echo "$resp" | head -c 200)"
-            # A completed pass returns quickly with transactions:0 — two in a
-            # row means every filing is already processed.
-            if echo "$resp" | grep -q '"transactions":0'; then
+            # A completed pass returns filings:8000+ with transactions:0.
+            # filings:0 means a busy/stale instance — never count that as done.
+            if echo "$resp" | grep -q '"transactions":0' && ! echo "$resp" | grep -q '"filings":0'; then
               zero_runs=$((zero_runs+1))
             else
               zero_runs=0

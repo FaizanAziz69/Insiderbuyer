@@ -35,6 +35,7 @@ function sanitizeName(raw: string): string {
 export class IngestionService implements OnModuleInit {
   private readonly logger = new Logger(IngestionService.name);
   private running = false;
+  private runningSince = 0;
 
   constructor(
     @InjectRepository(Company) private readonly companies: Repository<Company>,
@@ -91,8 +92,14 @@ export class IngestionService implements OnModuleInit {
   }
 
   async runIngestion(daysBack = 7): Promise<{ filings: number; transactions: number; companies: number }> {
-    if (this.running) return { filings: 0, transactions: 0, companies: 0 };
+    // A serverless invocation killed at maxDuration never reaches the finally
+    // below, and the warm instance then reports "running" forever — treat a
+    // flag older than 6 minutes as stale rather than trusting it.
+    if (this.running && Date.now() - this.runningSince < 360000) {
+      return { filings: 0, transactions: 0, companies: 0 };
+    }
     this.running = true;
+    this.runningSince = Date.now();
     const deadline = Date.now() + (Number(process.env.INGEST_BUDGET_MS) || 50000);
     const summary = { filings: 0, transactions: 0, companies: 0 };
     try {
