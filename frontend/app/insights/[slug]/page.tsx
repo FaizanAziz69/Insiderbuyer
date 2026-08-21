@@ -181,10 +181,9 @@ export default function InsightDetailPage({
                 body blur, and the unlock sheet slides up from the bottom
                 (free account only, no payment). */}
             <ArticleGate slug={slug}>
-              <div
-                className="relative mt-6 rounded-lg overflow-hidden"
-                style={{ aspectRatio: "16 / 9" }}
-              >
+              {/* Natural aspect ratio — never crop the cover (some editorial
+                  thumbnails carry chyron text at the top/bottom edges). */}
+              <div className="relative mt-6 rounded-lg overflow-hidden">
                 <AiCoverImage
                   primary={post.imageUrl}
                   seed={post.slug}
@@ -193,8 +192,9 @@ export default function InsightDetailPage({
                   sector={post.sector}
                   overlay="none"
                   loading="eager"
-                  style={{ width: "100%", height: "100%" }}
-                  className="w-full h-full"
+                  fit="natural"
+                  style={{ width: "100%" }}
+                  className="w-full"
                 />
               </div>
 

@@ -45,6 +45,12 @@ interface Props {
    *  (assignEditorialThumbs). `undefined` = compute internally; `null` = this
    *  card has no editorial thumb (use the curated fallback). */
   editorialSrc?: string | null;
+  /** How the image fills its box. "cover" (default) crops to fill — right for
+   *  small cards. "contain" letterboxes on the wrapper's dark backdrop so the
+   *  FULL image is visible inside a structural fixed-height container (home
+   *  hero). "natural" drops the absolute fill entirely and renders the image
+   *  at its intrinsic aspect ratio (article hero — no cropping, no bars). */
+  fit?: "cover" | "contain" | "natural";
 }
 
 /** Sector → concrete photographic search terms. Every entry blends a
@@ -176,6 +182,7 @@ export function AiCoverImage({
   preferPrimary = false,
   spreadIndex = 0,
   editorialSrc,
+  fit = "cover",
 }: Props) {
   const key = seed || ticker || "default";
   // Primary = the reliable curated Unsplash photo (always loads full). An
@@ -266,7 +273,11 @@ export function AiCoverImage({
         onError={() => {
           if (stage < svgStage) setStage((s) => s + 1);
         }}
-        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+        className={
+          fit === "natural"
+            ? "block w-full h-auto transition-opacity duration-500"
+            : `absolute inset-0 w-full h-full ${fit === "contain" ? "object-contain" : "object-cover"} transition-opacity duration-500`
+        }
         style={{ opacity: loaded ? 1 : 0, objectPosition: "center" }}
       />
       {/* Subtle vignette so logos always read against any background. */}

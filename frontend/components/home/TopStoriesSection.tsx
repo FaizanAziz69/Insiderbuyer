@@ -96,8 +96,9 @@ export function TopStoriesSection() {
                 overlay="none"
                 alt={lead.title}
                 loading="eager"
+                fit="contain"
                 style={{ width: "100%", height: "100%" }}
-                className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                className="w-full h-full group-hover:scale-[1.02] transition-transform duration-500"
               />
               <span
                 className="absolute left-3 bottom-3 inline-block text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded"
