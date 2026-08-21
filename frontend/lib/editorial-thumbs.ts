@@ -30,6 +30,7 @@ const THUMBS: Thumb[] = [
   // Specific topic
   { file: "bill-ackman-letter", kw: ["ackman", "pershing"] },
   { file: "tom-lee-rally", kw: ["tom-lee", "fundstrat"] },
+  { file: "tomlee-record-highs", kw: ["tom-lee", "record-high"] },
   { file: "jensen-huang-2026", kw: ["jensen-huang", "sustainable-energy"] },
   { file: "gates-four-seasons-msft", kw: ["bill-gates", "four-seasons", "nevis"] },
   { file: "chamath-perimeter-ai", kw: ["artificial-intelligence", "medical-imaging", "\bai\b", "semis", "semiconductor"] },
@@ -93,7 +94,8 @@ const SLUG_OVERRIDES: Record<string, string> = {
   "editorial-trump-3b-critical-minerals-2026-08-08": "trump-social-posts",
   // 2026-08-14: swapped from bill-ackman-letter to the Uber-stake photo (client).
   "editorial-ackman-letter-top-13-positions-2026-08-13": "ackman-uber-stake",
-  "editorial-tom-lee-generational-rally-2026-08-13": "tom-lee-rally",
+  // 2026-08-21: swapped from tom-lee-rally to the new stylized graphic (client).
+  "editorial-tom-lee-generational-rally-2026-08-13": "tomlee-record-highs",
   "editorial-jensen-huang-sustainable-energy-2026-08-14": "jensen-huang-2026",
   "editorial-gates-four-seasons-nevis-lawsuit-2026-08-20": "gates-four-seasons-msft",
 };
