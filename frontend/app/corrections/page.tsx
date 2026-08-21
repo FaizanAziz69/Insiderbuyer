@@ -22,7 +22,7 @@ const SECTIONS: LegalSection[] = [
   },
   {
     h: "How to report an error",
-    p: "Email admin@insiderbuying.com with a link to the page and a description of the issue. We review every report and respond to material corrections as quickly as we can.",
+    p: "Email info@insiderbuying.com with a link to the page and a description of the issue. We review every report and respond to material corrections as quickly as we can.",
   },
 ];
 

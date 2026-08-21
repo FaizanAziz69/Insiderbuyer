@@ -114,7 +114,7 @@ export class CompanyCivicService {
     this.sec = axios.create({
       timeout: 20000,
       httpsAgent: new https.Agent({ family: 4, keepAlive: true }),
-      headers: { 'User-Agent': 'InsiderBuying/1.0 (contact@insiderbuying.com)' },
+      headers: { 'User-Agent': 'InsiderBuying/1.0 (info@insiderbuying.com)' },
     });
   }
 

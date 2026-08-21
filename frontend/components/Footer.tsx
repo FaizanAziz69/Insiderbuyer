@@ -57,7 +57,7 @@ export function Footer() {
                 <Github className="h-4 w-4 text-soft" />
               </a>
               <a
-                href="mailto:admin@insiderbuying.com"
+                href="mailto:info@insiderbuying.com"
                 aria-label="Email"
                 className="h-8 w-8 rounded-md flex items-center justify-center hover:bg-[var(--bg-3)] transition"
                 style={{ border: "1px solid var(--border)" }}

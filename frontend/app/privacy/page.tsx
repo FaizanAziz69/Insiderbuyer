@@ -34,7 +34,7 @@ const SECTIONS: LegalSection[] = [
   },
   {
     h: "Your rights",
-    p: "Depending on where you live, you may have rights to access, correct, export or delete your personal information, and to object to or restrict certain processing. To exercise any of these rights, contact us at admin@insiderbuying.com and we will respond within a reasonable timeframe.",
+    p: "Depending on where you live, you may have rights to access, correct, export or delete your personal information, and to object to or restrict certain processing. To exercise any of these rights, contact us at info@insiderbuying.com and we will respond within a reasonable timeframe.",
   },
   {
     h: "Children",
@@ -46,7 +46,7 @@ const SECTIONS: LegalSection[] = [
   },
   {
     h: "Contact",
-    p: "Questions about this policy or your data can be sent to admin@insiderbuying.com.",
+    p: "Questions about this policy or your data can be sent to info@insiderbuying.com.",
   },
 ];
 

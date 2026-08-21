@@ -1,32 +1,32 @@
 import Link from "next/link";
-import { Mail, Briefcase, Newspaper } from "lucide-react";
+import { Mail, Briefcase, LifeBuoy } from "lucide-react";
 
 import { pageMetadata } from "@/lib/seo-meta";
 
 export const metadata = pageMetadata("/contact");
 
-// TODO: replace with the client's official contact address once provided.
-const CONTACT_EMAIL = "admin@insiderbuying.com";
+const GENERAL_EMAIL = "info@insiderbuying.com";
+const SUPPORT_EMAIL = "support@insiderbuying.com";
 
 export default function ContactPage() {
   const cards = [
     {
       icon: Mail,
       title: "General inquiries",
-      desc: "Questions about the site, your account, or the data.",
-      email: CONTACT_EMAIL,
+      desc: "Questions about the site, our data, or anything else.",
+      email: GENERAL_EMAIL,
     },
     {
       icon: Briefcase,
-      title: "Business & API",
-      desc: "Licensing our insider data, widgets, or partnerships.",
-      email: CONTACT_EMAIL,
+      title: "Data & advertising",
+      desc: "Licensing our insider data, advertising, or partnerships.",
+      email: GENERAL_EMAIL,
     },
     {
-      icon: Newspaper,
-      title: "Press & media",
-      desc: "Interviews, quotes, or media requests.",
-      email: CONTACT_EMAIL,
+      icon: LifeBuoy,
+      title: "Customer support",
+      desc: "Help with your account, subscription, or billing.",
+      email: SUPPORT_EMAIL,
     },
   ];
 

@@ -46,7 +46,7 @@ const SECTIONS: LegalSection[] = [
   },
   {
     h: "Contact",
-    p: "Questions about these terms can be sent to admin@insiderbuying.com.",
+    p: "Questions about these terms can be sent to info@insiderbuying.com.",
   },
 ];
 

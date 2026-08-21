@@ -198,7 +198,7 @@ export class CivicService {
     try {
       const title = encodeURIComponent(name.trim().replace(/\s+/g, '_'));
       const { data } = await this.http.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`, {
-        headers: { 'User-Agent': 'InsiderBuying/1.0 (contact@insiderbuying.com)' },
+        headers: { 'User-Agent': 'InsiderBuying/1.0 (info@insiderbuying.com)' },
       });
       const isPolitician = /politician|senator|represent|congress|governor|legislat/i.test(
         `${data?.description || ''} ${data?.extract || ''}`,

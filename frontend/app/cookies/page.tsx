@@ -30,7 +30,7 @@ const SECTIONS: LegalSection[] = [
   },
   {
     h: "Changes & contact",
-    p: "We may update this policy as our use of cookies changes; the date above reflects the latest revision. Questions can be sent to admin@insiderbuying.com.",
+    p: "We may update this policy as our use of cookies changes; the date above reflects the latest revision. Questions can be sent to info@insiderbuying.com.",
   },
 ];
 

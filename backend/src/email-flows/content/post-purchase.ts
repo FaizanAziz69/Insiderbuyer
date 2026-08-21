@@ -38,7 +38,7 @@ export const POST_PURCHASE_FLOW: FlowEmail[] = [
       'If a trade ever goes south, I won’t hide under my desk and I mean that.',
       `<p>As part of joining this movement, here’s your FREE report: ${cta('read it right here')}</p>`,
       'Take your time and read through. This is only the beginning of bright journey together.',
-      'And if you have feedback for me, drop me a line at <a href="mailto:devs@insiderbuying.com" style="color:#e02b2b;">devs@insiderbuying.com</a>',
+      'And if you have feedback for me, drop me a line at <a href="mailto:support@insiderbuying.com" style="color:#e02b2b;">support@insiderbuying.com</a>',
       'Together, we’ll build something big.',
       'Now you’re on the inside,',
       '__SIGNOFF__',

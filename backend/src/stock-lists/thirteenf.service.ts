@@ -98,7 +98,7 @@ export class ThirteenFService {
   constructor() {
     const ua =
       process.env.SEC_USER_AGENT ||
-      'InsiderBuying research contact@insiderbuying.com';
+      'InsiderBuying research info@insiderbuying.com';
     this.http = axios.create({
       timeout: 25000,
       // Force IPv4 — Node intermittently resolves SEC hosts to an IPv6 address

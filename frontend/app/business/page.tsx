@@ -28,7 +28,7 @@ import {
    ──────────────────────────────────────────────────────────── */
 
 const DEMO_HREF = "/reports/cta/TOP5";
-const CONTACT_HREF = "mailto:admin@insiderbuying.com?subject=InsiderBuying%20API%20%2F%20licensing%20enquiry";
+const CONTACT_HREF = "mailto:info@insiderbuying.com?subject=InsiderBuying%20API%20%2F%20licensing%20enquiry";
 
 // ─── Data ─────────────────────────────────────────────────────
 const LICENSE_FEATURES = [
