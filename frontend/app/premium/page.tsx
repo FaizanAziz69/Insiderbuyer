@@ -13,6 +13,7 @@ import { API_BASE, fetcher } from "@/lib/api";
 import { getAuthToken, useAuth } from "@/lib/auth";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { LoginModal } from "@/components/LoginModal";
+import { AlreadySubscribedModal } from "@/components/premium/AlreadySubscribedModal";
 import { OptInModal } from "@/components/OptInModal";
 
 /* ── Styling — the site's tokens, pinned to the light palette (client spec:
@@ -378,6 +379,7 @@ export default function PremiumPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [thanksOpen, setThanksOpen] = useState(false);
   const [popupOpen, setPopupOpen] = useState(false);
   const popupFired = useRef(false);
 
@@ -437,6 +439,10 @@ export default function PremiumPage() {
   const checkout = async (planOverride?: unknown) => {
     if (busy) return;
     if (!user) { setLoginOpen(true); return; }
+    // Already subscribed: a second Stripe checkout is a mistake waiting to
+    // happen — celebrate instead (client 2026-08-21, replaces the old green
+    // "You're subscribed" banner).
+    if (premium) { setThanksOpen(true); return; }
     const chosen = planOverride === "annual" || planOverride === "monthly" ? planOverride : plan;
     setBusy(true); setErr(null);
     try {
@@ -468,11 +474,6 @@ export default function PremiumPage() {
     <div className="sub3" style={{ width: "100vw", position: "relative", left: "50%", marginLeft: "-50vw", marginTop: "-2rem" }}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <CheckoutOutcome />
-      {premium && (
-        <div style={{ maxWidth: 720, margin: "18px auto 0", padding: "14px 20px", borderRadius: 12, textAlign: "center", fontWeight: 700, fontSize: 14.5, background: "var(--good-soft)", border: "1px solid var(--good)", color: "var(--good)" }}>
-          You&rsquo;re subscribed — every paywall is unlocked.
-        </div>
-      )}
 
       {/* countdown strip */}
       <div className="strip">
@@ -811,6 +812,7 @@ export default function PremiumPage() {
       />
 
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+      <AlreadySubscribedModal open={thanksOpen} onClose={() => setThanksOpen(false)} />
     </div>
   );
 }
