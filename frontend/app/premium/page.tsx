@@ -755,7 +755,7 @@ export default function PremiumPage() {
 
       {/* 8 · guarantee */}
       <section><div className="wrap guar">
-        <div className="badge"><b>30</b><span>DAY GUARANTEE</span></div>
+        {/* circular "30 DAY GUARANTEE" badge removed (client 2026-08-22) */}
         <div className="gtxt">
           {/* Client 2026-08-22: must read as a money-back guarantee on a paid
               plan, never as a free month. */}
