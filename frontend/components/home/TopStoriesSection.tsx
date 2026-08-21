@@ -85,7 +85,9 @@ export function TopStoriesSection() {
             className="group rounded-lg overflow-hidden flex flex-col flex-1"
             style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
           >
-            <div className="relative w-full flex-shrink-0 h-[220px] sm:h-[320px] overflow-hidden">
+            {/* Natural aspect ratio — full width, no cropping and no letterbox
+                bars (some editorial covers carry chyron text at the edges). */}
+            <div className="relative w-full flex-shrink-0 overflow-hidden">
               <AiCoverImage
                 primary={lead.imageUrl}
                 seed={lead.slug}
@@ -96,9 +98,9 @@ export function TopStoriesSection() {
                 overlay="none"
                 alt={lead.title}
                 loading="eager"
-                fit="contain"
-                style={{ width: "100%", height: "100%" }}
-                className="w-full h-full group-hover:scale-[1.02] transition-transform duration-500"
+                fit="natural"
+                style={{ width: "100%" }}
+                className="w-full group-hover:scale-[1.02] transition-transform duration-500"
               />
               <span
                 className="absolute left-3 bottom-3 inline-block text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded"
