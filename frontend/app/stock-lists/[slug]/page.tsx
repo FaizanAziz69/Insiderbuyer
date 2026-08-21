@@ -184,15 +184,19 @@ export default function StockListDetailPage({
              still come from DataTable. */
           <StandardStockListTable
             rows={toStandardRows(rows)}
-            countdownRank={isBlueSky}
+            countdownRank={isBlueSky || data?.kind === "premium"}
             initialSort={
               isBlueSky
                 ? { key: "upside", dir: "asc" }
-                : // Holdings-backed persona lists open ranked by portfolio
-                  // weight, highest first (client 2026-08-19).
-                  rows.some((r) => (r as any).weightPct != null)
-                  ? { key: "weight", dir: "desc" }
-                  : undefined
+                : // Paygated ranked lists count down so #1 sits behind the
+                  // wall (client 2026-08-21) — the API serves them best-first.
+                  data?.kind === "premium"
+                  ? { key: "iqs", dir: "asc" }
+                  : // Holdings-backed persona lists open ranked by portfolio
+                    // weight, highest first (client 2026-08-19).
+                    rows.some((r) => (r as any).weightPct != null)
+                    ? { key: "weight", dir: "desc" }
+                    : undefined
             }
             initialFilters={capDefault ? { marketCap: capDefault } : undefined}
             gate={

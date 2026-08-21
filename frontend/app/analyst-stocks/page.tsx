@@ -60,7 +60,9 @@ export default function AnalystStocksPage() {
     );
 
   const columns: Column<StockRow>[] = [
-    rankColumn<StockRow>(),
+    // Paygated ranking (client 2026-08-21): count DOWN so the free rows are
+    // the tail of the list and #1 sits behind the wall, like Top Insider Scores.
+    rankColumn<StockRow>({ countdownFrom: rows.length }),
     {
       key: "symbol",
       label: "Company",
@@ -213,7 +215,7 @@ export default function AnalystStocksPage() {
           <DataTable<StockRow>
             rows={rows}
             rowKey={(r) => r.symbol}
-            initialSort={{ key: "recommendation", dir: "desc" }}
+            initialSort={{ key: "recommendation", dir: "asc" }}
             empty="No covered stocks match your search."
             columns={columns}
             gate={{

@@ -167,7 +167,7 @@ export default function CongressionalPage() {
           <DataTable<CongressTrade>
             rows={rows}
             rowKey={(r) => r.id}
-            initialSort={{ key: "marketCap", dir: "desc" }}
+            initialSort={{ key: "marketCap", dir: "asc" }}
             empty="No congressional trades match these filters."
             gate={{
               label: "Congress Trading",
@@ -179,7 +179,9 @@ export default function CongressionalPage() {
               ],
             }}
             columns={[
-              rankColumn<CongressTrade>(),
+              // Paygated list (client 2026-08-21): count DOWN so the biggest
+              // names sit behind the wall.
+              rankColumn<CongressTrade>({ countdownFrom: rows.length }),
               {
                 key: "politician",
                 label: "Politician",

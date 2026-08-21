@@ -55,7 +55,8 @@ export default function AnalystRatingsPage() {
   const RECORD = "Track Record";
   const RECENT = "Latest";
   const columns: Column<AnalystRow>[] = [
-    { ...rankColumn<AnalystRow>(), group: WHO },
+    // Paygated ranking (client 2026-08-21): count DOWN so #1 sits behind the wall.
+    { ...rankColumn<AnalystRow>({ countdownFrom: rows.length }), group: WHO },
     {
       key: "analyst",
       label: "Analyst",
@@ -228,7 +229,7 @@ export default function AnalystRatingsPage() {
           <DataTable<AnalystRow>
             rows={rows}
             rowKey={(r) => r.slug || r.analyst}
-            initialSort={{ key: "successRate", dir: "desc" }}
+            initialSort={{ key: "successRate", dir: "asc" }}
             empty="No matching analysts."
             columns={columns}
             gate={{

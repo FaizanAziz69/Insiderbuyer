@@ -67,7 +67,8 @@ export default function GovernmentContractsPage() {
   );
 
   const allColumns: Column<GovRow>[] = [
-    rankColumn<GovRow>(),
+    // Paygated ranking (client 2026-08-21): count DOWN so #1 sits behind the wall.
+    rankColumn<GovRow>({ countdownFrom: rows.length }),
     {
       key: "ticker",
       label: "Company",
@@ -231,7 +232,7 @@ export default function GovernmentContractsPage() {
           <DataTable<GovRow>
             rows={rows}
             rowKey={(r) => r.ticker}
-            initialSort={{ key: "ttmAmount", dir: "desc" }}
+            initialSort={{ key: "ttmAmount", dir: "asc" }}
             empty="No contractors match your search."
             columns={columns}
             gate={{
