@@ -57,7 +57,7 @@ export function MegaDropdown({ group }: Props) {
     if (!g.callouts || g.callouts.length === 0) return null;
     return (
       <div
-        className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 ${
+        className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 ${
           position === "top" ? "border-b" : "border-t"
         }`}
         style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
@@ -111,7 +111,13 @@ export function MegaDropdown({ group }: Props) {
                     </span>
                   )}
                 </div>
-                <div className="text-[11px] text-mute leading-snug mt-0.5">
+                {/* width:0 + min-width:100% keeps this long text from inflating
+                    the panel's max-content width — it wraps inside whatever
+                    width the link columns produce. */}
+                <div
+                  className="text-[11px] text-mute leading-snug mt-0.5"
+                  style={{ width: 0, minWidth: "100%" }}
+                >
                   {c.description}
                 </div>
               </div>
@@ -164,7 +170,7 @@ export function MegaDropdown({ group }: Props) {
             style={{
               transform: shift ? `translateX(${shift}px)` : undefined,
               width: "max-content",
-              minWidth: 640,
+              minWidth: 480,
               maxWidth: "calc(100vw - 24px)",
               background: "var(--bg-2)",
               border: "1px solid var(--border-strong)",
@@ -175,7 +181,7 @@ export function MegaDropdown({ group }: Props) {
             {group.calloutPosition === "top" && renderCallouts(group, "top")}
 
             <div
-              className="grid gap-6 p-5"
+              className="grid gap-x-6 gap-y-3 p-4"
               style={{
                 gridTemplateColumns: `repeat(${group.columns.length}, minmax(max-content, 1fr))`,
               }}
@@ -187,7 +193,7 @@ export function MegaDropdown({ group }: Props) {
                       {col.title}
                     </div>
                   )}
-                  <ul className="space-y-1">
+                  <ul className="space-y-0.5">
                     {col.links.map((link) => {
                       const Icon = link.icon;
                       return (
@@ -195,7 +201,7 @@ export function MegaDropdown({ group }: Props) {
                           <Link
                             href={link.href}
                             onClick={() => setOpen(false)}
-                            className="flex items-start gap-2.5 px-2.5 py-2 rounded-md hover:bg-[var(--accent-soft)] transition group"
+                            className="flex items-start gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-[var(--accent-soft)] transition group"
                           >
                             {Icon && (
                               <Icon

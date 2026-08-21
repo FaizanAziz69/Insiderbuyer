@@ -65,9 +65,9 @@ export const NAV_GROUPS: NavGroup[] = [
         links: [
           { label: "Top Insider Scores", href: "/insiders/hot", icon: Flame, badge: "popular" },
           { label: "Top Analysts", href: "/analyst-ratings", icon: Star },
+          { label: "Congressional Trades", href: "/congressional-trades", icon: Landmark },
           { label: "Insider Trades", href: "/trades", icon: Activity },
           { label: "Upcoming Earnings", href: "/earnings", icon: Calendar },
-          { label: "Congressional Trades", href: "/congressional-trades", icon: Landmark },
         ],
       },
       {
