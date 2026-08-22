@@ -402,13 +402,23 @@ export default function PremiumPage() {
 
   // Live leaderboard rows (design placeholders → real database figures).
   const { data: insiderData } = useSWR<{ rows: any[] }>(
-    `${API_BASE}/insiders/track-record?limit=10`, fetcher, { revalidateOnFocus: false },
+    `${API_BASE}/insiders/track-record?limit=300`, fetcher, { revalidateOnFocus: false },
   );
   const { data: firmData } = useSWR<{ rows: any[] }>(
     `${API_BASE}/market-stats/analyst-firms?limit=8`, fetcher, { revalidateOnFocus: false },
   );
+  // Credible track records for the sales board (client 2026-08-22): an
+  // all-100% row from 5 lucky filings reads as fake. Require a meaningful
+  // sample (>=10 filings) and a strong-but-not-perfect hit rate (70-99%),
+  // then lead with the most capital deployed.
   const topInsiders = (insiderData?.rows || [])
-    .filter((r) => Number(r.trades) >= 5)
+    .filter(
+      (r) =>
+        Number(r.trades) >= 10 &&
+        Number(r.accuracy) >= 70 &&
+        Number(r.accuracy) < 100,
+    )
+    .sort((a, b) => Number(b.totalValue) - Number(a.totalValue))
     .slice(0, 3);
   const topFirms = (firmData?.rows || [])
     .filter((r) => Number(r.scoredRatings) >= 50)
@@ -723,7 +733,7 @@ export default function PremiumPage() {
                 <div className="rl">{r.role || "Insider"} · {r.ticker} · {r.trades} profitable filings</div>
               </div>
               <div className="rstat">
-                <div className="sr">{Math.round(Number(r.accuracy))}% success</div>
+                <div className="sr">{(Number(r.wins) / Math.max(1, Number(r.trades)) * 100).toFixed(1)}% success</div>
                 <div className="ar">${(Number(r.totalValue) / 1e6).toFixed(1)}M deployed</div>
               </div>
               <div className="lock">🔒</div>
@@ -738,7 +748,7 @@ export default function PremiumPage() {
                 <div className="rl">{f.mainSector || "Multi-sector"} · {f.scoredRatings} rated calls</div>
               </div>
               <div className="rstat">
-                <div className="sr">{Math.round(Number(f.successRate))}% success</div>
+                <div className="sr">{Number(f.successRate).toFixed(1)}% success</div>
                 <div className="ar">+{Number(f.avgReturn).toFixed(1)}% avg return</div>
               </div>
               <div className="lock">🔒</div>
