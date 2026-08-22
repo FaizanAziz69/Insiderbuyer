@@ -251,6 +251,10 @@ export default function CompanyPage({
                   industry={profile?.industry ?? null}
                 />
                 <InsiderBuySellMeter transactions={data.transactions} onOpen={() => setTab("insiders")} />
+                {/* Latest news right under the insider meter (client 2026-08-22). */}
+                <LazyMount minHeight={200}>
+                  <RecentNews ticker={sym} name={data.company.name} compact />
+                </LazyMount>
               </>
             )}
 
