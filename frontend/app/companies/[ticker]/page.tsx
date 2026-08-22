@@ -47,7 +47,6 @@ import { PriceChart } from "@/components/PriceChart";
 import { LazyMount } from "@/components/LazyMount";
 import { SAProfileHeader } from "@/components/stock/SAProfileHeader";
 import { ScorePillarsCard } from "@/components/ScorePillarsCard";
-import { ConversationsSection } from "@/components/stock/ConversationsSection";
 import { CongressTradingCard, WhaleActivityCard, RevenueBreakdownCard, BullBearCard } from "@/components/stock/StockCivicGrid";
 import {
   StrategyBanner, InsiderNetSharesCard, LobbyingStackedCard, ContractsStackedCard,
@@ -159,10 +158,18 @@ export default function CompanyPage({
   const scrollToPanel = () => {
     const el = panelRef.current;
     if (!el) return;
-    const stickyH =
-      document.querySelector<HTMLElement>("[data-app-sticky]")?.offsetHeight ?? 0;
-    const top = el.getBoundingClientRect().top + window.scrollY - stickyH - 12;
-    window.scrollTo({ top: Math.max(top, 0), behavior: "smooth" });
+    // Bring the panel to just under the app header + the sticky tab bar, so
+    // the pinned tabs stay visible with the new content right below them
+    // (quiver-style). Measure viewport-relative and scroll by the delta so
+    // body{zoom} can't throw the target off; scrollBy takes CSS px, rects are
+    // visual px, hence /zoom.
+    const zoom = parseFloat(getComputedStyle(document.body).zoom as string) || 1;
+    const headerH =
+      document.querySelector<HTMLElement>("[data-app-sticky]")?.getBoundingClientRect().height ?? 0;
+    const navH = 46 * zoom;
+    const target = headerH + navH + 10; // visual px from viewport top
+    const delta = el.getBoundingClientRect().top - target; // visual px
+    if (Math.abs(delta) > 4) window.scrollBy({ top: delta / zoom, behavior: "smooth" });
   };
   const setTab = (t: ProfileTab) => {
     setTabState(t);
@@ -583,7 +590,6 @@ export default function CompanyPage({
               </h2>
               <RecentNews ticker={sym} name={data.company.name} />
             </section>
-                <ConversationsSection ticker={sym} />
               </div>
             ) : (
               <>

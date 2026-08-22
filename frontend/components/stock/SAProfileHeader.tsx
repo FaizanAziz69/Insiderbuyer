@@ -936,10 +936,17 @@ export function SAProfileHeader({
         </div>
       </div>
 
-      {/* ── tab bar ── */}
+      {/* ── tab bar ── (sticky under the app header so it stays visible while
+          browsing a tab's content, quiver-style; top:80 = app header height) */}
       <nav
         className="mt-5 w-full"
-        style={{ borderBottom: "2px solid var(--sa-nav-border)" }}
+        style={{
+          borderBottom: "2px solid var(--sa-nav-border)",
+          position: "sticky",
+          top: 80,
+          zIndex: 20,
+          background: "var(--bg-1)",
+        }}
       >
         <div className="scrollbar-none flex items-center overflow-x-auto">
           {tabs.map(([key, label]) => {
