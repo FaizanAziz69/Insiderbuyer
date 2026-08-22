@@ -2,6 +2,7 @@
 import Link from "next/link";
 import useSWR from "swr";
 import { ChevronRight } from "lucide-react";
+import { LazyMount } from "@/components/LazyMount";
 import { API_BASE, HeatQuote, heatToRanking, fetcher } from "@/lib/api";
 import { MonthlyBuySellMeter } from "@/components/home/MonthlyBuySellMeter";
 import { TopStoriesSection } from "@/components/home/TopStoriesSection";
@@ -35,6 +36,10 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Everything below the hero is deferred until scrolled near — the heat
+          map (260KB), AI news/articles/ideas and their explain-batch calls no
+          longer fire on first paint, so the top of the page appears fast. */}
+      <LazyMount minHeight={420}>
       {/* Horizontal market heat map (full width) */}
       <MarketHeatmapPanel />
 
@@ -64,6 +69,7 @@ export default function HomePage() {
 
       {/* Earnings calendar */}
       <EarningsCalendar days={7} />
+      </LazyMount>
 
     </div>
   );

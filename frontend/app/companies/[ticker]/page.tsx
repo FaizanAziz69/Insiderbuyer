@@ -44,6 +44,7 @@ import { TierBadge, tierFor } from "@/components/TierBadge";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsTrendChart } from "@/components/IqsTrendChart";
 import { PriceChart } from "@/components/PriceChart";
+import { LazyMount } from "@/components/LazyMount";
 import { SAProfileHeader } from "@/components/stock/SAProfileHeader";
 import { ScorePillarsCard } from "@/components/ScorePillarsCard";
 import { ConversationsSection } from "@/components/stock/ConversationsSection";
@@ -601,6 +602,7 @@ export default function CompanyPage({
             {/* civic-grid: cards render conditionally, so an odd count leaves
                 the last card beside an empty white cell (client 2026-08-20,
                 DGICA) — globals.css spans the last odd child full-width. */}
+            <LazyMount minHeight={700}>
             <div className="civic-grid grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
               <CongressTradingCard ticker={sym} />
               <WhaleActivityCard ticker={sym} companyName={data.company.name} />
@@ -628,6 +630,7 @@ export default function CompanyPage({
                 insiderScore={data.score ? Number(data.score.iqs) : null}
               />
             </div>
+            </LazyMount>
 
 
 
