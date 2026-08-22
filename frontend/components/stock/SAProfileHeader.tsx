@@ -936,9 +936,7 @@ export function SAProfileHeader({
         </div>
       </div>
 
-      {/* tab bar moved out to <StockTabBar> in the page so its sticky range
-          spans the whole profile, not just this header card. */}
-      {false && (
+      {/* ── tab bar ── (right under the price, quiver-style; not sticky) */}
       <nav className="mt-5 w-full" style={{ borderBottom: "2px solid var(--sa-nav-border)" }}>
         <div className="scrollbar-none flex items-center overflow-x-auto">
           {tabs.map(([key, label]) => {
@@ -978,8 +976,12 @@ export function SAProfileHeader({
           </Link>
         </div>
       </nav>
-      )}
 
+      {/* stats + chart show only on the Overview tab so every other tab's
+          content sits directly under the tab bar (quiver-style — no big
+          header block to scroll past on click). */}
+      {activeTab === "overview" && (
+      <>
       {/* ── stats + chart ── */}
       {/* The two stat tracks are sized to their content (`max-content`) rather
           than pinned to the reference's 236/237px: a table refuses to lay out
@@ -1074,6 +1076,8 @@ export function SAProfileHeader({
           </div>
         </div>
       </div>
+      </>
+      )}
     </section>
   );
 }

@@ -45,7 +45,6 @@ import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsTrendChart } from "@/components/IqsTrendChart";
 import { PriceChart } from "@/components/PriceChart";
 import { LazyMount } from "@/components/LazyMount";
-import { StockTabBar } from "@/components/stock/StockTabBar";
 import { SAProfileHeader } from "@/components/stock/SAProfileHeader";
 import { ScorePillarsCard } from "@/components/ScorePillarsCard";
 import { CongressTradingCard, WhaleActivityCard, RevenueBreakdownCard, BullBearCard } from "@/components/stock/StockCivicGrid";
@@ -156,30 +155,16 @@ export default function CompanyPage({
    *  click changes content that is off-screen. Scroll to it (clicks only —
    *  scrolling on a ?tab= deep link would yank the page on arrival). */
   const panelRef = useRef<HTMLDivElement>(null);
-  const scrollToPanel = () => {
-    const el = panelRef.current;
-    if (!el) return;
-    // Bring the panel to just under the app header + the sticky tab bar, so
-    // the pinned tabs stay visible with the new content right below them
-    // (quiver-style). Measure viewport-relative and scroll by the delta so
-    // body{zoom} can't throw the target off; scrollBy takes CSS px, rects are
-    // visual px, hence /zoom.
-    const zoom = parseFloat(getComputedStyle(document.body).zoom as string) || 1;
-    const headerH =
-      document.querySelector<HTMLElement>("[data-app-sticky]")?.getBoundingClientRect().height ?? 0;
-    const navH = 46 * zoom;
-    const target = headerH + navH + 10; // visual px from viewport top
-    const delta = el.getBoundingClientRect().top - target; // visual px
-    if (Math.abs(delta) > 4) window.scrollBy({ top: delta / zoom, behavior: "smooth" });
-  };
   const setTab = (t: ProfileTab) => {
     setTabState(t);
     const url = new URL(window.location.href);
     if (t === "overview") url.searchParams.delete("tab");
     else url.searchParams.set("tab", t);
     window.history.replaceState(null, "", url.toString());
-    // Wait for the new panel to commit so we measure its real position.
-    requestAnimationFrame(scrollToPanel);
+    // Quiver-style: switching a tab lands you at the top of the profile with
+    // the tab bar and its content in view — like quiver loading a fresh tab
+    // page. Only ever scrolls UP, so a click never drags the page down.
+    if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: "auto" });
   };
 
   const { data, isLoading } = useSWR<
@@ -248,40 +233,26 @@ export default function CompanyPage({
             onTab={(k) => setTab(k as ProfileTab)}
           />
 
-          {/* Tab bar as a sibling of the content so it stays sticky-pinned
-              across the whole profile (quiver-style), not just the header. */}
-          <StockTabBar
-            tabs={[
-              ["overview", "Overview"],
-              ["financials", "Financials"],
-              ["forecast", "Forecast"],
-              ["insiders", "Insiders"],
-              ["institutions", "Institutions"],
-              ["compensation", "Compensation"],
-              ["government", "Government"],
-              ["ownership", "Ownership"],
-              ["news", "News"],
-            ]}
-            activeTab={tab}
-            onTab={(k) => setTab(k as ProfileTab)}
-          />
-
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">
             <main className="space-y-6 min-w-0">
 
-            {/* About — reference-style full-width block */}
-            <AboutQQ
-              ticker={sym}
-              name={data.company.name}
-              description={profile?.description ?? null}
-              address={(profile as { address?: string | null } | null)?.address ?? null}
-              marketCap={stats?.marketCap ?? data.company.marketCap ?? null}
-              employees={profile?.employees ?? null}
-              industry={profile?.industry ?? null}
-            />
-
-            {/* "What are insiders doing?" — buy/sell balance meter, right under About. */}
-            <InsiderBuySellMeter transactions={data.transactions} onOpen={() => setTab("insiders")} />
+            {/* About + insider meter belong to the Overview tab only, so every
+                other tab's content sits directly under the tab bar (quiver-
+                style — nothing to scroll past when you switch tabs). */}
+            {tab === "overview" && (
+              <>
+                <AboutQQ
+                  ticker={sym}
+                  name={data.company.name}
+                  description={profile?.description ?? null}
+                  address={(profile as { address?: string | null } | null)?.address ?? null}
+                  marketCap={stats?.marketCap ?? data.company.marketCap ?? null}
+                  employees={profile?.employees ?? null}
+                  industry={profile?.industry ?? null}
+                />
+                <InsiderBuySellMeter transactions={data.transactions} onOpen={() => setTab("insiders")} />
+              </>
+            )}
 
             {/* Company pages are fully public (client decision): every tab
                 renders for everyone. Premium converts on the tools — alerts,
