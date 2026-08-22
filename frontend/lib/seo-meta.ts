@@ -181,8 +181,9 @@ export function pageMetadata(
 export const OG_IMAGE = {
   url: `${SITE}/og-image.png`,
   width: 1200,
-  height: 859,
+  height: 630,
   alt: "Insider Buying",
+  type: "image/png",
 };
 
 /** Turn a URL slug into readable words for fallback titles. */
