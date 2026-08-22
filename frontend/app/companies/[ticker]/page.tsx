@@ -579,7 +579,7 @@ export default function CompanyPage({
                 className="text-[20px] sm:text-[24px] font-semibold tracking-tight mb-3"
                 style={{ letterSpacing: "-0.4px" }}
               >
-                Press Releases &amp; Announcements
+                Company News &amp; Press Releases
               </h2>
               <RecentNews ticker={sym} name={data.company.name} />
             </section>
@@ -1328,13 +1328,11 @@ function RecentNews({
         kind: (p.kind ?? "news") as "news" | "press",
       })),
   ].sort((a, b) => b.date - a.date);
-  // Client spec: external third-party articles that merely tag the stock are
-  // excluded — only the company's own press releases plus our internal
-  // analyses render on the profile.
-  const newsRows = rows
-    .filter((r) => !r.external)
-    .slice(0, compact ? 4 : 8);
+  const ourRows = rows.filter((r) => !r.external).slice(0, compact ? 4 : 8);
   const pressRows = rows.filter((r) => r.kind === "press").slice(0, 16);
+  // Per-stock market news from FMP (client 2026-08-22) — real coverage for
+  // every ticker; each row opens its original source in a new tab.
+  const marketNews = rows.filter((r) => r.external && r.kind === "news").slice(0, 14);
 
   if (isLoading && rows.length === 0)
     return <div className="card p-5 h-40 shimmer rounded-lg" />;
@@ -1411,25 +1409,42 @@ function RecentNews({
         <>
           <h2 className="text-[16px] font-semibold mb-3">Latest News</h2>
           <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
-            {newsRows.map(renderRow)}
+            {(marketNews.length ? marketNews : ourRows).slice(0, 4).map(renderRow)}
           </div>
         </>
       ) : (
         <>
-          <div>
-            <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
-              {pressRows.length ? pressRows.map(renderRow) : (
-                <div className="p-6 text-center text-mute text-sm">
-                  No press releases on file for {ticker}.
-                </div>
-              )}
+          {/* Latest per-stock news — FMP feed, each opens its source. */}
+          {marketNews.length > 0 && (
+            <div>
+              <div className="flex items-baseline justify-between mb-3">
+                <h2 className="text-[18px] font-bold">Latest News</h2>
+                <span className="text-[11px] text-faint">via Financial Modeling Prep</span>
+              </div>
+              <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
+                {marketNews.map(renderRow)}
+              </div>
             </div>
-          </div>
-          {newsRows.length > 0 && (
+          )}
+          {(pressRows.length > 0 || marketNews.length === 0) && (
+            <div>
+              {marketNews.length > 0 && (
+                <h2 className="text-[18px] font-bold mb-3">Press Releases</h2>
+              )}
+              <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
+                {pressRows.length ? pressRows.map(renderRow) : (
+                  <div className="p-6 text-center text-mute text-sm">
+                    No press releases on file for {ticker}.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {ourRows.length > 0 && (
             <div>
               <h2 className="text-[18px] font-bold mb-3">Our Coverage</h2>
               <div className="card divide-y" style={{ borderColor: "var(--border)" }}>
-                {newsRows.map(renderRow)}
+                {ourRows.map(renderRow)}
               </div>
             </div>
           )}
