@@ -45,6 +45,7 @@ import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsTrendChart } from "@/components/IqsTrendChart";
 import { PriceChart } from "@/components/PriceChart";
 import { LazyMount } from "@/components/LazyMount";
+import { StockTabBar } from "@/components/stock/StockTabBar";
 import { SAProfileHeader } from "@/components/stock/SAProfileHeader";
 import { ScorePillarsCard } from "@/components/ScorePillarsCard";
 import { CongressTradingCard, WhaleActivityCard, RevenueBreakdownCard, BullBearCard } from "@/components/stock/StockCivicGrid";
@@ -232,6 +233,24 @@ export default function CompanyPage({
             exchange={profile?.exchange ?? null}
             country={profile?.country ?? null}
             stats={stats}
+            tabs={[
+              ["overview", "Overview"],
+              ["financials", "Financials"],
+              ["forecast", "Forecast"],
+              ["insiders", "Insiders"],
+              ["institutions", "Institutions"],
+              ["compensation", "Compensation"],
+              ["government", "Government"],
+              ["ownership", "Ownership"],
+              ["news", "News"],
+            ]}
+            activeTab={tab}
+            onTab={(k) => setTab(k as ProfileTab)}
+          />
+
+          {/* Tab bar as a sibling of the content so it stays sticky-pinned
+              across the whole profile (quiver-style), not just the header. */}
+          <StockTabBar
             tabs={[
               ["overview", "Overview"],
               ["financials", "Financials"],
