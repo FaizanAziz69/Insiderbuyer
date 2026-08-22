@@ -628,7 +628,7 @@ export default function CompanyPage({
                 the last card beside an empty white cell (client 2026-08-20,
                 DGICA) — globals.css spans the last odd child full-width. */}
             <LazyMount minHeight={700}>
-            <div className="civic-grid grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+            <div className="civic-grid">
               <CongressTradingCard ticker={sym} />
               <WhaleActivityCard ticker={sym} companyName={data.company.name} />
               <InsiderNetSharesCard ticker={sym} transactions={data.transactions as never} />

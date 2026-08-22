@@ -1693,10 +1693,24 @@ h1, h2, h3 {
 }
 .sa-head .sa-dothref:hover { text-decoration-color: var(--sa-text); }
 
-/* Company-page civic card grid: cards render conditionally, so an odd count
-   would leave the last card beside an empty white cell — span it instead. */
+/* Company-page civic card grid. Cards render conditionally (some return
+   null), which with a rigid 2-col grid left odd/lone cards beside an empty
+   white cell — the page looked unfinished. Flexbox with flex-grow instead:
+   two per row normally, but a lone card grows to fill the whole row, so the
+   right side is never empty. */
+.civic-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: stretch;
+}
 @media (min-width: 1024px) {
-  .civic-grid > :last-child:nth-child(odd) {
-    grid-column: 1 / -1;
+  .civic-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .civic-grid > * {
+    flex: 1 1 calc(50% - 10px);
+    min-width: 320px;
   }
 }
