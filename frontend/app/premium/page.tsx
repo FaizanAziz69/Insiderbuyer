@@ -404,9 +404,6 @@ export default function PremiumPage() {
   const { data: insiderData } = useSWR<{ rows: any[] }>(
     `${API_BASE}/insiders/track-record?limit=300`, fetcher, { revalidateOnFocus: false },
   );
-  const { data: firmData } = useSWR<{ rows: any[] }>(
-    `${API_BASE}/market-stats/analyst-firms?limit=8`, fetcher, { revalidateOnFocus: false },
-  );
   // Credible track records for the sales board (client 2026-08-22): an
   // all-100% row from 5 lucky filings reads as fake. Require a meaningful
   // sample (>=10 filings) and a strong-but-not-perfect hit rate (70-99%),
@@ -420,10 +417,6 @@ export default function PremiumPage() {
     )
     .sort((a, b) => Number(b.totalValue) - Number(a.totalValue))
     .slice(0, 3);
-  const topFirms = (firmData?.rows || [])
-    .filter((r) => Number(r.scoredRatings) >= 50)
-    .sort((a, b) => Number(b.successRate) - Number(a.successRate))
-    .slice(0, 2);
 
   // Real multi-year winners for the bubbles.
   const { data: bubbleData } = useSWR("premium-bubbles-5y", fetchBubbles, {
@@ -739,21 +732,8 @@ export default function PremiumPage() {
               <div className="lock">🔒</div>
             </div>
           ))}
-          <div className="board-head" style={{ borderTop: "1px solid var(--border)" }}><span>TOP-RANKED ANALYST FIRMS · BY MEASURED CALLS</span><span className="live">● LIVE</span></div>
-          {topFirms.map((f) => (
-            <div className="row" key={f.firm}>
-              <div className="ava an"><span>{initials(f.firm)}</span></div>
-              <div className="rname">
-                <div className="nm">{f.firm}</div>
-                <div className="rl">{f.mainSector || "Multi-sector"} · {f.scoredRatings} rated calls</div>
-              </div>
-              <div className="rstat">
-                <div className="sr">{Number(f.successRate).toFixed(1)}% success</div>
-                <div className="ar">+{Number(f.avgReturn).toFixed(1)}% avg return</div>
-              </div>
-              <div className="lock">🔒</div>
-            </div>
-          ))}
+          {/* Analyst-firms board removed 2026-08-22 (client) — leaderboard is
+              the top-3 insiders by track record only. */}
           <div className="board-cta">
             <div className="bc">Names, filings &amp; full histories unlocked for members</div>
             <button className="btn" onClick={() => checkout("annual")} disabled={busy}>
