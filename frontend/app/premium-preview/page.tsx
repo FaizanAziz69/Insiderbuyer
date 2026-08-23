@@ -78,23 +78,23 @@ const FEATURES: Array<{
  *  beehiiv "names you know" style. */
 const ROW_A: Array<
   | { kind: "person"; name: string; sub: string; img: string }
-  | { kind: "stat"; big: string; caption: string }
+  | { kind: "stat"; big: string; caption: string; label: string }
 > = [
   { kind: "person", name: "Warren Buffett", sub: "Berkshire Hathaway · 13F holdings", img: "/sales/people/buffett.jpg" },
-  { kind: "stat", big: "142K+", caption: "open-market insider buys on file" },
+  { kind: "stat", big: "142K+", caption: "open-market insider buys on file", label: "SEC Form 4" },
   { kind: "person", name: "Nancy Pelosi", sub: "U.S. House · disclosed trades", img: "/sales/people/pelosi.jpg" },
-  { kind: "stat", big: "+2,924%", caption: "Insider Purchases Strategy, all-time backtest" },
+  { kind: "stat", big: "+2,924%", caption: "Insider Purchases Strategy, all-time backtest", label: "Backtested" },
   { kind: "person", name: "Jensen Huang", sub: "NVIDIA · Form 4 filings", img: "/sales/people/jensen.jpg" },
-  { kind: "stat", big: "435", caption: "insiders ranked by track record" },
+  { kind: "stat", big: "435", caption: "insiders ranked by track record", label: "Track records" },
 ];
 
 const ROW_B: typeof ROW_A = [
   { kind: "person", name: "Jeff Bezos", sub: "Amazon · insider tape", img: "/sales/people/bezos.jpg" },
-  { kind: "stat", big: "4,300+", caption: "U.S. companies covered" },
+  { kind: "stat", big: "4,300+", caption: "U.S. companies covered", label: "Coverage" },
   { kind: "person", name: "Ray Dalio", sub: "Bridgewater · 13F holdings", img: "/sales/people/dalio.jpg" },
-  { kind: "stat", big: "+31%", caption: "backtest CAGR since 2014" },
+  { kind: "stat", big: "+31%", caption: "backtest CAGR since 2014", label: "Since 2014" },
   { kind: "person", name: "Donald Trump Jr.", sub: "Board seats · insider buys", img: "/sales/people/trumpjr.jpg" },
-  { kind: "stat", big: "39", caption: "live alerts in the last 30 days" },
+  { kind: "stat", big: "39", caption: "live alerts in the last 30 days", label: "Past 30 days" },
 ];
 
 const PLANS = [
@@ -108,7 +108,7 @@ const PLANS = [
     featured: false,
     feats: [
       "Market data, movers & heatmaps",
-      "Insider Bubbles Map",
+      "Stock pages & charts",
       "Rankings preview",
       "Insider alerts newsletter",
     ],
@@ -155,7 +155,6 @@ const NUMBERS = [
 ];
 
 const TOOLS = [
-  { label: "Insider Bubbles Map", href: "/bubbles" },
   { label: "Market Heatmaps", href: "/heatmaps/market" },
   { label: "Top Insider Scores", href: "/insiders/hot" },
   { label: "Earnings Calendar", href: "/earnings" },
@@ -298,6 +297,11 @@ export default function PremiumPreviewPage() {
                   </div>
                 ) : (
                   <div className="biv-mcard biv-mcard-stat" key={i}>
+                    <span className="biv-mtag">{c.label}</span>
+                    <svg className="biv-mspark" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                      <path d="M0 34 L13 29 L25 31 L39 22 L53 25 L67 13 L81 17 L100 4" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="100" cy="4" r="4" fill="currentColor" />
+                    </svg>
                     <div className="biv-mstat">{c.big}</div>
                     <div className="biv-mcap">{c.caption}</div>
                   </div>
@@ -499,7 +503,22 @@ const CSS = `
   width: 260px; height: 320px; border-radius: 16px; border: 1px solid var(--line);
   flex: 0 0 auto; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; position: relative;
 }
-.biv-mcard-stat { background: var(--bg2); justify-content: flex-end; }
+.biv-mcard-stat {
+  background:
+    radial-gradient(220px 180px at 85% 0%, rgba(76,195,138,0.10), transparent 70%),
+    var(--bg2);
+  justify-content: flex-end;
+}
+.biv-mtag {
+  position: absolute; top: 16px; left: 18px;
+  font-family: var(--font-display), sans-serif; font-weight: 600; font-size: 11px;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--faint);
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px;
+}
+.biv-mspark {
+  position: absolute; top: 62px; left: 18px; right: 18px; width: calc(100% - 36px);
+  height: 72px; color: rgba(76,195,138,0.45);
+}
 .biv-mcard-person { color: #F5F7FA; padding: 0; overflow: hidden; }
 .biv-mcard-person > img {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;

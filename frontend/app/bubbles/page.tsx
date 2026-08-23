@@ -348,10 +348,11 @@ export default function BubblesPage() {
         img.onerror = () => {
           if (entry.tried === 0) {
             entry.tried = 1;
-            img.src = `https://eodhd.com/img/logos/US/${encodeURIComponent(api.t)}.png`;
+            img.src = `/ext-logo/eodhd/${encodeURIComponent(api.t)}.png`;
           }
         };
-        img.src = `https://financialmodelingprep.com/image-stock/${encodeURIComponent(api.t)}.png`;
+        // Served through our nginx logo mirror (30d shared cache, HTTP/2).
+        img.src = `/ext-logo/fmp/${encodeURIComponent(api.t)}.png`;
         cache.set(api.t, entry);
       }
     }

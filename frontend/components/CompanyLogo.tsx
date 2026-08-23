@@ -8,13 +8,14 @@ interface Props {
   className?: string;
 }
 
-// Keyless public logo CDNs, tried in order. FMP covers most US listings; the
-// others fill gaps (class shares, smaller/foreign names FMP is missing). Only
-// after every source 404s do we fall back to an initials chip.
+// Logo sources, tried in order — both served through OUR nginx (/ext-logo/*),
+// which mirrors the keyless FMP and EODHD CDNs with a 30-day shared cache.
+// Same-origin + HTTP/2 means no extra DNS/TLS per logo and no repeat fetches
+// across visitors; only after every source 404s do we fall back to initials.
 const LOGO_SOURCES: ((sym: string) => string)[] = [
-  (s) => `https://financialmodelingprep.com/image-stock/${encodeURIComponent(s)}.png`,
-  // EODHD fills FMP's gaps (e.g. LAES) and vice versa — both are keyless.
-  (s) => `https://eodhd.com/img/logos/US/${encodeURIComponent(s)}.png`,
+  (s) => `/ext-logo/fmp/${encodeURIComponent(s)}.png`,
+  // EODHD fills FMP's gaps (e.g. LAES) and vice versa.
+  (s) => `/ext-logo/eodhd/${encodeURIComponent(s)}.png`,
 ];
 
 /**
@@ -116,6 +117,8 @@ export function CompanyLogo({ ticker, name, size = 28, className = "" }: Props) 
       alt={ticker || name || ""}
       width={size}
       height={size}
+      loading="lazy"
+      decoding="async"
       // Required for the pixel read below; both CDNs answer with
       // `access-control-allow-origin: *`, and detectTone degrades safely if a
       // future one does not.
