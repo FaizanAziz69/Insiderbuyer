@@ -203,7 +203,38 @@ export class MarketStatsController {
 
   @Get('heatmap')
   async heatmap() {
-    return { rows: await this.svc.getMarketHeatmap() };
+    const rows = await this.svc.getMarketHeatmap();
+    // Full-precision floats ("changePct": -0.98224807) nearly double a ~4k-row
+    // payload for digits no tile can render. Rounding cuts the raw JSON ~40%,
+    // which is the difference between a blank-then-pop treemap and an instant
+    // one on slow links. Precision kept: prices 3dp, percents 2dp, counts int.
+    const r2 = (v: unknown) =>
+      typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 100) / 100 : v;
+    const r3 = (v: unknown) =>
+      typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 1000) / 1000 : v;
+    const int = (v: unknown) =>
+      typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : v;
+    return {
+      rows: rows.map((r: any) => ({
+        ...r,
+        price: r3(r.price),
+        changeAbs: r3(r.changeAbs),
+        changePct: r2(r.changePct),
+        volume: int(r.volume),
+        avgVolume: int(r.avgVolume),
+        avgVol10d: int(r.avgVol10d),
+        marketCap: int(r.marketCap),
+        fiftyTwoWeekHigh: r2(r.fiftyTwoWeekHigh),
+        fiftyTwoWeekLow: r2(r.fiftyTwoWeekLow),
+        peRatio: r2(r.peRatio),
+        dividendYield: r3(r.dividendYield),
+        dividendRate: r3(r.dividendRate),
+        perfYear: r2(r.perfYear),
+        perf50d: r2(r.perf50d),
+        perf200d: r2(r.perf200d),
+        postMarketPct: r2(r.postMarketPct),
+      })),
+    };
   }
 
   /** Cumulative sector returns for the rotation chart — real FMP data. */
