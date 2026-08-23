@@ -140,9 +140,30 @@ function roleTag(role: string, title?: string | null): string {
   return "INS";
 }
 
+/** Canvas palettes for the two site themes (data-theme on <html>). */
+const PALETTES = {
+  dark: {
+    text: "245,247,250",
+    bgIn: "#12263f",
+    bgOut: "#081525",
+    sat: "11,27,47",
+    badge: "#0B1B2F",
+    neutral: "120,138,160",
+  },
+  light: {
+    text: "14,31,53",
+    bgIn: "#fdfeff",
+    bgOut: "#e4ebf3",
+    sat: "255,255,255",
+    badge: "#ffffff",
+    neutral: "130,145,165",
+  },
+} as const;
+type ThemeName = keyof typeof PALETTES;
+
 /** Color ramp: green above insider cost, red below, saturation by gap size. */
-function bubbleColor(b: Body, alpha: number): string {
-  if (!b.hasRef) return `rgba(120,138,160,${alpha})`;
+function bubbleColor(b: Body, alpha: number, neutral = "120,138,160"): string {
+  if (!b.hasRef) return `rgba(${neutral},${alpha})`;
   const g = Math.abs(b.gap);
   const sat = g < 0.05 ? 0.45 : g < 0.15 ? 0.72 : 1;
   if (b.above) {
@@ -180,6 +201,9 @@ export default function BubblesPage() {
   const [query, setQuery] = useState("");
   const [invZoom, setInvZoom] = useState(1);
   const [booted, setBooted] = useState(false);
+  const [theme, setTheme] = useState<ThemeName>("dark");
+  const themeRef = useRef<ThemeName>("dark");
+  themeRef.current = theme;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -228,9 +252,16 @@ export default function BubblesPage() {
     apply();
     window.addEventListener("resize", apply);
     reduceMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Follow the site's theme (data-theme on <html>, ThemeToggle writes it).
+    const readTheme = () =>
+      setTheme(document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark");
+    readTheme();
+    const mo = new MutationObserver(readTheme);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("resize", apply);
+      mo.disconnect();
     };
   }, []);
 
@@ -245,11 +276,16 @@ export default function BubblesPage() {
     const W = window.innerWidth;
     const H = window.innerHeight;
 
+    // Small screens get the top of the tape, not all of it — 250 bodies on a
+    // phone is unreadable and melts the battery. Payload is sorted by total.
+    const cap = W < 640 ? 55 : W < 1024 ? 130 : 250;
+    const shown = data.bubbles.slice(0, cap);
+
     // Fit factor: keep the summed bubble area a sane share of the viewport so
     // a heavy 1Y window shrinks to fit and a quiet 1W window fills the screen.
     let areaSum = 0;
     const rawR = new Map<string, number>();
-    for (const b of data.bubbles) {
+    for (const b of shown) {
       const r = Math.min(Math.max(13 * Math.sqrt(b.total / 1e6) + 16, 22), 95);
       rawR.set(b.t, r);
       areaSum += Math.PI * r * r;
@@ -262,7 +298,7 @@ export default function BubblesPage() {
 
     const prevBodies = new Map(bodiesRef.current.map((b) => [b.t, b]));
     const next: Body[] = [];
-    for (const api of data.bubbles) {
+    for (const api of shown) {
       const ref = api.avg90 ?? api.price;
       const gap = ref != null && api.vwaip > 0 ? (ref - api.vwaip) / api.vwaip : 0;
       const prev = prevBodies.get(api.t);
@@ -310,10 +346,10 @@ export default function BubblesPage() {
     // Live-tape pulses: only for buy events that appear on a refetch of the
     // SAME window — a window switch is navigation, not news.
     const ids = new Set<string>();
-    for (const b of data.bubbles) for (const buy of b.buys) ids.add(buy.id);
+    for (const b of shown) for (const buy of b.buys) ids.add(buy.id);
     if (seenIdsRef.current && !windowChanged) {
       const fresh = new Set<string>();
-      for (const b of data.bubbles)
+      for (const b of shown)
         for (const buy of b.buys) if (!seenIdsRef.current.has(buy.id)) fresh.add(b.t);
       for (const t of fresh) pulsesRef.current.push({ t, age: 0 });
     }
@@ -348,6 +384,7 @@ export default function BubblesPage() {
     let lastPointer = { x: 0, y: 0 };
     let hover: Body | null = null;
     let bgGrad: CanvasGradient | null = null;
+    let bgTheme = "";
 
     const resize = () => {
       DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -447,10 +484,11 @@ export default function BubblesPage() {
     const SPRITE_PAD = 16;
 
     const spriteFor = (b: Body): { cv: HTMLCanvasElement; base: number } | null => {
+      const pal = PALETTES[themeRef.current];
       const base = Math.max(8, Math.round(b.targetR));
       const entry = imgCacheRef.current.get(b.t);
       const logoOk = !!entry?.ok && base >= 30;
-      const key = `${b.t}|${base}|${bubbleColor(b, 1)}|${logoOk ? 1 : 0}|${b.data.buys.length}|${b.data.total}`;
+      const key = `${b.t}|${themeRef.current}|${base}|${bubbleColor(b, 1, pal.neutral)}|${logoOk ? 1 : 0}|${b.data.buys.length}|${b.data.total}`;
       let cv = sprites.get(key);
       if (!cv) {
         if (sprites.size > 500) sprites.clear();
@@ -465,14 +503,14 @@ export default function BubblesPage() {
         const cy = size / 2;
         const r = base;
         const grad = c.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r);
-        grad.addColorStop(0, bubbleColor(b, 0.42));
-        grad.addColorStop(1, bubbleColor(b, 0.1));
+        grad.addColorStop(0, bubbleColor(b, 0.42, pal.neutral));
+        grad.addColorStop(1, bubbleColor(b, 0.1, pal.neutral));
         c.beginPath();
         c.arc(cx, cy, r, 0, Math.PI * 2);
         c.fillStyle = grad;
         c.fill();
         c.lineWidth = 1.6;
-        c.strokeStyle = bubbleColor(b, 0.95);
+        c.strokeStyle = bubbleColor(b, 0.95, pal.neutral);
         c.stroke();
         if (logoOk && entry) {
           const logoR = r * 0.3;
@@ -484,7 +522,7 @@ export default function BubblesPage() {
           c.drawImage(entry.img, cx - logoR, cy - r * 0.42 - logoR, logoR * 2, logoR * 2);
           c.restore();
         }
-        c.fillStyle = "rgba(245,247,250,0.96)";
+        c.fillStyle = `rgba(${pal.text},0.96)`;
         c.textAlign = "center";
         c.textBaseline = "middle";
         const fs = Math.max(10, r * 0.34);
@@ -493,7 +531,7 @@ export default function BubblesPage() {
         c.fillText(b.t, cx, tickY);
         if (r > 32) {
           c.font = `400 ${Math.max(9, r * 0.2)}px ${monoFam}`;
-          c.fillStyle = "rgba(245,247,250,0.6)";
+          c.fillStyle = `rgba(${pal.text},0.6)`;
           c.fillText(fmtM(b.data.total), cx, tickY + fs * 0.95);
         }
         if (b.data.buys.length > 1) {
@@ -501,12 +539,12 @@ export default function BubblesPage() {
           const by = cy - r * 0.72;
           c.beginPath();
           c.arc(bx, by, 10.5, 0, Math.PI * 2);
-          c.fillStyle = "#0B1B2F";
+          c.fillStyle = pal.badge;
           c.fill();
-          c.strokeStyle = bubbleColor(b, 1);
+          c.strokeStyle = bubbleColor(b, 1, pal.neutral);
           c.lineWidth = 1.4;
           c.stroke();
-          c.fillStyle = "rgba(245,247,250,0.95)";
+          c.fillStyle = `rgba(${pal.text},0.95)`;
           c.font = `600 9.5px ${monoFam}`;
           c.fillText(`×${b.data.buys.length}`, bx, by + 0.5);
         }
@@ -517,10 +555,12 @@ export default function BubblesPage() {
 
     const draw = () => {
       const bodies = bodiesRef.current;
-      if (!bgGrad) {
+      const pal = PALETTES[themeRef.current];
+      if (!bgGrad || bgTheme !== themeRef.current) {
+        bgTheme = themeRef.current;
         bgGrad = ctx.createRadialGradient(W / 2, H * 0.42, 80, W / 2, H * 0.42, Math.max(W, H) * 0.75);
-        bgGrad.addColorStop(0, "#12263f");
-        bgGrad.addColorStop(1, "#081525");
+        bgGrad.addColorStop(0, pal.bgIn);
+        bgGrad.addColorStop(1, pal.bgOut);
       }
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, W, H);
@@ -545,20 +585,20 @@ export default function BubblesPage() {
             ctx.beginPath();
             ctx.moveTo(b.x, b.y);
             ctx.lineTo(s.x, s.y);
-            ctx.strokeStyle = `rgba(157,176,199,${0.35 * b.expandT * dim})`;
+            ctx.strokeStyle = `rgba(${pal.neutral},${0.45 * b.expandT * dim})`;
             ctx.lineWidth = 1;
             ctx.stroke();
             ctx.beginPath();
             ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(11,27,47,${0.92 * b.expandT * dim})`;
+            ctx.fillStyle = `rgba(${pal.sat},${0.92 * b.expandT * dim})`;
             ctx.fill();
-            ctx.fillStyle = bubbleColor(b, 0.16 * b.expandT * dim);
+            ctx.fillStyle = bubbleColor(b, 0.16 * b.expandT * dim, pal.neutral);
             ctx.fill();
-            ctx.strokeStyle = bubbleColor(b, 0.95 * b.expandT * dim);
+            ctx.strokeStyle = bubbleColor(b, 0.95 * b.expandT * dim, pal.neutral);
             ctx.lineWidth = 1.5;
             ctx.stroke();
             if (s.r > 8) {
-              ctx.fillStyle = `rgba(245,247,250,${b.expandT * dim})`;
+              ctx.fillStyle = `rgba(${pal.text},${b.expandT * dim})`;
               ctx.font = `500 ${Math.max(8, s.r * 0.55)}px ${monoFam}`;
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
@@ -579,7 +619,7 @@ export default function BubblesPage() {
         if (isSel || b === hover || b.t === focusT) {
           ctx.beginPath();
           ctx.arc(b.x, b.y, b.r + (isSel ? 1 : 3.5), 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(245,247,250,${(isSel ? 0.95 : 0.35) * dim})`;
+          ctx.strokeStyle = `rgba(${pal.text},${(isSel ? 0.95 : 0.35) * dim})`;
           ctx.lineWidth = isSel ? 2.5 : 1;
           ctx.stroke();
         }
@@ -759,14 +799,14 @@ export default function BubblesPage() {
 
   return (
     <div
-      className={`bm-root ${archivo.variable} ${plexMono.variable} ${nunito.variable}`}
+      className={`bm-root ${theme === "light" ? "bm-light" : ""} ${archivo.variable} ${plexMono.variable} ${nunito.variable}`}
       style={{ zoom: invZoom } as React.CSSProperties}
     >
       <canvas
         ref={canvasRef}
         className="bm-field"
         tabIndex={0}
-        aria-label="Insider buying bubble map. Bubbles represent insider purchases of $100,000 or more; click a bubble for company details. Use arrow keys to cycle bubbles, Enter to open one."
+        aria-label="Insider buying bubble map. Bubbles represent insider purchases of $250,000 or more; click a bubble for company details. Use arrow keys to cycle bubbles, Enter to open one."
       />
 
       <header className="bm-top">
@@ -777,7 +817,7 @@ export default function BubblesPage() {
           <h1>
             INSIDER BUBBLES<span className="bm-dot">.</span>
           </h1>
-          <span className="bm-tag">Insider buys &ge; $100K</span>
+          <span className="bm-tag">Insider buys &ge; $250K</span>
         </div>
         <nav className="bm-windows" aria-label="Time window">
           {WINDOWS.map(([value, label]) => (
@@ -846,7 +886,7 @@ export default function BubblesPage() {
         <div className="bm-center-msg">
           <b>Quiet tape.</b>
           <span>
-            No open-market insider buys of $100K+ {win === "1d" ? "filed today" : "in this window"} yet.
+            No open-market insider buys of $250K+ {win === "1d" ? "filed today" : "in this window"} yet.
           </span>
           {win !== "30d" && (
             <button className="bm-widen" onClick={() => setWin("30d")}>
@@ -1194,6 +1234,21 @@ const CSS_TEXT = `
 .bm-cta-quiet { color: var(--bm-ink-faint); font-weight: 600 !important; font-size: 12px !important; padding: 4px !important; }
 .bm-cta-quiet:hover { color: var(--bm-ink); }
 .bm-p-disclaimer { font-size: 10.5px; color: var(--bm-ink-faint); margin-top: 14px; line-height: 1.6; }
+
+/* ── Light theme (follows the site's data-theme="light") ── */
+.bm-root.bm-light {
+  --bm-field: #F5F7FA; --bm-ink: #0E1F35; --bm-ink-dim: #4A5D75; --bm-ink-faint: #7C90A8;
+  --bm-panel: #FFFFFF; --bm-line: rgba(14,31,53,0.14);
+}
+.bm-root.bm-light .bm-top { background: linear-gradient(180deg, rgba(245,247,250,0.96) 0%, rgba(245,247,250,0.72) 70%, rgba(245,247,250,0) 100%); }
+.bm-root.bm-light .bm-windows, .bm-root.bm-light .bm-search { background: rgba(255,255,255,0.92); }
+.bm-root.bm-light .bm-legend { background: rgba(255,255,255,0.72); }
+.bm-root.bm-light .bm-tooltip { background: rgba(255,255,255,0.97); box-shadow: 0 8px 28px rgba(14,31,53,0.18); }
+.bm-root.bm-light .bm-panel { box-shadow: -24px 0 60px rgba(14,31,53,0.16); }
+.bm-root.bm-light .bm-p-cell { background: rgba(14,31,53,0.05); }
+.bm-root.bm-light .bm-panel-close { background: rgba(14,31,53,0.07); }
+.bm-root.bm-light .bm-live { color: #9A7118; }
+.bm-root.bm-light .bm-live-dot { background: #C99525; }
 
 @media (max-width: 640px) {
   .bm-panel {

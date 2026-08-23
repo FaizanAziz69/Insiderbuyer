@@ -16,10 +16,9 @@ const WINDOWS: Array<[string, number]> = [
   ['1y', 365],
 ];
 
-/** Qualification floor: aggregate open-market buys per insider per day.
- *  Brief v1.0 said $250k; lowered to $100k on Faizan's call (2026-08-23,
- *  "add more bubbles") — flip this one constant to change the tape. */
-const MIN_BUY = 100_000;
+/** Qualification floor: aggregate open-market buys per insider per day
+ *  (brief v1.0). Briefly $100k on 2026-08-23, reverted same day. */
+const MIN_BUY = 250_000;
 
 /** Field perf budget — the payload is capped to the largest N tickers. */
 const MAX_BUBBLES = 250;
