@@ -430,7 +430,8 @@ const CSS = `
 
 /* hero */
 .biv-hero { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; padding-top: 84px !important; }
-.biv-hero h1 { font-size: clamp(40px, 5.4vw, 72px); display: grid; }
+.biv-hero h1 { font-size: clamp(34px, 3.9vw, 56px); display: grid; }
+.biv-hero h1 span { white-space: nowrap; }
 .biv-sub { font-size: 18px; line-height: 1.6; color: var(--dim); margin: 22px 0 26px; max-width: 460px; }
 .biv-sub b { color: var(--ink); }
 .biv-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -574,6 +575,8 @@ const CSS = `
 @media (max-width: 960px) {
   .biv section { padding: 52px 18px; }
   .biv-hero { grid-template-columns: 1fr; padding-top: 48px !important; }
+  .biv-hero h1 { font-size: clamp(30px, 8.6vw, 44px); }
+  .biv-hero h1 span { white-space: normal; }
   .biv-hero-art { min-height: 300px; }
   .biv-bento { grid-template-columns: 1fr; }
   .biv-card, .biv-card-wide { grid-column: span 1; }
