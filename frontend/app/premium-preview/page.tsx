@@ -155,10 +155,17 @@ const NUMBERS = [
 ];
 
 const TOOLS = [
-  { label: "Stock profiles", blurb: "Price, fundamentals and the full insider record on every ticker.", img: "/sales/mini-stock.jpg", href: "/companies/AAPL" },
-  { label: "Insider rankings", blurb: "Every filer ranked by buying volume and track-record accuracy.", img: "/sales/mini-rankings.jpg", href: "/insiders" },
-  { label: "Breaking news", blurb: "Top stories and market-moving coverage, updated all day.", img: "/sales/mini-news.jpg", href: "/insights" },
-  { label: "Insider profiles", blurb: "Any insider's history: win rate, best buys, sectors traded.", img: "/sales/mini-profile.jpg", href: "/insiders" },
+  { label: "Stock profiles", href: "/companies/AAPL" },
+  { label: "Insider rankings", href: "/insiders" },
+  { label: "Breaking news", href: "/insights" },
+  { label: "Insider profiles", href: "/insiders" },
+  { label: "Market Heatmaps", href: "/heatmaps/market" },
+  { label: "Top Insider Scores", href: "/insiders/hot" },
+  { label: "Earnings Calendar", href: "/earnings" },
+  { label: "Watchlists", href: "/watchlist" },
+  { label: "IPO Tracker", href: "/ipos" },
+  { label: "Short Interest", href: "/short-interest" },
+  { label: "Dividends", href: "/dividends" },
 ];
 
 const FAQS = [
@@ -390,11 +397,7 @@ export default function PremiumPreviewPage() {
         <div className="biv-tools">
           {TOOLS.map((t) => (
             <Link key={t.label} href={t.href} className="biv-tool">
-              <div className="biv-tool-shot">
-                <img src={t.img} alt={t.label} loading="lazy" />
-              </div>
-              <h3>{t.label}</h3>
-              <p>{t.blurb}</p>
+              {t.label}
             </Link>
           ))}
         </div>
@@ -644,18 +647,14 @@ const CSS = `
 .biv-num-cap { font-size: 13.5px; color: var(--dim); line-height: 1.55; margin-top: 10px; }
 .biv-fine.biv-center { text-align: center; margin-top: 22px; }
 
-/* tools — four mini product shots */
-.biv-tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 40px; }
+/* tools — chips */
+.biv-tools { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 34px; }
 .biv-tool {
-  border: 1px solid var(--line); border-radius: 16px; padding: 0 0 18px;
-  color: var(--ink); text-decoration: none; background: var(--bg2);
-  overflow: hidden; transition: border-color .15s, transform .15s;
+  border: 1px solid var(--line); border-radius: 999px; padding: 11px 20px;
+  color: var(--ink); text-decoration: none; font-size: 14.5px; font-weight: 600;
+  background: rgba(14,26,46,0.6); transition: border-color .15s, background .15s;
 }
-.biv-tool:hover { border-color: rgba(76,195,138,0.5); transform: translateY(-2px); }
-.biv-tool-shot { height: 150px; overflow: hidden; border-bottom: 1px solid var(--line); background: #fff; }
-.biv-tool-shot img { width: 100%; display: block; object-fit: cover; object-position: top left; }
-.biv-tool h3 { font-size: 16px; font-weight: 700; margin: 15px 16px 5px; }
-.biv-tool p { font-size: 13px; line-height: 1.5; color: var(--dim); margin: 0 16px; }
+.biv-tool:hover { border-color: rgba(76,195,138,0.5); background: rgba(76,195,138,0.08); }
 
 /* faq */
 .biv-faq { max-width: 760px; margin: 36px auto 0; }
@@ -702,11 +701,7 @@ const CSS = `
   .biv-bento { grid-template-columns: 1fr; }
   .biv-card, .biv-card-wide { grid-column: span 1; }
   .biv-plans, .biv-numbers { grid-template-columns: 1fr; }
-  .biv-tools { grid-template-columns: repeat(2, 1fr); }
   .biv-plan-hot { order: -1; }
-}
-@media (max-width: 560px) {
-  .biv-tools { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .biv section { padding: 44px 14px; }
