@@ -471,10 +471,14 @@ const CSS = `
   display: inline-block; text-decoration: none; border-radius: 10px;
   font-weight: 700; font-size: 15px; padding: 13px 22px; transition: filter .15s, background .15s;
 }
-.biv-btn-solid { background: var(--brand); color: var(--brand-ink); }
-.biv-btn-solid:hover { filter: brightness(1.1); }
-.biv-btn-ghost { border: 1px solid rgba(157,176,199,0.4); color: var(--ink); }
-.biv-btn-ghost:hover { background: rgba(157,176,199,0.1); }
+/* Brand (navbar-colour) buttons. Colour is forced on both states: the site's
+   global anchor styles otherwise win the hover and darken the label. */
+.biv-btn-solid { background: var(--brand); color: var(--brand-ink) !important; }
+.biv-btn-solid:hover { filter: brightness(1.12); color: var(--brand-ink) !important; }
+.biv-btn-ghost { border: 1px solid var(--brand); color: var(--brand) !important; }
+.biv-btn-ghost:hover {
+  background: var(--brand); color: var(--brand-ink) !important; border-color: var(--brand);
+}
 .biv-btn-block { display: block; text-align: center; margin: 18px 0; }
 .biv-btn-big { font-size: 17px; padding: 16px 34px; }
 .biv-fine { font-size: 12.5px; color: var(--faint); margin-top: 14px; }
@@ -609,7 +613,7 @@ const CSS = `
 .biv-mcard-person .biv-mcard-foot span { color: rgba(245,247,250,0.72); }
 .biv-mstat {
   font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: 44px;
-  color: var(--brand); letter-spacing: -0.02em;
+  color: var(--green-hi); letter-spacing: -0.02em;
 }
 .biv-mcap { font-size: 13px; color: var(--dim); line-height: 1.5; margin-top: 6px; }
 
@@ -647,7 +651,7 @@ const CSS = `
   color: var(--ink); text-decoration: none; background: var(--bg2);
   overflow: hidden; transition: border-color .15s, transform .15s;
 }
-.biv-tool:hover { border-color: var(--brand); transform: translateY(-2px); }
+.biv-tool:hover { border-color: rgba(76,195,138,0.5); transform: translateY(-2px); }
 .biv-tool-shot { height: 150px; overflow: hidden; border-bottom: 1px solid var(--line); background: #fff; }
 .biv-tool-shot img { width: 100%; display: block; object-fit: cover; object-position: top left; }
 .biv-tool h3 { font-size: 16px; font-weight: 700; margin: 15px 16px 5px; }
@@ -679,21 +683,14 @@ const CSS = `
     var(--bg);
 }
 :root[data-theme="light"] .biv { --brand: #005882; --brand-ink: #FFFFFF; }
-:root[data-theme="light"] .biv-btn-ghost { border-color: rgba(14,31,53,0.3); }
-:root[data-theme="light"] .biv-btn-ghost:hover { background: rgba(14,31,53,0.06); }
 :root[data-theme="light"] .biv-firms span { color: rgba(14,31,53,0.72); }
 :root[data-theme="light"] .biv-hero-art img { box-shadow: 0 30px 70px rgba(14,31,53,0.28); }
-:root[data-theme="light"] .biv-mstat { color: var(--brand); }
-:root[data-theme="light"] .biv-plus { background: rgba(0,88,130,0.10); color: var(--brand); }
+:root[data-theme="light"] .biv-mstat { color: var(--green); }
+:root[data-theme="light"] .biv-plus { background: rgba(62,155,95,0.12); color: var(--green); }
 :root[data-theme="light"] .biv-tool { background: #FFFFFF; }
 :root[data-theme="light"] .biv-plan-hot { box-shadow: 0 0 0 1px rgba(0,88,130,0.3), 0 24px 50px rgba(14,31,53,0.12); }
-:root[data-theme="light"] .biv-faq summary span { color: var(--brand); }
+:root[data-theme="light"] .biv-faq summary span { color: var(--green); }
 :root[data-theme="light"] .biv-plan li::before { color: var(--green); }
-:root[data-theme="light"] .biv-card:hover { border-color: rgba(0,88,130,0.45); }
-:root[data-theme="light"] .biv-mspark { color: rgba(0,88,130,0.35); }
-:root[data-theme="light"] .biv-mcard-stat {
-  background: radial-gradient(220px 180px at 85% 0%, rgba(0,88,130,0.08), transparent 70%), var(--bg2);
-}
 
 /* responsive */
 @media (max-width: 960px) {
