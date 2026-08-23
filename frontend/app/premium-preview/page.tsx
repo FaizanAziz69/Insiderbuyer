@@ -511,8 +511,10 @@ const CSS = `
   display: grid; place-items: center; font-family: var(--font-heading), sans-serif;
   font-weight: 800; font-size: 24px; color: rgba(245,247,250,0.9);
 }
+.biv-mcard-person { color: #F5F7FA; }
 .biv-mcard-foot b { display: block; font-size: 17px; }
 .biv-mcard-foot span { font-size: 12.5px; color: var(--dim); }
+.biv-mcard-person .biv-mcard-foot span { color: rgba(245,247,250,0.65); }
 .biv-mstat {
   font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: 44px;
   color: var(--green-hi); letter-spacing: -0.02em;
@@ -570,6 +572,27 @@ const CSS = `
 /* final */
 .biv-final { text-align: center; padding: 90px 24px 110px !important; }
 .biv-final .biv-h2 { margin-bottom: 30px; }
+
+/* ── Light theme (site data-theme="light") ── */
+:root[data-theme="light"] .biv {
+  --ink: #0E1F35; --dim: #4A5D75; --faint: #7C90A8;
+  --bg: #F5F7FA; --bg2: #FFFFFF; --line: rgba(14,31,53,0.12);
+  background:
+    radial-gradient(1000px 600px at 80% -10%, rgba(62,155,95,0.10), transparent 60%),
+    radial-gradient(900px 500px at 10% 30%, rgba(30,64,120,0.08), transparent 60%),
+    var(--bg);
+}
+:root[data-theme="light"] .biv-accent, :root[data-theme="light"] .biv-accent-text { color: var(--green) !important; }
+:root[data-theme="light"] .biv-btn-ghost { border-color: rgba(14,31,53,0.3); }
+:root[data-theme="light"] .biv-btn-ghost:hover { background: rgba(14,31,53,0.06); }
+:root[data-theme="light"] .biv-firms span { color: rgba(14,31,53,0.72); }
+:root[data-theme="light"] .biv-hero-art img { box-shadow: 0 30px 70px rgba(14,31,53,0.28); }
+:root[data-theme="light"] .biv-mstat, :root[data-theme="light"] .biv-num-big { color: var(--green); }
+:root[data-theme="light"] .biv-plus { background: rgba(62,155,95,0.12); color: var(--green); }
+:root[data-theme="light"] .biv-tool { background: #FFFFFF; }
+:root[data-theme="light"] .biv-plan-hot { box-shadow: 0 0 0 1px rgba(62,155,95,0.35), 0 24px 50px rgba(14,31,53,0.12); }
+:root[data-theme="light"] .biv-faq summary span { color: var(--green); }
+:root[data-theme="light"] .biv-plan li::before { color: var(--green); }
 
 /* responsive */
 @media (max-width: 960px) {
