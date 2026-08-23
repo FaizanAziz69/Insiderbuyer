@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330       # GitHub free job cap is 6h; we finish well under
     env:
-      API: https://insiderbuyer-hwrc.vercel.app/api/backend
+      API: https://api.insiderbuying.com/api
     steps:
       - name: Refresh ALL company facts (cap / sector / industry / shares) from FMP
         run: |

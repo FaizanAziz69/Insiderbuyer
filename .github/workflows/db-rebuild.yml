@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     env:
-      API: https://insiderbuyer.vercel.app/api
+      API: https://api.insiderbuying.com/api
     steps:
       - name: Drive 100-day SEC ingest to completion (300s slices, timeouts expected)
         run: |

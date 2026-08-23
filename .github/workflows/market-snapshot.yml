@@ -38,7 +38,7 @@ jobs:
     env:
       # The backend directly, NOT the frontend proxy: that proxy aborts at 9s
       # (BACKEND_TIMEOUT_MS) and a bulk refresh runs right up against it.
-      API: https://insiderbuyer.vercel.app/api
+      API: https://api.insiderbuying.com/api
     steps:
       - name: Refresh market snapshot (price / change / volume / cap / sector)
         run: |
