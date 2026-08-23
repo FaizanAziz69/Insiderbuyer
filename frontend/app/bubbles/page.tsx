@@ -24,6 +24,7 @@ import { Archivo, IBM_Plex_Mono, Nunito_Sans } from "next/font/google";
 import { Lock } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { usePremium } from "@/components/premium/PremiumContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { effectiveZoom } from "@/lib/zoom";
 
 const archivo = Archivo({ subsets: ["latin"], weight: ["600", "800", "900"], variable: "--bm-head" });
@@ -203,6 +204,7 @@ export default function BubblesPage() {
   const [booted, setBooted] = useState(false);
   const [theme, setTheme] = useState<ThemeName>("dark");
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [mapH, setMapH] = useState(600);
   const themeRef = useRef<ThemeName>("dark");
   themeRef.current = theme;
 
@@ -244,12 +246,15 @@ export default function BubblesPage() {
     window.history.replaceState(null, "", `/bubbles${qs}`);
   }, [win, selected, booted]);
 
-  /* Full-screen takeover: stop the site behind from scrolling, and cancel the
-     site-wide body zoom so canvas math runs in visual pixels. */
+  /* App view under the site nav: size the map to the viewport minus the
+     sticky header, and cancel the site-wide body zoom so canvas math runs in
+     visual pixels (net scale inside the root is exactly 1). */
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const apply = () => setInvZoom(1 / effectiveZoom());
+    const apply = () => {
+      setInvZoom(1 / effectiveZoom());
+      const hd = document.querySelector<HTMLElement>("[data-app-sticky]");
+      setMapH(Math.max(380, window.innerHeight - (hd?.getBoundingClientRect().height || 0)));
+    };
     apply();
     window.addEventListener("resize", apply);
     reduceMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -260,7 +265,6 @@ export default function BubblesPage() {
     const mo = new MutationObserver(readTheme);
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     return () => {
-      document.body.style.overflow = prev;
       window.removeEventListener("resize", apply);
       mo.disconnect();
     };
@@ -387,10 +391,11 @@ export default function BubblesPage() {
     let bgGrad: CanvasGradient | null = null;
     let bgTheme = "";
 
+    const holder = canvas.parentElement as HTMLElement;
     const resize = () => {
       DPR = Math.min(window.devicePixelRatio || 1, 2);
-      W = window.innerWidth;
-      H = window.innerHeight;
+      W = holder.clientWidth || window.innerWidth;
+      H = holder.clientHeight || window.innerHeight;
       canvas.width = W * DPR;
       canvas.height = H * DPR;
       canvas.style.width = `${W}px`;
@@ -399,7 +404,15 @@ export default function BubblesPage() {
       bgGrad = null;
     };
     resize();
-    window.addEventListener("resize", resize);
+    const ro = new ResizeObserver(resize);
+    ro.observe(holder);
+
+    /** Pointer coords in canvas-local px (the map sits below the site nav
+     *  now, so client coords must be offset by the canvas rect). */
+    const local = (e: PointerEvent) => {
+      const r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
 
     const collisionR = (b: Body) => (b.expanded ? b.r + 46 * b.expandT : b.r);
 
@@ -660,8 +673,7 @@ export default function BubblesPage() {
     };
 
     const onMove = (e: PointerEvent) => {
-      const x = e.clientX;
-      const y = e.clientY;
+      const { x, y } = local(e);
       if (dragTarget) {
         dragMoved += Math.hypot(x - lastPointer.x, y - lastPointer.y);
         dragTarget.vx = (x - lastPointer.x) * 0.9;
@@ -698,11 +710,12 @@ export default function BubblesPage() {
     };
 
     const onDown = (e: PointerEvent) => {
-      const hit = hitTest(e.clientX, e.clientY);
+      const p = local(e);
+      const hit = hitTest(p.x, p.y);
       if (hit?.bubble) {
         dragTarget = hit.bubble;
         dragMoved = 0;
-        lastPointer = { x: e.clientX, y: e.clientY };
+        lastPointer = p;
         canvas.classList.add("bm-dragging");
         canvas.setPointerCapture(e.pointerId);
       } else if (!hit) {
@@ -757,7 +770,7 @@ export default function BubblesPage() {
 
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize);
+      ro.disconnect();
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointerup", onUp);
@@ -801,7 +814,7 @@ export default function BubblesPage() {
   return (
     <div
       className={`bm-root ${theme === "light" ? "bm-light" : ""} ${archivo.variable} ${plexMono.variable} ${nunito.variable}`}
-      style={{ zoom: invZoom } as React.CSSProperties}
+      style={{ zoom: invZoom, height: mapH } as React.CSSProperties}
     >
       <canvas
         ref={canvasRef}
@@ -811,9 +824,6 @@ export default function BubblesPage() {
       />
 
       <header className="bm-top">
-        <Link href="/" className="bm-back" aria-label="Back to InsiderBuying.com">
-          &larr; InsiderBuying.com
-        </Link>
         <div className="bm-brand">
           <h1>
             INSIDER BUBBLES<span className="bm-dot">.</span>
@@ -846,6 +856,9 @@ export default function BubblesPage() {
         <div className="bm-live">
           <span className="bm-live-dot" /> LIVE{updatedAgo ? ` · ${updatedAgo}` : ""}
         </div>
+        <span className="bm-theme">
+          <ThemeToggle />
+        </span>
         <button
           className="bm-mmenu-btn"
           aria-label="Time window and search"
@@ -1108,7 +1121,7 @@ const CSS_TEXT = `
   --bm-green: #3E9B5F; --bm-red: #C2504A; --bm-gold: #E8B54D;
   --bm-panel: #0B1B2F; --bm-line: rgba(157,176,199,0.14);
   --bm-mono-family: var(--bm-mono);
-  position: fixed; inset: 0; z-index: 100; overflow: hidden;
+  position: relative; width: 100%; overflow: hidden;
   background: var(--bm-field); color: var(--bm-ink);
   font-family: var(--bm-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -1166,6 +1179,9 @@ const CSS_TEXT = `
   width: 7px; height: 7px; border-radius: 50%; background: var(--bm-gold);
   animation: bm-blink 2.4s ease-in-out infinite;
 }
+.bm-theme { display: inline-flex; align-items: center; }
+.bm-theme button { height: 28px !important; width: 28px !important; }
+.bm-theme svg { color: var(--bm-ink) !important; height: 14px !important; width: 14px !important; }
 .bm-mmenu-btn {
   display: none; font-family: var(--bm-mono), monospace; font-size: 12px; font-weight: 600;
   color: var(--bm-ink); background: rgba(11,27,47,0.85); border: 1px solid var(--bm-line);
@@ -1309,15 +1325,16 @@ const CSS_TEXT = `
 
 @media (max-width: 640px) {
   .bm-panel {
-    top: auto; left: 0; right: 0; width: 100%; max-width: none; height: 68vh;
+    top: auto; left: 0; right: 0; width: 100%; max-width: none; height: 74%;
     border-left: 0; border-top: 1px solid var(--bm-line);
     border-radius: 16px 16px 0 0; transform: translateY(104%);
   }
   .bm-panel.bm-open { transform: translateY(0); }
   .bm-top { gap: 8px; padding: 10px 12px; }
-  .bm-tag, .bm-back { display: none; }
+  .bm-tag { display: none; }
   .bm-windows, .bm-top > .bm-search, .bm-live { display: none; }
-  .bm-mmenu-btn { display: inline-flex; margin-left: auto; }
+  .bm-theme { margin-left: auto; }
+  .bm-mmenu-btn { display: inline-flex; }
   .bm-mmenu { display: block; }
   .bm-legend, .bm-stats { display: none; }
 }
