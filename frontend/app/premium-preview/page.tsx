@@ -155,13 +155,10 @@ const NUMBERS = [
 ];
 
 const TOOLS = [
-  { label: "Market Heatmaps", href: "/heatmaps/market" },
-  { label: "Top Insider Scores", href: "/insiders/hot" },
-  { label: "Earnings Calendar", href: "/earnings" },
-  { label: "Watchlists", href: "/watchlist" },
-  { label: "IPO Tracker", href: "/ipos" },
-  { label: "Short Interest", href: "/short-interest" },
-  { label: "Dividends", href: "/dividends" },
+  { label: "Stock profiles", blurb: "Price, fundamentals and the full insider record on every ticker.", img: "/sales/mini-stock.jpg", href: "/companies/AAPL" },
+  { label: "Insider rankings", blurb: "Every filer ranked by buying volume and track-record accuracy.", img: "/sales/mini-rankings.jpg", href: "/insiders" },
+  { label: "Breaking news", blurb: "Top stories and market-moving coverage, updated all day.", img: "/sales/mini-news.jpg", href: "/insights" },
+  { label: "Insider profiles", blurb: "Any insider's history: win rate, best buys, sectors traded.", img: "/sales/mini-profile.jpg", href: "/insiders" },
 ];
 
 const FAQS = [
@@ -393,7 +390,11 @@ export default function PremiumPreviewPage() {
         <div className="biv-tools">
           {TOOLS.map((t) => (
             <Link key={t.label} href={t.href} className="biv-tool">
-              {t.label}
+              <div className="biv-tool-shot">
+                <img src={t.img} alt={t.label} loading="lazy" />
+              </div>
+              <h3>{t.label}</h3>
+              <p>{t.blurb}</p>
             </Link>
           ))}
         </div>
@@ -435,6 +436,10 @@ const CSS = `
   --ink: #F5F7FA; --dim: #9DB0C7; --faint: #5D7189;
   --bg: #0A1220; --bg2: #0E1A2E; --line: rgba(157,176,199,0.14);
   --green: #3E9B5F; --green-hi: #4CC38A;
+  /* Site brand accent — the navbar colour, per theme (globals.css tokens:
+     light --brand-surface #005882, dark --accent #20d0ff). Used for the
+     primary CTA, the hero's final line and the big stat numbers. */
+  --brand: #20d0ff; --brand-ink: #04141c;
   background:
     radial-gradient(1000px 600px at 80% -10%, rgba(62,155,95,0.14), transparent 60%),
     radial-gradient(900px 500px at 10% 30%, rgba(30,64,120,0.25), transparent 60%),
@@ -451,8 +456,8 @@ const CSS = `
   text-transform: uppercase; letter-spacing: -0.015em; line-height: 0.98;
   color: var(--ink); margin: 0;
 }
-.biv-accent { color: var(--green-hi); }
-.biv-accent-text { color: var(--green-hi) !important; }
+.biv-accent { color: var(--brand); }
+.biv-accent-text { color: var(--brand) !important; }
 .biv-dim { color: var(--faint); }
 
 /* hero */
@@ -466,7 +471,7 @@ const CSS = `
   display: inline-block; text-decoration: none; border-radius: 10px;
   font-weight: 700; font-size: 15px; padding: 13px 22px; transition: filter .15s, background .15s;
 }
-.biv-btn-solid { background: var(--green); color: #06131f; }
+.biv-btn-solid { background: var(--brand); color: var(--brand-ink); }
 .biv-btn-solid:hover { filter: brightness(1.1); }
 .biv-btn-ghost { border: 1px solid rgba(157,176,199,0.4); color: var(--ink); }
 .biv-btn-ghost:hover { background: rgba(157,176,199,0.1); }
@@ -604,7 +609,7 @@ const CSS = `
 .biv-mcard-person .biv-mcard-foot span { color: rgba(245,247,250,0.72); }
 .biv-mstat {
   font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: 44px;
-  color: var(--green-hi); letter-spacing: -0.02em;
+  color: var(--brand); letter-spacing: -0.02em;
 }
 .biv-mcap { font-size: 13px; color: var(--dim); line-height: 1.5; margin-top: 6px; }
 
@@ -617,7 +622,7 @@ const CSS = `
 .biv-plan-hot { border-color: rgba(76,195,138,0.55); box-shadow: 0 0 0 1px rgba(76,195,138,0.35), 0 24px 60px rgba(0,0,0,0.35); }
 .biv-plan-badge {
   position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
-  background: var(--green); color: #06131f; font-size: 11.5px; font-weight: 800;
+  background: var(--brand); color: var(--brand-ink); font-size: 11.5px; font-weight: 800;
   letter-spacing: 1px; text-transform: uppercase; border-radius: 999px; padding: 5px 14px;
 }
 .biv-plan h3 { margin: 0; font-size: 18px; font-weight: 700; color: var(--dim); }
@@ -631,18 +636,22 @@ const CSS = `
 /* numbers */
 .biv-numbers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 40px; }
 .biv-num { background: var(--bg2); border: 1px solid var(--line); border-radius: 16px; padding: 26px 22px; }
-.biv-num-big { font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: clamp(34px, 3.4vw, 48px); color: var(--green-hi); letter-spacing: -0.02em; }
+.biv-num-big { font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: clamp(34px, 3.4vw, 48px); color: var(--brand); letter-spacing: -0.02em; }
 .biv-num-cap { font-size: 13.5px; color: var(--dim); line-height: 1.55; margin-top: 10px; }
 .biv-fine.biv-center { text-align: center; margin-top: 22px; }
 
-/* tools */
-.biv-tools { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 34px; }
+/* tools — four mini product shots */
+.biv-tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 40px; }
 .biv-tool {
-  border: 1px solid var(--line); border-radius: 999px; padding: 11px 20px;
-  color: var(--ink); text-decoration: none; font-size: 14.5px; font-weight: 600;
-  background: rgba(14,26,46,0.6); transition: border-color .15s, background .15s;
+  border: 1px solid var(--line); border-radius: 16px; padding: 0 0 18px;
+  color: var(--ink); text-decoration: none; background: var(--bg2);
+  overflow: hidden; transition: border-color .15s, transform .15s;
 }
-.biv-tool:hover { border-color: rgba(76,195,138,0.5); background: rgba(76,195,138,0.08); }
+.biv-tool:hover { border-color: var(--brand); transform: translateY(-2px); }
+.biv-tool-shot { height: 150px; overflow: hidden; border-bottom: 1px solid var(--line); background: #fff; }
+.biv-tool-shot img { width: 100%; display: block; object-fit: cover; object-position: top left; }
+.biv-tool h3 { font-size: 16px; font-weight: 700; margin: 15px 16px 5px; }
+.biv-tool p { font-size: 13px; line-height: 1.5; color: var(--dim); margin: 0 16px; }
 
 /* faq */
 .biv-faq { max-width: 760px; margin: 36px auto 0; }
@@ -669,17 +678,22 @@ const CSS = `
     radial-gradient(900px 500px at 10% 30%, rgba(30,64,120,0.08), transparent 60%),
     var(--bg);
 }
-:root[data-theme="light"] .biv-accent, :root[data-theme="light"] .biv-accent-text { color: var(--green) !important; }
+:root[data-theme="light"] .biv { --brand: #005882; --brand-ink: #FFFFFF; }
 :root[data-theme="light"] .biv-btn-ghost { border-color: rgba(14,31,53,0.3); }
 :root[data-theme="light"] .biv-btn-ghost:hover { background: rgba(14,31,53,0.06); }
 :root[data-theme="light"] .biv-firms span { color: rgba(14,31,53,0.72); }
 :root[data-theme="light"] .biv-hero-art img { box-shadow: 0 30px 70px rgba(14,31,53,0.28); }
-:root[data-theme="light"] .biv-mstat, :root[data-theme="light"] .biv-num-big { color: var(--green); }
-:root[data-theme="light"] .biv-plus { background: rgba(62,155,95,0.12); color: var(--green); }
+:root[data-theme="light"] .biv-mstat { color: var(--brand); }
+:root[data-theme="light"] .biv-plus { background: rgba(0,88,130,0.10); color: var(--brand); }
 :root[data-theme="light"] .biv-tool { background: #FFFFFF; }
-:root[data-theme="light"] .biv-plan-hot { box-shadow: 0 0 0 1px rgba(62,155,95,0.35), 0 24px 50px rgba(14,31,53,0.12); }
-:root[data-theme="light"] .biv-faq summary span { color: var(--green); }
+:root[data-theme="light"] .biv-plan-hot { box-shadow: 0 0 0 1px rgba(0,88,130,0.3), 0 24px 50px rgba(14,31,53,0.12); }
+:root[data-theme="light"] .biv-faq summary span { color: var(--brand); }
 :root[data-theme="light"] .biv-plan li::before { color: var(--green); }
+:root[data-theme="light"] .biv-card:hover { border-color: rgba(0,88,130,0.45); }
+:root[data-theme="light"] .biv-mspark { color: rgba(0,88,130,0.35); }
+:root[data-theme="light"] .biv-mcard-stat {
+  background: radial-gradient(220px 180px at 85% 0%, rgba(0,88,130,0.08), transparent 70%), var(--bg2);
+}
 
 /* responsive */
 @media (max-width: 960px) {
@@ -691,7 +705,11 @@ const CSS = `
   .biv-bento { grid-template-columns: 1fr; }
   .biv-card, .biv-card-wide { grid-column: span 1; }
   .biv-plans, .biv-numbers { grid-template-columns: 1fr; }
+  .biv-tools { grid-template-columns: repeat(2, 1fr); }
   .biv-plan-hot { order: -1; }
+}
+@media (max-width: 560px) {
+  .biv-tools { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .biv section { padding: 44px 14px; }
