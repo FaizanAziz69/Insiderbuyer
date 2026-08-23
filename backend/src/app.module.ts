@@ -50,6 +50,8 @@ import { GovContractCache } from './entities/gov-contract-cache.entity';
 import { PeRatioCache } from './entities/pe-ratio-cache.entity';
 import { MarketProfileSnapshot } from './entities/market-profile.entity';
 import { FundamentalsCache } from './entities/fundamentals-cache.entity';
+import { BubblesCache, BubblesTickerMeta } from './entities/bubbles-cache.entity';
+import { BubblesModule } from './bubbles/bubbles.module';
 
 @Module({
   imports: [
@@ -99,6 +101,8 @@ import { FundamentalsCache } from './entities/fundamentals-cache.entity';
           PeRatioCache,
           MarketProfileSnapshot,
           FundamentalsCache,
+          BubblesCache,
+          BubblesTickerMeta,
         ],
         // Schema sync issues a catalog query per entity on every boot. Fine
         // locally; on serverless it repeats forever. Set DB_SYNC=true for a
@@ -128,6 +132,7 @@ import { FundamentalsCache } from './entities/fundamentals-cache.entity';
     NewsModule,
     IndicesModule,
     MarketStatsModule,
+    BubblesModule,
     BacktestModule,
     AnalystsModule,
     EarningsModule,

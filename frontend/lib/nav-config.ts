@@ -16,6 +16,7 @@ import {
   LineChart,
   Lock,
   Newspaper,
+  Orbit,
   Plane,
   Rocket,
   ShieldCheck,
@@ -63,6 +64,7 @@ export const NAV_GROUPS: NavGroup[] = [
     columns: [
       {
         links: [
+          { label: "Insider Bubbles", href: "/bubbles", icon: Orbit, badge: "new" },
           { label: "Top Insider Scores", href: "/insiders/hot", icon: Flame, badge: "popular" },
           { label: "Top Analysts", href: "/analyst-ratings", icon: Star },
           { label: "Congressional Trades", href: "/congressional-trades", icon: Landmark },
