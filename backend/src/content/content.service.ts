@@ -470,6 +470,14 @@ export class ContentService {
     'dailypolitical',
     'modern readers',
     'stocktitan',
+    'stock titan',
+    'yahoo finance',
+    'quiver',
+    'trefis',
+    'tradingkey',
+    'marketscreener',
+    'stocksregister',
+    'wall street pit',
   ];
 
   private allowedNewsLink(link: string): boolean {
