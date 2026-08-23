@@ -202,6 +202,7 @@ export default function BubblesPage() {
   const [invZoom, setInvZoom] = useState(1);
   const [booted, setBooted] = useState(false);
   const [theme, setTheme] = useState<ThemeName>("dark");
+  const [mobileMenu, setMobileMenu] = useState(false);
   const themeRef = useRef<ThemeName>("dark");
   themeRef.current = theme;
 
@@ -845,6 +846,45 @@ export default function BubblesPage() {
         <div className="bm-live">
           <span className="bm-live-dot" /> LIVE{updatedAgo ? ` · ${updatedAgo}` : ""}
         </div>
+        <button
+          className="bm-mmenu-btn"
+          aria-label="Time window and search"
+          aria-expanded={mobileMenu}
+          onClick={() => setMobileMenu((v) => !v)}
+        >
+          {WINDOWS.find(([v]) => v === win)?.[1] || win} ▾
+        </button>
+        {mobileMenu && (
+          <div className="bm-mmenu">
+            <input
+              className="bm-search bm-mmenu-search"
+              type="search"
+              placeholder="Search ticker…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                onSearchKey(e);
+                if (e.key === "Enter") setMobileMenu(false);
+              }}
+              aria-label="Search tickers on the map"
+            />
+            <div className="bm-mmenu-windows">
+              {WINDOWS.map(([value, label]) => (
+                <button
+                  key={value}
+                  className={value === win ? "bm-active" : ""}
+                  onClick={() => {
+                    setWin(value);
+                    setMobileMenu(false);
+                    for (const b of bodiesRef.current) b.expanded = false;
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="bm-legend">
@@ -1048,14 +1088,8 @@ function ProfilePanel({
         ))}
 
         <div className="bm-p-ctas">
-          <Link className="bm-cta-main" href={`/reports/cta/${encodeURIComponent(c.t)}`}>
-            See the full insider report &rarr;
-          </Link>
-          <Link className="bm-cta-sub" href="/alerts">
-            Get alerts on {c.t}
-          </Link>
-          <Link className="bm-cta-quiet" href={`/companies/${encodeURIComponent(c.t)}`}>
-            View the full {c.t} stock page
+          <Link className="bm-cta-main" href={`/companies/${encodeURIComponent(c.t)}`}>
+            View the full {c.t} stock page &rarr;
           </Link>
         </div>
         <div className="bm-p-disclaimer">
@@ -1131,6 +1165,29 @@ const CSS_TEXT = `
 .bm-live-dot {
   width: 7px; height: 7px; border-radius: 50%; background: var(--bm-gold);
   animation: bm-blink 2.4s ease-in-out infinite;
+}
+.bm-mmenu-btn {
+  display: none; font-family: var(--bm-mono), monospace; font-size: 12px; font-weight: 600;
+  color: var(--bm-ink); background: rgba(11,27,47,0.85); border: 1px solid var(--bm-line);
+  border-radius: 9px; padding: 8px 12px; cursor: pointer; align-items: center; gap: 4px;
+  white-space: nowrap;
+}
+.bm-root.bm-light .bm-mmenu-btn { background: rgba(255,255,255,0.92); }
+.bm-mmenu {
+  display: none; position: absolute; top: 52px; right: 10px; z-index: 60;
+  background: var(--bm-panel); border: 1px solid var(--bm-line); border-radius: 12px;
+  padding: 12px; width: 232px; box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+.bm-root.bm-light .bm-mmenu { box-shadow: 0 12px 40px rgba(14,31,53,0.2); }
+.bm-mmenu-search { width: 100%; margin-bottom: 10px; }
+.bm-mmenu-windows { display: flex; flex-wrap: wrap; gap: 6px; }
+.bm-mmenu-windows button {
+  font-family: var(--bm-mono), monospace; font-size: 12px; font-weight: 500;
+  color: var(--bm-ink-dim); background: transparent; border: 1px solid var(--bm-line);
+  border-radius: 7px; padding: 8px 4px; cursor: pointer; flex: 1 1 28%;
+}
+.bm-mmenu-windows button.bm-active {
+  background: var(--bm-green); color: #06131f; border-color: var(--bm-green); font-weight: 600;
 }
 @keyframes bm-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
 
@@ -1259,8 +1316,9 @@ const CSS_TEXT = `
   .bm-panel.bm-open { transform: translateY(0); }
   .bm-top { gap: 8px; padding: 10px 12px; }
   .bm-tag, .bm-back { display: none; }
-  .bm-windows button { padding: 6px 7px; font-size: 11px; }
-  .bm-search { width: 110px; }
+  .bm-windows, .bm-top > .bm-search, .bm-live { display: none; }
+  .bm-mmenu-btn { display: inline-flex; margin-left: auto; }
+  .bm-mmenu { display: block; }
   .bm-legend, .bm-stats { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
