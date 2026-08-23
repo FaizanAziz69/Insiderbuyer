@@ -254,7 +254,7 @@ export default function BubblesPage() {
       rawR.set(b.t, r);
       areaSum += Math.PI * r * r;
     }
-    const budget = W * (H - HEADER_CLEAR) * 0.52;
+    const budget = W * (H - HEADER_CLEAR) * 0.58;
     const k = areaSum > 0 ? Math.min(Math.max(Math.sqrt(budget / areaSum), 0.3), 1.35) : 1;
 
     const windowChanged = lastWinRef.current !== data.window;
@@ -1013,8 +1013,8 @@ const CSS_TEXT = `
 .bm-back:hover { color: var(--bm-ink); }
 .bm-brand { display: flex; align-items: baseline; gap: 10px; }
 .bm-brand h1 {
-  font-family: var(--bm-head), sans-serif; font-weight: 900; font-size: 18px;
-  letter-spacing: 0.2px; white-space: nowrap; margin: 0;
+  font-family: var(--bm-head), sans-serif !important; font-weight: 900; font-size: 18px;
+  letter-spacing: 0.2px; white-space: nowrap; margin: 0; color: var(--bm-ink);
 }
 .bm-dot { color: var(--bm-green); }
 .bm-tag {
