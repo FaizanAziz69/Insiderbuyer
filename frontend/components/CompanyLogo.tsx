@@ -117,7 +117,6 @@ export function CompanyLogo({ ticker, name, size = 28, className = "" }: Props) 
       alt={ticker || name || ""}
       width={size}
       height={size}
-      loading="lazy"
       decoding="async"
       // Required for the pixel read below; both CDNs answer with
       // `access-control-allow-origin: *`, and detectTone degrades safely if a
