@@ -430,6 +430,48 @@ export class ContentService {
     'ca.finance.yahoo.com',
   ];
 
+  /** Publisher-NAME blocklist for items that arrive via redirect links
+   *  (Google News URLs pass the host check while the underlying publisher is
+   *  still a stock platform — TradingView/Moomoo/TipRanks slipped through
+   *  exactly this way). Includes the MarketBeat auto-content network. */
+  private static readonly BLOCKED_NEWS_SOURCES = [
+    'tradingview',
+    'moomoo',
+    'tipranks',
+    'zacks',
+    'marketbeat',
+    'seeking alpha',
+    'seekingalpha',
+    'motley fool',
+    'investorplace',
+    'gurufocus',
+    'simply wall',
+    'simplywall',
+    'stocktwits',
+    'barchart',
+    'investing.com',
+    'insider monkey',
+    'insidermonkey',
+    'stockstory',
+    '24/7 wall',
+    '247wallst',
+    'wallstreetzen',
+    'stockanalysis',
+    'finviz',
+    'webull',
+    'stockinvest',
+    'defense world',
+    'defenseworld',
+    'etf daily news',
+    'americanbanking',
+    'ticker report',
+    'tickerreport',
+    'markets daily',
+    'dailypolitical',
+    'modern readers',
+    'stocktitan',
+  ];
+
   private allowedNewsLink(link: string): boolean {
     try {
       const host = new URL(link).hostname.toLowerCase();
@@ -439,6 +481,11 @@ export class ContentService {
     } catch {
       return false;
     }
+  }
+
+  private allowedNewsSource(source: string): boolean {
+    const s = (source || '').toLowerCase();
+    return !ContentService.BLOCKED_NEWS_SOURCES.some((b) => s.includes(b));
   }
 
   /** Rich recent-headline list for the stock page News card/tab (real
@@ -505,7 +552,21 @@ export class ContentService {
     };
     const out = items
       .filter((i) => i.title && (!i.date || i.date >= cutoff))
-      .filter((i) => this.allowedNewsLink(i.link))
+      .filter(
+        (i) =>
+          i.kind === 'press' ||
+          (this.allowedNewsLink(i.link) &&
+            this.allowedNewsSource(i.source) &&
+            this.allowedNewsSource(i.title)),
+      )
+      .map((i) => ({
+        ...i,
+        // Google News titles carry a " - Publisher" suffix; the source label
+        // already shows it, so strip the duplication.
+        title: i.title.replace(/\s[-–—]\s[^-–—]{2,40}$/, (m) =>
+          i.source && m.toLowerCase().includes(i.source.toLowerCase().slice(0, 12)) ? '' : m,
+        ).trim(),
+      }))
       .filter((i) => i.kind === 'press' || relevant(i.title))
       .sort((a, b) => b.date - a.date)
       .filter((i) => {
