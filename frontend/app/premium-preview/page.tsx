@@ -73,26 +73,27 @@ const FEATURES: Array<{
   },
 ];
 
-/** Marquee cards: people (photo slot = monogram until licensed photos land)
- *  alternating with platform stats, beehiiv "names you know" style. */
+/** Marquee cards: people (Wikimedia Commons photos, CC BY / CC BY-SA / PD —
+ *  credit line under the section) alternating with platform stats,
+ *  beehiiv "names you know" style. */
 const ROW_A: Array<
-  | { kind: "person"; name: string; sub: string; grad: string }
+  | { kind: "person"; name: string; sub: string; img: string }
   | { kind: "stat"; big: string; caption: string }
 > = [
-  { kind: "person", name: "Warren Buffett", sub: "Berkshire Hathaway · 13F holdings", grad: "linear-gradient(140deg,#1d3a5f,#0e1f35)" },
+  { kind: "person", name: "Warren Buffett", sub: "Berkshire Hathaway · 13F holdings", img: "/sales/people/buffett.jpg" },
   { kind: "stat", big: "142K+", caption: "open-market insider buys on file" },
-  { kind: "person", name: "Nancy Pelosi", sub: "U.S. House · disclosed trades", grad: "linear-gradient(140deg,#3b2a55,#151030)" },
+  { kind: "person", name: "Nancy Pelosi", sub: "U.S. House · disclosed trades", img: "/sales/people/pelosi.jpg" },
   { kind: "stat", big: "+2,924%", caption: "Insider Purchases Strategy, all-time backtest" },
-  { kind: "person", name: "Jensen Huang", sub: "NVIDIA · Form 4 filings", grad: "linear-gradient(140deg,#14493a,#0a2018)" },
+  { kind: "person", name: "Jensen Huang", sub: "NVIDIA · Form 4 filings", img: "/sales/people/jensen.jpg" },
   { kind: "stat", big: "435", caption: "insiders ranked by track record" },
 ];
 
 const ROW_B: typeof ROW_A = [
-  { kind: "person", name: "Jeff Bezos", sub: "Amazon · insider tape", grad: "linear-gradient(140deg,#4a3016,#1d1206)" },
+  { kind: "person", name: "Jeff Bezos", sub: "Amazon · insider tape", img: "/sales/people/bezos.jpg" },
   { kind: "stat", big: "4,300+", caption: "U.S. companies covered" },
-  { kind: "person", name: "Ray Dalio", sub: "Bridgewater · 13F holdings", grad: "linear-gradient(140deg,#0f3d4d,#071a21)" },
+  { kind: "person", name: "Ray Dalio", sub: "Bridgewater · 13F holdings", img: "/sales/people/dalio.jpg" },
   { kind: "stat", big: "+31%", caption: "backtest CAGR since 2014" },
-  { kind: "person", name: "Donald Trump Jr.", sub: "Board seats · insider buys", grad: "linear-gradient(140deg,#54222c,#1d0b10)" },
+  { kind: "person", name: "Donald Trump Jr.", sub: "Board seats · insider buys", img: "/sales/people/trumpjr.jpg" },
   { kind: "stat", big: "39", caption: "live alerts in the last 30 days" },
 ];
 
@@ -188,15 +189,6 @@ const FAQS = [
 ];
 
 /* ------------------------------------------------------------------ page */
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
 
 export default function PremiumPreviewPage() {
   return (
@@ -297,8 +289,8 @@ export default function PremiumPreviewPage() {
             <div className="biv-marquee-track">
               {[...row, ...row].map((c, i) =>
                 c.kind === "person" ? (
-                  <div className="biv-mcard biv-mcard-person" key={i} style={{ background: c.grad }}>
-                    <div className="biv-avatar">{initials(c.name)}</div>
+                  <div className="biv-mcard biv-mcard-person" key={i}>
+                    <img src={c.img} alt={c.name} loading="lazy" />
                     <div className="biv-mcard-foot">
                       <b>{c.name}</b>
                       <span>{c.sub}</span>
@@ -314,6 +306,9 @@ export default function PremiumPreviewPage() {
             </div>
           </div>
         ))}
+        <p className="biv-fine biv-center" style={{ marginTop: 18 }}>
+          Photos: Wikimedia Commons (public domain / CC BY / CC BY-SA).
+        </p>
       </section>
 
       {/* -------------------------------------------------------- pricing */}
@@ -417,7 +412,7 @@ const CSS = `
   padding: 0 0 24px;
   font-family: var(--font-sans), system-ui, sans-serif;
 }
-.biv section { max-width: 1180px; margin: 0 auto; padding: 72px 24px; }
+.biv section { max-width: 1460px; margin: 0 auto; padding: 72px 28px; }
 
 .biv h1, .biv .biv-h2 {
   font-family: var(--font-heading), sans-serif; font-weight: 900;
@@ -501,20 +496,21 @@ const CSS = `
 @keyframes biv-scroll { to { transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce) { .biv-marquee-track { animation: none; } }
 .biv-mcard {
-  width: 250px; height: 300px; border-radius: 16px; border: 1px solid var(--line);
+  width: 260px; height: 320px; border-radius: 16px; border: 1px solid var(--line);
   flex: 0 0 auto; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; position: relative;
 }
 .biv-mcard-stat { background: var(--bg2); justify-content: flex-end; }
-.biv-avatar {
-  position: absolute; top: 24px; left: 20px; width: 74px; height: 74px; border-radius: 50%;
-  background: rgba(245,247,250,0.1); border: 1px solid rgba(245,247,250,0.25);
-  display: grid; place-items: center; font-family: var(--font-heading), sans-serif;
-  font-weight: 800; font-size: 24px; color: rgba(245,247,250,0.9);
+.biv-mcard-person { color: #F5F7FA; padding: 0; overflow: hidden; }
+.biv-mcard-person > img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
 }
-.biv-mcard-person { color: #F5F7FA; }
+.biv-mcard-person .biv-mcard-foot {
+  position: relative; z-index: 1; padding: 44px 18px 16px;
+  background: linear-gradient(180deg, transparent, rgba(5,10,20,0.88) 60%);
+}
 .biv-mcard-foot b { display: block; font-size: 17px; }
 .biv-mcard-foot span { font-size: 12.5px; color: var(--dim); }
-.biv-mcard-person .biv-mcard-foot span { color: rgba(245,247,250,0.65); }
+.biv-mcard-person .biv-mcard-foot span { color: rgba(245,247,250,0.72); }
 .biv-mstat {
   font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: 44px;
   color: var(--green-hi); letter-spacing: -0.02em;
@@ -605,5 +601,16 @@ const CSS = `
   .biv-card, .biv-card-wide { grid-column: span 1; }
   .biv-plans, .biv-numbers { grid-template-columns: 1fr; }
   .biv-plan-hot { order: -1; }
+}
+@media (max-width: 640px) {
+  .biv section { padding: 44px 14px; }
+  .biv-hero-art { min-height: 230px; }
+  .biv-hero-art img { width: 92%; }
+  .biv-btn { padding: 12px 18px; font-size: 14px; }
+  .biv-mcard { width: 205px; height: 255px; }
+  .biv-mstat { font-size: 34px; }
+  .biv-firms { gap: 12px 22px; }
+  .biv-firms span { font-size: 15px; }
+  .biv-faq summary { font-size: 15.5px; }
 }
 `;
