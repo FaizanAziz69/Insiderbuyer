@@ -216,8 +216,8 @@ export default function PremiumPreviewPage() {
           <p className="biv-fine">Start free. No credit card required.</p>
         </div>
         <div className="biv-hero-art" aria-hidden="true">
-          <img src="/sales/shot-scores.jpg" alt="" className="biv-art-a" />
-          <img src="/sales/shot-alerts.jpg" alt="" className="biv-art-b" />
+          <img src="/sales/hero-chart.jpg" alt="" className="biv-art-a" />
+          <img src="/sales/hero-alerts.jpg" alt="" className="biv-art-b" />
         </div>
       </section>
 
@@ -446,13 +446,15 @@ const CSS = `
 .biv-btn-big { font-size: 17px; padding: 16px 34px; }
 .biv-fine { font-size: 12.5px; color: var(--faint); margin-top: 14px; }
 
-.biv-hero-art { position: relative; min-height: 380px; }
+.biv-hero-art { position: relative; min-height: 470px; }
 .biv-hero-art img {
-  position: absolute; width: 88%; border-radius: 14px; border: 1px solid var(--line);
+  position: absolute; border-radius: 14px; border: 1px solid var(--line);
   box-shadow: 0 30px 80px rgba(0,0,0,0.55);
 }
-.biv-art-a { top: 0; right: 0; transform: rotate(2deg); }
-.biv-art-b { bottom: 0; left: 0; transform: rotate(-2.5deg); }
+/* Chart is the star: full width at the top; the alerts card sits IN FRONT,
+   offset low-left, so both stay fully readable. */
+.biv-art-a { top: 0; right: 0; width: 100%; transform: rotate(1.5deg); z-index: 1; }
+.biv-art-b { bottom: 0; left: -14px; width: 68%; transform: rotate(-2.5deg); z-index: 2; }
 
 /* trust */
 .biv-trust { padding-top: 8px !important; padding-bottom: 40px !important; text-align: center; }
