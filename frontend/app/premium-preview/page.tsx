@@ -446,15 +446,15 @@ const CSS = `
 .biv-btn-big { font-size: 17px; padding: 16px 34px; }
 .biv-fine { font-size: 12.5px; color: var(--faint); margin-top: 14px; }
 
-.biv-hero-art { position: relative; min-height: 470px; }
+.biv-hero-art { position: relative; min-height: 540px; }
 .biv-hero-art img {
   position: absolute; border-radius: 14px; border: 1px solid var(--line);
   box-shadow: 0 30px 80px rgba(0,0,0,0.55);
 }
-/* Chart is the star: full width at the top; the alerts card sits IN FRONT,
-   offset low-left, so both stay fully readable. */
-.biv-art-a { top: 0; right: 0; width: 100%; transform: rotate(1.5deg); z-index: 1; }
-.biv-art-b { bottom: 0; left: -14px; width: 68%; transform: rotate(-2.5deg); z-index: 2; }
+/* The layered look: strategy chart + ranked rows as the big back card,
+   alerts card floating in front at the lower left. */
+.biv-art-a { top: 0; right: 0; width: 100%; transform: rotate(2deg); z-index: 1; }
+.biv-art-b { bottom: 0; left: -12px; width: 62%; transform: rotate(-2.5deg); z-index: 2; }
 
 /* trust */
 .biv-trust { padding-top: 8px !important; padding-bottom: 40px !important; text-align: center; }
