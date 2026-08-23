@@ -398,6 +398,49 @@ export class ContentService {
     { ts: number; data: { title: string; source: string; date: number; link: string }[] }
   >();
 
+  /** Never send readers to a competing stock-data platform (client,
+   *  2026-08-24: news links must land on actual news/article publishers).
+   *  Wire services and financial NEWS outlets (Reuters, CNBC, Benzinga,
+   *  Business Wire…) pass; quote-page/research platforms are dropped.
+   *  Google News redirect links pass — they resolve to the publisher. */
+  private static readonly BLOCKED_NEWS_HOSTS = [
+    'zacks.com',
+    'fool.com',
+    'seekingalpha.com',
+    'marketbeat.com',
+    'investorplace.com',
+    'tipranks.com',
+    'gurufocus.com',
+    'simplywall.st',
+    'stocktwits.com',
+    'barchart.com',
+    'investing.com',
+    'insidermonkey.com',
+    'stockstory.org',
+    '247wallst.com',
+    'wallstreetzen.com',
+    'stockanalysis.com',
+    'finviz.com',
+    'tradingview.com',
+    'moomoo.com',
+    'webull.com',
+    'stockinvest.us',
+    'finance.yahoo.com',
+    'uk.finance.yahoo.com',
+    'ca.finance.yahoo.com',
+  ];
+
+  private allowedNewsLink(link: string): boolean {
+    try {
+      const host = new URL(link).hostname.toLowerCase();
+      return !ContentService.BLOCKED_NEWS_HOSTS.some(
+        (b) => host === b || host.endsWith(`.${b}`),
+      );
+    } catch {
+      return false;
+    }
+  }
+
   /** Rich recent-headline list for the stock page News card/tab (real
    *  publishers via Google News + Yahoo feeds; deduped, newest first). */
   async getTickerNews(
@@ -462,6 +505,7 @@ export class ContentService {
     };
     const out = items
       .filter((i) => i.title && (!i.date || i.date >= cutoff))
+      .filter((i) => this.allowedNewsLink(i.link))
       .filter((i) => i.kind === 'press' || relevant(i.title))
       .sort((a, b) => b.date - a.date)
       .filter((i) => {
