@@ -16,8 +16,10 @@ const WINDOWS: Array<[string, number]> = [
   ['1y', 365],
 ];
 
-/** Qualification floor: aggregate open-market buys per insider per day. */
-const MIN_BUY = 250_000;
+/** Qualification floor: aggregate open-market buys per insider per day.
+ *  Brief v1.0 said $250k; lowered to $100k on Faizan's call (2026-08-23,
+ *  "add more bubbles") — flip this one constant to change the tape. */
+const MIN_BUY = 100_000;
 
 /** Field perf budget — the payload is capped to the largest N tickers. */
 const MAX_BUBBLES = 250;
@@ -26,7 +28,7 @@ const MAX_BUBBLES = 250;
  *  its own daily clock, in bounded batches, so one refresh can never fan out
  *  to hundreds of FMP calls. Missing symbols accrue over successive runs. */
 const META_TTL_MS = 24 * 3600_000;
-const META_BATCH = 40;
+const META_BATCH = 60;
 const META_CONCURRENCY = 4;
 
 const STALE_MS = 14 * 60_000;

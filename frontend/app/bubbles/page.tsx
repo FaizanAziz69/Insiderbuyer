@@ -157,7 +157,7 @@ function satellitesFor(b: Body): Satellite[] {
   const buys = b.data.buys;
   for (let i = 0; i < buys.length; i++) {
     const ang = -Math.PI / 2 + (i / buys.length) * Math.PI * 2;
-    const sr = Math.max(11, Math.min(6 + Math.sqrt(buys[i].val / 1e5) * 3.4, 22)) * b.expandT;
+    const sr = Math.max(13, Math.min(7 + Math.sqrt(buys[i].val / 1e5) * 3.4, 26)) * b.expandT;
     out.push({
       buy: buys[i],
       parent: b,
@@ -340,22 +340,25 @@ export default function BubblesPage() {
 
     let W = 0;
     let H = 0;
+    let DPR = 1;
     let raf = 0;
     let last = performance.now();
     let dragTarget: Body | null = null;
     let dragMoved = 0;
     let lastPointer = { x: 0, y: 0 };
     let hover: Body | null = null;
+    let bgGrad: CanvasGradient | null = null;
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
       W = window.innerWidth;
       H = window.innerHeight;
-      canvas.width = W * dpr;
-      canvas.height = H * dpr;
+      canvas.width = W * DPR;
+      canvas.height = H * DPR;
       canvas.style.width = `${W}px`;
       canvas.style.height = `${H}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      bgGrad = null;
     };
     resize();
     window.addEventListener("resize", resize);
@@ -434,12 +437,92 @@ export default function BubblesPage() {
       return b.t.includes(q) || b.data.name.toUpperCase().includes(q) ? 1 : 0.14;
     };
 
+    // ── Sprite cache ─────────────────────────────────────────────────
+    // Painting hundreds of radial gradients + text runs per frame is what
+    // makes canvas stutter. A bubble's body/ring/labels/badge only change
+    // when its data or settled size changes, so each is pre-rendered once
+    // to an offscreen sprite keyed by settled radius, and blitted per frame
+    // (scaled by r/targetR while the size is still easing in).
+    const sprites = new Map<string, HTMLCanvasElement>();
+    const SPRITE_PAD = 16;
+
+    const spriteFor = (b: Body): { cv: HTMLCanvasElement; base: number } | null => {
+      const base = Math.max(8, Math.round(b.targetR));
+      const entry = imgCacheRef.current.get(b.t);
+      const logoOk = !!entry?.ok && base >= 30;
+      const key = `${b.t}|${base}|${bubbleColor(b, 1)}|${logoOk ? 1 : 0}|${b.data.buys.length}|${b.data.total}`;
+      let cv = sprites.get(key);
+      if (!cv) {
+        if (sprites.size > 500) sprites.clear();
+        const size = (base + SPRITE_PAD) * 2;
+        cv = document.createElement("canvas");
+        cv.width = size * DPR;
+        cv.height = size * DPR;
+        const c = cv.getContext("2d");
+        if (!c) return null;
+        c.setTransform(DPR, 0, 0, DPR, 0, 0);
+        const cx = size / 2;
+        const cy = size / 2;
+        const r = base;
+        const grad = c.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r);
+        grad.addColorStop(0, bubbleColor(b, 0.42));
+        grad.addColorStop(1, bubbleColor(b, 0.1));
+        c.beginPath();
+        c.arc(cx, cy, r, 0, Math.PI * 2);
+        c.fillStyle = grad;
+        c.fill();
+        c.lineWidth = 1.6;
+        c.strokeStyle = bubbleColor(b, 0.95);
+        c.stroke();
+        if (logoOk && entry) {
+          const logoR = r * 0.3;
+          c.save();
+          c.globalAlpha = 0.95;
+          c.beginPath();
+          c.arc(cx, cy - r * 0.42, logoR, 0, Math.PI * 2);
+          c.clip();
+          c.drawImage(entry.img, cx - logoR, cy - r * 0.42 - logoR, logoR * 2, logoR * 2);
+          c.restore();
+        }
+        c.fillStyle = "rgba(245,247,250,0.96)";
+        c.textAlign = "center";
+        c.textBaseline = "middle";
+        const fs = Math.max(10, r * 0.34);
+        c.font = `600 ${fs}px ${monoFam}`;
+        const tickY = logoOk ? cy + r * 0.12 : cy - (r > 34 ? fs * 0.35 : 0);
+        c.fillText(b.t, cx, tickY);
+        if (r > 32) {
+          c.font = `400 ${Math.max(9, r * 0.2)}px ${monoFam}`;
+          c.fillStyle = "rgba(245,247,250,0.6)";
+          c.fillText(fmtM(b.data.total), cx, tickY + fs * 0.95);
+        }
+        if (b.data.buys.length > 1) {
+          const bx = cx + r * 0.72;
+          const by = cy - r * 0.72;
+          c.beginPath();
+          c.arc(bx, by, 10.5, 0, Math.PI * 2);
+          c.fillStyle = "#0B1B2F";
+          c.fill();
+          c.strokeStyle = bubbleColor(b, 1);
+          c.lineWidth = 1.4;
+          c.stroke();
+          c.fillStyle = "rgba(245,247,250,0.95)";
+          c.font = `600 9.5px ${monoFam}`;
+          c.fillText(`×${b.data.buys.length}`, bx, by + 0.5);
+        }
+        sprites.set(key, cv);
+      }
+      return { cv, base };
+    };
+
     const draw = () => {
       const bodies = bodiesRef.current;
-      const bg = ctx.createRadialGradient(W / 2, H * 0.42, 80, W / 2, H * 0.42, Math.max(W, H) * 0.75);
-      bg.addColorStop(0, "#12263f");
-      bg.addColorStop(1, "#081525");
-      ctx.fillStyle = bg;
+      if (!bgGrad) {
+        bgGrad = ctx.createRadialGradient(W / 2, H * 0.42, 80, W / 2, H * 0.42, Math.max(W, H) * 0.75);
+        bgGrad.addColorStop(0, "#12263f");
+        bgGrad.addColorStop(1, "#081525");
+      }
+      ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, W, H);
 
       for (const p of pulsesRef.current) {
@@ -467,14 +550,16 @@ export default function BubblesPage() {
             ctx.stroke();
             ctx.beginPath();
             ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-            ctx.fillStyle = bubbleColor(b, 0.28 * b.expandT * dim);
+            ctx.fillStyle = `rgba(11,27,47,${0.92 * b.expandT * dim})`;
             ctx.fill();
-            ctx.strokeStyle = bubbleColor(b, 0.9 * b.expandT * dim);
+            ctx.fillStyle = bubbleColor(b, 0.16 * b.expandT * dim);
+            ctx.fill();
+            ctx.strokeStyle = bubbleColor(b, 0.95 * b.expandT * dim);
             ctx.lineWidth = 1.5;
             ctx.stroke();
-            if (s.r > 9) {
+            if (s.r > 8) {
               ctx.fillStyle = `rgba(245,247,250,${b.expandT * dim})`;
-              ctx.font = `500 ${Math.max(8, s.r * 0.58)}px ${monoFam}`;
+              ctx.font = `500 ${Math.max(8, s.r * 0.55)}px ${monoFam}`;
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
               ctx.fillText(roleTag(s.buy.role, s.buy.title), s.x, s.y);
@@ -482,63 +567,21 @@ export default function BubblesPage() {
           }
         }
 
-        const grad = ctx.createRadialGradient(b.x - b.r * 0.3, b.y - b.r * 0.35, b.r * 0.1, b.x, b.y, b.r);
-        grad.addColorStop(0, bubbleColor(b, 0.42 * dim));
-        grad.addColorStop(1, bubbleColor(b, 0.1 * dim));
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-        ctx.fillStyle = grad;
-        ctx.fill();
+        const spr = spriteFor(b);
+        if (spr) {
+          const k = b.r / spr.base;
+          const half = (spr.base + SPRITE_PAD) * k;
+          if (dim < 1) ctx.globalAlpha = dim;
+          ctx.drawImage(spr.cv, b.x - half, b.y - half, half * 2, half * 2);
+          if (dim < 1) ctx.globalAlpha = 1;
+        }
         const isSel = b.t === selectedRef.current;
-        ctx.lineWidth = isSel ? 2.5 : 1.6;
-        ctx.strokeStyle = isSel ? `rgba(245,247,250,${0.95 * dim})` : bubbleColor(b, 0.95 * dim);
-        ctx.stroke();
-        if (b === hover || b.t === focusT) {
+        if (isSel || b === hover || b.t === focusT) {
           ctx.beginPath();
-          ctx.arc(b.x, b.y, b.r + 3.5, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(245,247,250,${0.35 * dim})`;
-          ctx.lineWidth = 1;
+          ctx.arc(b.x, b.y, b.r + (isSel ? 1 : 3.5), 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(245,247,250,${(isSel ? 0.95 : 0.35) * dim})`;
+          ctx.lineWidth = isSel ? 2.5 : 1;
           ctx.stroke();
-        }
-
-        // logo + labels
-        const entry = imgCacheRef.current.get(b.t);
-        const logoR = b.r * 0.3;
-        const showLogo = !!entry?.ok && b.r >= 30;
-        if (showLogo && entry) {
-          ctx.save();
-          ctx.globalAlpha = 0.95 * dim;
-          ctx.beginPath();
-          ctx.arc(b.x, b.y - b.r * 0.42, logoR, 0, Math.PI * 2);
-          ctx.clip();
-          ctx.drawImage(entry.img, b.x - logoR, b.y - b.r * 0.42 - logoR, logoR * 2, logoR * 2);
-          ctx.restore();
-        }
-        ctx.fillStyle = `rgba(245,247,250,${0.96 * dim})`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        const fs = Math.max(10, b.r * 0.34);
-        ctx.font = `600 ${fs}px ${monoFam}`;
-        const tickY = showLogo ? b.y + b.r * 0.12 : b.y - (b.r > 34 ? fs * 0.35 : 0);
-        ctx.fillText(b.t, b.x, tickY);
-        if (b.r > 32) {
-          ctx.font = `400 ${Math.max(9, b.r * 0.2)}px ${monoFam}`;
-          ctx.fillStyle = `rgba(245,247,250,${0.6 * dim})`;
-          ctx.fillText(fmtM(b.data.total), b.x, tickY + fs * 0.95);
-        }
-        if (b.data.buys.length > 1) {
-          const bx = b.x + b.r * 0.72;
-          const by = b.y - b.r * 0.72;
-          ctx.beginPath();
-          ctx.arc(bx, by, 10.5, 0, Math.PI * 2);
-          ctx.fillStyle = "#0B1B2F";
-          ctx.fill();
-          ctx.strokeStyle = bubbleColor(b, 1 * dim);
-          ctx.lineWidth = 1.4;
-          ctx.stroke();
-          ctx.fillStyle = `rgba(245,247,250,${0.95 * dim})`;
-          ctx.font = `600 9.5px ${monoFam}`;
-          ctx.fillText(`×${b.data.buys.length}`, bx, by + 0.5);
         }
       }
     };
@@ -723,7 +766,7 @@ export default function BubblesPage() {
         ref={canvasRef}
         className="bm-field"
         tabIndex={0}
-        aria-label="Insider buying bubble map. Bubbles represent insider purchases of $250,000 or more; click a bubble for company details. Use arrow keys to cycle bubbles, Enter to open one."
+        aria-label="Insider buying bubble map. Bubbles represent insider purchases of $100,000 or more; click a bubble for company details. Use arrow keys to cycle bubbles, Enter to open one."
       />
 
       <header className="bm-top">
@@ -734,7 +777,7 @@ export default function BubblesPage() {
           <h1>
             INSIDER BUBBLES<span className="bm-dot">.</span>
           </h1>
-          <span className="bm-tag">Insider buys &ge; $250K</span>
+          <span className="bm-tag">Insider buys &ge; $100K</span>
         </div>
         <nav className="bm-windows" aria-label="Time window">
           {WINDOWS.map(([value, label]) => (
@@ -803,7 +846,7 @@ export default function BubblesPage() {
         <div className="bm-center-msg">
           <b>Quiet tape.</b>
           <span>
-            No open-market insider buys of $250K+ {win === "1d" ? "filed today" : "in this window"} yet.
+            No open-market insider buys of $100K+ {win === "1d" ? "filed today" : "in this window"} yet.
           </span>
           {win !== "30d" && (
             <button className="bm-widen" onClick={() => setWin("30d")}>
