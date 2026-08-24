@@ -769,6 +769,9 @@ const CSS = `
      light --brand-surface #005882, dark --accent #20d0ff). Used for the
      primary CTA, the hero's final line and the big stat numbers. */
   --brand: #20d0ff; --brand-ink: #04141c;
+  /* Hover fill for every CTA: the navbar colour with white text, identical in
+     light and dark (client 2026-08-24). */
+  --hover-fill: #005882; --hover-ink: #FFFFFF;
   /* Hero glass-panel surfaces (theme-aware so neither panel reads heavy). */
   --panel-a: rgba(19,33,55,0.92); --panel-b: rgba(9,17,31,0.86);
   --panel-line-c: rgba(157,176,199,0.18);
@@ -803,20 +806,28 @@ const CSS = `
   display: inline-block; text-decoration: none; border-radius: 10px;
   font-weight: 700; font-size: 15px; padding: 13px 22px; transition: filter .15s, background .15s;
 }
-/* Brand (navbar-colour) buttons. Colour is forced on both states: the site's
-   global anchor styles otherwise win the hover and darken the label. */
-.biv-btn-solid { background: var(--brand); color: var(--brand-ink) !important; }
-.biv-btn-solid:hover { filter: brightness(1.12); color: var(--brand-ink) !important; }
-.biv-btn-ghost { border: 1px solid var(--brand); color: var(--brand) !important; }
-.biv-btn-ghost:hover {
-  background: var(--brand); color: var(--brand-ink) !important; border-color: var(--brand);
+/* Brand (navbar-colour) buttons.
+   Everything here is forced, for two different reasons:
+   · the site's global a:hover rule wins the label colour on the anchor CTAs;
+   · the button reset further down needs an element selector
+     (.biv button.biv-btn-ghost), which outranks a plain :hover class rule —
+     that is why the hover fill silently stopped applying when the checkout CTAs
+     became real buttons, leaving white text on a white card. */
+.biv .biv-btn-solid { background: var(--brand) !important; color: var(--brand-ink) !important; }
+.biv .biv-btn-ghost {
+  background: transparent !important; border: 1px solid var(--brand);
+  color: var(--brand) !important;
+}
+.biv .biv-btn-solid:hover, .biv .biv-btn-ghost:hover {
+  background: var(--hover-fill) !important; border-color: var(--hover-fill) !important;
+  color: var(--hover-ink) !important; filter: none;
 }
 .biv-btn-block { display: block; width: 100%; text-align: center; margin: 18px 0; }
 .biv-btn-big { font-size: 17px; padding: 16px 34px; }
 /* The checkout CTAs are real <button>s (they POST /billing/checkout), so they
    need the anchor styling above plus a button reset and a disabled state. */
 .biv button.biv-btn { font-family: inherit; border-width: 0; cursor: pointer; -webkit-appearance: none; appearance: none; }
-.biv button.biv-btn-ghost { border-width: 1px; border-style: solid; background: transparent; }
+.biv button.biv-btn-ghost { border-width: 1px; border-style: solid; }
 .biv .biv-btn:disabled { opacity: 0.62; cursor: default; filter: none; }
 /* Checkout status / error line (Stripe return leg + failed checkout). */
 .biv-note {
