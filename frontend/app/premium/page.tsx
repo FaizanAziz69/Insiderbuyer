@@ -53,7 +53,7 @@ const FEATURES: Array<{
   {
     title: "Top Insider Scores & indicators",
     blurb: "Every open-market insider buy, scored 0–100 — with the signals behind it.",
-    img: "/sales/shot-scores.jpg",
+    img: "/sales/shot-scores-v2.jpg",
     href: "/insiders/hot",
     wide: true,
   },
