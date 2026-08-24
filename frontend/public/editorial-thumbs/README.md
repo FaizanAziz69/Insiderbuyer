@@ -1,5 +1,21 @@
 # Editorial thumbnails (client-supplied)
 
+## FIXED SIZE: 1606 x 1000 (client, 2026-08-24)
+
+Every thumbnail in this folder must be exactly **1606x1000** — the size the
+client's own 25 exports use. Card and article-hero geometry follows the image,
+so a one-off size changes the layout of whatever section it lands in; that is
+the bug the client reported twice. When a new graphic arrives at a different
+aspect, DO NOT crop it to fit: the graphics are text-tight at the edges, so
+cropping clips the headline or the ticker band. Extend the frame instead
+(stretch/blur the top and bottom edge rows into the new space) and resize to
+1606x1000 — nothing is lost and the size stays constant.
+
+Legacy exceptions, left as they are because padding them to 1.606 would add
+visible bars: anthropic-ipo-filing, tomlee-record-highs (1200x546),
+gates-four-seasons-msft, jensen-huang-2026 (1200x672), tom-lee-rally
+(1170x596), bill-ackman-letter (680x453).
+
 Drop the 25 JPGs from the client's Google Drive folder here, keeping their
 original names. `frontend/lib/editorial-thumbs.ts` matches each article to the
 best-fitting image by keyword (ticker / persona / topic); any name below that
