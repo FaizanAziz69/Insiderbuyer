@@ -220,34 +220,77 @@ export default function PremiumPreviewPage() {
           <p className="biv-fine">Start free. No credit card required.</p>
         </div>
         <div className="biv-hero-art" aria-hidden="true">
-          <img src="/sales/hero-chart.jpg" alt="" className="biv-art-a" />
-          <div className="biv-float">
-            <div className="biv-alert">
-              <div className="biv-alert-top">
-                <span className="biv-dot" />
-                LIVE ALERT<em>2m ago</em>
-              </div>
-              <div className="biv-alert-mid">
-                <b className="biv-chip">IMPP</b>
-                <span className="biv-badge">CEO BUY</span>
-                <span className="biv-amt">$450K</span>
-              </div>
-              <div className="biv-alert-sub">Harry Vafias · CEO · Imperial Petroleum</div>
-              <svg className="biv-alert-spark" viewBox="0 0 100 26" preserveAspectRatio="none">
-                <path d="M0 22 L15 18 L28 20 L42 12 L58 15 L74 6 L100 2" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx="100" cy="2" r="3" fill="currentColor" />
-              </svg>
+          {/* Both panels are designed UI, not screenshots: they stay crisp at
+              any size, weigh nothing, and follow the site theme. */}
+          <div className="biv-panel biv-panel-perf">
+            <div className="biv-panel-head">
+              <span className="biv-eyebrow-sm">Insider Purchases Strategy</span>
+              <span className="biv-tagpill">Backtested</span>
             </div>
-            <div className="biv-alert biv-alert-2">
-              <div className="biv-alert-top">
-                <span className="biv-dot" />
-                BIG BUY<em>1d ago</em>
+            <div className="biv-bigstat">
+              +2,924.4%
+              <em>all time vs market</em>
+            </div>
+            <svg className="biv-chart" viewBox="0 0 100 42" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="bivFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#4CC38A" stopOpacity="0.42" />
+                  <stop offset="100%" stopColor="#4CC38A" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M0 39 L8 38.4 L16 37.8 L24 36.6 L32 35 L40 32.4 L48 29.6 L56 26.4 L64 21.6 L72 18.4 L80 12.6 L88 8.4 L94 6.6 L100 2 L100 42 L0 42 Z"
+                fill="url(#bivFill)"
+              />
+              <path
+                d="M0 39 L8 38.4 L16 37.8 L24 36.6 L32 35 L40 32.4 L48 29.6 L56 26.4 L64 21.6 L72 18.4 L80 12.6 L88 8.4 L94 6.6 L100 2"
+                fill="none" stroke="#4CC38A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+              <path
+                d="M0 39.6 L25 39 L50 38.2 L75 37.2 L100 35.8"
+                fill="none" stroke="currentColor" strokeWidth="1.1" strokeDasharray="3 3"
+                opacity="0.4" vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+            <div className="biv-panel-stats">
+              <div><b>+31.00%</b><span>CAGR</span></div>
+              <div><b>+72.48%</b><span>1-year</span></div>
+              <div><b>2014</b><span>since</span></div>
+              <div><b>142K+</b><span>buys tracked</span></div>
+            </div>
+          </div>
+
+          <div className="biv-panel biv-panel-tape">
+            <div className="biv-panel-head">
+              <span className="biv-eyebrow-sm biv-livelabel">
+                <span className="biv-dot" /> Live tape
+              </span>
+              <span className="biv-tagpill">39 alerts</span>
+            </div>
+            <div className="biv-taperow">
+              <b className="biv-chip">IMPP</b>
+              <div className="biv-tapewho">
+                <b>CEO buy</b>
+                <span>Harry Vafias · Imperial Petroleum</span>
               </div>
-              <div className="biv-alert-mid">
-                <b className="biv-chip">GWRS</b>
-                <span className="biv-badge">DIRECTOR</span>
-                <span className="biv-amt">$5.77M</span>
+              <span className="biv-amt">$450K</span>
+            </div>
+            <div className="biv-taperow">
+              <b className="biv-chip">GWRS</b>
+              <div className="biv-tapewho">
+                <b>Director buy</b>
+                <span>Jonathan Levine · Global Water</span>
               </div>
+              <span className="biv-amt">$5.77M</span>
+            </div>
+            <div className="biv-taperow">
+              <b className="biv-chip">AAT</b>
+              <div className="biv-tapewho">
+                <b>Big buy</b>
+                <span>Ernest Rady · American Assets</span>
+              </div>
+              <span className="biv-amt">$1.14M</span>
             </div>
           </div>
         </div>
@@ -443,6 +486,9 @@ const CSS = `
      light --brand-surface #005882, dark --accent #20d0ff). Used for the
      primary CTA, the hero's final line and the big stat numbers. */
   --brand: #20d0ff; --brand-ink: #04141c;
+  /* Hero glass-panel surfaces (theme-aware so neither panel reads heavy). */
+  --panel-a: rgba(19,33,55,0.92); --panel-b: rgba(9,17,31,0.86);
+  --panel-line-c: rgba(157,176,199,0.18);
   background:
     radial-gradient(1000px 600px at 80% -10%, rgba(62,155,95,0.14), transparent 60%),
     radial-gradient(900px 500px at 10% 30%, rgba(30,64,120,0.25), transparent 60%),
@@ -486,57 +532,86 @@ const CSS = `
 .biv-btn-big { font-size: 17px; padding: 16px 34px; }
 .biv-fine { font-size: 12.5px; color: var(--faint); margin-top: 14px; }
 
-.biv-hero-art { position: relative; min-height: 540px; }
-.biv-hero-art img {
-  position: absolute; border-radius: 14px; border: 1px solid var(--line);
-  box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+/* Two matched glass panels — a performance card and the live tape — layered
+   for depth. Both are real markup (crisp at any size, no image weight) and
+   both carry live figures. */
+.biv-hero-art { position: relative; min-height: 480px; }
+.biv-panel {
+  position: absolute; border-radius: 18px; padding: 20px 22px;
+  background: linear-gradient(155deg, var(--panel-a), var(--panel-b));
+  border: 1px solid var(--panel-line-c);
+  box-shadow: 0 26px 70px rgba(3,10,22,0.42), 0 0 0 1px rgba(255,255,255,0.02) inset;
+  backdrop-filter: blur(12px);
+  animation: biv-hover 8s ease-in-out infinite;
 }
-/* The layered look: strategy chart + ranked rows as the big back card, and a
-   futuristic glass alert stack floating in front at the lower left. */
-.biv-art-a { top: 0; right: 0; width: 100%; transform: rotate(2deg); z-index: 1; }
-
-.biv-float {
-  position: absolute; left: -16px; bottom: -10px; z-index: 2;
-  display: grid; gap: 14px; width: 330px;
-}
-.biv-alert {
-  border-radius: 16px; padding: 15px 17px; transform: rotate(-1.5deg);
-  background: linear-gradient(150deg, rgba(16,30,52,0.94), rgba(8,16,30,0.86));
-  border: 1px solid rgba(76,195,138,0.4);
-  box-shadow: 0 18px 50px rgba(0,0,0,0.55), 0 0 46px rgba(76,195,138,0.14);
-  backdrop-filter: blur(10px); color: #F5F7FA;
-  animation: biv-hover 7s ease-in-out infinite;
-}
-.biv-alert-2 { width: 82%; margin-left: 46px; animation-delay: 1.8s; }
+.biv-panel-perf { top: 0; right: 0; width: 88%; z-index: 1; }
+.biv-panel-tape { bottom: 0; left: 0; width: 66%; z-index: 2; animation-delay: 2.2s; }
 @keyframes biv-hover {
-  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
-  50% { transform: translateY(-9px) rotate(-1.5deg); }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
-@media (prefers-reduced-motion: reduce) { .biv-alert { animation: none; } }
-.biv-alert-top {
-  display: flex; align-items: center; gap: 8px;
-  font-family: var(--bm-mono, var(--font-display)), monospace; font-size: 10.5px;
-  font-weight: 700; letter-spacing: 2.4px; color: #E8B54D;
+@media (prefers-reduced-motion: reduce) { .biv-panel { animation: none; } }
+
+.biv-panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.biv-eyebrow-sm {
+  font-family: var(--font-display), sans-serif; font-weight: 600; font-size: 11px;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--dim);
 }
-.biv-alert-top em { font-style: normal; margin-left: auto; color: rgba(245,247,250,0.45); letter-spacing: 0.5px; }
+.biv-livelabel { display: inline-flex; align-items: center; gap: 7px; color: #E8B54D; }
+.biv-tagpill {
+  margin-left: auto; font-family: var(--font-display), sans-serif; font-size: 10px;
+  font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint);
+  border: 1px solid var(--panel-line-c); border-radius: 999px; padding: 3px 9px;
+}
 .biv-dot {
   width: 8px; height: 8px; border-radius: 50%; background: #E8B54D;
-  box-shadow: 0 0 10px rgba(232,181,77,0.9); animation: biv-pulse 2s ease-in-out infinite;
+  box-shadow: 0 0 10px rgba(232,181,77,0.85); animation: biv-pulse 2s ease-in-out infinite;
 }
 @keyframes biv-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
-.biv-alert-mid { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+
+.biv-bigstat {
+  font-family: var(--font-heading), sans-serif; font-weight: 900;
+  font-size: clamp(30px, 3.1vw, 42px); letter-spacing: -0.02em; color: var(--green-hi);
+  display: flex; align-items: baseline; gap: 10px;
+}
+.biv-bigstat em {
+  font-family: var(--font-sans), sans-serif; font-style: normal; font-weight: 500;
+  font-size: 12.5px; letter-spacing: 0; color: var(--dim);
+}
+.biv-chart { width: 100%; height: 132px; margin: 10px 0 4px; color: var(--faint); display: block; }
+.biv-panel-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  border-top: 1px solid var(--panel-line-c); padding-top: 13px; margin-top: 6px;
+}
+.biv-panel-stats b {
+  display: block; font-family: var(--font-display), monospace; font-size: 15px;
+  font-weight: 700; color: var(--ink);
+}
+.biv-panel-stats span {
+  font-size: 10.5px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--faint);
+}
+
+.biv-taperow {
+  display: flex; align-items: center; gap: 11px; padding: 9px 0;
+  border-top: 1px solid var(--panel-line-c);
+}
+.biv-taperow:first-of-type { border-top: 0; }
 .biv-chip {
-  font-family: var(--font-display), monospace; font-weight: 700; font-size: 15px;
-  letter-spacing: 1px; color: var(--green-hi); background: rgba(76,195,138,0.15);
-  border: 1px solid rgba(76,195,138,0.35); border-radius: 8px; padding: 4px 9px;
+  font-family: var(--font-display), monospace; font-weight: 700; font-size: 13.5px;
+  letter-spacing: 0.8px; color: var(--green-hi); background: rgba(76,195,138,0.14);
+  border: 1px solid rgba(76,195,138,0.34); border-radius: 8px; padding: 4px 9px;
+  flex: 0 0 auto;
 }
-.biv-badge {
-  font-size: 10px; font-weight: 800; letter-spacing: 1.2px; color: #06131f;
-  background: var(--green-hi); border-radius: 999px; padding: 4px 9px;
+.biv-tapewho { min-width: 0; }
+.biv-tapewho b { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.biv-tapewho span {
+  display: block; font-size: 11px; color: var(--faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.biv-amt { margin-left: auto; font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: 20px; }
-.biv-alert-sub { font-size: 12px; color: rgba(245,247,250,0.6); margin-top: 8px; }
-.biv-alert-spark { width: 100%; height: 30px; margin-top: 10px; color: var(--green-hi); filter: drop-shadow(0 0 6px rgba(76,195,138,0.6)); }
+.biv-amt {
+  margin-left: auto; font-family: var(--font-heading), sans-serif;
+  font-weight: 900; font-size: 17px; color: var(--ink); flex: 0 0 auto;
+}
 
 /* trust */
 .biv-trust { padding-top: 8px !important; padding-bottom: 40px !important; text-align: center; }
@@ -681,9 +756,17 @@ const CSS = `
     radial-gradient(900px 500px at 10% 30%, rgba(30,64,120,0.08), transparent 60%),
     var(--bg);
 }
-:root[data-theme="light"] .biv { --brand: #005882; --brand-ink: #FFFFFF; }
+:root[data-theme="light"] .biv {
+  --brand: #005882; --brand-ink: #FFFFFF;
+  --panel-a: rgba(255,255,255,0.97); --panel-b: rgba(246,249,252,0.92);
+  --panel-line-c: rgba(14,31,53,0.12);
+}
+:root[data-theme="light"] .biv-panel {
+  box-shadow: 0 26px 60px rgba(14,31,53,0.16), 0 0 0 1px rgba(14,31,53,0.02) inset;
+}
+:root[data-theme="light"] .biv-bigstat { color: var(--green); }
+:root[data-theme="light"] .biv-chip { color: #2c7a51; }
 :root[data-theme="light"] .biv-firms span { color: rgba(14,31,53,0.72); }
-:root[data-theme="light"] .biv-hero-art img { box-shadow: 0 30px 70px rgba(14,31,53,0.28); }
 :root[data-theme="light"] .biv-mstat { color: var(--green); }
 :root[data-theme="light"] .biv-plus { background: rgba(62,155,95,0.12); color: var(--green); }
 :root[data-theme="light"] .biv-tool { background: #FFFFFF; }
@@ -705,10 +788,10 @@ const CSS = `
 }
 @media (max-width: 640px) {
   .biv section { padding: 44px 14px; }
-  .biv-hero-art { min-height: 300px; }
-  .biv-hero-art img { width: 100%; }
-  .biv-float { width: 250px; left: 0; bottom: -14px; }
-  .biv-alert-2 { display: none; }
+  .biv-hero-art { min-height: 0; display: grid; gap: 14px; }
+  .biv-panel { position: static; width: 100%; animation: none; }
+  .biv-panel-tape .biv-taperow:nth-of-type(3) { display: none; }
+  .biv-chart { height: 104px; }
   .biv-btn { padding: 12px 18px; font-size: 14px; }
   .biv-mcard { width: 205px; height: 255px; }
   .biv-mstat { font-size: 34px; }
