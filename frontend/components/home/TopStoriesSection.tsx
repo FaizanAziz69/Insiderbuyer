@@ -104,12 +104,6 @@ export function TopStoriesSection() {
                 style={{ width: "100%", height: "100%" }}
                 className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
               />
-              <span
-                className="absolute left-3 bottom-3 inline-block text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded"
-                style={{ background: "var(--accent)", color: "#fff" }}
-              >
-                {labels[lead.slug]}
-              </span>
             </div>
             <div className="p-4 sm:p-5 min-w-0">
               <h3 className="text-[19px] sm:text-[25px] font-bold leading-tight group-hover:text-accent transition">

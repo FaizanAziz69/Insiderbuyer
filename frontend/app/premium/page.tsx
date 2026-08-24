@@ -182,7 +182,7 @@ const NUMBERS = [
 const TOOLS = [
   { label: "Stock profiles", href: "/companies/AAPL" },
   { label: "Insider rankings", href: "/insiders" },
-  { label: "Breaking news", href: "/insights" },
+  { label: "Premium alerts", href: "/alerts" },
   { label: "Insider profiles", href: "/insiders" },
   { label: "Market Heatmaps", href: "/heatmaps/market" },
   { label: "Top Insider Scores", href: "/insiders/hot" },
@@ -442,7 +442,7 @@ export default function PremiumPage() {
           <h1>
             <span>Stock analysis.</span>
             <span>Insider rankings.</span>
-            <span>Breaking news.</span>
+            <span>Premium alerts.</span>
             <span className="biv-accent">One platform.</span>
           </h1>
           <p className="biv-sub">
