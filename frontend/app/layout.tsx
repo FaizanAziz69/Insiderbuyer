@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Condensed, Figtree, Libre_Franklin } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
+import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { SitePopups } from "@/components/SitePopups";
 import { PremiumProvider } from "@/components/premium/PremiumContext";
@@ -99,6 +100,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="antialiased">
+        <GoogleAnalytics />
         <PostHogProvider />
         {/* Auth first: PremiumProvider derives the entitlement from the
             signed-in user's Stripe subscription. */}
