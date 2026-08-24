@@ -150,7 +150,9 @@ export const NAV_GROUPS: NavGroup[] = [
         ],
       },
     ],
-    calloutPosition: "top",
+    // Bottom, like every other dropdown (client 2026-08-24) — this group was
+    // the only one rendering its callout above the columns.
+    calloutPosition: "bottom",
     callouts: [
       {
         title: "Top Insider Scores",
