@@ -231,6 +231,12 @@ export default function PremiumPreviewPage() {
               +2,924.4%
               <em>all time vs market</em>
             </div>
+            <div className="biv-panel-stats">
+              <div><b>+31.00%</b><span>CAGR</span></div>
+              <div><b>+72.48%</b><span>1-year</span></div>
+              <div><b>2014</b><span>since</span></div>
+              <div><b>142K+</b><span>buys tracked</span></div>
+            </div>
             <svg className="biv-chart" viewBox="0 0 100 42" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="bivFill" x1="0" y1="0" x2="0" y2="1">
@@ -253,12 +259,6 @@ export default function PremiumPreviewPage() {
                 opacity="0.4" vectorEffect="non-scaling-stroke"
               />
             </svg>
-            <div className="biv-panel-stats">
-              <div><b>+31.00%</b><span>CAGR</span></div>
-              <div><b>+72.48%</b><span>1-year</span></div>
-              <div><b>2014</b><span>since</span></div>
-              <div><b>142K+</b><span>buys tracked</span></div>
-            </div>
           </div>
 
           <div className="biv-panel biv-panel-tape">
@@ -544,8 +544,8 @@ const CSS = `
   backdrop-filter: blur(12px);
   animation: biv-hover 8s ease-in-out infinite;
 }
-.biv-panel-perf { top: 0; right: 0; width: 88%; z-index: 1; }
-.biv-panel-tape { bottom: 0; left: 0; width: 66%; z-index: 2; animation-delay: 2.2s; }
+.biv-panel-perf { top: 0; right: 0; width: 90%; z-index: 1; }
+.biv-panel-tape { bottom: 0; left: 0; width: 64%; z-index: 2; animation-delay: 2.2s; }
 @keyframes biv-hover {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }
@@ -578,10 +578,12 @@ const CSS = `
   font-family: var(--font-sans), sans-serif; font-style: normal; font-weight: 500;
   font-size: 12.5px; letter-spacing: 0; color: var(--dim);
 }
-.biv-chart { width: 100%; height: 132px; margin: 10px 0 4px; color: var(--faint); display: block; }
+.biv-chart { width: 100%; height: 148px; margin: 6px 0 0; color: var(--faint); display: block; }
+/* Stats sit ABOVE the chart: the tape panel overlaps this card's lower edge,
+   so nothing readable may live down there. */
 .biv-panel-stats {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
-  border-top: 1px solid var(--panel-line-c); padding-top: 13px; margin-top: 6px;
+  border-top: 1px solid var(--panel-line-c); padding-top: 13px; margin-top: 14px;
 }
 .biv-panel-stats b {
   display: block; font-family: var(--font-display), monospace; font-size: 15px;
