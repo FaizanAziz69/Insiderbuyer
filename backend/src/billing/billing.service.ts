@@ -38,6 +38,8 @@ const CATALOG: Record<Plan, { lookupKey: string; unitAmount: number; interval: '
 export interface BillingPlans {
   configured: boolean;
   live: boolean;
+  /** Which Stripe mode the server key is in — the page warns in test mode. */
+  mode: 'test' | 'live' | 'unset';
   plans: Array<{
     plan: Plan;
     /** Minor units (cents). */
@@ -85,6 +87,14 @@ export class BillingService {
   /** True when a Stripe key is present (used by /billing/status for guests). */
   get configured(): boolean {
     return !!process.env.STRIPE_SECRET_KEY;
+  }
+
+  /** test / live, read from the key prefix (not the key itself). */
+  get mode(): 'test' | 'live' | 'unset' {
+    const key = process.env.STRIPE_SECRET_KEY || '';
+    if (key.startsWith('sk_test')) return 'test';
+    if (key.startsWith('sk_live')) return 'live';
+    return key ? 'live' : 'unset';
   }
 
   /** Find-or-create the product + both prices; returns priceId per plan.
@@ -149,6 +159,7 @@ export class BillingService {
     const fallback: BillingPlans = {
       configured: this.configured,
       live: false,
+      mode: this.mode,
       plans: (Object.entries(CATALOG) as [Plan, (typeof CATALOG)[Plan]][]).map(
         ([plan, cfg]) => ({
           plan,
@@ -182,7 +193,12 @@ export class BillingService {
       );
       // A plan with no live Stripe price yet still reports the catalog amount —
       // that is exactly what checkout would create it at.
-      const data: BillingPlans = { configured: true, live: existing.data.length > 0, plans };
+      const data: BillingPlans = {
+        configured: true,
+        live: existing.data.length > 0,
+        mode: this.mode,
+        plans,
+      };
       this.plansCache = { ts: Date.now(), data };
       return data;
     } catch (e: any) {
@@ -192,8 +208,22 @@ export class BillingService {
   }
 
   private async ensureCustomer(user: User): Promise<string> {
-    if (user.stripeCustomerId) return user.stripeCustomerId;
     const stripe = this.client();
+    if (user.stripeCustomerId) {
+      // A stored customer id belongs to ONE Stripe mode. Switching the site
+      // between test and live keys (client 2026-08-24: test mode until further
+      // notice) makes every stored id invalid for the new mode, and Stripe
+      // answers "No such customer" — which would break checkout for anyone who
+      // had ever opened it. Verify, and mint a fresh customer when it is gone.
+      try {
+        const existing = await stripe.customers.retrieve(user.stripeCustomerId);
+        if (!(existing as { deleted?: boolean }).deleted) return user.stripeCustomerId;
+      } catch {
+        this.logger.warn(
+          `Stripe customer ${user.stripeCustomerId} not found in this mode — creating a new one for ${user.email}`,
+        );
+      }
+    }
     // Guard against duplicates if a previous save failed mid-way.
     const found = await stripe.customers.search({
       query: `metadata['userId']:'${user.id}'`,
