@@ -27,6 +27,7 @@ const THUMBS: Thumb[] = [
   { file: "apple-500b-investment", tickers: ["AAPL"] },
   { file: "englander-nvidia-etf", tickers: ["NVDA"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
+  { file: "burry-alibaba-share-sale", tickers: ["BABA"], kw: ["burry", "scion", "share-sale"] },
   // Specific topic
   { file: "bill-ackman-letter", kw: ["ackman", "pershing"] },
   { file: "tom-lee-rally", kw: ["tom-lee", "fundstrat"] },
@@ -100,6 +101,7 @@ const SLUG_OVERRIDES: Record<string, string> = {
   "editorial-jensen-huang-sustainable-energy-2026-08-14": "jensen-huang-2026",
   "editorial-gates-four-seasons-nevis-lawsuit-2026-08-20": "gates-four-seasons-msft",
   "editorial-anthropic-ipo-2t-valuation-2026-08-24": "anthropic-ipo-filing",
+  "editorial-burry-alibaba-ai-share-sale-2026-08-24": "burry-alibaba-share-sale",
 };
 
 function candidatesFor(opts: ThumbInput): Thumb[] {
