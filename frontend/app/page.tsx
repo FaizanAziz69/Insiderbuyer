@@ -26,17 +26,18 @@ export default function HomePage() {
           Top Stories content, so the section overflowed and the Market Heat
           Map heading rendered on top of it. The row now sizes to the stories;
           the gainers list on the right scrolls inside whatever height it gets. */}
-      {/* items-start, not items-stretch: stretching is what produced the tall
-          empty box under the lead story once its cover was capped at 16:9
-          (client 2026-08-24). Each column is now exactly as tall as what is
-          inside it. */}
-      <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4 items-start">
+      {/* The two columns end on the same line: the rail stretches to the
+          stories' height and the buy/sell meter — not the story card — absorbs
+          the difference, with its content centred. Nothing inside the lead
+          story stretches, which is what produced the blank box earlier
+          (client 2026-08-24). */}
+      <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4 items-stretch">
         <div className="min-h-0">
           <TopStoriesSection />
         </div>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 h-full min-h-0">
           <TopGainersPanel />
-          <MonthlyBuySellMeter />
+          <MonthlyBuySellMeter fill />
         </div>
       </section>
 

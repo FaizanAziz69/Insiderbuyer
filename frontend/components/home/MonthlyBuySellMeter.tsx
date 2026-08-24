@@ -5,8 +5,17 @@ import { Activity, ArrowRight } from "lucide-react";
 import { API_BASE, BuySellMeter, fetcher, formatCurrency } from "@/lib/api";
 
 /** When `linkable` (default), the whole card links to the full month's
- *  buy/sell breakdown. Pass linkable={false} on the breakdown page itself. */
-export function MonthlyBuySellMeter({ linkable = true }: { linkable?: boolean }) {
+ *  buy/sell breakdown. Pass linkable={false} on the breakdown page itself.
+ *  `fill` lets the card absorb the leftover height of the home page's right
+ *  rail with its content vertically centred, so the rail ends level with the
+ *  stories column instead of leaving a bare gap (client 2026-08-24). */
+export function MonthlyBuySellMeter({
+  linkable = true,
+  fill = false,
+}: {
+  linkable?: boolean;
+  fill?: boolean;
+}) {
   const { data } = useSWR<BuySellMeter>(`${API_BASE}/metrics/buy-sell`, fetcher, {
     refreshInterval: 5 * 60_000,
     revalidateOnFocus: false,
@@ -23,7 +32,9 @@ export function MonthlyBuySellMeter({ linkable = true }: { linkable?: boolean })
   return (
     <Wrapper
       {...wrapperProps}
-      className={`block rounded-lg p-5 transition ${linkable ? "group hover:border-[var(--accent)]" : ""}`}
+      className={`rounded-lg p-5 transition ${
+        fill ? "flex flex-col justify-center flex-1 min-h-0" : "block"
+      } ${linkable ? "group hover:border-[var(--accent)]" : ""}`}
       style={{
         background: "var(--bg-2)",
         border: "1px solid var(--border)",
