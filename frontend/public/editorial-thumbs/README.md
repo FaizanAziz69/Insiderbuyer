@@ -47,3 +47,10 @@ Expected files:
 23 Warren Buffett's Annual Letter Shares 4 of the Most Chilling Words Investors Will Ever Witness.jpg
 24 Super Stocks Billionaires Are Piling Into Now.jpg
 25 Billionaire Israel Englander Sold Nvidia and Piled Into a BlackRock ETF That MicroStrategy's Michael Saylor.jpg
+
+## Replacing an image: always ship a NEW filename
+
+nginx serves this folder with a 30-day cache, so overwriting a file in place is
+invisible to anyone who already loaded the old one — the Burry cover was swapped
+on 2026-08-24 and browsers kept showing the previous graphic. Save the new
+version under a new name and repoint the slug in `lib/editorial-thumbs.ts`.
