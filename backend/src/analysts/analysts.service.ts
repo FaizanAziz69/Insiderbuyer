@@ -62,6 +62,24 @@ const MIN_TOP_ANALYSTS = 5;
 const TARGET_LIVE_DAYS = 365;
 /** Rows kept in the stock payload (client: "show top 50"). */
 const STOCK_ROWS = 50;
+/**
+ * Implausible-target guard. FMP's price-target feed carries occasional junk
+ * rows — CRWD showed four June-2026 notes at $720-760 against a $187 price on
+ * the same filing (+300% implied), while the same analysts' August notes sat at
+ * $240-250 and the sell-side consensus was $236. Averaging those raw put a
+ * +188% upside on the top row of the page.
+ *
+ * A note therefore has to survive two sanity checks to count:
+ *   1. target ÷ price-on-the-note inside [0.4, 2.0] — a 12-month sell-side
+ *      target beyond ±100% effectively does not exist for a covered name, and
+ *      the ratio is taken from ONE filing so it is immune to splits;
+ *   2. target within 3x of the published consensus target, when we have one.
+ * A stock that then falls below MIN_TOP_ANALYSTS drops off the list, which is
+ * the honest outcome — better a short list than a wrong headline number.
+ */
+const MIN_TARGET_RATIO = 0.4;
+const MAX_TARGET_RATIO = 2.0;
+const MAX_CONSENSUS_MULTIPLE = 3;
 
 /** One qualifying stock: how many top analysts cover it, how accurate they
  *  have been, and the average of their live price targets. */
@@ -612,12 +630,14 @@ export class AnalystsService {
       analyst: string;
       symbol: string;
       target: number;
+      posted: number | null;
       published: string;
     }> = await this.kv.query(
       `SELECT DISTINCT ON (lower(btrim(t."analystName")), t.symbol)
               btrim(t."analystName") AS analyst,
               upper(t.symbol)        AS symbol,
               t."priceTarget"::float8 AS target,
+              t."priceWhenPosted"::float8 AS posted,
               t."publishedDate"::text AS published
          FROM analyst_price_targets t
         WHERE t."priceTarget" > 0
@@ -638,6 +658,13 @@ export class AnalystsService {
       if (!row?.successRate) continue;
       const target = Number(n.target);
       if (!(target > 0)) continue;
+      // Guard 1: the target must be a plausible move from the price the note
+      // itself was written against (same filing → split-safe).
+      const posted = Number(n.posted);
+      if (posted > 0) {
+        const ratio = target / posted;
+        if (ratio < MIN_TARGET_RATIO || ratio > MAX_TARGET_RATIO) continue;
+      }
       const agg = bySymbol.get(n.symbol) || { symbol: n.symbol, analysts: [] };
       agg.analysts.push({
         analyst: row.analyst,
@@ -682,7 +709,18 @@ export class AnalystsService {
       // A row with no live price can neither be ranked on upside nor shown
       // honestly in a Price column — leave it out rather than print dashes.
       if (!(price > 0)) continue;
-      const analysts = agg.analysts.sort(
+      // Guard 2: drop anything wildly away from the published consensus, then
+      // re-check the coverage floor on what is left.
+      const consensusTarget = consensus.get(agg.symbol) ?? null;
+      const kept = consensusTarget
+        ? agg.analysts.filter(
+            (a) =>
+              a.target <= consensusTarget * MAX_CONSENSUS_MULTIPLE &&
+              a.target >= consensusTarget / MAX_CONSENSUS_MULTIPLE,
+          )
+        : agg.analysts;
+      if (kept.length < MIN_TOP_ANALYSTS) continue;
+      const analysts = kept.sort(
         (a, b) => b.successRate - a.successRate || b.target - a.target,
       );
       const avgTarget = analysts.reduce((n, a) => n + a.target, 0) / analysts.length;
@@ -703,7 +741,7 @@ export class AnalystsService {
         avgSuccessRate: +avgSuccess.toFixed(1),
         avgTarget: +avgTarget.toFixed(2),
         upsidePct: +upsidePct.toFixed(2),
-        consensusTarget: consensus.get(agg.symbol) ?? null,
+        consensusTarget,
         lastRatedDaysAgo: lastMs ? Math.max(0, Math.round((now - lastMs) / 86_400_000)) : 0,
         score: AnalystsService.stockScore(analysts.length, avgSuccess, upsidePct),
         analysts,
