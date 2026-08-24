@@ -130,24 +130,17 @@ function agoLabel(d: string): string {
   return n === 0 ? "today" : `${n}d ago`;
 }
 
-function roleTag(role: string, title?: string | null, who?: string): string {
+/** Satellite tag. Client 2026-08-24: ONLY CEO, CFO and Director may appear.
+ *  Everything else — COO, CTO, chairs, 10% owners, funds and unlabeled filers
+ *  — renders with no tag at all, because the old fallback stamped the buyer's
+ *  initials on the ring ("GSG", "FLS", "RGL") which read as noise. The full
+ *  name and title are still one hover away. */
+function roleTag(role: string, title?: string | null): string {
   const s = `${role} ${title || ""}`.toLowerCase();
   if (s.includes("ceo") || s.includes("chief executive")) return "CEO";
   if (s.includes("cfo") || s.includes("chief financial")) return "CFO";
-  if (s.includes("coo")) return "COO";
-  if (s.includes("cto") || s.includes("chief technology")) return "CTO";
-  if (s.includes("chair")) return "CHR";
-  if (s.includes("10%")) return "10%";
   if (role === "Director" || s.includes("director")) return "DIR";
-  // No C-suite tag (funds, entities, unlabeled filers): use the buyer's
-  // initials, per the brief — never a generic "INS".
-  const init = (who || "")
-    .split(/[\s,.&]+/)
-    .filter((w) => /^[a-z0-9]/i.test(w))
-    .map((w) => w[0].toUpperCase())
-    .join("")
-    .slice(0, 3);
-  return init || "DIR";
+  return "";
 }
 
 /** Canvas palettes for the two site themes (data-theme on <html>). */
@@ -626,7 +619,8 @@ export default function BubblesPage() {
               ctx.font = `500 ${Math.max(8, s.r * 0.55)}px ${monoFam}`;
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
-              ctx.fillText(roleTag(s.buy.role, s.buy.title, s.buy.who), s.x, s.y);
+              const tag = roleTag(s.buy.role, s.buy.title);
+              if (tag) ctx.fillText(tag, s.x, s.y);
             }
           }
         }
