@@ -32,6 +32,21 @@ const CATALOG: Record<Plan, { lookupKey: string; unitAmount: number; interval: '
   },
 };
 
+/** What the sales page needs to print a price: the LIVE Stripe amount per
+ *  plan. `live` is false when the amounts fell back to the catalog (no Stripe
+ *  key, an API error, or prices not created yet). */
+export interface BillingPlans {
+  configured: boolean;
+  live: boolean;
+  plans: Array<{
+    plan: Plan;
+    /** Minor units (cents). */
+    amount: number;
+    currency: string;
+    interval: 'month' | 'year';
+  }>;
+}
+
 const PRODUCT_NAME = 'Insider Premium';
 /** Grace window after a period lapses before access is cut, to absorb webhook
  *  delays around renewal. */
@@ -118,6 +133,62 @@ export class BillingService {
       annual: byKey.get(CATALOG.annual.lookupKey)!,
     };
     return this.priceCache as Record<Plan, string>;
+  }
+
+  /** Live price list for the sales page. The page must never print a figure
+   *  Stripe would not charge, so the amounts come from the Stripe prices
+   *  themselves (the CATALOG amounts only apply the first time a price is
+   *  created) and are cached briefly in-process. */
+  private plansCache: { ts: number; data: BillingPlans } | null = null;
+  private readonly PLANS_TTL_MS = 10 * 60_000;
+
+  async getPlans(): Promise<BillingPlans> {
+    if (this.plansCache && Date.now() - this.plansCache.ts < this.PLANS_TTL_MS) {
+      return this.plansCache.data;
+    }
+    const fallback: BillingPlans = {
+      configured: this.configured,
+      live: false,
+      plans: (Object.entries(CATALOG) as [Plan, (typeof CATALOG)[Plan]][]).map(
+        ([plan, cfg]) => ({
+          plan,
+          amount: cfg.unitAmount,
+          currency: 'usd',
+          interval: cfg.interval,
+        }),
+      ),
+    };
+    if (!this.configured) return fallback;
+    try {
+      const stripe = this.client();
+      const existing = await stripe.prices.list({
+        lookup_keys: Object.values(CATALOG).map((c) => c.lookupKey),
+        active: true,
+        limit: 10,
+      });
+      const plans = (Object.entries(CATALOG) as [Plan, (typeof CATALOG)[Plan]][]).map(
+        ([plan, cfg]) => {
+          const price = existing.data.find((p) => p.lookup_key === cfg.lookupKey);
+          // Stripe's Interval union includes day/week, which this product never
+          // uses — fall back to the catalog interval rather than widening it.
+          const interval = String(price?.recurring?.interval || '');
+          return {
+            plan,
+            amount: price?.unit_amount ?? cfg.unitAmount,
+            currency: price?.currency || 'usd',
+            interval: interval === 'month' || interval === 'year' ? interval : cfg.interval,
+          };
+        },
+      );
+      // A plan with no live Stripe price yet still reports the catalog amount —
+      // that is exactly what checkout would create it at.
+      const data: BillingPlans = { configured: true, live: existing.data.length > 0, plans };
+      this.plansCache = { ts: Date.now(), data };
+      return data;
+    } catch (e: any) {
+      this.logger.warn(`Stripe price list failed: ${e?.message || e}`);
+      return fallback;
+    }
   }
 
   private async ensureCustomer(user: User): Promise<string> {

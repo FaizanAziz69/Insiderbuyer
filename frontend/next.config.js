@@ -9,6 +9,9 @@ const nextConfig = {
       // "Top Research Firms" page retired (client spec: individual analysts
       // only) — old links land on the consolidated Top Analysts view.
       { source: "/top-analysts", destination: "/analyst-ratings", permanent: true },
+      // The beehiiv-style sales draft was approved and now IS /premium
+      // (client 2026-08-24) — the review URL keeps working.
+      { source: "/premium-preview", destination: "/premium", permanent: false },
     ];
   },
 };

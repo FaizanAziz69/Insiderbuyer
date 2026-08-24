@@ -1,13 +1,27 @@
 "use client";
-// Subscribe page — client design "sales-insider-access-v3-reordered" (2026-08-14),
-// REBUILT in the site's own design system (tokens, Barlow/Libre Franklin, .card
-// shadows) rather than ported 1:1 — client asked for branding-consistent, not
-// copy-paste. Placeholders from the mock are wired to real data:
-//   · leaderboard  → /insiders/track-record + /market-stats/analyst-firms (live)
-//   · bubble gains → computed from /market-stats/history?range=5y, as-of pinned
-//   · checkout     → Stripe /billing/checkout (annual pre-selected)
-//   · exit popup   → OptInModal (ESP-wired email capture, source-tagged)
+
+/**
+ * SUBSCRIBE PAGE — the beehiiv-style layout George approved at
+ * /premium-preview, promoted to /premium on 2026-08-24 (his words: "premium
+ * preview ko ab replace karo /premium se, we are using new layout, and also
+ * button per stripe checkout bhi lagao").
+ *
+ * Styling is scoped under .biv (same pattern as the old page's .sub3): a dark
+ * navy take on beehiiv's near-black look, using the site's own font stack —
+ * Libre Franklin 900 for the mega headlines, Barlow for body, Barlow
+ * Condensed for eyebrows — and the brand colour where beehiiv uses pink.
+ *
+ * Live commerce, carried over from the page this replaces:
+ *   · plan prices come from /billing/plans (the LIVE Stripe amounts, so the
+ *     page can never advertise a figure checkout would not charge)
+ *   · the Monthly/Annual buttons open Stripe Checkout via /billing/checkout
+ *   · signed-out visitors get the login modal first; already-subscribed
+ *     visitors get the thank-you modal instead of a second subscription
+ *   · the ?checkout=success|cancelled return from Stripe is handled here
+ */
+
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import useSWR from "swr";
 import { API_BASE, fetcher } from "@/lib/api";
 import { getAuthToken, useAuth } from "@/lib/auth";
@@ -16,300 +30,218 @@ import { LoginModal } from "@/components/LoginModal";
 import { AlreadySubscribedModal } from "@/components/premium/AlreadySubscribedModal";
 import { OptInModal } from "@/components/OptInModal";
 
-/* ── Styling — the site's tokens, pinned to the light palette (client spec:
-      this page is white in BOTH site themes). Headings use the site heading
-      stack, labels use the condensed display stack, numbers use .tabular. */
-const CSS = String.raw`
-.sub3{
-  /* pin light palette regardless of site theme (client: single white page) */
-  --bg-1:#ffffff; --bg-3:#eef1f3; --border:#dbdfe2; --border-strong:#c2c9cf;
-  --text:#1d1e1f; --text-soft:#4b515a; --text-mute:#6c7783; --text-faint:#a5b0b7;
-  --accent:#005882; --accent-hover:#003f5d; --on-accent:#ffffff;
-  --brand-surface:#005882; --good:#11824d; --good-strong:#0f5f44;
-  --good-soft:rgba(17,130,77,.12); --bad:#d2333d; --gold-ink:#8a6d1d;
-  --bt-strategy:#2f6f9f; --bt-benchmark:#c1762a;
-  background:var(--bg-1); color:var(--text-soft);
-  font-family:var(--font-sans),system-ui,sans-serif; line-height:1.6;
-}
-.sub3 *{box-sizing:border-box}
-.sub3 .wrap{max-width:800px;margin:0 auto;padding:0 20px}
-.sub3 h1,.sub3 h2{font-family:var(--font-heading),sans-serif;font-weight:800;color:var(--text);letter-spacing:-.015em;line-height:1.12;margin:0 0 14px}
-.sub3 h2{font-size:clamp(24px,4.5vw,33px)}
-.sub3 p{margin:0 0 14px}
-.sub3 section{padding:48px 0;border-bottom:1px solid var(--border)}
-.sub3 .kicker{font-family:var(--font-display),sans-serif;font-weight:600;font-size:12.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--bad);margin-bottom:10px}
-.sub3 .hl{background:var(--gold-soft,rgba(255,199,0,.25));background:rgba(255,199,0,.28);padding:0 3px}
-.sub3 .mono{font-family:var(--font-display),sans-serif;font-weight:600;letter-spacing:.1em;text-transform:uppercase}
+/* ------------------------------------------------------------------ data */
 
-.sub3 .strip{position:sticky;top:80px;z-index:30;background:var(--brand-surface);color:#e7f0f5;font-family:var(--font-display),sans-serif;font-weight:600;font-size:13px;letter-spacing:.08em;text-align:center;padding:9px 12px}
-.sub3 .strip b{color:var(--gold,#ffc700);color:#ffc700}
-.sub3 .strip .t{background:rgba(255,255,255,.14);padding:2px 8px;border-radius:4px;font-variant-numeric:tabular-nums}
+const FIRMS = [
+  "Morgan Stanley",
+  "Goldman Sachs",
+  "RBC Capital",
+  "Piper Sandler",
+  "Deutsche Bank",
+  "Scotiabank",
+  "Guggenheim",
+  "Melius Research",
+];
 
-.sub3 .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;background:var(--good);color:#fff;text-decoration:none;font-family:var(--font-heading),sans-serif;font-weight:800;font-size:18px;padding:16px 32px;border:0;border-radius:10px;cursor:pointer;transition:background .15s ease,transform .15s ease,box-shadow .15s ease}
-.sub3 .btn:hover{background:var(--good-strong);transform:translateY(-1px);box-shadow:0 10px 26px rgba(17,130,77,.3)}
-.sub3 .btn:disabled{opacity:.6;cursor:default}
-.sub3 .btn-wide{display:flex;width:100%;max-width:520px;margin:0 auto}
-.sub3 .under{font-size:12.5px;color:var(--text-mute);margin-top:12px;text-align:center;line-height:1.7}
+const FEATURES: Array<{
+  title: string;
+  blurb: string;
+  img: string;
+  href: string;
+  wide?: boolean;
+}> = [
+  {
+    title: "Top Insider Scores & indicators",
+    blurb: "Every open-market insider buy, scored 0–100 — with the signals behind it.",
+    img: "/sales/shot-scores.jpg",
+    href: "/insiders/hot",
+    wide: true,
+  },
+  {
+    title: "Real-time insider alerts",
+    blurb: "CEO/CFO purchases and $1M+ buys, straight off SEC Form 4 filings.",
+    img: "/sales/shot-alerts.jpg",
+    href: "/alerts",
+    wide: true,
+  },
+  {
+    title: "Top Analysts",
+    blurb: "Ranked by real track record — success rate and average return.",
+    img: "/sales/shot-analysts.jpg",
+    href: "/analyst-ratings",
+  },
+  {
+    title: "Analyst upside ratings",
+    blurb: "Strong-buy names with the biggest gap to consensus targets.",
+    img: "/sales/shot-upside.jpg",
+    href: "/analyst-stocks",
+  },
+  {
+    title: "Congress trading",
+    blurb: "Every disclosed House and Senate trade, matched to tickers.",
+    img: "/sales/shot-congress.jpg",
+    href: "/congressional-trades",
+  },
+  {
+    title: "Government contracts",
+    blurb: "Federal awards mapped to public companies — before the headlines.",
+    img: "/sales/shot-gov.jpg",
+    href: "/government-contracts",
+  },
+];
 
-/* hero */
-.sub3 .hero{text-align:center;padding:40px 0 48px;border-bottom:1px solid var(--border)}
-.sub3 .eyebrow{display:inline-block;font-family:var(--font-display),sans-serif;font-weight:600;font-size:12.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--good);border:1px solid var(--good);border-radius:6px;padding:5px 12px;margin-bottom:18px}
-.sub3 .hero h1{font-size:clamp(30px,5.8vw,48px);font-weight:900;max-width:700px;margin:0 auto 0}
-.sub3 .hero .sub{font-size:clamp(16px,2.7vw,20px);color:var(--text-soft);max-width:620px;margin:16px auto 0}
-.sub3 .hero .sub b{color:var(--text)}
-.sub3 .coffee{display:inline-flex;align-items:baseline;gap:10px;margin-top:22px;background:var(--bg-1);border:1.5px solid var(--border);border-radius:12px;padding:12px 20px;box-shadow:var(--shadow-md,0 2px 4px rgba(0,0,0,.08));flex-wrap:wrap;justify-content:center}
-.sub3 .coffee .c1{font-size:14.5px;color:var(--text-mute)}
-.sub3 .coffee .c2{font-size:clamp(22px,4vw,30px);font-weight:800;color:var(--good);font-family:var(--font-heading),sans-serif}
-.sub3 .social{display:flex;gap:26px;justify-content:center;flex-wrap:wrap;margin-top:24px}
-.sub3 .snum{text-align:center}
-.sub3 .snum b{display:block;font-size:20px;color:var(--good);font-family:var(--font-heading),sans-serif}
-.sub3 .snum span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-mute)}
-.sub3 .hero .btn{margin-top:26px}
+/** Marquee cards: people (Wikimedia Commons photos, CC BY / CC BY-SA / PD —
+ *  credit line under the section) alternating with platform stats,
+ *  beehiiv "names you know" style. */
+const ROW_A: Array<
+  | { kind: "person"; name: string; sub: string; img: string }
+  | { kind: "stat"; big: string; caption: string; label: string }
+> = [
+  { kind: "person", name: "Warren Buffett", sub: "Berkshire Hathaway · 13F holdings", img: "/sales/people/buffett.jpg" },
+  { kind: "stat", big: "142K+", caption: "open-market insider buys on file", label: "SEC Form 4" },
+  { kind: "person", name: "Nancy Pelosi", sub: "U.S. House · disclosed trades", img: "/sales/people/pelosi.jpg" },
+  { kind: "stat", big: "+2,924%", caption: "Insider Purchases Strategy, all-time backtest", label: "Backtested" },
+  { kind: "person", name: "Jensen Huang", sub: "NVIDIA · Form 4 filings", img: "/sales/people/jensen.jpg" },
+  { kind: "stat", big: "435", caption: "insiders ranked by track record", label: "Track records" },
+];
 
-/* IQ */
-.sub3 .iq-flex{display:flex;gap:28px;align-items:center;flex-wrap:wrap}
-.sub3 .iq-txt{flex:1;min-width:280px}
-.sub3 .iq-card{flex:0 1 260px;margin:0 auto;background:var(--bg-1);border:1px solid var(--border);border-radius:14px;padding:22px;position:relative;box-shadow:var(--shadow-lg,0 8px 20px rgba(0,0,0,.1))}
-.sub3 .iq-card .tag{position:absolute;top:-11px;left:14px;background:var(--brand-surface);color:#e7f0f5;font-family:var(--font-display),sans-serif;font-weight:600;font-size:11px;letter-spacing:.16em;padding:4px 10px;border-radius:5px}
-.sub3 .iq-num{font-weight:800;font-size:64px;color:var(--good);text-align:center;line-height:1;font-family:var(--font-heading),sans-serif}
-.sub3 .iq-den{font-size:13px;color:var(--text-mute);text-align:center;letter-spacing:.06em}
-.sub3 .iq-bar{height:10px;border-radius:5px;background:linear-gradient(90deg,var(--bad) 0%,#d8a31a 50%,var(--good) 100%);margin:14px 0 6px;position:relative}
-.sub3 .iq-bar i{position:absolute;top:-4px;left:92%;width:3px;height:18px;background:var(--text);border-radius:2px}
-.sub3 .iq-lbl{display:flex;justify-content:space-between;font-size:10px;color:var(--text-mute);letter-spacing:.08em}
-.sub3 .iq-verdict{margin-top:12px;text-align:center;font-family:var(--font-display),sans-serif;font-weight:600;font-size:12px;letter-spacing:.12em;color:var(--good)}
-.sub3 .factors{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:24px}
-.sub3 .factor{background:var(--bg-1);border:1px solid var(--border);border-radius:10px;padding:12px}
-.sub3 .factor .ft{font-weight:700;font-size:13.5px;color:var(--text)}
-.sub3 .factor .fd{font-size:12.5px;color:var(--text-mute);margin-top:3px;line-height:1.45}
+const ROW_B: typeof ROW_A = [
+  { kind: "person", name: "Jeff Bezos", sub: "Amazon · insider tape", img: "/sales/people/bezos.jpg" },
+  { kind: "stat", big: "4,300+", caption: "U.S. companies covered", label: "Coverage" },
+  { kind: "person", name: "Ray Dalio", sub: "Bridgewater · 13F holdings", img: "/sales/people/dalio.jpg" },
+  { kind: "stat", big: "+31%", caption: "backtest CAGR since 2014", label: "Since 2014" },
+  { kind: "person", name: "Donald Trump Jr.", sub: "Board seats · insider buys", img: "/sales/people/trumpjr.jpg" },
+  { kind: "stat", big: "39", caption: "live alerts in the last 30 days", label: "Past 30 days" },
+];
 
-/* everything you get */
-.sub3 .sq-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:8px}
-.sub3 .sq{background:var(--bg-1);border:1px solid var(--border);border-radius:12px;padding:20px 16px;position:relative;min-height:168px;display:flex;flex-direction:column;box-shadow:var(--shadow-sm,0 1px 2px rgba(0,0,0,.05))}
-.sub3 .sq .ic{font-size:26px;line-height:1}
-.sub3 .sq .st{font-weight:700;font-size:15.5px;margin-top:10px;line-height:1.3;color:var(--text)}
-.sub3 .sq .sd{font-size:13.5px;color:var(--text-mute);margin-top:5px;line-height:1.5;flex:1}
-.sub3 .sq .sv{font-family:var(--font-display),sans-serif;font-weight:600;font-size:11.5px;color:var(--gold-ink);margin-top:10px;letter-spacing:.08em}
-.sub3 .sq.hot{border:2px solid var(--bad);box-shadow:0 4px 14px rgba(210,51,61,.12)}
-.sub3 .sq.hot .ribbon{position:absolute;top:-10px;right:10px;background:var(--bad);color:#fff;font-family:var(--font-display),sans-serif;font-weight:600;font-size:10px;letter-spacing:.14em;padding:3px 8px;border-radius:4px}
-.sub3 .pricebox{max-width:560px;margin:28px auto 0;background:var(--bg-1);border:2px solid var(--text);border-radius:14px;padding:24px;box-shadow:var(--shadow-lg,0 8px 20px rgba(0,0,0,.1));text-align:center}
-.sub3 .plans{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 16px;text-align:left}
-@media (max-width:520px){.sub3 .plans{grid-template-columns:1fr}}
-.sub3 .plan{position:relative;border:1.5px solid var(--border);border-radius:12px;padding:14px 14px 12px;cursor:pointer;background:var(--bg-1);transition:border-color .15s ease,box-shadow .15s ease}
-.sub3 .plan.sel{border-color:var(--good);box-shadow:0 0 0 2px var(--good-soft),var(--shadow-sm,0 1px 2px rgba(0,0,0,.05))}
-.sub3 .plan .top{display:flex;align-items:center;gap:9px}
-.sub3 .plan .radio{width:18px;height:18px;border-radius:50%;border:2px solid var(--border-strong);flex:0 0 auto;position:relative}
-.sub3 .plan.sel .radio{border-color:var(--good)}
-.sub3 .plan.sel .radio::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--good)}
-.sub3 .plan .nm{font-family:var(--font-heading),sans-serif;font-weight:800;color:var(--text);font-size:15px}
-.sub3 .plan .bv{margin-left:auto;background:var(--good-soft);color:var(--good);font-family:var(--font-display),sans-serif;font-weight:600;font-size:10px;letter-spacing:.1em;padding:3px 8px;border-radius:999px;white-space:nowrap}
-.sub3 .plan .amt{margin-top:8px;font-family:var(--font-heading),sans-serif;font-weight:900;font-size:26px;color:var(--text);line-height:1}
-.sub3 .plan .amt small{font-size:13px;color:var(--text-mute);font-weight:400;font-family:var(--font-sans),sans-serif}
-.sub3 .plan .note{margin-top:5px;font-size:11.5px;color:var(--text-mute);line-height:1.4}
-.sub3 .plan .note s{margin-right:4px}
-.sub3 .pricebox .tot{font-size:14px;color:var(--text-mute);letter-spacing:.06em}
-.sub3 .pricebox .tot s{margin-left:6px}
-.sub3 .pricebox .pv{font-size:42px;font-weight:900;color:var(--good);margin:6px 0;font-family:var(--font-heading),sans-serif}
-.sub3 .pricebox .pv small{font-size:15px;color:var(--text-mute);font-weight:400;font-family:var(--font-sans),sans-serif}
-.sub3 .save{display:inline-block;background:var(--bad);color:#fff;font-family:var(--font-display),sans-serif;font-weight:600;font-size:11.5px;letter-spacing:.12em;padding:4px 10px;border-radius:5px;margin-bottom:14px}
-.sub3 .err{margin:10px auto 0;max-width:520px;background:var(--bad-soft,rgba(210,51,61,.1));border:1px solid var(--bad);color:var(--bad);border-radius:8px;padding:10px 14px;font-size:13.5px;text-align:center}
+/** The three columns. Prices are NOT hardcoded — `plan` names the Stripe
+ *  plan and the live amount is fetched from /billing/plans, so the figure on
+ *  the card is always the figure Stripe will charge. */
+const PLANS: Array<{
+  name: string;
+  plan: "free" | "monthly" | "annual";
+  per: string;
+  tagline: string;
+  cta: string;
+  featured: boolean;
+  feats: string[];
+}> = [
+  {
+    name: "Free",
+    plan: "free",
+    per: "forever",
+    tagline: "Start exploring the tape.",
+    cta: "Start free",
+    featured: false,
+    feats: [
+      "Market data, movers & heatmaps",
+      "Stock pages & charts",
+      "Rankings preview",
+      "Insider alerts newsletter",
+    ],
+  },
+  {
+    name: "Monthly",
+    plan: "monthly",
+    per: "per month",
+    tagline: "Full access, month to month.",
+    cta: "Get Monthly",
+    featured: false,
+    feats: [
+      "Everything in Free",
+      "Full Insider Scores & Insider ROI",
+      "Top Analysts + upside ratings",
+      "Congress trades & gov contracts",
+      "Real-time insider alerts",
+    ],
+  },
+  {
+    name: "Annual",
+    plan: "annual",
+    per: "per year",
+    tagline: "Best value — pay for a year, save the rest.",
+    cta: "Get All-In Access",
+    featured: true,
+    feats: [
+      "Everything in Monthly",
+      "Founding-member price, locked in",
+      "Ranked lists counted down to #1",
+      "Weekly insider intelligence brief",
+      "Priority support",
+    ],
+  },
+];
 
-/* bubbles */
-.sub3 .bubbles{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;max-width:720px;margin:10px auto 0}
-.sub3 .bub{display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:50%;background:var(--bg-1);border:1.5px solid var(--border);box-shadow:var(--shadow-lg,0 8px 20px rgba(0,0,0,.1));text-align:center}
-.sub3 .bub .logo{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;margin-bottom:5px;font-family:var(--font-heading),sans-serif}
-.sub3 .bub .tk{font-weight:700;font-size:14px;letter-spacing:.04em;color:var(--text)}
-.sub3 .bub .gain{font-weight:700;font-size:15px;color:var(--good);font-variant-numeric:tabular-nums}
-.sub3 .bub .per{font-size:9.5px;color:var(--text-mute);letter-spacing:.08em}
-.sub3 .b1{width:176px;height:176px}.sub3 .b2{width:152px;height:152px}.sub3 .b3{width:134px;height:134px}.sub3 .b4{width:118px;height:118px}
-.sub3 .b1 .gain{font-size:21px}.sub3 .b2 .gain{font-size:17px}
-.sub3 .b1{transform:translateY(-6px)}.sub3 .b3{transform:translateY(10px)}.sub3 .b4{transform:translateY(-12px)}
-.sub3 .bub-note{text-align:center;font-size:10.5px;letter-spacing:.08em;color:var(--text-mute);margin-top:20px;text-transform:uppercase}
-@media (max-width:560px){.sub3 .b1{width:142px;height:142px}.sub3 .b2{width:124px;height:124px}.sub3 .b3{width:110px;height:110px}.sub3 .b4{width:98px;height:98px}.sub3 .b1 .gain{font-size:17px}}
+const NUMBERS = [
+  { big: "+2,924%", caption: "all-time return of the Insider Purchases Strategy backtest" },
+  { big: "+31%", caption: "compound annual growth rate since 2014" },
+  { big: "142K+", caption: "open-market insider buys tracked from SEC Form 4" },
+  { big: "4,300+", caption: "U.S. companies scored and covered daily" },
+];
 
-/* dark bands */
-.sub3 .band{background:var(--brand-surface);color:#dbe7ee;text-align:center;border-bottom:0}
-.sub3 .band h2{color:#fff}
-.sub3 .band .big{font-family:var(--font-heading),sans-serif;font-style:italic;font-weight:700;font-size:clamp(19px,3.6vw,25px);color:#ffc700;margin-bottom:12px}
-.sub3 .band p{color:#b7cddc;max-width:640px;margin:0 auto 14px}
-.sub3 .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;max-width:680px;margin:26px auto 0;text-align:left}
-.sub3 .step{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:16px}
-.sub3 .step .sn{font-family:var(--font-display),sans-serif;font-weight:600;font-size:11.5px;color:#ffc700;letter-spacing:.14em}
-.sub3 .step .st{font-weight:700;color:#fff;margin-top:6px;font-size:15.5px}
-.sub3 .step .sd{font-size:13.5px;color:#b7cddc;margin-top:4px;line-height:1.5}
+const TOOLS = [
+  { label: "Stock profiles", href: "/companies/AAPL" },
+  { label: "Insider rankings", href: "/insiders" },
+  { label: "Breaking news", href: "/insights" },
+  { label: "Insider profiles", href: "/insiders" },
+  { label: "Market Heatmaps", href: "/heatmaps/market" },
+  { label: "Top Insider Scores", href: "/insiders/hot" },
+  { label: "Earnings Calendar", href: "/earnings" },
+  { label: "Watchlists", href: "/watchlist" },
+  { label: "IPO Tracker", href: "/ipos" },
+  { label: "Short Interest", href: "/short-interest" },
+  { label: "Dividends", href: "/dividends" },
+];
 
-/* backtest */
-.sub3 .chart-card{background:var(--bg-1);border:1px solid var(--border);border-radius:14px;padding:22px 18px;margin-top:8px;box-shadow:var(--shadow-sm,0 1px 2px rgba(0,0,0,.05))}
-.sub3 .chart-title{font-family:var(--font-display),sans-serif;font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-mute);margin-bottom:12px;text-align:center}
-.sub3 .legend{display:flex;gap:18px;justify-content:center;font-size:12px;margin-top:10px;flex-wrap:wrap;color:var(--text-soft)}
-.sub3 .legend .sw{display:inline-block;width:16px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
-.sub3 .chart-note{font-size:11.5px;color:var(--text-mute);margin-top:12px;line-height:1.6}
+const FAQS = [
+  {
+    q: "What is All-In Access?",
+    a: "One membership that unlocks everything on Insider Buying: full Insider Scores and Insider ROI, the ranked lists counted down to #1, top-analyst track records and upside ratings, congressional trades, government contracts, and real-time insider alerts.",
+  },
+  {
+    q: "Where does the data come from?",
+    a: "Insider activity is parsed first-hand from SEC Form 4 filings. Market data, analyst ratings and fundamentals come from licensed market-data providers. Congressional trades come from official House and Senate disclosures.",
+  },
+  {
+    q: "How fresh are the alerts?",
+    a: "Filings are ingested continuously throughout the trading day, and qualifying buys — CEO/CFO purchases and $1M+ open-market buys — hit the alerts feed as they are processed.",
+  },
+  {
+    q: "Can I cancel anytime?",
+    a: "Yes. Subscriptions are handled by Stripe and can be cancelled in one click from your account — you keep access until the end of the paid period.",
+  },
+  {
+    q: "Is this financial advice?",
+    a: "No. Insider Buying is a research platform. Every figure traces to a public filing or licensed data feed, and nothing on the site is a recommendation to buy or sell any security.",
+  },
+];
 
-/* leaderboard */
-.sub3 .board{border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:6px}
-.sub3 .board-head{display:flex;justify-content:space-between;align-items:center;background:var(--brand-surface);color:#dbe7ee;padding:10px 14px;font-family:var(--font-display),sans-serif;font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase}
-.sub3 .board-head .live{color:#7ce3ae}
-.sub3 .row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--border);background:var(--bg-1)}
-.sub3 .ava{width:44px;height:44px;border-radius:50%;flex:0 0 auto;background:linear-gradient(135deg,#3f6f8f,var(--brand-surface));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;overflow:hidden;font-family:var(--font-heading),sans-serif}
-.sub3 .ava span{filter:blur(5px);opacity:.9}
-.sub3 .ava.an{background:linear-gradient(135deg,#8a6d1d,#5c4610)}
-.sub3 .rname{flex:1;min-width:0}
-.sub3 .rname .nm{font-weight:700;font-size:15px;color:var(--text);filter:blur(4.5px);user-select:none}
-.sub3 .rname .rl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-mute);margin-top:2px}
-.sub3 .rstat{text-align:right;flex:0 0 auto;font-variant-numeric:tabular-nums}
-.sub3 .rstat .sr{font-weight:700;font-size:16px;color:var(--good)}
-.sub3 .rstat .ar{font-size:11.5px;color:var(--text-mute)}
-.sub3 .lock{flex:0 0 auto;font-size:15px}
-.sub3 .board-cta{padding:16px 14px;border-top:1px solid var(--border);text-align:center;background:var(--bg-3)}
-.sub3 .board-cta .bc{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-mute);margin-bottom:10px}
+/* -------------------------------------------------------------- commerce */
 
-/* guarantee */
-.sub3 .guar{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
-.sub3 .badge{flex:0 0 auto;width:112px;height:112px;border:3px double var(--good);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--good);background:var(--bg-1)}
-.sub3 .badge b{font-size:30px;line-height:1;font-family:var(--font-heading),sans-serif}
-.sub3 .badge span{font-size:9px;letter-spacing:.18em;margin-top:4px}
-.sub3 .guar .gtxt{flex:1;min-width:260px}
-
-/* legal + sticky */
-.sub3 .legal{font-size:11px;color:var(--text-mute);line-height:1.7;padding:26px 0 96px}
-.sub3 .legal a{color:var(--text-mute)}
-.sub3 .sticky-bar{position:fixed;bottom:0;left:0;right:0;z-index:60;background:var(--bg-1);border-top:2px solid var(--text);padding:10px 14px;display:flex;gap:12px;align-items:center;justify-content:center;box-shadow:0 -8px 24px rgba(0,0,0,.12)}
-.sub3 .sticky-bar .st{font-size:12.5px;line-height:1.35;color:var(--text-soft)}
-.sub3 .sticky-bar .st b{color:var(--good)}
-.sub3 .sticky-bar .btn{font-size:14px;padding:11px 18px;white-space:nowrap}
-/* ── Mobile compaction (client 2026-08-20: match TipRanks-plans density —
-     every size on the page was desktop-scale on phones) ── */
-@media (max-width:640px){
-  .sub3 .wrap{padding:0 16px}
-  .sub3 section{padding:28px 0}
-  .sub3 h2{font-size:21px}
-  .sub3 .kicker{font-size:10.5px;margin-bottom:8px}
-  .sub3 .strip{font-size:11px;padding:7px 10px;letter-spacing:.05em}
-  /* .hero's padding shorthand overrides .wrap's side padding (same element,
-     later rule) — that's why the h1 sat edge-to-edge; restore sides here. */
-  .sub3 .hero{padding:22px 16px 30px}
-  .sub3 .eyebrow{font-size:10px;padding:4px 10px;margin-bottom:14px;letter-spacing:.14em}
-  .sub3 .hero h1{font-size:25px;line-height:1.2}
-  .sub3 .hero .sub{font-size:14px;margin-top:12px}
-  .sub3 .coffee{margin-top:16px;padding:10px 14px;gap:8px}
-  .sub3 .coffee .c1{font-size:12px}
-  .sub3 .coffee .c2{font-size:20px}
-  /* the three proof stats sit as one even row instead of a 2+1 wrap */
-  .sub3 .social{gap:8px;margin-top:18px;flex-wrap:nowrap}
-  .sub3 .snum{flex:1 1 0;min-width:0}
-  .sub3 .snum b{font-size:16px}
-  .sub3 .snum span{font-size:9px;letter-spacing:.05em}
-  .sub3 .hero .btn{margin-top:20px}
-  .sub3 .btn{font-size:15px;padding:13px 20px}
-  .sub3 .under{font-size:11px;margin-top:10px}
-  .sub3 .iq-num{font-size:52px}
-  .sub3 .factors{gap:8px;margin-top:16px}
-  .sub3 .sq{min-height:0;padding:14px 12px}
-  .sub3 .sq .ic{font-size:22px}
-  .sub3 .sq .st{font-size:14px;margin-top:8px}
-  .sub3 .sq .sd{font-size:12.5px}
-  .sub3 .pricebox{padding:18px 14px;margin-top:20px}
-  .sub3 .pricebox .pv{font-size:34px}
-  .sub3 .plan .amt{font-size:22px}
-  .sub3 .band .big{font-size:17px}
-  .sub3 .steps{gap:10px;margin-top:18px}
-  .sub3 .step{padding:13px}
-  .sub3 .step .st{font-size:14px}
-  .sub3 .step .sd{font-size:12.5px}
-  .sub3 .chart-card{padding:16px 10px}
-  .sub3 .row{padding:10px 12px;gap:10px}
-  .sub3 .ava{width:36px;height:36px;font-size:13px}
-  .sub3 .rname .nm{font-size:13.5px}
-  .sub3 .rstat .sr{font-size:14px}
-  .sub3 .badge{width:96px;height:96px}
-  .sub3 .badge b{font-size:25px}
-  .sub3 .guar{gap:16px}
-  .sub3 .sticky-bar{padding:8px 10px;gap:10px}
-  .sub3 .sticky-bar .st{font-size:11px}
-  .sub3 .sticky-bar .btn{font-size:13px;padding:10px 14px}
-  .sub3 .legal{padding-bottom:110px}
-}
-@media (prefers-reduced-motion:reduce){.sub3 *{transition:none!important}}
-/* ── Dark mode (client 2026-08-18: "subscribe page on dark mode with dark
-      color", light mode is already signed off). The page carries its own
-      scoped palette, so dark is a token swap inside .sub3 and the light
-      design is untouched. --bg-1 becomes the CARD surface and the page takes
-      the deeper site background, because in light mode both were one white. */
-:root[data-theme="dark"] .sub3{
-  --bg-1:#0c1428; --bg-3:#182338; --border:#1f2c45; --border-strong:#2f3e5c;
-  --text:#f0f4fa; --text-soft:#c9d3e3; --text-mute:#8794ab; --text-faint:#5d6b85;
-  --accent:#20d0ff; --accent-hover:#6ddfff; --on-accent:#042033;
-  /* one token carries the offer strip, the two dark bands, the leaderboard
-     head and the score tag — lifted off the page background so each of those
-     still reads as a band instead of blending into the page */
-  --brand-surface:#182338;
-  --good:#1bb471; --good-strong:#11824d; --good-soft:rgba(27,180,113,.16);
-  --bad:#e84b56; --gold-ink:#e3bd5c;
-  --bt-strategy:#4590c6; --bt-benchmark:#b87a22;
-  background:#050a18;
-}
-/* a 2px near-black border is a light-mode device; on dark it reads as glare,
-   so the purchase green carries the same emphasis instead */
-:root[data-theme="dark"] .sub3 .pricebox{border-color:var(--good)}
-:root[data-theme="dark"] .sub3 .sticky-bar{border-top-color:var(--border-strong);box-shadow:0 -8px 24px rgba(0,0,0,.5)}
-/* the marker-pen wash needs less alpha and warm ink over a deep surface */
-:root[data-theme="dark"] .sub3 .hl{background:rgba(255,199,0,.14);color:#ffe9b0}
-:root[data-theme="dark"] .sub3 .sq.hot{box-shadow:0 4px 14px rgba(232,75,86,.22)}
-/* two of the bubble marks are brand-black (PLTR) or near-black navy (SMCI) —
-   on a dark card the chip disappears, so give every one a hairline ring */
-:root[data-theme="dark"] .sub3 .bub .logo{box-shadow:0 0 0 1px rgba(255,255,255,.22)}
-
-`;
-
-/* ── Data hooks ──────────────────────────────────────────────────────────── */
-
-/** Real multi-year winners for the bubbles: closes from our own history feed,
- *  gain computed first→last bar, as-of pinned to the last bar's date. Only
- *  positive movers render (self-maintaining — a loser drops out on its own). */
-const BUBBLE_SYMBOLS = ["NVDA", "SMCI", "PLTR", "AMD", "TSLA", "CVNA"];
-const BUBBLE_COLORS: Record<string, string> = {
-  NVDA: "#76B900", SMCI: "#0B1B33", PLTR: "#000000",
-  AMD: "#ED1C24", TSLA: "#E31937", CVNA: "#4A67C7",
-};
-interface BubbleRow { sym: string; gainPct: number; asOf: string }
-async function fetchBubbles(): Promise<{ rows: BubbleRow[]; asOf: string | null }> {
-  const settled = await Promise.all(
-    BUBBLE_SYMBOLS.map(async (sym) => {
-      try {
-        const res = await fetch(`${API_BASE}/market-stats/history?symbol=${sym}&range=5y`);
-        const data = await res.json();
-        const bars: Array<{ close: number; date: string }> = data?.history?.bars || [];
-        if (bars.length < 50) return null;
-        const first = bars[0].close;
-        const last = bars[bars.length - 1].close;
-        if (!(first > 0) || !(last > 0)) return null;
-        return { sym, gainPct: (last / first - 1) * 100, asOf: bars[bars.length - 1].date };
-      } catch { return null; }
-    }),
-  );
-  const rows = (settled.filter(Boolean) as BubbleRow[])
-    .filter((r) => r.gainPct > 25) // only meaningful winners
-    .sort((a, b) => b.gainPct - a.gainPct)
-    .slice(0, 5);
-  return { rows, asOf: rows[0]?.asOf ?? null };
+interface BillingPlans {
+  configured: boolean;
+  live: boolean;
+  plans: Array<{ plan: "monthly" | "annual"; amount: number; currency: string; interval: string }>;
 }
 
-/* ── Small pieces ────────────────────────────────────────────────────────── */
-
-function useCountdown(minutes = 15): string {
-  const [left, setLeft] = useState(minutes * 60);
-  useEffect(() => {
-    const id = setInterval(() => setLeft((s) => (s > 0 ? s - 1 : 0)), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const m = Math.floor(left / 60), s = left % 60;
-  return `${m < 10 ? "0" : ""}${m}:${s < 10 ? "0" : ""}${s}`;
+/** Cents → "$199" / "$39.99" (whole amounts lose the trailing .00). */
+function money(amount: number, currency: string): string {
+  const symbol = currency?.toLowerCase() === "usd" ? "$" : "";
+  const value = amount / 100;
+  const text = Number.isInteger(value) ? String(value) : value.toFixed(2);
+  return `${symbol}${text}`;
 }
 
+/**
+ * The Stripe return leg. `?checkout=success` triggers a /billing/sync so
+ * premium flips without waiting for the webhook, then opens the thank-you
+ * modal once; the outcome is consumed from the URL immediately so a refresh
+ * or a bookmarked link never replays it (behaviour carried over from the
+ * page this replaces, commit 3905cde).
+ */
 function CheckoutOutcome({ onSuccess }: { onSuccess: () => void }) {
   const { refreshPremium } = usePremium();
   const [state, setState] = useState<"none" | "syncing" | "success" | "cancelled" | "error">("none");
-  // Success no longer renders the green banner (client 2026-08-21) — it opens
-  // the celebratory thank-you modal instead, once per landing.
   const firedRef = useRef(false);
   useEffect(() => {
     if (state !== "success" || firedRef.current) return;
@@ -320,9 +252,7 @@ function CheckoutOutcome({ onSuccess }: { onSuccess: () => void }) {
     const params = new URLSearchParams(window.location.search);
     const outcome = params.get("checkout");
     if (!outcome) return;
-    const sessionIdParam = params.get("session_id");
-    // Consume the outcome from the URL immediately — otherwise a refresh (or
-    // a bookmarked ?checkout=success link) replays the celebration forever.
+    const sessionId = params.get("session_id");
     params.delete("checkout");
     params.delete("session_id");
     const qs = params.toString();
@@ -331,101 +261,98 @@ function CheckoutOutcome({ onSuccess }: { onSuccess: () => void }) {
       "",
       window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash,
     );
-    if (outcome === "cancelled") { setState("cancelled"); return; }
+    if (outcome === "cancelled") {
+      setState("cancelled");
+      return;
+    }
     if (outcome !== "success") return;
-    const sessionId = sessionIdParam;
     setState("syncing");
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/billing/sync`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAuthToken() ?? ""}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getAuthToken() ?? ""}`,
+          },
           body: JSON.stringify({ sessionId }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error("sync failed");
         await refreshPremium();
         setState(data?.premium ? "success" : "syncing");
-        if (!data?.premium) setTimeout(async () => { await refreshPremium(); setState("success"); }, 4000);
-      } catch { setState("error"); }
+        if (!data?.premium) {
+          setTimeout(async () => {
+            await refreshPremium();
+            setState("success");
+          }, 4000);
+        }
+      } catch {
+        setState("error");
+      }
     })();
   }, [refreshPremium]);
   if (state === "none" || state === "success") return null;
-  // Scoped .sub3 tokens, not fixed hex — this banner renders inside the page
-  // wrapper, so it follows the light/dark palette swap with everything else.
-  const palette: Record<string, { bg: string; bd: string; fg: string }> = {
-    syncing: { bg: "var(--accent-soft)", bd: "var(--accent)", fg: "var(--accent)" },
-    cancelled: { bg: "var(--bg-3)", bd: "var(--border-strong)", fg: "var(--text-mute)" },
-    error: { bg: "var(--bad-soft)", bd: "var(--bad)", fg: "var(--bad)" },
-  };
   const msg: Record<string, string> = {
     syncing: "Finalizing your subscription…",
     cancelled: "Checkout cancelled — no charge was made.",
-    error: "We couldn't confirm the payment automatically. If you were charged, refresh in a minute or contact support.",
+    error:
+      "We couldn't confirm the payment automatically. If you were charged, refresh in a minute or contact support.",
   };
-  const p = palette[state];
   return (
-    <div style={{ maxWidth: 720, margin: "18px auto 0", padding: "13px 20px", borderRadius: 12, textAlign: "center", fontWeight: 700, fontSize: 14.5, background: p.bg, border: `1px solid ${p.bd}`, color: p.fg }}>
+    <div className={`biv-note biv-note-${state}`} role="status">
       {msg[state]}
     </div>
   );
 }
 
-const CORE_TILES = [
-  { ic: "📊", st: "The Official Insider Buying Database", sd: "The most detailed insider data on the market — every filing, every filer, fully searchable.", sv: "CORE ACCESS" },
-  { ic: "🎯", st: "Insider Scores on Every Stock", sd: "0–99 quality score, re-ranked daily — down to the single highest-conviction name.", sv: "CORE ACCESS" },
-  { ic: "⚡", st: "Real-Time Insider Alerts", sd: "High-conviction buys in your inbox minutes after EDGAR — never weeks later.", sv: "CORE ACCESS" },
-  { ic: "📈", st: "Live Rankings #1–200", sd: "The full board of insider-backed names, ranked live by score — updated after every filing.", sv: "CORE ACCESS" },
-  { ic: "🏛️", st: "Politician Trades", sd: "Congressional trades with committee seats, filing speed, donors & contracts.", sv: "CORE ACCESS" },
-  { ic: "🏆", st: "Ranked Insiders & Analysts", sd: "Every insider and analyst scored by the measured performance of their past calls.", sv: "CORE ACCESS" },
-];
-const REPORT_TILES = [
-  { ic: "📗", st: "Top Stocks Insiders Are Buying", sd: "2026 special report — our highest-conviction insider-backed ideas.", sv: "$49 VALUE" },
-  { ic: "📘", st: "Top Stocks Analysts Love", sd: "2026 special report — where Wall Street's most accurate analysts agree.", sv: "$49 VALUE" },
-  { ic: "📙", st: "Top Dividend Stocks", sd: "2026 special report — income names with insider conviction behind them.", sv: "$49 VALUE" },
-  { ic: "🔥", st: "One Tiny Stock You Should Know About", sd: "Our current #1 insider cluster buy — full thesis, filings, and ticker inside.", sv: "$49 VALUE" },
-];
-
-/* ── Page ────────────────────────────────────────────────────────────────── */
+/* ------------------------------------------------------------------ page */
 
 export default function PremiumPage() {
   const { user } = useAuth();
   const { premium } = usePremium();
-  const timer = useCountdown(15);
-  const [plan, setPlan] = useState<"annual" | "monthly">("annual");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"monthly" | "annual" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [thanksOpen, setThanksOpen] = useState(false);
   const [popupOpen, setPopupOpen] = useState(false);
   const popupFired = useRef(false);
 
-  // Live leaderboard rows (design placeholders → real database figures).
-  const { data: insiderData } = useSWR<{ rows: any[] }>(
-    `${API_BASE}/insiders/track-record?limit=300`, fetcher, { revalidateOnFocus: false },
-  );
-  // Credible track records for the sales board (client 2026-08-22): an
-  // all-100% row from 5 lucky filings reads as fake. Require a meaningful
-  // sample (>=10 filings) and a strong-but-not-perfect hit rate (70-99%),
-  // then lead with the most capital deployed.
-  const topInsiders = (insiderData?.rows || [])
-    .filter(
-      (r) =>
-        Number(r.trades) >= 10 &&
-        Number(r.accuracy) >= 70 &&
-        Number(r.accuracy) < 100,
-    )
-    .sort((a, b) => Number(b.totalValue) - Number(a.totalValue))
-    .slice(0, 3);
-
-  // Real multi-year winners for the bubbles.
-  const { data: bubbleData } = useSWR("premium-bubbles-5y", fetchBubbles, {
-    revalidateOnFocus: false, dedupingInterval: 24 * 3600 * 1000,
+  // Live Stripe amounts — the card prints these, never a hardcoded figure.
+  const { data: billing } = useSWR<BillingPlans>(`${API_BASE}/billing/plans`, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 10 * 60_000,
   });
-  const bubbles = bubbleData?.rows || [];
-  const bubbleSizes = ["b1", "b2", "b3", "b3", "b4"];
+  const priceOf = (plan: "free" | "monthly" | "annual"): string | null => {
+    if (plan === "free") return "$0";
+    const p = billing?.plans?.find((x) => x.plan === plan);
+    return p ? money(p.amount, p.currency) : null;
+  };
+  // The annual saving is computed from the two live amounts rather than being
+  // written into the copy, so it can never drift from the Stripe prices.
+  const monthlyAmt = billing?.plans?.find((x) => x.plan === "monthly")?.amount;
+  const annualAmt = billing?.plans?.find((x) => x.plan === "annual")?.amount;
+  const annualSaving =
+    monthlyAmt && annualAmt && monthlyAmt * 12 > annualAmt
+      ? {
+          pct: Math.round((1 - annualAmt / (monthlyAmt * 12)) * 100),
+          months: Math.round(annualAmt / monthlyAmt),
+        }
+      : null;
 
-  // Exit-intent + timed popup (email capture for the reports bundle).
+  // Returning from Stripe via the Back button restores this page from the
+  // back/forward cache with `busy` still set, which would leave the button
+  // stuck on "Opening checkout…".
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setBusy(null);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
+  // Exit-intent + timed email capture for the reports bundle (carried over
+  // from the previous subscribe page; never shown to subscribers).
   useEffect(() => {
     if (premium) return;
     const fire = () => {
@@ -433,43 +360,38 @@ export default function PremiumPage() {
       popupFired.current = true;
       setPopupOpen(true);
     };
-    const t = setTimeout(fire, 18000);
+    const t = setTimeout(fire, 25000);
     const onMouseOut = (e: MouseEvent) => {
       if (!e.relatedTarget && e.clientY <= 0) fire();
     };
     document.addEventListener("mouseout", onMouseOut);
-    return () => { clearTimeout(t); document.removeEventListener("mouseout", onMouseOut); };
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("mouseout", onMouseOut);
+    };
   }, [premium]);
 
-  // Returning from Stripe via the browser Back button restores this page from
-  // the back/forward cache with `busy` still true, leaving every checkout
-  // button stuck on "Opening checkout…" — reset it whenever the page is shown.
-  useEffect(() => {
-    const onPageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) setBusy(false);
-    };
-    window.addEventListener("pageshow", onPageShow);
-    return () => window.removeEventListener("pageshow", onPageShow);
-  }, []);
-
-  // planOverride: some CTAs advertise a specific plan (e.g. the closing
-  // "$199/Year" button) regardless of the selector state. Passed as a plain
-  // string only — `onClick={checkout}` hands us a click event, which the
-  // validity check below ignores.
-  const checkout = async (planOverride?: unknown) => {
+  const checkout = async (plan: "monthly" | "annual") => {
     if (busy) return;
-    if (!user) { setLoginOpen(true); return; }
-    // Already subscribed: a second Stripe checkout is a mistake waiting to
-    // happen — celebrate instead (client 2026-08-21, replaces the old green
-    // "You're subscribed" banner).
-    if (premium) { setThanksOpen(true); return; }
-    const chosen = planOverride === "annual" || planOverride === "monthly" ? planOverride : plan;
-    setBusy(true); setErr(null);
+    if (!user) {
+      setLoginOpen(true);
+      return;
+    }
+    // Already subscribed → celebrate instead of double-billing (client rule).
+    if (premium) {
+      setThanksOpen(true);
+      return;
+    }
+    setBusy(plan);
+    setErr(null);
     try {
       const res = await fetch(`${API_BASE}/billing/checkout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAuthToken() ?? ""}` },
-        body: JSON.stringify({ plan: chosen }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getAuthToken() ?? ""}`,
+        },
+        body: JSON.stringify({ plan }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.url) {
@@ -480,322 +402,344 @@ export default function PremiumPage() {
       }
       window.location.href = data.url as string;
     } catch (e) {
-      setBusy(false);
+      setBusy(null);
       setErr(e instanceof Error ? e.message : "Something went wrong — try again.");
     }
   };
-  const scrollToCheckout = () => document.getElementById("checkout")?.scrollIntoView({ behavior: "smooth" });
-
-  const initials = (name: string) =>
-    name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-  const fmtGain = (v: number) => `+${Math.round(v).toLocaleString("en-US")}%`;
 
   return (
-    <div className="sub3" style={{ width: "100vw", position: "relative", left: "50%", marginLeft: "-50vw", marginTop: "-2rem" }}>
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+    <div className="biv">
       <CheckoutOutcome onSuccess={() => setThanksOpen(true)} />
-
-      {/* countdown strip */}
-      <div className="strip">
-        ⚡ FOUNDING OFFER — <b>over 55% off</b> annual + all special reports free · expires in{" "}
-        <span className="t">{timer}</span>
-      </div>
-
-      {/* 1 · hero */}
-      <div className="wrap hero">
-        <span className="eyebrow">Annual Membership · Over 55% Off</span>
-        <h1>Get Institutional-Quality Stock Analysis for Less Than a Cup of Coffee a Day</h1>
-        <p className="sub">
-          The same class of research institutions pay thousands for —{" "}
-          <b>built on the most honest signal in the market: what insiders do with their own money.</b>
-        </p>
-        <div className="coffee">
-          <span className="c1">$199/year ÷ 365 days =</span>
-          <span className="c2 tabular">$0.55/day ☕</span>
-        </div>
-        <div className="social">
-          <div className="snum"><b className="tabular">4,000+</b><span>filings scanned daily</span></div>
-          <div className="snum"><b className="tabular">0–99</b><span>Insider Score on every stock</span></div>
-          <div className="snum"><b className="tabular">60 yrs</b><span>of published research</span></div>
-        </div>
-        <button className="btn" onClick={checkout} disabled={busy}>
-          {busy ? "Opening checkout…" : "Get Insider Access — $199/Year →"}
-        </button>
-        {err && <div className="err">{err}</div>}
-        <p className="under">Everything included · All special reports free · 30-day money-back guarantee</p>
-      </div>
-
-      {/* 2 · Insider Score */}
-      <section><div className="wrap">
-        <div className="kicker">Our proprietary Insider Score</div>
-        <h2>Check What Insiders Are <em style={{ fontStyle: "italic", color: "var(--bad)" }}>Really</em> Doing</h2>
-        <div className="iq-flex">
-          <div className="iq-txt">
-            <p style={{ marginBottom: 0 }}>
-              One number tells you whether the people who know the company best are betting their
-              own money on it — <b>right now.</b>
-            </p>
-          </div>
-          <div className="iq-card">
-            <div className="tag">LIVE SCORE · SAMPLE</div>
-            <div className="iq-num tabular">92</div>
-            <div className="iq-den">/ 99 · INSIDER SCORE</div>
-            <div className="iq-bar"><i /></div>
-            <div className="iq-lbl"><span>WEAK</span><span>NEUTRAL</span><span>STRONG</span></div>
-            <div className="iq-verdict">▲ HIGH-CONVICTION CLUSTER BUY</div>
-          </div>
-        </div>
-        <div className="factors">
-          <div className="factor"><div className="ft">Who&rsquo;s buying</div><div className="fd">A CEO sees the whole business. Proximity to operations = heavier weight.</div></div>
-          <div className="factor"><div className="ft">How much</div><div className="fd">Absolute dollars committed — a $100k buy is real conviction at any market cap.</div></div>
-          <div className="factor"><div className="ft">Clustering</div><div className="fd">One buyer can be wrong. Five rarely agree by accident.</div></div>
-          <div className="factor"><div className="ft">Track record</div><div className="fd">Proven buyers outweigh first-timers — measured, not assumed.</div></div>
-          <div className="factor"><div className="ft">Skin in the game</div><div className="fd">High and rising insider ownership scores higher.</div></div>
-          <div className="factor"><div className="ft">Red flags</div><div className="fd">Heavy dilution and litigation subtract automatically.</div></div>
-        </div>
-      </div></section>
-
-      {/* 3 · everything you get + pricebox */}
-      <section id="checkout"><div className="wrap">
-        <div className="kicker" style={{ textAlign: "center" }}>One membership · Everything included</div>
-        <h2 style={{ textAlign: "center" }}>Everything You Get</h2>
-        <div className="sq-grid">
-          {CORE_TILES.map((t) => (
-            <div className="sq" key={t.st}>
-              <div className="ic">{t.ic}</div><div className="st">{t.st}</div>
-              <div className="sd">{t.sd}</div><div className="sv">{t.sv}</div>
-            </div>
-          ))}
-          {REPORT_TILES.map((t) => (
-            <div className="sq hot" key={t.st}>
-              <div className="ribbon">INCLUDED FREE</div>
-              <div className="ic">{t.ic}</div><div className="st">{t.st}</div>
-              <div className="sd">{t.sd}</div><div className="sv">{t.sv}</div>
-            </div>
-          ))}
-        </div>
-        <div className="pricebox">
-          <div className="tot mono">TOTAL VALUE <s className="tabular">$675.88</s></div>
-          <div className="plans" role="radiogroup" aria-label="Choose a plan">
-            <div
-              className={`plan${plan === "annual" ? " sel" : ""}`}
-              role="radio" aria-checked={plan === "annual"} tabIndex={0}
-              onClick={() => setPlan("annual")}
-              onKeyDown={(e) => e.key === "Enter" && setPlan("annual")}
-            >
-              <div className="top"><span className="radio" /><span className="nm">Annual</span><span className="bv">BEST VALUE · 55% OFF</span></div>
-              <div className="amt tabular">$199 <small>/ year</small></div>
-              <div className="note">Just $16.58/mo · all 4 special reports included free</div>
-            </div>
-            <div
-              className={`plan${plan === "monthly" ? " sel" : ""}`}
-              role="radio" aria-checked={plan === "monthly"} tabIndex={0}
-              onClick={() => setPlan("monthly")}
-              onKeyDown={(e) => e.key === "Enter" && setPlan("monthly")}
-            >
-              <div className="top"><span className="radio" /><span className="nm">Monthly</span></div>
-              <div className="amt tabular">$39.99 <small>/ month</small></div>
-              <div className="note">Full access, billed monthly · cancel anytime</div>
-            </div>
-          </div>
-          {plan === "annual" && (
-            <><span className="save">SAVE OVER 55% VS MONTHLY · BILLED ANNUALLY</span><br /></>
-          )}
-          <button className="btn btn-wide" onClick={checkout} disabled={busy}>
-            {busy
-              ? "Opening checkout…"
-              : plan === "annual"
-                ? "Get Insider Access — $199/Year →"
-                : "Get Insider Access — $39.99/Month →"}
-          </button>
-          {err && <div className="err">{err}</div>}
-          <p className="under">
-            {plan === "annual"
-              ? "One payment · Everything included · 30-day money-back guarantee — reports are yours to keep"
-              : "Everything included · Cancel anytime · 30-day money-back guarantee"}
+      {/* ---------------------------------------------------------- hero */}
+      <section className="biv-hero">
+        <div className="biv-hero-copy">
+          <h1>
+            <span>Stock analysis.</span>
+            <span>Insider rankings.</span>
+            <span>Breaking news.</span>
+            <span className="biv-accent">One platform.</span>
+          </h1>
+          <p className="biv-sub">
+            Insider Buying <b>&ldquo;All-In Access&rdquo;</b> is the only
+            membership that brings you closer to insiders.
           </p>
+          <div className="biv-ctas">
+            <a href="#pricing" className="biv-btn biv-btn-solid">
+              Get All-In Access
+            </a>
+            <a href="#features" className="biv-btn biv-btn-ghost">
+              Explore the platform
+            </a>
+          </div>
+          <p className="biv-fine">Start free. No credit card required.</p>
         </div>
-      </div></section>
+        <div className="biv-hero-art" aria-hidden="true">
+          {/* Both panels are designed UI, not screenshots: they stay crisp at
+              any size, weigh nothing, and follow the site theme. */}
+          <div className="biv-panel biv-panel-perf">
+            <div className="biv-panel-head">
+              <span className="biv-eyebrow-sm">Insider Purchases Strategy</span>
+              <span className="biv-tagpill">Backtested</span>
+            </div>
+            <div className="biv-bigstat">
+              +2,924.4%
+              <em>all time vs market</em>
+            </div>
+            <div className="biv-panel-stats">
+              <div><b>+31.00%</b><span>CAGR</span></div>
+              <div><b>+72.48%</b><span>1-year</span></div>
+              <div><b>2014</b><span>since</span></div>
+              <div><b>142K+</b><span>buys tracked</span></div>
+            </div>
+            <svg className="biv-chart" viewBox="0 0 100 42" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="bivFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#4CC38A" stopOpacity="0.42" />
+                  <stop offset="100%" stopColor="#4CC38A" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M0 39 L8 38.4 L16 37.8 L24 36.6 L32 35 L40 32.4 L48 29.6 L56 26.4 L64 21.6 L72 18.4 L80 12.6 L88 8.4 L94 6.6 L100 2 L100 42 L0 42 Z"
+                fill="url(#bivFill)"
+              />
+              <path
+                d="M0 39 L8 38.4 L16 37.8 L24 36.6 L32 35 L40 32.4 L48 29.6 L56 26.4 L64 21.6 L72 18.4 L80 12.6 L88 8.4 L94 6.6 L100 2"
+                fill="none" stroke="#4CC38A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+              <path
+                d="M0 39.6 L25 39 L50 38.2 L75 37.2 L100 35.8"
+                fill="none" stroke="currentColor" strokeWidth="1.1" strokeDasharray="3 3"
+                opacity="0.4" vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+          </div>
 
-      {/* 4 · bubbles — REAL multi-year winners from our own price history */}
-      {bubbles.length >= 3 && (
-        <section><div className="wrap">
-          <div className="kicker" style={{ textAlign: "center" }}>The rich get richer</div>
-          <h2 style={{ textAlign: "center" }}>They Were Buying. Were You?</h2>
-          <div className="bubbles">
-            {bubbles.map((b, i) => (
-              <div className={`bub ${bubbleSizes[i] || "b4"}`} key={b.sym}>
-                <div className="logo" style={{ background: BUBBLE_COLORS[b.sym] || "var(--brand-surface)" }}>
-                  {b.sym.slice(0, 2)}
+          <div className="biv-panel biv-panel-tape">
+            <div className="biv-panel-head">
+              <span className="biv-eyebrow-sm biv-livelabel">
+                <span className="biv-dot" /> Live tape
+              </span>
+              <span className="biv-tagpill">39 alerts</span>
+            </div>
+            <div className="biv-taperow">
+              <b className="biv-chip">IMPP</b>
+              <div className="biv-tapewho">
+                <b>CEO buy</b>
+                <span>Harry Vafias · Imperial Petroleum</span>
+              </div>
+              <span className="biv-amt">$450K</span>
+            </div>
+            <div className="biv-taperow">
+              <b className="biv-chip">GWRS</b>
+              <div className="biv-tapewho">
+                <b>Director buy</b>
+                <span>Jonathan Levine · Global Water</span>
+              </div>
+              <span className="biv-amt">$5.77M</span>
+            </div>
+            <div className="biv-taperow">
+              <b className="biv-chip">AAT</b>
+              <div className="biv-tapewho">
+                <b>Big buy</b>
+                <span>Ernest Rady · American Assets</span>
+              </div>
+              <span className="biv-amt">$1.14M</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------ trust bar */}
+      <section className="biv-trust">
+        <p className="biv-eyebrow-center">
+          Trusted by top investors, researchers, and money managers
+        </p>
+        <div className="biv-firms">
+          {FIRMS.map((f) => (
+            <span key={f}>{f}</span>
+          ))}
+        </div>
+        <p className="biv-trust-fine">
+          Firms whose analysts and public filings are tracked on the platform.
+        </p>
+      </section>
+
+      {/* ------------------------------------------------------- features */}
+      <section className="biv-section" id="features">
+        <h2 className="biv-h2">
+          Everything you need
+          <br />
+          to get to the truth.
+        </h2>
+        <p className="biv-lead">
+          Insiders tell the story. A peer-reviewed Harvard study found that
+          corporate insiders consistently beat the S&amp;P&nbsp;500 &amp; SPY.
+        </p>
+        <div className="biv-bento">
+          {FEATURES.map((f) => (
+            <Link
+              key={f.title}
+              href={f.href}
+              className={`biv-card ${f.wide ? "biv-card-wide" : ""}`}
+            >
+              <div className="biv-card-head">
+                <div>
+                  <h3>{f.title}</h3>
+                  <p>{f.blurb}</p>
                 </div>
-                <div className="tk">{b.sym}</div>
-                <div className="gain">{fmtGain(b.gainPct)}</div>
-                <div className="per">5-YR</div>
+                <span className="biv-plus" aria-hidden="true">
+                  +
+                </span>
               </div>
-            ))}
-          </div>
-          <div className="bub-note">
-            Price change over the trailing 5 years{bubbleData?.asOf ? `, as of ${bubbleData.asOf}` : ""} ·
-            historical examples of major movers · not alert performance · past results don&rsquo;t guarantee future returns
-          </div>
-          <p style={{ textAlign: "center", maxWidth: 560, margin: "22px auto 0" }}>
-            Behind moves like these, there&rsquo;s a pattern most investors never see:{" "}
-            <span className="hl">insiders positioning early — on the public record.</span>{" "}
-            <b>Find out what wealthy insiders are doing right now.</b>
-          </p>
-        </div></section>
-      )}
-
-      {/* 5 · knowledge band */}
-      <section className="band"><div className="wrap">
-        <div className="big">&ldquo;You&rsquo;ll never get closer to insider knowledge than this!&rdquo;</div>
-        <h2>100% Legal. 100% Public. Almost Nobody&rsquo;s Watching.</h2>
-        <p>
-          Insiders must report every purchase to the SEC within days. It&rsquo;s the most honest
-          signal in the market — executives betting their own money on their own company. Insider
-          Access reads every filing the moment it hits EDGAR and tells you which ones actually matter.
-        </p>
-        <div className="steps">
-          <div className="step"><div className="sn">STEP 01</div><div className="st">We scan every filing</div><div className="sd">4,000+ insider transactions processed daily, 24/7, minutes after they hit the SEC.</div></div>
-          <div className="step"><div className="sn">STEP 02</div><div className="st">We score the signal</div><div className="sd">Six factors, one Insider Score — quality separated from noise, automatically.</div></div>
-          <div className="step"><div className="sn">STEP 03</div><div className="st">You get the alert</div><div className="sd">High-conviction buys hit your inbox while they&rsquo;re fresh — not weeks later on the news.</div></div>
+              <div className="biv-shot">
+                <img src={f.img} alt={f.title} loading="lazy" />
+              </div>
+            </Link>
+          ))}
         </div>
-        <p style={{ marginTop: 26 }}>
-          <button className="btn" onClick={() => checkout("annual")} disabled={busy}>
-            {busy ? "Opening checkout…" : "Get Insider Access — $199/Year →"}
-          </button>
-        </p>
-      </div></section>
+      </section>
 
-      {/* 6 · Harvard study + backtest */}
-      <section><div className="wrap">
-        <div className="kicker">The landmark study</div>
-        <h2>Harvard Research Found Insiders Beat the Market by ~11% a Year</h2>
-        <p>
-          In a landmark study, Harvard economist Richard Zeckhauser and co-authors Jeng and Metrick
-          analyzed decades of insider transactions. The finding: portfolios mimicking insider{" "}
-          <b>purchases</b> earned roughly <span className="hl">11% per year above the market</span>.
-          Six decades of follow-up research keeps replicating the same result.
+      {/* -------------------------------------------------------- marquee */}
+      <section className="biv-section biv-names">
+        <p className="biv-eyebrow-center biv-accent-text">Coverage</p>
+        <h2 className="biv-h2 biv-center">
+          Tracking names you know&hellip;
+          <br />
+          <span className="biv-dim">&hellip;and don&rsquo;t.</span>
+        </h2>
+        <p className="biv-lead biv-center">
+          From household-name executives and funds to the quiet filers nobody
+          is watching — if it hits a filing, it&rsquo;s on the tape.
         </p>
-        <div className="chart-card">
-          <div className="chart-title">Growth of $10,000 over 20 years — illustrative backtest of the study&rsquo;s finding</div>
-          <svg viewBox="0 0 640 300" width="100%" role="img" aria-label="Line chart comparing hypothetical growth of ten thousand dollars: insider purchase strategy versus market return">
-            <line x1="50" y1="20" x2="50" y2="260" stroke="var(--border)" strokeWidth="1" />
-            <line x1="50" y1="260" x2="620" y2="260" stroke="var(--border)" strokeWidth="1" />
-            <text x="46" y="30" textAnchor="end" fontSize="11" fill="var(--text-mute)">$360K</text>
-            <text x="46" y="145" textAnchor="end" fontSize="11" fill="var(--text-mute)">$180K</text>
-            <text x="46" y="262" textAnchor="end" fontSize="11" fill="var(--text-mute)">$10K</text>
-            <text x="55" y="278" fontSize="11" fill="var(--text-mute)">Yr 0</text>
-            <text x="320" y="278" fontSize="11" fill="var(--text-mute)">Yr 10</text>
-            <text x="595" y="278" fontSize="11" fill="var(--text-mute)">Yr 20</text>
-            <path d="M50,260 C240,252 430,236 620,231" fill="none" stroke="var(--bt-benchmark)" strokeWidth="2.5" />
-            <path d="M50,260 C260,250 460,180 620,42" fill="none" stroke="var(--bt-strategy)" strokeWidth="3" />
-            <circle cx="620" cy="42" r="4" fill="var(--bt-strategy)" />
-            <text x="612" y="34" textAnchor="end" fontSize="12" fontWeight="600" fill="var(--bt-strategy)">$324,000</text>
-            <circle cx="620" cy="231" r="4" fill="var(--bt-benchmark)" />
-            <text x="612" y="224" textAnchor="end" fontSize="12" fill="var(--text-mute)">$46,600</text>
-          </svg>
-          <div className="legend">
-            <span><i className="sw" style={{ background: "var(--bt-strategy)" }} />Insider-purchase strategy (market + ~11%/yr, per study)</span>
-            <span><i className="sw" style={{ background: "var(--bt-benchmark)" }} />Market return (~8%/yr)</span>
+        {[ROW_A, ROW_B].map((row, ri) => (
+          <div className={`biv-marquee ${ri === 1 ? "biv-marquee-rev" : ""}`} key={ri}>
+            <div className="biv-marquee-track">
+              {[...row, ...row].map((c, i) =>
+                c.kind === "person" ? (
+                  <div className="biv-mcard biv-mcard-person" key={i}>
+                    <img src={c.img} alt={c.name} loading="lazy" />
+                    <div className="biv-mcard-foot">
+                      <b>{c.name}</b>
+                      <span>{c.sub}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="biv-mcard biv-mcard-stat" key={i}>
+                    <span className="biv-mtag">{c.label}</span>
+                    <svg className="biv-mspark" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                      <path d="M0 34 L13 29 L25 31 L39 22 L53 25 L67 13 L81 17 L100 4" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="100" cy="4" r="4" fill="currentColor" />
+                    </svg>
+                    <div className="biv-mstat">{c.big}</div>
+                    <div className="biv-mcap">{c.caption}</div>
+                  </div>
+                ),
+              )}
+            </div>
           </div>
-          <p className="chart-note">
-            <b>Illustration only.</b> Hypothetical compounding of the academic study&rsquo;s reported
-            excess return applied to assumed market returns; not the performance of Insider Access
-            alerts or any actual portfolio. Backtested and hypothetical results have inherent
-            limitations, are prepared with hindsight, exclude fees and trading costs, and do not
-            reflect actual trading. Past performance does not guarantee future results.
-          </p>
-        </div>
-      </div></section>
+        ))}
+        <p className="biv-fine biv-center" style={{ marginTop: 18 }}>
+          Photos: Wikimedia Commons (public domain / CC BY / CC BY-SA).
+        </p>
+      </section>
 
-      {/* 7 · leaderboard — LIVE database rows, names blurred */}
-      <section><div className="wrap">
-        <div className="kicker">Members-only rankings</div>
-        <h2>Not All Insiders Are Worth Following. We Rank Every One.</h2>
-        <div className="board">
-          <div className="board-head"><span>TOP-RANKED INSIDERS · BY TRACK RECORD</span><span className="live">● LIVE</span></div>
-          {topInsiders.length === 0 && (
-            <div className="row"><div className="rname"><div className="rl">Loading live rankings…</div></div></div>
-          )}
-          {topInsiders.map((r) => (
-            <div className="row" key={r.name}>
-              <div className="ava"><span>{initials(r.name)}</span></div>
-              <div className="rname">
-                <div className="nm">{r.name}</div>
-                <div className="rl">{r.role || "Insider"} · {r.ticker} · {r.trades} profitable filings</div>
+      {/* -------------------------------------------------------- pricing */}
+      <section className="biv-section" id="pricing">
+        <p className="biv-eyebrow-center biv-accent-text">Pricing</p>
+        <h2 className="biv-h2 biv-center">Become an insider.</h2>
+        <div className="biv-plans">
+          {PLANS.map((p) => {
+            const price = priceOf(p.plan);
+            const paid = p.plan !== "free";
+            const label = premium && paid
+              ? "You're subscribed"
+              : busy === p.plan
+                ? "Opening checkout…"
+                : p.cta;
+            return (
+              <div key={p.name} className={`biv-plan ${p.featured ? "biv-plan-hot" : ""}`}>
+                {p.featured && <div className="biv-plan-badge">Best value</div>}
+                <h3>{p.name}</h3>
+                <div className="biv-price">
+                  {/* Dash until the live Stripe amount lands — better than
+                      printing a number that might not be the charged one. */}
+                  {price ?? "—"}
+                  <span> {p.per}</span>
+                </div>
+                <p className="biv-plan-tag">
+                  {p.plan === "annual" && annualSaving
+                    ? `Best value — save ${annualSaving.pct}% versus monthly (pay for ${annualSaving.months} months, get 12).`
+                    : p.tagline}
+                </p>
+                {paid ? (
+                  <button
+                    type="button"
+                    onClick={() => checkout(p.plan as "monthly" | "annual")}
+                    disabled={busy !== null}
+                    className={`biv-btn ${p.featured ? "biv-btn-solid" : "biv-btn-ghost"} biv-btn-block`}
+                  >
+                    {label}
+                  </button>
+                ) : user ? (
+                  <Link href="/alerts" className="biv-btn biv-btn-ghost biv-btn-block">
+                    {p.cta}
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setLoginOpen(true)}
+                    className="biv-btn biv-btn-ghost biv-btn-block"
+                  >
+                    {p.cta}
+                  </button>
+                )}
+                <ul>
+                  {p.feats.map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                </ul>
               </div>
-              <div className="rstat">
-                <div className="sr">{(Number(r.wins) / Math.max(1, Number(r.trades)) * 100).toFixed(1)}% success</div>
-                <div className="ar">${(Number(r.totalValue) / 1e6).toFixed(1)}M deployed</div>
-              </div>
-              <div className="lock">🔒</div>
+            );
+          })}
+        </div>
+        {err && (
+          <div className="biv-note biv-note-error" role="alert">
+            {err}
+          </div>
+        )}
+        <p className="biv-fine biv-center" style={{ marginTop: 18 }}>
+          Secure payment through Stripe. Cancel anytime from your account —
+          access runs to the end of the paid period.
+        </p>
+      </section>
+
+      {/* -------------------------------------------------------- numbers */}
+      <section className="biv-section">
+        <h2 className="biv-h2 biv-center">The numbers tell the story.</h2>
+        <div className="biv-numbers">
+          {NUMBERS.map((n) => (
+            <div key={n.big} className="biv-num">
+              <div className="biv-num-big">{n.big}</div>
+              <div className="biv-num-cap">{n.caption}</div>
             </div>
           ))}
-          {/* Analyst-firms board removed 2026-08-22 (client) — leaderboard is
-              the top-3 insiders by track record only. */}
-          <div className="board-cta">
-            <div className="bc">Names, filings &amp; full histories unlocked for members</div>
-            <button className="btn" onClick={() => checkout("annual")} disabled={busy}>
-              {busy ? "Opening checkout…" : "Unlock the Full Database →"}
-            </button>
-          </div>
         </div>
-      </div></section>
-
-      {/* 8 · guarantee */}
-      <section><div className="wrap guar">
-        {/* circular "30 DAY GUARANTEE" badge removed (client 2026-08-22) */}
-        <div className="gtxt">
-          {/* Client 2026-08-22: must read as a money-back guarantee on a paid
-              plan, never as a free month. */}
-          <h2>30-Day Money-Back Guarantee</h2>
-          <p>
-            Subscribe with confidence — if Insider Access isn&rsquo;t for you, email us within 30
-            days of purchase and we&rsquo;ll refund you in full, no questions asked.{" "}
-            <b>And the reports are yours to keep.</b>
-          </p>
-        </div>
-      </div></section>
-
-      {/* 9 · close */}
-      <section className="band"><div className="wrap">
-        <h2>If You&rsquo;re Not on the Inside,<br />You&rsquo;re on the Outside.</h2>
-        <p style={{ fontStyle: "italic" }}>The rich get richer because they watch what insiders do — not what pundits say.</p>
-        <button className="btn" onClick={() => checkout("annual")} disabled={busy}>
-          {busy ? "Opening checkout…" : "Get Insider Access — $199/Year →"}
-        </button>
-        <p className="under" style={{ color: "#9db9c9" }}>Over 55% off · All special reports free · 30-day money-back guarantee</p>
-      </div></section>
-
-      {/* legal */}
-      <div className="wrap legal">
-        <p>
-          Not investment advice. The Insider Score summarizes publicly available SEC Form 4 filings
-          and is provided for informational purposes only. &ldquo;Insider knowledge&rdquo; refers to
-          knowledge <i>of insiders&rsquo; publicly disclosed transactions</i>, not material non-public
-          information. Ticker examples shown are historical large movers presented for illustration
-          and are not representative of alerts issued by this service. Success rates and returns
-          shown reflect measured historical performance of past filings and calls in our database
-          and do not guarantee future results. Hypothetical and backtested illustrations have
-          inherent limitations, exclude fees and costs, and do not reflect actual trading. All
-          investing involves risk, including possible loss of principal. Always conduct your own
-          research and consult a licensed financial professional.{" "}
-          <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/disclaimer">Disclaimer</a>
+        <p className="biv-fine biv-center">
+          Backtest figures are historical, gross of costs, and do not predict
+          future results.
         </p>
-      </div>
+      </section>
 
-      {/* sticky checkout bar */}
-      {!premium && (
-        <div className="sticky-bar" role="complementary" aria-label="Quick checkout">
-          <div className="st">Insider Access · full year<br /><b className="tabular">$199</b> · over 55% off + all reports</div>
-          <button className="btn" onClick={() => checkout("annual")} disabled={busy}>
-            {busy ? "Opening checkout…" : "Get Access →"}
-          </button>
+      {/* ---------------------------------------------------------- tools */}
+      <section className="biv-section">
+        <h2 className="biv-h2 biv-center">Powerful stock tools.</h2>
+        <div className="biv-tools">
+          {TOOLS.map((t) => (
+            <Link key={t.label} href={t.href} className="biv-tool">
+              {t.label}
+            </Link>
+          ))}
         </div>
-      )}
+      </section>
 
-      {/* exit-intent / timed popup — email capture for the report bundle */}
+      {/* ------------------------------------------------------------ faq */}
+      <section className="biv-section biv-faq-wrap">
+        <h2 className="biv-h2 biv-center">Have a question?</h2>
+        <div className="biv-faq">
+          {FAQS.map((f) => (
+            <details key={f.q}>
+              <summary>
+                {f.q}
+                <span aria-hidden="true">+</span>
+              </summary>
+              <p>{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------ final cta */}
+      <section className="biv-final">
+        <h2 className="biv-h2">What are you waiting for?</h2>
+        <button
+          type="button"
+          onClick={() => checkout("annual")}
+          disabled={busy !== null}
+          className="biv-btn biv-btn-solid biv-btn-big"
+        >
+          {premium
+            ? "You're subscribed"
+            : busy === "annual"
+              ? "Opening checkout…"
+              : "Get All-In Access"}
+        </button>
+      </section>
+
+      <style>{CSS}</style>
+
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+      <AlreadySubscribedModal open={thanksOpen} onClose={() => setThanksOpen(false)} />
       <OptInModal
         open={popupOpen}
         onClose={() => setPopupOpen(false)}
@@ -804,19 +748,353 @@ export default function PremiumPage() {
         headerLabel="Before you go — free bundle"
         promo={{
           eyebrow: "Before you go — free bundle",
-          title: "Get ALL Our Special Reports — Including “One Tiny Stock You Should Know About”",
-          body: "Top Stocks Insiders Are Buying · Top Stocks Analysts Love · Top Dividend Stocks · plus our current #1 insider cluster buy. Enter your email and we'll send you where to unlock the full bundle.",
-          cta: "Send Me the Reports →",
-          note: "No spam · Unsubscribe anytime · Your email is never sold",
-        }}
-        onSubscribed={() => {
-          setPopupOpen(false);
-          scrollToCheckout();
+          title: "Get ALL Our Special Reports — Including \u201cOne Tiny Stock You Should Know About\u201d",
+          body: "Top Stocks Insiders Are Buying \u00b7 Top Stocks Analysts Love \u00b7 Top Dividend Stocks \u00b7 plus our current #1 insider cluster buy. Enter your email and we'll send you where to unlock the full bundle.",
+          cta: "Send Me the Reports \u2192",
+          note: "No spam \u00b7 Unsubscribe anytime \u00b7 Your email is never sold",
         }}
       />
-
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
-      <AlreadySubscribedModal open={thanksOpen} onClose={() => setThanksOpen(false)} />
     </div>
   );
 }
+
+/* ------------------------------------------------------------------ css */
+
+const CSS = `
+.biv {
+  --ink: #F5F7FA; --dim: #9DB0C7; --faint: #5D7189;
+  --bg: #0A1220; --bg2: #0E1A2E; --line: rgba(157,176,199,0.14);
+  --green: #3E9B5F; --green-hi: #4CC38A;
+  /* Site brand accent — the navbar colour, per theme (globals.css tokens:
+     light --brand-surface #005882, dark --accent #20d0ff). Used for the
+     primary CTA, the hero's final line and the big stat numbers. */
+  --brand: #20d0ff; --brand-ink: #04141c;
+  /* Hero glass-panel surfaces (theme-aware so neither panel reads heavy). */
+  --panel-a: rgba(19,33,55,0.92); --panel-b: rgba(9,17,31,0.86);
+  --panel-line-c: rgba(157,176,199,0.18);
+  background:
+    radial-gradient(1000px 600px at 80% -10%, rgba(62,155,95,0.14), transparent 60%),
+    radial-gradient(900px 500px at 10% 30%, rgba(30,64,120,0.25), transparent 60%),
+    var(--bg);
+  color: var(--ink);
+  margin: 0 calc(50% - 50vw);
+  padding: 0 0 24px;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+.biv section { max-width: 1460px; margin: 0 auto; padding: 72px 28px; }
+
+.biv h1, .biv .biv-h2 {
+  font-family: var(--font-heading), sans-serif; font-weight: 900;
+  text-transform: uppercase; letter-spacing: -0.015em; line-height: 0.98;
+  color: var(--ink); margin: 0;
+}
+.biv-accent { color: var(--brand); }
+.biv-accent-text { color: var(--brand) !important; }
+.biv-dim { color: var(--faint); }
+
+/* hero */
+.biv-hero { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; padding-top: 84px !important; }
+.biv-hero h1 { font-size: clamp(34px, 3.9vw, 56px); display: grid; }
+.biv-hero h1 span { white-space: nowrap; }
+.biv-sub { font-size: 18px; line-height: 1.6; color: var(--dim); margin: 22px 0 26px; max-width: 460px; }
+.biv-sub b { color: var(--ink); }
+.biv-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+.biv-btn {
+  display: inline-block; text-decoration: none; border-radius: 10px;
+  font-weight: 700; font-size: 15px; padding: 13px 22px; transition: filter .15s, background .15s;
+}
+/* Brand (navbar-colour) buttons. Colour is forced on both states: the site's
+   global anchor styles otherwise win the hover and darken the label. */
+.biv-btn-solid { background: var(--brand); color: var(--brand-ink) !important; }
+.biv-btn-solid:hover { filter: brightness(1.12); color: var(--brand-ink) !important; }
+.biv-btn-ghost { border: 1px solid var(--brand); color: var(--brand) !important; }
+.biv-btn-ghost:hover {
+  background: var(--brand); color: var(--brand-ink) !important; border-color: var(--brand);
+}
+.biv-btn-block { display: block; width: 100%; text-align: center; margin: 18px 0; }
+.biv-btn-big { font-size: 17px; padding: 16px 34px; }
+/* The checkout CTAs are real <button>s (they POST /billing/checkout), so they
+   need the anchor styling above plus a button reset and a disabled state. */
+.biv button.biv-btn { font-family: inherit; border-width: 0; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.biv button.biv-btn-ghost { border-width: 1px; border-style: solid; background: transparent; }
+.biv .biv-btn:disabled { opacity: 0.62; cursor: default; filter: none; }
+/* Checkout status / error line (Stripe return leg + failed checkout). */
+.biv-note {
+  max-width: 720px; margin: 18px auto 0; padding: 12px 18px; border-radius: 12px;
+  font-size: 14px; font-weight: 600; text-align: center; border: 1px solid var(--line);
+  background: var(--bg2); color: var(--dim);
+}
+.biv-note-syncing { border-color: var(--brand); color: var(--brand); }
+.biv-note-error { border-color: #E0574B; color: #F0938A; }
+.biv-fine { font-size: 12.5px; color: var(--faint); margin-top: 14px; }
+
+/* Two matched glass panels — a performance card and the live tape — layered
+   for depth. Both are real markup (crisp at any size, no image weight) and
+   both carry live figures. */
+.biv-hero-art { position: relative; min-height: 480px; }
+.biv-panel {
+  position: absolute; border-radius: 18px; padding: 20px 22px;
+  background: linear-gradient(155deg, var(--panel-a), var(--panel-b));
+  border: 1px solid var(--panel-line-c);
+  box-shadow: 0 26px 70px rgba(3,10,22,0.42), 0 0 0 1px rgba(255,255,255,0.02) inset;
+  backdrop-filter: blur(12px);
+  animation: biv-hover 8s ease-in-out infinite;
+}
+.biv-panel-perf { top: 0; right: 0; width: 90%; z-index: 1; }
+.biv-panel-tape { bottom: 0; left: 0; width: 64%; z-index: 2; animation-delay: 2.2s; }
+@keyframes biv-hover {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@media (prefers-reduced-motion: reduce) { .biv-panel { animation: none; } }
+
+.biv-panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.biv-eyebrow-sm {
+  font-family: var(--font-display), sans-serif; font-weight: 600; font-size: 11px;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--dim);
+}
+.biv-livelabel { display: inline-flex; align-items: center; gap: 7px; color: #E8B54D; }
+.biv-tagpill {
+  margin-left: auto; font-family: var(--font-display), sans-serif; font-size: 10px;
+  font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint);
+  border: 1px solid var(--panel-line-c); border-radius: 999px; padding: 3px 9px;
+}
+.biv-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #E8B54D;
+  box-shadow: 0 0 10px rgba(232,181,77,0.85); animation: biv-pulse 2s ease-in-out infinite;
+}
+@keyframes biv-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.biv-bigstat {
+  font-family: var(--font-heading), sans-serif; font-weight: 900;
+  font-size: clamp(30px, 3.1vw, 42px); letter-spacing: -0.02em; color: var(--green-hi);
+  display: flex; align-items: baseline; gap: 10px;
+}
+.biv-bigstat em {
+  font-family: var(--font-sans), sans-serif; font-style: normal; font-weight: 500;
+  font-size: 12.5px; letter-spacing: 0; color: var(--dim);
+}
+.biv-chart { width: 100%; height: 148px; margin: 6px 0 0; color: var(--faint); display: block; }
+/* Stats sit ABOVE the chart: the tape panel overlaps this card's lower edge,
+   so nothing readable may live down there. */
+.biv-panel-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  border-top: 1px solid var(--panel-line-c); padding-top: 13px; margin-top: 14px;
+}
+.biv-panel-stats b {
+  display: block; font-family: var(--font-display), monospace; font-size: 15px;
+  font-weight: 700; color: var(--ink);
+}
+.biv-panel-stats span {
+  font-size: 10.5px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--faint);
+}
+
+.biv-taperow {
+  display: flex; align-items: center; gap: 11px; padding: 9px 0;
+  border-top: 1px solid var(--panel-line-c);
+}
+.biv-taperow:first-of-type { border-top: 0; }
+.biv-chip {
+  font-family: var(--font-display), monospace; font-weight: 700; font-size: 13.5px;
+  letter-spacing: 0.8px; color: var(--green-hi); background: rgba(76,195,138,0.14);
+  border: 1px solid rgba(76,195,138,0.34); border-radius: 8px; padding: 4px 9px;
+  flex: 0 0 auto;
+}
+.biv-tapewho { min-width: 0; }
+.biv-tapewho b { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.biv-tapewho span {
+  display: block; font-size: 11px; color: var(--faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.biv-amt {
+  margin-left: auto; font-family: var(--font-heading), sans-serif;
+  font-weight: 900; font-size: 17px; color: var(--ink); flex: 0 0 auto;
+}
+
+/* trust */
+.biv-trust { padding-top: 8px !important; padding-bottom: 40px !important; text-align: center; }
+.biv-eyebrow-center {
+  font-family: var(--font-display), sans-serif; font-weight: 600; font-size: 13px;
+  letter-spacing: 2.5px; text-transform: uppercase; color: var(--dim); text-align: center; margin: 0 0 22px;
+}
+.biv-firms { display: flex; flex-wrap: wrap; gap: 18px 40px; justify-content: center; align-items: center; }
+.biv-firms span {
+  font-family: var(--font-heading), sans-serif; font-weight: 800; font-size: 19px;
+  color: rgba(245,247,250,0.82); white-space: nowrap;
+}
+.biv-trust-fine { font-size: 11.5px; color: var(--faint); margin-top: 18px; }
+
+/* features */
+.biv-h2 { font-size: clamp(32px, 4.2vw, 54px); }
+.biv-center { text-align: center; }
+.biv-lead { font-size: 17px; line-height: 1.65; color: var(--dim); margin: 18px 0 0; max-width: 620px; }
+.biv-lead.biv-center { margin-left: auto; margin-right: auto; text-align: center; }
+.biv-bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px; margin-top: 40px; }
+.biv-card {
+  grid-column: span 3; display: flex; flex-direction: column; gap: 16px;
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 18px;
+  padding: 22px 22px 0; overflow: hidden; text-decoration: none; color: inherit;
+  transition: border-color .15s, transform .15s;
+}
+.biv-card:hover { border-color: rgba(76,195,138,0.45); transform: translateY(-2px); }
+.biv-card-wide { grid-column: span 3; }
+.biv-card h3 { font-size: 20px; font-weight: 700; margin: 0 0 6px; color: var(--ink); }
+.biv-card p { font-size: 14px; line-height: 1.55; color: var(--dim); margin: 0; }
+.biv-card-head { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
+.biv-plus {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center;
+  background: rgba(76,195,138,0.14); color: var(--green-hi); font-size: 20px; font-weight: 600;
+}
+.biv-shot { border-radius: 10px 10px 0 0; overflow: hidden; border: 1px solid var(--line); border-bottom: 0; }
+.biv-shot img { width: 100%; display: block; }
+
+/* marquee */
+.biv-names { padding-bottom: 40px !important; }
+.biv-names .biv-h2 { margin-bottom: 0; }
+.biv-marquee { overflow: hidden; margin-top: 34px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+.biv-marquee-track { display: flex; gap: 18px; width: max-content; animation: biv-scroll 42s linear infinite; }
+.biv-marquee-rev .biv-marquee-track { animation-direction: reverse; }
+@keyframes biv-scroll { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .biv-marquee-track { animation: none; } }
+.biv-mcard {
+  width: 260px; height: 320px; border-radius: 16px; border: 1px solid var(--line);
+  flex: 0 0 auto; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; position: relative;
+}
+.biv-mcard-stat {
+  background:
+    radial-gradient(220px 180px at 85% 0%, rgba(76,195,138,0.10), transparent 70%),
+    var(--bg2);
+  justify-content: flex-end;
+}
+.biv-mtag {
+  position: absolute; top: 16px; left: 18px;
+  font-family: var(--font-display), sans-serif; font-weight: 600; font-size: 11px;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--faint);
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px;
+}
+.biv-mspark {
+  position: absolute; top: 62px; left: 18px; right: 18px; width: calc(100% - 36px);
+  height: 72px; color: rgba(76,195,138,0.45);
+}
+.biv-mcard-person { color: #F5F7FA; padding: 0; overflow: hidden; }
+.biv-mcard-person > img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+}
+.biv-mcard-person .biv-mcard-foot {
+  position: relative; z-index: 1; padding: 44px 18px 16px;
+  background: linear-gradient(180deg, transparent, rgba(5,10,20,0.88) 60%);
+}
+.biv-mcard-foot b { display: block; font-size: 17px; }
+.biv-mcard-foot span { font-size: 12.5px; color: var(--dim); }
+.biv-mcard-person .biv-mcard-foot span { color: rgba(245,247,250,0.72); }
+.biv-mstat {
+  font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: 44px;
+  color: var(--green-hi); letter-spacing: -0.02em;
+}
+.biv-mcap { font-size: 13px; color: var(--dim); line-height: 1.5; margin-top: 6px; }
+
+/* pricing */
+.biv-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 42px; }
+.biv-plan {
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 18px;
+  padding: 26px; position: relative;
+}
+.biv-plan-hot { border-color: rgba(76,195,138,0.55); box-shadow: 0 0 0 1px rgba(76,195,138,0.35), 0 24px 60px rgba(0,0,0,0.35); }
+.biv-plan-badge {
+  position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+  background: var(--brand); color: var(--brand-ink); font-size: 11.5px; font-weight: 800;
+  letter-spacing: 1px; text-transform: uppercase; border-radius: 999px; padding: 5px 14px;
+}
+.biv-plan h3 { margin: 0; font-size: 18px; font-weight: 700; color: var(--dim); }
+.biv-price { font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: 44px; margin-top: 10px; }
+.biv-price span { font-family: var(--font-sans), sans-serif; font-weight: 500; font-size: 14px; color: var(--faint); }
+.biv-plan-tag { font-size: 13.5px; color: var(--dim); margin: 6px 0 0; }
+.biv-plan ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.biv-plan li { font-size: 14px; color: var(--dim); padding: 7px 0 7px 26px; position: relative; border-top: 1px solid rgba(157,176,199,0.08); }
+.biv-plan li::before { content: "✓"; position: absolute; left: 2px; color: var(--green-hi); font-weight: 700; }
+
+/* numbers */
+.biv-numbers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 40px; }
+.biv-num { background: var(--bg2); border: 1px solid var(--line); border-radius: 16px; padding: 26px 22px; }
+.biv-num-big { font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: clamp(34px, 3.4vw, 48px); color: var(--brand); letter-spacing: -0.02em; }
+.biv-num-cap { font-size: 13.5px; color: var(--dim); line-height: 1.55; margin-top: 10px; }
+.biv-fine.biv-center { text-align: center; margin-top: 22px; }
+
+/* tools — chips */
+.biv-tools { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 34px; }
+.biv-tool {
+  border: 1px solid var(--line); border-radius: 999px; padding: 11px 20px;
+  color: var(--ink); text-decoration: none; font-size: 14.5px; font-weight: 600;
+  background: rgba(14,26,46,0.6); transition: border-color .15s, background .15s;
+}
+.biv-tool:hover { border-color: rgba(76,195,138,0.5); background: rgba(76,195,138,0.08); }
+
+/* faq */
+.biv-faq { max-width: 760px; margin: 36px auto 0; }
+.biv-faq details { border-bottom: 1px solid var(--line); }
+.biv-faq summary {
+  cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 16px;
+  align-items: center; padding: 20px 4px; font-size: 17px; font-weight: 700;
+}
+.biv-faq summary::-webkit-details-marker { display: none; }
+.biv-faq summary span { color: var(--green-hi); font-size: 22px; transition: transform .2s; }
+.biv-faq details[open] summary span { transform: rotate(45deg); }
+.biv-faq details p { margin: 0; padding: 0 4px 22px; font-size: 15px; line-height: 1.65; color: var(--dim); max-width: 640px; }
+
+/* final */
+.biv-final { text-align: center; padding: 90px 24px 110px !important; }
+.biv-final .biv-h2 { margin-bottom: 30px; }
+
+/* ── Light theme (site data-theme="light") ── */
+:root[data-theme="light"] .biv {
+  --ink: #0E1F35; --dim: #4A5D75; --faint: #7C90A8;
+  --bg: #F5F7FA; --bg2: #FFFFFF; --line: rgba(14,31,53,0.12);
+  background:
+    radial-gradient(1000px 600px at 80% -10%, rgba(62,155,95,0.10), transparent 60%),
+    radial-gradient(900px 500px at 10% 30%, rgba(30,64,120,0.08), transparent 60%),
+    var(--bg);
+}
+:root[data-theme="light"] .biv {
+  --brand: #005882; --brand-ink: #FFFFFF;
+  --panel-a: rgba(255,255,255,0.97); --panel-b: rgba(246,249,252,0.92);
+  --panel-line-c: rgba(14,31,53,0.12);
+}
+:root[data-theme="light"] .biv-panel {
+  box-shadow: 0 26px 60px rgba(14,31,53,0.16), 0 0 0 1px rgba(14,31,53,0.02) inset;
+}
+:root[data-theme="light"] .biv-bigstat { color: var(--green); }
+:root[data-theme="light"] .biv-chip { color: #2c7a51; }
+:root[data-theme="light"] .biv-firms span { color: rgba(14,31,53,0.72); }
+:root[data-theme="light"] .biv-mstat { color: var(--green); }
+:root[data-theme="light"] .biv-plus { background: rgba(62,155,95,0.12); color: var(--green); }
+:root[data-theme="light"] .biv-tool { background: #FFFFFF; }
+:root[data-theme="light"] .biv-plan-hot { box-shadow: 0 0 0 1px rgba(0,88,130,0.3), 0 24px 50px rgba(14,31,53,0.12); }
+:root[data-theme="light"] .biv-faq summary span { color: var(--green); }
+:root[data-theme="light"] .biv-plan li::before { color: var(--green); }
+
+/* responsive */
+@media (max-width: 960px) {
+  .biv section { padding: 52px 18px; }
+  .biv-hero { grid-template-columns: 1fr; padding-top: 48px !important; }
+  .biv-hero h1 { font-size: clamp(30px, 8.6vw, 44px); }
+  .biv-hero h1 span { white-space: normal; }
+  .biv-hero-art { min-height: 300px; }
+  .biv-bento { grid-template-columns: 1fr; }
+  .biv-card, .biv-card-wide { grid-column: span 1; }
+  .biv-plans, .biv-numbers { grid-template-columns: 1fr; }
+  .biv-plan-hot { order: -1; }
+}
+@media (max-width: 640px) {
+  .biv section { padding: 44px 14px; }
+  .biv-hero-art { min-height: 0; display: grid; gap: 14px; }
+  .biv-panel { position: static; width: 100%; animation: none; }
+  .biv-panel-tape .biv-taperow:nth-of-type(3) { display: none; }
+  .biv-chart { height: 104px; }
+  .biv-btn { padding: 12px 18px; font-size: 14px; }
+  .biv-mcard { width: 205px; height: 255px; }
+  .biv-mstat { font-size: 34px; }
+  .biv-firms { gap: 12px 22px; }
+  .biv-firms span { font-size: 15px; }
+  .biv-faq summary { font-size: 15.5px; }
+}
+`;

@@ -50,6 +50,13 @@ export class BillingController {
     return this.billing.status(user);
   }
 
+  /** Live plan prices for the sales page (public). Read from Stripe so the
+   *  page can never advertise a figure checkout would not charge. */
+  @Get('plans')
+  async plans() {
+    return this.billing.getPlans();
+  }
+
   /** Start a subscription checkout; returns the Stripe-hosted page URL. */
   @Post('checkout')
   async checkout(
