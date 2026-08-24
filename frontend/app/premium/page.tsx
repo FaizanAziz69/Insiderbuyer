@@ -216,6 +216,29 @@ const FAQS = [
   },
 ];
 
+/** The site's theme, live. The product screenshots exist in both light and
+ *  dark captures (client 2026-08-24: "dark mode mein dark ss honi chaiye"),
+ *  and this page is dark-first, so the dark set is the default until the
+ *  attribute says otherwise. */
+function useSiteTheme(): "light" | "dark" {
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  useEffect(() => {
+    const read = () =>
+      setTheme(
+        document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark",
+      );
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => mo.disconnect();
+  }, []);
+  return theme;
+}
+
+/** shot-scores.jpg → shot-scores-dark.jpg (same crop, dark capture). */
+const themedShot = (src: string, theme: "light" | "dark") =>
+  theme === "dark" ? src.replace(/\.jpg$/, "-dark.jpg") : src;
+
 /* -------------------------------------------------------------- commerce */
 
 interface BillingPlans {
@@ -309,6 +332,7 @@ function CheckoutOutcome({ onSuccess }: { onSuccess: () => void }) {
 /* ------------------------------------------------------------------ page */
 
 export default function PremiumPage() {
+  const theme = useSiteTheme();
   const { user } = useAuth();
   const { premium } = usePremium();
   const [busy, setBusy] = useState<"monthly" | "annual" | null>(null);
@@ -553,7 +577,7 @@ export default function PremiumPage() {
                 </span>
               </div>
               <div className="biv-shot">
-                <img src={f.img} alt={f.title} loading="lazy" />
+                <img src={themedShot(f.img, theme)} alt={f.title} loading="lazy" />
               </div>
             </Link>
           ))}

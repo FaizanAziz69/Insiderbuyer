@@ -85,9 +85,12 @@ export function TopStoriesSection() {
             className="group rounded-lg overflow-hidden flex flex-col flex-1"
             style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
           >
-            {/* Natural aspect ratio — full width, no cropping and no letterbox
-                bars (some editorial covers carry chyron text at the edges). */}
-            <div className="relative w-full flex-shrink-0 overflow-hidden">
+            {/* 16:9 cap (client 2026-08-24: "image thora chhota karo"). The
+                covers are all 1606x1000, so this trims ~5% off the top and
+                bottom — inside the safe margin their chyron text sits in —
+                and gives every lead story the same height whatever the
+                cover's own aspect turns out to be. */}
+            <div className="relative w-full flex-shrink-0 overflow-hidden aspect-[16/9]">
               <AiCoverImage
                 primary={lead.imageUrl}
                 seed={lead.slug}
@@ -98,9 +101,8 @@ export function TopStoriesSection() {
                 overlay="none"
                 alt={lead.title}
                 loading="eager"
-                fit="natural"
-                style={{ width: "100%" }}
-                className="w-full group-hover:scale-[1.02] transition-transform duration-500"
+                style={{ width: "100%", height: "100%" }}
+                className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
               />
               <span
                 className="absolute left-3 bottom-3 inline-block text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded"
@@ -149,9 +151,15 @@ export function TopStoriesSection() {
                   <div className="text-[9px] uppercase tracking-wider font-bold text-accent mb-1">
                     {labels[item.slug]}
                   </div>
-                  <h4 className="text-[13px] font-bold leading-snug group-hover:text-accent transition">
+                  {/* Long headlines used to set the height of the whole row —
+                      clamped to four lines with a Read more affordance
+                      (client 2026-08-24). */}
+                  <h4 className="text-[13px] font-bold leading-snug group-hover:text-accent transition line-clamp-4">
                     {item.title}
                   </h4>
+                  <span className="mt-1.5 text-[11px] font-semibold text-accent group-hover:underline">
+                    Read more →
+                  </span>
                   <p className="mt-auto pt-2 text-[10.5px] text-mute">
                     {bylineFor(item.kind, item.slug)} · {timeAgo(item.generatedAt)}
                   </p>

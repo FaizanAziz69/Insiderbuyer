@@ -30,7 +30,12 @@ export default function HomePage() {
         <div className="min-h-0">
           <TopStoriesSection />
         </div>
-        <div className="flex flex-col gap-4 h-full min-h-0 xl:max-h-[720px]">
+        {/* No max-height: the rail used to stop at 720px while the stories
+            column ran ~940px, which both cut the gainers list short and left a
+            block of empty space under the buy/sell meter (client 2026-08-24).
+            The rail now stretches to the stories' height, the gainers list
+            grows into whatever is left, and both columns end on the same line. */}
+        <div className="flex flex-col gap-4 h-full min-h-0">
           <TopGainersPanel />
           <MonthlyBuySellMeter />
         </div>
