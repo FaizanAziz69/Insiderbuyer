@@ -10,69 +10,76 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { PriceTargetCell } from "@/components/PriceTargetCell";
 import { rankColumn } from "@/components/tableColumns";
 
-/** One covered stock — consensus recommendation, coverage depth and the
- *  analyst-implied upside to the mean price target. Feeds the "Top Analyst
- *  Stocks" list (stocks Wall Street rates most highly), the stock-level
- *  counterpart to the individual-analyst ranking on /analyst-ratings. */
+/**
+ * Top Analyst Stocks — rebuilt on measured top-analyst coverage (client rule
+ * 2026-08-24): a stock is only listed when at least five analysts whose OWN
+ * success rate clears 70% carry a live price target on it, and the ranking is
+ * that coverage combined with their accuracy and the upside to the average of
+ * exactly those analysts' targets. Everything on the row comes from
+ * /analysts/top-stocks — no vendor consensus head-count is involved.
+ */
+interface CoveringAnalyst {
+  analyst: string;
+  firm: string | null;
+  slug: string;
+  successRate: number;
+  target: number;
+  date: string;
+}
 interface StockRow {
   symbol: string;
   name: string;
   sector: string | null;
+  exchange: string | null;
   price: number;
-  targetMean: number | null;
-  targetHigh: number | null;
-  targetLow: number | null;
-  upsidePct: number | null;
-  recommendation: string | null;
-  numAnalysts: number | null;
-  buyRatings: number | null;
-  holdRatings: number | null;
-  sellRatings: number | null;
-  totalRatings: number | null;
+  marketCap: number | null;
+  topAnalysts: number;
+  avgSuccessRate: number;
+  avgTarget: number;
+  upsidePct: number;
+  consensusTarget: number | null;
+  lastRatedDaysAgo: number;
+  score: number;
+  analysts: CoveringAnalyst[];
 }
-
-const REC: Record<string, { label: string; color: string; rank: number }> = {
-  strong_buy: { label: "Strong Buy", color: "var(--good)", rank: 5 },
-  buy: { label: "Buy", color: "var(--good)", rank: 4 },
-  hold: { label: "Hold", color: "var(--gold)", rank: 3 },
-  underperform: { label: "Underperform", color: "var(--bad)", rank: 2 },
-  sell: { label: "Sell", color: "var(--bad)", rank: 1 },
-  strong_sell: { label: "Strong Sell", color: "var(--bad)", rank: 0 },
-};
-const recOf = (k: string | null) => (k ? REC[k] : undefined);
+interface Universe {
+  topAnalysts: number;
+  covered: number;
+  qualifying: number;
+  minTopAnalysts: number;
+  minSuccessRate: number;
+}
 
 export default function AnalystStocksPage() {
   const [q, setQ] = useState("");
-  const { data, isLoading } = useSWR<{ rows: StockRow[] }>(
-    `${API_BASE}/market-stats/analyst-ratings`,
-    fetcher,
-    { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
+  const { data, isLoading } = useSWR<{
+    rows: StockRow[];
+    universe: Universe;
+    generatedAt: string | null;
+  }>(`${API_BASE}/analysts/top-stocks?limit=50`, fetcher, {
+    refreshInterval: 30 * 60_000,
+    revalidateOnFocus: false,
+  });
+
+  const u = data?.universe;
+  // The payload is already qualified, scored and capped at 50 by the backend.
+  // Reverse it so the display counts DOWN to #1 (client 2026-08-21, same as
+  // Top Insider Scores) with the strongest name behind the wall. Spread first
+  // — the SWR-cached array must never be mutated in place.
+  const rows = [...(data?.rows || [])].reverse().filter(
+    (r) =>
+      !q ||
+      r.symbol.toLowerCase().includes(q.toLowerCase()) ||
+      (r.name || "").toLowerCase().includes(q.toLowerCase()) ||
+      (r.sector || "").toLowerCase().includes(q.toLowerCase()),
   );
-  // Only genuinely covered names with a consensus rating belong on this list.
-  // Top 100 only (client 2026-08-21: "top 100 kafi ha"): rank by consensus
-  // strength, then analyst-implied upside, keep the best 100 and hand them to
-  // the table already reversed so the display counts down #100 → #1 with #1
-  // behind the wall. Spread before sort — the SWR-cached array must not mutate.
-  const rows = [...(data?.rows || [])]
-    .filter((r) => r.recommendation && r.price > 0)
-    .sort(
-      (a, b) =>
-        (recOf(b.recommendation)?.rank ?? -1) - (recOf(a.recommendation)?.rank ?? -1) ||
-        (b.upsidePct ?? -9999) - (a.upsidePct ?? -9999),
-    )
-    .slice(0, 100)
-    .reverse()
-    .filter(
-      (r) =>
-        !q ||
-        r.symbol.toLowerCase().includes(q.toLowerCase()) ||
-        (r.name || "").toLowerCase().includes(q.toLowerCase()) ||
-        (r.sector || "").toLowerCase().includes(q.toLowerCase()),
-    );
+
+  const minRate = u?.minSuccessRate ?? 70;
+  const minCount = u?.minTopAnalysts ?? 5;
 
   const columns: Column<StockRow>[] = [
-    // Paygated ranking (client 2026-08-21): count DOWN so the free rows are
-    // the tail of the list and #1 sits behind the wall, like Top Insider Scores.
+    // Paygated ranking: count DOWN so the free rows are the tail of the list
+    // and #1 sits behind the wall, like Top Insider Scores.
     rankColumn<StockRow>({ countdownFrom: rows.length }),
     {
       key: "symbol",
@@ -96,51 +103,37 @@ export default function AnalystStocksPage() {
       ),
     },
     {
-      key: "recommendation",
-      label: "Analyst Consensus",
-      sortValue: (r) => recOf(r.recommendation)?.rank ?? -1,
-      render: (r) => {
-        const rec = recOf(r.recommendation);
-        if (!rec) return <span className="text-faint text-[12px]">—</span>;
-        return (
-          <span
-            className="inline-flex items-center text-[11.5px] font-bold px-2 py-0.5 rounded-full"
-            style={{ background: `color-mix(in srgb, ${rec.color} 15%, transparent)`, color: rec.color }}
-          >
-            {rec.label}
-          </span>
-        );
-      },
-    },
-    {
-      key: "buyRatings",
-      label: "Buy Ratings",
-      align: "right",
-      info: "How many covering analysts rate the stock a Buy (Strong Buy + Buy), out of its total ratings. The Hold/Sell split is on each stock's Forecast tab.",
-      sortValue: (r) => r.buyRatings ?? -1,
-      render: (r) =>
-        r.buyRatings == null || r.totalRatings == null ? (
-          <span className="text-faint text-[12px]">—</span>
-        ) : (
-          <span className="tabular text-[13.5px]">
-            <span className="font-bold" style={{ color: "var(--good)" }}>{r.buyRatings}</span>
-            <span className="text-mute"> / {r.totalRatings} Buy</span>
-          </span>
-        ),
-    },
-    {
-      key: "numAnalysts",
+      key: "topAnalysts",
       label: "Top Analysts",
       align: "right",
-      // Honest provenance: this is the sell-side consensus head-count, NOT a
-      // count of the analysts on our /analyst-ratings leaderboard (no
-      // per-symbol endpoint exists for those — see report).
-      info: "How many Wall Street analysts hold a live rating on this stock, from the published sell-side consensus. Matches the Buy Ratings denominator. The individual analysts we rank on their own track record are on Top Analysts.",
-      // Use the rating-breakdown total when present so the count never reads
-      // lower than the Buy count (the two Yahoo fields can disagree).
-      sortValue: (r) => r.totalRatings ?? r.numAnalysts ?? 0,
+      // Real provenance now: these are analysts from OUR leaderboard whose
+      // measured success rate clears the floor — not a sell-side head-count.
+      info: `How many top-rated analysts currently cover the stock. An analyst only counts here if their own measured success rate is ${minRate}% or better and their price target is less than a year old. A stock needs at least ${minCount} of them to appear on this list at all.`,
+      sortValue: (r) => r.topAnalysts,
       render: (r) => (
-        <span className="tabular text-[13px] text-mute">{r.totalRatings ?? r.numAnalysts ?? "—"}</span>
+        // Native title: the covering analysts, with no fixed-position portal
+        // to mis-place under the site's body zoom.
+        <span
+          className="tabular text-[13.5px] font-bold cursor-help"
+          style={{ color: "var(--text)" }}
+          title={r.analysts
+            .map((a) => `${a.analyst}${a.firm ? ` (${a.firm})` : ""} — ${a.successRate}% success, $${a.target.toFixed(2)} target, ${a.date}`)
+            .join("\n")}
+        >
+          {r.topAnalysts}
+        </span>
+      ),
+    },
+    {
+      key: "avgSuccessRate",
+      label: "Their Success Rate",
+      align: "right",
+      info: "The average measured success rate of exactly those covering analysts — the share of their seasoned calls that moved in the direction their target implied.",
+      sortValue: (r) => r.avgSuccessRate,
+      render: (r) => (
+        <span className="tabular text-[13.5px] font-bold" style={{ color: "var(--good)" }}>
+          {r.avgSuccessRate.toFixed(1)}%
+        </span>
       ),
     },
     {
@@ -152,20 +145,43 @@ export default function AnalystStocksPage() {
     },
     {
       key: "upside",
-      label: "Price Target",
+      label: "Avg Top-Analyst Target",
       align: "center",
-      info: "Mean analyst price target and the implied upside/downside from the current price. Ranked highest upside first.",
-      sortValue: (r) => r.upsidePct ?? -9999,
-      render: (r) => <PriceTargetCell target={r.targetMean} upsidePct={r.upsidePct} />,
+      info: "The average of the covering top analysts' most recent price targets, and the implied move from the current price. This is their average only — the wider sell-side consensus is in the next column.",
+      sortValue: (r) => r.upsidePct,
+      render: (r) => <PriceTargetCell target={r.avgTarget} upsidePct={r.upsidePct} />,
+    },
+    {
+      key: "consensusTarget",
+      label: "Consensus Target",
+      align: "right",
+      info: "The full sell-side consensus target for the same stock, shown for context. It does not affect the ranking on this page.",
+      sortValue: (r) => r.consensusTarget ?? -1,
+      render: (r) =>
+        r.consensusTarget == null ? (
+          <span className="text-faint text-[12px]">—</span>
+        ) : (
+          <span className="tabular text-[13px] text-mute">${r.consensusTarget.toFixed(2)}</span>
+        ),
+    },
+    {
+      key: "score",
+      label: "Analyst Score",
+      align: "right",
+      info: "The ranking figure: how many top analysts cover the stock, weighted by their average success rate and the upside to their average price target. Higher is stronger conviction from analysts with a track record.",
+      sortValue: (r) => r.score,
+      render: (r) => (
+        <span className="tabular text-[13.5px] font-bold" style={{ color: "var(--accent)" }}>
+          {r.score.toFixed(2)}
+        </span>
+      ),
     },
     {
       key: "sector",
       label: "Sector",
       sortValue: (r) => r.sector || "",
       filterable: true,
-      render: (r) => (
-        <span className="text-[12.5px] text-mute">{r.sector || "—"}</span>
-      ),
+      render: (r) => <span className="text-[12.5px] text-mute">{r.sector || "—"}</span>,
     },
   ];
 
@@ -183,11 +199,23 @@ export default function AnalystStocksPage() {
           Top Analyst Stocks
         </h1>
         <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
-          The top 100 stocks Wall Street rates most highly right now — ranked
-          by consensus recommendation and the analyst-implied upside to the
-          mean price target, from every name with genuine sell-side coverage.
-          Refreshed with live quotes. Informational, not investment advice.
+          Up to the top 50 stocks backed by Wall Street&rsquo;s most accurate
+          analysts. A stock only makes this list when at least {minCount}{" "}
+          analysts with a measured success rate of {minRate}% or better hold a
+          live price target on it, and the ranking combines how many of those
+          analysts cover it, how accurate they have been, and the upside to the
+          average of their targets. Informational, not investment advice.
         </p>
+        {u && (
+          <p className="text-faint text-[12.5px] mt-2 max-w-4xl leading-relaxed">
+            Right now {u.qualifying.toLocaleString()}{" "}
+            {u.qualifying === 1 ? "stock clears" : "stocks clear"} that bar, out
+            of {u.covered.toLocaleString()} carrying a live target from at least
+            one of the {u.topAnalysts.toLocaleString()} analysts above{" "}
+            {minRate}% on our leaderboard. The list grows as more of their calls
+            season into a measured track record.
+          </p>
+        )}
       </header>
 
       <Link
@@ -221,20 +249,24 @@ export default function AnalystStocksPage() {
 
       <div className="card overflow-hidden">
         {isLoading ? (
-          <div className="text-center text-mute py-10">Loading analyst coverage…</div>
+          <div className="text-center text-mute py-10">Loading top-analyst coverage…</div>
         ) : (
           <DataTable<StockRow>
             rows={rows}
             rowKey={(r) => r.symbol}
-            empty="No covered stocks match your search."
+            empty={
+              q
+                ? "No qualifying stocks match your search."
+                : `No stock currently carries live targets from ${minCount} or more analysts above ${minRate}%.`
+            }
             columns={columns}
             gate={{
               label: "Top Analyst Stocks",
               bullets: [
-                "The top 100 stocks, ranked by consensus + upside down to #1",
-                "Buy-rating counts from top Wall Street analysts",
-                "Mean price targets and implied upside",
-                "Updated with live quotes all session",
+                `Only stocks covered by ${minCount}+ analysts above ${minRate}% success`,
+                "Their average price target and the upside to it",
+                "Ranked by coverage, accuracy and upside — counted down to #1",
+                "Re-priced with live quotes all session",
               ],
             }}
           />
@@ -242,10 +274,13 @@ export default function AnalystStocksPage() {
       </div>
 
       <p className="text-[12px] text-mute leading-relaxed">
-        Consensus and price targets are aggregated across covering analysts and
-        refreshed intraday. Upside is the percentage move from the current price
-        to the mean target. A stock appears here once it carries a published
-        analyst consensus — informational, not investment advice.
+        Success rates are measured from each analyst&rsquo;s own past price
+        targets — the share of their seasoned calls (30 days or older) that
+        moved in the direction the target implied — so only analysts with a real
+        track record can put a stock on this list. Targets older than a year are
+        treated as history, not live coverage. Upside is the move from the
+        current price to the covering analysts&rsquo; average target.
+        Informational, not investment advice.
       </p>
     </div>
   );
