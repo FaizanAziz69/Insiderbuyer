@@ -26,16 +26,15 @@ export default function HomePage() {
           Top Stories content, so the section overflowed and the Market Heat
           Map heading rendered on top of it. The row now sizes to the stories;
           the gainers list on the right scrolls inside whatever height it gets. */}
-      <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4 items-stretch">
+      {/* items-start, not items-stretch: stretching is what produced the tall
+          empty box under the lead story once its cover was capped at 16:9
+          (client 2026-08-24). Each column is now exactly as tall as what is
+          inside it. */}
+      <section className="grid grid-cols-1 xl:grid-cols-[1.8fr_1fr] gap-4 items-start">
         <div className="min-h-0">
           <TopStoriesSection />
         </div>
-        {/* No max-height: the rail used to stop at 720px while the stories
-            column ran ~940px, which both cut the gainers list short and left a
-            block of empty space under the buy/sell meter (client 2026-08-24).
-            The rail now stretches to the stories' height, the gainers list
-            grows into whatever is left, and both columns end on the same line. */}
-        <div className="flex flex-col gap-4 h-full min-h-0">
+        <div className="flex flex-col gap-4">
           <TopGainersPanel />
           <MonthlyBuySellMeter />
         </div>
@@ -100,12 +99,14 @@ function fmtCap(v: number | null): string {
 /** Top-25 gainers rail — scrollable list beside the hero. Columns: #,
  *  Company, Price, Change/Cap, and the AI Catalyst ✨ explainer per row. */
 function TopGainersPanel() {
+  // Top 10 only (client 2026-08-24) — the card shows the whole list with no
+  // inner scrollbar, so it ends where the tenth row ends.
   const { data } = useSWR<{ rows: GainerRow[] }>(
-    `${API_BASE}/market-stats/top-gainers?limit=25`,
+    `${API_BASE}/market-stats/top-gainers?limit=10`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
-  const gainers = (data?.rows ?? []).slice(0, 25);
+  const gainers = (data?.rows ?? []).slice(0, 10);
 
   // Pre-generate every row's AI Movement Explainer in one batched call so
   // hovering the ✨ icon is instant.
@@ -115,7 +116,7 @@ function TopGainersPanel() {
 
   return (
     <aside
-      className="rounded-lg overflow-hidden flex flex-col flex-1 min-h-0"
+      className="rounded-lg overflow-hidden flex flex-col"
       style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
     >
       <Link
@@ -142,7 +143,7 @@ function TopGainersPanel() {
         <span className="text-right">Chg / Cap</span>
         <span className="text-center">Catalyst</span>
       </div>
-      <ul className="divide-y divide-[var(--border)] flex flex-col flex-1 min-h-0 overflow-y-auto scrollbar-visible">
+      <ul className="divide-y divide-[var(--border)] flex flex-col">
         {gainers.length === 0 ? (
           <li className="px-4 py-6 text-center text-mute text-[12px]">Loading…</li>
         ) : (

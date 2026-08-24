@@ -82,7 +82,7 @@ export function TopStoriesSection() {
           {/* Featured story — image left, content card right (Benzinga style) */}
           <Link
             href={`/insights/${lead.slug}`}
-            className="group rounded-lg overflow-hidden flex flex-col flex-1"
+            className="group rounded-lg overflow-hidden flex flex-col"
             style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
           >
             {/* 16:9 cap (client 2026-08-24: "image thora chhota karo"). The
