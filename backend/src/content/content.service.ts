@@ -1609,6 +1609,15 @@ export class ContentService {
   /** Hand-written editorial (admin): upsert a fully-authored article by slug —
    *  custom title/body/image, no AI generation, exempt from the volume ramp.
    *  Same route the hand-inserted editorials previously took via SQL. */
+  /** Remove a published article by slug. Returns whether a row was deleted so
+   *  the caller can tell "gone" from "was never there". */
+  async deleteEditorial(slugRaw: string): Promise<{ slug: string; deleted: boolean }> {
+    const slug = (slugRaw || '').trim().toLowerCase();
+    if (!slug) throw new BadRequestException('slug is required');
+    const res = await this.repo.delete({ slug });
+    return { slug, deleted: (res.affected ?? 0) > 0 };
+  }
+
   async publishEditorial(input: {
     slug: string;
     title: string;

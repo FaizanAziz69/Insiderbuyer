@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
@@ -80,6 +81,14 @@ export class ContentController {
     },
   ) {
     return this.content.publishEditorial(body);
+  }
+
+  /** Unpublish an article by slug. Editorials are hand-published, so pulling
+   *  one back needed a DB edit until now. Guarded like the publish route. */
+  @Delete('editorial/:slug')
+  @UseGuards(AdminTokenGuard)
+  async deleteEditorial(@Param('slug') slug: string) {
+    return this.content.deleteEditorial(slug);
   }
 
   /** Publish one series format NOW with live data (e.g. quiet-whales) —
