@@ -33,6 +33,8 @@ const THUMBS: Thumb[] = [
   { file: "tomlee-record-highs", kw: ["tom-lee", "record-high"] },
   { file: "jensen-huang-2026", kw: ["jensen-huang", "sustainable-energy"] },
   { file: "gates-four-seasons-msft", kw: ["bill-gates", "four-seasons", "nevis"] },
+  { file: "anthropic-ipo-filing", kw: ["anthropic", "openai", "ipo-filing"] },
+  { file: "ross-beaty-equinox", tickers: ["EQX"], kw: ["ross-beaty", "equinox", "lumina"] },
   { file: "chamath-perimeter-ai", kw: ["artificial-intelligence", "medical-imaging", "\bai\b", "semis", "semiconductor"] },
   { file: "carl-icahn-fertilizer", kw: ["fertilizer", "chemical", "metals-and-mining", "materials"] },
   { file: "zefiro-methane-ceo", kw: ["methane", "energy", "oil", "petroleum"] },
@@ -98,6 +100,8 @@ const SLUG_OVERRIDES: Record<string, string> = {
   "editorial-tom-lee-generational-rally-2026-08-13": "tomlee-record-highs",
   "editorial-jensen-huang-sustainable-energy-2026-08-14": "jensen-huang-2026",
   "editorial-gates-four-seasons-nevis-lawsuit-2026-08-20": "gates-four-seasons-msft",
+  "editorial-anthropic-ipo-2t-valuation-2026-08-24": "anthropic-ipo-filing",
+  "editorial-ross-beaty-equinox-gold-10m-2026-08-24": "ross-beaty-equinox",
 };
 
 function candidatesFor(opts: ThumbInput): Thumb[] {
