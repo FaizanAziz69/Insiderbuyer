@@ -228,6 +228,17 @@ export class BillingService {
       mode: 'subscription',
       customer: customerId,
       line_items: [{ price: prices[plan], quantity: 1 }],
+      // Stripe's dynamic payment methods resolve from the dashboard's payment
+      // method settings, and on this account they resolve to NOTHING for USD:
+      // every checkout since at least 2026-08-24 06:49 failed with "No valid
+      // payment method types for this Checkout Session". Naming card here is
+      // the escape hatch Stripe's own error suggests, and it still surfaces
+      // Apple Pay and Google Pay (both are card wallets). Set
+      // STRIPE_DYNAMIC_PAYMENT_METHODS=true to hand the choice back to the
+      // dashboard once payment methods are switched on there.
+      ...(process.env.STRIPE_DYNAMIC_PAYMENT_METHODS === 'true'
+        ? {}
+        : { payment_method_types: ['card' as const] }),
       allow_promotion_codes: true,
       client_reference_id: user.id,
       subscription_data: { metadata: { userId: user.id, plan } },
