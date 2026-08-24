@@ -7,6 +7,7 @@ import { BlogPost, BlogKind } from '../entities/blog-post.entity';
 import {
   ContentGeneratorService,
   GeneratedArticle,
+  InsiderBio,
   RankingLite,
 } from './content-generator.service';
 import { buildAiImageUrl } from './image-url.builder';
@@ -60,6 +61,10 @@ export function isArticleEligible(
   if (HAS_SUFFIX.test(t) && !CANADIAN_SUFFIX.test(t)) return false;
   return true;
 }
+
+/** What /content/insider-bio returns: the generated profile plus the
+ *  deterministic person/entity classification the code (not the model) made. */
+export type InsiderBioCard = InsiderBio & { kind: 'person' | 'entity' };
 
 @Injectable()
 export class ContentService {
@@ -312,7 +317,30 @@ export class ContentService {
       .map((i) => `[${i.source} · ${fmtAge(i.date)}] ${i.title}`);
   }
 
-  private bioCache = new Map<string, { ts: number; data: { label: string; description: string; kind: string } | null }>();
+  /** In-process copy of the About cards; the durable copy is the
+   *  insider_bio_cache table below (these profiles are expensive to generate
+   *  and biographical facts move slowly, so they are kept for a month). */
+  private bioCache = new Map<string, { ts: number; data: InsiderBioCard | null }>();
+  private bioTableReady = false;
+  private readonly BIO_TTL_MS = 30 * 24 * 60 * 60_000;
+
+  /** One row per filer name. Created on demand (same pattern as the other
+   *  cache tables) because serverless boots don't run schema sync. */
+  private async ensureBioTable(): Promise<void> {
+    if (this.bioTableReady) return;
+    try {
+      await this.repo.query(
+        `CREATE TABLE IF NOT EXISTS insider_bio_cache (
+           name_key varchar(255) PRIMARY KEY,
+           payload jsonb NOT NULL,
+           "updatedAt" timestamptz NOT NULL DEFAULT now()
+         )`,
+      );
+      this.bioTableReady = true;
+    } catch (e: any) {
+      this.logger.warn(`insider_bio_cache ensure failed: ${e?.message || e}`);
+    }
+  }
 
   /** Is this filer name an organisation rather than a person? Decided in code
    *  (not by the model) so the classification is deterministic. */
@@ -369,10 +397,31 @@ export class ContentService {
     sellCount: number;
     totalBought: number;
     totalSold: number;
-  }): Promise<{ label: string; description: string; kind: string } | null> {
+  }): Promise<InsiderBioCard | null> {
     const key = opts.name.trim().toLowerCase();
     const cached = this.bioCache.get(key);
-    if (cached && Date.now() - cached.ts < 24 * 60 * 60_000) return cached.data;
+    if (cached && Date.now() - cached.ts < this.BIO_TTL_MS) return cached.data;
+
+    // Durable copy first — a restart (or a second instance) must not pay for
+    // the same profile again.
+    await this.ensureBioTable();
+    try {
+      const rows = await this.repo.query(
+        `SELECT payload, "updatedAt" FROM insider_bio_cache WHERE name_key = $1`,
+        [key],
+      );
+      const row = rows?.[0];
+      if (row?.payload && Date.now() - new Date(row.updatedAt).getTime() < this.BIO_TTL_MS) {
+        const stored = row.payload as InsiderBioCard;
+        // Ignore rows written by the old label/description-only version.
+        if (stored && typeof stored.recognised === 'boolean') {
+          this.bioCache.set(key, { ts: Date.now(), data: stored });
+          return stored;
+        }
+      }
+    } catch (e: any) {
+      this.logger.warn(`insider bio read failed for ${opts.name}: ${e?.message || e}`);
+    }
 
     const kind = ContentService.classifyFiler(opts.name);
     let yearsActive: number | null = null;
@@ -387,9 +436,33 @@ export class ContentService {
     const gen = await this.generator
       .generateInsiderBio({ ...opts, kind, yearsActive })
       .catch(() => null);
-    const data = gen ? { ...gen, kind } : null;
-    // Only cache successes, so a transient model failure retries.
-    if (data) this.bioCache.set(key, { ts: Date.now(), data });
+    if (!gen) return null; // never cache a failure — the next view retries
+    // The companies WE hold filings for are the verifiable half of "major
+    // positions", so they lead the list and the model's additions follow.
+    const ours = opts.companies
+      .slice(0, 5)
+      .map((c) => (c.ticker ? `${c.name} (${c.ticker})` : c.name));
+    const seen = new Set<string>();
+    const majorPositions = [...ours, ...gen.majorPositions]
+      .filter((x) => {
+        const k = x.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!k || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .slice(0, 6);
+    const data: InsiderBioCard = { ...gen, majorPositions, kind };
+    this.bioCache.set(key, { ts: Date.now(), data });
+    try {
+      await this.repo.query(
+        `INSERT INTO insider_bio_cache (name_key, payload, "updatedAt")
+         VALUES ($1, $2::jsonb, now())
+         ON CONFLICT (name_key) DO UPDATE SET payload = EXCLUDED.payload, "updatedAt" = now()`,
+        [key, JSON.stringify(data)],
+      );
+    } catch (e: any) {
+      this.logger.warn(`insider bio write failed for ${opts.name}: ${e?.message || e}`);
+    }
     return data;
   }
 

@@ -12,6 +12,29 @@ export interface GeneratedArticle {
   tags: string[];
 }
 
+/** The About-card payload for one Form 4 filer. Filing facts always present;
+ *  every biography field is null unless the model recognised a public figure
+ *  or institution (see generateInsiderBio). */
+export interface InsiderBio {
+  label: string;
+  description: string;
+  /** true when the biography fields below carry public-record facts. */
+  recognised: boolean;
+  entityType: string | null;
+  basedIn: string | null;
+  age: number | null;
+  netWorth: string | null;
+  billionaire: boolean | null;
+  manages: string | null;
+  founded: number | null;
+  majorPositions: string[];
+}
+
+/** Biography-grade model for the About cards: these are real named people, so
+ *  the profile runs on the strongest model and is cached for a month rather
+ *  than being regenerated cheaply per view. */
+const INSIDER_BIO_MODEL = process.env.INSIDER_BIO_MODEL || 'claude-opus-5';
+
 export interface RankingLite {
   ticker: string;
   name: string;
@@ -594,11 +617,31 @@ ${news}${context}`;
   /** AI Bull Case vs Bear Case for a ticker — our own analogue of QuiverQuant's
    *  gated card. Grounded in the company + recent headlines we pass in; clearly
    *  an AI opinion, not advice. Returns 3 bull + 3 bear bullet points. */
-  /** Plain-English description of WHO an insider is — strictly derived from the
-   *  Form 4 record we hold (entity vs person, roles filed under, which
-   *  companies, and how long). Deliberately grounded: the model is forbidden
-   *  from adding biography, employment history or anything not in the facts,
-   *  because these are real named people. */
+  /**
+   * Plain-English description of WHO an insider is.
+   *
+   * Client 2026-08-24: "Insider profiles and top insider profiles need better
+   * About descriptions… keep it simple and explain who they are — is it a fund?
+   * Is it an individual? Where do they reside? Are they a billionaire? What's
+   * their net worth? How much do they manage? How old is he or she? What
+   * companies do they have major positions in?"
+   *
+   * That is deliberately MORE than the Form 4 record holds, so the answer is
+   * split in two, and the split is the whole safety model:
+   *   • Filing facts (roles, companies, tenure, buy/sell totals) are ours and
+   *     are passed in — the model may restate them freely.
+   *   • Biography (type of entity, base, age, net worth, assets managed,
+   *     famous holdings) can only come from the model's own knowledge of a
+   *     PUBLIC figure or institution. Every one of those fields is nullable and
+   *     the model is told to leave it null unless it is confident from
+   *     well-known public reporting. Most Form 4 filers are private individuals
+   *     the model has never heard of; for them the biography block is empty and
+   *     the card simply shows the filing story.
+   *
+   * `enrich: false` (the retry path on a model error) asks for the filing-only
+   * description with no biography at all, so a degraded generation can never
+   * become a source of invented personal facts.
+   */
   async generateInsiderBio(opts: {
     name: string;
     kind: 'person' | 'entity';
@@ -611,8 +654,13 @@ ${news}${context}`;
     sellCount: number;
     totalBought: number;
     totalSold: number;
-  }): Promise<{ label: string; description: string } | null> {
+    /** false → filing-only fallback generation (no biography fields). */
+    enrich?: boolean;
+    /** Model override; defaults to the biography-grade model. */
+    model?: string;
+  }): Promise<InsiderBio | null> {
     if (!this.client) return null;
+    const enrich = opts.enrich !== false;
     const money = (n: number) =>
       n >= 1e9 ? `$${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : `$${Math.round(n).toLocaleString()}`;
     const facts = [
@@ -626,7 +674,7 @@ ${news}${context}`;
         ? `Roles this filer has reported on SEC Form 4: ${opts.roles.join(', ')}`
         : 'No role was stated on the filings.',
       opts.companies.length
-        ? `Companies they are an insider of: ${opts.companies
+        ? `Companies they are an insider of (from our filing record): ${opts.companies
             .slice(0, 6)
             .map((c) => (c.ticker ? `${c.name} (${c.ticker})` : c.name))
             .join('; ')}`
@@ -642,55 +690,161 @@ ${news}${context}`;
       .filter(Boolean)
       .join('\n');
 
-    const tool: Anthropic.Messages.Tool = {
-      name: 'publish_insider_bio',
-      description: 'Publish a short factual description of this SEC filer.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          label: {
-            type: 'string',
-            description:
-              'A short descriptor, max 60 chars, e.g. "Chief Executive Officer at Acme Corp" or "Institutional holder — 10% owner".',
-          },
-          description: {
-            type: 'string',
-            description:
-              '2 to 3 plain sentences: whether this is a person or an organisation, how they became an insider (the role they file under), at which company, and how long they have been filing.',
-          },
+    // Structured output rather than a forced tool call: every biography field
+    // is explicitly nullable, so "I don't know" has a first-class
+    // representation instead of being paraphrased into prose.
+    const schema: Record<string, unknown> = {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        label: {
+          type: 'string',
+          description:
+            'One short descriptor, max 70 chars, e.g. "Chief Executive Officer at Acme Corp", "New York asset manager — 10% owner", "Founder and chairman, private investor".',
         },
-        required: ['label', 'description'],
+        description: {
+          type: 'string',
+          description:
+            'Two to four SHORT plain-English sentences answering "who is this?" for a reader who has never heard the name. Sentence 1: whether this is a person or an organisation and what they do. Then, only if you are confident from well-known public reporting: where they are based, roughly how much they manage or are worth, and which companies they are best known for holding. Finish with how they show up in our filing record (the role they file under and at which company). No hype, no investment advice, no speculation about motives. If you do not recognise this filer, say plainly that little public information is available and describe only the filing record.',
+        },
+        recognised: {
+          type: 'boolean',
+          description:
+            'true ONLY if you actually recognise this specific filer from public reporting (a notable investor, executive, fund or institution). false for a private individual or small entity you do not know — in that case every field below must be null.',
+        },
+        entityType: {
+          type: ['string', 'null'],
+          description:
+            'Plain-English type in 1-4 words: "Individual investor", "Company executive", "Hedge fund", "Asset manager", "Family trust", "Private equity firm", "Venture capital firm", "Holding company". Null if unclear.',
+        },
+        basedIn: {
+          type: ['string', 'null'],
+          description:
+            'Where they live or are headquartered, as "City, Country" or "City, State" — only if publicly known. Null otherwise. Never guess from the company address.',
+        },
+        age: {
+          type: ['integer', 'null'],
+          description:
+            'Approximate current age in years, individuals only, only if their birth year is public knowledge. Null otherwise.',
+        },
+        netWorth: {
+          type: ['string', 'null'],
+          description:
+            'Approximate personal net worth as a short string with a currency and unit, e.g. "~$3.2 billion". Individuals only, and ONLY for people whose wealth is widely reported (e.g. on public rich lists). Null for everyone else — never estimate from filings.',
+        },
+        billionaire: {
+          type: ['boolean', 'null'],
+          description:
+            'true only when this person is widely reported as a billionaire, false when they are a known public figure who is clearly not, null when unknown or not an individual.',
+        },
+        manages: {
+          type: ['string', 'null'],
+          description:
+            'Approximate assets under management for a fund/firm, e.g. "~$500 billion in client assets". Only when publicly reported. Null otherwise.',
+        },
+        founded: {
+          type: ['integer', 'null'],
+          description: 'Year the firm was founded, if publicly known. Null otherwise.',
+        },
+        majorPositions: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Up to 5 companies this filer is best known for holding large positions in, each as "Company (TICKER)" when you know the ticker. Use the companies from our filing record plus any widely reported large holdings. Empty array if you know of none.',
+        },
       },
+      required: [
+        'label',
+        'description',
+        'recognised',
+        'entityType',
+        'basedIn',
+        'age',
+        'netWorth',
+        'billionaire',
+        'manages',
+        'founded',
+        'majorPositions',
+      ],
     };
+
+    const system = enrich
+      ? 'You write short "About" profiles of SEC Form 4 filers for a research site. These are REAL named people and organisations, so accuracy outranks completeness. ' +
+        'Two kinds of statement are allowed. (1) The filing facts supplied below — restate them freely. (2) Public biography — you may state where the filer is based, their approximate age, net worth or assets managed, and the holdings they are known for ONLY when this filer is a well-known public figure or institution and you are confident from widely reported public information. ' +
+        'For anyone you do not recognise — which is most Form 4 filers — set recognised=false, leave EVERY biography field null, and say plainly in the description that little public information is available about them. ' +
+        'Never estimate a net worth or an asset figure from the filing values, never infer where someone lives from a company address, never guess an age, and never invent a job history. Approximate figures must read as approximate. ' +
+        'No investment advice, no speculation about why they bought or sold, no marketing language. Plain third-person English a beginner can follow.'
+      : 'You describe SEC Form 4 filers for a research site using ONLY the supplied filing facts. Set recognised=false and leave every biography field null. ' +
+        'Do not state or imply any outside biography — no location, age, wealth, assets managed, employment history or holdings beyond the companies listed in the facts. ' +
+        'Write two or three plain third-person sentences about what the filing record shows. No investment advice, no speculation.';
 
     try {
       const response = await this.client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 450,
-        system:
-          'You describe SEC Form 4 filers for a research site. These are REAL named people and organisations, so you must state ONLY what the supplied filing facts support. ' +
-          'Absolutely do not invent or infer biography: no employment history, education, age, net worth, nationality, motives, or any company detail that is not in the facts. ' +
-          'Do not speculate about why they bought or sold, and never give investment advice. ' +
-          'If the facts are thin, say plainly that the filing record is limited. Write in neutral third person, plain English, no marketing language.',
-        tool_choice: { type: 'tool', name: 'publish_insider_bio' },
-        tools: [tool],
+        model: opts.model || INSIDER_BIO_MODEL,
+        max_tokens: 2000,
+        // Bios are short; medium effort keeps the profile page responsive.
+        output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
+        system,
         messages: [
           {
             role: 'user',
-            content: `Describe this SEC Form 4 filer using only these facts.\n\n${facts}`,
+            content: `Write the About profile for this SEC Form 4 filer.\n\n${facts}`,
           },
         ],
       });
-      const block = response.content.find(
-        (b): b is Anthropic.Messages.ToolUseBlock => b.type === 'tool_use',
-      );
-      const input = block?.input as { label?: string; description?: string } | undefined;
-      const label = plainExplainer(String(input?.label || '')).trim().slice(0, 80);
-      const description = plainExplainer(String(input?.description || '')).trim();
+      if (response.stop_reason === 'refusal') {
+        this.logger.warn(`Insider bio refused for ${opts.name}`);
+        return null;
+      }
+      const text = response.content
+        .filter((b): b is Anthropic.Messages.TextBlock => b.type === 'text')
+        .map((b) => b.text)
+        .join('')
+        .trim();
+      if (!text) return null;
+      const parsed = JSON.parse(text) as Record<string, any>;
+      const label = plainExplainer(String(parsed.label || '')).trim().slice(0, 90);
+      const description = plainExplainer(String(parsed.description || '')).trim();
       if (!description) return null;
-      return { label, description };
+      const str = (v: unknown, max = 80): string | null => {
+        const s = typeof v === 'string' ? v.trim() : '';
+        return s ? s.slice(0, max) : null;
+      };
+      const recognised = enrich && parsed.recognised === true;
+      // Biography fields survive only on a recognised filer — a model that
+      // says it does not know the person cannot also fill in their net worth.
+      const age = recognised && Number.isFinite(Number(parsed.age)) ? Number(parsed.age) : null;
+      const founded =
+        recognised && Number.isFinite(Number(parsed.founded)) ? Number(parsed.founded) : null;
+      return {
+        label,
+        description,
+        recognised,
+        entityType: str(parsed.entityType, 40),
+        basedIn: recognised ? str(parsed.basedIn, 60) : null,
+        age: age != null && age > 15 && age < 110 ? age : null,
+        netWorth: recognised ? str(parsed.netWorth, 40) : null,
+        billionaire: recognised && typeof parsed.billionaire === 'boolean' ? parsed.billionaire : null,
+        manages: recognised ? str(parsed.manages, 60) : null,
+        founded: founded != null && founded > 1700 && founded <= new Date().getUTCFullYear() ? founded : null,
+        majorPositions: Array.isArray(parsed.majorPositions)
+          ? parsed.majorPositions
+              .map((x: unknown) => str(x, 60))
+              .filter((x: string | null): x is string => !!x)
+              .slice(0, 5)
+          : [],
+      };
     } catch (err: any) {
       this.logger.warn(`Insider bio failed for ${opts.name}: ${err?.message || err}`);
+      // One filing-only retry on a cheaper model, so an outage or a model
+      // access problem degrades the card instead of emptying it.
+      if (enrich) {
+        return this.generateInsiderBio({
+          ...opts,
+          enrich: false,
+          model: 'claude-haiku-4-5-20251001',
+        });
+      }
       return null;
     }
   }

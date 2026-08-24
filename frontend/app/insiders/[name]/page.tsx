@@ -371,9 +371,29 @@ export default function InsiderProfilePage({
   );
 }
 
-/** AI description of who this filer is — generated from OUR Form 4 record
- *  only (entity vs person, roles, companies, tenure). Renders nothing until
- *  the model returns, so the page never shows an empty box. */
+interface InsiderBio {
+  label: string;
+  description: string;
+  /** true when the quick facts below are public-record biography rather than
+   *  "we don't know this filer". */
+  recognised: boolean;
+  entityType: string | null;
+  basedIn: string | null;
+  age: number | null;
+  netWorth: string | null;
+  billionaire: boolean | null;
+  manages: string | null;
+  founded: number | null;
+  majorPositions: string[];
+  kind: string;
+}
+
+/** "About" card: who this filer actually is, in plain English (client
+ *  2026-08-24 — fund or individual, where they are based, age, net worth or
+ *  assets managed, and the companies they hold). The biography half only
+ *  appears for filers the profile could establish from public reporting; for
+ *  the many private filers we simply describe the filing record. Renders
+ *  nothing until the model returns, so the page never shows an empty box. */
 function InsiderBioCard({ p }: { p: Profile }) {
   const companies = p.topTickers
     .slice(0, 6)
@@ -390,7 +410,7 @@ function InsiderBioCard({ p }: { p: Profile }) {
     bought: String(Math.round(p.stats.totalBought)),
     sold: String(Math.round(p.stats.totalSold)),
   });
-  const { data, isLoading } = useSWR<{ bio: { label: string; description: string; kind: string } | null }>(
+  const { data, isLoading } = useSWR<{ bio: InsiderBio | null }>(
     `${API_BASE}/content/insider-bio?${qs.toString()}`,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 },
@@ -408,19 +428,42 @@ function InsiderBioCard({ p }: { p: Profile }) {
   const bio = data?.bio;
   if (!bio) return null;
 
+  const isEntity = bio.kind === "entity";
+  // Only the facts we actually have — an empty row is worse than a shorter grid.
+  const facts: { label: string; value: string }[] = [
+    { label: "Type", value: bio.entityType || (isEntity ? "Organisation" : "Individual") },
+    ...(bio.basedIn ? [{ label: "Based in", value: bio.basedIn }] : []),
+    ...(bio.age != null ? [{ label: "Age", value: `${bio.age}` }] : []),
+    ...(bio.netWorth
+      ? [{ label: "Net worth", value: bio.netWorth + (bio.billionaire ? " · billionaire" : "") }]
+      : bio.billionaire
+        ? [{ label: "Net worth", value: "Reported billionaire" }]
+        : []),
+    ...(bio.manages ? [{ label: "Manages", value: bio.manages }] : []),
+    ...(bio.founded != null ? [{ label: "Founded", value: `${bio.founded}` }] : []),
+  ];
+
   return (
     <section className="card p-5">
-      <div className="flex items-center gap-2 mb-1.5">
+      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
         <span className="text-accent">
-          {bio.kind === "entity" ? <Building2 className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
+          {isEntity ? <Building2 className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
         </span>
         <h2 className="text-[15px] font-bold">About {p.name}</h2>
         <span
           className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded"
           style={{ background: "var(--bg-3)", color: "var(--text-mute)" }}
         >
-          {bio.kind === "entity" ? "Organisation" : "Individual"}
+          {isEntity ? "Organisation" : "Individual"}
         </span>
+        {bio.billionaire && (
+          <span
+            className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded"
+            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+          >
+            Billionaire
+          </span>
+        )}
       </div>
       {bio.label && (
         <p className="text-[12.5px] font-semibold mb-2" style={{ color: "var(--text-mute)" }}>
@@ -430,8 +473,55 @@ function InsiderBioCard({ p }: { p: Profile }) {
       <p className="text-[14px] leading-relaxed" style={{ color: "var(--text-soft)" }}>
         {bio.description}
       </p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
+        {facts.map((f) => (
+          <div
+            key={f.label}
+            className="rounded-lg px-3 py-2"
+            style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+          >
+            <div className="text-[10px] uppercase tracking-wider font-bold text-mute">{f.label}</div>
+            <div className="text-[13.5px] font-semibold mt-0.5" style={{ color: "var(--text)" }}>
+              {f.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {bio.majorPositions.length > 0 && (
+        <div className="mt-4">
+          <div className="text-[10px] uppercase tracking-wider font-bold text-mute mb-1.5">
+            Major positions
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {bio.majorPositions.map((pos) => {
+              // "Company Name (TICKER)" → link the ticker to its stock page.
+              const m = pos.match(/\(([A-Z][A-Z0-9.\-]{0,9})\)\s*$/);
+              const chip = (
+                <span
+                  className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[12px] font-semibold"
+                  style={{ background: "var(--bg-3)", color: "var(--text-soft)" }}
+                >
+                  {pos}
+                </span>
+              );
+              return m ? (
+                <Link key={pos} href={`/companies/${m[1]}`} className="hover:opacity-80">
+                  {chip}
+                </Link>
+              ) : (
+                <span key={pos}>{chip}</span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <p className="text-[10.5px] mt-3" style={{ color: "var(--text-faint)" }}>
-        AI-written from this filer&rsquo;s SEC Form 4 record only — no outside biography.
+        {bio.recognised
+          ? "Roles, companies and filing figures come from this filer’s SEC Form 4 record. Location, age, net worth and assets managed are AI-summarised from public reporting and are approximate."
+          : "AI-written from this filer’s SEC Form 4 record. No public biography was available for this filer, so only the filing record is described."}
       </p>
     </section>
   );
