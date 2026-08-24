@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { AnalystPriceTarget } from '../entities/analyst-target.entity';
@@ -38,9 +39,81 @@ export interface TopAnalystRow {
 const DIRECTION_DEADZONE = 0.03;
 /** Analysts need this many seasoned calls before a success rate is shown. */
 const MIN_SCORED = 3;
+
 /** Closes are graded over a two-year window — the same '2y' range this table has
  *  always scored on. Longer stored series are trimmed to it on read. */
 const HIST_WINDOW_MS = 2 * 365 * 86_400_000;
+
+/* ── Top Analyst Stocks (client rule 2026-08-24) ──────────────────────────
+ * George: "only showing stocks with analyst coverage that are covered by 5 or
+ * more analysts with high success rates above 70%… the ranking should take
+ * into account how many top analysts cover the stock and take the average
+ * price target of them."
+ *
+ * So the list is built from OUR measured leaderboard, not from a vendor's
+ * consensus head-count: an analyst counts toward a stock only if their own
+ * success rate clears the floor and their target on that stock is still live.
+ */
+/** Success-rate floor for an analyst to count as a "top analyst". */
+const TOP_ANALYST_MIN_SUCCESS = 70;
+/** A stock needs this many top analysts covering it to appear at all. */
+const MIN_TOP_ANALYSTS = 5;
+/** Older than this, a price target is history — not live coverage. */
+const TARGET_LIVE_DAYS = 365;
+/** Rows kept in the stock payload (client: "show top 50"). */
+const STOCK_ROWS = 50;
+
+/** One qualifying stock: how many top analysts cover it, how accurate they
+ *  have been, and the average of their live price targets. */
+export interface TopAnalystStockRow {
+  symbol: string;
+  name: string;
+  sector: string | null;
+  exchange: string | null;
+  price: number;
+  marketCap: number | null;
+  /** Analysts above the success floor with a live target on this stock. */
+  topAnalysts: number;
+  /** Mean measured success rate of exactly those analysts. */
+  avgSuccessRate: number;
+  /** Mean of exactly those analysts' most recent targets. */
+  avgTarget: number;
+  /** Implied move from the live price to that average target. */
+  upsidePct: number;
+  /** Sell-side consensus target (fundamentals cache) for context — not used
+   *  in the ranking, which is top-analyst-only by client rule. */
+  consensusTarget: number | null;
+  /** Days since the most recent of those analysts' notes. */
+  lastRatedDaysAgo: number;
+  /** coverage × accuracy × target multiple — see buildStockBoard. */
+  score: number;
+  /** The covering analysts themselves, best success rate first. */
+  analysts: Array<{
+    analyst: string;
+    firm: string | null;
+    slug: string;
+    successRate: number;
+    target: number;
+    date: string;
+  }>;
+}
+
+/** The persisted /analysts/top-stocks payload. */
+interface StoredStocks {
+  rows: TopAnalystStockRow[];
+  /** Honest denominators for the page's own copy. */
+  universe: {
+    /** Analysts on the board clearing the success floor. */
+    topAnalysts: number;
+    /** Stocks carrying at least one top analyst's live target. */
+    covered: number;
+    /** Stocks clearing MIN_TOP_ANALYSTS — the real length of this list. */
+    qualifying: number;
+    minTopAnalysts: number;
+    minSuccessRate: number;
+  };
+  computedAtMs: number;
+}
 
 /** The whole /analysts/top payload, exactly as the page consumes it, plus the
  *  bookkeeping the cache needs. Persisted to the generic cache table so a cold
@@ -84,6 +157,10 @@ export class AnalystsService {
   /** Persisted leaderboard + close-history keys in the generic cache table. */
   private readonly BOARD_KEY = 'top-analysts-v1';
   private readonly HIST_KEY = 'analyst-close-hist-v1';
+  /** Top Analyst Stocks payload — derived from the board, all-SQL, so it has
+   *  its own (much shorter) clock and never waits on the close sweep. */
+  private readonly STOCKS_KEY = 'top-analyst-stocks-v1';
+  private readonly STOCKS_TTL_MS = 60 * 60_000;
   /** A complete board holds for half a day — notes arrive on the daily cron. */
   private readonly BOARD_TTL_MS = 12 * 60 * 60_000;
   /** A partial board (sweep truncated) is retried on the next request. */
@@ -91,8 +168,11 @@ export class AnalystsService {
   /** Past this age a complete board stops outranking a partial rebuild. */
   private readonly BOARD_MAX_STALE_MS = 3 * 24 * 60 * 60_000;
   /** Rows stored. The controller caps `limit` at 200, so one payload serves
-   *  every request — coverage is computed over the full set regardless. */
-  private readonly BOARD_ROWS = 200;
+   *  every request — coverage is computed over the full set regardless.
+   *  Deliberately deeper than the served page since 2026-08-24: Top Analyst
+   *  Stocks qualifies its analysts out of THIS board, and a 200-row cap hid
+   *  seasoned 70%+ analysts whose calls are part of a stock's real coverage. */
+  private readonly BOARD_ROWS = 600;
   /** Wall-clock ceiling for a rebuild inside a USER request. Production cuts
    *  requests at ~10s whatever vercel.json declares, so a sweep that outruns
    *  this hands back the stored board and lets the next caller carry on. */
@@ -110,7 +190,9 @@ export class AnalystsService {
   private readonly HIST_CONC = 12;
 
   private boardMem: StoredBoard | null = null;
+  private stocksMem: StoredStocks | null = null;
   private lastBuildAttemptAt = 0;
+  private lastStocksBuildAt = 0;
   /** Symbols Yahoo returned nothing for this process lifetime — not worth
    *  re-fetching inside a request budget (they are simply unscored, as before). */
   private readonly deadSymbols = new Set<string>();
@@ -152,6 +234,20 @@ export class AnalystsService {
     return map;
   }
 
+  /** On EC2/local the in-process scheduler keeps the leaderboard and the
+   *  Top Analyst Stocks list warm; on Vercel there is no clock, so the
+   *  GitHub workflow's /ingest call is what drives the same refresh. Six
+   *  hourly, offset from SEC ingestion so the two don't share a tick. */
+  @Cron('40 1,7,13,19 * * *')
+  async cronTick(): Promise<void> {
+    if (process.env.VERCEL) return;
+    try {
+      await this.refresh(25_000);
+    } catch (e: any) {
+      this.logger.warn(`analyst cron refresh failed: ${e?.message || e}`);
+    }
+  }
+
   /** Cron/admin tick: accumulate today's notes, then recompute the persisted
    *  leaderboard so page requests never pay for the close-history sweep.
    *  `boardBudgetMs` is a wall-clock ceiling — the cron shares its 60s function
@@ -169,6 +265,13 @@ export class AnalystsService {
       if (built) board = { rows: built.rows.length, complete: built.complete };
     } catch (e: any) {
       this.logger.warn(`analyst leaderboard refresh failed: ${e?.message || e}`);
+    }
+    // Top Analyst Stocks hangs off the board's success rates — rebuild it in
+    // the same tick so the page never has to pay for it on a user request.
+    try {
+      await this.buildStockBoard();
+    } catch (e: any) {
+      this.logger.warn(`top-analyst-stocks refresh failed: ${e?.message || e}`);
     }
     return { ...notes, board };
   }
@@ -359,6 +462,338 @@ export class AnalystsService {
       if (!stored) throw e;
     }
     return this.serve(built ?? stored, limit);
+  }
+
+  /**
+   * Top Analyst Stocks — the /analyst-stocks page.
+   *
+   * Client rule (2026-08-24): a stock only appears when at least
+   * MIN_TOP_ANALYSTS analysts whose measured success rate clears
+   * TOP_ANALYST_MIN_SUCCESS carry a live target on it, and the ranking is
+   * driven by that coverage plus the average of exactly those analysts'
+   * targets. Nothing here comes from a vendor consensus head-count.
+   *
+   * Cheap enough to serve from a request: the analyst side is the stored
+   * leaderboard, everything else is three indexed queries. Prices are
+   * re-read on every serve so the upside is never stale by more than the
+   * snapshot itself.
+   */
+  async getTopAnalystStocks(limit = STOCK_ROWS): Promise<{
+    rows: TopAnalystStockRow[];
+    universe: StoredStocks['universe'];
+    generatedAt: string | null;
+  }> {
+    let stocks = await this.readStocks();
+    const stale = !stocks || Date.now() - stocks.computedAtMs > this.STOCKS_TTL_MS;
+    if (stale && Date.now() - this.lastStocksBuildAt > this.BUILD_RETRY_MS) {
+      this.lastStocksBuildAt = Date.now();
+      try {
+        stocks = (await this.buildStockBoard()) ?? stocks;
+      } catch (e: any) {
+        // A failed rebuild must never blank a page that has a stored copy.
+        this.logger.warn(`top-analyst-stocks build failed: ${e?.message || e}`);
+      }
+    }
+    if (!stocks) {
+      return {
+        rows: [],
+        universe: {
+          topAnalysts: 0,
+          covered: 0,
+          qualifying: 0,
+          minTopAnalysts: MIN_TOP_ANALYSTS,
+          minSuccessRate: TOP_ANALYST_MIN_SUCCESS,
+        },
+        generatedAt: null,
+      };
+    }
+    const rows = await this.repriceStocks(stocks.rows).catch(() => stocks!.rows);
+    return {
+      rows: rows.slice(0, Math.max(1, Math.min(limit, STOCK_ROWS))),
+      universe: stocks.universe,
+      generatedAt: new Date(stocks.computedAtMs).toISOString(),
+    };
+  }
+
+  /** Diagnostics for the qualification rule — how many analysts clear the
+   *  success floor, how much coverage that buys, and where the cut lands. */
+  async topAnalystStocksStatus(): Promise<unknown> {
+    const stocks = await this.readStocks();
+    const board = await this.readBoard();
+    return {
+      rule: {
+        minSuccessRate: TOP_ANALYST_MIN_SUCCESS,
+        minTopAnalysts: MIN_TOP_ANALYSTS,
+        targetLiveDays: TARGET_LIVE_DAYS,
+        rows: STOCK_ROWS,
+      },
+      board: board
+        ? {
+            rows: board.rows.length,
+            seasoned: board.rows.filter((r) => r.successRate != null).length,
+            topAnalysts: board.rows.filter(
+              (r) => (r.successRate ?? -1) >= TOP_ANALYST_MIN_SUCCESS,
+            ).length,
+            complete: board.complete,
+            computedAt: new Date(board.computedAtMs).toISOString(),
+          }
+        : null,
+      stocks: stocks
+        ? {
+            rows: stocks.rows.length,
+            universe: stocks.universe,
+            computedAt: new Date(stocks.computedAtMs).toISOString(),
+            /** How many stocks sit at each coverage depth, so a thin list is
+             *  visibly a data-coverage fact rather than a bug. */
+            byCoverage: stocks.rows.reduce<Record<string, number>>((acc, r) => {
+              const k = String(r.topAnalysts);
+              acc[k] = (acc[k] || 0) + 1;
+              return acc;
+            }, {}),
+          }
+        : null,
+    };
+  }
+
+  private async readStocks(): Promise<StoredStocks | null> {
+    if (this.stocksMem && Date.now() - this.stocksMem.computedAtMs < this.STOCKS_TTL_MS) {
+      return this.stocksMem;
+    }
+    try {
+      const row = await this.kv.findOne({ where: { key: this.STOCKS_KEY } });
+      const stored = (row?.payload as StoredStocks | undefined) ?? null;
+      if (stored?.rows) {
+        this.stocksMem = stored;
+        return stored;
+      }
+    } catch (e: any) {
+      this.logger.warn(`top-analyst-stocks read failed: ${e?.message || e}`);
+    }
+    return this.stocksMem;
+  }
+
+  /**
+   * Rebuild the qualifying stock list. Analyst accuracy comes from the stored
+   * leaderboard (built by the cron's close sweep); coverage, targets, prices
+   * and the consensus context column are SQL.
+   */
+  private async buildStockBoard(): Promise<StoredStocks | null> {
+    let board = await this.readBoard();
+    if (!board) {
+      // No leaderboard yet (fresh database): one budgeted attempt, then give up
+      // for this request rather than running the sweep past the gateway limit.
+      board = await this.buildBoard(this.REQUEST_BUDGET_MS, null);
+    }
+    if (!board?.rows?.length) return null;
+
+    const top = board.rows.filter(
+      (r) => r.successRate != null && r.successRate >= TOP_ANALYST_MIN_SUCCESS,
+    );
+    const byKey = new Map(top.map((r) => [r.analyst.trim().toLowerCase(), r]));
+    if (!byKey.size) {
+      const empty: StoredStocks = {
+        rows: [],
+        universe: {
+          topAnalysts: 0,
+          covered: 0,
+          qualifying: 0,
+          minTopAnalysts: MIN_TOP_ANALYSTS,
+          minSuccessRate: TOP_ANALYST_MIN_SUCCESS,
+        },
+        computedAtMs: Date.now(),
+      };
+      await this.writeStocks(empty);
+      return empty;
+    }
+
+    // Latest live target per (top analyst, symbol). DISTINCT ON does the
+    // "most recent note wins" per pair in one indexed pass.
+    const notes: Array<{
+      analyst: string;
+      symbol: string;
+      target: number;
+      published: string;
+    }> = await this.kv.query(
+      `SELECT DISTINCT ON (lower(btrim(t."analystName")), t.symbol)
+              btrim(t."analystName") AS analyst,
+              upper(t.symbol)        AS symbol,
+              t."priceTarget"::float8 AS target,
+              t."publishedDate"::text AS published
+         FROM analyst_price_targets t
+        WHERE t."priceTarget" > 0
+          AND t."publishedDate" >= NOW() - ($2::int * INTERVAL '1 day')
+          AND lower(btrim(t."analystName")) = ANY($1)
+        ORDER BY lower(btrim(t."analystName")), t.symbol, t."publishedDate" DESC`,
+      [Array.from(byKey.keys()), TARGET_LIVE_DAYS],
+    );
+
+    interface Agg {
+      symbol: string;
+      analysts: TopAnalystStockRow['analysts'];
+    }
+    const bySymbol = new Map<string, Agg>();
+    const now = Date.now();
+    for (const n of notes) {
+      const row = byKey.get(n.analyst.trim().toLowerCase());
+      if (!row?.successRate) continue;
+      const target = Number(n.target);
+      if (!(target > 0)) continue;
+      const agg = bySymbol.get(n.symbol) || { symbol: n.symbol, analysts: [] };
+      agg.analysts.push({
+        analyst: row.analyst,
+        firm: row.firm,
+        slug: row.slug,
+        successRate: row.successRate,
+        target: +target.toFixed(2),
+        date: n.published.slice(0, 10),
+      });
+      bySymbol.set(n.symbol, agg);
+    }
+
+    const covered = bySymbol.size;
+    const qualified = Array.from(bySymbol.values()).filter(
+      (a) => a.analysts.length >= MIN_TOP_ANALYSTS,
+    );
+    const symbols = qualified.map((a) => a.symbol);
+
+    const snap = new Map<string, any>();
+    const consensus = new Map<string, number>();
+    if (symbols.length) {
+      const snapRows = await this.kv.query(
+        `SELECT symbol, name, price::float8 AS price, "marketCap"::float8 AS mcap,
+                sector, exchange
+           FROM market_profile_snapshot WHERE symbol = ANY($1)`,
+        [symbols],
+      );
+      for (const r of snapRows) snap.set(String(r.symbol).toUpperCase(), r);
+      const ptRows = await this.kv.query(
+        `SELECT symbol, "ptAvgTarget"::float8 AS target
+           FROM fundamentals_cache
+          WHERE symbol = ANY($1) AND "ptAvgTarget" IS NOT NULL`,
+        [symbols],
+      );
+      for (const r of ptRows) consensus.set(String(r.symbol).toUpperCase(), Number(r.target));
+    }
+
+    const rows: TopAnalystStockRow[] = [];
+    for (const agg of qualified) {
+      const s = snap.get(agg.symbol);
+      const price = Number(s?.price);
+      // A row with no live price can neither be ranked on upside nor shown
+      // honestly in a Price column — leave it out rather than print dashes.
+      if (!(price > 0)) continue;
+      const analysts = agg.analysts.sort(
+        (a, b) => b.successRate - a.successRate || b.target - a.target,
+      );
+      const avgTarget = analysts.reduce((n, a) => n + a.target, 0) / analysts.length;
+      const avgSuccess = analysts.reduce((n, a) => n + a.successRate, 0) / analysts.length;
+      const upsidePct = ((avgTarget - price) / price) * 100;
+      const lastMs = analysts.reduce(
+        (m, a) => Math.max(m, Date.parse(`${a.date}T00:00:00Z`) || 0),
+        0,
+      );
+      rows.push({
+        symbol: agg.symbol,
+        name: s?.name || agg.symbol,
+        sector: s?.sector ?? null,
+        exchange: s?.exchange ?? null,
+        price: +price.toFixed(2),
+        marketCap: Number(s?.mcap) || null,
+        topAnalysts: analysts.length,
+        avgSuccessRate: +avgSuccess.toFixed(1),
+        avgTarget: +avgTarget.toFixed(2),
+        upsidePct: +upsidePct.toFixed(2),
+        consensusTarget: consensus.get(agg.symbol) ?? null,
+        lastRatedDaysAgo: lastMs ? Math.max(0, Math.round((now - lastMs) / 86_400_000)) : 0,
+        score: AnalystsService.stockScore(analysts.length, avgSuccess, upsidePct),
+        analysts,
+      });
+    }
+    rows.sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.topAnalysts - a.topAnalysts ||
+        b.upsidePct - a.upsidePct ||
+        a.symbol.localeCompare(b.symbol),
+    );
+
+    const payload: StoredStocks = {
+      rows: rows.slice(0, STOCK_ROWS),
+      universe: {
+        topAnalysts: byKey.size,
+        covered,
+        qualifying: rows.length,
+        minTopAnalysts: MIN_TOP_ANALYSTS,
+        minSuccessRate: TOP_ANALYST_MIN_SUCCESS,
+      },
+      computedAtMs: Date.now(),
+    };
+    await this.writeStocks(payload);
+    this.logger.log(
+      `top-analyst-stocks: ${payload.rows.length} rows from ${byKey.size} analysts ` +
+        `≥${TOP_ANALYST_MIN_SUCCESS}% (${covered} covered, ${rows.length} with ` +
+        `≥${MIN_TOP_ANALYSTS} top analysts)`,
+    );
+    return payload;
+  }
+
+  /**
+   * The ranking, stated once so the page can explain it:
+   *   coverage × accuracy × target multiple
+   *     = topAnalysts × (avgSuccessRate / 100) × (1 + upside/100)
+   * Monotone in all three inputs — more top analysts, better track records or
+   * more room to their average target all raise it — and the multiple is
+   * floored so a stock already trading through its targets is pushed down the
+   * list rather than scoring negative.
+   */
+  private static stockScore(count: number, avgSuccess: number, upsidePct: number): number {
+    const multiple = Math.max(0.25, 1 + upsidePct / 100);
+    return +(count * (avgSuccess / 100) * multiple).toFixed(2);
+  }
+
+  /** Re-read prices for the stored rows so upside/score are current between
+   *  rebuilds (one indexed query over ≤50 symbols). Rows whose price has gone
+   *  missing keep their stored figures rather than dropping off the page. */
+  private async repriceStocks(rows: TopAnalystStockRow[]): Promise<TopAnalystStockRow[]> {
+    if (!rows.length) return rows;
+    const fresh = new Map<string, number>();
+    const snapRows = await this.kv.query(
+      `SELECT symbol, price::float8 AS price FROM market_profile_snapshot
+        WHERE symbol = ANY($1)`,
+      [rows.map((r) => r.symbol)],
+    );
+    for (const r of snapRows) {
+      const p = Number(r.price);
+      if (p > 0) fresh.set(String(r.symbol).toUpperCase(), p);
+    }
+    const out = rows.map((r) => {
+      const price = fresh.get(r.symbol);
+      if (!price || price === r.price) return r;
+      const upsidePct = +(((r.avgTarget - price) / price) * 100).toFixed(2);
+      return {
+        ...r,
+        price: +price.toFixed(2),
+        upsidePct,
+        score: AnalystsService.stockScore(r.topAnalysts, r.avgSuccessRate, upsidePct),
+      };
+    });
+    out.sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.topAnalysts - a.topAnalysts ||
+        b.upsidePct - a.upsidePct ||
+        a.symbol.localeCompare(b.symbol),
+    );
+    return out;
+  }
+
+  private async writeStocks(payload: StoredStocks): Promise<void> {
+    this.stocksMem = payload;
+    try {
+      await this.kv.save({ key: this.STOCKS_KEY, payload });
+    } catch (e: any) {
+      this.logger.warn(`top-analyst-stocks write failed: ${e?.message || e}`);
+    }
   }
 
   /** Slice a board down to the requested page size. Coverage is whole-dataset
