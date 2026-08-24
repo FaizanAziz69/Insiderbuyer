@@ -68,6 +68,9 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Insider Bubbles", href: "/bubbles", icon: Orbit, badge: "new" },
           { label: "Top Insider Scores", href: "/insiders/hot", icon: Flame, badge: "popular" },
           { label: "Top Analysts", href: "/analyst-ratings", icon: Star },
+          // Moved out of Stock Lists 2026-08-25 (client): it is a data view,
+          // and it belongs next to the analysts whose calls build it.
+          { label: "Top Analyst Stocks", href: "/analyst-stocks", icon: LineChart },
           { label: "Congressional Trades", href: "/congressional-trades", icon: Landmark },
           { label: "Insider Trades", href: "/trades", icon: Activity },
           { label: "Upcoming Earnings", href: "/earnings", icon: Calendar },
@@ -109,7 +112,6 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Hot Sectors", href: "/stock-lists/hot-sectors", icon: Flame, badge: "new" },
           { label: "Government Contracts", href: "/government-contracts", icon: Briefcase, badge: "new" },
           { label: "Stock Ideas", href: "/lists", icon: Sparkles },
-          { label: "Top Analyst Stocks", href: "/analyst-stocks", icon: Star },
           { label: "Blue Sky Stocks", href: "/stock-lists/blue-sky", icon: Rocket, badge: "premium" },
           { label: "Large Cap", href: "/stock-lists/large-cap", icon: Building2 },
           { label: "Small Cap", href: "/stock-lists/small-cap", icon: Rocket },
