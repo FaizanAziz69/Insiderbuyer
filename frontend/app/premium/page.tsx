@@ -689,15 +689,6 @@ export default function PremiumPage() {
             );
           })}
         </div>
-        {billing?.mode === "test" && (
-          // Stripe is keyed to test mode (client 2026-08-24, until they say
-          // otherwise) — a real card cannot pay here, so say so rather than
-          // letting someone believe they subscribed.
-          <div className="biv-note biv-note-syncing" role="status">
-            Test mode — payments are not live yet. Card 4242 4242 4242 4242 with
-            any future date and CVC completes a test checkout.
-          </div>
-        )}
         {err && (
           <div className="biv-note biv-note-error" role="alert">
             {err}
