@@ -64,8 +64,8 @@ export const NAV_GROUPS: NavGroup[] = [
     columns: [
       {
         links: [
-          // Bubbles map is direct-URL only for now (Faizan 2026-08-23) — uncomment to relist.
-          // { label: "Insider Bubbles", href: "/bubbles", icon: Orbit, badge: "new" },
+          // Relisted 2026-08-24 (Faizan) — was direct-URL only while the map settled.
+          { label: "Insider Bubbles", href: "/bubbles", icon: Orbit, badge: "new" },
           { label: "Top Insider Scores", href: "/insiders/hot", icon: Flame, badge: "popular" },
           { label: "Top Analysts", href: "/analyst-ratings", icon: Star },
           { label: "Congressional Trades", href: "/congressional-trades", icon: Landmark },
