@@ -36,8 +36,9 @@ export function Footer() {
               <Logo size="md" tone="light" />
             </Link>
             <p className="text-[13px] text-soft mt-4 max-w-md leading-relaxed">
-              Daily insider intelligence sourced from SEC Form 4 filings, the Federal Reserve, U.S.
-              Treasury, CFTC, Bank of Canada, and Statistics Canada — distilled into the Insider Score.
+              InsiderBuying.com tracks every open-market stock purchase by corporate insiders —
+              CEOs, CFOs, and directors — and scores each transaction with the Insider Quality
+              Score (IQS). Follow the smart money, legally.
             </p>
             <div className="flex items-center gap-3 mt-5">
               <a

@@ -12,6 +12,7 @@ import { SidebarListsAndTools } from "@/components/home/SidebarListsAndTools";
 import { SidebarPopularTools } from "@/components/home/SidebarPopularTools";
 import { StockHeatmap, HeatmapLegend } from "@/components/heatmap/StockHeatmap";
 import { AdSlot } from "@/components/AdSlot";
+import { DATA_REFRESHING, useStalled } from "@/lib/useStalled";
 import { AiCatalyst, useExplainerPrewarm } from "@/components/AiCatalyst";
 import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
 import { AiPopularArticlesSection } from "@/components/insights/AiPopularArticlesSection";
@@ -102,12 +103,16 @@ function fmtCap(v: number | null): string {
 function TopGainersPanel() {
   // Top 10 only (client 2026-08-24) — the card shows the whole list with no
   // inner scrollbar, so it ends where the tenth row ends.
-  const { data } = useSWR<{ rows: GainerRow[] }>(
+  const { data, error } = useSWR<{ rows: GainerRow[] }>(
     `${API_BASE}/market-stats/top-gainers?limit=10`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
   const gainers = (data?.rows ?? []).slice(0, 10);
+  // A failed or hanging request used to leave "Loading…" on screen forever
+  // (developer brief Fix 2) — say what is actually happening instead.
+  const stalled = useStalled(gainers.length > 0);
+  const unavailable = !!error || stalled;
 
   // Pre-generate every row's AI Movement Explainer in one batched call so
   // hovering the ✨ icon is instant.
@@ -146,7 +151,9 @@ function TopGainersPanel() {
       </div>
       <ul className="divide-y divide-[var(--border)] flex flex-col">
         {gainers.length === 0 ? (
-          <li className="px-4 py-6 text-center text-mute text-[12px]">Loading…</li>
+          <li className="px-4 py-6 text-center text-mute text-[12px]">
+            {unavailable ? DATA_REFRESHING : "Loading…"}
+          </li>
         ) : (
           gainers.map((g, i) => (
             <li

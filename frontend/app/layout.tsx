@@ -42,7 +42,7 @@ const barlowCondensed = Barlow_Condensed({
 // site-wide default for routes without their own metadata.
 const home = seoEntry("/");
 
-const defaultTitle = home?.t ?? "Insider Buying — Live SEC Form 4 + Congressional Trades";
+const defaultTitle = home?.t ?? "InsiderBuying.com — Live SEC Form 4 + Congressional Trades";
 const defaultDescription =
   home?.d ??
   "Track insider buys and sells in real-time. SEC Form 4 analysis reveals where smart money is accumulating.";
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: defaultTitle,
     description: defaultDescription,
-    siteName: "Insider Buying",
+    siteName: "InsiderBuying.com",
     type: "website",
     images: [OG_IMAGE],
   },

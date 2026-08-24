@@ -3,6 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { Activity, ArrowRight } from "lucide-react";
 import { API_BASE, BuySellMeter, fetcher, formatCurrency } from "@/lib/api";
+import { DATA_REFRESHING, useStalled } from "@/lib/useStalled";
 
 /** When `linkable` (default), the whole card links to the full month's
  *  buy/sell breakdown. Pass linkable={false} on the breakdown page itself.
@@ -16,10 +17,15 @@ export function MonthlyBuySellMeter({
   linkable?: boolean;
   fill?: boolean;
 }) {
-  const { data } = useSWR<BuySellMeter>(`${API_BASE}/metrics/buy-sell`, fetcher, {
+  const { data, error } = useSWR<BuySellMeter>(`${API_BASE}/metrics/buy-sell`, fetcher, {
     refreshInterval: 5 * 60_000,
     revalidateOnFocus: false,
   });
+  // Without data this card used to render a 50/50 bar with em-dashes, which
+  // reads as a real (and wrong) figure. Say the data is refreshing instead
+  // (developer brief Fix 2).
+  const stalled = useStalled(!!data);
+  const unavailable = !!error || stalled;
   const ratio = data ? data.ratio : 0.5;
   const buyPct = Math.round(ratio * 100);
   const sellPct = 100 - buyPct;
@@ -58,6 +64,16 @@ export function MonthlyBuySellMeter({
         )}
       </div>
 
+      {unavailable ? (
+        <div
+          className="rounded-md px-4 py-6 text-center text-[12.5px] text-mute"
+          style={{ background: "var(--bg-3)" }}
+          role="status"
+        >
+          {DATA_REFRESHING}
+        </div>
+      ) : (
+      <>
       {/* Bar gauge — colored fills below, labels pinned to the bar's outer
           edges so a narrow segment never clips its own label. */}
       <div
@@ -114,6 +130,8 @@ export function MonthlyBuySellMeter({
           </span>
         </div>
       </div>
+      </>
+      )}
     </Wrapper>
   );
 }
