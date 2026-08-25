@@ -17,4 +17,11 @@ export class InsiderAlertsController {
   run(@Query('dry') dry?: string) {
     return this.svc.run(dry === '1' || dry === 'true');
   }
+
+  /** Run the premium watchlist sweep now. `?dry=1` counts without sending. */
+  @Post('run-watchlists')
+  @UseGuards(AdminTokenGuard)
+  runWatchlists(@Query('dry') dry?: string) {
+    return this.svc.runWatchlists(dry === '1' || dry === 'true');
+  }
 }

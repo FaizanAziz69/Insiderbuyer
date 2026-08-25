@@ -1,44 +1,120 @@
 "use client";
 import useSWR from "swr";
-import { useMemo, useState } from "react";
-import { Lock } from "lucide-react";
+import { useState } from "react";
+import { Lock, Search } from "lucide-react";
 import Link from "next/link";
-import { API_BASE, TradesResponse, fetcher } from "@/lib/api";
-import { TradesTable } from "@/components/TradesTable";
+import { API_BASE, fetcher, formatCurrency, formatNumber } from "@/lib/api";
+import { CompanyLogo } from "@/components/CompanyLogo";
+import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { WatchlistButton } from "@/components/WatchlistButton";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { ToolIntro } from "@/components/ToolIntro";
 
-type RoleFilter = "" | "CEO" | "CFO" | "COO" | "Director" | "Other";
-type ValueRange = "any" | "10k" | "100k" | "1m" | "10m";
+interface ScreenerRow {
+  symbol: string;
+  name: string;
+  sector: string | null;
+  industry: string | null;
+  marketCap: number | null;
+  price: number | null;
+  volume: number | null;
+  exchange: string | null;
+  iqs: number | null;
+  buyers: number;
+  buyValue: number;
+  lastBuyDate: string | null;
+  hasCeoBuyer: boolean;
+  hasFundBuyer: boolean;
+  hasRepeatBuyer: boolean;
+  eai: number | null;
+  reportsOn: string | null;
+}
 
-const RANGE_MIN: Record<ValueRange, number> = {
-  any: 0,
-  "10k": 10000,
-  "100k": 100000,
-  "1m": 1000000,
-  "10m": 10000000,
-};
+interface ScreenerResponse {
+  total: number;
+  universe: number;
+  rows: ScreenerRow[];
+  sectors: string[];
+  updatedAt: string | null;
+}
+
+/** The setups the page promises, each backed by a rule the API applies. */
+const SETUPS: { value: string; label: string }[] = [
+  { value: "", label: "All stocks" },
+  { value: "insider-buying", label: "Insider buying" },
+  { value: "cluster-buy", label: "Cluster buys" },
+  { value: "small-cap-cluster", label: "Small-cap cluster buys" },
+  { value: "ceo-buy", label: "CEO buys" },
+  { value: "pre-earnings", label: "Pre-earnings activity" },
+];
+
+const CAPS: { value: string; label: string }[] = [
+  { value: "", label: "Any" },
+  { value: "50000000", label: "$50M+" },
+  { value: "300000000", label: "$300M+" },
+  { value: "2000000000", label: "$2B+" },
+  { value: "10000000000", label: "$10B+" },
+  { value: "100000000000", label: "$100B+" },
+];
+
+const SCORES: { value: string; label: string }[] = [
+  { value: "", label: "Any" },
+  { value: "30", label: "30+" },
+  { value: "40", label: "40+" },
+  { value: "50", label: "50+" },
+  { value: "60", label: "60+" },
+  { value: "70", label: "70+" },
+];
+
+const SORTS: { value: string; label: string }[] = [
+  { value: "iqs", label: "Insider Score" },
+  { value: "buyValue", label: "Insider $ bought" },
+  { value: "buyers", label: "Number of buyers" },
+  { value: "marketCap", label: "Market cap" },
+  { value: "price", label: "Price" },
+  { value: "symbol", label: "Ticker (A–Z)" },
+];
+
+const PAGE = 50;
 
 export default function ScreenerPage() {
-  const [role, setRole] = useState<RoleFilter>("");
-  const [value, setValue] = useState<ValueRange>("any");
-  const [days, setDays] = useState(30);
+  const [setup, setSetup] = useState("");
+  const [sector, setSector] = useState("");
+  const [exchange, setExchange] = useState("");
+  const [minMarketCap, setMinMarketCap] = useState("");
+  const [maxMarketCap, setMaxMarketCap] = useState("");
+  const [minIqs, setMinIqs] = useState("");
+  const [sort, setSort] = useState("iqs");
+  const [dir, setDir] = useState("desc");
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(0);
 
-  const { data, isLoading } = useSWR<TradesResponse>(
-    `${API_BASE}/trades?limit=500`,
+  const params = new URLSearchParams();
+  if (setup) params.set("setup", setup);
+  if (sector) params.set("sector", sector);
+  if (exchange) params.set("exchange", exchange);
+  if (minMarketCap) params.set("minMarketCap", minMarketCap);
+  if (maxMarketCap) params.set("maxMarketCap", maxMarketCap);
+  if (minIqs) params.set("minIqs", minIqs);
+  if (q.trim()) params.set("q", q.trim());
+  params.set("sort", sort);
+  params.set("dir", dir);
+  params.set("limit", String(PAGE));
+  params.set("offset", String(page * PAGE));
+
+  const { data, isLoading } = useSWR<ScreenerResponse>(
+    `${API_BASE}/screener?${params.toString()}`,
     fetcher,
+    { keepPreviousData: true, revalidateOnFocus: false },
   );
 
-  const filtered = useMemo(() => {
-    if (!data) return [];
-    const since = new Date(Date.now() - days * 86400 * 1000);
-    return data.rows.filter((r) => {
-      if (role && r.role !== role) return false;
-      if (RANGE_MIN[value] && r.totalValue < RANGE_MIN[value]) return false;
-      if (new Date(r.transactionDate) < since) return false;
-      return true;
-    });
-  }, [data, role, value, days]);
+  const rows = data?.rows || [];
+  const total = data?.total ?? 0;
+  // Any control change invalidates the current page offset.
+  const reset = <T,>(set: (v: T) => void) => (v: T) => {
+    setPage(0);
+    set(v);
+  };
 
   return (
     <div className="space-y-6 w-full">
@@ -55,69 +131,193 @@ export default function ScreenerPage() {
         </Link>
       </header>
 
-      <div className="card p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <Field label="Date range">
-          <select
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
-            className="input-base"
-          >
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-            <option value={180}>Last 180 days</option>
-          </select>
-        </Field>
-        <Field label="Insider role">
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as RoleFilter)}
-            className="input-base"
-          >
-            <option value="">Any</option>
-            <option value="CEO">CEO</option>
-            <option value="CFO">CFO</option>
-            <option value="COO">COO</option>
-            <option value="Director">Director</option>
-            <option value="Other">Other</option>
-          </select>
-        </Field>
-        <Field label="Min trade value">
-          <select
-            value={value}
-            onChange={(e) => setValue(e.target.value as ValueRange)}
-            className="input-base"
-          >
-            <option value="any">Any</option>
-            <option value="10k">$10k+</option>
-            <option value="100k">$100k+</option>
-            <option value="1m">$1M+</option>
-            <option value="10m">$10M+</option>
-          </select>
-        </Field>
-        <Field label="Track record">
-          {/* Inert control. It used to read "Premium", which promised a filter a
-              subscription does not deliver — the filter isn't built yet (client
-              free/paid accuracy audit). Labelled for what it is. */}
-          <div className="input-base flex items-center gap-2 text-mute cursor-not-allowed">
-            <Lock className="h-3.5 w-3.5" />
-            Coming soon
+      <div className="card p-4 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <Field label="Setup">
+            <select value={setup} onChange={(e) => reset(setSetup)(e.target.value)} className="input-base">
+              {SETUPS.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Sector">
+            <select value={sector} onChange={(e) => reset(setSector)(e.target.value)} className="input-base">
+              <option value="">Any sector</option>
+              {(data?.sectors || []).map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Market cap (min)">
+            <select value={minMarketCap} onChange={(e) => reset(setMinMarketCap)(e.target.value)} className="input-base">
+              {CAPS.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Market cap (max)">
+            <select value={maxMarketCap} onChange={(e) => reset(setMaxMarketCap)(e.target.value)} className="input-base">
+              {CAPS.map((c) => (
+                <option key={c.value} value={c.value}>{c.label === "Any" ? "Any" : c.label.replace("+", " or less")}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Min Insider Score">
+            <select value={minIqs} onChange={(e) => reset(setMinIqs)(e.target.value)} className="input-base">
+              {SCORES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Exchange">
+            <select value={exchange} onChange={(e) => reset(setExchange)(e.target.value)} className="input-base">
+              <option value="">Any</option>
+              <option value="NASDAQ">NASDAQ</option>
+              <option value="NYSE">NYSE</option>
+              <option value="AMEX">AMEX</option>
+              <option value="OTC">OTC</option>
+            </select>
+          </Field>
+          <Field label="Sort by">
+            <select value={sort} onChange={(e) => reset(setSort)(e.target.value)} className="input-base">
+              {SORTS.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Search">
+            <div className="input-base flex items-center gap-2">
+              <Search className="h-3.5 w-3.5 text-mute flex-shrink-0" />
+              <input
+                value={q}
+                onChange={(e) => reset(setQ)(e.target.value)}
+                placeholder="Ticker or company"
+                className="bg-transparent outline-none w-full text-[13px]"
+                style={{ color: "var(--text)" }}
+              />
+            </div>
+          </Field>
+        </div>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="text-xs text-mute">
+            {isLoading && !data
+              ? "Loading…"
+              : `${formatNumber(total)} match${total === 1 ? "" : "es"} from ${formatNumber(data?.universe ?? 0)} stocks`}
           </div>
-        </Field>
+          <button
+            onClick={() => setDir(dir === "desc" ? "asc" : "desc")}
+            className="text-xs font-semibold text-accent hover:underline"
+          >
+            {dir === "desc" ? "Highest first" : "Lowest first"}
+          </button>
+        </div>
       </div>
 
-      <div className="text-xs text-mute">
-        {isLoading ? "Loading…" : `${filtered.length} match${filtered.length === 1 ? "" : "es"}`}
-      </div>
-
-      {isLoading || !data ? (
-        <div className="card p-12 text-center text-mute">Loading…</div>
-      ) : filtered.length === 0 ? (
-        <div className="card p-12 text-center text-mute">No trades match your filters.</div>
+      {isLoading && !data ? (
+        <div className="card p-12 text-center text-mute">Loading the universe…</div>
+      ) : rows.length === 0 ? (
+        <div className="card p-12 text-center text-mute">No stocks match these filters.</div>
       ) : (
-        <TradesTable trades={filtered} total={filtered.length} />
+        <div className="card overflow-x-auto">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                <Th>Company</Th>
+                <Th>Insider Score</Th>
+                <Th align="right">Buyers</Th>
+                <Th align="right">Insider $ bought</Th>
+                <Th align="right">Market cap</Th>
+                <Th align="right">Price</Th>
+                <Th>Sector</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.symbol} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <td className="px-3 py-2.5">
+                    <span className="inline-flex items-center gap-2">
+                      <WatchlistButton ticker={r.symbol} variant="icon" size="sm" />
+                      <Link href={`/companies/${encodeURIComponent(r.symbol)}`} className="flex items-center gap-2">
+                        <CompanyLogo ticker={r.symbol} name={r.name} size={22} />
+                        <span className="min-w-0">
+                          <span className="block font-mono text-[14px] font-bold text-accent hover:underline">
+                            {r.symbol}
+                          </span>
+                          <span className="block text-[12px] truncate max-w-[200px]" style={{ color: "var(--text)" }}>
+                            {r.name}
+                          </span>
+                        </span>
+                      </Link>
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5"><IqsScoreCell iqs={r.iqs} /></td>
+                  <td className="px-3 py-2.5 text-right tabular font-bold">
+                    {r.buyers || "—"}
+                    {r.hasCeoBuyer && (
+                      <span
+                        className="ml-1.5 rounded px-1 py-0.5 text-[10px] font-bold align-middle"
+                        style={{ background: "var(--bg-3)", color: "var(--text-soft)" }}
+                        title="A CEO is among the buyers"
+                      >
+                        CEO
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular font-bold text-good">
+                    {r.buyValue ? formatCurrency(r.buyValue) : "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular text-mute font-bold">
+                    {r.marketCap ? formatCurrency(r.marketCap) : "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular font-bold">
+                    {r.price != null ? `$${r.price.toFixed(2)}` : "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-[12px] text-mute">
+                    {r.sector || "—"}
+                    {r.reportsOn && (
+                      <span className="block text-[11px] text-faint">Reports {r.reportsOn}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {total > PAGE && (
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="btn-secondary disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <span className="text-xs text-mute tabular">
+            {page * PAGE + 1}–{Math.min((page + 1) * PAGE, total)} of {formatNumber(total)}
+          </span>
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            disabled={(page + 1) * PAGE >= total}
+            className="btn-secondary disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
       )}
     </div>
+  );
+}
+
+function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
+  return (
+    <th
+      className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap"
+      style={{ color: "var(--text-mute)", textAlign: align }}
+    >
+      {children}
+    </th>
   );
 }
 

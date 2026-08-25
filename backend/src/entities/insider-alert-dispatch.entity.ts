@@ -14,14 +14,20 @@ import {
  * and a missed hour still gets picked up on the next pass.
  */
 @Entity('insider_alert_dispatch')
+@Index(['transactionId', 'channel'], { unique: true })
 export class InsiderAlertDispatch {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  /** insider_transactions.id — the unit of deduplication. */
-  @Index({ unique: true })
+  /** insider_transactions.id — half of the deduplication key. */
   @Column({ type: 'uuid' })
   transactionId!: string;
+
+  /** Who this filing went to: 'broadcast' for the public IQS Alert digest, or
+   *  a user id for a watchlist alert. A filing can legitimately reach both, so
+   *  uniqueness is per (filing, channel) rather than per filing. */
+  @Column({ type: 'varchar', length: 64, default: 'broadcast' })
+  channel!: string;
 
   @Column({ type: 'varchar', length: 16, nullable: true })
   ticker!: string | null;

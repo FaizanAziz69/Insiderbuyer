@@ -41,6 +41,9 @@ export interface FmpScreenerRow {
   industry: string | null;
   marketCap: number | null;
   exchange: string | null;
+  /** Last price and session volume — the screener filters and sorts on both. */
+  price: number | null;
+  volume: number | null;
 }
 
 /**
@@ -1228,6 +1231,8 @@ export class FmpService {
               industry: r.industry || null,
               marketCap: Number(r.marketCap) || null,
               exchange: r.exchangeShortName || r.exchange || null,
+              price: this.num(r.price),
+              volume: this.num(r.volume),
             });
           }
           if (map.size) this.screenerCache.set(key, { ts: Date.now(), map });

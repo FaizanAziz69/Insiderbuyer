@@ -1,7 +1,7 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Star, X } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
@@ -12,6 +12,9 @@ import { PremiumValue } from "@/components/premium/PremiumValue";
 import { StockSearch } from "@/components/nav/StockSearch";
 import { rankColumn } from "@/components/tableColumns";
 import { useWatchlist } from "@/lib/watchlist";
+import { useAuth } from "@/lib/auth";
+import { LoginModal } from "@/components/LoginModal";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { ToolIntro } from "@/components/ToolIntro";
 
 interface Quote {
@@ -48,7 +51,9 @@ function fmtVol(v: number | null): string {
 const SUGGESTIONS = ["AAPL", "NVDA", "TSLA", "MSFT", "AMZN", "META", "GOOGL", "AMD"];
 
 export default function WatchlistPage() {
-  const { tickers, add, remove } = useWatchlist();
+  const { tickers, add, remove, alertsEnabled } = useWatchlist();
+  const { user } = useAuth();
+  const [loginOpen, setLoginOpen] = useState(false);
 
   // Live quotes for the saved tickers — refreshed every 20s.
   const key = tickers.length
@@ -277,6 +282,34 @@ export default function WatchlistPage() {
         <ToolIntro tagline="Your stocks. Scored by insiders. Monitored 24/7.">
           Add any stock to your watchlist and InsiderBuying.com tracks the insider activity on your behalf. The moment an insider files a Form 4 on a stock you’re watching, we score the transaction and — for premium subscribers — send you an alert within hours. This is how informed investors stay ahead.
         </ToolIntro>
+        {/* Whether the alert half of that promise is actually on for this
+            reader — signed out there is no account to alert. */}
+        <div className="mt-2 text-[12.5px]">
+          {alertsEnabled ? (
+            <span className="font-semibold" style={{ color: "var(--good)" }}>
+              ● Alerts on — we email you within hours of a Form 4 on these stocks.
+            </span>
+          ) : user ? (
+            <span className="text-mute">
+              Alerts are a premium feature.{" "}
+              <Link href={SUBSCRIBE_HREF} className="font-semibold text-accent hover:underline">
+                Upgrade to get them by email
+              </Link>
+              .
+            </span>
+          ) : (
+            <span className="text-mute">
+              <button
+                onClick={() => setLoginOpen(true)}
+                className="font-semibold text-accent hover:underline"
+              >
+                Sign in
+              </button>{" "}
+              to sync this list to your account and receive alerts.
+            </span>
+          )}
+        </div>
+        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
       </header>
 
       {/* Add by ticker OR company name — typeahead search (e.g. "goo" → GOOGL) */}

@@ -3,14 +3,19 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { InsiderTransaction } from '../entities/insider-transaction.entity';
 import { InsiderAlertDispatch } from '../entities/insider-alert-dispatch.entity';
 import { Subscriber } from '../entities/subscriber.entity';
+import { User } from '../entities/user.entity';
 import { IqsModule } from '../iqs/iqs.module';
+import { BillingModule } from '../billing/billing.module';
+import { WatchlistModule } from '../watchlist/watchlist.module';
 import { InsiderAlertsController } from './insider-alerts.controller';
 import { InsiderAlertsService } from './insider-alerts.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([InsiderTransaction, InsiderAlertDispatch, Subscriber]),
+    TypeOrmModule.forFeature([InsiderTransaction, InsiderAlertDispatch, Subscriber, User]),
     IqsModule,
+    BillingModule,
+    WatchlistModule,
   ],
   controllers: [InsiderAlertsController],
   providers: [InsiderAlertsService],

@@ -6,7 +6,10 @@ import axios from 'axios';
 import { InsiderTransaction } from '../entities/insider-transaction.entity';
 import { InsiderAlertDispatch } from '../entities/insider-alert-dispatch.entity';
 import { Subscriber } from '../entities/subscriber.entity';
+import { User } from '../entities/user.entity';
 import { IqsService } from '../iqs/iqs.service';
+import { BillingService } from '../billing/billing.service';
+import { WatchlistService } from '../watchlist/watchlist.service';
 
 /**
  * IQS Alerts — the email delivery the /alerts page promises: "IQS Alerts
@@ -24,6 +27,8 @@ const LOOKBACK_HOURS = 24;
 const MAX_ITEMS = 25;
 const BIG_BUY_USD = 1_000_000;
 const EXEC_ROLES = /(chief executive|chief financial|\bceo\b|\bcfo\b)/i;
+/** Dedupe channel for the public digest; watchlist alerts use the user id. */
+const BROADCAST = 'broadcast';
 
 export interface AlertItem {
   transactionId: string;
@@ -52,7 +57,11 @@ export class InsiderAlertsService {
     private readonly dispatch: Repository<InsiderAlertDispatch>,
     @InjectRepository(Subscriber)
     private readonly subscribers: Repository<Subscriber>,
+    @InjectRepository(User)
+    private readonly users: Repository<User>,
     private readonly iqs: IqsService,
+    private readonly billing: BillingService,
+    private readonly watchlist: WatchlistService,
   ) {}
 
   /** Resend is configured AND sending has been switched on for alerts. */
@@ -64,6 +73,9 @@ export class InsiderAlertsService {
   @Cron('11 * * * *')
   async hourly() {
     await this.run().catch((e) => this.log.error(`IQS alert sweep: ${e?.message || e}`));
+    await this.runWatchlists().catch((e) =>
+      this.log.error(`Watchlist alert sweep: ${e?.message || e}`),
+    );
   }
 
   /**
@@ -123,12 +135,20 @@ export class InsiderAlertsService {
           this.log.warn(`IQS alert to ${email} failed: ${e?.message || e}`);
         }
       }
-      // Record once per filing regardless of per-recipient failures — a partial
-      // send must not re-mail everyone on the next pass.
+      // A total failure (Resend down, key revoked) must not burn the filings:
+      // with nothing recorded they are picked up again next hour.
+      if (!sent) {
+        this.lastRunAt = new Date();
+        this.log.warn(`IQS alerts: all ${recipients.length} sends failed — nothing recorded.`);
+        return { found: items.length, sent: 0, recipients: 0, skipped: 'all sends failed', items };
+      }
+      // Otherwise record once per filing: a partial send must not re-mail
+      // everyone on the next pass.
       await this.dispatch.save(
         items.map((i) =>
           this.dispatch.create({
             transactionId: i.transactionId,
+            channel: BROADCAST,
             ticker: i.ticker,
             iqs: i.iqs,
             recipients: sent,
@@ -143,8 +163,83 @@ export class InsiderAlertsService {
     }
   }
 
-  /** Qualifying, not-yet-alerted purchases from the last LOOKBACK_HOURS. */
-  private async collect(): Promise<AlertItem[]> {
+  /**
+   * Watchlist alerts — "the moment an insider files a Form 4 on a stock you're
+   * watching, we score the transaction and, for premium subscribers, send you
+   * an alert within hours".
+   *
+   * One email per premium user per sweep, covering every new buy across their
+   * list. Non-premium watchlists are skipped, not queued: the page sells the
+   * alert as the premium half of the feature.
+   */
+  async runWatchlists(dryRun = false): Promise<{
+    users: number;
+    eligible: number;
+    sent: number;
+    skipped: string | null;
+  }> {
+    const byUser = await this.watchlist.allByUser();
+    if (!byUser.size) return { users: 0, eligible: 0, sent: 0, skipped: null };
+
+    const users = await this.users.find({ where: { id: In(Array.from(byUser.keys())) } });
+    const premium = users.filter((u) => this.billing.isPremium(u) && !!u.email);
+    if (!premium.length) {
+      return { users: byUser.size, eligible: 0, sent: 0, skipped: 'no premium watchers' };
+    }
+    if (!dryRun && !this.sendingEnabled) {
+      return {
+        users: byUser.size,
+        eligible: premium.length,
+        sent: 0,
+        skipped: 'sending disabled (INSIDER_ALERT_EMAILS)',
+      };
+    }
+
+    let sent = 0;
+    for (const user of premium) {
+      const tickers = new Set(byUser.get(user.id) || []);
+      if (!tickers.size) continue;
+      const items = await this.collect(user.id, tickers);
+      // collect() also lets exec/$1M buys through on unwatched names; a
+      // watchlist email must only ever be about the user's own list.
+      const mine = items.filter((i) => i.ticker && tickers.has(i.ticker));
+      if (!mine.length) continue;
+      if (dryRun) {
+        sent++;
+        continue;
+      }
+      const subject =
+        mine.length === 1
+          ? `Watchlist alert: insider buying at ${mine[0].ticker}`
+          : `Watchlist alert: insider buying at ${mine.length} of your stocks`;
+      try {
+        await this.send(user.email, subject, this.renderDigest(mine, 'watchlist'));
+        await this.dispatch.save(
+          mine.map((i) =>
+            this.dispatch.create({
+              transactionId: i.transactionId,
+              channel: user.id,
+              ticker: i.ticker,
+              iqs: i.iqs,
+              recipients: 1,
+            }),
+          ),
+        );
+        sent++;
+      } catch (e: any) {
+        this.log.warn(`Watchlist alert to ${user.email} failed: ${e?.message || e}`);
+      }
+    }
+    if (sent) this.log.log(`Watchlist alerts: ${sent} premium subscribers mailed.`);
+    return { users: byUser.size, eligible: premium.length, sent, skipped: null };
+  }
+
+  /**
+   * Purchases from the last LOOKBACK_HOURS not yet sent on `channel`.
+   * `tickers` narrows to a watchlist; without it the public exec/$1M rules
+   * decide what qualifies.
+   */
+  private async collect(channel = BROADCAST, tickers?: Set<string>): Promise<AlertItem[]> {
     const since = new Date(Date.now() - LOOKBACK_HOURS * 3_600_000);
     const rows = await this.txRepo.find({
       where: { createdAt: MoreThan(since), transactionCode: 'P' },
@@ -157,7 +252,7 @@ export class InsiderAlertsService {
     const alreadySent = new Set(
       (
         await this.dispatch.find({
-          where: { transactionId: In(rows.map((r) => r.id)) },
+          where: { transactionId: In(rows.map((r) => r.id)), channel },
           select: { transactionId: true },
         })
       ).map((d) => d.transactionId),
@@ -179,7 +274,12 @@ export class InsiderAlertsService {
       const roleText = `${t.role || ''} ${t.rawTitle || ''}`;
       const isExec = EXEC_ROLES.test(roleText);
       const isBig = value >= BIG_BUY_USD;
-      if (!isExec && !isBig) continue;
+      const watched = tickers
+        ? tickers.has((t.company?.ticker || '').toUpperCase())
+        : false;
+      // A watchlist alert fires on ANY Form 4 buy in the list — that is the
+      // promise. The public digest keeps the exec/$1M bar.
+      if (!watched && !isExec && !isBig) continue;
       // "when the highest-conviction insider buys hit EDGAR" — EDGAR is the
       // SEC's system, so a German or Canadian listing in the feed is not an
       // EDGAR filing and does not belong in this email.
@@ -248,8 +348,9 @@ export class InsiderAlertsService {
     );
   }
 
-  private renderDigest(items: AlertItem[]): string {
+  private renderDigest(items: AlertItem[], mode: 'broadcast' | 'watchlist' = 'broadcast'): string {
     const site = process.env.SITE_URL || 'https://insiderbuying.com';
+    const watch = mode === 'watchlist';
     const card = (i: AlertItem) => `
       <tr><td style="padding:14px 0;border-top:1px solid #e5e5e5;">
         <div style="font-size:15px;font-weight:800;color:#111;">
@@ -267,15 +368,22 @@ export class InsiderAlertsService {
       </td></tr>`;
     return `
       <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#111;">
-        <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#888;">IQS Alerts</div>
-        <h1 style="font-size:22px;margin:6px 0 4px;">${items.length} new high-conviction insider ${items.length === 1 ? 'buy' : 'buys'}</h1>
+        <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#888;">${watch ? 'Watchlist Alert' : 'IQS Alerts'}</div>
+        <h1 style="font-size:22px;margin:6px 0 4px;">${
+          watch
+            ? `Insider buying on ${items.length === 1 ? 'a stock' : `${items.length} stocks`} you're watching`
+            : `${items.length} new high-conviction insider ${items.length === 1 ? 'buy' : 'buys'}`
+        }</h1>
         <p style="font-size:14px;color:#555;margin:0 0 8px;">
           Filed with the SEC in the last few hours, scored the moment they landed.
         </p>
         <table style="width:100%;border-collapse:collapse;">${items.map(card).join('')}</table>
         <p style="font-size:12px;color:#888;margin-top:22px;line-height:1.6;">
-          You are receiving this because you signed up for insider alerts at
-          <a href="${site}/alerts" style="color:#888;">insiderbuying.com/alerts</a>.
+          ${
+            watch
+              ? `You are receiving this because these stocks are on your <a href="${site}/watchlist" style="color:#888;">watchlist</a>.`
+              : `You are receiving this because you signed up for insider alerts at <a href="${site}/alerts" style="color:#888;">insiderbuying.com/alerts</a>.`
+          }
           Informational only — not financial advice.
         </p>
       </div>`;
@@ -305,6 +413,7 @@ export class InsiderAlertsService {
       lastRunAt: this.lastRunAt,
       filingsAlerted: dispatched,
       recipients: (await this.recipients()).length,
+      watchers: (await this.watchlist.allByUser()).size,
       rules: { bigBuyUsd: BIG_BUY_USD, execRoles: 'CEO / CFO', lookbackHours: LOOKBACK_HOURS },
     };
   }
