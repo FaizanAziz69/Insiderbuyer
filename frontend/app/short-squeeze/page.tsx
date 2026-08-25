@@ -8,6 +8,7 @@ import { AdSlot } from "@/components/AdSlot";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
+import { ToolIntro } from "@/components/ToolIntro";
 
 interface ShortRow {
   symbol: string;
@@ -231,6 +232,9 @@ export default function ShortSqueezePage() {
         <h1 className="text-[28px] sm:text-[40px] font-semibold tracking-tight" style={{ letterSpacing: "-0.6px" }}>
           Short Squeeze List
         </h1>
+        <ToolIntro tagline="High short interest stocks where insiders are also buying — the ultimate contrarian setup.">
+          Short squeeze setups are speculative by nature. But when a heavily-shorted stock also shows meaningful insider buying, insiders are telling you something the short sellers may have wrong. This screen finds the overlap — names with both high short interest and recent IQS-scored insider purchases.
+        </ToolIntro>
         <p className="text-mute text-[14px] sm:text-[15px] mt-2 max-w-3xl leading-relaxed">
           Stocks ranked by short-squeeze potential — the short position of each stock combined
           into a single 0–100 score. A high score means a large share of the float is sold short

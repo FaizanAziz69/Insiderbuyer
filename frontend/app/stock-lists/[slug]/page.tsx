@@ -8,6 +8,7 @@ import { API_BASE, fetcher, formatDate } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
 import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
 import { PoliticiansLeaderboard } from "@/components/PoliticiansLeaderboard";
+import { ToolIntro } from "@/components/ToolIntro";
 
 interface RowLive {
   price: number;
@@ -144,7 +145,17 @@ export default function StockListDetailPage({
         >
           {data?.title || "—"}
         </h1>
-        {/* Client spec: no descriptions on stock-list pages. */}
+        {/* Client spec: no descriptions on stock-list pages — EXCEPT the
+            Warren Buffett portfolio, which the Round-2 brief (Section 5) names
+            explicitly and gives copy for. */}
+        {slug === "warren-buffett" && (
+          <ToolIntro tagline="Track every holding in Berkshire Hathaway’s 13F — updated quarterly.">
+            Warren Buffett is the world’s most followed investor for good reason. This list
+            tracks every position disclosed in Berkshire’s 13F SEC filing, updated within 48
+            hours of each quarterly publication. See what changed, what was added, and what
+            was trimmed — alongside each holding’s current IQS score.
+          </ToolIntro>
+        )}
         {data && (
           <div
             className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px]"

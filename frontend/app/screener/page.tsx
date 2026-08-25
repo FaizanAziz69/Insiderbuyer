@@ -6,6 +6,7 @@ import Link from "next/link";
 import { API_BASE, TradesResponse, fetcher } from "@/lib/api";
 import { TradesTable } from "@/components/TradesTable";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
+import { ToolIntro } from "@/components/ToolIntro";
 
 type RoleFilter = "" | "CEO" | "CFO" | "COO" | "Director" | "Other";
 type ValueRange = "any" | "10k" | "100k" | "1m" | "10m";
@@ -44,6 +45,9 @@ export default function ScreenerPage() {
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-[24px] font-bold tracking-tight">Screener</h1>
+        <ToolIntro tagline="Filter 8,000+ stocks by insider conviction score, sector, market cap, and more.">
+          The IQS Screener lets you find stocks where insiders are buying with real conviction — not just routine filings. Combine filters to surface the setups that match your investment style: small-cap cluster buys, CEO new positions, pre-earnings activity, and more.
+        </ToolIntro>
           <p className="text-mute text-sm mt-1">
             Filter open-market insider buys by role, value, and date.
           </p>

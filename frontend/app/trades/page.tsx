@@ -5,6 +5,7 @@ import { Search, Download } from "lucide-react";
 import { API_BASE, TradesResponse, fetcher } from "@/lib/api";
 import { TradesTable } from "@/components/TradesTable";
 import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
+import { ToolIntro } from "@/components/ToolIntro";
 
 export default function TradesPage() {
   const [q, setQ] = useState("");
@@ -31,6 +32,9 @@ export default function TradesPage() {
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-[24px] font-bold tracking-tight">All insider trades</h1>
+        <ToolIntro tagline="Every open-market purchase by a CEO, CFO, or director — scored, ranked, and updated in real time.">
+          When an insider buys stock in their own company with personal capital, it is the highest-conviction signal in public markets. This feed shows every qualifying transaction, scored by the Insider Quality Score (IQS) — so you can separate meaningful conviction from routine activity at a glance.
+        </ToolIntro>
           <p className="text-mute text-sm mt-1">
             Every open-market insider transaction we&rsquo;ve parsed — U.S. SEC Form 4 and
             German BaFin directors&rsquo; dealings — both purchases (BUY) and sales (SELL).

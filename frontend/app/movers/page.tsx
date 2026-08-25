@@ -19,6 +19,7 @@ import { DataTable } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
 import { AdSlot } from "@/components/AdSlot";
+import { ToolIntro } from "@/components/ToolIntro";
 
 export default function MoversPage() {
   const [exchange, setExchange] = useState<ExchangeValue>("all");
@@ -39,6 +40,9 @@ export default function MoversPage() {
         <h1 className="text-[28px] sm:text-[34px] font-bold tracking-tight">
           Biggest Insider Movers
         </h1>
+        <ToolIntro tagline="Today’s biggest stock moves — filtered through the lens of insider conviction.">
+          Price movement without context is noise. When a stock is moving up AND insiders have been buying recently, that is a very different story than a stock moving on momentum alone. This view overlays IQS scores on today’s top gainers and losers so you know which moves have the signal behind them.
+        </ToolIntro>
         <p className="text-mute text-[14px] mt-2 max-w-3xl leading-relaxed">
           The stocks seeing the most open-market insider buying right now — ranked
           by total purchase value and the number of distinct insiders, alongside

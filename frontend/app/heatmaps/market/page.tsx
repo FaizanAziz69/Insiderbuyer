@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Flame, Search, ChevronDown, Check } from "lucide-react";
 import { API_BASE, HeatQuote, RankingRow, heatToRanking, fetcher } from "@/lib/api";
 import { StockHeatmap, HeatmapLegend, ColorBy, SizeBy } from "@/components/heatmap/StockHeatmap";
+import { ToolIntro } from "@/components/ToolIntro";
 
 // Index constituent sets — we filter our universe down to each index's members.
 const DOW_30 = new Set([
@@ -122,6 +123,9 @@ export default function MarketHeatmapPage() {
         <h1 className="text-[28px] sm:text-[34px] font-bold tracking-tight" style={{ letterSpacing: "-0.5px" }}>
           U.S. Stock Market Heat Map
         </h1>
+        <ToolIntro tagline="The market at a glance — overlaid with insider conviction where it matters.">
+          Every cell in this heatmap represents a public company. Color shows today’s price performance. Size shows market cap. Filter by sector to find where the money is moving — and toggle the IQS overlay to see which of today’s movers have insider conviction behind the price action.
+        </ToolIntro>
         <p className="text-mute text-[14px] sm:text-[15px] mt-2 max-w-3xl leading-relaxed">
           A live visualization of the U.S. market, grouped by sector. Each tile&rsquo;s size reflects
           market capitalization and its color reflects the price change — green for gains, red for

@@ -10,6 +10,7 @@ import { AdSlot } from "@/components/AdSlot";
 import { DataTable } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
+import { ToolIntro } from "@/components/ToolIntro";
 
 interface CongressTrade {
   id: string;
@@ -99,6 +100,9 @@ export default function CongressionalPage() {
         >
           Congressional & Insider Trading
         </h1>
+        <ToolIntro tagline="What your elected officials are buying and selling — before the public knows why.">
+          Members of Congress are required to disclose their stock trades within 45 days of the transaction. InsiderBuying.com publishes every disclosed trade, updated as filings arrive, with each member’s committee assignments — so you can see what they are buying in the sectors they regulate.
+        </ToolIntro>
         <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
           U.S. House and Senate members are required to disclose their equity trades
           under the STOCK Act within 45 days — though amendments and late filings mean

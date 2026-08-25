@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { AdSlot } from "@/components/AdSlot";
+import { ToolIntro } from "@/components/ToolIntro";
 
 const BIG_BUY = 1_000_000; // $1M+ counts as a "big buy" alert
 type Filter = "all" | "exec" | "big";
@@ -74,6 +75,9 @@ export default function AlertsPage() {
         <h1 className="text-[28px] sm:text-[34px] font-bold tracking-tight">
           Insider Trade Alerts
         </h1>
+        <ToolIntro tagline="Real-time notifications when the highest-conviction insider buys hit EDGAR.">
+          Most investors see insider buying news days or weeks after it happens. IQS Alerts deliver the signal to your inbox within hours of an EDGAR filing — with the IQS score, the dollar amount, and what it means. The only alert service that scores the quality of the signal, not just the transaction.
+        </ToolIntro>
         <p className="text-mute text-[14px] mt-2 max-w-3xl leading-relaxed">
           A live, high-signal feed of the insider buys worth knowing about —
           CEO/CFO/COO purchases and large ($1M+) open-market buys, newest first,
