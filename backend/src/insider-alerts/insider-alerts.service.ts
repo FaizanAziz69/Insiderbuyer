@@ -31,7 +31,10 @@ const EXEC_ROLES = /(chief executive|chief financial|\bceo\b|\bcfo\b)/i;
 const BROADCAST = 'broadcast';
 
 export interface AlertItem {
-  transactionId: string;
+  /** Every insider_transactions row this alert covers — a single Form 4 often
+   *  reports one purchase across several lines, and the reader wants one alert
+   *  with the full amount, not one per line. */
+  transactionIds: string[];
   ticker: string | null;
   companyName: string;
   insiderName: string;
@@ -145,14 +148,16 @@ export class InsiderAlertsService {
       // Otherwise record once per filing: a partial send must not re-mail
       // everyone on the next pass.
       await this.dispatch.save(
-        items.map((i) =>
-          this.dispatch.create({
-            transactionId: i.transactionId,
-            channel: BROADCAST,
-            ticker: i.ticker,
-            iqs: i.iqs,
-            recipients: sent,
-          }),
+        items.flatMap((i) =>
+          i.transactionIds.map((transactionId) =>
+            this.dispatch.create({
+              transactionId,
+              channel: BROADCAST,
+              ticker: i.ticker,
+              iqs: i.iqs,
+              recipients: sent,
+            }),
+          ),
         ),
       );
       this.lastRunAt = new Date();
@@ -215,14 +220,16 @@ export class InsiderAlertsService {
       try {
         await this.send(user.email, subject, this.renderDigest(mine, 'watchlist'));
         await this.dispatch.save(
-          mine.map((i) =>
-            this.dispatch.create({
-              transactionId: i.transactionId,
-              channel: user.id,
-              ticker: i.ticker,
-              iqs: i.iqs,
-              recipients: 1,
-            }),
+          mine.flatMap((i) =>
+            i.transactionIds.map((transactionId) =>
+              this.dispatch.create({
+                transactionId,
+                channel: user.id,
+                ticker: i.ticker,
+                iqs: i.iqs,
+                recipients: 1,
+              }),
+            ),
           ),
         );
         sent++;
@@ -288,7 +295,7 @@ export class InsiderAlertsService {
       const iqs = ticker && iqsByTicker.has(ticker) ? Math.round(iqsByTicker.get(ticker)!) : null;
       const tags = [isExec ? 'EXEC BUY' : null, isBig ? 'BIG BUY' : null].filter(Boolean) as string[];
       items.push({
-        transactionId: t.id,
+        transactionIds: [t.id],
         ticker,
         companyName: t.company?.name || ticker || '—',
         insiderName: t.insiderName,
@@ -300,9 +307,38 @@ export class InsiderAlertsService {
         tags,
         meaning: this.meaning({ isExec, isBig, iqs, value }),
       });
-      if (items.length >= MAX_ITEMS) break;
+      // Collect generously and cap AFTER merging — several lines can collapse
+      // into one alert, and the cap is meant to bound the email, not the scan.
+      if (items.length >= MAX_ITEMS * 6) break;
     }
-    return items;
+    return this.mergeLines(items).slice(0, MAX_ITEMS);
+  }
+
+  /** Collapse the Form 4 lines of one insider's purchase on one day into a
+   *  single alert carrying the combined dollar amount. */
+  private mergeLines(items: AlertItem[]): AlertItem[] {
+    const byPurchase = new Map<string, AlertItem>();
+    for (const i of items) {
+      const key = `${i.ticker || i.companyName}|${i.insiderName}|${i.transactionDate}`;
+      const seen = byPurchase.get(key);
+      if (!seen) {
+        byPurchase.set(key, { ...i, transactionIds: [...i.transactionIds] });
+        continue;
+      }
+      seen.transactionIds.push(...i.transactionIds);
+      seen.value += i.value;
+      // The combined total can cross the $1M line even when no single line did.
+      if (seen.value >= BIG_BUY_USD && !seen.tags.includes('BIG BUY')) {
+        seen.tags.push('BIG BUY');
+      }
+      seen.meaning = this.meaning({
+        isExec: seen.tags.includes('EXEC BUY'),
+        isBig: seen.value >= BIG_BUY_USD,
+        iqs: seen.iqs,
+        value: seen.value,
+      });
+    }
+    return Array.from(byPurchase.values());
   }
 
   /** The "what it means" line the page promises beside every alert. */
