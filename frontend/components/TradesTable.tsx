@@ -7,6 +7,7 @@ import { InsiderAvatar } from "@/components/InsiderAvatar";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { TradeRow, formatCurrency, formatDate, formatNumber } from "@/lib/api";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 const ROLE_CLS: Record<string, string> = {
   CEO: "badge badge-gold",
@@ -201,7 +202,7 @@ export function TradesTable({
           <div className="text-xs text-mute mb-3">
             Unlock the full table, screener, real-time alerts, and AI insights.
           </div>
-          <Link href="/premium" className="btn-primary">
+          <Link href={SUBSCRIBE_HREF} className="btn-primary">
             Unlock all →
           </Link>
         </div>

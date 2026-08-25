@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { Github, Mail, Twitter } from "lucide-react";
 import { Logo } from "./Logo";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -100,7 +101,7 @@ export function Footer() {
               {/* "Reports & Features" and "About Us" removed 2026-08-21 (client:
                   wrong content on those pages, "remove for now") — restore the
                   two <li>s when the pages are rewritten. */}
-              <li><Link href="/premium" className="text-soft hover:text-accent transition">Insider Access</Link></li>
+              <li><Link href={SUBSCRIBE_HREF} className="text-soft hover:text-accent transition">Insider Access</Link></li>
               <li><Link href="/business" className="text-soft hover:text-accent transition">For Business / API</Link></li>
               <li><Link href="/contact" className="text-soft hover:text-accent transition">Contact Us</Link></li>
             </ul>

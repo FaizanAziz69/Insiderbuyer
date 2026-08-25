@@ -14,6 +14,7 @@ import {
 import { InsiderAvatar } from "@/components/InsiderAvatar";
 import { OptInModal } from "@/components/OptInModal";
 import { usePremium } from "@/components/premium/PremiumContext";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 /** A single insider activity the widget cycles through. */
 export interface InsiderActivity {
@@ -669,7 +670,7 @@ export function InsiderActivityToast({
         }}
         onSubscribed={() => {
           setOptInOpen(false);
-          router.push("/premium");
+          router.push(SUBSCRIBE_HREF);
         }}
       />
     </>

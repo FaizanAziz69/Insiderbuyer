@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Compass } from "lucide-react";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 interface Topic {
   href: string;
@@ -53,7 +54,7 @@ const TOPICS: Topic[] = [
       "Daily insider purchase volume over 7 / 30 / 90 / 180 / 365 days.",
   },
   {
-    href: "/premium",
+    href: SUBSCRIBE_HREF,
     // Was "Premium AI analysis" + an anomaly-detection promise that no shipped
     // page delivers (client free/paid accuracy audit). Sells the real product.
     title: "Insider Access",

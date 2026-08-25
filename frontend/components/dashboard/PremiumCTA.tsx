@@ -2,6 +2,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Sparkles, ArrowRight } from "lucide-react";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 export function PremiumCTA() {
   return (
@@ -50,7 +51,7 @@ export function PremiumCTA() {
             analysis.
           </p>
         </div>
-        <Link href="/premium" className="btn-primary self-start sm:self-auto whitespace-nowrap">
+        <Link href={SUBSCRIBE_HREF} className="btn-primary self-start sm:self-auto whitespace-nowrap">
           Unlock Insider Access
           <ArrowRight className="h-4 w-4" />
         </Link>

@@ -26,6 +26,7 @@ import { API_BASE } from "@/lib/api";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { effectiveZoom } from "@/lib/zoom";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 const archivo = Archivo({ subsets: ["latin"], weight: ["600", "800", "900"], variable: "--bm-head" });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--bm-mono" });
@@ -1055,7 +1056,7 @@ function ProfilePanel({
                 {c.iq != null && <span className="bm-val-sub">/100</span>}
               </div>
             ) : (
-              <Link href="/premium" className="bm-val bm-locked" aria-label="Unlock Insider Score">
+              <Link href={SUBSCRIBE_HREF} className="bm-val bm-locked" aria-label="Unlock Insider Score">
                 <span className="bm-blur">88</span>
                 <Lock size={13} strokeWidth={2.5} />
               </Link>

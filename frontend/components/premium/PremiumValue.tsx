@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Lock } from "lucide-react";
 import { usePremium } from "./PremiumContext";
 import { PRODUCT_NAME, UnlockButton } from "./PaywallCta";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 /**
  * Gates a single premium value in place — an Insider Score, a potential-upside
@@ -44,7 +45,7 @@ export function PremiumValue({
       </span>
       <span className="sr-only">{label} — included with {PRODUCT_NAME}</span>
       <Link
-        href="/premium"
+        href={SUBSCRIBE_HREF}
         aria-label={`Unlock ${label}`}
         className="absolute inset-0 flex items-center justify-center"
       >

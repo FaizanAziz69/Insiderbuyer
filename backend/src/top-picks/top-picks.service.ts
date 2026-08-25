@@ -6,6 +6,7 @@ import { InsiderTransaction } from '../entities/insider-transaction.entity';
 import { Subscriber } from '../entities/subscriber.entity';
 import { plausibleTxSql } from '../iqs/tx-sanity';
 import { BillingService } from '../billing/billing.service';
+import { ActiveCampaignService } from '../subscribers/activecampaign.service';
 import { renderTopPicksPdf } from './report-pdf';
 
 /** One row of the $3 report: a stock trading BELOW the average price the
@@ -37,12 +38,14 @@ const LOOKBACK_DAYS = 180;
 const MAX_DISCOUNT_PCT = 60;
 const MIN_DISCOUNT_PCT = 2;
 const MIN_TOTAL_VALUE = 100_000;
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 @Injectable()
 export class TopPicksService {
   private readonly logger = new Logger(TopPicksService.name);
-  private cache: { ts: number; rows: TopPick[] } | null = null;
+  /** Keyed by calendar month: the brief says the report "updates monthly", so
+   *  a month's report is fixed once computed and only rebuilt when the month
+   *  turns over. Every buyer inside a month therefore gets the same document. */
+  private cache: { month: string; rows: TopPick[] } | null = null;
 
   constructor(
     @InjectRepository(InsiderTransaction)
@@ -50,14 +53,16 @@ export class TopPicksService {
     @InjectRepository(Subscriber)
     private readonly subscribers: Repository<Subscriber>,
     private readonly billing: BillingService,
+    private readonly activeCampaign: ActiveCampaignService,
   ) {}
 
   /** The report itself: stocks where the live price is below the weighted
    *  average price insiders paid in the last 180 days, ranked by Insider
-   *  Score. Cached 6h — the underlying scores move once a day. */
+   *  Score. Rebuilt once a calendar month (brief: "This updates monthly"). */
   async getPicks(limit = 10): Promise<TopPick[]> {
+    const month = new Date().toISOString().slice(0, 7); // YYYY-MM
     const hit = this.cache;
-    if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.rows.slice(0, limit);
+    if (hit && hit.month === month) return hit.rows.slice(0, limit);
 
     const rows = await this.txs.query(
       `
@@ -155,7 +160,8 @@ export class TopPicksService {
       .filter((p) => p.discountPct >= MIN_DISCOUNT_PCT && p.discountPct <= MAX_DISCOUNT_PCT)
       .slice(0, 10);
 
-    this.cache = { ts: Date.now(), rows: picks };
+    this.cache = { month, rows: picks };
+    this.logger.log(`Top-picks report built for ${month}: ${picks.length} stocks`);
     return picks.slice(0, limit);
   }
 
@@ -233,6 +239,9 @@ export class TopPicksService {
 
   /** Upsert the lead with its funnel tag. `source` is our CRM tag field. */
   private async tagSubscriber(email: string, source: string): Promise<void> {
+    // Brief: 'purchased:$3-report' is the highest-intent list on the site, so
+    // it goes to the CRM as well as our own table.
+    this.activeCampaign.syncContact(email, source).catch(() => undefined);
     const existing = await this.subscribers.findOne({ where: { email } });
     if (existing) {
       // A buyer outranks whatever brought them in — the purchase tag wins.

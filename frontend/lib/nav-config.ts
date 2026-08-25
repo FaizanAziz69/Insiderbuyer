@@ -26,6 +26,7 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 export interface NavLink {
   label: string;
@@ -201,7 +202,7 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         title: "Get Insider Access",
         description: "Unlock the top-5 daily Insider Score picks, real-time alerts, and analyst-consensus filters.",
-        href: "/premium",
+        href: SUBSCRIBE_HREF,
         icon: Lock,
         premium: true,
       },

@@ -6,6 +6,7 @@ import { Flame, Lock, Sparkles } from "lucide-react";
 import { API_BASE, RankingRow, RankingsResponse, fetcher } from "@/lib/api";
 import { IqsTooltip } from "../IqsTooltip";
 import { usePremium } from "../premium/PremiumContext";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 function Row({
   r,
@@ -159,7 +160,7 @@ export function TopScoresPanel() {
                   Unlock the highest Insider Score signals first.
                 </div>
                 <Link
-                  href="/premium"
+                  href={SUBSCRIBE_HREF}
                   className="btn-primary"
                   style={{ padding: "6px 14px", fontSize: 12 }}
                 >

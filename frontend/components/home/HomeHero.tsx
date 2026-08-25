@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles, TrendingUp } from "lucide-react";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 export function HomeHero() {
   return (
@@ -59,7 +60,7 @@ export function HomeHero() {
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
             <Link
-              href="/premium"
+              href={SUBSCRIBE_HREF}
               className="btn-secondary inline-flex items-center gap-1.5"
               style={{ padding: "11px 18px", fontSize: 14 }}
             >

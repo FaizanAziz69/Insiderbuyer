@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { IqsTooltip } from "./IqsTooltip";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 export function IqsCommentary() {
   return (
@@ -36,7 +37,7 @@ export function IqsCommentary() {
           Insider Score rankings
         </Link>{" "}
         or learn how to{" "}
-        <Link href="/premium" className="text-accent font-semibold hover:underline">
+        <Link href={SUBSCRIBE_HREF} className="text-accent font-semibold hover:underline">
           unlock the top-5 picks
         </Link>
         .

@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { TierBadge } from "@/components/TierBadge";
 import { IqsTooltip } from "@/components/IqsTooltip";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 export function SignalsList() {
   const { data, isLoading } = useSWR<RankingsResponse>(
@@ -121,7 +122,7 @@ export function SignalsList() {
                   Unlock the highest Insider Score signals first.
                 </div>
                 <Link
-                  href="/premium"
+                  href={SUBSCRIBE_HREF}
                   className="btn-primary"
                   style={{ padding: "8px 18px", fontSize: 13 }}
                 >

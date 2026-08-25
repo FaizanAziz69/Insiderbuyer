@@ -5,6 +5,7 @@ import { Lock } from "lucide-react";
 import Link from "next/link";
 import { API_BASE, TradesResponse, fetcher } from "@/lib/api";
 import { TradesTable } from "@/components/TradesTable";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 type RoleFilter = "" | "CEO" | "CFO" | "COO" | "Director" | "Other";
 type ValueRange = "any" | "10k" | "100k" | "1m" | "10m";
@@ -47,7 +48,7 @@ export default function ScreenerPage() {
             Filter open-market insider buys by role, value, and date.
           </p>
         </div>
-        <Link href="/premium" className="btn-secondary self-start sm:self-auto">
+        <Link href={SUBSCRIBE_HREF} className="btn-secondary self-start sm:self-auto">
           <Lock className="h-3.5 w-3.5" />
           Save filter
         </Link>

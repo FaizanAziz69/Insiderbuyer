@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, Lock, Sparkles } from "lucide-react";
 import { useMemo } from "react";
 import { usePremium } from "@/components/premium/PremiumContext";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 interface PreviewProps {
   title: string;
@@ -223,7 +224,7 @@ export function PremiumChartPreview({
           <p className="text-mute text-sm mt-1">{subtitle}</p>
         </div>
         {locked && (
-          <Link href="/premium" className="btn-primary self-start sm:self-auto">
+          <Link href={SUBSCRIBE_HREF} className="btn-primary self-start sm:self-auto">
             <Sparkles className="h-4 w-4" />
             Unlock Insider Access
           </Link>
@@ -268,7 +269,7 @@ export function PremiumChartPreview({
                 </div>
                 <h2 className="text-xl font-bold tracking-tight mb-1.5">Get Insider Intel</h2>
                 <p className="text-soft text-sm mb-4">{description}</p>
-                <Link href="/premium" className="btn-primary">
+                <Link href={SUBSCRIBE_HREF} className="btn-primary">
                   Unlock Insider Access
                   <ArrowRight className="h-4 w-4" />
                 </Link>

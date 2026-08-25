@@ -2,16 +2,18 @@
 /**
  * /join — the pre-sell opt-in (Round-2 brief, Section 2, Step 2).
  *
- * Built to the brief's "Exact Spec", which supersedes the longer advertorial
- * notes above it in the same section ("That's the full spec. Everything else
- * in the brief stays the same."):
+ * Built to the brief's "Exact Spec" for layout, with the Step-2 developer
+ * notes from the same section also honoured (client asked for the document
+ * literally, 2026-08-25):
  *   · full screen, dark navy #0D1F35, nothing else on the page
  *   · no header, no footer, no navigation (BARE_ROUTES in AppShell)
  *   · vertically centred, single column, max width 560px
  *   · one email field, one CTA
- *   · submit → capture with tag 'optin-join' → immediate redirect to /premium
+ *   · submit → capture with tag 'Sales Opt In' (dev note) → thank-you page,
+ *     which is the section's own heading: "Pre-Sell Opt-In and Thank you Page"
  *   · already logged in or previously opted in → no form, one Continue button
- *   · no animation delays, no multi-step
+ *   · the Harvard study chart from /premium sits below the form as the trust
+ *     visual the dev notes ask for
  */
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -21,6 +23,10 @@ import { FUNNEL_COOKIES, hasOptedIn, isValidEmail, setCookie, setFunnelEntry } f
 import { identifyByEmail, track } from "@/lib/analytics";
 
 const NEXT = "/premium";
+/** The brief's own heading for this step is "Pre-Sell Opt-In and Thank you
+ *  Page", so a submit lands on the thank-you screen whose single CTA carries
+ *  on to the sales page. */
+const THANKS = "/join/thanks";
 
 export default function JoinPage() {
   const router = useRouter();
@@ -42,6 +48,7 @@ export default function JoinPage() {
   // Prefetch the sales page so the redirect is instant, as the brief asks.
   useEffect(() => {
     router.prefetch?.(NEXT);
+    router.prefetch?.(THANKS);
   }, [router]);
 
   const submit = async (e: React.FormEvent) => {
@@ -58,7 +65,7 @@ export default function JoinPage() {
       await fetch(`${API_BASE}/subscribers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: clean, source: "optin-join" }),
+        body: JSON.stringify({ email: clean, source: "Sales Opt In" }),
       });
     } catch {
       /* Capture is best-effort — a network blip must not trap a warm visitor
@@ -68,9 +75,9 @@ export default function JoinPage() {
     // Attribution for the rest of the journey: everything that follows on
     // /premium is credited to the pre-sell page, not to direct traffic.
     setFunnelEntry("join");
-    track("web_join_optin", { source: "optin-join" });
+    track("web_join_optin", { source: "Sales Opt In" });
     void identifyByEmail(clean);
-    router.push(NEXT);
+    router.push(THANKS);
   };
 
   return (
@@ -84,7 +91,6 @@ export default function JoinPage() {
 
         {skipForm ? (
           <>
-            <p className="jn-sub">You&apos;re on the list. Pick up where you left off.</p>
             <a
               href={NEXT}
               className="jn-btn"
@@ -126,9 +132,64 @@ export default function JoinPage() {
             <p className="jn-fine">Free to start. No credit card.</p>
           </>
         )}
+        <TrustVisual />
       </main>
       <style>{CSS}</style>
     </div>
+  );
+}
+
+/** The Harvard-study performance chart from /premium, reused here as the
+ *  trust visual the brief's Step-2 developer notes ask for. Same figures as
+ *  the sales page (backtest, not a live quote). */
+function TrustVisual() {
+  return (
+    <section className="jn-trust" aria-label="Why insider buying matters">
+      <p className="jn-trust-line">
+        A peer-reviewed <b>Harvard study</b> found that corporate insiders
+        consistently beat the S&amp;P&nbsp;500 &amp; SPY.
+      </p>
+      <div className="jn-trust-card">
+        <div className="jn-trust-head">
+          <span>Insider Purchases Strategy</span>
+          <span className="jn-trust-pill">Backtested</span>
+        </div>
+        <div className="jn-trust-big">
+          +2,924.4%
+          <em>all time vs market</em>
+        </div>
+        <svg className="jn-trust-chart" viewBox="0 0 100 42" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="jnFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#4CC38A" stopOpacity="0.42" />
+              <stop offset="100%" stopColor="#4CC38A" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M0 39 L8 38.4 L16 37.8 L24 36.6 L32 35 L40 32.4 L48 29.6 L56 26.4 L64 21.6 L72 18.4 L80 12.6 L88 8.4 L94 6.6 L100 2 L100 42 L0 42 Z"
+            fill="url(#jnFill)"
+          />
+          <path
+            d="M0 39 L8 38.4 L16 37.8 L24 36.6 L32 35 L40 32.4 L48 29.6 L56 26.4 L64 21.6 L72 18.4 L80 12.6 L88 8.4 L94 6.6 L100 2"
+            fill="none" stroke="#4CC38A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          <path
+            d="M0 39.6 L25 39 L50 38.2 L75 37.2 L100 35.8"
+            fill="none" stroke="#94a3b8" strokeWidth="1.1" strokeDasharray="3 3"
+            opacity="0.5" vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+        <div className="jn-trust-stats">
+          <div><b>+31.00%</b><span>CAGR</span></div>
+          <div><b>+72.48%</b><span>1-year</span></div>
+          <div><b>142K+</b><span>buys tracked</span></div>
+        </div>
+      </div>
+      <p className="jn-trust-fine">
+        Backtest figures are historical, gross of costs, and do not predict future results.
+      </p>
+    </section>
   );
 }
 
@@ -167,7 +228,25 @@ const CSS = `
 .jn-btn:disabled { opacity: 0.7; cursor: default; }
 .jn-fine { color: #7f8ea3; font-size: 12.5px; margin: 14px 0 0; }
 .jn-error { color: #fca5a5; font-size: 13px; margin: 12px 0 0; }
+/* Harvard-study trust visual (brief, Step 2 developer notes). */
+.jn-trust { margin: 34px auto 0; text-align: left; }
+.jn-trust-line { color: #cbd5e1; font-size: 13.5px; line-height: 1.6; margin: 0 0 12px; text-align: center; }
+.jn-trust-line b { color: #fff; }
+.jn-trust-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(200,162,74,0.22);
+  border-radius: 12px; padding: 16px 18px; }
+.jn-trust-head { display: flex; align-items: center; justify-content: space-between;
+  font-size: 10.5px; letter-spacing: 0.9px; text-transform: uppercase; color: #94a3b8; }
+.jn-trust-pill { border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; padding: 2px 8px; font-size: 9.5px; }
+.jn-trust-big { font-family: var(--font-heading), var(--font-sans), sans-serif; color: #4CC38A;
+  font-size: 30px; font-weight: 800; line-height: 1.1; margin: 10px 0 2px; }
+.jn-trust-big em { display: block; font-style: normal; font-size: 11.5px; color: #94a3b8; font-weight: 500; margin-top: 4px; }
+.jn-trust-chart { width: 100%; height: 62px; display: block; margin: 8px 0 6px; }
+.jn-trust-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.jn-trust-stats b { display: block; color: #fff; font-size: 14px; }
+.jn-trust-stats span { display: block; color: #7f8ea3; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 2px; }
+.jn-trust-fine { color: #64748b; font-size: 10.5px; line-height: 1.55; margin: 10px 0 0; text-align: center; }
 @media (max-width: 560px) {
   .jn-h1 { font-size: 30px; }
+  .jn-trust-big { font-size: 26px; }
 }
 `;

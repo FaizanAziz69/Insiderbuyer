@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { Lock, TrendingUp, Zap } from "lucide-react";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 /**
  * ONE paywall presentation for the whole site (client spec: "a single, highly
@@ -60,7 +61,7 @@ export type PaywallSize = "sm" | "md" | "lg";
  */
 export function UnlockButton({
   children = UNLOCK_CTA,
-  href = "/premium",
+  href = SUBSCRIBE_HREF,
   compact = false,
   className = "",
 }: {
@@ -125,7 +126,7 @@ export function PaywallCta({
   bullets,
   proof,
   cta = UNLOCK_CTA,
-  href = "/premium",
+  href = SUBSCRIBE_HREF,
   pricing,
   bars,
   size = "md",

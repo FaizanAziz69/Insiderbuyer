@@ -3,6 +3,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Lock } from "lucide-react";
 import { formatCurrency, formatRelative } from "@/lib/api";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 interface Trade {
   id: string;
@@ -91,7 +92,7 @@ export function TopTrades({ trades, total }: { trades: Trade[]; total: number })
             Showing {visible.length} of {total} trades
           </span>
           <Link
-            href="/premium"
+            href={SUBSCRIBE_HREF}
             className="inline-flex items-center gap-1.5 text-xs text-accent font-semibold hover:underline"
           >
             <Lock className="h-3 w-3" />
