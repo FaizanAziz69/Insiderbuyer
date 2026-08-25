@@ -78,11 +78,6 @@ export default function EarningsPage() {
         <ToolIntro tagline="See who’s reporting — and whether their insiders have been buying.">
           Earnings calendars show you the date. We show you what insiders were doing in the 30 days before it. Companies where insiders bought ahead of their last three strong quarters are flagged with our Earnings Alignment Index (EAI) — the pre-earnings insider signal most investors have never heard of.
         </ToolIntro>
-        <p className="text-mute text-[14px] mt-2 max-w-3xl leading-relaxed">
-          The next 7 days of corporate earnings releases for U.S. listed companies. Earnings
-          surprises move stocks fast — and insider buying ahead of earnings is one of the
-          highest-conviction Insider Score signals.
-        </p>
       </header>
 
       {isLoading ? (

@@ -126,11 +126,6 @@ export default function MarketHeatmapPage() {
         <ToolIntro tagline="The market at a glance — overlaid with insider conviction where it matters.">
           Every cell in this heatmap represents a public company. Color shows today’s price performance. Size shows market cap. Filter by sector to find where the money is moving — and toggle the IQS overlay to see which of today’s movers have insider conviction behind the price action.
         </ToolIntro>
-        <p className="text-mute text-[14px] sm:text-[15px] mt-2 max-w-3xl leading-relaxed">
-          A live visualization of the U.S. market, grouped by sector. Each tile&rsquo;s size reflects
-          market capitalization and its color reflects the price change — green for gains, red for
-          losses. Hover for details and click any tile to open its profile.
-        </p>
       </motion.header>
 
       {/* In-house stock heat map (TradingView-style controls + legend) */}

@@ -35,11 +35,6 @@ export default function TradesPage() {
         <ToolIntro tagline="Every open-market purchase by a CEO, CFO, or director — scored, ranked, and updated in real time.">
           When an insider buys stock in their own company with personal capital, it is the highest-conviction signal in public markets. This feed shows every qualifying transaction, scored by the Insider Quality Score (IQS) — so you can separate meaningful conviction from routine activity at a glance.
         </ToolIntro>
-          <p className="text-mute text-sm mt-1">
-            Every open-market insider transaction we&rsquo;ve parsed — U.S. SEC Form 4 and
-            German BaFin directors&rsquo; dealings — both purchases (BUY) and sales (SELL).
-            Filter by exchange or sort by any column.
-          </p>
         </div>
         <a href={`${API_BASE}/rankings.csv`} className="btn-secondary self-start sm:self-auto">
           <Download className="h-4 w-4" />

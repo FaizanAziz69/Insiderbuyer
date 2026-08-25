@@ -277,11 +277,6 @@ export default function WatchlistPage() {
         <ToolIntro tagline="Your stocks. Scored by insiders. Monitored 24/7.">
           Add any stock to your watchlist and InsiderBuying.com tracks the insider activity on your behalf. The moment an insider files a Form 4 on a stock you’re watching, we score the transaction and — for premium subscribers — send you an alert within hours. This is how informed investors stay ahead.
         </ToolIntro>
-        <p className="text-mute text-[14px] mt-2 max-w-3xl leading-relaxed">
-          Track any stocks you follow with live prices, daily volume, insider trades and our
-          Insider Score. Add from here, or tap the star on any company page. Saved on this
-          device — no login needed.
-        </p>
       </header>
 
       {/* Add by ticker OR company name — typeahead search (e.g. "goo" → GOOGL) */}

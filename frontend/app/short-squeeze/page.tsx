@@ -235,11 +235,6 @@ export default function ShortSqueezePage() {
         <ToolIntro tagline="High short interest stocks where insiders are also buying — the ultimate contrarian setup.">
           Short squeeze setups are speculative by nature. But when a heavily-shorted stock also shows meaningful insider buying, insiders are telling you something the short sellers may have wrong. This screen finds the overlap — names with both high short interest and recent IQS-scored insider purchases.
         </ToolIntro>
-        <p className="text-mute text-[14px] sm:text-[15px] mt-2 max-w-3xl leading-relaxed">
-          Stocks ranked by short-squeeze potential — the short position of each stock combined
-          into a single 0–100 score. A high score means a large share of the float is sold short
-          and it would take many days of volume to cover, the classic setup for a squeeze.
-        </p>
       </header>
 
       <AdSlot slot="leaderboard" seed="short-squeeze-top" />

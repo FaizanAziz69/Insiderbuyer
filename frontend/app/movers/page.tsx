@@ -43,12 +43,6 @@ export default function MoversPage() {
         <ToolIntro tagline="Today’s biggest stock moves — filtered through the lens of insider conviction.">
           Price movement without context is noise. When a stock is moving up AND insiders have been buying recently, that is a very different story than a stock moving on momentum alone. This view overlays IQS scores on today’s top gainers and losers so you know which moves have the signal behind them.
         </ToolIntro>
-        <p className="text-mute text-[14px] mt-2 max-w-3xl leading-relaxed">
-          The stocks seeing the most open-market insider buying right now — ranked
-          by total purchase value and the number of distinct insiders, alongside
-          each name&rsquo;s live price move and Insider Score. Click any column header to
-          re-sort (e.g. by distinct insiders or price change).
-        </p>
       </header>
 
       <ExchangeFilter value={exchange} onChange={setExchange} />

@@ -48,9 +48,6 @@ export default function ScreenerPage() {
         <ToolIntro tagline="Filter 8,000+ stocks by insider conviction score, sector, market cap, and more.">
           The IQS Screener lets you find stocks where insiders are buying with real conviction — not just routine filings. Combine filters to surface the setups that match your investment style: small-cap cluster buys, CEO new positions, pre-earnings activity, and more.
         </ToolIntro>
-          <p className="text-mute text-sm mt-1">
-            Filter open-market insider buys by role, value, and date.
-          </p>
         </div>
         <Link href={SUBSCRIBE_HREF} className="btn-secondary self-start sm:self-auto">
           <Lock className="h-3.5 w-3.5" />

@@ -103,13 +103,6 @@ export default function CongressionalPage() {
         <ToolIntro tagline="What your elected officials are buying and selling — before the public knows why.">
           Members of Congress are required to disclose their stock trades within 45 days of the transaction. InsiderBuying.com publishes every disclosed trade, updated as filings arrive, with each member’s committee assignments — so you can see what they are buying in the sectors they regulate.
         </ToolIntro>
-        <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
-          U.S. House and Senate members are required to disclose their equity trades
-          under the STOCK Act within 45 days — though amendments and late filings mean
-          some disclosures surface long after the trade. Below is a live feed of those
-          disclosures with the politician, stock, action, and disclosed amount range,
-          shown by disclosure date. Photos are sourced from the public Wikipedia API.
-        </p>
       </header>
 
       <AdSlot slot="leaderboard" seed="congressional-top" />

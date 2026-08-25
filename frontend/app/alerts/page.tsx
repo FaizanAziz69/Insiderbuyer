@@ -78,11 +78,6 @@ export default function AlertsPage() {
         <ToolIntro tagline="Real-time notifications when the highest-conviction insider buys hit EDGAR.">
           Most investors see insider buying news days or weeks after it happens. IQS Alerts deliver the signal to your inbox within hours of an EDGAR filing — with the IQS score, the dollar amount, and what it means. The only alert service that scores the quality of the signal, not just the transaction.
         </ToolIntro>
-        <p className="text-mute text-[14px] mt-2 max-w-3xl leading-relaxed">
-          A live, high-signal feed of the insider buys worth knowing about —
-          CEO/CFO/COO purchases and large ($1M+) open-market buys, newest first,
-          straight from SEC Form 4 filings. Subscribe below to get these by email.
-        </p>
       </header>
 
       {/* Email signup — functional (stored via /subscribers) */}
