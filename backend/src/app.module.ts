@@ -40,6 +40,7 @@ import { ContentModule } from './content/content.module';
 import { SocialModule } from './social/social.module';
 import { ReportsModule } from './reports/reports.module';
 import { BillingModule } from './billing/billing.module';
+import { TopPicksModule } from './top-picks/top-picks.module';
 import { ReportLead } from './entities/report-lead.entity';
 import { EmailFlowsModule } from './email-flows/email-flows.module';
 import { GovContractsModule } from './gov-contracts/gov-contracts.module';
@@ -146,6 +147,7 @@ import { BubblesModule } from './bubbles/bubbles.module';
     SocialModule,
     ReportsModule,
     BillingModule,
+    TopPicksModule,
     AuthModule,
     EmailFlowsModule,
     GovContractsModule,

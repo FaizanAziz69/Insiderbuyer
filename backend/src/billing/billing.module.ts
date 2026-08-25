@@ -10,5 +10,6 @@ import { EmailFlowsModule } from '../email-flows/email-flows.module';
   imports: [TypeOrmModule.forFeature([User]), AuthModule, EmailFlowsModule],
   controllers: [BillingController],
   providers: [BillingService],
+  exports: [BillingService],
 })
 export class BillingModule {}

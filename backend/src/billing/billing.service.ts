@@ -49,6 +49,20 @@ export interface BillingPlans {
   }>;
 }
 
+/** One-off products (Stripe `mode: 'payment'`), same find-or-create pattern
+ *  as the subscription catalog: matched by lookup key, created on first use.
+ *  The $3 Top Picks report is the funnel's final downsell (Round-2 brief
+ *  Section 2, Step 5). */
+const ONE_TIME_CATALOG = {
+  'top-picks-report': {
+    lookupKey: 'ib_top_picks_report',
+    unitAmount: 300, // $3.00 one-time
+    productName: 'Stocks You Can Buy Cheaper Than the Insiders Did — Report',
+  },
+} as const;
+
+export type OneTimeProduct = keyof typeof ONE_TIME_CATALOG;
+
 const PRODUCT_NAME = 'Insider Premium';
 /** Grace window after a period lapses before access is cut, to absorb webhook
  *  delays around renewal. */
@@ -64,6 +78,8 @@ export class BillingService {
   private stripe: Stripe | null = null;
   /** priceId per plan, resolved once per process. */
   private priceCache: Partial<Record<Plan, string>> | null = null;
+  /** priceId per one-off product, resolved once per process. */
+  private oneTimePriceCache = new Map<string, string>();
 
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
@@ -280,6 +296,89 @@ export class BillingService {
     // purchase cancels it before the first email is due.
     this.emailFlows?.startFlow('abandoned', user.email, user.name).catch(() => undefined);
     return { url: session.url };
+  }
+
+  // ── One-off products (the $3 report downsell) ──────────────────────────
+
+  /** Find-or-create the one-time price for `product` and return its id. */
+  private async ensureOneTimePrice(product: OneTimeProduct): Promise<string> {
+    const cached = this.oneTimePriceCache.get(product);
+    if (cached) return cached;
+    const cfg = ONE_TIME_CATALOG[product];
+    const stripe = this.client();
+    const existing = await stripe.prices.list({
+      lookup_keys: [cfg.lookupKey],
+      active: true,
+      limit: 1,
+    });
+    let priceId = existing.data[0]?.id;
+    if (!priceId) {
+      const prod = await stripe.products.create({
+        name: cfg.productName,
+        description:
+          'One-time PDF report: stocks trading below the average price insiders paid.',
+      });
+      const price = await stripe.prices.create({
+        product: prod.id,
+        currency: 'usd',
+        unit_amount: cfg.unitAmount,
+        lookup_key: cfg.lookupKey,
+        nickname: cfg.productName,
+      });
+      priceId = price.id;
+      this.logger.log(`Created Stripe one-time price ${cfg.lookupKey} → ${priceId}`);
+    }
+    this.oneTimePriceCache.set(product, priceId);
+    return priceId;
+  }
+
+  /** Guest checkout for a one-off product. No login required — the email
+   *  entered on the landing page is the only identity we need, and it is what
+   *  the report gets delivered to. */
+  async createOneTimeCheckout(
+    product: OneTimeProduct,
+    email: string | null,
+    returnPath: string,
+  ): Promise<{ url: string }> {
+    const price = await this.ensureOneTimePrice(product);
+    const stripe = this.client();
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      // No email on the landing page → let Stripe collect it at checkout.
+      ...(email ? { customer_email: email } : {}),
+      line_items: [{ price, quantity: 1 }],
+      // Same dashboard-payment-methods escape hatch as the subscription leg.
+      ...(process.env.STRIPE_DYNAMIC_PAYMENT_METHODS === 'true'
+        ? {}
+        : { payment_method_types: ['card' as const] }),
+      metadata: { product, ...(email ? { email } : {}) },
+      success_url: `${FRONTEND_URL}${returnPath}?purchase=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${FRONTEND_URL}/top-picks-report?purchase=cancelled`,
+    });
+    if (!session.url) throw new BadRequestException('Stripe returned no checkout URL.');
+    return { url: session.url };
+  }
+
+  /** Verify a one-off checkout session server-side. Used by the thank-you
+   *  page to fulfil WITHOUT depending on the webhook (which is not configured
+   *  on this account yet), so delivery cannot silently fail. */
+  async verifyOneTimeSession(
+    sessionId: string,
+  ): Promise<{ paid: boolean; email: string | null; product: string | null }> {
+    const stripe = this.client();
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const paid =
+      session.payment_status === 'paid' ||
+      session.payment_status === 'no_payment_required';
+    const email =
+      session.customer_details?.email ||
+      (session.metadata?.email as string | undefined) ||
+      null;
+    return {
+      paid,
+      email: email ? email.trim().toLowerCase() : null,
+      product: (session.metadata?.product as string | undefined) || null,
+    };
   }
 
   async createPortal(user: User): Promise<{ url: string }> {
