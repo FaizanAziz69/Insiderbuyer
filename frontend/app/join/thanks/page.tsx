@@ -5,8 +5,8 @@
  * an opt in page and thank you page that directs to subscribe / the sales
  * page").
  *
- * One screen, one CTA, straight on to the sales page. Same isolated navy
- * treatment as /join, no chrome (BARE_ROUTES in AppShell).
+ * One screen, one CTA, straight on to the sales page. Same isolated white /
+ * navy / gold treatment as /join, no chrome (BARE_ROUTES in AppShell).
  */
 import { useEffect } from "react";
 import { track } from "@/lib/analytics";
@@ -47,16 +47,16 @@ export default function JoinThanksPage() {
 const CSS = `
 .jt {
   min-height: 100vh; min-height: 100dvh; width: 100%;
-  background: #0D1F35; display: flex; align-items: center; justify-content: center;
+  background: #FFFFFF; display: flex; align-items: center; justify-content: center;
   padding: 28px 20px; font-family: var(--font-sans), system-ui, sans-serif;
 }
 .jt-box { width: 100%; max-width: 560px; text-align: center; }
 .jt-h1 {
   font-family: var(--font-heading), var(--font-sans), sans-serif;
-  color: #ffffff; font-weight: 800; letter-spacing: -0.5px;
+  color: #0D1F35; font-weight: 800; letter-spacing: -0.5px;
   font-size: 34px; line-height: 1.16; margin: 0 0 16px;
 }
-.jt-sub { color: #C8A24A; font-size: 16px; line-height: 1.5; margin: 0 0 26px; }
+.jt-sub { color: #A8842C; font-size: 16px; line-height: 1.5; margin: 0 0 26px; }
 .jt-btn {
   display: inline-flex; align-items: center; justify-content: center;
   height: 54px; width: 100%; border: 0; border-radius: 10px; cursor: pointer;

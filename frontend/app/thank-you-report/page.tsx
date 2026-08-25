@@ -2,22 +2,23 @@
 /**
  * /thank-you-report — the post-purchase screen for the $3 downsell.
  *
- * The brief specifies exactly one thing here (Section 2, Step 5): "redirect to
- * /thank-you-report with a soft upsell: 'Report delivered to your inbox. Want
- * the real-time version? Get Premium at $199/year.'" — so that line, and
- * nothing else (client asked for the document literally, 2026-08-25; the
- * on-screen report table, the guarantee line and the brand line are gone).
+ * The brief specifies exactly one thing on this page (Section 2, Step 5):
+ * "redirect to /thank-you-report with a soft upsell: 'Report delivered to your
+ * inbox. Want the real-time version? Get Premium at $199/year.'" — so that
+ * line is the ONLY copy here. No brand line, no table, no guarantee line, and
+ * no invented failure messages (client asked for the document literally,
+ * 2026-08-25).
  *
- * It still fulfils the order in the background, because the Stripe webhook is
- * not configured on this account: the checkout session id is posted to
- * /top-picks-report/fulfil, which verifies the payment with Stripe, tags the
- * buyer, and emails the PDF. The two extra states below (payment not
- * confirmed / delivery running late) are the failure paths, not embellishment
- * — without them a buyer whose payment cannot be verified sees a page that
- * claims a delivery that never happened.
+ * The page still fulfils the order, because the Stripe webhook is not
+ * configured on this account: the session id goes to /top-picks-report/fulfil,
+ * which verifies the payment with Stripe, tags the buyer and emails the PDF.
+ * A session that cannot be verified is sent back to the report page rather
+ * than shown the delivery line — a redirect, not extra copy, so the page keeps
+ * the document's wording without ever claiming a delivery that did not happen.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { FUNNEL_COOKIES, SUBSCRIBE_HREF, getFunnelEntry, setCookie } from "@/lib/funnel";
@@ -26,20 +27,25 @@ interface Fulfilment {
   paid: boolean;
   email: string | null;
   emailed: boolean;
-  picks: unknown[];
 }
 
+/** Verification can lose a race with Stripe; retry before giving up. */
+const RETRIES = 3;
+const RETRY_MS = 1500;
+
 export default function ThankYouReportPage() {
-  const [state, setState] = useState<"loading" | "ok" | "unpaid" | "error">("loading");
+  const router = useRouter();
+  const [paid, setPaid] = useState(false);
 
   useEffect(() => {
     const sessionId = new URLSearchParams(window.location.search).get("session_id");
     if (!sessionId) {
-      setState("unpaid");
+      router.replace("/top-picks-report");
       return;
     }
     let cancelled = false;
-    (async () => {
+
+    const attempt = async (left: number): Promise<void> => {
       try {
         const res = await fetch(`${API_BASE}/top-picks-report/fulfil`, {
           method: "POST",
@@ -48,33 +54,41 @@ export default function ThankYouReportPage() {
         });
         const json = (await res.json()) as Fulfilment;
         if (cancelled) return;
-        setState(json.paid ? "ok" : "unpaid");
         if (json.paid) {
-          // The buyer has already given us an email at checkout, so the
-          // pre-sell page must not ask again on the way to Premium.
+          // The buyer gave an email at checkout, so the pre-sell page must not
+          // ask again on the way to Premium.
           setCookie(FUNNEL_COOKIES.optedIn, "true", 3650);
+          track("web_purchase", {
+            product: "top-picks-report",
+            price: 3,
+            emailed: json.emailed,
+            entry: getFunnelEntry(),
+          });
+          setPaid(true);
+          return;
         }
-        track(json.paid ? "web_purchase" : "web_report_unverified", {
-          product: "top-picks-report",
-          price: 3,
-          emailed: json.emailed,
-          entry: getFunnelEntry(),
-        });
+        throw new Error("unverified");
       } catch {
-        if (!cancelled) setState("error");
+        if (cancelled) return;
+        if (left > 0) {
+          setTimeout(() => void attempt(left - 1), RETRY_MS);
+          return;
+        }
+        track("web_report_unverified", { product: "top-picks-report", price: 3 });
+        router.replace("/top-picks-report");
       }
-    })();
+    };
+
+    void attempt(RETRIES);
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   return (
     <div className="ty">
       <main className="ty-box">
-        {state === "loading" && <p className="ty-sub">Confirming your payment…</p>}
-
-        {state === "ok" && (
+        {paid && (
           <>
             <h1 className="ty-h1">Report delivered to your inbox.</h1>
             <p className="ty-sub">
@@ -83,26 +97,6 @@ export default function ThankYouReportPage() {
                 Get Premium at $199/year
               </Link>
               .
-            </p>
-          </>
-        )}
-
-        {state === "unpaid" && (
-          <>
-            <h1 className="ty-h1">We couldn&apos;t confirm that purchase.</h1>
-            <p className="ty-sub">
-              If you were charged, reply to your Stripe receipt and we&apos;ll send the report
-              straight away.
-            </p>
-          </>
-        )}
-
-        {state === "error" && (
-          <>
-            <h1 className="ty-h1">Payment received — delivery is running behind.</h1>
-            <p className="ty-sub">
-              Refresh this page in a minute. If the report still hasn&apos;t arrived, reply to
-              your Stripe receipt and we&apos;ll send it by hand.
             </p>
           </>
         )}
