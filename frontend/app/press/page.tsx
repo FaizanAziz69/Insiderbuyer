@@ -15,16 +15,39 @@
 import { useState } from "react";
 import { API_BASE } from "@/lib/api";
 
-/** Scroll to a section. The site's global overflow/zoom rules break both the
- *  native hash jump and scrollIntoView, so the one API that still moves this
- *  document is used directly. */
+/**
+ * Scroll to a section.
+ *
+ * This document fights every normal approach, thanks to the global
+ * overflow:clip on html/body plus the 1.1 body zoom: the native hash jump,
+ * window.scrollTo(), scrollIntoView() — and even scrollTo with
+ * behavior:"smooth" — are all no-ops here (all measured on the live page).
+ * The one call that moves it is documentElement.scrollTo with
+ * behavior:"instant", so the easing is done by hand on top of that.
+ */
+function scrollToId(id: string) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const de = document.documentElement;
+  const from = de.scrollTop;
+  const distance = el.getBoundingClientRect().top;
+  if (Math.abs(distance) < 2) return;
+  const DURATION = 420;
+  const start = performance.now();
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / DURATION);
+    const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    de.scrollTo({ top: from + distance * eased, behavior: "instant" });
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
 function jumpTo(id: string) {
   return (e: React.MouseEvent) => {
-    const el = document.getElementById(id);
-    if (!el) return;
+    if (!document.getElementById(id)) return;
     e.preventDefault();
-    const de = document.documentElement;
-    de.scrollTo({ top: de.scrollTop + el.getBoundingClientRect().top, behavior: "smooth" });
+    scrollToId(id);
     history.replaceState(null, "", `#${id}`);
   };
 }
