@@ -121,14 +121,18 @@ export class EaiService implements OnModuleInit {
       // set of companies with open-market buys, and a company keeps its score
       // until the day it reports, which is when the earnings page needs it.
       const since = new Date(Date.now() - BUYER_LOOKBACK_DAYS * 86_400_000);
+      // GROUP BY rather than SELECT DISTINCT: TypeORM quotes a "DISTINCT col"
+      // select as a single alias and Postgres rejects the result.
       const buyers = await this.txRepo
         .createQueryBuilder('t')
         .innerJoin('t.company', 'c')
-        .select('DISTINCT c.id', 'id')
+        .select('c.id', 'id')
         .addSelect('c.ticker', 'ticker')
         .where(`t."transactionCode" = 'P'`)
         .andWhere('t.transactionDate >= :since', { since })
         .andWhere('c.ticker IS NOT NULL')
+        .groupBy('c.id')
+        .addGroupBy('c.ticker')
         .getRawMany<{ id: string; ticker: string }>();
       const idByTicker = new Map<string, string>();
       for (const b of buyers) {
