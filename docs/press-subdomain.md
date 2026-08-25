@@ -1,8 +1,21 @@
-# press.insiderbuying.com — putting the B2B site on its own subdomain
+# press.insiderbuying.com — the B2B site's subdomain
 
-The page itself is built and lives at `/press` (Next.js route with its own
-layout, which the Round-2 brief explicitly allows). Three ops steps remain, all
-outside the app:
+**Status: live since 2026-08-26.** DNS, nginx and TLS are all done — this file
+is the record of what was set up, not a to-do list. The page lives at `/press`
+(a Next.js route with its own layout, which the Round-2 brief allows) and the
+subdomain's root is proxied onto it.
+
+What is in place:
+
+| Piece | Where |
+|---|---|
+| `press` A record → 52.2.135.6 | WordPress.com DNS (that account holds the domain) |
+| server block | `/etc/nginx/sites-available/press`, symlinked into `sites-enabled` |
+| certificate | Let's Encrypt, `press.insiderbuying.com` only, HTTP→HTTPS redirect, certbot auto-renew |
+| chrome-free rendering | the route's layout marks itself `data-bare-page`; the shell's chrome is `data-app-chrome` and hides in CSS. Needed because the host root maps onto `/press`, so the browser path is `/` and a path-based bare-route check cannot see it. |
+
+The original setup steps, kept for reference (and for `ir.insiderbuying.com`
+if the client ever wants that name too):
 
 ## 1. DNS
 
