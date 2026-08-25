@@ -15,6 +15,20 @@
 import { useState } from "react";
 import { API_BASE } from "@/lib/api";
 
+/** Scroll to a section. The site's global overflow/zoom rules break both the
+ *  native hash jump and scrollIntoView, so the one API that still moves this
+ *  document is used directly. */
+function jumpTo(id: string) {
+  return (e: React.MouseEvent) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    e.preventDefault();
+    const de = document.documentElement;
+    de.scrollTo({ top: de.scrollTop + el.getBoundingClientRect().top, behavior: "smooth" });
+    history.replaceState(null, "", `#${id}`);
+  };
+}
+
 /** 4C — three services, verbatim, with the brief's "From" prices. */
 const SERVICES = [
   {
@@ -103,7 +117,7 @@ function Header() {
           </span>
           <span className="b2b-tagline">For Public Companies &amp; Investor Relations</span>
         </div>
-        <a href="#book" className="b2b-btn b2b-btn-gold b2b-btn-sm">
+        <a href="#book" onClick={jumpTo("book")} className="b2b-btn b2b-btn-gold b2b-btn-sm">
           Book a Call
         </a>
       </div>
@@ -128,10 +142,10 @@ function Hero() {
           <br className="b2b-br" /> the right investors notice.
         </p>
         <div className="b2b-ctas">
-          <a href="#book" className="b2b-btn b2b-btn-gold">
+          <a href="#book" onClick={jumpTo("book")} className="b2b-btn b2b-btn-gold">
             Book a Discovery Call
           </a>
-          <a href="#packages" className="b2b-btn b2b-btn-ghost">
+          <a href="#packages" onClick={jumpTo("packages")} className="b2b-btn b2b-btn-ghost">
             See Our Packages →
           </a>
         </div>
@@ -212,7 +226,7 @@ function Editorial() {
         <p className="b2b-kicker b2b-kicker-light">Editorial Platform</p>
         <p className="b2b-editorial">
           Your story published on InsiderBuying.com — read by investors who specifically follow
-          insider activity.
+          insider activity
         </p>
       </div>
     </section>
@@ -229,7 +243,7 @@ function Packages() {
             <div key={p.name} className={`b2b-pkg${p.featured ? " b2b-pkg-hot" : ""}`}>
               <h3>{p.name}</h3>
               <div className="b2b-pkg-price">{p.price}</div>
-              <a href="#book" className="b2b-btn b2b-btn-ghost b2b-btn-block">
+              <a href="#book" onClick={jumpTo("book")} className="b2b-btn b2b-btn-ghost b2b-btn-block">
                 Book a Discovery Call
               </a>
             </div>
