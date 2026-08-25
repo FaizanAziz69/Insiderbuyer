@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
 import useSWR from "swr";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Flame, Search, ChevronDown, Check } from "lucide-react";
+import { Flame, Search, ChevronDown, Check, Sparkles } from "lucide-react";
 import { API_BASE, HeatQuote, RankingRow, heatToRanking, fetcher } from "@/lib/api";
 import { StockHeatmap, HeatmapLegend, ColorBy, SizeBy } from "@/components/heatmap/StockHeatmap";
 import { ToolIntro } from "@/components/ToolIntro";
@@ -95,8 +95,26 @@ export default function MarketHeatmapPage() {
   const [query, setQuery] = useState("");
   const [source, setSource] = useState("S&P 500 Index");
   const [sourceOpen, setSourceOpen] = useState(false);
+  const [iqsOverlay, setIqsOverlay] = useState(false);
 
-  const all = (data?.rows ?? []).map(heatToRanking);
+  // Insider Score overlay — only fetched once the user turns it on, then held
+  // by SWR so toggling back and forth is instant.
+  const { data: scored } = useSWR<{ rows: RankingRow[] }>(
+    iqsOverlay ? `${API_BASE}/rankings?limit=2000` : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  const iqsByTicker = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of scored?.rows ?? []) {
+      if (r.ticker && r.iqs > 0) m.set(r.ticker.toUpperCase(), r.iqs);
+    }
+    return m;
+  }, [scored]);
+
+  const all = (data?.rows ?? []).map(heatToRanking).map((r) =>
+    iqsByTicker.size ? { ...r, iqs: iqsByTicker.get((r.ticker || "").toUpperCase()) ?? 0 } : r,
+  );
   const srcFilter = SOURCE_BY_LABEL.get(source)?.filter;
   const sourced = srcFilter ? all.filter(srcFilter) : all;
   const q = query.trim().toUpperCase();
@@ -234,6 +252,21 @@ export default function MarketHeatmapPage() {
               { value: "mono", label: "Mono size" },
             ]}
           />
+
+          {/* Insider Score overlay — rings the movers insiders are buying. */}
+          <button
+            onClick={() => setIqsOverlay((v) => !v)}
+            aria-pressed={iqsOverlay}
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-semibold transition"
+            style={{
+              background: iqsOverlay ? "#d4a92a" : "var(--bg-1)",
+              color: iqsOverlay ? "#141620" : "var(--text)",
+              border: `1px solid ${iqsOverlay ? "#d4a92a" : "var(--border-strong)"}`,
+            }}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            IQS overlay
+          </button>
         </div>
 
         {rows.length > 0 ? (
@@ -244,14 +277,27 @@ export default function MarketHeatmapPage() {
             sizeBy={sizeBy}
             colorBy={colorBy}
             rawSectors
+            iqsOverlay={iqsOverlay}
           />
         ) : (
           <div className="shimmer rounded" style={{ height: 620 }} />
         )}
 
         {/* Legend */}
-        <div className="px-1 pt-3">
+        <div className="px-1 pt-3 space-y-2">
           <HeatmapLegend colorBy={colorBy} />
+          {iqsOverlay && (
+            <div className="flex items-center gap-2 text-[12px] text-mute">
+              <span
+                className="inline-block rounded-sm"
+                style={{ width: 12, height: 12, border: "2px solid #d4a92a" }}
+              />
+              <span>
+                Gold-ringed tiles carry an Insider Score — the number is the score, and
+                everything else is dimmed. {iqsByTicker.size > 0 ? `${iqsByTicker.size} companies scored.` : "Loading scores…"}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

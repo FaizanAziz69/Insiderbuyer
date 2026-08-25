@@ -15,6 +15,8 @@ import { PortfolioHolding } from './entities/portfolio-holding.entity';
 import { PortfolioAlert } from './entities/portfolio-alert.entity';
 import { B2bLead } from './entities/b2b-lead.entity';
 import { HotSectorsCache } from './entities/hot-sectors-cache.entity';
+import { EaiCache } from './entities/eai-cache.entity';
+import { InsiderAlertDispatch } from './entities/insider-alert-dispatch.entity';
 import { SentimentScore } from './entities/sentiment-score.entity';
 import {
   BacktestCache,
@@ -38,6 +40,8 @@ import { AnalystsModule } from './analysts/analysts.module';
 import { EarningsModule } from './earnings/earnings.module';
 import { IpoModule } from './ipo/ipo.module';
 import { EarningsPerfModule } from './earnings-perf/earnings-perf.module';
+import { EaiModule } from './eai/eai.module';
+import { InsiderAlertsModule } from './insider-alerts/insider-alerts.module';
 import { CtaModule } from './cta/cta.module';
 import { ChatModule } from './chat/chat.module';
 import { ContentModule } from './content/content.module';
@@ -114,6 +118,8 @@ import { BubblesModule } from './bubbles/bubbles.module';
           PortfolioAlert,
           B2bLead,
           HotSectorsCache,
+          EaiCache,
+          InsiderAlertDispatch,
         ],
         // Schema sync issues a catalog query per entity on every boot. Fine
         // locally; on serverless it repeats forever. Set DB_SYNC=true for a
@@ -149,6 +155,8 @@ import { BubblesModule } from './bubbles/bubbles.module';
     EarningsModule,
     IpoModule,
     EarningsPerfModule,
+    EaiModule,
+    InsiderAlertsModule,
     StockListsModule,
     SubscribersModule,
     CtaModule,

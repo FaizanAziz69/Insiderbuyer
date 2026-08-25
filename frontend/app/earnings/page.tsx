@@ -51,12 +51,51 @@ function numericValue(s: string | null): number | null {
   return n;
 }
 
+interface EaiQuarter {
+  date: string;
+  epsActual: number | null;
+  epsEstimated: number | null;
+  bought: boolean;
+  buyValue: number;
+  buyers: number;
+}
+
+interface EaiScore {
+  ticker: string;
+  eai: number;
+  aligned: number;
+  strong: number;
+  quarters: EaiQuarter[];
+}
+
+/** Hover text spelling out exactly what the score counted. */
+function eaiTitle(e: EaiScore): string {
+  const head = `Earnings Alignment Index ${e.eai}/100 — insiders bought ahead of ${e.aligned} of the last ${e.strong} strong quarters (EPS beats).`;
+  const detail = e.quarters
+    .map(
+      (q) =>
+        `${q.date}: EPS ${q.epsActual ?? "—"} vs ${q.epsEstimated ?? "—"} est · ${
+          q.bought ? `${q.buyers} insider${q.buyers === 1 ? "" : "s"} bought` : "no insider buying"
+        }`,
+    )
+    .join("\n");
+  return `${head}\n\n${detail}`;
+}
+
 export default function EarningsPage() {
   const { data, isLoading } = useSWR<{ rows: EarningsRow[] }>(
     `${API_BASE}/earnings/calendar?days=7`,
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
+  // Scores are computed nightly and cached, so this is a cheap second call
+  // rather than something the calendar has to wait on.
+  const { data: eaiData } = useSWR<{ rows: Record<string, EaiScore> }>(
+    `${API_BASE}/eai`,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  const eaiByTicker = eaiData?.rows || {};
   const rows = data?.rows || [];
 
   return (
@@ -117,6 +156,35 @@ export default function EarningsPage() {
                     </Link>
                   </span>
                 ),
+              },
+              {
+                key: "eai",
+                label: "EAI",
+                align: "center",
+                sortValue: (r) => eaiByTicker[(r.symbol || "").toUpperCase()]?.eai ?? -1,
+                render: (r) => {
+                  const e = eaiByTicker[(r.symbol || "").toUpperCase()];
+                  if (!e) return <span className="text-faint text-[13px]">—</span>;
+                  // 3-for-3 is the flag the page's intro promises; anything
+                  // lower is still shown, just without the gold treatment.
+                  const flagged = e.eai === 100;
+                  return (
+                    <span
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-bold tabular whitespace-nowrap"
+                      style={{
+                        background: flagged ? "#d4a92a" : "var(--bg-3)",
+                        color: flagged ? "#141620" : "var(--text-soft)",
+                      }}
+                      title={eaiTitle(e)}
+                    >
+                      {flagged && <span aria-hidden>★</span>}
+                      {e.eai}
+                      <span className="font-semibold opacity-70">
+                        · {e.aligned}/{e.strong}
+                      </span>
+                    </span>
+                  );
+                },
               },
               {
                 key: "marketCap",
@@ -187,6 +255,23 @@ export default function EarningsPage() {
               },
             ]}
           />
+          {/* What the EAI column means, in one line — the score is useless if
+              the reader has to guess what 100 · 3/3 counted. */}
+          <div
+            className="px-4 py-3 text-[12.5px] text-mute"
+            style={{ borderTop: "1px solid var(--border)" }}
+          >
+            <span className="font-bold" style={{ color: "var(--text-soft)" }}>EAI</span> — Earnings
+            Alignment Index: of this company&rsquo;s last three strong quarters (EPS beats), how many
+            did insiders buy ahead of, in the 30 days before the report.{" "}
+            <span
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-bold"
+              style={{ background: "#d4a92a", color: "#141620" }}
+            >
+              ★ 100
+            </span>{" "}
+            means all three.
+          </div>
         </div>
       )}
     </div>

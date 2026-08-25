@@ -61,6 +61,10 @@ interface Props {
   /** Group by the row's sector verbatim (already-clean TRBC sectors from the
    *  market-heatmap feed) instead of running it through shortSector(). */
   rawSectors?: boolean;
+  /** Insider-conviction overlay: keeps the price coloring but rings every tile
+   *  we score with its Insider Score and dims the ones we don't, so the map
+   *  shows which of today's movers have insider conviction behind the move. */
+  iqsOverlay?: boolean;
 }
 
 // Module-scoped because the layout helpers are module-level; set synchronously
@@ -485,6 +489,7 @@ export function StockHeatmap({
   sizeBy = "marketCap",
   colorBy = "change",
   rawSectors = false,
+  iqsOverlay = false,
 }: Props) {
   CURRENT_SIZE_BY = sizeBy;
   USE_RAW_SECTORS = rawSectors;
@@ -649,6 +654,13 @@ export function StockHeatmap({
                 mode === "iqs"
                   ? `${rect.row.ticker || rect.row.name} · Insider Score ${iqs.toFixed(1)} · ${formatCurrency(rect.row.marketCap)}`
                   : `${rect.row.ticker || rect.row.name} · ${sign}${pct.toFixed(2)}% · ${formatCurrency(rect.row.marketCap)}`;
+              // Insider-conviction overlay: scored tiles keep full color and get
+              // a gold ring + score chip; unscored tiles fade back so the eye
+              // lands only on movers with insider buying behind them.
+              const ovScore = iqsOverlay ? iqs || 0 : 0;
+              const ovScored = ovScore > 0;
+              const ovDim = iqsOverlay && !ovScored;
+              const showOvChip = ovScored && tileW >= 44 && tileH >= 34;
               const tileX = PAD + rect.x;
               const tileY = HEADER_H + rect.y;
               return (
@@ -674,12 +686,20 @@ export function StockHeatmap({
                     borderRadius: 4,
                     overflow: "hidden",
                     cursor: "pointer",
-                    zIndex: isHovered ? 20 : 1,
-                    filter: isHovered ? "brightness(1.06)" : undefined,
+                    zIndex: isHovered ? 20 : ovScored ? 3 : 1,
+                    opacity: ovDim ? 0.3 : 1,
+                    filter: isHovered
+                      ? "brightness(1.06)"
+                      : ovDim
+                        ? "saturate(0.25)"
+                        : undefined,
                     boxShadow: isHovered
                       ? "inset 0 0 0 2px rgba(20,22,30,0.65), 0 2px 8px rgba(0,0,0,0.25)"
-                      : undefined,
-                    transition: "filter 0.12s ease, box-shadow 0.12s ease",
+                      : ovScored
+                        ? "inset 0 0 0 2px #d4a92a, 0 1px 6px rgba(0,0,0,0.22)"
+                        : undefined,
+                    transition:
+                      "filter 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease",
                   }}
                 >
                   <Link
@@ -751,6 +771,25 @@ export function StockHeatmap({
                       >
                         {subLabel}
                       </div>
+                    )}
+                    {showOvChip && (
+                      <span
+                        className="absolute leading-none tabular"
+                        style={{
+                          top: 3,
+                          left: 3,
+                          background: "#d4a92a",
+                          color: "#141620",
+                          borderRadius: 3,
+                          padding: "1px 3px",
+                          fontSize: 9,
+                          fontWeight: 800,
+                          letterSpacing: "0.01em",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        {Math.round(ovScore)}
+                      </span>
                     )}
                   </Link>
                 </motion.div>
@@ -839,6 +878,9 @@ function HeatmapTooltip({
         />
         <Stat label="Mkt Cap" value={r.marketCap ? formatCurrency(r.marketCap) : "—"} />
         <Stat label="Volume" value={r.volume ? formatNumber(r.volume) : "—"} />
+        {r.iqs > 0 && (
+          <Stat label="Insider Score" value={r.iqs.toFixed(1)} color="#e0b94a" />
+        )}
       </div>
     </div>,
     document.body,
