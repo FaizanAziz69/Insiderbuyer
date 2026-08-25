@@ -102,6 +102,10 @@ const SLUG_OVERRIDES: Record<string, string> = {
   "editorial-gates-four-seasons-nevis-lawsuit-2026-08-20": "gates-four-seasons-msft",
   "editorial-anthropic-ipo-2t-valuation-2026-08-24": "anthropic-ipo-filing",
   "editorial-burry-alibaba-ai-share-sale-2026-08-24": "burry-portrait-clean",
+  // 2026-08-25: spousal-trade story, so the couple photo rather than the solo
+  // portrait — pinned because the congress pool is otherwise hash-picked and
+  // could hand a Pelosi headline a Musk or Trump image.
+  "editorial-pelosi-first-bloom-energy-trade-2026-08-25": "pelosi-husband-trades",
 };
 
 function candidatesFor(opts: ThumbInput): Thumb[] {
