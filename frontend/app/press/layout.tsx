@@ -27,7 +27,8 @@ gtag('config', '${GA_B2B}');`}
           </Script>
         </>
       )}
-      {children}
+      {/* Marks the route as chrome-free — see AppShell and globals.css. */}
+      <div data-bare-page>{children}</div>
     </>
   );
 }

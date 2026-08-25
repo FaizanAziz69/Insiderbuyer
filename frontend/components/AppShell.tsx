@@ -7,7 +7,17 @@ import { TopTickerBar } from "./TopTickerBar";
 import { PREMIUM_UNLOCKED } from "@/lib/premium";
 import { InsiderActivityToast } from "@/components/home/InsiderActivityToast";
 
-/** Standalone funnel pages that render without the site chrome. */
+/**
+ * Standalone funnel pages that render without the site chrome.
+ *
+ * Path matching alone is not enough for the B2B site: on
+ * press.insiderbuying.com nginx maps the host root onto /press, so the
+ * browser's path is "/" and this check never fired — the page came up wearing
+ * the consumer nav, ticker and toast. The route's own layout marks itself
+ * instead (data-bare-page) and the chrome hides itself in CSS, which works on
+ * both the subdomain and insiderbuying.com/press without making every page in
+ * the app dynamic just to read a Host header.
+ */
 const BARE_ROUTES = [
   "/insider-report",
   // Round-2 brief, Section 2: isolated conversion pages — no header, no
@@ -27,14 +37,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div
       className={`min-h-screen flex flex-col${PREMIUM_UNLOCKED ? " premium-unlocked" : ""}`}
     >
-      <TopTickerBar />
+      <div data-app-chrome>
+        <TopTickerBar />
+      </div>
       {/* data-app-sticky lets pages that scroll to an in-page section measure
           this header's height and offset by it, so the target lands below the
           header instead of underneath it. z-[35]: above /premium's sticky
           founding-offer strip (30), which at z-20 rode OVER the nav and its
           open dropdowns on scroll; below the activity toast (40) and modals
           (50). */}
-      <div data-app-sticky className="sticky top-0 z-[35]">
+      <div data-app-chrome data-app-sticky className="sticky top-0 z-[35]">
         <TopHeader />
       </div>
       <main
@@ -48,10 +60,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {children}
       </main>
-      <Footer />
+      <div data-app-chrome>
+        <Footer />
+      </div>
       {/* <ChatWidget /> */}{/* "Ask the Insider" chat button — hidden for now */}
       {/* Live insider-buy notification — appears ~10s after landing, any page */}
-      <InsiderActivityToast />
+      <div data-app-chrome>
+        <InsiderActivityToast />
+      </div>
     </div>
   );
 }

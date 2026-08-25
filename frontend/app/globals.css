@@ -1731,3 +1731,10 @@ h1, h2, h3 {
   color: var(--gold);
   background: rgba(255, 255, 255, 0.12);
 }
+
+/* A standalone page (the B2B site) renders inside the app shell when its host
+   root is proxied onto the route, so the path-based bare-route check cannot
+   see it. The page marks itself and the chrome steps aside — no nav, no
+   ticker, no footer, no toast, and no content gutter. */
+body:has([data-bare-page]) [data-app-chrome] { display: none !important; }
+body:has([data-bare-page]) main { padding: 0 !important; max-width: none !important; }
