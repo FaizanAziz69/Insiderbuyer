@@ -110,6 +110,7 @@ export function hasOptedIn(): boolean {
  *  auth, and the sales page (which brings its own downsell). */
 const POPUP_FREE_PREFIXES = [
   "/premium",
+  "/portfolio-activated",
   "/top-picks-report",
   "/thank-you-report",
   "/login",

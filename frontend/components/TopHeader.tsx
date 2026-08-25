@@ -67,6 +67,15 @@ export function TopHeader() {
           {NAV_GROUPS.map((g) => (
             <MegaDropdown key={g.label} group={g} />
           ))}
+          {/* Round-2 brief, Section 3D: My Portfolio is a primary nav item,
+              not a link buried inside a dropdown. */}
+          <Link
+            href="/portfolio"
+            className="px-3 py-2 rounded-md text-[14px] font-semibold whitespace-nowrap transition"
+            style={{ color: "#ffffff" }}
+          >
+            My Portfolio
+          </Link>
         </nav>
 
         {/* Ticker / company search */}
@@ -272,6 +281,13 @@ export function TopHeader() {
               </button>
             )}
             {user && <div className="mb-6" />}
+            <Link
+              href="/portfolio"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center justify-between px-3 py-2 mb-6 rounded-md hover:bg-[var(--accent-soft)]"
+            >
+              <span className="text-[15px] font-bold">My Portfolio</span>
+            </Link>
             {NAV_GROUPS.map((g) => (
               <div key={g.label} className="mb-6">
                 <div className="text-[10px] uppercase tracking-[0.18em] font-bold text-accent mb-3">

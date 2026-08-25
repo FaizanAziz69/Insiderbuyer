@@ -42,6 +42,25 @@ export class User {
   @Column({ type: 'timestamptz', nullable: true })
   premiumCurrentPeriodEnd!: Date | null;
 
+  // ── Portfolio Intelligence tier ($19/month, Round-2 brief Section 3) ──
+  // A SEPARATE Stripe subscription from premium: it can stack on top of a
+  // premium plan or be bought standalone, so it needs its own state.
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  portfolioSubscriptionId!: string | null;
+
+  @Column({ type: 'varchar', length: 24, nullable: true })
+  portfolioStatus!: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  portfolioCurrentPeriodEnd!: Date | null;
+
+  /** E.164 number collected after the portfolio purchase, for SMS alerts. */
+  @Column({ type: 'varchar', length: 24, nullable: true })
+  phone!: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  phoneConfirmedAt!: Date | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 }

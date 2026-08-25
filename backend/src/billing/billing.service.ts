@@ -47,6 +47,8 @@ export interface BillingPlans {
     currency: string;
     interval: 'month' | 'year';
   }>;
+  /** The $19 Portfolio Intelligence tier, priced live like the others. */
+  portfolio?: { amount: number; currency: string; interval: 'month' };
 }
 
 /** One-off products (Stripe `mode: 'payment'`), same find-or-create pattern
@@ -62,6 +64,18 @@ const ONE_TIME_CATALOG = {
 } as const;
 
 export type OneTimeProduct = keyof typeof ONE_TIME_CATALOG;
+
+/** Portfolio Intelligence — $19/month (Round-2 brief, Section 3). A SEPARATE
+ *  Stripe product from premium: the brief says it "can stack ON TOP of a
+ *  premium sub or be purchased standalone", so it never touches premium
+ *  state. */
+const PORTFOLIO_PLAN = {
+  lookupKey: 'ib_portfolio_monthly',
+  unitAmount: 1900, // $19.00 / month
+  interval: 'month' as const,
+  productName: 'Portfolio Intelligence',
+  nickname: 'Portfolio Intelligence — Monthly',
+};
 
 const PRODUCT_NAME = 'Insider Premium';
 /** Grace window after a period lapses before access is cut, to absorb webhook
@@ -80,6 +94,8 @@ export class BillingService {
   private priceCache: Partial<Record<Plan, string>> | null = null;
   /** priceId per one-off product, resolved once per process. */
   private oneTimePriceCache = new Map<string, string>();
+  /** priceId for the $19 portfolio tier. */
+  private portfolioPriceId: string | null = null;
 
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
@@ -296,6 +312,96 @@ export class BillingService {
     // purchase cancels it before the first email is due.
     this.emailFlows?.startFlow('abandoned', user.email, user.name).catch(() => undefined);
     return { url: session.url };
+  }
+
+  // ── Portfolio Intelligence ($19/month, Section 3) ─────────────────────
+
+  /** Find-or-create the $19 recurring price; cached per process. */
+  private async ensurePortfolioPrice(): Promise<string> {
+    if (this.portfolioPriceId) return this.portfolioPriceId;
+    const stripe = this.client();
+    const existing = await stripe.prices.list({
+      lookup_keys: [PORTFOLIO_PLAN.lookupKey],
+      active: true,
+      limit: 1,
+    });
+    let priceId = existing.data[0]?.id;
+    if (!priceId) {
+      const product = await stripe.products.create({
+        name: PORTFOLIO_PLAN.productName,
+        description:
+          'Insider Scores and SMS alerts for every stock in your portfolio.',
+      });
+      const price = await stripe.prices.create({
+        product: product.id,
+        currency: 'usd',
+        unit_amount: PORTFOLIO_PLAN.unitAmount,
+        recurring: { interval: PORTFOLIO_PLAN.interval },
+        lookup_key: PORTFOLIO_PLAN.lookupKey,
+        nickname: PORTFOLIO_PLAN.nickname,
+      });
+      priceId = price.id;
+      this.logger.log(`Created Stripe price ${PORTFOLIO_PLAN.lookupKey} → ${priceId}`);
+    }
+    this.portfolioPriceId = priceId;
+    return priceId;
+  }
+
+  /** The live $19 figure for the page, so it can never print a price Stripe
+   *  would not charge. Falls back to the catalog amount. */
+  async getPortfolioPrice(): Promise<{ amount: number; currency: string; interval: 'month' }> {
+    if (!this.configured) {
+      return { amount: PORTFOLIO_PLAN.unitAmount, currency: 'usd', interval: 'month' };
+    }
+    try {
+      const stripe = this.client();
+      const found = await stripe.prices.list({
+        lookup_keys: [PORTFOLIO_PLAN.lookupKey],
+        active: true,
+        limit: 1,
+      });
+      const price = found.data[0];
+      return {
+        amount: price?.unit_amount ?? PORTFOLIO_PLAN.unitAmount,
+        currency: price?.currency || 'usd',
+        interval: 'month',
+      };
+    } catch {
+      return { amount: PORTFOLIO_PLAN.unitAmount, currency: 'usd', interval: 'month' };
+    }
+  }
+
+  /** Checkout for the portfolio tier. Stacks on premium: a live premium
+   *  subscription is left completely alone. */
+  async createPortfolioCheckout(user: User): Promise<{ url: string }> {
+    if (this.isPortfolioActive(user)) return this.createPortal(user);
+    const price = await this.ensurePortfolioPrice();
+    const customerId = await this.ensureCustomer(user);
+    const stripe = this.client();
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer: customerId,
+      line_items: [{ price, quantity: 1 }],
+      ...(process.env.STRIPE_DYNAMIC_PAYMENT_METHODS === 'true'
+        ? {}
+        : { payment_method_types: ['card' as const] }),
+      allow_promotion_codes: true,
+      client_reference_id: user.id,
+      subscription_data: { metadata: { userId: user.id, plan: 'portfolio' } },
+      success_url: `${FRONTEND_URL}/portfolio-activated?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${FRONTEND_URL}/portfolio?checkout=cancelled`,
+    });
+    if (!session.url) throw new BadRequestException('Stripe returned no checkout URL.');
+    return { url: session.url };
+  }
+
+  /** Is the $19 tier live for this user (with the same renewal grace window
+   *  premium uses)? */
+  isPortfolioActive(user: User): boolean {
+    if (!user.portfolioStatus) return false;
+    if (!['active', 'trialing', 'past_due'].includes(user.portfolioStatus)) return false;
+    if (!user.portfolioCurrentPeriodEnd) return true;
+    return user.portfolioCurrentPeriodEnd.getTime() + GRACE_MS > Date.now();
   }
 
   // ── One-off products (the $3 report downsell) ──────────────────────────
@@ -548,6 +654,25 @@ export class BillingService {
       null;
 
     const lookupKey = sub.items?.data?.[0]?.price?.lookup_key || '';
+
+    // The portfolio tier is its own subscription and must never move premium
+    // state — note its lookup key also contains "monthly", which is exactly
+    // how it would have been mistaken for a premium plan.
+    if (
+      lookupKey === PORTFOLIO_PLAN.lookupKey ||
+      sub.metadata?.plan === 'portfolio'
+    ) {
+      user.stripeCustomerId = customerId;
+      user.portfolioSubscriptionId = sub.id;
+      user.portfolioStatus = sub.status;
+      user.portfolioCurrentPeriodEnd = periodEnd ? new Date(periodEnd * 1000) : null;
+      await this.users.save(user);
+      this.logger.log(
+        `Portfolio subscription ${sub.id} → user ${user.email}: ${sub.status}`,
+      );
+      return user;
+    }
+
     const plan: Plan | null = lookupKey.includes('annual')
       ? 'annual'
       : lookupKey.includes('monthly')
