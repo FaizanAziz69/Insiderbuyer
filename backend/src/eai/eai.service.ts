@@ -69,6 +69,8 @@ const HISTORY_LIMIT = 12;
 const MAX_PER_RUN = 800;
 /** How far back a company must have bought to be worth scoring, in days. */
 const BUYER_LOOKBACK_DAYS = 1095;
+/** Boot refreshes only when the stored scores are older than this. */
+const WARM_MAX_AGE_HOURS = 12;
 
 @Injectable()
 export class EaiService implements OnModuleInit {
@@ -90,8 +92,31 @@ export class EaiService implements OnModuleInit {
     // Warm on boot, but only after the app has settled — the calendar fetch and
     // the per-symbol FMP calls must never delay serving traffic.
     setTimeout(() => {
-      this.refresh().catch((e) => this.log.warn(`EAI warm-up failed: ${e?.message || e}`));
+      this.warmUp().catch((e) => this.log.warn(`EAI warm-up failed: ${e?.message || e}`));
     }, 90_000);
+  }
+
+  /**
+   * Refresh on boot only if the stored scores are stale.
+   *
+   * A full pass is ~700 companies × two upstream calls each. Running it on
+   * every restart would spend that on a deploy-day's worth of restarts for
+   * scores that change once a day at most — the table survives restarts
+   * precisely so it doesn't have to.
+   */
+  private async warmUp(): Promise<void> {
+    const newest = await this.cache
+      .createQueryBuilder('e')
+      .select('MAX(e.updatedAt)', 'ts')
+      .getRawOne<{ ts: Date | null }>()
+      .catch(() => null);
+    const ts = newest?.ts ? new Date(newest.ts).getTime() : 0;
+    const ageH = ts ? (Date.now() - ts) / 3_600_000 : Infinity;
+    if (ageH < WARM_MAX_AGE_HOURS) {
+      this.log.log(`EAI warm-up skipped — scores are ${ageH.toFixed(1)}h old.`);
+      return;
+    }
+    await this.refresh();
   }
 
   /** Nightly, after the US close — earnings dates and EPS actuals settle then. */
