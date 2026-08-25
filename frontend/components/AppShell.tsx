@@ -12,7 +12,6 @@ const BARE_ROUTES = [
   "/insider-report",
   // Round-2 brief, Section 2: isolated conversion pages — no header, no
   // footer, no navigation.
-  "/join",
   "/top-picks-report",
   "/thank-you-report",
 ];

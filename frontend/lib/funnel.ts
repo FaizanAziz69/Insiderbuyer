@@ -109,7 +109,6 @@ export function hasOptedIn(): boolean {
 /** Routes that must never carry a site-wide popup: the funnel's own pages,
  *  auth, and the sales page (which brings its own downsell). */
 const POPUP_FREE_PREFIXES = [
-  "/join",
   "/premium",
   "/top-picks-report",
   "/thank-you-report",
@@ -122,18 +121,24 @@ export function popupsAllowedOn(pathname: string): boolean {
   return !POPUP_FREE_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
-/** Where a Subscribe / Upgrade button goes: through the pre-sell opt-in.
- *  Section 2, Step 1 — the sales page is Step 3, never the entry point. */
-export const SUBSCRIBE_HREF = "/join";
+/** Where a Subscribe / Upgrade button goes.
+ *
+ *  The brief's Step 1 sent these through a /join pre-sell opt-in first; the
+ *  client removed that page on 2026-08-25 ("we're going to remove this page.
+ *  Just direct to subscribe page is fine"), so every Subscribe / Upgrade CTA
+ *  goes straight to the sales page again. One constant, so the whole site
+ *  follows — and so it can be pointed back at a pre-sell page in one edit. */
+export const SUBSCRIBE_HREF = "/premium";
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
 
 /* ── funnel attribution ──────────────────────────────────────────────────
- * Which door the visitor came through, so /premium and the checkout can be
- * attributed to the pre-sell page rather than to direct traffic (brief,
- * Section 2 Step 3: "track conversion from /join → /premium → purchase
- * separately"). Session-scoped: one journey, one entry point.
+ * Which door the visitor came through, so a sale on /premium can be
+ * attributed to the step that sent them there rather than to direct traffic
+ * (brief, Section 2 Step 3). Session-scoped: one journey, one entry point.
+ * "join" is retained only so historical events stay readable — the pre-sell
+ * page was removed on the client's instruction, 2026-08-25.
  */
 const ENTRY_KEY = "ib_funnel_entry";
 

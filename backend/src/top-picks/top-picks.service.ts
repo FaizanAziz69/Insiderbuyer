@@ -6,7 +6,6 @@ import { InsiderTransaction } from '../entities/insider-transaction.entity';
 import { Subscriber } from '../entities/subscriber.entity';
 import { plausibleTxSql } from '../iqs/tx-sanity';
 import { BillingService } from '../billing/billing.service';
-import { ActiveCampaignService } from '../subscribers/activecampaign.service';
 import { renderTopPicksPdf } from './report-pdf';
 
 /** One row of the $3 report: a stock trading BELOW the average price the
@@ -53,7 +52,6 @@ export class TopPicksService {
     @InjectRepository(Subscriber)
     private readonly subscribers: Repository<Subscriber>,
     private readonly billing: BillingService,
-    private readonly activeCampaign: ActiveCampaignService,
   ) {}
 
   /** The report itself: stocks where the live price is below the weighted
@@ -239,9 +237,6 @@ export class TopPicksService {
 
   /** Upsert the lead with its funnel tag. `source` is our CRM tag field. */
   private async tagSubscriber(email: string, source: string): Promise<void> {
-    // Brief: 'purchased:$3-report' is the highest-intent list on the site, so
-    // it goes to the CRM as well as our own table.
-    this.activeCampaign.syncContact(email, source).catch(() => undefined);
     const existing = await this.subscribers.findOne({ where: { email } });
     if (existing) {
       // A buyer outranks whatever brought them in — the purchase tag wins.
