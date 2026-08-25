@@ -38,7 +38,7 @@ export class EmailFlowsService {
     return process.env.RESEND_API_KEY || '';
   }
   private get from(): string {
-    return process.env.EMAIL_FROM || 'Insider Buying <devs@insiderbuying.com>';
+    return process.env.EMAIL_FROM || 'InsiderBuying.com <info@insiderbuying.com>';
   }
   private get subscribeUrl(): string {
     return process.env.EMAIL_SALES_URL || 'https://insiderbuying.com/premium';

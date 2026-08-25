@@ -84,7 +84,7 @@ export class B2bController {
     const to = process.env.B2B_LEAD_NOTIFY;
     const key = process.env.RESEND_API_KEY;
     if (!to || !key) return;
-    const from = process.env.EMAIL_FROM || 'InsiderBuying.com <reports@insiderbuying.com>';
+    const from = process.env.EMAIL_FROM || 'InsiderBuying.com <info@insiderbuying.com>';
     const rows = [
       ['Name', lead.name],
       ['Company', lead.company || '—'],
