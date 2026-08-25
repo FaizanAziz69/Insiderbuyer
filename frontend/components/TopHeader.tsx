@@ -71,8 +71,7 @@ export function TopHeader() {
               not a link buried inside a dropdown. */}
           <Link
             href="/portfolio"
-            className="px-3 py-2 rounded-md text-[14px] font-semibold whitespace-nowrap transition"
-            style={{ color: "#ffffff" }}
+            className="nav-top-link inline-flex items-center px-4 py-2 rounded-md whitespace-nowrap"
           >
             My Portfolio
           </Link>
@@ -286,7 +285,7 @@ export function TopHeader() {
               onClick={() => setMobileOpen(false)}
               className="flex items-center justify-between px-3 py-2 mb-6 rounded-md hover:bg-[var(--accent-soft)]"
             >
-              <span className="text-[15px] font-bold">My Portfolio</span>
+              <span className="text-[14px] font-semibold text-soft">My Portfolio</span>
             </Link>
             {NAV_GROUPS.map((g) => (
               <div key={g.label} className="mb-6">

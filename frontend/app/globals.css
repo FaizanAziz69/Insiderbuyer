@@ -1714,3 +1714,20 @@ h1, h2, h3 {
     min-width: 320px;
   }
 }
+
+/* Primary top-level nav link (My Portfolio) — styled to be indistinguishable
+   from the mega-dropdown triggers beside it: same padding, size, weight and
+   colour, and the same gold-on-interaction treatment. */
+.nav-top-link {
+  color: #ffffff;
+  background: transparent;
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.nav-top-link:hover,
+.nav-top-link:focus-visible {
+  color: var(--gold);
+  background: rgba(255, 255, 255, 0.12);
+}
