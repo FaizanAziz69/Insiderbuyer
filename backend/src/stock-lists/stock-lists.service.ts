@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -299,7 +299,7 @@ export interface StockListFilters {
 }
 
 @Injectable()
-export class StockListsService {
+export class StockListsService implements OnApplicationBootstrap {
   private readonly logger = new Logger(StockListsService.name);
 
   constructor(
@@ -870,6 +870,21 @@ export class StockListsService {
     // Nothing stored yet (first boot on a fresh database): the partial answer
     // is still better than an empty page, and it is labelled as such.
     return { ...fresh, stale: true };
+  }
+
+  /**
+   * On a brand-new database the snapshot table is empty, so the first minutes
+   * after boot would still rank the baskets on a partial price load. Warm it
+   * twice, off the request path: the first pass fills the baselines even if it
+   * cannot publish, and the second — with those baselines cached — is the one
+   * that usually clears the coverage bar.
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    const warm = async (delayMs: number) => {
+      await new Promise((r) => setTimeout(r, delayMs));
+      await this.refreshHotSectors().catch(() => undefined);
+    };
+    void warm(15_000).then(() => warm(45_000));
   }
 
   /** Warms the in-process baselines and refreshes the stored snapshot, so the
