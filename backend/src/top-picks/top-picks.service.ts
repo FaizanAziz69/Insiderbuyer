@@ -259,7 +259,7 @@ export class TopPicksService {
       this.logger.warn('RESEND_API_KEY missing — report not emailed');
       return false;
     }
-    const from = process.env.EMAIL_FROM || 'InsiderBuying.com <info@email.insiderbuying.com>';
+    const from = process.env.EMAIL_FROM || 'InsiderBuying.com <info@insiderbuying.com>';
     const pdf = await renderTopPicksPdf(picks);
     await axios.post(
       'https://api.resend.com/emails',

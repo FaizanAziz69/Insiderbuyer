@@ -38,10 +38,10 @@ export class EmailFlowsService {
     return process.env.RESEND_API_KEY || '';
   }
   private get from(): string {
-    // Resend is verified for email.insiderbuying.com, not the root domain, so
-    // the envelope has to come from the subdomain — a root from-address is
-    // rejected as unverified. Replies still go to the real mailbox (replyTo).
-    return process.env.EMAIL_FROM || 'InsiderBuying.com <info@email.insiderbuying.com>';
+    // insiderbuying.com is the domain registered in Resend (added 2026-08-26,
+    // with its DKIM and send-subdomain SPF/MX live in DNS), so the root address
+    // is the envelope. replyTo is the same mailbox.
+    return process.env.EMAIL_FROM || 'InsiderBuying.com <info@insiderbuying.com>';
   }
   private get subscribeUrl(): string {
     return process.env.EMAIL_SALES_URL || 'https://insiderbuying.com/premium';
