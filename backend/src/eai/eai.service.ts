@@ -66,7 +66,9 @@ const BUY_WINDOW_DAYS = 30;
 /** How many reports back to look for those strong quarters (~3 years). */
 const HISTORY_LIMIT = 12;
 /** Ceiling on symbols refreshed per pass, so one run can't drain the FMP quota. */
-const MAX_PER_RUN = 250;
+const MAX_PER_RUN = 800;
+/** How far back a company must have bought to be worth scoring, in days. */
+const BUYER_LOOKBACK_DAYS = 1095;
 
 @Injectable()
 export class EaiService implements OnModuleInit {
@@ -110,20 +112,46 @@ export class EaiService implements OnModuleInit {
     }
     this.running = true;
     try {
+      // Score every company whose insiders have actually bought — not just the
+      // ones reporting this fortnight.
+      //
+      // Scoped to the calendar the index was empty in production: only 4 of the
+      // 72 companies reporting in 14 days had ANY insider buying, so 68 columns
+      // of "0" said nothing. The population where alignment can exist is the
+      // set of companies with open-market buys, and a company keeps its score
+      // until the day it reports, which is when the earnings page needs it.
+      const since = new Date(Date.now() - BUYER_LOOKBACK_DAYS * 86_400_000);
+      const buyers = await this.txRepo
+        .createQueryBuilder('t')
+        .innerJoin('t.company', 'c')
+        .select('DISTINCT c.id', 'id')
+        .addSelect('c.ticker', 'ticker')
+        .where(`t."transactionCode" = 'P'`)
+        .andWhere('t.transactionDate >= :since', { since })
+        .andWhere('c.ticker IS NOT NULL')
+        .getRawMany<{ id: string; ticker: string }>();
+      const idByTicker = new Map<string, string>();
+      for (const b of buyers) {
+        const t = (b.ticker || '').toUpperCase();
+        if (t) idByTicker.set(t, b.id);
+      }
+
+      // Plus anything reporting soon that we hold filings for, so a name the
+      // earnings page is about to show is never missing purely by ordering.
       const cal = await this.earnings.getCalendar(days);
       const wanted = new Set(
         cal.map((e) => String(e.symbol || '').toUpperCase()).filter(Boolean),
       );
-      // Only companies we actually hold insider filings for can have alignment.
-      const rows = await this.companies
-        .createQueryBuilder('c')
-        .select(['c.id', 'c.ticker'])
-        .where('c.ticker IS NOT NULL')
-        .getMany();
-      const idByTicker = new Map<string, string>();
-      for (const c of rows) {
-        const t = (c.ticker || '').toUpperCase();
-        if (t && wanted.has(t)) idByTicker.set(t, c.id);
+      if (wanted.size) {
+        const rows = await this.companies
+          .createQueryBuilder('c')
+          .select(['c.id', 'c.ticker'])
+          .where('c.ticker IS NOT NULL')
+          .getMany();
+        for (const c of rows) {
+          const t = (c.ticker || '').toUpperCase();
+          if (t && wanted.has(t) && !idByTicker.has(t)) idByTicker.set(t, c.id);
+        }
       }
 
       let scanned = 0;
@@ -151,9 +179,9 @@ export class EaiService implements OnModuleInit {
       }
       this.lastRunAt = new Date();
       this.log.log(
-        `EAI refresh: ${scored}/${scanned} scored out of ${wanted.size} reporting in ${days}d.`,
+        `EAI refresh: ${scored}/${scanned} scored (${idByTicker.size} candidates: buyers + ${days}d calendar).`,
       );
-      return { scanned, scored, skipped: wanted.size - scanned };
+      return { scanned, scored, skipped: Math.max(0, idByTicker.size - scanned) };
     } finally {
       this.running = false;
     }
