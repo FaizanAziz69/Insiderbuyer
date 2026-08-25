@@ -38,11 +38,19 @@ export class EmailFlowsService {
     return process.env.RESEND_API_KEY || '';
   }
   private get from(): string {
-    return process.env.EMAIL_FROM || 'InsiderBuying.com <info@insiderbuying.com>';
+    // Resend is verified for email.insiderbuying.com, not the root domain, so
+    // the envelope has to come from the subdomain — a root from-address is
+    // rejected as unverified. Replies still go to the real mailbox (replyTo).
+    return process.env.EMAIL_FROM || 'InsiderBuying.com <info@email.insiderbuying.com>';
   }
   private get subscribeUrl(): string {
     return process.env.EMAIL_SALES_URL || 'https://insiderbuying.com/premium';
   }
+  /** Where replies land — the human mailbox, not the sending subdomain. */
+  private get replyTo(): string {
+    return process.env.EMAIL_REPLY_TO || 'info@insiderbuying.com';
+  }
+
   private get siteUrl(): string {
     return process.env.SITE_URL || 'https://insiderbuying.com';
   }
@@ -186,7 +194,7 @@ export class EmailFlowsService {
     const html = this.renderHtml(step, firstName, v.preview);
     await axios.post(
       'https://api.resend.com/emails',
-      { from: this.from, to: [state.email], subject, html },
+      { from: this.from, to: [state.email], reply_to: this.replyTo, subject, html },
       { headers: { Authorization: `Bearer ${this.apiKey}` }, timeout: 20_000 },
     );
     this.logger.log(`sent ${state.flow}/${step.id} → ${state.email} ("${subject}")`);

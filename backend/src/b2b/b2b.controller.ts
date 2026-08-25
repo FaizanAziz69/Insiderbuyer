@@ -84,7 +84,7 @@ export class B2bController {
     const to = process.env.B2B_LEAD_NOTIFY;
     const key = process.env.RESEND_API_KEY;
     if (!to || !key) return;
-    const from = process.env.EMAIL_FROM || 'InsiderBuying.com <info@insiderbuying.com>';
+    const from = process.env.EMAIL_FROM || 'InsiderBuying.com <info@email.insiderbuying.com>';
     const rows = [
       ['Name', lead.name],
       ['Company', lead.company || '—'],
@@ -104,6 +104,7 @@ export class B2bController {
         {
           from,
           to: to.split(',').map((t) => t.trim()),
+          reply_to: process.env.EMAIL_REPLY_TO || 'info@insiderbuying.com',
           subject: `B2B lead: ${lead.company || lead.name}${lead.ticker ? ` (${lead.ticker})` : ''}`,
           html:
             `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111;">` +
