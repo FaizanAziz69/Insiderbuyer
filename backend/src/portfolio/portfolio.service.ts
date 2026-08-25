@@ -114,7 +114,7 @@ export class PortfolioService {
         locked: !active,
         buyers90d: s?.buyers != null ? Number(s.buyers) : 0,
         bought90d: s?.bought != null ? Number(s.bought) : 0,
-        lastBuy: s?.lastBuy ? String(s.lastBuy).slice(0, 10) : null,
+        lastBuy: isoDate(s?.lastBuy),
         addedAt: r.createdAt.toISOString().slice(0, 10),
       };
     });
@@ -326,7 +326,7 @@ export class PortfolioService {
     if (buyers >= CLUSTER_MIN_BUYERS && Number(r.cluster_value) > 0) {
       out.push({
         kind: 'cluster-buy',
-        dedupeKey: `${sym}:${String(r.cluster_last_buy).slice(0, 10)}:${buyers}`,
+        dedupeKey: `${sym}:${isoDate(r.cluster_last_buy) ?? "recent"}:${buyers}`,
         body:
           `InsiderBuying.com: ALERT — ${buyers} insiders at $${sym} bought a combined ` +
           `${money(Number(r.cluster_value))} in the last ${CLUSTER_DAYS} days. ${score}` +
@@ -348,10 +348,10 @@ export class PortfolioService {
 
     // 3 — insider buying into earnings
     if (r.earnings_date && Number(r.pre_earnings_bought) > 0) {
-      const days = daysUntil(String(r.earnings_date));
+      const days = daysUntil(isoDate(r.earnings_date) ?? "");
       out.push({
         kind: 'pre-earnings',
-        dedupeKey: `${sym}:${String(r.earnings_date).slice(0, 10)}`,
+        dedupeKey: `${sym}:${isoDate(r.earnings_date) ?? "next"}`,
         body:
           `InsiderBuying.com: WATCH — Insiders at $${sym} bought ` +
           `${money(Number(r.pre_earnings_bought))} of stock ${days} days before earnings. ${score}` +
@@ -377,6 +377,15 @@ export class PortfolioService {
 
     return out;
   }
+}
+
+/** A SQL `date` arrives as a JS Date from node-postgres, so String(x) gives
+ *  "Tue Aug 11 2026 …". Always format explicitly. */
+function isoDate(v: unknown): string | null {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  const s = String(v);
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
 }
 
 function money(n: number): string {

@@ -146,8 +146,8 @@ export class TopPicksService {
           buyers: Number(r.buyers),
           filings: Number(r.filings),
           totalValue: Number(r.totalValue),
-          firstBuy: String(r.firstBuy).slice(0, 10),
-          lastBuy: String(r.lastBuy).slice(0, 10),
+          firstBuy: isoDate(r.firstBuy) ?? "",
+          lastBuy: isoDate(r.lastBuy) ?? "",
           topInsider: titleCaseName(String(r.topInsider || '')),
           topRole: String(r.topRole || '').slice(0, 60),
           topValue: Number(r.topValue || 0),
@@ -280,6 +280,15 @@ export class TopPicksService {
     this.logger.log(`report delivered → ${email} (${picks.length} picks)`);
     return true;
   }
+}
+
+/** A SQL `date` arrives as a JS Date from node-postgres, so String(x) gives
+ *  "Tue Aug 11 2026 …". Always format explicitly. */
+function isoDate(v: unknown): string | null {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  const s = String(v);
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
 }
 
 /** "TAN LIP BU" → "Tan Lip Bu" (EDGAR files names in caps). */
