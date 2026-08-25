@@ -29,7 +29,7 @@ export async function generateMetadata({
     // public forever.
     const title = override
       ? maskScoreText(override.t)
-      : `${maskScoreText(post.title)} | Insider Buying`;
+      : `${maskScoreText(post.title)} | InsiderBuying.com`;
     const description = maskScoreText(
       override?.d || String(post.summary || ""),
     ).slice(0, 160);
@@ -44,7 +44,7 @@ export async function generateMetadata({
         description,
         url,
         type: "article",
-        siteName: "Insider Buying",
+        siteName: "InsiderBuying.com",
         ...(image ? { images: [{ url: image }] } : {}),
       },
       twitter: {
@@ -63,7 +63,7 @@ export async function generateMetadata({
       };
     }
     return {
-      title: "Insider Buying — Live SEC Form 4 + Congressional Trades",
+      title: "InsiderBuying.com — Live SEC Form 4 + Congressional Trades",
     };
   }
 }

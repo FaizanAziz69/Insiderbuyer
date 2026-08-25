@@ -8,7 +8,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   return pageMetadata(`/advertorials/${slug}`, {
-    title: `${humanizeSlug(slug)} | Insider Buying`,
+    title: `${humanizeSlug(slug)} | InsiderBuying.com`,
     description: "Sponsored insider-buying research from Insider Buying.",
   });
 }

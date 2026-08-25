@@ -8,7 +8,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { month } = await params;
   return pageMetadata(`/reports/monthly/${month}`, {
-    title: `Monthly Insider Buying Report — ${month} | Insider Buying`,
+    title: `Monthly Insider Buying Report — ${month} | InsiderBuying.com`,
     description: `Monthly recap of notable executive insider buying: top Form 4 purchases, cluster buys and Insider Score movers.`,
   });
 }

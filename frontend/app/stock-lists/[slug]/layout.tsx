@@ -8,7 +8,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   return pageMetadata(`/stock-lists/${slug}`, {
-    title: `${humanizeSlug(slug)} Stock List & Insider Buys | Insider Buying`,
+    title: `${humanizeSlug(slug)} Stock List & Insider Buys | InsiderBuying.com`,
     description: "Curated stock list with real-time SEC Form 4 insider buying activity from Insider Buying.",
   });
 }

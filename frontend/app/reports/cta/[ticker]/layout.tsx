@@ -8,7 +8,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { ticker } = await params;
   return pageMetadata(`/reports/cta/${ticker.toUpperCase()}`, {
-    title: `${ticker.toUpperCase()} Insider Buying Report | Insider Buying`,
+    title: `${ticker.toUpperCase()} Insider Buying Report | InsiderBuying.com`,
     description: `Insider trading report for ${ticker.toUpperCase()}: SEC Form 4 buys, executive holdings and Insider Score signals.`,
   });
 }
