@@ -43,6 +43,12 @@ const TAG_STYLE: Record<string, { bg: string; fg: string }> = {
 };
 
 export default function AlertsPage() {
+  // Whether the hourly engine is actually mailing, so the copy below matches it.
+  const { data: alertStatus } = useSWR<{ sendingEnabled: boolean }>(
+    `${API_BASE}/insider-alerts/status`,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
   const [filter, setFilter] = useState<Filter>("all");
   const { data, isLoading } = useSWR<TradesResponse>(
     `${API_BASE}/trades?limit=500`,
@@ -156,10 +162,15 @@ export default function AlertsPage() {
         </div>
       )}
 
+      {/* Read from the engine rather than hard-coded: the page must never claim
+          delivery is live while the switch is off, or call it "rolling out"
+          after it has been turned on. */}
       <p className="text-[11px] text-faint">
-        Source: live SEC Form 4 open-market purchases. Email/Telegram delivery is
-        rolling out — signups are stored now and will receive alerts once delivery
-        is live. Informational only, not financial advice.
+        Source: live SEC Form 4 open-market purchases.{" "}
+        {alertStatus?.sendingEnabled
+          ? "Email delivery is live — sign up above and every CEO/CFO or $1M+ open-market buy reaches your inbox within hours of the filing, with its Insider Score."
+          : "Email delivery is rolling out — signups are stored now and will receive alerts once delivery is live."}{" "}
+        Informational only, not financial advice.
       </p>
     </div>
   );
