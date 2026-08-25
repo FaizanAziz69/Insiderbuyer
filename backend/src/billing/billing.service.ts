@@ -192,6 +192,11 @@ export class BillingService {
       configured: this.configured,
       live: false,
       mode: this.mode,
+      portfolio: {
+        amount: PORTFOLIO_PLAN.unitAmount,
+        currency: 'usd',
+        interval: 'month',
+      },
       plans: (Object.entries(CATALOG) as [Plan, (typeof CATALOG)[Plan]][]).map(
         ([plan, cfg]) => ({
           plan,
@@ -230,6 +235,9 @@ export class BillingService {
         live: existing.data.length > 0,
         mode: this.mode,
         plans,
+        // The $19 Portfolio Intelligence tier, priced from Stripe too, so the
+        // portfolio page can never print a figure checkout would not charge.
+        portfolio: await this.getPortfolioPrice(),
       };
       this.plansCache = { ts: Date.now(), data };
       return data;

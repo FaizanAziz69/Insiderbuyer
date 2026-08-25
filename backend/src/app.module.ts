@@ -11,6 +11,8 @@ import { Subscriber } from './entities/subscriber.entity';
 import { BlogPost } from './entities/blog-post.entity';
 import { EarningsEvent } from './entities/earnings-event.entity';
 import { User } from './entities/user.entity';
+import { PortfolioHolding } from './entities/portfolio-holding.entity';
+import { PortfolioAlert } from './entities/portfolio-alert.entity';
 import { SentimentScore } from './entities/sentiment-score.entity';
 import {
   BacktestCache,
@@ -105,6 +107,8 @@ import { BubblesModule } from './bubbles/bubbles.module';
           FundamentalsCache,
           BubblesCache,
           BubblesTickerMeta,
+          PortfolioHolding,
+          PortfolioAlert,
         ],
         // Schema sync issues a catalog query per entity on every boot. Fine
         // locally; on serverless it repeats forever. Set DB_SYNC=true for a
