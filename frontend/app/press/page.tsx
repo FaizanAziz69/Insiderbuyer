@@ -18,36 +18,23 @@ import { API_BASE } from "@/lib/api";
 /**
  * Scroll to a section.
  *
- * This document fights every normal approach, thanks to the global
- * overflow:clip on html/body plus the 1.1 body zoom: the native hash jump,
- * window.scrollTo(), scrollIntoView() — and even scrollTo with
- * behavior:"smooth" — are all no-ops here (all measured on the live page).
- * The one call that moves it is documentElement.scrollTo with
- * behavior:"instant", so the easing is done by hand on top of that.
+ * This document resists every normal approach: the global overflow:clip on
+ * html/body plus the 1.1 body zoom leave the native hash jump,
+ * window.scrollTo(), scrollIntoView() and scrollTo({behavior:"smooth"}) all
+ * doing nothing (each measured on the live page). documentElement.scrollTo
+ * with behavior:"instant" is the one call that moves it.
+ *
+ * Deliberately no requestAnimationFrame easing: rAF does not fire while a tab
+ * is hidden, so an eased version silently did nothing under test and would
+ * hang on tab visibility in the wild. An instant jump is what an anchor does.
  */
-function scrollToId(id: string) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const de = document.documentElement;
-  const from = de.scrollTop;
-  const distance = el.getBoundingClientRect().top;
-  if (Math.abs(distance) < 2) return;
-  const DURATION = 420;
-  const start = performance.now();
-  const step = (now: number) => {
-    const t = Math.min(1, (now - start) / DURATION);
-    const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
-    de.scrollTo({ top: from + distance * eased, behavior: "instant" });
-    if (t < 1) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-}
-
 function jumpTo(id: string) {
   return (e: React.MouseEvent) => {
-    if (!document.getElementById(id)) return;
+    const el = document.getElementById(id);
+    if (!el) return;
     e.preventDefault();
-    scrollToId(id);
+    const de = document.documentElement;
+    de.scrollTo({ top: de.scrollTop + el.getBoundingClientRect().top, behavior: "instant" });
     history.replaceState(null, "", `#${id}`);
   };
 }
