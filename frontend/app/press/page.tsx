@@ -176,14 +176,7 @@ function Services() {
             <article key={s.title} className="b2b-card">
               <p className="b2b-card-kicker">{s.kicker}</p>
               <h3 className="b2b-card-title">{s.title}</h3>
-              <p className="b2b-card-body">
-                {s.body.map((line, i) => (
-                  <span key={line}>
-                    {line}
-                    {i < s.body.length - 1 && <br />}
-                  </span>
-                ))}
-              </p>
+              <p className="b2b-card-body">{s.body.join(" ")}</p>
               <p className="b2b-card-price">{s.price}</p>
             </article>
           ))}
@@ -412,7 +405,7 @@ const CSS = `
 .b2b-eyebrow { font-size:12px; letter-spacing:1.6px; text-transform:uppercase; color:var(--gold);
   font-weight:700; margin:0 0 18px; }
 .b2b-h1 { font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:clamp(32px,4.6vw,54px);
-  line-height:1.1; font-weight:800; letter-spacing:-0.8px; margin:0 0 22px; }
+  line-height:1.1; font-weight:800; letter-spacing:-0.8px; margin:0 0 22px; color:#ffffff; }
 .b2b-sub { font-size:16.5px; line-height:1.72; color:#c9d6e4; max-width:640px; margin:0 0 32px; }
 .b2b-ctas { display:flex; flex-wrap:wrap; gap:14px; }
 .b2b-hero .b2b-btn-ghost { color:#fff; border-color:rgba(255,255,255,0.34); }
@@ -430,11 +423,11 @@ const CSS = `
   color:var(--muted); margin:0 0 26px; }
 .b2b-kicker-light { color:var(--gold); }
 .b2b-h2 { font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:clamp(24px,3vw,34px);
-  font-weight:800; letter-spacing:-0.5px; margin:0 0 26px; }
+  font-weight:800; letter-spacing:-0.5px; margin:0 0 26px; color:var(--ink); }
 
 .b2b-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; }
 .b2b-stat { border-left:3px solid var(--gold); padding:6px 0 6px 20px; }
-.b2b-stat b { display:block; font-family:var(--font-heading), var(--font-sans), sans-serif;
+.b2b-stat b { display:block; color:var(--ink); font-family:var(--font-heading), var(--font-sans), sans-serif;
   font-size:clamp(28px,3.4vw,40px); line-height:1.05; }
 .b2b-stat span { display:block; font-size:13.5px; color:var(--muted); margin-top:8px;
   letter-spacing:0.4px; text-transform:uppercase; }
@@ -445,7 +438,7 @@ const CSS = `
 .b2b-card-kicker { font-size:11px; letter-spacing:1.3px; text-transform:uppercase; color:var(--gold);
   font-weight:700; margin:0 0 12px; }
 .b2b-card-title { font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:20px;
-  font-weight:800; letter-spacing:-0.3px; margin:0 0 14px; }
+  font-weight:800; letter-spacing:-0.3px; margin:0 0 14px; color:var(--ink); }
 .b2b-card-body { font-size:14.5px; line-height:1.7; color:#3d4b5c; margin:0 0 22px; }
 .b2b-card-price { margin:auto 0 0; font-weight:800; font-size:15.5px; color:var(--navy); }
 
@@ -453,18 +446,18 @@ const CSS = `
 .b2b-step { border-top:2px solid var(--navy); padding-top:18px; }
 .b2b-step-n { font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:13px;
   font-weight:800; color:var(--gold); letter-spacing:1px; }
-.b2b-step h3 { font-size:18px; font-weight:800; margin:10px 0 8px; letter-spacing:-0.2px; }
+.b2b-step h3 { font-size:18px; font-weight:800; margin:10px 0 8px; letter-spacing:-0.2px; color:var(--ink); }
 .b2b-step p { font-size:14px; line-height:1.65; color:#3d4b5c; margin:0; }
 
-.b2b-editorial { font-family:var(--font-heading), var(--font-sans), sans-serif;
+.b2b-editorial { color:#ffffff; font-family:var(--font-heading), var(--font-sans), sans-serif;
   font-size:clamp(20px,2.6vw,30px); line-height:1.35; font-weight:700; letter-spacing:-0.4px;
   max-width:860px; margin:0; }
 
 .b2b-pkg { border:1px solid rgba(13,31,53,0.14); border-radius:6px; padding:28px 24px; background:#fff; }
 .b2b-pkg-hot { border-color:var(--gold); box-shadow:0 16px 40px rgba(13,31,53,0.08); }
 .b2b-pkg h3 { font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:19px;
-  font-weight:800; margin:0 0 10px; }
-.b2b-pkg-price { font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:34px;
+  font-weight:800; margin:0 0 10px; color:var(--ink); }
+.b2b-pkg-price { color:var(--ink); font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:34px;
   font-weight:800; letter-spacing:-1px; margin:0 0 22px; }
 
 .b2b-calendly { border:1px solid rgba(13,31,53,0.14); border-radius:6px; overflow:hidden;
