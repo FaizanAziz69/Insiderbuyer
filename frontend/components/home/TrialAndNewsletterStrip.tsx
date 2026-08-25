@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 /* ------------------------------------------------------------------ *
  * Immersive premium promo — hero (left) + layered floating dashboard
@@ -146,7 +147,7 @@ function HeroSide() {
       <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2.5">
         <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
           <Link
-            href="/premium"
+            href={SUBSCRIBE_HREF}
             className="group inline-flex items-center gap-2 rounded-lg px-5 py-3 text-[13.5px] font-bold uppercase tracking-wide"
             style={{ background: ACCENT_GRADIENT, color: "var(--on-accent)", boxShadow: ACCENT_GLOW }}
           >

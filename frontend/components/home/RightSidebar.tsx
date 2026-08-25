@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, Mail } from "lucide-react";
 import { API_BASE } from "@/lib/api";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 // Shared client-side email check: require a local part, a domain, and a TLD.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -13,7 +14,7 @@ export function RightSidebar() {
     <aside className="space-y-5">
       {/* AI promo */}
       <Link
-        href="/premium"
+        href={SUBSCRIBE_HREF}
         className="card card-lift block p-5 relative overflow-hidden group"
         style={{
           background:

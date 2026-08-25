@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { BarChart3, Briefcase, Lightbulb } from "lucide-react";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 /* Feature claims audited against the code (client free/paid audit) — nothing
    here may promise something the product cannot show today. Cut in that pass:
@@ -64,7 +65,7 @@ export function AllAccessCta() {
             daily SEC Form 4 alert stream. 30-day money-back guarantee — cancel anytime.
           </p>
           <Link
-            href="/premium"
+            href={SUBSCRIBE_HREF}
             className="btn-primary inline-flex items-center gap-1.5 mt-5"
             style={{ padding: "11px 22px", fontSize: 13 }}
           >

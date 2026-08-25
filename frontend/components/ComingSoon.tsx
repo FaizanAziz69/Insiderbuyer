@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { ArrowRight, Lock, Sparkles } from "lucide-react";
 import { usePremium } from "@/components/premium/PremiumContext";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 interface Props {
   title: string;
@@ -75,7 +76,7 @@ export function ComingSoon({
           )}
 
           <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/premium" className="btn-primary">
+            <Link href={SUBSCRIBE_HREF} className="btn-primary">
               {premium ? "Get Insider Access" : "Join waitlist"}
               <ArrowRight className="h-4 w-4" />
             </Link>

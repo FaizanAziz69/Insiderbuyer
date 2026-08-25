@@ -20,6 +20,7 @@ import { MegaDropdown } from "./nav/MegaDropdown";
 import { StockSearch } from "./nav/StockSearch";
 import { NAV_GROUPS } from "@/lib/nav-config";
 import { useAuth } from "@/lib/auth";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 export function TopHeader() {
   const { user, signOut } = useAuth();
@@ -100,7 +101,7 @@ export function TopHeader() {
             />
           </Link>
           <Link
-            href="/premium"
+            href={SUBSCRIBE_HREF}
             className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-5 h-9 sm:h-10 rounded-md text-[12.5px] sm:text-[14px] font-semibold whitespace-nowrap"
             style={{
               background: "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
@@ -242,7 +243,7 @@ export function TopHeader() {
 
             {/* Insider Access CTA — the only route to /premium on a phone. */}
             <Link
-              href="/premium"
+              href={SUBSCRIBE_HREF}
               onClick={() => setMobileOpen(false)}
               className="flex items-center justify-center gap-2 w-full h-11 rounded-lg text-[15px] font-bold mb-3"
               style={{

@@ -8,7 +8,14 @@ import { PREMIUM_UNLOCKED } from "@/lib/premium";
 import { InsiderActivityToast } from "@/components/home/InsiderActivityToast";
 
 /** Standalone funnel pages that render without the site chrome. */
-const BARE_ROUTES = ["/insider-report"];
+const BARE_ROUTES = [
+  "/insider-report",
+  // Round-2 brief, Section 2: isolated conversion pages — no header, no
+  // footer, no navigation.
+  "/join",
+  "/top-picks-report",
+  "/thank-you-report",
+];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

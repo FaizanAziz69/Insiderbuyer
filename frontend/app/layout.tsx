@@ -4,7 +4,7 @@ import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { PostHogProvider } from "@/components/PostHogProvider";
-import { SitePopups } from "@/components/SitePopups";
+import { FunnelPopups } from "@/components/funnel/FunnelPopups";
 import { PremiumProvider } from "@/components/premium/PremiumContext";
 import { AuthProvider } from "@/lib/auth";
 import { OG_IMAGE, seoEntry } from "@/lib/seo-meta";
@@ -107,7 +107,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <PremiumProvider>
             <AppShell>{children}</AppShell>
-            <SitePopups />
+            <FunnelPopups />
           </PremiumProvider>
         </AuthProvider>
       </body>

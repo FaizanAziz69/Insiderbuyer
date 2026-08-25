@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 export function GetInsightsCard() {
   return (
@@ -31,7 +32,7 @@ export function GetInsightsCard() {
         Scores and full rankings come with Insider Access.
       </p>
       <Link
-        href="/premium"
+        href={SUBSCRIBE_HREF}
         className="btn-primary mt-4 w-full"
         style={{ padding: "8px 14px", fontSize: 13 }}
       >

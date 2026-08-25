@@ -9,6 +9,7 @@ import {
   LineChart,
   TrendingDown,
 } from "lucide-react";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 /** Each tool gets its own tint so the grid reads as colorful app tiles —
  *  deliberately unlike MarketBeat's plain text-row list. */
@@ -44,7 +45,7 @@ export function SidebarPopularTools() {
           Popular Tools
         </h3>
         <Link
-          href="/premium"
+          href={SUBSCRIBE_HREF}
           className="text-[11px] font-semibold text-accent hover:underline inline-flex items-center gap-0.5"
         >
           Insider Access <ArrowUpRight className="h-3 w-3" />
