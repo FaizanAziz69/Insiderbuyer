@@ -7,6 +7,7 @@ import { InsiderTransaction } from '../entities/insider-transaction.entity';
 import { EaiCache } from '../entities/eai-cache.entity';
 import { FmpService } from '../fmp/fmp.service';
 import { EarningsService } from '../earnings/earnings.service';
+import { MarketStatsService } from '../market-stats/market-stats.service';
 
 /**
  * Earnings Alignment Index (EAI).
@@ -15,7 +16,9 @@ import { EarningsService } from '../earnings/earnings.service';
  * last three strong quarters are flagged with our Earnings Alignment Index."
  * This service is that flag.
  *
- *   strong quarter  = the company beat the consensus EPS estimate.
+ *   strong quarter  = the market rewarded the report — the stock closed higher
+ *                     the session after it than the session before. Where we
+ *                     have no price history, an EPS beat stands in.
  *   aligned quarter = at least one open-market insider BUY (Form 4 code P) in
  *                     the 30 days before that report date — the same 30-day
  *                     pre-earnings window the page describes.
@@ -23,6 +26,14 @@ import { EarningsService } from '../earnings/earnings.service';
  *
  * A score needs at least two strong quarters to exist; one lucky quarter is not
  * a pattern. 100 (3-for-3) is the flag the copy refers to.
+ *
+ * Why the market's verdict rather than the EPS line: measured on beats alone
+ * the index was empty in production (2026-08-26, 68 companies, every score 0).
+ * The companies that beat consensus are large caps whose insiders sell, and the
+ * companies whose insiders buy are small caps that miss almost every quarter —
+ * the two sets barely intersect. A quarter the market paid up for is both the
+ * plainer meaning of "strong" and the definition this codebase's earnings
+ * backtest already uses.
  */
 export interface EaiRow {
   ticker: string;
@@ -37,6 +48,10 @@ interface EaiQuarter {
   date: string;
   epsActual: number | null;
   epsEstimated: number | null;
+  /** Post-earnings % move (close before → close after); null if unavailable. */
+  reactionPct: number | null;
+  /** What made this quarter count as strong. */
+  basis: 'price' | 'eps';
   bought: boolean;
   buyValue: number;
   buyers: number;
@@ -66,6 +81,7 @@ export class EaiService implements OnModuleInit {
     @InjectRepository(EaiCache) private readonly cache: Repository<EaiCache>,
     private readonly fmp: FmpService,
     private readonly earnings: EarningsService,
+    private readonly marketStats: MarketStatsService,
   ) {}
 
   onModuleInit() {
@@ -164,13 +180,29 @@ export class EaiService implements OnModuleInit {
         Number.isFinite(r.epsActual) &&
         Number.isFinite(r.epsEstimated),
     );
-    const strongQuarters = reported
-      .filter((r) => (r.epsActual as number) > (r.epsEstimated as number))
-      .slice(0, QUARTERS);
+    // One price series covers every quarter we test; getDailyCloses caches it.
+    const closes = await this.marketStats.getDailyCloses(ticker, 800).catch(() => []);
+    const strongQuarters: Array<{
+      row: (typeof reported)[number];
+      reactionPct: number | null;
+      basis: 'price' | 'eps';
+    }> = [];
+    for (const r of reported) {
+      if (strongQuarters.length >= QUARTERS) break;
+      const reactionPct = this.reaction(closes, r.date);
+      if (reactionPct != null) {
+        if (reactionPct > 0) strongQuarters.push({ row: r, reactionPct, basis: 'price' });
+        continue;
+      }
+      // No usable closes around this date — fall back to the EPS line.
+      if ((r.epsActual as number) > (r.epsEstimated as number)) {
+        strongQuarters.push({ row: r, reactionPct: null, basis: 'eps' });
+      }
+    }
     if (strongQuarters.length < MIN_STRONG) return null;
 
     const quarters: EaiQuarter[] = [];
-    for (const q of strongQuarters) {
+    for (const { row: q, reactionPct, basis } of strongQuarters) {
       const end = new Date(`${q.date}T00:00:00Z`);
       const start = new Date(end.getTime() - BUY_WINDOW_DAYS * 86_400_000);
       const buys = await this.txRepo
@@ -187,6 +219,8 @@ export class EaiService implements OnModuleInit {
         date: q.date,
         epsActual: q.epsActual,
         epsEstimated: q.epsEstimated,
+        reactionPct,
+        basis,
         bought: buyers > 0,
         buyValue: Math.round(Number(buys?.value || 0)),
         buyers,
@@ -200,6 +234,21 @@ export class EaiService implements OnModuleInit {
       eai: Math.round((aligned / quarters.length) * 100),
       quarters,
     };
+  }
+
+  /**
+   * Post-earnings move for one report date: the close before the report to the
+   * first close on or after it. Null when the series doesn't cover the date.
+   */
+  private reaction(closes: { t: number; c: number }[], iso: string): number | null {
+    if (closes.length < 3) return null;
+    const target = new Date(`${iso}T00:00:00Z`).getTime();
+    const afterIdx = closes.findIndex((p) => p.t * 1000 >= target);
+    if (afterIdx <= 0) return null; // before the series starts, or no prior close
+    const pre = closes[afterIdx - 1];
+    const post = closes[afterIdx];
+    if (!pre?.c || !post?.c) return null;
+    return +(((post.c - pre.c) / pre.c) * 100).toFixed(2);
   }
 
   /** Cached scores for the tickers reporting soon, keyed by ticker. */

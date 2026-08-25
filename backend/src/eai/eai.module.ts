@@ -5,6 +5,7 @@ import { InsiderTransaction } from '../entities/insider-transaction.entity';
 import { EaiCache } from '../entities/eai-cache.entity';
 import { FmpModule } from '../fmp/fmp.module';
 import { EarningsModule } from '../earnings/earnings.module';
+import { MarketStatsModule } from '../market-stats/market-stats.module';
 import { EaiController } from './eai.controller';
 import { EaiService } from './eai.service';
 
@@ -13,6 +14,7 @@ import { EaiService } from './eai.service';
     TypeOrmModule.forFeature([Company, InsiderTransaction, EaiCache]),
     FmpModule,
     EarningsModule,
+    MarketStatsModule,
   ],
   controllers: [EaiController],
   providers: [EaiService],

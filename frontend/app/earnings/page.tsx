@@ -55,6 +55,8 @@ interface EaiQuarter {
   date: string;
   epsActual: number | null;
   epsEstimated: number | null;
+  reactionPct: number | null;
+  basis: "price" | "eps";
   bought: boolean;
   buyValue: number;
   buyers: number;
@@ -70,14 +72,18 @@ interface EaiScore {
 
 /** Hover text spelling out exactly what the score counted. */
 function eaiTitle(e: EaiScore): string {
-  const head = `Earnings Alignment Index ${e.eai}/100 — insiders bought ahead of ${e.aligned} of the last ${e.strong} strong quarters (EPS beats).`;
+  const head = `Earnings Alignment Index ${e.eai}/100 — insiders bought ahead of ${e.aligned} of the last ${e.strong} strong quarters.`;
   const detail = e.quarters
-    .map(
-      (q) =>
-        `${q.date}: EPS ${q.epsActual ?? "—"} vs ${q.epsEstimated ?? "—"} est · ${
-          q.bought ? `${q.buyers} insider${q.buyers === 1 ? "" : "s"} bought` : "no insider buying"
-        }`,
-    )
+    .map((q) => {
+      const strength =
+        q.basis === "price" && q.reactionPct != null
+          ? `stock ${q.reactionPct >= 0 ? "+" : ""}${q.reactionPct}% after the report`
+          : `EPS ${q.epsActual ?? "—"} vs ${q.epsEstimated ?? "—"} est`;
+      const buying = q.bought
+        ? `${q.buyers} insider${q.buyers === 1 ? "" : "s"} bought in the 30 days before`
+        : "no insider buying in the 30 days before";
+      return `${q.date}: ${strength} · ${buying}`;
+    })
     .join("\n");
   return `${head}\n\n${detail}`;
 }
@@ -262,8 +268,8 @@ export default function EarningsPage() {
             style={{ borderTop: "1px solid var(--border)" }}
           >
             <span className="font-bold" style={{ color: "var(--text-soft)" }}>EAI</span> — Earnings
-            Alignment Index: of this company&rsquo;s last three strong quarters (EPS beats), how many
-            did insiders buy ahead of, in the 30 days before the report.{" "}
+            Alignment Index: of this company&rsquo;s last three strong quarters (the stock rose after
+            the report), how many did insiders buy ahead of, in the 30 days before it.{" "}
             <span
               className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-bold"
               style={{ background: "#d4a92a", color: "#141620" }}
