@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { HotSectorsCache } from '../entities/hot-sectors-cache.entity';
 import { IqsService, RankingRow } from '../iqs/iqs.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 import { FmpScreenerRow, FmpService } from '../fmp/fmp.service';
@@ -50,6 +54,11 @@ export interface HotSectorsResponse {
   sp500Ytd: number | null;
   sp500Mtd?: number | null;
   sectors: HotSectorRow[];
+  /** Share of basket members whose month-to-date return resolved, 0–1. */
+  coverage?: number;
+  /** True when the numbers come from the stored snapshot rather than this
+   *  request's computation (a cold process cannot rank the baskets). */
+  stale?: boolean;
 }
 
 /**
@@ -291,7 +300,11 @@ export interface StockListFilters {
 
 @Injectable()
 export class StockListsService {
+  private readonly logger = new Logger(StockListsService.name);
+
   constructor(
+    @InjectRepository(HotSectorsCache)
+    private readonly hotSectorsCache: Repository<HotSectorsCache>,
     private readonly iqs: IqsService,
     private readonly marketStats: MarketStatsService,
     private readonly thirteenF: ThirteenFService,
@@ -816,7 +829,67 @@ export class StockListsService {
    *     compared against an index quoted up to an hour apart — the "slightly
    *     inaccurate" part of the complaint.
    */
+  /** Publish threshold: below this share of members resolved, a computation is
+   *  not representative and must not replace a good snapshot. */
+  private readonly HOT_SECTORS_MIN_COVERAGE = 0.7;
+  private static readonly HOT_SECTORS_KEY = 'current';
+
+  /**
+   * Served snapshot. A fresh computation is published only when most basket
+   * members resolved; otherwise the last good snapshot is returned, because a
+   * cold process computes breadth over a prefix of the members and ranks the
+   * baskets wrongly (see HotSectorsCache).
+   */
   async getHotSectors(): Promise<HotSectorsResponse> {
+    const fresh = await this.computeHotSectors();
+    const stored = await this.hotSectorsCache
+      .findOne({ where: { key: StockListsService.HOT_SECTORS_KEY } })
+      .catch(() => null);
+
+    const coverage = fresh.coverage ?? 0;
+    if (coverage >= this.HOT_SECTORS_MIN_COVERAGE) {
+      await this.hotSectorsCache
+        .save({
+          key: StockListsService.HOT_SECTORS_KEY,
+          payload: fresh,
+          coverage: coverage.toFixed(4),
+        })
+        .catch((e) =>
+          this.logger.warn(`Hot sectors snapshot not saved: ${e?.message || e}`),
+        );
+      return fresh;
+    }
+
+    if (stored?.payload) {
+      this.logger.log(
+        `Hot sectors: coverage ${(coverage * 100).toFixed(0)}% — serving the ` +
+          `snapshot from ${stored.updatedAt.toISOString()} instead`,
+      );
+      return { ...(stored.payload as HotSectorsResponse), stale: true };
+    }
+    // Nothing stored yet (first boot on a fresh database): the partial answer
+    // is still better than an empty page, and it is labelled as such.
+    return { ...fresh, stale: true };
+  }
+
+  /** Warms the in-process baselines and refreshes the stored snapshot, so the
+   *  first request after a restart is served from the table, not from a
+   *  half-resolved computation. */
+  @Cron('*/20 * * * *')
+  async refreshHotSectors(): Promise<void> {
+    try {
+      const res = await this.getHotSectors();
+      this.logger.log(
+        `Hot sectors refreshed (${res.sectors.length} baskets, coverage ${(
+          (res.coverage ?? 0) * 100
+        ).toFixed(0)}%)`,
+      );
+    } catch (e) {
+      this.logger.warn(`Hot sectors refresh failed: ${(e as Error)?.message || e}`);
+    }
+  }
+
+  private async computeHotSectors(): Promise<HotSectorsResponse> {
     const baskets = await this.hotSectorBaskets();
     // ROUND-ROBIN across baskets rather than basket-by-basket. The MTD baseline
     // fill downstream is a budget-bounded PREFIX of this list, so the order
@@ -963,12 +1036,18 @@ export class StockListsService {
       .map((r, i) => ({ rank: i + 1, ...r }));
 
     const now = new Date();
+    // What share of the members actually resolved a month-to-date return. This
+    // is the honest measure of whether the ranking means anything: breadth is
+    // 40% of the score and it can only see resolved names.
+    const resolved = allTickers.filter((t) => returns[t.toUpperCase()]?.mtd != null).length;
+    const coverage = allTickers.length ? resolved / allTickers.length : 0;
     return {
       asOfDate: now.toISOString().slice(0, 10),
       monthLabel: now.toLocaleString('en-US', { month: 'long', year: 'numeric' }),
       sp500Ytd,
       sp500Mtd,
       sectors: scored,
+      coverage: +coverage.toFixed(4),
     };
   }
 

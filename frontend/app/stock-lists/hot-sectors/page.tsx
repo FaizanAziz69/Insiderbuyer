@@ -27,6 +27,11 @@ interface HotSectorsResponse {
   monthLabel: string;
   sp500Ytd: number | null;
   sectors: HotSectorRow[];
+  /** Share of basket members priced this request, 0–1. */
+  coverage?: number;
+  /** The backend served its last good snapshot because this computation could
+   *  not price enough members to rank the baskets. */
+  stale?: boolean;
 }
 
 function pct(v: number | null, withSign = false): string {
@@ -246,6 +251,12 @@ export default function HotSectorsPage() {
         )}
       </div>
 
+      {data?.stale && (
+        <p className="text-[12px] text-mute">
+          Showing the last complete ranking while today&rsquo;s prices finish loading.
+        </p>
+      )}
+
       {/* Methodology note */}
       <div
         className="rounded-lg p-4 text-[12.5px] text-mute leading-relaxed"
@@ -261,8 +272,12 @@ export default function HotSectorsPage() {
         across the basket, scaled by how many buys stand behind it so one or two
         lone purchases cannot max out the component. MTD and YTD are
         equal-weighted averages of member stocks; YTD is also shown against the
-        S&amp;P 500 in percentage points (pp). Informational only — not
-        investment advice.
+        S&amp;P 500 in percentage points (pp). <strong>Insider counts cover SEC
+        Form 4 and German BaFin filings only</strong> — a basket weighted toward
+        Canadian-listed names (gold and rare-earth miners especially, which file
+        with SEDI) will show fewer buys than its insiders actually made, so read
+        that column alongside breadth and momentum rather than on its own.
+        Informational only — not investment advice.
       </div>
 
       <AdSlot slot="leaderboard" seed="hot-sectors-bottom" />
