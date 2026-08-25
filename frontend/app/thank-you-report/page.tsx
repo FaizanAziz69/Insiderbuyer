@@ -29,9 +29,11 @@ interface Fulfilment {
   emailed: boolean;
 }
 
-/** Verification can lose a race with Stripe; retry before giving up. */
-const RETRIES = 3;
-const RETRY_MS = 1500;
+/** Verification can lose a race with Stripe; retry before giving up. Kept
+ *  short on purpose: a session Stripe will never confirm should reach the
+ *  redirect in ~5s, not sit on an empty screen (measured 18s at 3×1500ms). */
+const RETRIES = 2;
+const RETRY_MS = 1000;
 
 export default function ThankYouReportPage() {
   const router = useRouter();
