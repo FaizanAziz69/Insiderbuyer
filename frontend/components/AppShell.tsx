@@ -14,6 +14,8 @@ const BARE_ROUTES = [
   // footer, no navigation.
   "/top-picks-report",
   "/thank-you-report",
+  // Round-2 brief, Section 4: the B2B site is a separate experience.
+  "/press",
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

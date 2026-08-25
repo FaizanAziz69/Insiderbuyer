@@ -13,6 +13,7 @@ import { EarningsEvent } from './entities/earnings-event.entity';
 import { User } from './entities/user.entity';
 import { PortfolioHolding } from './entities/portfolio-holding.entity';
 import { PortfolioAlert } from './entities/portfolio-alert.entity';
+import { B2bLead } from './entities/b2b-lead.entity';
 import { SentimentScore } from './entities/sentiment-score.entity';
 import {
   BacktestCache,
@@ -44,6 +45,7 @@ import { ReportsModule } from './reports/reports.module';
 import { BillingModule } from './billing/billing.module';
 import { TopPicksModule } from './top-picks/top-picks.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
+import { B2bModule } from './b2b/b2b.module';
 import { ReportLead } from './entities/report-lead.entity';
 import { EmailFlowsModule } from './email-flows/email-flows.module';
 import { GovContractsModule } from './gov-contracts/gov-contracts.module';
@@ -109,6 +111,7 @@ import { BubblesModule } from './bubbles/bubbles.module';
           BubblesTickerMeta,
           PortfolioHolding,
           PortfolioAlert,
+          B2bLead,
         ],
         // Schema sync issues a catalog query per entity on every boot. Fine
         // locally; on serverless it repeats forever. Set DB_SYNC=true for a
@@ -154,6 +157,7 @@ import { BubblesModule } from './bubbles/bubbles.module';
     BillingModule,
     TopPicksModule,
     PortfolioModule,
+    B2bModule,
     AuthModule,
     EmailFlowsModule,
     GovContractsModule,

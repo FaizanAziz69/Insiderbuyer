@@ -111,6 +111,7 @@ export function hasOptedIn(): boolean {
 const POPUP_FREE_PREFIXES = [
   "/premium",
   "/portfolio-activated",
+  "/press",
   "/top-picks-report",
   "/thank-you-report",
   "/login",
