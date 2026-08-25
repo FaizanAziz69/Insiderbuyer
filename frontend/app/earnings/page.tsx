@@ -72,7 +72,10 @@ interface EaiScore {
 
 /** Hover text spelling out exactly what the score counted. */
 function eaiTitle(e: EaiScore): string {
-  const head = `Earnings Alignment Index ${e.eai}/100 — insiders bought ahead of ${e.aligned} of the last ${e.strong} strong quarters.`;
+  const head =
+    e.eai === 0
+      ? `Earnings Alignment Index 0/100 — we checked the last ${e.strong} strong quarters and found no insider buying in the 30 days before any of them.`
+      : `Earnings Alignment Index ${e.eai}/100 — insiders bought ahead of ${e.aligned} of the last ${e.strong} strong quarters.`;
   const detail = e.quarters
     .map((q) => {
       const strength =
@@ -171,8 +174,22 @@ export default function EarningsPage() {
                 render: (r) => {
                   const e = eaiByTicker[(r.symbol || "").toUpperCase()];
                   if (!e) return <span className="text-faint text-[13px]">—</span>;
-                  // 3-for-3 is the flag the page's intro promises; anything
-                  // lower is still shown, just without the gold treatment.
+                  // The intro promises a FLAG, and a zero is not one. A checked
+                  // company with no pre-earnings buying says so on hover rather
+                  // than filling the column with "0 · 0/3" — on a typical day
+                  // most of the calendar has no alignment at all.
+                  if (e.eai === 0) {
+                    return (
+                      <span
+                        className="text-faint text-[13px]"
+                        title={eaiTitle(e)}
+                      >
+                        —
+                      </span>
+                    );
+                  }
+                  // 3-for-3 is the strongest form of the flag; anything lower
+                  // is still shown, just without the gold treatment.
                   const flagged = e.eai === 100;
                   return (
                     <span
