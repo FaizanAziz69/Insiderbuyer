@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { PRODUCT_NAME } from "@/components/premium/PaywallCta";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
 export default function SettingsPage() {
   // The plan row used to be a hardcoded "Free" badge, so a paying subscriber
@@ -37,7 +38,7 @@ export default function SettingsPage() {
           {premium ? (
             <span className="badge badge-gold">{PRODUCT_NAME}</span>
           ) : (
-            <Link href="/premium" className="badge badge-neutral hover:text-accent transition">
+            <Link href={SUBSCRIBE_HREF} className="badge badge-neutral hover:text-accent transition">
               Free — unlock
             </Link>
           )}

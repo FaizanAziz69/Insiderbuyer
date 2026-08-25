@@ -21,6 +21,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
 import { API_BASE, fetcher } from "@/lib/api";
@@ -28,7 +29,8 @@ import { getAuthToken, useAuth } from "@/lib/auth";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { LoginModal } from "@/components/LoginModal";
 import { AlreadySubscribedModal } from "@/components/premium/AlreadySubscribedModal";
-import { OptInModal } from "@/components/OptInModal";
+import { PremiumDownsell } from "@/components/funnel/PremiumDownsell";
+import { markPopupShown, popupShownThisSession } from "@/lib/funnel";
 
 /* ------------------------------------------------------------------ data */
 
@@ -337,6 +339,7 @@ export default function PremiumPage() {
   const theme = useSiteTheme();
   const { user } = useAuth();
   const { premium } = usePremium();
+  const router = useRouter();
   const [busy, setBusy] = useState<"monthly" | "annual" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
@@ -377,23 +380,52 @@ export default function PremiumPage() {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
-  // Exit-intent + timed email capture for the reports bundle (carried over
-  // from the previous subscribe page; never shown to subscribers).
+  // Downsell 1 (Round-2 brief, Section 2, Step 4): the monthly plan, offered
+  // on exit intent or once the visitor has scrolled past pricing. Once per
+  // session, counted against the brief's two-popup cap, never to a subscriber.
   useEffect(() => {
     if (premium) return;
+    if (popupShownThisSession("premium-downsell")) return;
     const fire = () => {
       if (popupFired.current) return;
+      if (popupShownThisSession("premium-downsell")) return;
       popupFired.current = true;
+      markPopupShown("premium-downsell");
       setPopupOpen(true);
     };
-    const t = setTimeout(fire, 25000);
+    // Cursor leaves through the top of the window.
     const onMouseOut = (e: MouseEvent) => {
       if (!e.relatedTarget && e.clientY <= 0) fire();
     };
+    // Scrolled past the pricing block — "clicked away from the CTA".
+    const onScroll = () => {
+      const pricing = document.getElementById("pricing");
+      if (!pricing) return;
+      if (pricing.getBoundingClientRect().bottom < 0) fire();
+    };
+    // Mobile back gesture, one-shot: an extra history entry absorbs the first
+    // press, the listener then detaches so the next one navigates.
+    const coarse =
+      typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+    let onPop: (() => void) | null = null;
+    if (coarse) {
+      try {
+        history.pushState({ ibPremiumGuard: true }, "");
+      } catch {
+        /* history blocked — the other two triggers still apply */
+      }
+      onPop = () => {
+        if (onPop) window.removeEventListener("popstate", onPop);
+        fire();
+      };
+      window.addEventListener("popstate", onPop);
+    }
     document.addEventListener("mouseout", onMouseOut);
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      clearTimeout(t);
       document.removeEventListener("mouseout", onMouseOut);
+      window.removeEventListener("scroll", onScroll);
+      if (onPop) window.removeEventListener("popstate", onPop);
     };
   }, [premium]);
 
@@ -634,15 +666,24 @@ export default function PremiumPage() {
       <section className="biv-section" id="pricing">
         <p className="biv-eyebrow-center biv-accent-text">Pricing</p>
         <h2 className="biv-h2 biv-center">Become an insider.</h2>
+        {/* Brief, Section 2 Step 3: the line that hands the reader from proof
+            to purchase, immediately above the plans. */}
+        <p className="biv-lead biv-center">You&apos;ve seen why it works. Here&apos;s how to get it.</p>
         <div className="biv-plans">
           {PLANS.map((p) => {
             const price = priceOf(p.plan);
             const paid = p.plan !== "free";
+            // Brief, Step 3: the annual CTA names the plan and its price, and
+            // is the loudest button on the page. The figure is the live Stripe
+            // amount, never a hardcoded one.
+            const annualCta = price ? `Get Annual Access — ${price}/year` : p.cta;
             const label = premium && paid
               ? "You're subscribed"
               : busy === p.plan
                 ? "Opening checkout…"
-                : p.cta;
+                : p.plan === "annual"
+                  ? annualCta
+                  : p.cta;
             return (
               <div key={p.name} className={`biv-plan ${p.featured ? "biv-plan-hot" : ""}`}>
                 {p.featured && <div className="biv-plan-badge">Best value</div>}
@@ -663,7 +704,7 @@ export default function PremiumPage() {
                     type="button"
                     onClick={() => checkout(p.plan as "monthly" | "annual")}
                     disabled={busy !== null}
-                    className={`biv-btn ${p.featured ? "biv-btn-solid" : "biv-btn-ghost"} biv-btn-block`}
+                    className={`biv-btn ${p.featured ? "biv-btn-solid biv-btn-loud" : "biv-btn-ghost"} biv-btn-block`}
                   >
                     {label}
                   </button>
@@ -758,7 +799,9 @@ export default function PremiumPage() {
             ? "You're subscribed"
             : busy === "annual"
               ? "Opening checkout…"
-              : "Get All-In Access"}
+              : priceOf("annual")
+                ? `Get Annual Access — ${priceOf("annual")}/year`
+                : "Get Annual Access"}
         </button>
       </section>
 
@@ -766,19 +809,19 @@ export default function PremiumPage() {
 
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
       <AlreadySubscribedModal open={thanksOpen} onClose={() => setThanksOpen(false)} />
-      <OptInModal
+      <PremiumDownsell
         open={popupOpen}
-        onClose={() => setPopupOpen(false)}
-        source="premium-exit-reports"
-        hidePhone
-        headerLabel="Before you go — free bundle"
-        promo={{
-          eyebrow: "Before you go — free bundle",
-          title: "Get ALL Our Special Reports — Including \u201cOne Tiny Stock You Should Know About\u201d",
-          body: "Top Stocks Insiders Are Buying \u00b7 Top Stocks Analysts Love \u00b7 Top Dividend Stocks \u00b7 plus our current #1 insider cluster buy. Enter your email and we'll send you where to unlock the full bundle.",
-          cta: "Send Me the Reports \u2192",
-          note: "No spam \u00b7 Unsubscribe anytime \u00b7 Your email is never sold",
+        monthlyLabel={priceOf("monthly") ?? "$39.99"}
+        busy={busy === "monthly"}
+        onStart={() => {
+          setPopupOpen(false);
+          checkout("monthly");
         }}
+        onDismiss={() => {
+          setPopupOpen(false);
+          router.push("/top-picks-report");
+        }}
+        onClose={() => setPopupOpen(false)}
       />
     </div>
   );
@@ -850,6 +893,9 @@ const CSS = `
 }
 .biv-btn-block { display: block; width: 100%; text-align: center; margin: 18px 0; }
 .biv-btn-big { font-size: 17px; padding: 16px 34px; }
+/* Primary conversion button (annual plan) — deliberately the loudest control
+   in the pricing block, per the Round-2 brief. */
+.biv-btn-loud { font-size: 15.5px; padding: 16px 20px; letter-spacing: 0.2px; box-shadow: 0 12px 30px rgba(76,195,138,0.28); }
 /* The checkout CTAs are real <button>s (they POST /billing/checkout), so they
    need the anchor styling above plus a button reset and a disabled state. */
 .biv button.biv-btn { font-family: inherit; border-width: 0; cursor: pointer; -webkit-appearance: none; appearance: none; }
