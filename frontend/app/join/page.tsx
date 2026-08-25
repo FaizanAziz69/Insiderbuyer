@@ -17,7 +17,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { FUNNEL_COOKIES, hasOptedIn, isValidEmail, setCookie } from "@/lib/funnel";
+import { FUNNEL_COOKIES, hasOptedIn, isValidEmail, setCookie, setFunnelEntry } from "@/lib/funnel";
+import { identifyByEmail, track } from "@/lib/analytics";
 
 const NEXT = "/premium";
 
@@ -31,7 +32,9 @@ export default function JoinPage() {
 
   // Cookies are only readable on the client, so the decision lands after mount.
   useEffect(() => {
-    setKnown(hasOptedIn());
+    const seen = hasOptedIn();
+    setKnown(seen);
+    track("web_join_view", { returning: seen });
   }, []);
 
   const skipForm = useMemo(() => known || !!user, [known, user]);
@@ -62,6 +65,11 @@ export default function JoinPage() {
          on this page. The redirect happens either way. */
     }
     setCookie(FUNNEL_COOKIES.optedIn, "true", 3650);
+    // Attribution for the rest of the journey: everything that follows on
+    // /premium is credited to the pre-sell page, not to direct traffic.
+    setFunnelEntry("join");
+    track("web_join_optin", { source: "optin-join" });
+    void identifyByEmail(clean);
     router.push(NEXT);
   };
 
@@ -77,7 +85,14 @@ export default function JoinPage() {
         {skipForm ? (
           <>
             <p className="jn-sub">You&apos;re on the list. Pick up where you left off.</p>
-            <a href={NEXT} className="jn-btn">
+            <a
+              href={NEXT}
+              className="jn-btn"
+              onClick={() => {
+                setFunnelEntry("join");
+                track("web_join_continue");
+              }}
+            >
               Continue to Insider Access →
             </a>
           </>

@@ -13,6 +13,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { API_BASE } from "@/lib/api";
+import { track } from "@/lib/analytics";
+import { getFunnelEntry } from "@/lib/funnel";
 
 interface Pick {
   ticker: string;
@@ -61,6 +63,13 @@ export default function ThankYouReportPage() {
         if (cancelled) return;
         setData(json);
         setState(json.paid ? "ok" : "unpaid");
+        track(json.paid ? "web_purchase" : "web_report_unverified", {
+          product: "top-picks-report",
+          price: 3,
+          emailed: json.emailed,
+          picks: json.picks?.length ?? 0,
+          entry: getFunnelEntry(),
+        });
       } catch {
         if (!cancelled) setState("error");
       }

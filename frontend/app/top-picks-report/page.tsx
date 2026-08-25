@@ -12,6 +12,8 @@
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { API_BASE, fetcher } from "@/lib/api";
+import { track } from "@/lib/analytics";
+import { getFunnelEntry } from "@/lib/funnel";
 
 interface Preview {
   count: number;
@@ -41,13 +43,16 @@ export default function TopPicksReportPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("purchase") === "cancelled") setCancelled(true);
+    const wasCancelled = params.get("purchase") === "cancelled";
+    if (wasCancelled) setCancelled(true);
+    track("web_report_view", { entry: getFunnelEntry(), cancelled: wasCancelled });
   }, []);
 
   const buy = async () => {
     if (busy) return;
     setBusy(true);
     setError(null);
+    track("web_report_checkout_start", { price: 3, entry: getFunnelEntry() });
     try {
       const res = await fetch(`${API_BASE}/top-picks-report/checkout`, {
         method: "POST",

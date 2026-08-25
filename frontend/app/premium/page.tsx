@@ -30,6 +30,8 @@ import { usePremium } from "@/components/premium/PremiumContext";
 import { LoginModal } from "@/components/LoginModal";
 import { AlreadySubscribedModal } from "@/components/premium/AlreadySubscribedModal";
 import { PremiumDownsell } from "@/components/funnel/PremiumDownsell";
+import { getFunnelEntry, setFunnelEntry } from "@/lib/funnel";
+import { track } from "@/lib/analytics";
 import { markPopupShown, popupShownThisSession } from "@/lib/funnel";
 
 /* ------------------------------------------------------------------ data */
@@ -273,6 +275,7 @@ function CheckoutOutcome({ onSuccess }: { onSuccess: () => void }) {
   useEffect(() => {
     if (state !== "success" || firedRef.current) return;
     firedRef.current = true;
+    track("web_purchase", { product: "premium", entry: getFunnelEntry() });
     onSuccess();
   }, [state, onSuccess]);
   useEffect(() => {
@@ -380,6 +383,14 @@ export default function PremiumPage() {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
+  // Step 3 of the funnel: log the sales-page view with its entry point, so
+  // /join → /premium → purchase can be read as one conversion path.
+  useEffect(() => {
+    track("web_premium_view", { entry: getFunnelEntry(), premium });
+    // Once per mount — `premium` flipping after a sync is not a new view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Downsell 1 (Round-2 brief, Section 2, Step 4): the monthly plan, offered
   // on exit intent or once the visitor has scrolled past pricing. Once per
   // session, counted against the brief's two-popup cap, never to a subscriber.
@@ -391,6 +402,7 @@ export default function PremiumPage() {
       if (popupShownThisSession("premium-downsell")) return;
       popupFired.current = true;
       markPopupShown("premium-downsell");
+      track("web_downsell_shown", { plan: "monthly", entry: getFunnelEntry() });
       setPopupOpen(true);
     };
     // Cursor leaves through the top of the window.
@@ -441,6 +453,7 @@ export default function PremiumPage() {
       return;
     }
     setBusy(plan);
+    track("web_checkout_start", { plan, entry: getFunnelEntry() });
     setErr(null);
     try {
       const res = await fetch(`${API_BASE}/billing/checkout`, {
@@ -815,10 +828,13 @@ export default function PremiumPage() {
         busy={busy === "monthly"}
         onStart={() => {
           setPopupOpen(false);
+          track("web_downsell_accept", { plan: "monthly" });
           checkout("monthly");
         }}
         onDismiss={() => {
           setPopupOpen(false);
+          track("web_downsell_decline", { next: "/top-picks-report" });
+          setFunnelEntry("downsell");
           router.push("/top-picks-report");
         }}
         onClose={() => setPopupOpen(false)}

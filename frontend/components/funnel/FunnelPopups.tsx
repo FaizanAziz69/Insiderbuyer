@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { API_BASE } from "@/lib/api";
+import { identifyByEmail, track } from "@/lib/analytics";
 import { useAuth } from "@/lib/auth";
 import { usePremium } from "@/components/premium/PremiumContext";
 import {
@@ -25,6 +26,7 @@ import {
   isValidEmail,
   markPopupCompleted,
   markPopupShown,
+  setFunnelEntry,
   popupShownThisSession,
   popupsAllowedOn,
   popupsShownThisSession,
@@ -84,6 +86,7 @@ export function FunnelPopups() {
   const { premium } = usePremium();
   const [active, setActive] = useState<PopupId | null>(null);
   const armed = useRef(false);
+  const completed = useRef(false);
 
   /** Everything the brief says must suppress a popup. */
   const eligible = useCallback(
@@ -110,6 +113,7 @@ export function FunnelPopups() {
     const t = setTimeout(() => {
       if (!eligible("popup1")) return;
       markPopupShown("popup1", COPY.popup1.shownCookie);
+      track("web_popup_shown", { popup: "popup1", trigger: "timer-30s", path: pathname });
       setActive("popup1");
     }, POPUP1_DELAY_MS);
     return () => clearTimeout(t);
@@ -125,6 +129,7 @@ export function FunnelPopups() {
     const fire = () => {
       if (!eligible("popup2")) return;
       markPopupShown("popup2", COPY.popup2.shownCookie);
+      track("web_popup_shown", { popup: "popup2", trigger: "exit-intent", path: pathname });
       setActive("popup2");
     };
 
@@ -167,8 +172,19 @@ export function FunnelPopups() {
     <FunnelModal
       copy={copy}
       known={user?.email || null}
-      onClose={() => setActive(null)}
-      onCompleted={() => markPopupCompleted(copy.completedCookie)}
+      onClose={() => {
+        if (!completed.current) {
+          track("web_popup_dismissed", { popup: active, source: copy.source });
+        }
+        setActive(null);
+      }}
+      onCompleted={(email) => {
+        completed.current = true;
+        markPopupCompleted(copy.completedCookie);
+        setFunnelEntry("popup");
+        track("web_popup_optin", { popup: active, source: copy.source });
+        void identifyByEmail(email);
+      }}
     />
   );
 }
@@ -184,7 +200,7 @@ function FunnelModal({
   copy: (typeof COPY)[PopupId];
   known: string | null;
   onClose: () => void;
-  onCompleted: () => void;
+  onCompleted: (email: string) => void;
 }) {
   const [email, setEmail] = useState(known || "");
   const [busy, setBusy] = useState(false);
@@ -220,7 +236,7 @@ function FunnelModal({
         body: JSON.stringify({ email: email.trim().toLowerCase(), source: copy.source }),
       });
       if (!res.ok) throw new Error(String(res.status));
-      onCompleted();
+      onCompleted(email.trim().toLowerCase());
       // Brief: confirm INSIDE the popup. No redirect.
       setDone(true);
     } catch {

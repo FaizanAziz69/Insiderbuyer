@@ -128,3 +128,30 @@ export const SUBSCRIBE_HREF = "/join";
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
+
+/* ── funnel attribution ──────────────────────────────────────────────────
+ * Which door the visitor came through, so /premium and the checkout can be
+ * attributed to the pre-sell page rather than to direct traffic (brief,
+ * Section 2 Step 3: "track conversion from /join → /premium → purchase
+ * separately"). Session-scoped: one journey, one entry point.
+ */
+const ENTRY_KEY = "ib_funnel_entry";
+
+export type FunnelEntry = "join" | "popup" | "downsell" | "direct";
+
+export function setFunnelEntry(entry: FunnelEntry): void {
+  try {
+    sessionStorage.setItem(ENTRY_KEY, entry);
+  } catch {
+    /* storage unavailable — attribution degrades to "direct" */
+  }
+}
+
+export function getFunnelEntry(): FunnelEntry {
+  try {
+    const v = sessionStorage.getItem(ENTRY_KEY);
+    return v === "join" || v === "popup" || v === "downsell" ? v : "direct";
+  } catch {
+    return "direct";
+  }
+}
