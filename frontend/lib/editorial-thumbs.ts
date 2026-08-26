@@ -107,6 +107,9 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // Buffett photo. The slug is also chosen so the un-deployed pick already
   // resolves here.
   "editorial-nancy-pelosi-first-bloom-energy-trade-2026-08-25": "invest-like-pelosi",
+  // 2026-08-26: client asked for the Jensen Huang photo specifically. Without
+  // the pin the NVDA ticker rule would pick englander-nvidia-etf instead.
+  "editorial-raymond-james-nvidia-352-price-target-2026-08-26": "jensen-huang-2026",
 };
 
 function candidatesFor(opts: ThumbInput): Thumb[] {
