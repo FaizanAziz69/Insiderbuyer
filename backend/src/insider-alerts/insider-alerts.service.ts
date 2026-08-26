@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, MoreThan, Repository } from 'typeorm';
@@ -7,6 +7,7 @@ import { InsiderTransaction } from '../entities/insider-transaction.entity';
 import { InsiderAlertDispatch } from '../entities/insider-alert-dispatch.entity';
 import { Subscriber } from '../entities/subscriber.entity';
 import { User } from '../entities/user.entity';
+import { AppSetting } from '../entities/app-setting.entity';
 import { IqsService } from '../iqs/iqs.service';
 import { BillingService } from '../billing/billing.service';
 import { WatchlistService } from '../watchlist/watchlist.service';
@@ -27,6 +28,8 @@ const LOOKBACK_HOURS = 24;
 const MAX_ITEMS = 25;
 const BIG_BUY_USD = 1_000_000;
 const EXEC_ROLES = /(chief executive|chief financial|\bceo\b|\bcfo\b)/i;
+/** app_settings key holding the delivery switch. */
+const SENDING_KEY = 'insider_alert_emails';
 /** Dedupe channel for the public digest; watchlist alerts use the user id. */
 const BROADCAST = 'broadcast';
 
@@ -48,7 +51,7 @@ export interface AlertItem {
 }
 
 @Injectable()
-export class InsiderAlertsService {
+export class InsiderAlertsService implements OnModuleInit {
   private readonly log = new Logger(InsiderAlertsService.name);
   private running = false;
   lastRunAt: Date | null = null;
@@ -62,19 +65,54 @@ export class InsiderAlertsService {
     private readonly subscribers: Repository<Subscriber>,
     @InjectRepository(User)
     private readonly users: Repository<User>,
+    @InjectRepository(AppSetting)
+    private readonly settings: Repository<AppSetting>,
     private readonly iqs: IqsService,
     private readonly billing: BillingService,
     private readonly watchlist: WatchlistService,
   ) {}
 
+  /** Cached copy of the stored switch, so the hot path never hits the DB. */
+  private sendingFlag: boolean | null = null;
+
   /** Resend is configured AND sending has been switched on for alerts. */
   get sendingEnabled(): boolean {
+    if (!process.env.RESEND_API_KEY) return false;
+    if (this.sendingFlag != null) return this.sendingFlag;
+    // Before the stored switch has been read, fall back to the env var so a
+    // fresh database can still be configured the old way.
     const flag = (process.env.INSIDER_ALERT_EMAILS || '').toLowerCase();
-    return !!process.env.RESEND_API_KEY && (flag === '1' || flag === 'true');
+    return flag === '1' || flag === 'true';
+  }
+
+  /** Read the stored switch into memory (called on boot and before each run). */
+  private async loadSwitch(): Promise<void> {
+    try {
+      const row = await this.settings.findOne({ where: { key: SENDING_KEY } });
+      if (row) this.sendingFlag = row.value === '1';
+    } catch (e: any) {
+      // Keep whatever we had; a database blip must not silently start sending.
+      this.log.warn(`Alert switch read failed: ${e?.message || e}`);
+    }
+  }
+
+  /** Turn delivery on or off immediately, without a deploy or a restart. */
+  async setSending(on: boolean): Promise<{ sendingEnabled: boolean }> {
+    await this.settings.save(
+      this.settings.create({ key: SENDING_KEY, value: on ? '1' : '0' }),
+    );
+    this.sendingFlag = on;
+    this.log.log(`IQS alert email delivery turned ${on ? 'ON' : 'OFF'}.`);
+    return { sendingEnabled: this.sendingEnabled };
+  }
+
+  async onModuleInit(): Promise<void> {
+    await this.loadSwitch();
   }
 
   @Cron('11 * * * *')
   async hourly() {
+    await this.loadSwitch();
     await this.run().catch((e) => this.log.error(`IQS alert sweep: ${e?.message || e}`));
     await this.runWatchlists().catch((e) =>
       this.log.error(`Watchlist alert sweep: ${e?.message || e}`),

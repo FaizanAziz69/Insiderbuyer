@@ -19,6 +19,7 @@ import { EaiCache } from './entities/eai-cache.entity';
 import { InsiderAlertDispatch } from './entities/insider-alert-dispatch.entity';
 import { WatchlistItem } from './entities/watchlist-item.entity';
 import { ScreenerUniverseCache } from './entities/screener-universe-cache.entity';
+import { AppSetting } from './entities/app-setting.entity';
 import { SentimentScore } from './entities/sentiment-score.entity';
 import {
   BacktestCache,
@@ -126,6 +127,7 @@ import { BubblesModule } from './bubbles/bubbles.module';
           InsiderAlertDispatch,
           WatchlistItem,
           ScreenerUniverseCache,
+          AppSetting,
         ],
         // Schema sync issues a catalog query per entity on every boot. Fine
         // locally; on serverless it repeats forever. Set DB_SYNC=true for a

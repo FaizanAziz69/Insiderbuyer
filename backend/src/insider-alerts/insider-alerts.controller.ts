@@ -18,6 +18,13 @@ export class InsiderAlertsController {
     return this.svc.run(dry === '1' || dry === 'true');
   }
 
+  /** Turn email delivery on or off immediately. `?on=1` or `?on=0`. */
+  @Post('sending')
+  @UseGuards(AdminTokenGuard)
+  setSending(@Query('on') on?: string) {
+    return this.svc.setSending(on === '1' || on === 'true');
+  }
+
   /** Run the premium watchlist sweep now. `?dry=1` counts without sending. */
   @Post('run-watchlists')
   @UseGuards(AdminTokenGuard)

@@ -25,7 +25,21 @@ export class SubscribersController {
     // welcome flow below is the whole integration.
     const source = body?.source?.slice(0, 80) || null;
     const existing = await this.repo.findOne({ where: { email } });
-    if (existing) return { ok: true, deduped: true, id: existing.id };
+    if (existing) {
+      // Someone who joined through a popup and LATER signs up on /alerts was
+      // silently dropped here: the row was deduped and the new tag thrown away,
+      // so they never became an alert recipient. Tags accumulate instead.
+      const tags = (existing.source || '')
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+      if (source && !tags.includes(source)) {
+        tags.push(source);
+        existing.source = tags.join(',').slice(0, 255);
+        await this.repo.save(existing);
+      }
+      return { ok: true, deduped: true, id: existing.id, source: existing.source };
+    }
     const saved = await this.repo.save(
       this.repo.create({
         email,

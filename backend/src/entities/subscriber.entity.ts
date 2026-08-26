@@ -18,7 +18,11 @@ export class Subscriber {
   @Column({ type: 'varchar', length: 40, nullable: true })
   phone!: string | null;
 
-  @Column({ type: 'varchar', length: 80, nullable: true })
+  /** Comma-separated capture tags — a subscriber can arrive through the exit
+   *  popup and later ask for alerts, and both need to survive. 80 chars was
+   *  enough for one tag and would truncate the second mid-word, which would
+   *  quietly break the recipient match. */
+  @Column({ type: 'varchar', length: 255, nullable: true })
   source!: string | null;
 
   @CreateDateColumn()
