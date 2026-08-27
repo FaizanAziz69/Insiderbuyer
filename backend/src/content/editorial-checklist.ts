@@ -24,6 +24,7 @@
 import {
   BANNED_BODY_WORDS,
   BANNED_HEADLINE_WORDS,
+  CREDITABLE_OUTLETS,
   EDITORIAL_CATEGORIES,
   FORM4_ATTRIBUTION,
   HEADLINE_MAX_WORDS,
@@ -464,6 +465,82 @@ export function runEditorialChecklist(draft: EditorialDraft): ChecklistReport {
     'warning',
     '5',
     `no timeframe after: ${bareMove.slice(0, 3).join(', ')}`,
+  );
+
+  // ── Section 5 — the remaining technical rules ───────────────────────────
+  // "Company name: always include ticker in brackets on first reference."
+  const tickerRef = draft.ticker
+    ? new RegExp(`\\(${draft.ticker.toUpperCase().replace(/[.\-]/g, '\\$&')}\\)`).test(text)
+    : true;
+  add(
+    'ticker-first-reference',
+    'Company name carries its ticker in brackets — "Moderna (MRNA)"',
+    tickerRef,
+    'warning',
+    '5',
+    `no "(${(draft.ticker || '').toUpperCase()})" anywhere in the body`,
+  );
+
+  // "For amounts under $1 million: '$450,000' not '$450K' in body text."
+  const abbreviated = [...text.matchAll(/\$\d+(?:\.\d+)?\s?K\b/g)].map((m) => m[0]);
+  add(
+    'dollar-figures',
+    'Sub-million amounts written in full — "$450,000", not "$450K"',
+    abbreviated.length === 0,
+    'warning',
+    '5',
+    `found: ${abbreviated.slice(0, 4).join(', ')} — the K abbreviation is for headlines and sub-heads only`,
+  );
+
+  // "Dollar amounts: always use figures." — "two million dollars" is out.
+  const spelledOut = /\b(?:one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:hundred\s+)?(?:thousand|million|billion)\s+dollars?\b/i.exec(
+    text,
+  );
+  add(
+    'dollar-as-figures',
+    'Dollar amounts as figures, not words',
+    !spelledOut,
+    'warning',
+    '5',
+    spelledOut ? `found "${spelledOut[0]}" — write it as a figure` : undefined,
+  );
+
+  // "The words 'open-market purchase' must appear when that is what happened."
+  // Proxy: the article talks about insiders buying, so the precise phrase has
+  // to be there — otherwise a compensation event reads as a conviction buy.
+  const talksAboutBuying = /\b(?:bought|buying|purchase[ds]?|added to (?:his|her|their) (?:position|stake))\b/i.test(
+    text,
+  );
+  add(
+    'transaction-precision',
+    'Uses the exact phrase "open-market purchase" where that is what the filing shows',
+    !talksAboutBuying || /open-market purchase/i.test(text),
+    'warning',
+    '5',
+    'the body describes buying but never says "open-market purchase" — without it a grant or an option exercise reads as conviction',
+  );
+
+  // "When citing other media: paraphrase and credit the outlet."
+  const credited = CREDITABLE_OUTLETS.filter((o) => text.toLowerCase().includes(o));
+  add(
+    'outlet-attribution',
+    'Market Reaction paragraph credits a named outlet',
+    credited.length > 0,
+    'warning',
+    '5',
+    'no outlet named — the manual asks for "The Wall Street Journal reported…", never an uncredited paraphrase',
+  );
+
+  // §10: "IQS SCORE: Referenced in article text and/or shown in viz."
+  const scoreReferenced =
+    /(?:Insider|IQ)\s+Score/i.test(text) || embeds.includes('iqs-card');
+  add(
+    'score-referenced',
+    'Insider Score referenced — in the text as a band, or via the iqs-card viz',
+    scoreReferenced,
+    'warning',
+    '10',
+    'neither the score band nor an iqs-card embed appears; §10 asks for one of the two',
   );
 
   const errors = checks.filter((c) => !c.passed && c.severity === 'error').length;

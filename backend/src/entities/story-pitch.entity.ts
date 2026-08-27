@@ -20,15 +20,23 @@ import {
  * days, and "we pitched this on the 12th and skipped it" is editorial history
  * worth having.
  */
+// ONE index declaration per column set. A class-level `@Index(['runAt'])`
+// alongside a property-level `@Index()` on the same column generates the SAME
+// deterministic index name twice, and TypeORM emits both inside the CREATE
+// TABLE — the second one fails with `relation "IDX_…" already exists`, which
+// aborts `synchronize()` and puts the whole backend into a boot crash loop
+// (hit in production 2026-08-27). The composite index covers `runAt` lookups
+// as a prefix, so `ticker, runAt` plus the single `runAt` below is all that is
+// needed.
 @Entity('story_pitches')
-@Index(['runAt'])
 @Index(['ticker', 'runAt'])
 export class StoryPitch {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   /** Discovery run this pitch belongs to — an ISO timestamp shared by every
-   *  pitch from the same sweep, so the UI can group one briefing. */
+   *  pitch from the same sweep, so the UI can group one briefing. Indexed
+   *  here and NOT also at class level — see the note above the decorator. */
   @Index()
   @Column({ type: 'timestamptz' })
   runAt: Date;

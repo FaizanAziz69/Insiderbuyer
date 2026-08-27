@@ -45,6 +45,12 @@ export const EDITORIAL_CATEGORIES = [
 ] as const;
 export type EditorialCategory = (typeof EDITORIAL_CATEGORIES)[number];
 
+/** Section 5 — hero stories run longer than small-slot ones. The gate uses the
+ *  outer band (WORD_COUNT_MIN/MAX); these are the manual's per-slot targets,
+ *  reported so a writer knows which half of the band they are aiming at. */
+export const WORD_COUNT_HERO = { min: 350, max: 600 } as const;
+export const WORD_COUNT_SMALL = { min: 250, max: 400 } as const;
+
 /** Section 5 — the article arc. Order is the publish order. */
 export const ARTICLE_ARC = [
   { section: 'Lede', length: '2–3 sentences', purpose: 'The most important fact first. Specific number or event. Company name and ticker in sentence 1.' },
@@ -166,6 +172,30 @@ export const VIZ_TYPES = [
 ] as const;
 export type VizKey = (typeof VIZ_TYPES)[number]['key'];
 export const VIZ_KEYS: readonly string[] = VIZ_TYPES.map((v) => v.key);
+
+/** Section 5 — outlets the manual names for the Market Reaction paragraph
+ *  ("paraphrase and credit the outlet"), plus the wires this site already
+ *  reads. Used only to check that SOMETHING is credited. */
+export const CREDITABLE_OUTLETS = [
+  'wall street journal',
+  'wsj',
+  'cnbc',
+  "barron's",
+  'barrons',
+  'bloomberg',
+  'reuters',
+  'financial times',
+  'the logic',
+  'politico',
+  'bbc',
+  'cbc',
+  'associated press',
+  'forbes',
+  'the globe and mail',
+  'benzinga',
+  'marketwatch',
+  'seeking alpha',
+] as const;
 
 /** Section 5 — the Form 4 attribution the manual requires verbatim. */
 export const FORM4_ATTRIBUTION = 'reviewed by InsiderBuying.com';
