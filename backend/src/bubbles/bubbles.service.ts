@@ -215,6 +215,19 @@ export class BubblesService {
       for (const r of rows) snapshot.set(r.symbol, r);
     }
 
+    // The market snapshot only covers U.S. listings, so German / Canadian
+    // bubbles had no sector and every §5.1 sector chip emptied the map on
+    // those exchanges. The companies table carries a sector + industry for
+    // every ticker we ingest — use it wherever the snapshot has none.
+    const companyClass = new Map<string, { sector: string | null; industry: string | null }>();
+    if (tickers.length) {
+      const rows = await this.cacheRepo.query(
+        `SELECT UPPER(ticker) AS t, sector, industry FROM companies WHERE UPPER(ticker) = ANY($1)`,
+        [tickers],
+      );
+      for (const r of rows) companyClass.set(r.t, { sector: r.sector || null, industry: r.industry || null });
+    }
+
     const targets = new Map<string, number>();
     if (tickers.length) {
       const rows = await this.cacheRepo.query(
@@ -271,10 +284,10 @@ export class BubblesService {
           t: sym,
           name: snap?.name || rec.name,
           exch: m?.exchange || snap?.exchange || null,
-          sector: snap?.sector || null,
+          sector: snap?.sector || companyClass.get(sym)?.sector || null,
           // Finer grain than sector — the brief's "Mining" and "Biotech &
           // Pharmaceuticals" filters (§5.1) are industries, not sectors.
-          ind: snap?.industry || null,
+          ind: snap?.industry || companyClass.get(sym)?.industry || null,
           price: snap?.price != null ? Number(snap.price) : null,
           chg: snap?.chg != null ? Number(snap.chg) : null,
           mcap: snap?.mcap != null ? Number(snap.mcap) : null,
