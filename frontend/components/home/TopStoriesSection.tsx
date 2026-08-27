@@ -99,7 +99,7 @@ export function TopStoriesSection() {
                 sector={lead.sector}
                 preferPrimary
                 overlay="none"
-                alt={lead.title}
+                alt={lead.imageAlt || lead.title}
                 loading="eager"
                 style={{ width: "100%", height: "100%" }}
                 className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
@@ -136,7 +136,7 @@ export function TopStoriesSection() {
                     sector={item.sector}
                     preferPrimary
                     overlay="none"
-                    alt={item.title}
+                    alt={item.imageAlt || item.title}
                     style={{ width: "100%", height: "100%" }}
                     className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
                   />

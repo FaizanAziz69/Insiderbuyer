@@ -415,7 +415,11 @@ export interface BlogPostListItem {
   topic?: string | null;
   summary: string;
   eyebrow: string | null;
+  /** Editorial Playbook v2 §9 category tag on hand-written editorials
+   *  ("MARKET MOVER"). Null on programmatic posts. */
+  category?: string | null;
   imageUrl: string | null;
+  imageAlt?: string | null;
   tags: string[] | null;
   /** 1-3 tickers rendered as brand-logo overlays on the cover. */
   featuredTickers: string[] | null;

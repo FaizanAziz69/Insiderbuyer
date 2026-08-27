@@ -9,6 +9,7 @@ import { ProcessedFiling } from './entities/processed-filing.entity';
 import { CongressionalTransaction } from './entities/congressional-transaction.entity';
 import { Subscriber } from './entities/subscriber.entity';
 import { BlogPost } from './entities/blog-post.entity';
+import { StoryPitch } from './entities/story-pitch.entity';
 import { EarningsEvent } from './entities/earnings-event.entity';
 import { User } from './entities/user.entity';
 import { PortfolioHolding } from './entities/portfolio-holding.entity';
@@ -128,6 +129,7 @@ import { BubblesModule } from './bubbles/bubbles.module';
           WatchlistItem,
           ScreenerUniverseCache,
           AppSetting,
+          StoryPitch,
         ],
         // Schema sync issues a catalog query per entity on every boot. Fine
         // locally; on serverless it repeats forever. Set DB_SYNC=true for a

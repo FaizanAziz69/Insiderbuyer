@@ -1228,6 +1228,153 @@ tags: include "editorial" plus any tickers/themes involved.`;
         : [],
     };
   }
+
+  /**
+   * Editorial Playbook v2 §2 Layer 2 — the story pitch generator.
+   *
+   * The manual supplies this prompt verbatim ("You are an editor at
+   * InsiderBuying.com…"), asking for {headline, lede, insider_angle,
+   * watch_for} as JSON. Two departures, both deliberate:
+   *
+   *   • a tool call rather than free-form JSON, so a malformed pitch is a
+   *     retryable schema failure instead of a parse error at 7am;
+   *   • two extra fields the manual's own later sections require of the
+   *     finished article — which of the six §7 viz types fits, and which of
+   *     the five §9 categories it files under — so the writer starts with
+   *     those decisions made rather than re-deriving them.
+   *
+   * The pitch is an internal editorial suggestion, never published as-is: it
+   * goes on the Desk for a human to accept, and the article that results goes
+   * through the §10 checklist like any other.
+   */
+  async generateStoryPitch(opts: {
+    companyName: string;
+    ticker: string | null;
+    signals: string[];
+    /** Qualitative Insider Score band — never the number. */
+    scoreBand?: string | null;
+    facts?: string[];
+  }): Promise<{
+    headline: string;
+    lede: string;
+    insiderAngle: string;
+    watchFor: string;
+    suggestedViz: string | null;
+    category: string | null;
+  } | null> {
+    if (!this.client) return null;
+
+    const brief = [
+      `Company: ${opts.companyName}`,
+      opts.ticker ? `Ticker: ${opts.ticker}` : 'Ticker: none (sector / macro candidate)',
+      ...opts.signals.map((s, i) => `Signal ${i + 1}: ${s}`),
+      opts.scoreBand ? `Our Insider Score band: ${opts.scoreBand}` : '',
+      ...(opts.facts || []),
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const tool: Anthropic.Messages.Tool = {
+      name: 'publish_story_pitch',
+      description: 'File a 100-word editorial pitch for this story candidate.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          headline: {
+            type: 'string',
+            description:
+              'A bold, specific headline — either a Bold Statement or a Pointed Question. Maximum 12 words. Must state something specific the reader learns from the headline alone. Never a yes/no question; use how, why or what. Never the words shocking, stunning, incredible, mind-blowing, or "you won\'t believe".',
+          },
+          lede: {
+            type: 'string',
+            description:
+              'The key data point to lead the article with, as 1–2 sentences. Company name and ticker in the first sentence. Must contain the figure the headline promises — if the headline says $8.4M, the lede says $8.4M.',
+          },
+          insider_angle: {
+            type: 'string',
+            description:
+              'What the Form 4 data means for investors, in 1–2 sentences. If there is NO insider buying, say so plainly and explain why the absence is itself the story. Never state a numeric Insider Score — describe the band in words.',
+          },
+          watch_for: {
+            type: 'string',
+            description:
+              'One sentence on what readers should watch for next — the filing or event that would confirm or change the story.',
+          },
+          suggested_viz: {
+            type: 'string',
+            enum: [
+              'insider-timeline',
+              'iqs-card',
+              'sector-table',
+              'price-markers',
+              'tx-compare',
+              'pull-quote',
+            ],
+            description:
+              'Which data visualization fits this story: insider-timeline (one company\'s transaction history, including its absence), iqs-card (the score is part of the story), sector-table (macro/sector conviction), price-markers (was the purchase a signal / before the move), tx-compare (a cluster of several buyers), pull-quote (one striking number).',
+          },
+          category: {
+            type: 'string',
+            enum: [
+              'INSIDER ALERT',
+              'MARKET MOVER',
+              'BREAKING',
+              'EARNINGS WATCH',
+              'SECTOR SPOTLIGHT',
+            ],
+            description: 'The single category tag this story files under.',
+          },
+        },
+        required: ['headline', 'lede', 'insider_angle', 'watch_for', 'suggested_viz', 'category'],
+      },
+    };
+
+    try {
+      const response = await this.client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 900,
+        system:
+          'You are an editor at InsiderBuying.com, a financial intelligence platform tracking corporate insider transactions. ' +
+          'You write editorial pitches for a human writer to take or kill — not finished articles. ' +
+          'Tone: neutral, factual, editorial. Not promotional. Not advice. Never recommend buying or selling a stock. ' +
+          'Every figure must come from the signals supplied — never invent a number, a name, a date or a filing. ' +
+          'If the data does not support an interesting story, say so plainly in the lede rather than inflating it. ' +
+          'You MUST call the publish_story_pitch tool.',
+        tool_choice: { type: 'tool', name: 'publish_story_pitch' },
+        tools: [tool],
+        messages: [
+          {
+            role: 'user',
+            content: `A story candidate has been flagged for the following reasons.\n\n${brief}\n\nFile the pitch.`,
+          },
+        ],
+      });
+      const block = response.content.find(
+        (b): b is Anthropic.Messages.ToolUseBlock => b.type === 'tool_use',
+      );
+      const input = block?.input as Record<string, string> | undefined;
+      if (!input?.headline || !input?.lede) return null;
+      return {
+        headline: String(input.headline).trim(),
+        lede: String(input.lede).trim(),
+        insiderAngle: String(input.insider_angle || '').trim(),
+        watchFor: String(input.watch_for || '').trim(),
+        suggestedViz: input.suggested_viz ? String(input.suggested_viz) : null,
+        category: input.category ? String(input.category) : null,
+      };
+    } catch (err: any) {
+      this.logger.warn(
+        `Story pitch failed for ${opts.ticker || opts.companyName}: ${err?.message || err}`,
+      );
+      return null;
+    }
+  }
+
+  /** Public band helper — the Story Desk needs the same qualitative wording
+   *  the article generator uses, and must never see the raw number. */
+  scoreBand(iqs: number | null | undefined): string {
+    return this.iqsBand(iqs);
+  }
 }
 
 /** Strip dangerous tags / attributes — defence in depth even though the prompt

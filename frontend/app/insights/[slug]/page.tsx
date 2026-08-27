@@ -193,6 +193,7 @@ export default function InsightDetailPage({
                   overlay="none"
                   loading="eager"
                   fit="natural"
+                  alt={post.imageAlt || post.title}
                   style={{ width: "100%" }}
                   className="w-full"
                 />

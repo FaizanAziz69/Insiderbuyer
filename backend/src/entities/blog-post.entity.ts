@@ -79,6 +79,18 @@ export class BlogPost {
   @Column({ type: 'varchar', length: 60, nullable: true })
   eyebrow: string | null;
 
+  /** Editorial Playbook v2 §9 category tag — one of INSIDER ALERT /
+   *  MARKET MOVER / BREAKING / EARNINGS WATCH / SECTOR SPOTLIGHT. Set on
+   *  hand-written editorials only; null on programmatic posts, which take
+   *  their label from `kind` instead. */
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  category: string | null;
+
+  /** Alt text for the cover image (§9: "[Company name] + brief description").
+   *  Falls back to the headline at render when null. */
+  @Column({ type: 'varchar', length: 300, nullable: true })
+  imageAlt: string | null;
+
   /** Snapshot of the input data used to generate the post (rankings, tx ids, etc.).
    * Useful for debugging + showing the user what data backed the article. */
   @Column({ type: 'jsonb', nullable: true })

@@ -104,6 +104,20 @@ export class IqsController {
     return this.iqs.getSectorFlows(n);
   }
 
+  /** Sector conviction table — Editorial Playbook v2 §7 "Sector Comparison
+   *  Table" viz: avg Insider Score, cluster buys, YoY change in buy value. */
+  @Get('metrics/sector-conviction')
+  async sectorConviction(
+    @Query('days') days?: string,
+    @Query('minCompanies') minCompanies?: string,
+  ) {
+    const n = Math.min(365, Math.max(7, Number(days) || 30));
+    // Default floor of 5 scored companies per sector — see the service comment:
+    // `sector` mixes GICS names with one-company SIC descriptions.
+    const min = minCompanies == null ? 5 : Math.max(0, Number(minCompanies) || 0);
+    return this.iqs.getSectorConviction(n, min);
+  }
+
   @Get('predictions/today')
   async predictionToday() {
     return this.iqs.getPredictionOfTheDay();

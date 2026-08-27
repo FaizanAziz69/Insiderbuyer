@@ -1,12 +1,28 @@
 "use client";
 import { Fragment, useMemo } from "react";
 import { ArticleStockCard } from "./ArticleStockCard";
+import { EditorialViz, VizAttrs } from "./viz";
 import { sanitizeArticleHtml } from "@/lib/sanitizeArticleHtml";
 import { usePremium } from "@/components/premium/PremiumContext";
 
 /** Matches the embed placeholders the content engine writes into article
  *  HTML: `<div data-stock-embed="NVDA"></div>`. */
 const EMBED_RE = /<div\s+data-stock-embed="([A-Za-z.\-]{1,10})"\s*><\/div>/g;
+
+/** Editorial Playbook v2 §7 data-viz placeholders — `<div data-viz="iqs-card"
+ *  data-ticker="CCJ"></div>`, and the self-contained pull-quote form which
+ *  carries its own text. Both open and self-closing div forms are matched
+ *  because a writer pasting from the manual will produce either. */
+const VIZ_RE = /<div\s+([^>]*\bdata-viz\s*=\s*"[a-z-]+"[^>]*)>([\s\S]*?)<\/div>/gi;
+
+/** Pull `data-*` attributes off a matched placeholder's attribute string. */
+function vizAttrs(attrString: string, inner: string): VizAttrs {
+  const out: Record<string, string> = {};
+  for (const m of attrString.matchAll(/data-([a-z-]+)\s*=\s*"([^"]*)"/gi)) {
+    out[m[1].toLowerCase()] = m[2];
+  }
+  return { ...out, viz: (out.viz || "").toLowerCase(), inner } as VizAttrs;
+}
 
 /**
  * Article body renderer — renders the stored HTML, swapping every
@@ -66,13 +82,41 @@ export function ArticleBody({ html: rawHtml }: { html: string }) {
     [rawHtml, unlocked],
   );
   const segments = useMemo(() => {
-    const out: Array<{ type: "html"; value: string } | { type: "stock"; ticker: string }> = [];
-    let last = 0;
+    type Segment =
+      | { type: "html"; value: string }
+      | { type: "stock"; ticker: string }
+      | { type: "viz"; attrs: VizAttrs };
+
+    // Both placeholder families are found in one pass over the same string, so
+    // an article carrying a stock card AND a viz keeps them in written order.
+    // (Two sequential passes would splice the second family's offsets against
+    // a string the first pass had already segmented.)
+    const found: Array<{ start: number; end: number; seg: Segment }> = [];
     for (const m of html.matchAll(EMBED_RE)) {
       const idx = m.index ?? 0;
-      if (idx > last) out.push({ type: "html", value: html.slice(last, idx) });
-      out.push({ type: "stock", ticker: m[1].toUpperCase() });
-      last = idx + m[0].length;
+      found.push({
+        start: idx,
+        end: idx + m[0].length,
+        seg: { type: "stock", ticker: m[1].toUpperCase() },
+      });
+    }
+    for (const m of html.matchAll(VIZ_RE)) {
+      const idx = m.index ?? 0;
+      found.push({
+        start: idx,
+        end: idx + m[0].length,
+        seg: { type: "viz", attrs: vizAttrs(m[1], m[2]) },
+      });
+    }
+    found.sort((a, b) => a.start - b.start);
+
+    const out: Segment[] = [];
+    let last = 0;
+    for (const f of found) {
+      if (f.start < last) continue; // overlapping match — keep the first
+      if (f.start > last) out.push({ type: "html", value: html.slice(last, f.start) });
+      out.push(f.seg);
+      last = f.end;
     }
     if (last < html.length) out.push({ type: "html", value: html.slice(last) });
     return out;
@@ -80,15 +124,19 @@ export function ArticleBody({ html: rawHtml }: { html: string }) {
 
   return (
     <div className="article-body">
-      {segments.map((seg, i) =>
-        seg.type === "stock" ? (
-          <ArticleStockCard key={`stock-${seg.ticker}-${i}`} ticker={seg.ticker} />
-        ) : (
+      {segments.map((seg, i) => {
+        if (seg.type === "stock") {
+          return <ArticleStockCard key={`stock-${seg.ticker}-${i}`} ticker={seg.ticker} />;
+        }
+        if (seg.type === "viz") {
+          return <EditorialViz key={`viz-${seg.attrs.viz}-${i}`} attrs={seg.attrs} />;
+        }
+        return (
           <Fragment key={`html-${i}`}>
             <div dangerouslySetInnerHTML={{ __html: seg.value }} />
           </Fragment>
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }

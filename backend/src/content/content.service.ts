@@ -17,6 +17,12 @@ import { MarketStatsService } from '../market-stats/market-stats.service';
 import { FmpService } from '../fmp/fmp.service';
 import { TOPICS } from './topics';
 import { findFormat } from './content-formats';
+import {
+  ChecklistReport,
+  EditorialDraft,
+  runEditorialChecklist,
+  summariseChecklist,
+} from './editorial-checklist';
 import { HOT_SECTOR_BASKETS } from '../stock-lists/persona-data';
 
 // How many per-stock topic articles to generate per topic per day. With ~28-day
@@ -1691,6 +1697,12 @@ export class ContentService {
     return { slug, deleted: (res.affected ?? 0) > 0 };
   }
 
+  /** Editorial Playbook v2 §10 — run the pre-publish checklist without
+   *  publishing. The writer's own view of the same gate the publish uses. */
+  checkEditorial(input: EditorialDraft): ChecklistReport {
+    return runEditorialChecklist(input);
+  }
+
   async publishEditorial(input: {
     slug: string;
     title: string;
@@ -1698,19 +1710,57 @@ export class ContentService {
     body: string;
     kind?: BlogKind;
     eyebrow?: string | null;
+    /** §9 category tag — one of the five approved. */
+    category?: string | null;
     imageUrl?: string | null;
+    imageAlt?: string | null;
     ticker?: string | null;
     sector?: string | null;
     tags?: string[];
     featuredTickers?: string[];
+    /** Publish despite checklist errors — an editor overruling a false
+     *  positive. Logged, never silent. */
+    force?: boolean;
   }) {
     const slug = (input.slug || '').trim().toLowerCase();
     if (!slug || !input.title?.trim() || !input.summary?.trim() || !input.body?.trim()) {
       throw new BadRequestException('slug, title, summary and body are required');
     }
+
+    // Editorial Playbook v2 §10: "Nothing goes live with a checkbox
+    // unchecked." The gate applies to hand-written editorials — programmatic
+    // kinds route through `persist`/`guardArticle` and have their own rules.
+    const isEditorial = (input.kind ?? 'editorial') === 'editorial';
+    const report = isEditorial
+      ? runEditorialChecklist({
+          slug,
+          title: input.title,
+          summary: input.summary,
+          body: input.body,
+          category: input.category ?? input.eyebrow ?? null,
+          imageUrl: input.imageUrl ?? null,
+          imageAlt: input.imageAlt ?? null,
+          ticker: input.ticker ?? null,
+          sector: input.sector ?? null,
+          tags: input.tags ?? [],
+        })
+      : null;
+    if (report && !report.ok) {
+      if (!input.force) {
+        throw new BadRequestException({
+          message: `Editorial checklist failed (${report.errors} error(s)) — fix these or publish with force:true.`,
+          checklist: report,
+        });
+      }
+      this.logger.warn(
+        `Editorial "${slug}" published with force despite ${report.errors} checklist error(s):\n${summariseChecklist(report)}`,
+      );
+    }
+
     // Paywall consistency: no article may print a numeric Insider Score.
     const SCORE_LEAK = /((?:Insider|IQ) Scores?)(?: of|:)? ?[0-9]+(?:\.[0-9]+)?/gi;
     const existing = await this.repo.findOne({ where: { slug } });
+    const category = (input.category ?? '').trim().toUpperCase() || null;
     const post = this.repo.create({
       ...(existing ? { id: existing.id } : {}),
       slug,
@@ -1719,18 +1769,25 @@ export class ContentService {
       sector: input.sector ?? null,
       topic: null,
       title: input.title.replace(SCORE_LEAK, '$1'),
-      eyebrow: input.eyebrow ?? null,
+      eyebrow: input.eyebrow ?? category,
+      category,
       summary: input.summary.replace(SCORE_LEAK, '$1'),
       body: input.body.replace(SCORE_LEAK, '$1'),
       imagePrompt: null,
       imageUrl: input.imageUrl ?? null,
+      imageAlt: input.imageAlt ?? null,
       tags: input.tags ?? [],
       featuredTickers: input.featuredTickers ?? [],
       iqsAtGeneration: null,
       inputSnapshot: { source: 'manual-editorial' },
     });
     await this.repo.save(post);
-    return { slug: post.slug, id: post.id, updated: !!existing };
+    return {
+      slug: post.slug,
+      id: post.id,
+      updated: !!existing,
+      checklist: report ?? undefined,
+    };
   }
 
   private async persist(opts: {

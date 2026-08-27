@@ -2954,6 +2954,24 @@ export class IqsService {
   /** Composite 0–100 score for one ticker — insider pillar (our Insider
    *  Score) + analyst pillar (consensus/upside) + sentiment pillar (recent
    *  headlines scored by AI). See composite-score.ts for the model. */
+  /** Just the latest stored Insider Score for one ticker — no analyst or
+   *  sentiment pillars, no network calls. The Story Desk needs this once per
+   *  candidate and only to derive a qualitative band, so `getCompositeScore`
+   *  (which fetches analyst ratings) would be several HTTP round-trips of
+   *  waste per run. */
+  async getLatestInsiderScore(ticker: string): Promise<number | null> {
+    const sym = (ticker || '').toUpperCase();
+    if (!sym) return null;
+    const row = await this.scores
+      .createQueryBuilder('s')
+      .innerJoin(Company, 'c', 'c.id = s.company_id')
+      .where('UPPER(c.ticker) = :t', { t: sym })
+      .orderBy('s."asOfDate"', 'DESC')
+      .select('s.iqs', 'iqs')
+      .getRawOne<{ iqs: string }>();
+    return row?.iqs == null ? null : Number(row.iqs);
+  }
+
   async getCompositeScore(ticker: string): Promise<
     CompositeScore & {
       ticker: string;
@@ -3117,6 +3135,132 @@ export class IqsService {
       }))
       .sort((a, b) => b.buyValue + b.sellValue - (a.buyValue + a.sellValue));
     return { windowDays: daysBack, sectors };
+  }
+
+  /**
+   * Sector conviction table — the four columns the Editorial Playbook v2 §7
+   * "Sector Comparison Table" viz asks for: Sector | Avg Insider Score |
+   * Cluster buys in the window | YoY change in buy value.
+   *
+   * Definitions, so the article and the table cannot disagree:
+   *   • Avg Insider Score — mean of each company's LATEST score, over the
+   *     companies in that sector that have one. Not weighted by size: the
+   *     question the viz answers is "how strong is insider conviction across
+   *     this sector", not "across this sector's market cap".
+   *   • Cluster buys — companies with 2+ DISTINCT insiders filing open-market
+   *     purchases inside the window. Same threshold the scoring engine's own
+   *     cluster sub-factor uses (`distinctBuyers >= 2`), so a "cluster" means
+   *     one thing site-wide. Counted per company, not per filing.
+   *   • YoY change — this window's open-market buy value against the same
+   *     calendar window one year earlier. Null when the year-ago window has no
+   *     buys at all, because "+∞%" is not a number an article can print.
+   */
+  async getSectorConviction(daysBack = 30, minCompanies = 5) {
+    const now = Date.now();
+    const since = new Date(now - daysBack * 86400000);
+    const priorEnd = new Date(now - 365 * 86400000);
+    const priorStart = new Date(priorEnd.getTime() - daysBack * 86400000);
+
+    // Latest score per company, averaged by sector.
+    const scoreRows = await this.scores
+      .createQueryBuilder('s')
+      .innerJoin(Company, 'c', 'c.id = s.company_id')
+      .select(`COALESCE(c.sector, 'Other')`, 'sector')
+      .addSelect('AVG(s.iqs)', 'avgIqs')
+      .addSelect('COUNT(*)', 'companies')
+      .where(LATEST_SCORE_PER_COMPANY)
+      .groupBy(`COALESCE(c.sector, 'Other')`)
+      .getRawMany<{ sector: string; avgIqs: string; companies: string }>();
+
+    /** Open-market buys in one window, per sector AND per company — the
+     *  per-company grain is what makes a cluster countable. Two calls rather
+     *  than one CASE-grouped query: a bound parameter inside GROUP BY is
+     *  fragile across drivers, and two plain queries are cheaper to reason
+     *  about than one clever one. */
+    const buysIn = (from: Date, to: Date | null) => {
+      const qb = this.txRepo
+        .createQueryBuilder('t')
+        .leftJoin('t.company', 'c')
+        .select(`COALESCE(c.sector, 'Other')`, 'sector')
+        .addSelect('c.id', 'companyId')
+        .addSelect('COALESCE(SUM(t."totalValue"), 0)', 'value')
+        .addSelect('COUNT(DISTINCT COALESCE(t."insiderCik", t."insiderName"))', 'buyers')
+        .where(`t."transactionCode" = 'P'`)
+        .andWhere('t."transactionDate" >= :from', { from })
+        .andWhere(plausibleTxSql('t'))
+        .groupBy(`COALESCE(c.sector, 'Other')`)
+        .addGroupBy('c.id');
+      if (to) qb.andWhere('t."transactionDate" < :to', { to });
+      return qb.getRawMany<{
+        sector: string;
+        companyId: string;
+        value: string;
+        buyers: string;
+      }>();
+    };
+
+    const [nowRows, priorRows] = await Promise.all([
+      buysIn(since, null),
+      buysIn(priorStart, priorEnd),
+    ]);
+
+    type Agg = { buyValue: number; priorBuyValue: number; clusterBuys: number };
+    const agg = new Map<string, Agg>();
+    const bump = (sector: string): Agg => {
+      const cur = agg.get(sector) || { buyValue: 0, priorBuyValue: 0, clusterBuys: 0 };
+      agg.set(sector, cur);
+      return cur;
+    };
+    for (const r of nowRows) {
+      const cur = bump(r.sector || 'Other');
+      cur.buyValue += Number(r.value) || 0;
+      // Cluster = 2+ distinct insiders buying at ONE company inside the
+      // window. Same threshold as the scoring engine's cluster sub-factor, so
+      // "cluster" means one thing everywhere on the site.
+      if (Number(r.buyers) >= 2) cur.clusterBuys += 1;
+    }
+    for (const r of priorRows) {
+      bump(r.sector || 'Other').priorBuyValue += Number(r.value) || 0;
+    }
+
+    const scoreBySector = new Map(
+      scoreRows.map((r) => [
+        r.sector || 'Other',
+        { avgIqs: Number(r.avgIqs), companies: Number(r.companies) },
+      ]),
+    );
+    for (const sector of scoreBySector.keys()) bump(sector);
+
+    const sectors = Array.from(agg.entries())
+      .map(([sector, v]) => {
+        const score = scoreBySector.get(sector);
+        return {
+          sector,
+          avgIqs: score && Number.isFinite(score.avgIqs) ? +score.avgIqs.toFixed(2) : null,
+          companies: score?.companies ?? 0,
+          clusterBuys: v.clusterBuys,
+          buyValue: v.buyValue,
+          priorBuyValue: v.priorBuyValue,
+          // Null, not Infinity: "+∞%" is not a figure an article can print.
+          yoyChangePct:
+            v.priorBuyValue > 0
+              ? +(((v.buyValue - v.priorBuyValue) / v.priorBuyValue) * 100).toFixed(1)
+              : null,
+        };
+      })
+      .filter((s) => s.avgIqs !== null || s.clusterBuys > 0 || s.buyValue > 0)
+      // `Company.sector` is a mix of GICS names ("Technology", "Healthcare")
+      // and raw SIC descriptions ("Services-Membership Sports & Recreation
+      // Clubs", "Refrigeration & Service Industry Machinery"), and the SIC
+      // buckets are frequently ONE company each. Sorting by average score
+      // without this floor puts a single-company bucket at the top of an
+      // article's sector table, where it reads as a sector finding. A minimum
+      // company count keeps the table to buckets broad enough to generalise
+      // from; `minCompanies=0` returns everything for diagnostics.
+      .filter((s) => minCompanies <= 0 || s.companies >= minCompanies)
+      .sort((a, b) => (b.avgIqs ?? -1) - (a.avgIqs ?? -1));
+
+    return { windowDays: daysBack, minCompanies, sectors };
   }
 
   // ───────────────────────────────────────────────────────────────

@@ -14,6 +14,24 @@ import { ContentService } from './content.service';
 import { ContentGeneratorService } from './content-generator.service';
 import { CONTENT_FORMATS, findFormat } from './content-formats';
 import { BlogKind } from '../entities/blog-post.entity';
+import { EditorialDraft } from './editorial-checklist';
+import {
+  ARTICLE_ARC,
+  BANNED_BODY_WORDS,
+  BANNED_HEADLINE_WORDS,
+  DISCLAIMER,
+  EDITORIAL_CATEGORIES,
+  EVERGREEN_TYPES,
+  HEADLINE_FORMATS,
+  HEADLINE_MAX_WORDS,
+  PLAYBOOK_META,
+  SLOTS,
+  SOURCE_WATCHLIST,
+  VIZ_TYPES,
+  VOICE_PRINCIPLES,
+  WORD_COUNT_MAX,
+  WORD_COUNT_MIN,
+} from './editorial-playbook';
 
 @Controller('content')
 export class ContentController {
@@ -59,9 +77,43 @@ export class ContentController {
     return { format: format.key, ref: format.ref, article };
   }
 
+  /** The Editorial Operations Manual v2, as data — voice principles, style
+   *  rules, headline formats, the six viz embeds, the five slots, the source
+   *  watchlist. The Editorial Desk renders this, so the rules the writer reads
+   *  and the rules `POST editorial` enforces come from one file. Public: it is
+   *  a style guide, not data. */
+  @Get('editorial-playbook')
+  editorialPlaybook() {
+    return {
+      meta: PLAYBOOK_META,
+      categories: EDITORIAL_CATEGORIES,
+      articleArc: ARTICLE_ARC,
+      voicePrinciples: VOICE_PRINCIPLES,
+      headlineFormats: HEADLINE_FORMATS,
+      headlineMaxWords: HEADLINE_MAX_WORDS,
+      wordCount: { min: WORD_COUNT_MIN, max: WORD_COUNT_MAX },
+      bannedHeadlineWords: BANNED_HEADLINE_WORDS,
+      bannedBodyWords: BANNED_BODY_WORDS,
+      vizTypes: VIZ_TYPES,
+      slots: SLOTS,
+      evergreenTypes: EVERGREEN_TYPES,
+      sourceWatchlist: SOURCE_WATCHLIST,
+      disclaimer: DISCLAIMER,
+    };
+  }
+
+  /** §10 pre-publish checklist, without publishing. Same gate the publish
+   *  route runs — call it while drafting. */
+  @Post('editorial/validate')
+  @UseGuards(AdminTokenGuard)
+  validateEditorial(@Body() body: EditorialDraft) {
+    return this.content.checkEditorial(body);
+  }
+
   /** Publish a hand-written editorial (custom title/body/image), upserted by
-   *  slug. Body: { slug, title, summary, body, imageUrl?, eyebrow?, tags?,
-   *  featuredTickers?, ticker?, sector?, kind? }. */
+   *  slug. Body: { slug, title, summary, body, category, imageUrl?, imageAlt?,
+   *  eyebrow?, tags?, featuredTickers?, ticker?, sector?, kind?, force? }.
+   *  Refuses on any §10 checklist error unless `force: true`. */
   @Post('editorial')
   @UseGuards(AdminTokenGuard)
   async publishEditorial(
@@ -73,11 +125,14 @@ export class ContentController {
       body: string;
       kind?: BlogKind;
       eyebrow?: string | null;
+      category?: string | null;
       imageUrl?: string | null;
+      imageAlt?: string | null;
       ticker?: string | null;
       sector?: string | null;
       tags?: string[];
       featuredTickers?: string[];
+      force?: boolean;
     },
   ) {
     return this.content.publishEditorial(body);
@@ -137,7 +192,9 @@ export class ContentController {
         topic: r.topic,
         summary: r.summary,
         eyebrow: r.eyebrow,
+        category: r.category,
         imageUrl: r.imageUrl,
+        imageAlt: r.imageAlt,
         tags: r.tags,
         featuredTickers: r.featuredTickers,
         generatedAt: r.generatedAt,

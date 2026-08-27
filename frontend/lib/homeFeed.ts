@@ -33,6 +33,17 @@ export type HomeSection = "top-stories" | "latest-news" | "popular-articles";
 /** Each block renders one lead plus four cards. */
 const CAPACITY = 5;
 
+/** Editorial Playbook v2 §8 — the story types it names as evergreen, mapped to
+ *  the kinds this feed actually carries. These fill slots 4–5 ahead of dated
+ *  formats when editorial output is thin. */
+const EVERGREEN_KINDS = new Set<BlogPostListItem["kind"]>([
+  "sector-roundup",
+  "topic-roundup",
+  "weekly-report",
+  "guide-format",
+  "cluster-buy",
+]);
+
 /**
  * @param items the raw `/content/blogs` list — pass the SAME query from every
  *              block (SWR dedupes the identical key into one request) so all
@@ -63,10 +74,26 @@ export function dealHomeFeed(
   // tops up from the general feed when editorial is thin. Because the top-up
   // now claims through the same set, whatever it borrows is off the table for
   // the blocks below instead of being silently shown twice.
+  //
+  // Editorial Playbook v2 §8 is exactly this, with one refinement: the five
+  // slots step down automatically (newest editorial is the hero, the rest fall
+  // in publish order), and "Slots 4 and 5 can hold evergreen content that does
+  // not need to be breaking news". So when editorial runs short, the top-up
+  // prefers the EVERGREEN kinds the manual lists for those slots — sector
+  // roundups, case studies, weekly summaries, congressional trades — over
+  // whatever happens to be newest in the general feed. A daily-summary in
+  // slot 4 dates badly; a sector roundup does not.
   const topStories = take(
     dealable.filter((i) => i.kind === "editorial"),
     CAPACITY,
   );
+  topStories.push(
+    ...take(
+      dealable.filter((i) => EVERGREEN_KINDS.has(i.kind)),
+      CAPACITY - topStories.length,
+    ),
+  );
+  // Still short (a genuinely thin feed) — anything current beats a gap.
   topStories.push(...take(dealable, CAPACITY - topStories.length));
 
   // Order matters: these run top-down so the freshest articles sit highest.

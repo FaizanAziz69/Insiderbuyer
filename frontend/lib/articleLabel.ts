@@ -80,13 +80,23 @@ function hash(s: string): number {
 type LabelSource = Pick<
   BlogPostListItem,
   "slug" | "kind" | "ticker" | "sector" | "topic"
->;
+> & {
+  /** Editorial Playbook v2 §9 category tag, on hand-written editorials. */
+  category?: string | null;
+};
 
 /**
  * The label for one article, optionally skipping `offset` variants so a caller
  * can break a tie against another card in the same view.
  */
 export function articleLabel(item: LabelSource, offset = 0): string {
+  // Editorial Playbook v2 §9: a hand-written editorial carries exactly one of
+  // five approved category tags ("MARKET MOVER", "INSIDER ALERT"), chosen by
+  // the writer. That is a real editorial decision about what the story IS, so
+  // it outranks the hash-picked framing below — which exists only because
+  // programmatic posts have nothing but their `kind` to label them with.
+  if (item.category) return item.category.toUpperCase();
+
   const pool = VARIANTS[item.kind] ?? GENERIC;
   const base = pool[(hash(item.slug) + offset) % pool.length];
 
@@ -113,6 +123,13 @@ export function articleLabels(items: LabelSource[]): Record<string, string> {
   const used = new Set<string>();
   const out: Record<string, string> = {};
   for (const item of items) {
+    // A §9 category tag is the writer's own classification — two MARKET MOVER
+    // stories in one row is correct, not a collision, so it skips the
+    // tie-breaking walk (which could not change the answer anyway).
+    if (item.category) {
+      out[item.slug] = articleLabel(item);
+      continue;
+    }
     const pool = VARIANTS[item.kind] ?? GENERIC;
     let label = articleLabel(item);
     // Walk the pool for this kind until an unused framing turns up. If every
