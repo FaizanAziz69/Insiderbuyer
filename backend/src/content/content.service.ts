@@ -72,6 +72,15 @@ export function isArticleEligible(
  *  deterministic person/entity classification the code (not the model) made. */
 export type InsiderBioCard = InsiderBio & { kind: 'person' | 'entity' };
 
+/** A filer's portrait — where it came from and how to credit it. */
+export interface InsiderPortrait {
+  url: string;
+  source: string;
+  license: string | null;
+  credit: string | null;
+  subject: string;
+}
+
 @Injectable()
 export class ContentService {
   private readonly logger = new Logger(ContentService.name);
@@ -357,6 +366,197 @@ export class ContentService {
     } catch (e: any) {
       this.logger.warn(`insider_bio_cache ensure failed: ${e?.message || e}`);
     }
+  }
+
+  /* ------------------------------------------------------------ portraits */
+
+  /** A filer's portrait, resolved from Wikipedia and verified against the
+   *  companies they file for (client 2026-08-28: "jitnay bhi insider hain
+   *  unke pages per image aani chahiye"). FMP has no people photos — only
+   *  company logos — so the source is the English Wikipedia lead image, which
+   *  ships with a licence we can credit. A hit is only accepted when the
+   *  article text mentions one of the filer's companies (or a ticker), so a
+   *  common name can never resolve to the wrong person. Misses are cached
+   *  too (7 days) so a page view never re-queries Wikipedia for a filer who
+   *  has no article. Hand-sourced portraits (company press pages) override. */
+  private portraitCache = new Map<string, { ts: number; data: InsiderPortrait | null }>();
+  private portraitTableReady = false;
+  private readonly PORTRAIT_TTL_MS = 30 * 24 * 60 * 60_000;
+  private readonly PORTRAIT_MISS_TTL_MS = 7 * 24 * 60 * 60_000;
+
+  private static readonly PORTRAIT_OVERRIDES: Record<string, InsiderPortrait> = {
+    'cascade investment, l.l.c.': {
+      url: '/sales/people/cascade.jpg',
+      source: 'Wikimedia Commons',
+      license: 'CC BY 4.0',
+      credit: 'Bogdan Hoyaux / European Union',
+      subject: 'Bill Gates',
+    },
+    'warren kelcy l': {
+      url: '/sales/people/kelcy-warren.jpg',
+      source: 'Wikimedia Commons',
+      license: 'CC BY-SA 4.0',
+      credit: 'Racsoagrafal',
+      subject: 'Kelcy Warren',
+    },
+    'frost phillip md et al': {
+      url: '/sales/people/phillip-frost.jpg',
+      source: 'OPKO Health leadership page',
+      license: null,
+      credit: 'OPKO Health, Inc.',
+      subject: 'Phillip Frost',
+    },
+    'foran joseph wm': {
+      url: '/sales/people/joseph-foran.jpg',
+      source: 'Matador Resources leadership page',
+      license: null,
+      credit: 'Matador Resources Company',
+      subject: 'Joseph Wm. Foran',
+    },
+  };
+
+  private async ensurePortraitTable(): Promise<void> {
+    if (this.portraitTableReady) return;
+    try {
+      await this.repo.query(
+        `CREATE TABLE IF NOT EXISTS insider_portrait_cache (
+           name_key varchar(255) PRIMARY KEY,
+           payload jsonb,
+           "updatedAt" timestamptz NOT NULL DEFAULT now()
+         )`,
+      );
+      this.portraitTableReady = true;
+    } catch (e: any) {
+      this.logger.warn(`insider_portrait_cache ensure failed: ${e?.message || e}`);
+    }
+  }
+
+  /** "WARREN KELCY L" / "Courtis Kenneth S." / "Frost Phillip MD et al" →
+   *  the Wikipedia titles worth trying, most likely first. */
+  static portraitNameGuesses(raw: string): string[] {
+    const n = raw
+      .replace(/\b(MD|JR|SR|II|III|IV|ET AL|DR|PHD|CPA|ESQ)\b\.?/gi, ' ')
+      .replace(/[.,]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const t = n.split(' ').filter((x) => x.length > 1 || /^[A-Za-z]$/.test(x));
+    if (t.length < 2) return [];
+    const title = (s: string) => s.replace(/\S+/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
+    const out = [`${t[1]} ${t[0]}`];
+    if (t.length > 2 && t[2].length > 1) out.push(`${t[1]} ${t[2]} ${t[0]}`);
+    out.push(`${t[0]} ${t[1]}`);
+    return Array.from(new Set(out.map(title)));
+  }
+
+  async getInsiderPortrait(opts: {
+    name: string;
+    companies: { ticker: string | null; name: string }[];
+  }): Promise<InsiderPortrait | null> {
+    const key = opts.name.trim().replace(/\s+/g, ' ').toLowerCase();
+    if (!key) return null;
+    const override = ContentService.PORTRAIT_OVERRIDES[key];
+    if (override) return override;
+
+    const cached = this.portraitCache.get(key);
+    if (cached && Date.now() - cached.ts < (cached.data ? this.PORTRAIT_TTL_MS : this.PORTRAIT_MISS_TTL_MS)) {
+      return cached.data;
+    }
+    await this.ensurePortraitTable();
+    try {
+      const rows = await this.repo.query(
+        `SELECT payload, "updatedAt" FROM insider_portrait_cache WHERE name_key = $1`,
+        [key],
+      );
+      const row = rows?.[0];
+      if (row) {
+        const age = Date.now() - new Date(row.updatedAt).getTime();
+        const data = (row.payload as InsiderPortrait | null) ?? null;
+        if (age < (data ? this.PORTRAIT_TTL_MS : this.PORTRAIT_MISS_TTL_MS)) {
+          this.portraitCache.set(key, { ts: Date.now(), data });
+          return data;
+        }
+      }
+    } catch (e: any) {
+      this.logger.warn(`portrait read failed for ${opts.name}: ${e?.message || e}`);
+    }
+
+    // Organisations have no face; don't hit Wikipedia for them.
+    const data =
+      ContentService.classifyFiler(opts.name) === 'entity'
+        ? null
+        : await this.lookupWikipediaPortrait(opts.name, opts.companies).catch((e) => {
+            this.logger.warn(`portrait lookup failed for ${opts.name}: ${e?.message || e}`);
+            return undefined; // transport failure — do not cache as a miss
+          });
+    if (data === undefined) return null;
+    this.portraitCache.set(key, { ts: Date.now(), data });
+    try {
+      await this.repo.query(
+        `INSERT INTO insider_portrait_cache (name_key, payload, "updatedAt")
+         VALUES ($1, $2, now())
+         ON CONFLICT (name_key) DO UPDATE SET payload = EXCLUDED.payload, "updatedAt" = now()`,
+        [key, data ? JSON.stringify(data) : null],
+      );
+    } catch (e: any) {
+      this.logger.warn(`portrait write failed for ${opts.name}: ${e?.message || e}`);
+    }
+    return data;
+  }
+
+  private async lookupWikipediaPortrait(
+    name: string,
+    companies: { ticker: string | null; name: string }[],
+  ): Promise<InsiderPortrait | null> {
+    const STOP = new Set([
+      'inc', 'corp', 'corporation', 'company', 'co', 'group', 'holdings', 'holding', 'trust', 'partners',
+      'resources', 'energy', 'international', 'technologies', 'technology', 'therapeutics',
+      'pharmaceuticals', 'pharma', 'capital', 'financial', 'services', 'systems', 'global', 'limited', 'ltd',
+      'the', 'and', 'of', 'llc', 'lp', 'plc',
+    ]);
+    const needles = new Set<string>();
+    for (const c of companies) {
+      if (c.ticker && c.ticker.length >= 3) needles.add(c.ticker.toLowerCase());
+      for (const w of (c.name || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/)) {
+        if (w.length > 3 && !STOP.has(w)) needles.add(w);
+      }
+    }
+    const UA = { 'User-Agent': 'InsiderBuyingBot/1.0 (https://insiderbuying.com; contact@insiderbuying.com)' };
+    for (const guess of ContentService.portraitNameGuesses(name)) {
+      const q = new URLSearchParams({
+        action: 'query', format: 'json', redirects: '1', titles: guess,
+        prop: 'pageimages|extracts', exintro: '1', explaintext: '1', exchars: '1200', pithumbsize: '600',
+      });
+      const res = await axios.get(`https://en.wikipedia.org/w/api.php?${q}`, { headers: UA, timeout: 6000 });
+      const page: any = Object.values(res.data?.query?.pages ?? {})[0];
+      if (!page || page.missing !== undefined || !page.thumbnail?.source) continue;
+      const extract = String(page.extract || '').toLowerCase();
+      const verified = Array.from(needles).some((w) => extract.includes(w));
+      if (!verified) continue;
+
+      let license: string | null = null;
+      let credit: string | null = null;
+      if (page.pageimage) {
+        const q2 = new URLSearchParams({
+          action: 'query', format: 'json', titles: `File:${page.pageimage}`,
+          prop: 'imageinfo', iiprop: 'extmetadata', iiextmetadatafilter: 'LicenseShortName|Artist',
+        });
+        const meta = await axios
+          .get(`https://en.wikipedia.org/w/api.php?${q2}`, { headers: UA, timeout: 6000 })
+          .catch(() => null);
+        const info: any = Object.values(meta?.data?.query?.pages ?? {})[0];
+        const em = info?.imageinfo?.[0]?.extmetadata ?? {};
+        license = em.LicenseShortName?.value ?? null;
+        credit = em.Artist?.value ? String(em.Artist.value).replace(/<[^>]+>/g, '').trim().slice(0, 80) : null;
+      }
+      return {
+        url: page.thumbnail.source,
+        source: 'Wikipedia',
+        license,
+        credit,
+        subject: page.title,
+      };
+    }
+    return null;
   }
 
   /** Is this filer name an organisation rather than a person? Decided in code

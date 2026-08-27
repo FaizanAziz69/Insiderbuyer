@@ -108,6 +108,15 @@ export function InsiderCard({
   size = "marquee",
 }: InsiderCardProps) {
   const [photoBroken, setPhotoBroken] = useState(false);
+  // No hand-placed photo → ask the portrait service (Wikipedia, verified
+  // against the filer's companies) so a card never has to show initials
+  // when a public photo exists.
+  const { data: portrait } = useSWR<{ portrait: { url: string } | null }>(
+    photo ? null : `${API_BASE}/content/insider-portrait?name=${encodeURIComponent(filerName)}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 },
+  );
+  const photoSrc = photo || portrait?.portrait?.url || null;
   const { data, error } = useSWR<ProfileStats>(
     `${API_BASE}/insiders/profile?name=${encodeURIComponent(filerName)}`,
     fetcher,
@@ -117,7 +126,7 @@ export function InsiderCard({
   const perf = data?.profile ? trailingReturn(data.profile.trades ?? []) : null;
   const ret = perf?.ret ?? null;
   const loading = !data && !error;
-  const showPhoto = !!photo && !photoBroken;
+  const showPhoto = !!photoSrc && !photoBroken;
 
   // Stat line states: loading / API unreachable → dash (never a claim we can't
   // back), live figure, or the honest "not measurable" when the profile
@@ -141,7 +150,7 @@ export function InsiderCard({
       <div className="ibc-frame">
         {showPhoto ? (
           <img
-            src={photo as string}
+            src={photoSrc as string}
             alt={name}
             loading="lazy"
             onError={() => setPhotoBroken(true)}
@@ -197,11 +206,14 @@ export const INSIDER_CARD_CSS = `
 }
 .ibc:hover, .ibc:focus-visible { transform: translateY(-3px); border-color: var(--ibc-gold); outline: none; }
 .ibc:focus-visible { box-shadow: 0 0 0 3px rgba(201,162,39,0.55), 0 18px 40px rgba(3,10,22,0.35); }
-.ibc-marquee { width: 260px; height: 320px; }
+.ibc-marquee { width: 260px; }
 .ibc-compact { width: 220px; }
 /* Gold accent frame around the portrait (brief §6.1). */
+/* The frame keeps the house portrait ratio (500x620), so a house-cropped
+   photo shows in full — no face cut off (client 2026-08-28: "sari image
+   aise rakho full aye"). */
 .ibc-frame {
-  position: relative; border-radius: 12px; overflow: hidden; flex: 1 1 auto; min-height: 0;
+  position: relative; border-radius: 12px; overflow: hidden; flex: 0 0 auto; aspect-ratio: 500 / 620;
   border: 2px solid var(--ibc-gold); box-shadow: 0 0 0 1px rgba(201,162,39,0.35), inset 0 0 0 1px rgba(10,30,60,0.6);
   background: linear-gradient(180deg, #16345f, #0A1E3C); display: grid; place-items: center;
 }
@@ -242,7 +254,7 @@ export const INSIDER_CARD_CSS = `
 :root[data-theme="light"] .ibc-mark { color: rgba(156,123,18,0.6); }
 @media (prefers-reduced-motion: reduce) { .ibc { transition: none; } .ibc:hover { transform: none; } }
 @media (max-width: 640px) {
-  .ibc-marquee { width: 205px; height: 268px; padding: 12px; }
+  .ibc-marquee { width: 205px; padding: 12px; }
   .ibc-name { font-size: 15px; }
   .ibc-stat-value { font-size: 20px; }
   .ibc-initials { font-size: 40px; }

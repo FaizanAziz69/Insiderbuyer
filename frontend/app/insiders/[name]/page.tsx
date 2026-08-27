@@ -1,5 +1,5 @@
 "use client";
-import { use, useMemo } from "react";
+import { useState, use, useMemo } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import {
@@ -233,12 +233,7 @@ export default function InsiderProfilePage({
       {/* Header */}
       <header className="card p-5 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div
-            className="flex items-center justify-center rounded-full flex-shrink-0 text-[22px] font-bold"
-            style={{ width: 64, height: 64, background: "var(--accent-soft)", color: "var(--accent)" }}
-          >
-            {initials(p.name)}
-          </div>
+          <InsiderPortrait p={p} />
           <div className="min-w-0">
             <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight leading-tight">{p.name}</h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-mute">
@@ -271,6 +266,8 @@ export default function InsiderProfilePage({
           </div>
         </div>
       </header>
+
+      <PortraitCredit p={p} />
 
       {/* Who is this insider — AI, grounded in our filing record */}
       <InsiderBioCard p={p} />
@@ -546,6 +543,73 @@ function Stat({
       </div>
       {sub && <div className="text-[10.5px] text-faint mt-0.5">{sub}</div>}
     </div>
+  );
+}
+
+interface Portrait {
+  url: string;
+  source: string;
+  license: string | null;
+  credit: string | null;
+  subject: string;
+}
+
+/** Portrait lookup shared by the header image and its credit line. The
+ *  backend resolves it from Wikipedia (verified against the filer's
+ *  companies) or a hand-sourced press photo; null for the many private filers. */
+function usePortrait(p: Profile) {
+  const companies = p.topTickers
+    .slice(0, 6)
+    .map((t) => `${t.ticker}|${t.name}`)
+    .join(",");
+  const qs = new URLSearchParams({ name: p.name, companies });
+  return useSWR<{ portrait: Portrait | null }>(
+    `${API_BASE}/content/insider-portrait?${qs.toString()}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 },
+  );
+}
+
+/** Header avatar: the insider's photo when we have one (client 2026-08-28),
+ *  initials otherwise — never a broken image. */
+function InsiderPortrait({ p }: { p: Profile }) {
+  const { data } = usePortrait(p);
+  const [broken, setBroken] = useState(false);
+  const url = data?.portrait?.url;
+  if (url && !broken) {
+    return (
+      <img
+        src={url}
+        alt={p.name}
+        width={88}
+        height={88}
+        onError={() => setBroken(true)}
+        className="rounded-full flex-shrink-0 object-cover"
+        style={{ width: 88, height: 88, border: "2px solid var(--accent)", background: "var(--bg-2)" }}
+      />
+    );
+  }
+  return (
+    <div
+      className="flex items-center justify-center rounded-full flex-shrink-0 text-[22px] font-bold"
+      style={{ width: 64, height: 64, background: "var(--accent-soft)", color: "var(--accent)" }}
+    >
+      {initials(p.name)}
+    </div>
+  );
+}
+
+/** Attribution for the header photo — required by the CC licences the
+ *  Wikipedia images carry, and fair to the companies whose press photos we use. */
+function PortraitCredit({ p }: { p: Profile }) {
+  const { data } = usePortrait(p);
+  const pt = data?.portrait;
+  if (!pt) return null;
+  const parts = [`Photo: ${pt.source}`, pt.credit, pt.license].filter(Boolean);
+  return (
+    <p className="text-[11px] -mt-4" style={{ color: "var(--text-mute)" }}>
+      {parts.join(" · ")}
+    </p>
   );
 }
 

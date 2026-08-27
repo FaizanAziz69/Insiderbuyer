@@ -1082,7 +1082,7 @@ const CSS = `
 @keyframes biv-scroll { to { transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce) { .biv-marquee-track { animation: none; } }
 .biv-mcard {
-  width: 260px; height: 320px; border-radius: 16px; border: 1px solid var(--line);
+  width: 260px; min-height: 320px; border-radius: 16px; border: 1px solid var(--line);
   flex: 0 0 auto; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; position: relative;
 }
 .biv-mcard-stat {
@@ -1204,7 +1204,7 @@ const CSS = `
   .biv-panel-tape .biv-taperow:nth-of-type(3) { display: none; }
   .biv-chart { height: 104px; }
   .biv-btn { padding: 12px 18px; font-size: 14px; }
-  .biv-mcard { width: 205px; height: 255px; }
+  .biv-mcard { width: 205px; min-height: 255px; }
   .biv-mstat { font-size: 34px; }
   .biv-firms { gap: 12px 22px; }
   .biv-firm-name { font-size: 15px; }

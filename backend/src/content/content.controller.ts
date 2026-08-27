@@ -254,6 +254,26 @@ export class ContentController {
     return { activity: await this.content.getInsiderActivity(ticker) };
   }
 
+  /** Portrait for an insider profile page — Wikipedia lead image verified
+   *  against the filer's companies, or a hand-sourced override. `companies`
+   *  is "TICKER|Name,TICKER|Name" as the bio endpoint takes it. */
+  @Get('insider-portrait')
+  async insiderPortrait(@Query('name') name?: string, @Query('companies') companies?: string) {
+    if (!name) return { portrait: null };
+    const portrait = await this.content.getInsiderPortrait({
+      name,
+      companies: (companies || '')
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean)
+        .map((c) => {
+          const [ticker, ...rest] = c.split('|');
+          return { ticker: ticker || null, name: rest.join('|') || ticker };
+        }),
+    });
+    return { portrait };
+  }
+
   @Get('insider-bio')
   async insiderBio(
     @Query('name') name?: string,
