@@ -133,8 +133,14 @@ export const WORD_COUNT_MAX = 600;
 /** Section 4 — paragraph ceiling. */
 export const MAX_SENTENCES_PER_PARAGRAPH = 4;
 
-/** Section 7 — the six approved viz types. `embed` is the literal placeholder
- *  the writer puts in the body; ArticleBody swaps it for a live component. */
+/**
+ * Section 7 — the approved viz types. `embed` is the literal placeholder the
+ * writer puts in the body; ArticleBody swaps it for a live component.
+ *
+ * The manual lists six. `peer-table` is a seventh, added because all six read
+ * our own data and therefore render nothing for a subject outside our coverage
+ * — which left TSXV articles with no way to satisfy §7's own requirement.
+ */
 export const VIZ_TYPES = [
   {
     key: 'insider-timeline',
@@ -170,6 +176,15 @@ export const VIZ_TYPES = [
     whenToUse: 'Cluster buy stories and sector roundups — comparing several purchases.',
     embed: '<div data-viz="tx-compare" data-ticker="TICKER"></div>',
     note: 'A stat row: insider, role, amount, date — one column per buyer in the cluster.',
+  },
+  {
+    key: 'peer-table',
+    title: 'Peer Comparison Table (writer-supplied)',
+    whenToUse:
+      'Comparing the subject against named peers we do not hold data for — a TSXV subject and its TSXV peer group, for example. The other six types all read our own coverage, so they render nothing for a company outside it.',
+    embed:
+      '<div data-viz="peer-table" data-title="Yukon gold, one-year returns" data-source="Company disclosure and market data, DATE"><table>…</table></div>',
+    note: 'Rows come from the writer, not a feed — the only option for data we do not hold, and it means every figure must also appear in the article\'s source list. Mark the subject\'s row class="is-subject" and any index row class="is-benchmark".',
   },
   {
     key: 'pull-quote',

@@ -28,7 +28,7 @@ const THUMBS: Thumb[] = [
   { file: "englander-nvidia-etf", tickers: ["NVDA"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
   { file: "burry-portrait-clean", tickers: ["BABA"], kw: ["burry", "scion", "share-sale"] },
-  { file: "white-gold-yukon-map-3", kw: ["white-gold", "yukon"] },
+  { file: "white-gold-donofrio-desk", kw: ["white-gold", "yukon", "donofrio"] },
   // Specific topic
   { file: "bill-ackman-letter", kw: ["ackman", "pershing"] },
   { file: "tom-lee-rally", kw: ["tom-lee", "fundstrat"] },
@@ -117,12 +117,14 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // the pin, MRNA has no ticker rule and would hash-pick a billionaires
   // montage. Replace when a Moderna/lab cover at 1606x1000 exists.
   "editorial-moderna-insider-absence-cancer-vaccine-2026-08-27": "insiders-most-money",
-  // 2026-08-27: clean client photo + OUR headline bar, composited to 1606x1000.
+  // 2026-08-27: client CEO portrait + OUR headline bar, composited to 1606x1000.
+  // Cropped top-left to drop the desk nameplate, which read "David Donofrio,
+  // CEO" — misspelled, and not correctable in a raster.
   // Replaces the first version, whose baked-in text carried "19% AGNMICO
   // EAGLE", "David Donofrio", "Shaun Ryan", "Strongest Bull Case Ever" and a
   // "TSX:SNC" map label — none of which survived the fact-check. New filename
   // because the thumbs folder is served with a 30-day cache.
-  "editorial-white-gold-corp-wgo-yukon-team-2026-08-27": "white-gold-yukon-map-3",
+  "editorial-white-gold-corp-wgo-yukon-team-2026-08-27": "white-gold-donofrio-desk",
 };
 
 function candidatesFor(opts: ThumbInput): Thumb[] {

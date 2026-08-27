@@ -77,6 +77,23 @@ export interface EditorialDraft {
 
 const TAGS = /<[^>]+>/g;
 
+/**
+ * Strip §7 viz embeds, content and all, before counting words.
+ *
+ * The §5 word band is a limit on PROSE. The manual's own article arc lists
+ * "Data Visualization — embedded" as a row of its own alongside the prose
+ * sections, and §9's template places it between paragraphs rather than inside
+ * one. So a table's cells are not body copy, and counting them made a compliant
+ * 596-word article fail the moment a peer table with real rows was added —
+ * which would push a writer to cut analysis in order to pay for data.
+ */
+function withoutViz(html: string): string {
+  return (html || '').replace(
+    /<div\s+[^>]*\bdata-viz\s*=\s*"[a-z-]+"[^>]*>[\s\S]*?<\/div>/gi,
+    ' ',
+  );
+}
+
 /** Body text with markup removed, entities decoded enough to count words. */
 function plain(html: string): string {
   return (html || '')
@@ -197,7 +214,9 @@ export function runEditorialChecklist(draft: EditorialDraft): ChecklistReport {
   const text = plain(body);
   const paras = paragraphs(body);
   const lede = opening(body);
-  const wordCount = words(text).length;
+  // Prose only — see withoutViz(). Every other check still reads the full body,
+  // because a claim inside a viz is still a claim we published.
+  const wordCount = words(plain(withoutViz(body))).length;
 
   // ── Section 6 — headline ────────────────────────────────────────────────
   const titleWords = words(title);

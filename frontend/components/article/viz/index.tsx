@@ -5,6 +5,7 @@ import { SectorConvictionViz } from "./SectorConvictionViz";
 import { PriceMarkersViz } from "./PriceMarkersViz";
 import { TxCompareViz } from "./TxCompareViz";
 import { PullQuoteViz } from "./PullQuoteViz";
+import { PeerTableViz } from "./PeerTableViz";
 
 /**
  * Editorial Playbook v2 §7 — the six approved data visualizations, dispatched
@@ -39,7 +40,11 @@ export interface VizAttrs {
   rows?: string;
   sector?: string;
   cite?: string;
-  /** Inner HTML of the placeholder — used by pull-quote. */
+  title?: string;
+  source?: string;
+  note?: string;
+  subtitle?: string;
+  /** Inner HTML of the placeholder — used by pull-quote and peer-table. */
   inner?: string;
 }
 
@@ -82,6 +87,16 @@ export function EditorialViz({ attrs }: { attrs: VizAttrs }) {
       );
     case "pull-quote":
       return <PullQuoteViz html={attrs.inner || ""} cite={attrs.cite || null} />;
+    case "peer-table":
+      return (
+        <PeerTableViz
+          html={attrs.inner || ""}
+          title={attrs.title || null}
+          subtitle={attrs.subtitle || null}
+          source={attrs.source || null}
+          note={attrs.note || null}
+        />
+      );
     default:
       // An unknown type renders nothing rather than an error block: the
       // checklist already refuses to publish one, so this only guards an

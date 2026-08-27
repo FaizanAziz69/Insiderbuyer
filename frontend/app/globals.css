@@ -1738,3 +1738,55 @@ h1, h2, h3 {
    ticker, no footer, no toast, and no content gutter. */
 body:has([data-bare-page]) [data-app-chrome] { display: none !important; }
 body:has([data-bare-page]) main { padding: 0 !important; max-width: none !important; }
+
+/* ── Editorial viz: writer-supplied peer tables ──────────────────────────
+   `data-viz="peer-table"` carries plain <table> markup written by the author,
+   so it cannot bring classes with it. These rules give that markup the same
+   look as the data-driven viz tables (see components/article/viz/). Scoped to
+   .viz-table so no other table on the site is affected. */
+.viz-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 460px;
+}
+.viz-table th {
+  padding: 8px 12px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+.viz-table th:first-child,
+.viz-table td:first-child {
+  text-align: left;
+}
+.viz-table td {
+  padding: 8px 12px;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.viz-table tr:last-child td { border-bottom: none; }
+/* The article's own subject, marked up as <tr class="is-subject">. */
+.viz-table tr.is-subject td {
+  background: var(--accent-soft);
+  font-weight: 700;
+}
+/* A benchmark row rather than a company, e.g. an index. */
+.viz-table tr.is-benchmark td {
+  color: var(--text-soft);
+  font-style: italic;
+  border-top: 2px solid var(--border);
+}
+.viz-table td small {
+  display: block;
+  font-size: 11px;
+  font-style: normal;
+  color: var(--text-mute);
+}
