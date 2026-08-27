@@ -226,6 +226,20 @@ export const INSIDER_CARD_CSS = `
   position: absolute; top: 10px; right: 12px; font-family: var(--font-heading), sans-serif;
   font-weight: 900; font-size: 11px; letter-spacing: 1.5px; color: rgba(201,162,39,0.55);
 }
+/* Light theme (client 2026-08-28: "light mode pe white hona chahiye") — the
+   card goes white with navy type; the gold frame and mono stat stay. */
+:root[data-theme="light"] .ibc {
+  --ibc-navy: #FFFFFF; --ibc-navy-2: #F7F9FC; --ibc-ink: #0E1F35; --ibc-dim: rgba(14,31,53,0.62);
+  border-color: rgba(201,162,39,0.55);
+  box-shadow: 0 18px 40px rgba(14,31,53,0.12), inset 0 0 0 1px rgba(255,255,255,0.6);
+}
+:root[data-theme="light"] .ibc-frame { background: linear-gradient(180deg, #EEF2F7, #DDE4EE); box-shadow: 0 0 0 1px rgba(201,162,39,0.3); }
+:root[data-theme="light"] .ibc-initials { color: #0A1E3C; opacity: 0.85; }
+:root[data-theme="light"] .ibc-stat { border-top-color: rgba(201,162,39,0.4); }
+:root[data-theme="light"] .ibc-stat-label { color: #9C7B12; }
+:root[data-theme="light"] .ibc-up .ibc-stat-value { color: #0E9F6E; }
+:root[data-theme="light"] .ibc-down .ibc-stat-value { color: #C8423A; }
+:root[data-theme="light"] .ibc-mark { color: rgba(156,123,18,0.6); }
 @media (prefers-reduced-motion: reduce) { .ibc { transition: none; } .ibc:hover { transform: none; } }
 @media (max-width: 640px) {
   .ibc-marquee { width: 205px; height: 268px; padding: 12px; }

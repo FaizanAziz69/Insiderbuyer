@@ -142,16 +142,19 @@ const ROW_A: MarqueeItem[] = [
   { kind: "stat", big: "142K+", caption: "open-market insider buys on file", label: "SEC Form 4" },
   { kind: "insider", filerName: "WARREN KELCY L", name: "Kelcy Warren", title: "Executive Chairman", company: "Energy Transfer", photo: "/sales/people/kelcy-warren.jpg" },
   { kind: "stat", big: "+2,924%", caption: "Insider Purchases Strategy, all-time backtest", label: "Backtested" },
-  { kind: "insider", filerName: "Courtis Kenneth S.", name: "Kenneth Courtis", title: "Director", company: "Alpha Metallurgical Resources", photo: "/sales/people/kenneth-courtis.jpg" },
   { kind: "stat", big: "435", caption: "insiders ranked by track record", label: "Track records" },
 ];
 
+// Every card here ships with a portrait (§6.1 says "photo"): Gates and Warren
+// from Wikimedia Commons, Frost and Foran from their companies' own leadership
+// pages. Frangou (NMM) and Courtis (AMR) have live stats but no obtainable
+// photo — Navios, Alpha Met, Wikipedia and Wikidata all have none — so they
+// are not carded rather than shown as initials.
 const ROW_B: MarqueeItem[] = [
-  { kind: "insider", filerName: "Frangou Angeliki", name: "Angeliki Frangou", title: "Chairwoman & CEO", company: "Navios Maritime Partners", photo: "/sales/people/angeliki-frangou.jpg" },
-  { kind: "stat", big: "4,300+", caption: "U.S. companies covered", label: "Coverage" },
   { kind: "insider", filerName: "FROST PHILLIP MD ET AL", name: "Phillip Frost", title: "Director", company: "Cocrystal Pharma", photo: "/sales/people/phillip-frost.jpg" },
-  { kind: "stat", big: "+31%", caption: "backtest CAGR since 2014", label: "Since 2014" },
+  { kind: "stat", big: "4,300+", caption: "U.S. companies covered", label: "Coverage" },
   { kind: "insider", filerName: "Foran Joseph Wm", name: "Joseph Foran", title: "Founder, Chairman & CEO", company: "Matador Resources", photo: "/sales/people/joseph-foran.jpg" },
+  { kind: "stat", big: "+31%", caption: "backtest CAGR since 2014", label: "Since 2014" },
   { kind: "stat", big: "39", caption: "live alerts in the last 30 days", label: "Past 30 days" },
 ];
 
@@ -705,7 +708,7 @@ export default function PremiumPage() {
           Card figures are historical returns on each insider&rsquo;s disclosed
           open-market purchases (SEC Form 4) versus the live price — not
           projections. Method and every trade: the insider&rsquo;s profile page.
-          Photos: Wikimedia Commons (CC BY 4.0 / CC BY-SA 4.0).
+          Photos: Wikimedia Commons (CC BY 4.0 / CC BY-SA 4.0) and company leadership pages.
         </p>
       </section>
 

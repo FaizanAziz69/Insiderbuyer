@@ -26,6 +26,16 @@ import { VizFrame, VizSkeleton } from "./VizFrame";
  * `data-viz="insider-timeline" data-ticker="MRNA" data-months="12"`
  */
 
+/**
+ * Tickers whose suffix marks a non-US listing. `.V` / `.TO` / `.CN` / `.NE`
+ * are TSXV / TSX / CSE / NEO; a five-letter symbol ending in F is the OTC
+ * foreign-ordinary convention (WHGOF). None of these file Form 4 with the SEC.
+ */
+export function isNonSecIssuer(symbol: string): boolean {
+  const s = symbol.toUpperCase();
+  return /\.(V|TO|CN|NE|TSX|TSXV)$/.test(s) || /^[A-Z]{4}F$/.test(s);
+}
+
 /** Form 4 transaction codes, in the words an article can use. */
 const CODE_LABEL: Record<string, string> = {
   P: "Open-market purchase",
@@ -56,6 +66,12 @@ export function InsiderTimelineViz({
 
   if (isLoading && !data) return <VizSkeleton height={230} />;
   if (!data?.company) return null;
+  // A company that does not file with the SEC has no Form 4 record BY
+  // CONSTRUCTION, and an empty table under a "no Form 4 activity was filed"
+  // caption reads as a finding about its insiders when it is a fact about
+  // our coverage. Canadian issuers report to SEDI. Render nothing; the
+  // article has to source that data elsewhere (see the peer-table viz).
+  if (isNonSecIssuer(sym)) return null;
 
   const cutoff = Date.now() - months * 30.44 * 86400_000;
   const inWindow = (data.transactions || []).filter(

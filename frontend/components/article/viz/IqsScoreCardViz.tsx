@@ -4,6 +4,7 @@ import Link from "next/link";
 import { API_BASE, CompanyDetail, fetcher, formatCurrency, formatDate } from "@/lib/api";
 import { PremiumValue } from "@/components/premium/PremiumValue";
 import { VizFrame, VizSkeleton } from "./VizFrame";
+import { isNonSecIssuer } from "./InsiderTimelineViz";
 
 /**
  * §7 viz 2 — Insider Score Card. "Company | IQS Score | Score Tier | Last
@@ -39,6 +40,8 @@ export function IqsScoreCardViz({ ticker }: { ticker: string }) {
   );
 
   if (isLoading && !data) return <VizSkeleton height={150} />;
+  // No Form 4 filings means no Insider Score can exist — see InsiderTimelineViz.
+  if (isNonSecIssuer(sym)) return null;
   const score = data?.score;
   if (!data?.company || !score) return null;
 
