@@ -195,6 +195,28 @@ export default function InsightDetailPage({
               {maskScoreText(post.summary, { unlocked })}
             </p>
 
+            {/* Cover sits directly under the dek, above the byline — the
+                client's requested order (2026-08-28). It used to render after
+                the byline and share row, inside the gate; the gate now wraps
+                the body only, so a locked reader still sees the cover, which is
+                the part that sells the click. Natural aspect ratio — never crop
+                (some editorial thumbnails carry chyron text at the edges). */}
+            <div className="relative mt-5 rounded-lg overflow-hidden">
+              <AiCoverImage
+                primary={post.imageUrl}
+                seed={post.slug}
+                tags={post.tags}
+                ticker={post.ticker}
+                sector={post.sector}
+                overlay="none"
+                loading="eager"
+                fit="natural"
+                alt={post.imageAlt || post.title}
+                style={{ width: "100%" }}
+                className="w-full"
+              />
+            </div>
+
             {/* Byline row — author + date on the left, social share on the
                 right. MarketBeat's exact arrangement. */}
             <div
@@ -253,24 +275,6 @@ export default function InsightDetailPage({
                 (free account only, no payment). */}
             {/* Drafts bypass the gate — see ArticleGate's `bypass` prop. */}
             <ArticleGate slug={slug} bypass={!!post.draft}>
-              {/* Natural aspect ratio — never crop the cover (some editorial
-                  thumbnails carry chyron text at the top/bottom edges). */}
-              <div className="relative mt-6 rounded-lg overflow-hidden">
-                <AiCoverImage
-                  primary={post.imageUrl}
-                  seed={post.slug}
-                  tags={post.tags}
-                  ticker={post.ticker}
-                  sector={post.sector}
-                  overlay="none"
-                  loading="eager"
-                  fit="natural"
-                  alt={post.imageAlt || post.title}
-                  style={{ width: "100%" }}
-                  className="w-full"
-                />
-              </div>
-
               <AdSlot slot="leaderboard" seed={`insight-${slug}`} />
 
               <div className="h-px my-6" style={{ background: "var(--border)" }} />

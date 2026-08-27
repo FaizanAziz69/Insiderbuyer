@@ -39,7 +39,7 @@ const THUMBS: Thumb[] = [
   { file: "englander-nvidia-etf", tickers: ["NVDA"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
   { file: "burry-portrait-clean", tickers: ["BABA"], kw: ["burry", "scion", "share-sale"] },
-  { file: "white-gold-donofrio-toronto", pinnedOnly: true },
+  { file: "white-gold-donofrio-clean", pinnedOnly: true },
   // Specific topic
   { file: "bill-ackman-letter", kw: ["ackman", "pershing"] },
   { file: "tom-lee-rally", kw: ["tom-lee", "fundstrat"] },
@@ -139,7 +139,7 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // EAGLE", "David Donofrio", "Shaun Ryan", "Strongest Bull Case Ever" and a
   // "TSX:SNC" map label — none of which survived the fact-check. New filename
   // because the thumbs folder is served with a 30-day cache.
-  "editorial-white-gold-corp-wgo-yukon-team-2026-08-27": "white-gold-donofrio-toronto",
+  "editorial-white-gold-corp-wgo-yukon-team-2026-08-27": "white-gold-donofrio-clean",
 };
 
 function candidatesFor(opts: ThumbInput): Thumb[] {
