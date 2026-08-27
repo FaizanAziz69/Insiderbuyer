@@ -1732,6 +1732,8 @@ export class ContentService {
     /** Publish as an unlisted draft — live at its URL, absent from every feed
      *  and from the sitemap, and noindex. */
     draft?: boolean;
+    /** §4 — paid/IR content: labelled SPONSORED, barred from Top Stories. */
+    sponsored?: boolean;
     /** Publish despite checklist errors — an editor overruling a false
      *  positive. Logged, never silent. */
     force?: boolean;
@@ -1791,6 +1793,7 @@ export class ContentService {
       imageUrl: input.imageUrl ?? null,
       imageAlt: input.imageAlt ?? null,
       draft: input.draft ?? false,
+      sponsored: input.sponsored ?? false,
       tags: input.tags ?? [],
       featuredTickers: input.featuredTickers ?? [],
       iqsAtGeneration: null,

@@ -118,7 +118,16 @@ export const HEADLINE_MAX_WORDS = 12;
 /** Section 10 — SEO field limits. */
 export const META_TITLE_MAX = 60;
 export const META_DESCRIPTION_MAX = 155;
-/** Section 5 — word count band. Hero 350–600, small slot 250–400. */
+/**
+ * Section 5 — word count band. "Hero stories 350–600 words. Small slot stories
+ * 250–400 words. Never shorter than 250. Never longer than 600 for web
+ * editorial."
+ *
+ * "Never" is the manual's word, so both ends are hard: outside 250–600 blocks
+ * the publish rather than warning. Note the live articles predating this
+ * manual run to roughly 1,000 words; they are unaffected (the gate applies at
+ * publish), but nothing new gets through above 600.
+ */
 export const WORD_COUNT_MIN = 250;
 export const WORD_COUNT_MAX = 600;
 /** Section 4 — paragraph ceiling. */
@@ -195,10 +204,45 @@ export const CREDITABLE_OUTLETS = [
   'benzinga',
   'marketwatch',
   'seeking alpha',
+  // §5 names WSJ / CNBC / Barron's as examples of crediting an outlet, not as
+  // the permitted set. A Yukon exploration story is covered by the mining
+  // trades and barely by the general financial press, so requiring one of the
+  // three would push a writer to cite a paper that never wrote about it.
+  'mining.com',
+  'north of 60',
+  'northern miner',
+  'streetwise reports',
+  'junior mining network',
+  'investing news network',
+  'crux investor',
+  'kitco',
+  'stockhouse',
 ] as const;
 
-/** Section 5 — the Form 4 attribution the manual requires verbatim. */
-export const FORM4_ATTRIBUTION = 'reviewed by InsiderBuying.com';
+/**
+ * Section 5 — the attribution the manual requires. The phrase that must appear
+ * is "reviewed by InsiderBuying.com"; what precedes it depends on the filing
+ * regime, and the manual is explicit that there are two.
+ *
+ * §3 lists SEDI as a daily source "for TSX/TSXV coverage". The §9 disclaimer is
+ * to be reproduced verbatim and reads "sourced from publicly available SEC Form
+ * 4 filings via EDGAR **and/or SEDI (Canada)**". And the manual's own Example 2
+ * attributes straight to it: "SEDI filings — Canada's equivalent of the SEC's
+ * Form 4 — reviewed by InsiderBuying.com".
+ *
+ * So a Canadian-filer article satisfies the insider-angle requirement by citing
+ * SEDI, exactly as a US-filer article does by citing Form 4. An earlier version
+ * of this checklist accepted only the Form 4 wording, which was narrower than
+ * the manual and failed every TSXV subject on a rule the manual does not have.
+ */
+export const ATTRIBUTION_PHRASE = 'reviewed by InsiderBuying.com';
+/** Filing regimes the manual recognises, in the wording it uses for each. */
+export const FILING_REGIMES = [
+  { key: 'form4', label: 'SEC Form 4 (EDGAR)', match: /form\s*4/i, coverage: 'ingested' },
+  { key: 'sedi', label: 'SEDI (Canada)', match: /\bsedi\b/i, coverage: 'not ingested' },
+] as const;
+/** Kept for callers that predate the two-regime rule. */
+export const FORM4_ATTRIBUTION = ATTRIBUTION_PHRASE;
 
 /** Section 9 — the disclaimer, verbatim. Rendered by the article page's
  *  compliance footer, so a body copy of it is a duplicate, not a requirement:
@@ -243,6 +287,19 @@ export const EVERGREEN_TYPES = [
   'Weekly data summary: "The 5 Biggest Insider Purchases of the Past Week"',
   'Congressional trades: "What Your Elected Officials Are Buying Right Now"',
 ] as const;
+
+/**
+ * Section 4 — "We are not a promoter. Articles about companies that pay us for
+ * IR services must be clearly labeled as sponsored — they never appear in the
+ * organic Top Stories rotation."
+ *
+ * Both halves are mechanical, so both are enforced rather than trusted: a
+ * sponsored article renders a SPONSORED label, and `dealHomeFeed` excludes it
+ * from the Top Stories block. The flag is `blog_posts.sponsored`.
+ */
+export const SPONSORED_LABEL = 'SPONSORED';
+export const SPONSORED_RULE =
+  'Paid/IR content carries a SPONSORED label and is excluded from the organic Top Stories rotation. It remains reachable at its own URL and in the archive.';
 
 /** Section 3 — the daily source watchlist, so the Editorial Desk can render it
  *  as a checklist instead of the team keeping the docx open. */

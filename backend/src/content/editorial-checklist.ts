@@ -24,9 +24,10 @@
 import {
   BANNED_BODY_WORDS,
   BANNED_HEADLINE_WORDS,
+  ATTRIBUTION_PHRASE,
   CREDITABLE_OUTLETS,
   EDITORIAL_CATEGORIES,
-  FORM4_ATTRIBUTION,
+  FILING_REGIMES,
   HEADLINE_MAX_WORDS,
   MAX_SENTENCES_PER_PARAGRAPH,
   META_DESCRIPTION_MAX,
@@ -333,13 +334,33 @@ export function runEditorialChecklist(draft: EditorialDraft): ChecklistReport {
   );
 
   // ── Section 5 — the insider angle ───────────────────────────────────────
+  // Either filing regime satisfies it. §3 lists SEDI for TSX/TSXV coverage, the
+  // §9 disclaimer says "EDGAR and/or SEDI (Canada)", and Example 2 cites SEDI
+  // directly — so requiring the Form 4 wording alone failed every Canadian
+  // subject on a rule the manual does not have.
+  const hasPhrase = text.toLowerCase().includes(ATTRIBUTION_PHRASE.toLowerCase());
+  const regimes = FILING_REGIMES.filter((r) => r.match.test(text));
   add(
     'insider-angle',
-    `Form 4 data cited as "${FORM4_ATTRIBUTION}"`,
-    text.toLowerCase().includes(FORM4_ATTRIBUTION.toLowerCase()),
+    `Insider filings cited as "${ATTRIBUTION_PHRASE}" — Form 4 or SEDI`,
+    hasPhrase && regimes.length > 0,
     'error',
     '5',
-    'the required attribution phrase is missing — the insider angle is mandatory in every article',
+    !hasPhrase
+      ? 'the required attribution phrase is missing — the insider angle is mandatory in every article'
+      : 'the attribution names no filing regime — say Form 4 (US) or SEDI (Canada)',
+  );
+
+  // A SEDI subject sits outside our own ingest, so the article has to say so
+  // rather than leaving the reader to assume our data covers it.
+  const sediOnly = regimes.length === 1 && regimes[0].key === 'sedi';
+  add(
+    'coverage-stated',
+    'A SEDI-only subject states that it is outside our Form 4 record',
+    !sediOnly || /not (?:covered|ingest|reach)|do(?:es)? not (?:cover|ingest|reach)|outside our/i.test(text),
+    'error',
+    '5',
+    'the company files to SEDI, which we do not ingest — say that plainly, or a reader assumes our insider data covers it',
   );
 
   const insiderEvidence =
@@ -394,13 +415,17 @@ export function runEditorialChecklist(draft: EditorialDraft): ChecklistReport {
   );
 
   // ── Section 5 — length and paragraph discipline ─────────────────────────
+  // "Never shorter than 250. Never longer than 600 for web editorial." Both
+  // ends are hard because "never" is the manual's word, not a target.
   add(
     'word-count',
     `Body is ${WORD_COUNT_MIN}–${WORD_COUNT_MAX} words`,
     wordCount >= WORD_COUNT_MIN && wordCount <= WORD_COUNT_MAX,
-    wordCount < WORD_COUNT_MIN ? 'error' : 'warning',
+    'error',
     '5',
-    `${wordCount} words`,
+    wordCount > WORD_COUNT_MAX
+      ? `${wordCount} words — over the ${WORD_COUNT_MAX}-word ceiling §5 sets for web editorial`
+      : `${wordCount} words — under the ${WORD_COUNT_MIN}-word floor`,
   );
 
   const longParas = paras

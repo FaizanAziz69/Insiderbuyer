@@ -149,6 +149,23 @@ export default function InsightDetailPage({
               </div>
             ) : null}
 
+            {/* §4: paid/IR content is "clearly labeled as sponsored". Above
+                the headline, not in the footer — a disclosure the reader meets
+                after the claim is not a disclosure. */}
+            {post.sponsored ? (
+              <div
+                className="mb-3 inline-block px-2.5 py-1 font-bold uppercase"
+                style={{
+                  fontSize: 11,
+                  letterSpacing: "0.14em",
+                  background: "var(--gold)",
+                  color: "#14202a",
+                }}
+              >
+                Sponsored · Paid content
+              </div>
+            ) : null}
+
             <div
               className="mb-3 font-bold uppercase"
               style={{

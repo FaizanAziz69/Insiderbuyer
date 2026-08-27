@@ -1,4 +1,11 @@
-<h3>Key points</h3>
+set -euo pipefail
+cd /opt/insider/app/backend
+getenv() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//"; }
+CONN="$(getenv DATABASE_URL)"
+[ -z "$CONN" ] && CONN="postgresql://$(getenv DB_USER):$(getenv DB_PASSWORD)@$(getenv DB_HOST):$(getenv DB_PORT)/$(getenv DB_NAME)"
+psql "$CONN" -v ON_ERROR_STOP=1 <<'SQLEOF'
+UPDATE blog_posts SET
+  body = $body$<h3>Key points</h3>
 <ul>
 <li><strong>Gold near US$4,650/oz sits above the US$4,500 upside case in White Gold's own PEA</strong>, built on a US$3,600 base.</li>
 <li><strong>White Gold Corp (TSXV: WGO) is up roughly 340% over the past year</strong>, against +72% for junior gold miners and +34% for gold.</li>
@@ -31,4 +38,12 @@
 
 <p>Watch for that announcement, and how the C$1,050 million is funded. Track insider activity across the companies we do cover on <a href="/insiders/hot">Top Insider Scores</a> and the <a href="/screener">IQS Screener</a>.</p>
 
-<p><em>Not investment advice. White Gold figures are drawn from the company's own filings and disclosure and from cited market data; it reports to SEDI and is not covered by our SEC Form 4 record.</em></p>
+<p><em>Not investment advice. White Gold figures are drawn from the company's own filings and disclosure and from cited market data; it reports to SEDI and is not covered by our SEC Form 4 record.</em></p>$body$,
+  "updatedAt" = NOW()
+WHERE slug = 'editorial-white-gold-corp-wgo-yukon-team-2026-08-27';
+SELECT slug, draft, sponsored, length(body) AS body_chars FROM blog_posts
+ WHERE slug = 'editorial-white-gold-corp-wgo-yukon-team-2026-08-27';
+
+SQLEOF
+sudo rm -rf /var/cache/nginx/api/* /var/cache/nginx/html/* 2>/dev/null || true
+echo 'caches flushed'

@@ -27,6 +27,8 @@ import {
   PLAYBOOK_META,
   SLOTS,
   SOURCE_WATCHLIST,
+  SPONSORED_LABEL,
+  SPONSORED_RULE,
   VIZ_TYPES,
   VOICE_PRINCIPLES,
   WORD_COUNT_MAX,
@@ -87,6 +89,7 @@ export class ContentController {
     return {
       meta: PLAYBOOK_META,
       categories: EDITORIAL_CATEGORIES,
+      sponsored: { label: SPONSORED_LABEL, rule: SPONSORED_RULE },
       articleArc: ARTICLE_ARC,
       voicePrinciples: VOICE_PRINCIPLES,
       headlineFormats: HEADLINE_FORMATS,
@@ -133,6 +136,7 @@ export class ContentController {
       tags?: string[];
       featuredTickers?: string[];
       draft?: boolean;
+      sponsored?: boolean;
       force?: boolean;
     },
   ) {
@@ -196,6 +200,7 @@ export class ContentController {
         summary: r.summary,
         eyebrow: r.eyebrow,
         category: r.category,
+        sponsored: r.sponsored,
         imageUrl: r.imageUrl,
         imageAlt: r.imageAlt,
         tags: r.tags,

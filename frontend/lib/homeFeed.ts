@@ -70,6 +70,14 @@ export function dealHomeFeed(
   // Stock ideas are never dealt here — they belong to their own section.
   const dealable = feed.filter((i) => i.kind !== "stock-idea");
 
+  // Editorial Playbook v2 §4: articles about companies that pay us for IR
+  // services "never appear in the organic Top Stories rotation". Enforced here
+  // rather than left to whoever is publishing, because the one place it would
+  // be forgotten is the place it matters. Sponsored articles still appear in
+  // Latest News and the archive — barred from the organic rotation is not the
+  // same as hidden.
+  const organic = dealable.filter((i) => !i.sponsored);
+
   // Top Stories IS the Editorial Desk, so it takes editorial first and only
   // tops up from the general feed when editorial is thin. Because the top-up
   // now claims through the same set, whatever it borrows is off the table for
@@ -84,17 +92,18 @@ export function dealHomeFeed(
   // whatever happens to be newest in the general feed. A daily-summary in
   // slot 4 dates badly; a sector roundup does not.
   const topStories = take(
-    dealable.filter((i) => i.kind === "editorial"),
+    organic.filter((i) => i.kind === "editorial"),
     CAPACITY,
   );
   topStories.push(
     ...take(
-      dealable.filter((i) => EVERGREEN_KINDS.has(i.kind)),
+      organic.filter((i) => EVERGREEN_KINDS.has(i.kind)),
       CAPACITY - topStories.length,
     ),
   );
-  // Still short (a genuinely thin feed) — anything current beats a gap.
-  topStories.push(...take(dealable, CAPACITY - topStories.length));
+  // Still short (a genuinely thin feed) — anything current beats a gap, but
+  // still nothing sponsored.
+  topStories.push(...take(organic, CAPACITY - topStories.length));
 
   // Order matters: these run top-down so the freshest articles sit highest.
   const latestNews = take(dealable, CAPACITY);

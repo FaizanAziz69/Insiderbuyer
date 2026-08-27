@@ -107,6 +107,20 @@ export class BlogPost {
   @Column({ type: 'boolean', default: false })
   draft: boolean;
 
+  /**
+   * Paid / IR content. Editorial Playbook v2 §4: "Articles about companies that
+   * pay us for IR services must be clearly labeled as sponsored — they never
+   * appear in the organic Top Stories rotation."
+   *
+   * Both halves are enforced, not trusted: the article renders a SPONSORED
+   * label, and `dealHomeFeed` drops it from the Top Stories block. It stays
+   * reachable at its own URL and in the archive, which is what "not in the
+   * organic rotation" means — not "hidden".
+   */
+  @Index()
+  @Column({ type: 'boolean', default: false })
+  sponsored: boolean;
+
   /** Snapshot of the input data used to generate the post (rankings, tx ids, etc.).
    * Useful for debugging + showing the user what data backed the article. */
   @Column({ type: 'jsonb', nullable: true })

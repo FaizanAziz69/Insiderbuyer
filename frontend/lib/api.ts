@@ -422,6 +422,8 @@ export interface BlogPostListItem {
   imageAlt?: string | null;
   /** Unlisted draft — live at its URL, absent from every feed, noindex. */
   draft?: boolean;
+  /** §4 paid/IR content — labelled SPONSORED and barred from Top Stories. */
+  sponsored?: boolean;
   tags: string[] | null;
   /** 1-3 tickers rendered as brand-logo overlays on the cover. */
   featuredTickers: string[] | null;

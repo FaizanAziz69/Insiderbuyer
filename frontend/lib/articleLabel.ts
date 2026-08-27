@@ -83,6 +83,8 @@ type LabelSource = Pick<
 > & {
   /** Editorial Playbook v2 §9 category tag, on hand-written editorials. */
   category?: string | null;
+  /** §4 paid/IR content — the label wins over everything else. */
+  sponsored?: boolean | null;
 };
 
 /**
@@ -95,6 +97,10 @@ export function articleLabel(item: LabelSource, offset = 0): string {
   // the writer. That is a real editorial decision about what the story IS, so
   // it outranks the hash-picked framing below — which exists only because
   // programmatic posts have nothing but their `kind` to label them with.
+  // §4 — paid content is labelled as such wherever it appears, including on a
+  // card in a feed, so a reader never meets the claim before the disclosure.
+  if (item.sponsored) return "SPONSORED";
+
   if (item.category) return item.category.toUpperCase();
 
   const pool = VARIANTS[item.kind] ?? GENERIC;
@@ -126,7 +132,7 @@ export function articleLabels(items: LabelSource[]): Record<string, string> {
     // A §9 category tag is the writer's own classification — two MARKET MOVER
     // stories in one row is correct, not a collision, so it skips the
     // tie-breaking walk (which could not change the answer anyway).
-    if (item.category) {
+    if (item.sponsored || item.category) {
       out[item.slug] = articleLabel(item);
       continue;
     }
