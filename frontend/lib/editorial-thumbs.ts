@@ -17,6 +17,17 @@ interface Thumb {
   congress?: boolean;
   /** Neutral investor/finance image — safe for any insider-buying story. */
   generic?: boolean;
+  /**
+   * Reachable ONLY through SLUG_OVERRIDES — never from the keyword match, the
+   * ticker rule, the generic pool, or the catch-all below.
+   *
+   * For covers with article-specific text burned into the graphic. The White
+   * Gold cover reads "WHO IS BEHIND WHITE GOLD CORP'S YUKON GOLD STORY?" and
+   * the catch-all `primary = THUMBS` put it on a published healthcare
+   * leaderboard article, where it advertised an unreleased draft on a live page
+   * (2026-08-27). Any cover carrying its own headline must set this.
+   */
+  pinnedOnly?: boolean;
 }
 
 const THUMBS: Thumb[] = [
@@ -28,7 +39,7 @@ const THUMBS: Thumb[] = [
   { file: "englander-nvidia-etf", tickers: ["NVDA"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
   { file: "burry-portrait-clean", tickers: ["BABA"], kw: ["burry", "scion", "share-sale"] },
-  { file: "white-gold-donofrio-desk", kw: ["white-gold", "yukon", "donofrio"] },
+  { file: "white-gold-donofrio-desk", pinnedOnly: true },
   // Specific topic
   { file: "bill-ackman-letter", kw: ["ackman", "pershing"] },
   { file: "tom-lee-rally", kw: ["tom-lee", "fundstrat"] },
@@ -59,8 +70,10 @@ const THUMBS: Thumb[] = [
   { file: "jamie-dimon-doge", generic: true },
 ];
 
-const GENERIC_POOL = THUMBS.filter((t) => t.generic);
-const CONGRESS_POOL = THUMBS.filter((t) => t.congress);
+/** Everything the matcher may reach without an explicit slug pin. */
+const MATCHABLE = THUMBS.filter((t) => !t.pinnedOnly);
+const GENERIC_POOL = MATCHABLE.filter((t) => t.generic);
+const CONGRESS_POOL = MATCHABLE.filter((t) => t.congress);
 
 /** Article kinds eligible for an editorial thumbnail (every article type). */
 const INSIDER_SLUG = /^(daily-briefing|top-iqs|cluster|ceo|weekly|stock-idea|ticker-deep-dive|series|sector-roundup|topic|editorial)/i;
@@ -139,12 +152,14 @@ function candidatesFor(opts: ThumbInput): Thumb[] {
     .join(" ");
 
   let primary: Thumb[] = [];
-  if (sym) primary = THUMBS.filter((t) => t.tickers?.includes(sym));
+  if (sym) primary = MATCHABLE.filter((t) => t.tickers?.includes(sym));
   if (!primary.length && /congress|politician|senate|pelosi|capitol/.test(hay)) primary = CONGRESS_POOL;
-  if (!primary.length) primary = THUMBS.filter((t) => t.kw?.some((k) => hay.includes(k)));
-  // Any article kind → the FULL 25-image set (keyed by slug downstream) so a
+  if (!primary.length) primary = MATCHABLE.filter((t) => t.kw?.some((k) => hay.includes(k)));
+  // Any article kind → the full MATCHABLE set (keyed by slug downstream) so a
   // card's thumbnail and its opened article page always show the same image.
-  if (!primary.length && INSIDER_SLUG.test(seed)) primary = THUMBS;
+  // MATCHABLE, not THUMBS: this catch-all is how a pin-only cover with another
+  // article's headline printed on it reached a live healthcare article.
+  if (!primary.length && INSIDER_SLUG.test(seed)) primary = MATCHABLE;
   if (!primary.length) return [];
 
   // Append the neutral pool as backup (deduped) so uniqueness never runs dry.
