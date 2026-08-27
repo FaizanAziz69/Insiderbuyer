@@ -251,7 +251,8 @@ export default function InsightDetailPage({
             {/* Hard signup gate — after 3 free articles the cover image AND
                 body blur, and the unlock sheet slides up from the bottom
                 (free account only, no payment). */}
-            <ArticleGate slug={slug}>
+            {/* Drafts bypass the gate — see ArticleGate's `bypass` prop. */}
+            <ArticleGate slug={slug} bypass={!!post.draft}>
               {/* Natural aspect ratio — never crop the cover (some editorial
                   thumbnails carry chyron text at the top/bottom edges). */}
               <div className="relative mt-6 rounded-lg overflow-hidden">

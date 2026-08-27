@@ -21,13 +21,28 @@ const PERKS = [
  * slides up from the bottom of the screen. No dismiss button — the only way
  * through is a free account. Signed-in users never see it. Free signup only.
  */
-export function ArticleGate({ slug, children }: { slug: string; children: React.ReactNode }) {
+export function ArticleGate({
+  slug,
+  children,
+  /**
+   * Skip the gate entirely, and do not count the article against the free
+   * allowance. Used for unlisted drafts: a review link is internal material,
+   * not funnel content. Without this, sending a draft to an editor spends one
+   * of their three free reads and then walls them out of the very article they
+   * were asked to review — with a signup sheet over a blurred page.
+   */
+  bypass = false,
+}: {
+  slug: string;
+  children: React.ReactNode;
+  bypass?: boolean;
+}) {
   const { user } = useAuth();
   const [locked, setLocked] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
 
   useEffect(() => {
-    if (!slug || user) {
+    if (!slug || user || bypass) {
       setLocked(false);
       return;
     }
@@ -41,9 +56,9 @@ export function ArticleGate({ slug, children }: { slug: string; children: React.
     } catch {
       setLocked(false); // storage unavailable — never block reading
     }
-  }, [slug, user]);
+  }, [slug, user, bypass]);
 
-  if (!locked || user) return <>{children}</>;
+  if (bypass || !locked || user) return <>{children}</>;
 
   return (
     <>
