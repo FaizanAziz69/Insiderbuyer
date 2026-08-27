@@ -96,10 +96,10 @@ const MOCKUPS: Mockup[] = [
   },
   {
     id: "alerts",
-    title: "Insider Alerts",
-    blurb: "CEO/CFO purchases and $1M+ open-market buys, delivered as they clear SEC processing.",
+    title: "SMS Insider Alerts",
+    blurb: "CEO/CFO purchases and $1M+ open-market buys, texted to your phone as they clear SEC processing.",
     src: "/sales/mockups/alert-phone.jpg",
-    alt: "An insider alert shown on a phone",
+    alt: "Three IQS insider-buy alerts arriving as text messages on a phone",
     frame: "phone",
     href: "/alerts",
   },
@@ -705,6 +705,7 @@ export default function PremiumPage() {
           Card figures are historical returns on each insider&rsquo;s disclosed
           open-market purchases (SEC Form 4) versus the live price — not
           projections. Method and every trade: the insider&rsquo;s profile page.
+          Photos: Wikimedia Commons (CC BY 4.0 / CC BY-SA 4.0).
         </p>
       </section>
 

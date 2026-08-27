@@ -56,11 +56,42 @@ interface ProfileStats {
       avgBuyReturnPct: number | null;
     };
     statsCoverage?: { returnsNote: string | null };
+    trades: ProfileTrade[];
   } | null;
 }
+interface ProfileTrade {
+  side: "BUY" | "SELL";
+  returnPct: number | null;
+  transactionDate: string;
+}
+
+/** Brief §6.1: "return on their disclosed purchases over the TRAILING period".
+ *  The period is the trailing 12 months; when an insider has no priced buy
+ *  inside it the card falls back to all disclosed buys and says so. */
+const TRAILING_MONTHS = 12;
 
 const METHOD_NOTE =
-  "Average return of this insider's disclosed open-market purchases (SEC Form 4, code P) measured against the live share price. Historical, not a projection. Full method and every underlying trade on the profile page.";
+  "Average return of this insider's disclosed open-market purchases (SEC Form 4, code P) over the trailing 12 months, measured against the live share price. Historical, not a projection. Full method and every underlying trade on the profile page.";
+
+/** Average return over the priced buys filed in the trailing window — or, if
+ *  there are none, over every priced buy on record (`window: "all"`). */
+function trailingReturn(
+  trades: ProfileTrade[],
+): { ret: number; n: number; wins: number; window: "trailing" | "all" } | null {
+  const priced = trades.filter((t) => t.side === "BUY" && t.returnPct != null);
+  if (!priced.length) return null;
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - TRAILING_MONTHS);
+  const recent = priced.filter((t) => new Date(t.transactionDate) >= cutoff);
+  const set = recent.length ? recent : priced;
+  const ret = set.reduce((a, t) => a + (t.returnPct as number), 0) / set.length;
+  return {
+    ret: +ret.toFixed(2),
+    n: set.length,
+    wins: set.filter((t) => (t.returnPct as number) > 0).length,
+    window: recent.length ? "trailing" : "all",
+  };
+}
 
 function initials(name: string): string {
   const words = name.replace(/[,.]/g, " ").split(/\s+/).filter(Boolean);
@@ -83,8 +114,8 @@ export function InsiderCard({
     { revalidateOnFocus: false, dedupingInterval: 30 * 60_000 },
   );
 
-  const stats = data?.profile?.stats;
-  const ret = stats?.avgBuyReturnPct ?? null;
+  const perf = data?.profile ? trailingReturn(data.profile.trades ?? []) : null;
+  const ret = perf?.ret ?? null;
   const loading = !data && !error;
   const showPhoto = !!photo && !photoBroken;
 
@@ -127,14 +158,15 @@ export function InsiderCard({
           {title} · {company}
         </span>
         <div className="ibc-stat" aria-live="polite">
-          <span className="ibc-stat-label">Return on disclosed buys</span>
+          <span className="ibc-stat-label">
+            Return on disclosed buys · {perf?.window === "all" ? "all time" : `last ${TRAILING_MONTHS} mo`}
+          </span>
           <span className={`ibc-stat-value ${ret == null && !loading ? "ibc-stat-none" : ""}`}>
             {statText}
           </span>
-          {stats && ret != null && (
+          {perf && (
             <span className="ibc-stat-sub">
-              {stats.scoredBuys} {stats.scoredBuys === 1 ? "buy" : "buys"}
-              {stats.winRate != null ? ` · ${stats.winRate}% in profit` : ""} · vs. live price
+              {perf.n} {perf.n === 1 ? "buy" : "buys"} · {perf.wins}/{perf.n} in profit · vs. live price
             </span>
           )}
         </div>
