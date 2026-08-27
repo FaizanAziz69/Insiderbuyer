@@ -9,7 +9,10 @@ VALUES (
   $slug$editorial-white-gold-corp-wgo-yukon-team-2026-08-27$slug$,
   $t$Who Is Behind White Gold Corp's Yukon Gold Story?$t$,
   'editorial',
-  'WGO',
+  NULL,  -- NOT 'WGO': that ticker is WINNEBAGO INDUSTRIES on US markets. White
+         -- Gold Corp is TSXV:WGO / OTCQX:WHGOF and is not in our coverage, so a
+         -- bare 'WGO' put a $870M RV manufacturer's price, sector and Insider
+         -- Score in the article's right rail.
   'Basic Materials',
   NULL,
   $sum$Agnico Eagle and Kinross each own 17.99%. An August PEA put a C$1.9B NPV on the project. The critical-minerals spin-out is approved but not yet effective.$sum$,

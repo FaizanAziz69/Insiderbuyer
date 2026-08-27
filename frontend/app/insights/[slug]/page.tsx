@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Calendar, TrendingUp, User } from "lucide-react";
 import {
   API_BASE,
+  BlogKind,
   BlogListResponse,
   BlogPost,
   fetcher,
@@ -26,6 +27,34 @@ import { authorFor, reviewerFor } from "@/lib/byline";
 import { articleLabel, articleLabels } from "@/lib/articleLabel";
 import { maskScoreText } from "@/lib/sanitizeArticleHtml";
 import { usePremium } from "@/components/premium/PremiumContext";
+
+/**
+ * The sourcing sentence in the compliance footer.
+ *
+ * This used to be the hardcoded "Summarized automatically from public SEC Form
+ * 4 data." on every article, which is false in two ways that matter on a
+ * disclosure line:
+ *
+ *   • hand-written editorials are not summarized automatically by anything —
+ *     a person wrote them, and several are about events (an IPO filing, a
+ *     lawsuit) with no Form 4 content at all;
+ *   • an article about a company we do not cover cannot claim Form 4 as its
+ *     source. The White Gold Corp piece states in its own body that the
+ *     company reports to SEDI and is outside our Form 4 record, and the footer
+ *     directly contradicted it.
+ *
+ * A disclosure that misdescribes its own sourcing is worse than no disclosure,
+ * so the sentence is derived from the article instead of asserted over it.
+ */
+function sourcingLine(post: { kind: BlogKind; ticker: string | null }): string {
+  if (post.kind !== "editorial") {
+    return "Summarized automatically from public SEC Form 4 data.";
+  }
+  if (post.ticker) {
+    return "Written by our editorial team. Insider transaction data is summarized from public SEC Form 4 filings.";
+  }
+  return "Written by our editorial team. Company figures are attributed to the sources cited in the article; this company is not covered by our SEC Form 4 record.";
+}
 
 /* The per-kind label map that used to live here covered only 6 of the API's 11
    kinds, so `stock-idea`, `weekly-report`, `topic-roundup`, `editorial` and
@@ -242,7 +271,7 @@ export default function InsightDetailPage({
               style={{ background: "var(--bg-2)", border: "1px solid var(--border)", color: "var(--text-mute)" }}
             >
               <p className="mb-1.5">
-                <em>Not investment advice. Summarized automatically from public SEC Form 4 data.</em>
+                <em>Not investment advice. {sourcingLine(post)}</em>
               </p>
               <p>
                 By{" "}
