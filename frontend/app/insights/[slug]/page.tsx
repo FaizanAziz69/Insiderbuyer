@@ -95,6 +95,31 @@ export default function InsightDetailPage({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           >
+            {/* Unlisted draft: the page is reachable only by direct link and
+                is noindex, but anyone LOOKING at it must be able to tell it is
+                not live — otherwise a reviewer screenshots it and it circulates
+                as published. */}
+            {post.draft ? (
+              <div
+                className="mb-4 px-3.5 py-2.5 rounded flex flex-wrap items-baseline gap-x-3 gap-y-1"
+                style={{
+                  background: "var(--warn)",
+                  color: "#fff",
+                }}
+              >
+                <span
+                  className="font-bold uppercase"
+                  style={{ fontSize: 11, letterSpacing: "0.14em" }}
+                >
+                  Draft — not published
+                </span>
+                <span className="text-[12.5px]" style={{ opacity: 0.92 }}>
+                  Unlisted and noindex. It is not on the homepage, in /insights,
+                  or in the sitemap.
+                </span>
+              </div>
+            ) : null}
+
             <div
               className="mb-3 font-bold uppercase"
               style={{

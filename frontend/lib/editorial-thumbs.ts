@@ -28,6 +28,7 @@ const THUMBS: Thumb[] = [
   { file: "englander-nvidia-etf", tickers: ["NVDA"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
   { file: "burry-portrait-clean", tickers: ["BABA"], kw: ["burry", "scion", "share-sale"] },
+  { file: "white-gold-donofrio-yukon", tickers: ["WGO"], kw: ["white-gold", "yukon", "donofrio"] },
   // Specific topic
   { file: "bill-ackman-letter", kw: ["ackman", "pershing"] },
   { file: "tom-lee-rally", kw: ["tom-lee", "fundstrat"] },
@@ -116,6 +117,10 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // the pin, MRNA has no ticker rule and would hash-pick a billionaires
   // montage. Replace when a Moderna/lab cover at 1606x1000 exists.
   "editorial-moderna-insider-absence-cancer-vaccine-2026-08-27": "insiders-most-money",
+  // 2026-08-27: client-supplied cover graphic, padded 2752x1536 -> 1606x1000
+  // per the README (frame extended, never cropped — the graphic is text-tight
+  // on the left edge and along the bottom bar).
+  "editorial-white-gold-corp-wgo-yukon-team-2026-08-27": "white-gold-donofrio-yukon",
 };
 
 function candidatesFor(opts: ThumbInput): Thumb[] {

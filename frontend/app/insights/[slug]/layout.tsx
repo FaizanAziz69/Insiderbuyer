@@ -35,6 +35,17 @@ export async function generateMetadata({
     ).slice(0, 160);
     const url = `${SITE}/insights/${slug}`;
     const image = post.imageUrl || undefined;
+    // An unlisted draft must never be indexed or unfurled. It is already
+    // absent from the sitemap and every feed (see BlogPost.draft); this closes
+    // the last door, which is a crawler that was handed the link.
+    if (post.draft) {
+      return {
+        title: `[DRAFT] ${maskScoreText(post.title)}`,
+        description,
+        robots: { index: false, follow: false, nocache: true },
+        alternates: { canonical: url },
+      };
+    }
     return {
       title,
       description,

@@ -91,6 +91,22 @@ export class BlogPost {
   @Column({ type: 'varchar', length: 300, nullable: true })
   imageAlt: string | null;
 
+  /**
+   * Unlisted draft. The article renders at its real URL for anyone holding the
+   * link, but it is excluded from every list endpoint — so it cannot appear on
+   * the homepage, in /insights, in the ticker rails, in the sitemap (which is
+   * built from the list endpoint) or in the related-article strips — and the
+   * page marks itself noindex.
+   *
+   * This exists because there was no way to show an editor an article before
+   * publishing it. The alternative in use was publishing it live and hoping
+   * nobody noticed, which is how a half-approved piece ends up as the
+   * homepage hero. Flip to false to publish; nothing else changes.
+   */
+  @Index()
+  @Column({ type: 'boolean', default: false })
+  draft: boolean;
+
   /** Snapshot of the input data used to generate the post (rankings, tx ids, etc.).
    * Useful for debugging + showing the user what data backed the article. */
   @Column({ type: 'jsonb', nullable: true })

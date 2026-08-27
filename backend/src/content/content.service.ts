@@ -91,11 +91,22 @@ export class ContentService {
   ) {}
 
   /** Latest published posts, newest first. */
-  async list(opts: { limit?: number; kind?: BlogKind; ticker?: string; topic?: string } = {}) {
+  async list(opts: {
+    limit?: number;
+    kind?: BlogKind;
+    ticker?: string;
+    topic?: string;
+    /** Include unlisted drafts. Only the Editorial Desk asks for this. */
+    includeDrafts?: boolean;
+  } = {}) {
     const qb = this.repo
       .createQueryBuilder('p')
       .orderBy('p.generatedAt', 'DESC')
       .limit(opts.limit || 30);
+    // One place: every feed, rail, sitemap entry and related-articles strip is
+    // built from this method, so excluding drafts here excludes them
+    // everywhere. A draft is reachable only by its direct URL.
+    if (!opts.includeDrafts) qb.andWhere('p.draft = false');
     if (opts.kind) qb.andWhere('p.kind = :k', { k: opts.kind });
     if (opts.ticker) qb.andWhere('UPPER(p.ticker) = :t', { t: opts.ticker.toUpperCase() });
     if (opts.topic) qb.andWhere('p.topic = :tp', { tp: opts.topic.toLowerCase() });
@@ -108,7 +119,7 @@ export class ContentService {
 
   async byTicker(ticker: string, limit = 5): Promise<BlogPost[]> {
     return this.repo.find({
-      where: { ticker: ticker.toUpperCase() },
+      where: { ticker: ticker.toUpperCase(), draft: false },
       order: { generatedAt: 'DESC' },
       take: limit,
     });
@@ -1718,6 +1729,9 @@ export class ContentService {
     sector?: string | null;
     tags?: string[];
     featuredTickers?: string[];
+    /** Publish as an unlisted draft — live at its URL, absent from every feed
+     *  and from the sitemap, and noindex. */
+    draft?: boolean;
     /** Publish despite checklist errors — an editor overruling a false
      *  positive. Logged, never silent. */
     force?: boolean;
@@ -1776,6 +1790,7 @@ export class ContentService {
       imagePrompt: null,
       imageUrl: input.imageUrl ?? null,
       imageAlt: input.imageAlt ?? null,
+      draft: input.draft ?? false,
       tags: input.tags ?? [],
       featuredTickers: input.featuredTickers ?? [],
       iqsAtGeneration: null,

@@ -132,6 +132,7 @@ export class ContentController {
       sector?: string | null;
       tags?: string[];
       featuredTickers?: string[];
+      draft?: boolean;
       force?: boolean;
     },
   ) {
@@ -181,6 +182,8 @@ export class ContentController {
     @Query('topic') topic?: string,
   ) {
     const n = Math.min(60, Math.max(1, parseInt(limit || '30', 10)));
+    // Drafts never appear here — see BlogPost.draft. The Editorial Desk reads
+    // them through the guarded /content/drafts route instead.
     const rows = await this.content.list({ limit: n, kind, ticker, topic });
     return {
       items: rows.map((r) => ({
@@ -199,6 +202,29 @@ export class ContentController {
         featuredTickers: r.featuredTickers,
         generatedAt: r.generatedAt,
       })),
+    };
+  }
+
+  /** Unlisted drafts, for the Editorial Desk. Guarded: the whole point of a
+   *  draft is that it is not public, and the list of what we are about to
+   *  publish is not public either. The article itself stays reachable at its
+   *  own URL for anyone holding the link. */
+  @Get('drafts')
+  @UseGuards(AdminTokenGuard)
+  async drafts(@Query('limit') limit?: string) {
+    const n = Math.min(60, Math.max(1, parseInt(limit || '30', 10)));
+    const rows = await this.content.list({ limit: n, includeDrafts: true });
+    return {
+      items: rows
+        .filter((r) => r.draft)
+        .map((r) => ({
+          slug: r.slug,
+          title: r.title,
+          category: r.category,
+          ticker: r.ticker,
+          generatedAt: r.generatedAt,
+          url: `/insights/${r.slug}`,
+        })),
     };
   }
 

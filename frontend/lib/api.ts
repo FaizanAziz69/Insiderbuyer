@@ -420,6 +420,8 @@ export interface BlogPostListItem {
   category?: string | null;
   imageUrl: string | null;
   imageAlt?: string | null;
+  /** Unlisted draft — live at its URL, absent from every feed, noindex. */
+  draft?: boolean;
   tags: string[] | null;
   /** 1-3 tickers rendered as brand-logo overlays on the cover. */
   featuredTickers: string[] | null;
