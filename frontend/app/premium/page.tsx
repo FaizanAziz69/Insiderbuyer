@@ -33,88 +33,125 @@ import { PremiumDownsell } from "@/components/funnel/PremiumDownsell";
 import { getFunnelEntry, setFunnelEntry } from "@/lib/funnel";
 import { track } from "@/lib/analytics";
 import { markPopupShown, popupShownThisSession } from "@/lib/funnel";
+import { InsiderCard, INSIDER_CARD_CSS } from "@/components/premium/InsiderCard";
+import { MockupGallery, MOCKUP_CSS, type Mockup } from "@/components/premium/MockupLightbox";
 
 /* ------------------------------------------------------------------ data */
 
-const FIRMS = [
-  "Morgan Stanley",
-  "Goldman Sachs",
-  "RBC Capital",
-  "Piper Sandler",
-  "Deutsche Bank",
-  "Scotiabank",
-  "Guggenheim",
-  "Melius Research",
-];
-
-const FEATURES: Array<{
-  title: string;
-  blurb: string;
-  img: string;
-  href: string;
-  wide?: boolean;
+/** Trust strip — the firms' LOGOS, not their names in type (client,
+ *  2026-08-28: "these should be LOGOS of the companies mentioned there").
+ *  `mark` = square logo mark shown in a chip beside the firm name (the public
+ *  companies' marks, via the same FMP logo set the rest of the site uses);
+ *  `wordmark` = the firm's own horizontal logotype, shown alone. `dark` names
+ *  a separate asset for the dark theme where the artwork needs one; the
+ *  Guggenheim SVG is single-colour and inherits the text colour instead. */
+const FIRMS: Array<{
+  name: string;
+  logo: string;
+  kind: "mark" | "wordmark";
+  dark?: string;
 }> = [
+  { name: "Morgan Stanley", logo: "/sales/firms/morgan-stanley.png", kind: "mark" },
+  { name: "Goldman Sachs", logo: "/sales/firms/goldman-sachs.png", kind: "mark" },
+  { name: "RBC Capital", logo: "/sales/firms/rbc-capital.png", kind: "mark" },
+  { name: "Piper Sandler", logo: "/sales/firms/piper-sandler.png", kind: "mark" },
+  { name: "Deutsche Bank", logo: "/sales/firms/deutsche-bank.png", kind: "mark" },
+  { name: "Scotiabank", logo: "/sales/firms/scotiabank.png", kind: "mark" },
+  { name: "Guggenheim", logo: "/sales/firms/guggenheim.svg", kind: "wordmark" },
   {
-    title: "Top Insider Scores & indicators",
-    blurb: "Every open-market insider buy, scored 0–100 — with the signals behind it.",
-    img: "/sales/shot-scores-v2.jpg",
-    href: "/insiders/hot",
-    wide: true,
-  },
-  {
-    title: "Real-time insider alerts",
-    blurb: "CEO/CFO purchases and $1M+ buys, straight off SEC Form 4 filings.",
-    img: "/sales/shot-alerts.jpg",
-    href: "/alerts",
-    wide: true,
-  },
-  {
-    title: "Top Analysts",
-    blurb: "Ranked by real track record — success rate and average return.",
-    img: "/sales/shot-analysts.jpg",
-    href: "/analyst-ratings",
-  },
-  {
-    title: "Analyst upside ratings",
-    blurb: "Strong-buy names with the biggest gap to consensus targets.",
-    img: "/sales/shot-upside.jpg",
-    href: "/analyst-stocks",
-  },
-  {
-    title: "Congress trading",
-    blurb: "Every disclosed House and Senate trade, matched to tickers.",
-    img: "/sales/shot-congress.jpg",
-    href: "/congressional-trades",
-  },
-  {
-    title: "Government contracts",
-    blurb: "Federal awards mapped to public companies — before the headlines.",
-    img: "/sales/shot-gov.jpg",
-    href: "/government-contracts",
+    name: "Melius Research",
+    logo: "/sales/firms/melius-research.png",
+    dark: "/sales/firms/melius-research-dark.png",
+    kind: "wordmark",
   },
 ];
 
-/** Marquee cards: people (Wikimedia Commons photos, CC BY / CC BY-SA / PD —
- *  credit line under the section) alternating with platform stats,
- *  beehiiv "names you know" style. */
-const ROW_A: Array<
-  | { kind: "person"; name: string; sub: string; img: string }
-  | { kind: "stat"; big: string; caption: string; label: string }
-> = [
-  { kind: "person", name: "Warren Buffett", sub: "Berkshire Hathaway · 13F holdings", img: "/sales/people/buffett.jpg" },
+/** §6.2 product mockup slots (Developer Project Brief, Workstream D).
+ *  "Minimum 4 mockups (IQS screener, insider report page, SMS alert on a
+ *  phone frame, Bubbles map)". Each `src` is the 1x light capture; the 2x
+ *  retina asset is `<name>@2x.jpg` and the dark-theme pair is `<name>-dark.jpg`
+ *  / `<name>-dark@2x.jpg` — the design team's final compositions replace the
+ *  files at these paths and nothing else changes. Captions link to the real
+ *  feature (§2.4: nothing here may claim what the product does not do). */
+const MOCKUPS: Mockup[] = [
+  {
+    id: "screener",
+    title: "IQS Screener",
+    blurb: "Filter 9,000+ stocks by Insider Score, open-market buying, sector and size — every column traces to a filing.",
+    src: "/sales/mockups/screener.jpg",
+    alt: "The Insider Buying stock screener with Insider Score, insider buying and sector filters applied",
+    frame: "browser",
+    href: "/screener",
+    url: "insiderbuying.com/screener",
+  },
+  {
+    id: "insider-report",
+    title: "Insider Report",
+    blurb: "One page per stock: every Form 4 buy and sell, the insiders behind them, and how the price has moved since.",
+    src: "/sales/mockups/insider-report.jpg",
+    alt: "An insider report page showing a company's Form 4 transactions and Insider Score",
+    frame: "browser",
+    href: "/companies/AMR",
+    url: "insiderbuying.com/companies/AMR",
+  },
+  {
+    id: "alerts",
+    title: "Insider Alerts",
+    blurb: "CEO/CFO purchases and $1M+ open-market buys, delivered as they clear SEC processing.",
+    src: "/sales/mockups/alert-phone.jpg",
+    alt: "An insider alert shown on a phone",
+    frame: "phone",
+    href: "/alerts",
+  },
+  {
+    id: "bubbles",
+    title: "Insider Bubbles Map",
+    blurb: "The whole tape in one view — bubble size is net insider buying, colour is price versus what insiders paid.",
+    src: "/sales/mockups/bubbles.jpg",
+    alt: "The Insider Bubbles map with stocks sized by net insider buying",
+    frame: "browser",
+    href: "/bubbles",
+    url: "insiderbuying.com/bubbles",
+  },
+];
+
+/** §6.1 insider performance cards (Developer Project Brief, Workstream D),
+ *  alternating with platform stats in the two marquee rows.
+ *
+ *  Roster rule (client decision 2026-08-28): every card must carry a LIVE
+ *  Insider ROI Leaderboard stat, so the insiders here are ones with disclosed
+ *  open-market buys on our tape. The six household names that used to sit
+ *  here (Buffett, Pelosi, Huang, Bezos, Dalio, Trump Jr.) have no Form 4
+ *  buys on record and could not print a figure. `filerName` is the exact
+ *  stored Form 4 name — the /insiders/profile lookup key — and `photo` may be
+ *  missing until a portrait is dropped into /public/sales/people (the card
+ *  shows initials, never a broken image). */
+type MarqueeItem =
+  | {
+      kind: "insider";
+      filerName: string;
+      name: string;
+      title: string;
+      company: string;
+      photo?: string;
+    }
+  | { kind: "stat"; big: string; caption: string; label: string };
+
+const ROW_A: MarqueeItem[] = [
+  { kind: "insider", filerName: "CASCADE INVESTMENT, L.L.C.", name: "Cascade Investment", title: "Bill Gates' investment company", company: "Republic Services", photo: "/sales/people/cascade.jpg" },
   { kind: "stat", big: "142K+", caption: "open-market insider buys on file", label: "SEC Form 4" },
-  { kind: "person", name: "Nancy Pelosi", sub: "U.S. House · disclosed trades", img: "/sales/people/pelosi.jpg" },
+  { kind: "insider", filerName: "WARREN KELCY L", name: "Kelcy Warren", title: "Executive Chairman", company: "Energy Transfer", photo: "/sales/people/kelcy-warren.jpg" },
   { kind: "stat", big: "+2,924%", caption: "Insider Purchases Strategy, all-time backtest", label: "Backtested" },
-  { kind: "person", name: "Jensen Huang", sub: "NVIDIA · Form 4 filings", img: "/sales/people/jensen.jpg" },
+  { kind: "insider", filerName: "Courtis Kenneth S.", name: "Kenneth Courtis", title: "Director", company: "Alpha Metallurgical Resources", photo: "/sales/people/kenneth-courtis.jpg" },
   { kind: "stat", big: "435", caption: "insiders ranked by track record", label: "Track records" },
 ];
 
-const ROW_B: typeof ROW_A = [
-  { kind: "person", name: "Jeff Bezos", sub: "Amazon · insider tape", img: "/sales/people/bezos.jpg" },
+const ROW_B: MarqueeItem[] = [
+  { kind: "insider", filerName: "Frangou Angeliki", name: "Angeliki Frangou", title: "Chairwoman & CEO", company: "Navios Maritime Partners", photo: "/sales/people/angeliki-frangou.jpg" },
   { kind: "stat", big: "4,300+", caption: "U.S. companies covered", label: "Coverage" },
-  { kind: "person", name: "Ray Dalio", sub: "Bridgewater · 13F holdings", img: "/sales/people/dalio.jpg" },
+  { kind: "insider", filerName: "FROST PHILLIP MD ET AL", name: "Phillip Frost", title: "Director", company: "Cocrystal Pharma", photo: "/sales/people/phillip-frost.jpg" },
   { kind: "stat", big: "+31%", caption: "backtest CAGR since 2014", label: "Since 2014" },
-  { kind: "person", name: "Donald Trump Jr.", sub: "Board seats · insider buys", img: "/sales/people/trumpjr.jpg" },
+  { kind: "insider", filerName: "Foran Joseph Wm", name: "Joseph Foran", title: "Founder, Chairman & CEO", company: "Matador Resources", photo: "/sales/people/joseph-foran.jpg" },
   { kind: "stat", big: "39", caption: "live alerts in the last 30 days", label: "Past 30 days" },
 ];
 
@@ -238,10 +275,6 @@ function useSiteTheme(): "light" | "dark" {
   }, []);
   return theme;
 }
-
-/** shot-scores.jpg → shot-scores-dark.jpg (same crop, dark capture). */
-const themedShot = (src: string, theme: "light" | "dark") =>
-  theme === "dark" ? src.replace(/\.jpg$/, "-dark.jpg") : src;
 
 /* -------------------------------------------------------------- commerce */
 
@@ -586,11 +619,27 @@ export default function PremiumPage() {
         <p className="biv-eyebrow-center">
           Trusted by top investors, researchers, and money managers
         </p>
-        <div className="biv-firms">
+        <ul className="biv-firms" aria-label="Firms tracked on the platform">
           {FIRMS.map((f) => (
-            <span key={f}>{f}</span>
+            <li key={f.name} className={`biv-firm biv-firm-${f.kind}`}>
+              {f.kind === "mark" ? (
+                <>
+                  <span className="biv-firm-chip">
+                    <img src={f.logo} alt="" loading="lazy" />
+                  </span>
+                  <span className="biv-firm-name">{f.name}</span>
+                </>
+              ) : (
+                <img
+                  src={theme === "dark" && f.dark ? f.dark : f.logo}
+                  alt={f.name}
+                  loading="lazy"
+                  className="biv-firm-wordmark"
+                />
+              )}
+            </li>
           ))}
-        </div>
+        </ul>
         <p className="biv-trust-fine">
           Firms whose analysts and public filings are tracked on the platform.
         </p>
@@ -607,28 +656,9 @@ export default function PremiumPage() {
           Insiders tell the story. A peer-reviewed Harvard study found that
           corporate insiders consistently beat the S&amp;P&nbsp;500 &amp; SPY.
         </p>
-        <div className="biv-bento">
-          {FEATURES.map((f) => (
-            <Link
-              key={f.title}
-              href={f.href}
-              className={`biv-card ${f.wide ? "biv-card-wide" : ""}`}
-            >
-              <div className="biv-card-head">
-                <div>
-                  <h3>{f.title}</h3>
-                  <p>{f.blurb}</p>
-                </div>
-                <span className="biv-plus" aria-hidden="true">
-                  +
-                </span>
-              </div>
-              <div className="biv-shot">
-                <img src={themedShot(f.img, theme)} alt={f.title} loading="lazy" />
-              </div>
-            </Link>
-          ))}
-        </div>
+        {/* Brief §6.2: the product mockups are the visually dominant element
+            of the page — full-column device frames, lazy-loaded, lightbox. */}
+        <MockupGallery mockups={MOCKUPS} theme={theme} />
       </section>
 
       {/* -------------------------------------------------------- marquee */}
@@ -647,14 +677,15 @@ export default function PremiumPage() {
           <div className={`biv-marquee ${ri === 1 ? "biv-marquee-rev" : ""}`} key={ri}>
             <div className="biv-marquee-track">
               {[...row, ...row].map((c, i) =>
-                c.kind === "person" ? (
-                  <div className="biv-mcard biv-mcard-person" key={i}>
-                    <img src={c.img} alt={c.name} loading="lazy" />
-                    <div className="biv-mcard-foot">
-                      <b>{c.name}</b>
-                      <span>{c.sub}</span>
-                    </div>
-                  </div>
+                c.kind === "insider" ? (
+                  <InsiderCard
+                    key={i}
+                    filerName={c.filerName}
+                    name={c.name}
+                    title={c.title}
+                    company={c.company}
+                    photo={c.photo}
+                  />
                 ) : (
                   <div className="biv-mcard biv-mcard-stat" key={i}>
                     <span className="biv-mtag">{c.label}</span>
@@ -671,7 +702,9 @@ export default function PremiumPage() {
           </div>
         ))}
         <p className="biv-fine biv-center" style={{ marginTop: 18 }}>
-          Photos: Wikimedia Commons (public domain / CC BY / CC BY-SA).
+          Card figures are historical returns on each insider&rsquo;s disclosed
+          open-market purchases (SEC Form 4) versus the live price — not
+          projections. Method and every trade: the insider&rsquo;s profile page.
         </p>
       </section>
 
@@ -1016,11 +1049,19 @@ const CSS = `
   font-family: var(--font-display), sans-serif; font-weight: 600; font-size: 13px;
   letter-spacing: 2.5px; text-transform: uppercase; color: var(--dim); text-align: center; margin: 0 0 22px;
 }
-.biv-firms { display: flex; flex-wrap: wrap; gap: 18px 40px; justify-content: center; align-items: center; }
-.biv-firms span {
-  font-family: var(--font-heading), sans-serif; font-weight: 800; font-size: 19px;
-  color: rgba(245,247,250,0.82); white-space: nowrap;
+.biv-firms { display: flex; flex-wrap: wrap; gap: 18px 40px; justify-content: center; align-items: center; list-style: none; margin: 0; padding: 0; }
+.biv-firm { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; color: rgba(245,247,250,0.82); }
+/* Square logo marks sit in a white chip so a coloured, transparent or
+   white-on-transparent mark all read the same against the navy. */
+.biv-firm-chip {
+  width: 34px; height: 34px; border-radius: 9px; background: #FFFFFF; display: grid; place-items: center;
+  overflow: hidden; flex: 0 0 auto; box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
 }
+.biv-firm-chip img { width: 26px; height: 26px; object-fit: contain; display: block; }
+.biv-firm-name { font-family: var(--font-heading), sans-serif; font-weight: 800; font-size: 19px; }
+/* Horizontal logotypes render at the chip height; the Guggenheim SVG is
+   currentColor so it takes the strip's text colour in both themes. */
+.biv-firm-wordmark { height: 22px; width: auto; max-width: 220px; display: block; opacity: 0.9; }
 .biv-trust-fine { font-size: 11.5px; color: var(--faint); margin-top: 18px; }
 
 /* features */
@@ -1028,25 +1069,6 @@ const CSS = `
 .biv-center { text-align: center; }
 .biv-lead { font-size: 17px; line-height: 1.65; color: var(--dim); margin: 18px 0 0; max-width: 620px; }
 .biv-lead.biv-center { margin-left: auto; margin-right: auto; text-align: center; }
-.biv-bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px; margin-top: 40px; }
-.biv-card {
-  grid-column: span 3; display: flex; flex-direction: column; gap: 16px;
-  background: var(--bg2); border: 1px solid var(--line); border-radius: 18px;
-  padding: 22px 22px 0; overflow: hidden; text-decoration: none; color: inherit;
-  transition: border-color .15s, transform .15s;
-}
-.biv-card:hover { border-color: rgba(76,195,138,0.45); transform: translateY(-2px); }
-.biv-card-wide { grid-column: span 3; }
-.biv-card h3 { font-size: 20px; font-weight: 700; margin: 0 0 6px; color: var(--ink); }
-.biv-card p { font-size: 14px; line-height: 1.55; color: var(--dim); margin: 0; }
-.biv-card-head { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
-.biv-plus {
-  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center;
-  background: rgba(76,195,138,0.14); color: var(--green-hi); font-size: 20px; font-weight: 600;
-}
-.biv-shot { border-radius: 10px 10px 0 0; overflow: hidden; border: 1px solid var(--line); border-bottom: 0; }
-.biv-shot img { width: 100%; display: block; }
-
 /* marquee */
 .biv-names { padding-bottom: 40px !important; }
 .biv-names .biv-h2 { margin-bottom: 0; }
@@ -1075,17 +1097,6 @@ const CSS = `
   position: absolute; top: 62px; left: 18px; right: 18px; width: calc(100% - 36px);
   height: 72px; color: rgba(76,195,138,0.45);
 }
-.biv-mcard-person { color: #F5F7FA; padding: 0; overflow: hidden; }
-.biv-mcard-person > img {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-}
-.biv-mcard-person .biv-mcard-foot {
-  position: relative; z-index: 1; padding: 44px 18px 16px;
-  background: linear-gradient(180deg, transparent, rgba(5,10,20,0.88) 60%);
-}
-.biv-mcard-foot b { display: block; font-size: 17px; }
-.biv-mcard-foot span { font-size: 12.5px; color: var(--dim); }
-.biv-mcard-person .biv-mcard-foot span { color: rgba(245,247,250,0.72); }
 .biv-mstat {
   font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: 44px;
   color: var(--green-hi); letter-spacing: -0.02em;
@@ -1163,7 +1174,8 @@ const CSS = `
 }
 :root[data-theme="light"] .biv-bigstat { color: var(--green); }
 :root[data-theme="light"] .biv-chip { color: #2c7a51; }
-:root[data-theme="light"] .biv-firms span { color: rgba(14,31,53,0.72); }
+:root[data-theme="light"] .biv-firm { color: rgba(14,31,53,0.72); }
+:root[data-theme="light"] .biv-firm-chip { box-shadow: 0 0 0 1px rgba(14,31,53,0.12); }
 :root[data-theme="light"] .biv-mstat { color: var(--green); }
 :root[data-theme="light"] .biv-plus { background: rgba(62,155,95,0.12); color: var(--green); }
 :root[data-theme="light"] .biv-tool { background: #FFFFFF; }
@@ -1178,8 +1190,6 @@ const CSS = `
   .biv-hero h1 { font-size: clamp(30px, 8.6vw, 44px); }
   .biv-hero h1 span { white-space: normal; }
   .biv-hero-art { min-height: 300px; }
-  .biv-bento { grid-template-columns: 1fr; }
-  .biv-card, .biv-card-wide { grid-column: span 1; }
   .biv-plans, .biv-numbers { grid-template-columns: 1fr; }
   .biv-plan-hot { order: -1; }
 }
@@ -1193,7 +1203,9 @@ const CSS = `
   .biv-mcard { width: 205px; height: 255px; }
   .biv-mstat { font-size: 34px; }
   .biv-firms { gap: 12px 22px; }
-  .biv-firms span { font-size: 15px; }
+  .biv-firm-name { font-size: 15px; }
+  .biv-firm-chip { width: 28px; height: 28px; } .biv-firm-chip img { width: 22px; height: 22px; }
+  .biv-firm-wordmark { height: 18px; }
   .biv-faq summary { font-size: 15.5px; }
 }
-`;
+` + INSIDER_CARD_CSS + MOCKUP_CSS;
