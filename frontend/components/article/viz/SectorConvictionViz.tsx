@@ -9,7 +9,7 @@ import { VizFrame, VizSkeleton } from "./VizFrame";
  * §7 viz 3 — Sector Comparison Table. "Sector | Avg IQS | Cluster Buys (30
  * days) | YoY Change."
  *
- * Live from `/iqs/metrics/sector-conviction`, which defines a cluster the same
+ * Live from `/metrics/sector-conviction`, which defines a cluster the same
  * way the scoring engine does (2+ distinct buyers at one company inside the
  * window), so the number in an article and the number on the platform cannot
  * disagree. The average score is a paygated number like any other, so it goes
@@ -39,7 +39,11 @@ export function SectorConvictionViz({
   sector?: string | null;
 }) {
   const { data, isLoading } = useSWR<{ windowDays: number; sectors: Row[] }>(
-    `${API_BASE}/iqs/metrics/sector-conviction?days=${days}`,
+    // NB: no "/iqs" segment. IqsController is declared `@Controller()` with no
+    // prefix, so its routes sit at the API root — /metrics/..., /companies/...,
+    // /rankings. Writing /iqs/metrics/... 404s, the fetch fails, and the viz
+    // renders as a blank gap in the middle of the article.
+    `${API_BASE}/metrics/sector-conviction?days=${days}`,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
   );

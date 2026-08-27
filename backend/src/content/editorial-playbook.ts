@@ -146,7 +146,7 @@ export const VIZ_TYPES = [
     title: 'Sector Comparison Table',
     whenToUse: 'Macro or sector-level stories about where insider conviction is concentrated.',
     embed: '<div data-viz="sector-table" data-days="30"></div>',
-    note: 'Columns: Sector | Avg Insider Score | Cluster buys (window) | YoY change in buy value. Live from /iqs/metrics/sector-conviction.',
+    note: 'Columns: Sector | Avg Insider Score | Cluster buys (window) | YoY change. Live from /metrics/sector-conviction. The YoY column appears only when the year-ago window has enough coverage to be meaningful — our Form 4 record starts Aug/Sep 2025, so a figure drawn from before that measures our ingest, not insider behaviour.',
   },
   {
     key: 'price-markers',
