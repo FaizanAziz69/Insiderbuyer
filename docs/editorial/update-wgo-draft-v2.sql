@@ -1,4 +1,7 @@
-<h3>Key points</h3>
+-- WGO draft v2 — rebuilt on completed research 2026-08-27. Still UNLISTED.
+UPDATE blog_posts SET
+  summary   = $sum$Gold near US$4,650 sits above the US$4,500 upside case in White Gold's own PEA. The stock is up ~340% in a year against +72% for junior gold miners.$sum$,
+  body      = $body$<h3>Key points</h3>
 <ul>
 <li><strong>Gold is trading near US$4,650/oz — above the US$4,500 upside case in White Gold's own maiden PEA</strong>, which was built on a US$3,600 base assumption.</li>
 <li><strong>White Gold Corp (TSXV: WGO) is up roughly 340% over the past year</strong>, against +72% for the junior gold miners index and +34% for gold itself. The metal explains part of the move, not most of it.</li>
@@ -51,4 +54,11 @@
 
 <p>You can audit the comparable US-listed picture yourself: today's actual open-market buying on <a href="/insiders/hot">Top Insider Scores</a>, the <a href="/screener">IQS Screener</a> for companies where insiders are buying with real conviction, and <a href="/sectors">sector-level insider flows</a> including materials and energy.</p>
 
-<p><em>Not investment advice. White Gold Corp figures are drawn from the company's own filings, press releases and corporate disclosure, and from cited market data; White Gold reports insider transactions to SEDI and is not covered by our SEC Form 4 record.</em></p>
+<p><em>Not investment advice. White Gold Corp figures are drawn from the company's own filings, press releases and corporate disclosure, and from cited market data; White Gold reports insider transactions to SEDI and is not covered by our SEC Form 4 record.</em></p>$body$,
+  "imageUrl"= '/editorial-thumbs/white-gold-yukon-map-3.jpg',
+  "imageAlt"= $alt$An executive reviewing a Yukon geological map in a boardroom$alt$,
+  "updatedAt" = NOW()
+WHERE slug = 'editorial-white-gold-corp-wgo-yukon-team-2026-08-27';
+
+SELECT slug, draft, ticker, length(body) AS body_chars, "imageUrl" FROM blog_posts
+ WHERE slug = 'editorial-white-gold-corp-wgo-yukon-team-2026-08-27';
