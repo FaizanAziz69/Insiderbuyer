@@ -453,7 +453,7 @@ export function runEditorialChecklist(draft: EditorialDraft): ChecklistReport {
       // The manual wants a timeframe attached: "up 8% on the day".
       const at = text.indexOf(phrase);
       const after = text.slice(at + phrase.length, at + phrase.length + 60).toLowerCase();
-      return !/(on the day|today|this (?:week|month|year)|year to date|over the|in the|since|yesterday|premarket|pre-market|after hours|on august|on september|on july|on the session)/.test(
+      return !/(on the day|today|this (?:week|month|year)|year to date|over the|in the|since|yesterday|premarket|pre-market|after hours|on august|on september|on july|on the session|from the previous session|from the prior session|in a single session|in one session|over five sessions)/.test(
         after,
       );
     });

@@ -110,6 +110,12 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // 2026-08-26: client asked for the Jensen Huang photo specifically. Without
   // the pin the NVDA ticker rule would pick englander-nvidia-etf instead.
   "editorial-raymond-james-nvidia-352-price-target-2026-08-26": "jensen-huang-2026",
+  // 2026-08-27: the neutral trading-floor collage. Every other thumb in the
+  // library is a portrait of a named investor, and this story is about Moderna
+  // — pinning any of them would put an unrelated person's face on it. Without
+  // the pin, MRNA has no ticker rule and would hash-pick a billionaires
+  // montage. Replace when a Moderna/lab cover at 1606x1000 exists.
+  "editorial-moderna-insider-absence-cancer-vaccine-2026-08-27": "insiders-most-money",
 };
 
 function candidatesFor(opts: ThumbInput): Thumb[] {
