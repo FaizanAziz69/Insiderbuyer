@@ -27,6 +27,7 @@ import { usePremium } from "@/components/premium/PremiumContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { effectiveZoom } from "@/lib/zoom";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
+import { stepPhysics, radiusForDollars, fitFactor } from "@/lib/bubbles-physics";
 
 const archivo = Archivo({ subsets: ["latin"], weight: ["600", "800", "900"], variable: "--bm-head" });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--bm-mono" });
@@ -51,6 +52,9 @@ interface ApiBubble {
   name: string;
   exch: string | null;
   sector: string | null;
+  /** Market-data industry (finer than sector) — drives the Mining and
+   *  Biotech & Pharma chips (brief §5.1). */
+  ind?: string | null;
   price: number | null;
   chg: number | null;
   mcap: number | null;
@@ -110,7 +114,70 @@ const WINDOWS: Array<[string, string]> = [
   ["1y", "1Y"],
 ];
 const VALID_WINDOWS = new Set(WINDOWS.map(([v]) => v));
+
+/* ------------------------------------------------- filters (brief §5.1) */
+
+/** Exchange filter — segmented, single-select, U.S. default. Germany means
+ *  XETRA / Frankfurt-floor listings whose Directors' Dealings (Art. 19 MAR)
+ *  notifications our tape ingests alongside Form 4; Canada is TSX / TSX-V /
+ *  CSE / NEO. */
+type ExchangeKey = "us" | "ca" | "de";
+const EXCHANGES: Array<[ExchangeKey, string]> = [
+  ["us", "U.S."],
+  ["ca", "Canada"],
+  ["de", "Germany"],
+];
+const DE_SUFFIX = new Set(["DE", "F", "DU", "MU", "SG", "HM", "BE", "HA"]);
+const CA_SUFFIX = new Set(["TO", "V", "CN", "NE"]);
+function exchangeOf(b: ApiBubble): ExchangeKey {
+  const ex = (b.exch || "").toUpperCase();
+  if (/XETRA|FRANKFURT|FSX|STUTTGART|MUNICH|DUSSELDORF|BERLIN|HAMBURG|HANOVER|TRADEGATE|GETTEX/.test(ex)) return "de";
+  if (/TSX|TORONTO|CSE|NEO|CANADIAN/.test(ex)) return "ca";
+  const dot = b.t.lastIndexOf(".");
+  if (dot > 0) {
+    const suf = b.t.slice(dot + 1).toUpperCase();
+    if (DE_SUFFIX.has(suf)) return "de";
+    if (CA_SUFFIX.has(suf)) return "ca";
+  }
+  return "us";
+}
+
+/** Sector chips — the brief's six groups, multi-select, All default. Two of
+ *  them (Mining, Biotech & Pharma) are industries inside a broader sector, so
+ *  the match uses the market-data industry when we have it and falls back to
+ *  the parent sector when we don't. */
+const SECTOR_GROUPS: Array<{ key: string; label: string; match: (b: ApiBubble) => boolean }> = [
+  { key: "energy", label: "Energy", match: (b) => /energy/i.test(b.sector || "") },
+  {
+    key: "mining",
+    label: "Mining",
+    match: (b) =>
+      /basic materials|materials/i.test(b.sector || "") &&
+      (!b.ind || /mining|gold|silver|copper|metal|coal|uranium|aluminum|steel|lithium/i.test(b.ind)),
+  },
+  {
+    key: "biopharma",
+    label: "Biotech & Pharmaceuticals",
+    match: (b) =>
+      /health/i.test(b.sector || "") && (!b.ind || /biotech|pharma|drug/i.test(b.ind)),
+  },
+  { key: "tech", label: "Technology", match: (b) => /technology/i.test(b.sector || "") },
+  { key: "staples", label: "Consumer Staples", match: (b) => /consumer defensive|staples/i.test(b.sector || "") },
+  { key: "financials", label: "Financials", match: (b) => /financial/i.test(b.sector || "") },
+];
+const SECTOR_KEYS = new Set(SECTOR_GROUPS.map((g) => g.key));
+
+function applyFilters(bubbles: ApiBubble[], exch: ExchangeKey, sectors: Set<string>): ApiBubble[] {
+  return bubbles.filter((b) => {
+    if (exchangeOf(b) !== exch) return false;
+    if (!sectors.size) return true;
+    return SECTOR_GROUPS.some((g) => sectors.has(g.key) && g.match(b));
+  });
+}
 const HEADER_CLEAR = 64; // px kept free under the top bar
+/** The sector-chip row (brief §5.1) sits under the header on wide screens. */
+const CHIPS_ROW = 36;
+const headerClear = (w: number) => HEADER_CLEAR + (w > 1100 ? CHIPS_ROW : 0);
 
 /* ------------------------------------------------------------- helpers */
 
@@ -201,6 +268,8 @@ const fetcher = (u: string) => fetch(u).then((r) => r.json());
 export default function BubblesPage() {
   const { unlocked } = usePremium();
   const [win, setWin] = useState("30d");
+  const [exch, setExch] = useState<ExchangeKey>("us");
+  const [sectors, setSectors] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [invZoom, setInvZoom] = useState(1);
@@ -240,14 +309,35 @@ export default function BubblesPage() {
     if (VALID_WINDOWS.has(w)) setWin(w);
     const t = (params.get("ticker") || "").toUpperCase();
     if (t) setSelected(t);
+    const ex = (params.get("exchange") || "").toLowerCase();
+    if (ex === "us" || ex === "ca" || ex === "de") setExch(ex);
+    const sec = (params.get("sectors") || "").split(",").filter((k) => SECTOR_KEYS.has(k));
+    if (sec.length) setSectors(new Set(sec));
     setBooted(true);
   }, []);
 
   useEffect(() => {
     if (!booted) return;
-    const qs = `?window=${win}${selected ? `&ticker=${encodeURIComponent(selected)}` : ""}`;
+    const qs =
+      `?window=${win}` +
+      (exch !== "us" ? `&exchange=${exch}` : "") +
+      (sectors.size ? `&sectors=${Array.from(sectors).join(",")}` : "") +
+      (selected ? `&ticker=${encodeURIComponent(selected)}` : "");
     window.history.replaceState(null, "", `/bubbles${qs}`);
-  }, [win, selected, booted]);
+  }, [win, exch, sectors, selected, booted]);
+
+  /* §5.1: exchange + sector filters combine (acceptance §10 C). */
+  const filtered = useMemo(
+    () => (data?.bubbles ? applyFilters(data.bubbles, exch, sectors) : null),
+    [data, exch, sectors],
+  );
+  const toggleSector = (key: string) =>
+    setSectors((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   /* App view under the site nav: size the map to the viewport minus the
      sticky header, and cancel the site-wide body zoom so canvas math runs in
@@ -280,26 +370,20 @@ export default function BubblesPage() {
 
   /* ------------------------------------------------ data → bodies sync */
   useEffect(() => {
-    if (!data?.bubbles) return;
+    if (!data?.bubbles || !filtered) return;
     const W = window.innerWidth;
     const H = window.innerHeight;
 
     // Small screens get the top of the tape, not all of it — 250 bodies on a
     // phone is unreadable and melts the battery. Payload is sorted by total.
     const cap = W < 640 ? 55 : W < 1024 ? 130 : 250;
-    const shown = data.bubbles.slice(0, cap);
+    const shown = filtered.slice(0, cap);
 
     // Fit factor: keep the summed bubble area a sane share of the viewport so
     // a heavy 1Y window shrinks to fit and a quiet 1W window fills the screen.
-    let areaSum = 0;
     const rawR = new Map<string, number>();
-    for (const b of shown) {
-      const r = Math.min(Math.max(13 * Math.sqrt(b.total / 1e6) + 16, 22), 95);
-      rawR.set(b.t, r);
-      areaSum += Math.PI * r * r;
-    }
-    const budget = W * (H - HEADER_CLEAR) * 0.58;
-    const k = areaSum > 0 ? Math.min(Math.max(Math.sqrt(budget / areaSum), 0.3), 1.35) : 1;
+    for (const b of shown) rawR.set(b.t, radiusForDollars(b.total));
+    const k = fitFactor(Array.from(rawR.values()), W, H, headerClear(W));
 
     const windowChanged = lastWinRef.current !== data.window;
     lastWinRef.current = data.window;
@@ -315,7 +399,7 @@ export default function BubblesPage() {
         ({
           t: api.t,
           x: W * (0.12 + 0.76 * Math.random()),
-          y: HEADER_CLEAR + (H - HEADER_CLEAR) * (0.15 + 0.7 * Math.random()),
+          y: headerClear(W) + (H - headerClear(W)) * (0.15 + 0.7 * Math.random()),
           vx: (Math.random() - 0.5) * 0.4,
           vy: (Math.random() - 0.5) * 0.4,
           r: 1,
@@ -367,7 +451,7 @@ export default function BubblesPage() {
     if (selectedRef.current && !next.find((b) => b.t === selectedRef.current)) {
       setSelected(null);
     }
-  }, [data]);
+  }, [data, filtered]);
 
   /* --------------------------------------------------- engine (mount) */
   useEffect(() => {
@@ -419,70 +503,17 @@ export default function BubblesPage() {
     };
 
     const collisionR = (b: Body) => (b.expanded ? b.r + 46 * b.expandT : b.r);
+    void collisionR;
 
     const tick = (dt: number, time: number) => {
-      const bodies = bodiesRef.current;
-      const reduce = reduceMotionRef.current;
-      for (const b of bodies) {
-        b.r += (b.targetR - b.r) * 0.08;
-        b.expandT += ((b.expanded ? 1 : 0) - b.expandT) * 0.12;
-        if (b === dragTarget) continue;
-        if (!reduce) {
-          b.vy -= 0.0016 * dt;
-          b.vx += Math.sin(time * 0.00035 + b.seed) * 0.0011 * dt;
-          b.vy += Math.cos(time * 0.0004 + b.seed * 2) * 0.0011 * dt;
-        }
-        b.vx *= 0.985;
-        b.vy *= 0.985;
-        b.x += b.vx * dt * 0.06;
-        b.y += b.vy * dt * 0.06;
-      }
-      const n = bodies.length;
-      for (let i = 0; i < n; i++)
-        for (let j = i + 1; j < n; j++) {
-          const a = bodies[i];
-          const b = bodies[j];
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
-          const dist = Math.hypot(dx, dy) || 0.01;
-          const min = collisionR(a) + collisionR(b) + 4;
-          if (dist < min) {
-            const push = ((min - dist) / dist) * 0.5;
-            const px = dx * push;
-            const py = dy * push;
-            if (a !== dragTarget) {
-              a.x -= px * 0.5;
-              a.y -= py * 0.5;
-              a.vx -= px * 0.03;
-              a.vy -= py * 0.03;
-            }
-            if (b !== dragTarget) {
-              b.x += px * 0.5;
-              b.y += py * 0.5;
-              b.vx += px * 0.03;
-              b.vy += py * 0.03;
-            }
-          }
-        }
-      for (const b of bodies) {
-        const cr = collisionR(b) + 6;
-        if (b.x < cr) {
-          b.x = cr;
-          b.vx = Math.abs(b.vx) * 0.55;
-        }
-        if (b.x > W - cr) {
-          b.x = W - cr;
-          b.vx = -Math.abs(b.vx) * 0.55;
-        }
-        if (b.y < HEADER_CLEAR + cr) {
-          b.y = HEADER_CLEAR + cr;
-          b.vy = Math.abs(b.vy) * 0.55;
-        }
-        if (b.y > H - cr) {
-          b.y = H - cr;
-          b.vy = -Math.abs(b.vy) * 0.55;
-        }
-      }
+      // Motion lives in lib/bubbles-physics — the one engine both maps share.
+      stepPhysics(bodiesRef.current, dt, time, {
+        width: W,
+        height: H,
+        headerClear: headerClear(W),
+        dragTarget,
+        reduceMotion: reduceMotionRef.current,
+      });
       pulsesRef.current = pulsesRef.current.filter((p) => (p.age += dt) < 1600);
     };
 
@@ -797,16 +828,16 @@ export default function BubblesPage() {
   };
 
   const current = useMemo(
-    () => (selected && data?.bubbles ? data.bubbles.find((b) => b.t === selected) || null : null),
-    [selected, data],
+    () => (selected && filtered ? filtered.find((b) => b.t === selected) || null : null),
+    [selected, filtered],
   );
 
   const totals = useMemo(() => {
-    if (!data?.bubbles?.length) return null;
-    const total = data.bubbles.reduce((s, b) => s + b.total, 0);
-    const clusters = data.bubbles.filter((b) => b.buys.length >= 3).length;
-    return { n: data.bubbles.length, total, clusters };
-  }, [data]);
+    if (!filtered?.length) return null;
+    const total = filtered.reduce((s, b) => s + b.total, 0);
+    const clusters = filtered.filter((b) => b.buys.length >= 3).length;
+    return { n: filtered.length, total, clusters };
+  }, [filtered]);
 
   const updatedAgo = useMemo(() => {
     if (!data?.generatedAt) return null;
@@ -814,7 +845,8 @@ export default function BubblesPage() {
     return m === 0 ? "just now" : `${m}m ago`;
   }, [data]);
 
-  const empty = booted && !isLoading && data && data.bubbles.length === 0;
+  const empty = booted && !isLoading && filtered && filtered.length === 0;
+  const filtersActive = exch !== "us" || sectors.size > 0;
 
   return (
     <div
@@ -849,6 +881,13 @@ export default function BubblesPage() {
             </button>
           ))}
         </nav>
+        <nav className="bm-windows bm-exch" aria-label="Exchange">
+          {EXCHANGES.map(([value, label]) => (
+            <button key={value} className={value === exch ? "bm-active" : ""} onClick={() => setExch(value)}>
+              {label}
+            </button>
+          ))}
+        </nav>
         <input
           className="bm-search"
           type="search"
@@ -858,6 +897,9 @@ export default function BubblesPage() {
           onKeyDown={onSearchKey}
           aria-label="Search tickers on the map"
         />
+        <Link href="/congress-bubbles" className="bm-switch" title="Switch to Congress Bubbles">
+          Congress &rarr;
+        </Link>
         <div className="bm-live">
           <span className="bm-live-dot" /> LIVE{updatedAgo ? ` · ${updatedAgo}` : ""}
         </div>
@@ -901,9 +943,56 @@ export default function BubblesPage() {
                 </button>
               ))}
             </div>
+            <div className="bm-mmenu-lbl">Exchange</div>
+            <div className="bm-mmenu-windows">
+              {EXCHANGES.map(([value, label]) => (
+                <button key={value} className={value === exch ? "bm-active" : ""} onClick={() => setExch(value)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="bm-mmenu-lbl">Sector</div>
+            <div className="bm-mmenu-windows">
+              {SECTOR_GROUPS.map((g) => (
+                <button
+                  key={g.key}
+                  className={sectors.has(g.key) ? "bm-active" : ""}
+                  aria-pressed={sectors.has(g.key)}
+                  onClick={() => toggleSector(g.key)}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+            <Link href="/congress-bubbles" className="bm-mmenu-link">
+              Congress Bubbles &rarr;
+            </Link>
           </div>
         )}
       </header>
+
+      {/* §5.1 sector chips — their own row under the header so the header
+          stays one line; the field's top wall moves down to match. */}
+      <div className="bm-chips-row" role="group" aria-label="Sector">
+        <span className="bm-chips-lbl">Sector</span>
+        <button
+          className={`bm-chip ${sectors.size === 0 ? "bm-chip-on" : ""}`}
+          aria-pressed={sectors.size === 0}
+          onClick={() => setSectors(new Set())}
+        >
+          All
+        </button>
+        {SECTOR_GROUPS.map((g) => (
+          <button
+            key={g.key}
+            className={`bm-chip ${sectors.has(g.key) ? "bm-chip-on" : ""}`}
+            aria-pressed={sectors.has(g.key)}
+            onClick={() => toggleSector(g.key)}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
 
       <div className="bm-legend">
         <div>
@@ -919,7 +1008,10 @@ export default function BubblesPage() {
           New filing on the tape
         </div>
         <div className="bm-note">
-          Bubble size = total $ bought · &times;N badge = cluster buy · click to expand
+          Bubble size = total $ bought · &times;N badge = cluster buy · click to expand ·{" "}
+          <Link href="/methodology#insider-bubbles" className="bm-method">
+            methodology
+          </Link>
         </div>
       </div>
 
@@ -944,8 +1036,20 @@ export default function BubblesPage() {
         <div className="bm-center-msg">
           <b>Quiet tape.</b>
           <span>
-            No open-market insider buys of $250K+ {win === "1d" ? "filed today" : "in this window"} yet.
+            No open-market insider buys of $250K+ {win === "1d" ? "filed today" : "in this window"}
+            {filtersActive ? " match these filters" : " yet"}.
           </span>
+          {filtersActive && (
+            <button
+              className="bm-widen"
+              onClick={() => {
+                setExch("us");
+                setSectors(new Set());
+              }}
+            >
+              Clear filters
+            </button>
+          )}
           {win !== "30d" && (
             <button className="bm-widen" onClick={() => setWin("30d")}>
               Show the last 30 days
@@ -1004,12 +1108,16 @@ function ProfilePanel({
         &#10005;
       </button>
       <div className="bm-panel-scroll">
+        {/* Brief §5.2 — exact vertical order: 1 ticker + name, 2 price,
+            3 net insider flow visual, 4 above/below insider price blurb,
+            5 market cap, then the remaining stats. */}
         <div className="bm-p-tick">
           {c.t}
           {c.exch ? ` · ${c.exch}` : ""}
           {c.sector ? ` · ${c.sector}` : ""}
         </div>
         <div className="bm-p-name">{c.name}</div>
+
         <div className="bm-p-price-row">
           <span className="bm-p-price">{c.price != null ? `$${c.price.toFixed(2)}` : "—"}</span>
           {c.chg != null && (
@@ -1018,6 +1126,19 @@ function ProfilePanel({
               {c.chg.toFixed(2)}% today
             </span>
           )}
+        </div>
+
+        <div className="bm-p-section">Net insider flow · {winLabel}</div>
+        <div className="bm-flowbar">
+          <div className="bm-buyside" style={{ width: `${buyPct.toFixed(0)}%` }} />
+        </div>
+        <div className="bm-flow-lbls">
+          <span style={{ color: "#3E9B5F" }}>{fmtM(c.total)} bought</span>
+          <span>
+            net {net >= 0 ? "+" : "−"}
+            {fmtM(Math.abs(net))}
+          </span>
+          <span style={{ color: "#C2504A" }}>{fmtM(c.sold)} sold</span>
         </div>
 
         {gap != null && (
@@ -1037,16 +1158,19 @@ function ProfilePanel({
           </div>
         )}
 
-        {c.about && <div className="bm-p-about">{c.about}</div>}
+        <div className="bm-p-mcap">
+          <div className="bm-lbl">Market cap</div>
+          <div className="bm-val">{c.mcap != null ? fmtM(c.mcap) : "—"}</div>
+        </div>
 
         <div className="bm-p-grid">
           <div className="bm-p-cell">
-            <div className="bm-lbl">Revenue (TTM)</div>
-            <div className="bm-val">{c.rev != null ? fmtM(c.rev) : "—"}</div>
+            <div className="bm-lbl">Insiders buying</div>
+            <div className="bm-val">{new Set(c.buys.map((x) => x.who)).size}</div>
           </div>
           <div className="bm-p-cell">
-            <div className="bm-lbl">Net income (TTM)</div>
-            <div className="bm-val">{c.ni != null ? fmtM(c.ni) : "—"}</div>
+            <div className="bm-lbl">Last filing</div>
+            <div className="bm-val">{c.buys.length ? agoLabel(c.buys[0].d) : "—"}</div>
           </div>
           <div className="bm-p-cell">
             <div className="bm-lbl">Insider Score</div>
@@ -1072,20 +1196,17 @@ function ProfilePanel({
               </div>
             )}
           </div>
+          <div className="bm-p-cell">
+            <div className="bm-lbl">Revenue (TTM)</div>
+            <div className="bm-val">{c.rev != null ? fmtM(c.rev) : "—"}</div>
+          </div>
+          <div className="bm-p-cell">
+            <div className="bm-lbl">Net income (TTM)</div>
+            <div className="bm-val">{c.ni != null ? fmtM(c.ni) : "—"}</div>
+          </div>
         </div>
 
-        <div className="bm-p-section">Net insider flow · {winLabel}</div>
-        <div className="bm-flowbar">
-          <div className="bm-buyside" style={{ width: `${buyPct.toFixed(0)}%` }} />
-        </div>
-        <div className="bm-flow-lbls">
-          <span style={{ color: "#3E9B5F" }}>{fmtM(c.total)} bought</span>
-          <span>
-            net {net >= 0 ? "+" : "−"}
-            {fmtM(Math.abs(net))}
-          </span>
-          <span style={{ color: "#C2504A" }}>{fmtM(c.sold)} sold</span>
-        </div>
+        {c.about && <div className="bm-p-about">{c.about}</div>}
 
         <div className="bm-p-section">Who bought ({c.buys.length})</div>
         {c.buys.map((x) => (
@@ -1111,7 +1232,8 @@ function ProfilePanel({
           </Link>
         </div>
         <div className="bm-p-disclaimer">
-          All figures trace to SEC Form 4 filings and licensed market data. Not financial advice.
+          All figures trace to SEC Form 4 filings and licensed market data. Not financial advice.{" "}
+          <Link href="/methodology#insider-bubbles">Methodology</Link>
         </div>
       </div>
     </aside>
@@ -1347,4 +1469,39 @@ const CSS_TEXT = `
   .bm-panel { transition: none; }
   .bm-live-dot { animation: none; }
 }
+
+/* §5.1 filters */
+.bm-exch { flex: 0 0 auto; }
+.bm-chips-row {
+  position: absolute; top: ${HEADER_CLEAR}px; left: 16px; right: 16px; height: ${CHIPS_ROW}px; z-index: 5;
+  display: flex; gap: 6px; align-items: center; pointer-events: none;
+}
+.bm-chips-row > * { pointer-events: auto; }
+.bm-chips-lbl { font-family: var(--bm-mono), monospace; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--bm-ink-faint); margin-right: 4px; }
+.bm-chip {
+  font-family: var(--bm-mono), monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.2px;
+  color: var(--bm-ink-dim); background: rgba(11,27,47,0.85); border: 1px solid var(--bm-line);
+  border-radius: 999px; padding: 4px 10px; cursor: pointer; white-space: nowrap;
+}
+.bm-root.bm-light .bm-chip { background: rgba(255,255,255,0.92); }
+.bm-chip:hover { color: var(--bm-ink); border-color: var(--bm-ink-faint); }
+.bm-chip.bm-chip-on { background: var(--bm-green); border-color: var(--bm-green); color: #06131f; font-weight: 600; }
+.bm-chip-clear { color: var(--bm-gold); border-color: var(--bm-gold); }
+.bm-chip:focus-visible { outline: 2px solid var(--bm-gold); outline-offset: 2px; }
+.bm-switch, .bm-mmenu-link {
+  font-family: var(--bm-mono), monospace; font-size: 11px; font-weight: 600; color: var(--bm-gold);
+  text-decoration: none; white-space: nowrap; border: 1px solid var(--bm-line); border-radius: 9px; padding: 6px 10px;
+}
+.bm-switch:hover, .bm-mmenu-link:hover { border-color: var(--bm-gold); }
+.bm-mmenu-link { display: inline-block; margin-top: 10px; }
+.bm-mmenu-lbl {
+  font-family: var(--bm-mono), monospace; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--bm-ink-faint); margin: 12px 0 6px;
+}
+.bm-method { color: var(--bm-gold); text-decoration: none; }
+.bm-method:hover { text-decoration: underline; }
+.bm-p-mcap { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--bm-line); border-radius: 10px; }
+.bm-p-mcap .bm-val { font-size: 20px; }
+.bm-p-disclaimer a { color: var(--bm-ink-dim); }
+@media (max-width: 1100px) { .bm-chips-row { display: none; } .bm-exch { display: none; } .bm-switch { display: none; } }
 `;

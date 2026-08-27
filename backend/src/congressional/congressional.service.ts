@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { CongressionalTransaction } from '../entities/congressional-transaction.entity';
@@ -51,6 +52,26 @@ function toGicsSector(raw: string | null | undefined): string {
   if (/material|metal|mining|gold|silver|copper|steel|chemical|paper|forest|aluminum|fertilizer/.test(s)) return 'Materials';
   if (/real estate|reit|realty/.test(s)) return 'Real Estate';
   return 'Other';
+}
+
+/** One member's bubble on the Congress map (brief §5.3). Dollar figures are
+ *  PTR range midpoints. */
+export interface CongressBubble {
+  name: string;
+  chamber: 'House' | 'Senate';
+  party: string | null;
+  state: string | null;
+  photo: string | null;
+  buys: number;
+  sells: number;
+  buyCount: number;
+  sellCount: number;
+  volume: number;
+  net: number;
+  trades: number;
+  lastTrade: string | null;
+  avgDaysToDisclosure: number | null;
+  topTickers: Array<{ ticker: string; name: string; volume: number; trades: number }>;
 }
 
 @Injectable()
@@ -187,6 +208,131 @@ export class CongressionalService implements OnModuleInit {
     private readonly marketStats: MarketStatsService,
     private readonly civic: CivicService,
   ) {}
+
+  /** Brief §2.3 / §5.3: congressional PTRs refresh DAILY. Nightly, after the
+   *  House/Senate clerks' evening postings, on the in-process scheduler (the
+   *  Vercel deployment has no clock and uses the GitHub workflow instead). */
+  @Cron('30 6 * * *')
+  async nightlyPtrRefresh(): Promise<void> {
+    if (process.env.VERCEL) return;
+    try {
+      await this.refreshFromFmp();
+    } catch (e: any) {
+      this.logger.warn(`nightly congressional refresh failed: ${e?.message || e}`);
+    }
+  }
+
+  /** Congress Bubbles (brief §5.3): one bubble per member for the period.
+   *  Size = total reported trade volume, colour = net buying vs selling.
+   *  PTR amounts are RANGES, so every dollar figure here is the range
+   *  MIDPOINT — stated in the methodology note, as the brief requires. */
+  async getBubbles(opts: {
+    days: 30 | 90;
+    chamber?: 'House' | 'Senate';
+    party?: string;
+  }): Promise<{
+    period: string;
+    generatedAt: string;
+    method: string;
+    count: number;
+    bubbles: CongressBubble[];
+  }> {
+    const since = new Date(Date.now() - opts.days * 86_400_000);
+    const qb = this.repo
+      .createQueryBuilder('t')
+      .where('t."transactionDate" >= :since', { since: since.toISOString().slice(0, 10) });
+    if (opts.chamber) qb.andWhere('t.chamber = :chamber', { chamber: opts.chamber });
+    if (opts.party) qb.andWhere('t.party = :party', { party: opts.party });
+    const rows = await qb.orderBy('t."transactionDate"', 'DESC').getMany();
+    const roster = await this.getRoster().catch(() => null);
+
+    const midpoint = (r: CongressionalTransaction) => {
+      const lo = Number(r.amountMin) || 0;
+      const hi = Number(r.amountMax);
+      return Number.isFinite(hi) && hi > 0 ? (lo + hi) / 2 : lo;
+    };
+    const dayDiff = (a: Date | string | null, b: Date | string | null) => {
+      if (!a || !b) return null;
+      const x = new Date(a).getTime();
+      const y = new Date(b).getTime();
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return Math.max(0, Math.round((y - x) / 86_400_000));
+    };
+
+    const agg = new Map<string, CongressBubble & { _lag: number[]; _tk: Map<string, { vol: number; n: number; name: string }> }>();
+    for (const r of rows) {
+      const key = r.politicianName.trim().toLowerCase();
+      const meta = roster?.metaByName.get(key) ?? null;
+      const e =
+        agg.get(key) ||
+        ({
+          name: r.politicianName.trim(),
+          chamber: r.chamber,
+          party: r.party || null,
+          state: meta?.state ?? null,
+          photo: r.photoUrl && r.photoUrl !== PhotosService.NO_PHOTO ? r.photoUrl : roster?.photoByName.get(key) ?? null,
+          buys: 0,
+          sells: 0,
+          buyCount: 0,
+          sellCount: 0,
+          volume: 0,
+          net: 0,
+          trades: 0,
+          lastTrade: null,
+          avgDaysToDisclosure: null,
+          topTickers: [],
+          _lag: [],
+          _tk: new Map(),
+        } as CongressBubble & { _lag: number[]; _tk: Map<string, { vol: number; n: number; name: string }> });
+      const v = midpoint(r);
+      if (r.action === 'Buy') {
+        e.buys += v;
+        e.buyCount += 1;
+      } else {
+        e.sells += v;
+        e.sellCount += 1;
+      }
+      e.volume += v;
+      e.trades += 1;
+      const d = new Date(r.transactionDate).toISOString().slice(0, 10);
+      if (!e.lastTrade || d > e.lastTrade) e.lastTrade = d;
+      const lag = dayDiff(r.transactionDate, r.reportedDate);
+      if (lag != null) e._lag.push(lag);
+      const tk = e._tk.get(r.ticker) || { vol: 0, n: 0, name: r.companyName };
+      tk.vol += v;
+      tk.n += 1;
+      e._tk.set(r.ticker, tk);
+      agg.set(key, e);
+    }
+
+    const bubbles: CongressBubble[] = Array.from(agg.values())
+      .map((e) => {
+        const { _lag, _tk, ...b } = e;
+        b.net = Math.round(b.buys - b.sells);
+        b.buys = Math.round(b.buys);
+        b.sells = Math.round(b.sells);
+        b.volume = Math.round(b.volume);
+        b.avgDaysToDisclosure = _lag.length
+          ? Math.round(_lag.reduce((a, x) => a + x, 0) / _lag.length)
+          : null;
+        b.topTickers = Array.from(_tk.entries())
+          .map(([ticker, x]) => ({ ticker, name: x.name, volume: Math.round(x.vol), trades: x.n }))
+          .sort((a, c) => c.volume - a.volume)
+          .slice(0, 5);
+        return b;
+      })
+      .filter((b) => b.volume > 0)
+      .sort((a, b) => b.volume - a.volume);
+
+    return {
+      period: `${opts.days}d`,
+      generatedAt: new Date().toISOString(),
+      method:
+        'Periodic Transaction Reports disclose amounts as ranges (e.g. $15,001–$50,000). Bubble size and every dollar figure use the range midpoint.',
+      count: bubbles.length,
+      bubbles,
+    };
+  }
 
   async onModuleInit() {
     // NO FMP call here — serverless cold starts are frequent and each one

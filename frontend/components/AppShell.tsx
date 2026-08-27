@@ -53,7 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className={
           // The bubbles map is a full-bleed app view: nav above, footer below,
           // no gutter — its canvas sizes itself to the main element.
-          pathname?.startsWith("/bubbles")
+          (pathname?.startsWith("/bubbles") || pathname?.startsWith("/congress-bubbles"))
             ? "flex-1 w-full"
             : "flex-1 px-6 sm:px-10 lg:px-16 xl:px-24 py-6 sm:py-8 max-w-[1640px] mx-auto w-full"
         }

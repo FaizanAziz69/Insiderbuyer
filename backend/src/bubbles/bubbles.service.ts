@@ -208,7 +208,7 @@ export class BubblesService {
     if (tickers.length) {
       const rows = await this.cacheRepo.query(
         `SELECT symbol, name, price::float8 AS price, "changePct"::float8 AS chg,
-                "marketCap"::float8 AS mcap, sector, exchange
+                "marketCap"::float8 AS mcap, sector, industry, exchange
          FROM market_profile_snapshot WHERE symbol = ANY($1)`,
         [tickers],
       );
@@ -272,6 +272,9 @@ export class BubblesService {
           name: snap?.name || rec.name,
           exch: m?.exchange || snap?.exchange || null,
           sector: snap?.sector || null,
+          // Finer grain than sector — the brief's "Mining" and "Biotech &
+          // Pharmaceuticals" filters (§5.1) are industries, not sectors.
+          ind: snap?.industry || null,
           price: snap?.price != null ? Number(snap.price) : null,
           chg: snap?.chg != null ? Number(snap.chg) : null,
           mcap: snap?.mcap != null ? Number(snap.mcap) : null,

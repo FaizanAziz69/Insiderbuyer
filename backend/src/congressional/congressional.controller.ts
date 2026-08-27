@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Controller, Get, Header, Param, Post, Query } from '@nestjs/common';
 import { CongressionalService } from './congressional.service';
 
 @Controller('congressional-trades')
@@ -28,6 +28,21 @@ export class CongressionalController {
       limit: limit ? Number(limit) : undefined,
     });
     return { total: rows.length, rows };
+  }
+
+  /** Congress Bubbles payload (brief §5.3): per-member trade volume for the
+   *  period, filterable by chamber and party. Public + cacheable like /bubbles. */
+  @Get('bubbles')
+  @Header('Cache-Control', 'public, max-age=60')
+  async bubbles(
+    @Query('period') period?: string,
+    @Query('chamber') chamber?: string,
+    @Query('party') party?: string,
+  ) {
+    const days = String(period || '').replace(/d$/i, '') === '90' ? 90 : 30;
+    const ch = chamber === 'Senate' || chamber === 'House' ? chamber : undefined;
+    const pt = party && /^[A-Z]$/.test(party) ? party : undefined;
+    return this.svc.getBubbles({ days, chamber: ch, party: pt });
   }
 
   @Get('by-ticker/:ticker')
