@@ -57,8 +57,8 @@ VALUES (
 
 <p><em>Not investment advice. White Gold Corp figures are summarized from the company's own public filings, press releases and management disclosure; White Gold reports insider transactions to SEDI and is not covered by our SEC Form 4 record.</em></p>$body$,
   NULL,
-  '/editorial-thumbs/white-gold-donofrio-yukon.jpg',
-  $alt$White Gold Corp CEO David D'Onofrio with a Yukon geological map$alt$,
+  '/editorial-thumbs/white-gold-yukon-map-2.jpg',
+  $alt$An executive reviewing a Yukon geological map in a boardroom$alt$,
   'SECTOR SPOTLIGHT',
   'SECTOR SPOTLIGHT',
   true,
