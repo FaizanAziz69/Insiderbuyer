@@ -3249,6 +3249,10 @@ export class IqsService {
         };
       })
       .filter((s) => s.avgIqs !== null || s.clusterBuys > 0 || s.buyValue > 0)
+      // 'Other' is the null-sector bucket, not a sector. It cannot be
+      // generalised from, and sorted by average score it lands at the top of
+      // the table where it reads as a finding.
+      .filter((s) => s.sector !== 'Other')
       // `Company.sector` is a mix of GICS names ("Technology", "Healthcare")
       // and raw SIC descriptions ("Services-Membership Sports & Recreation
       // Clubs", "Refrigeration & Service Industry Machinery"), and the SIC

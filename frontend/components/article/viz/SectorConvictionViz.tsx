@@ -48,13 +48,28 @@ export function SectorConvictionViz({
   const all = data?.sectors || [];
   if (all.length === 0) return null;
 
-  // Keep the story's sector visible even if it falls outside the top rows.
+  // THE YOY COLUMN IS SUPPRESSED UNLESS THE DATA SUPPORTS IT.
+  //
+  // §7 specifies a "YoY Change" column, but our Form 4 history effectively
+  // begins in Aug/Sep 2025 (41 open-market purchases that month, then 87-129 a
+  // month after). A year-over-year comparison therefore measures the ingest
+  // ramping up, not insider behaviour — it would print enormous increases that
+  // look like a finding and are an artefact. On top of that, the year-ago
+  // window currently has buys in only six sectors, none of which are in the
+  // top rows, so the column renders entirely "n/a".
+  //
+  // Either outcome is worse than no column: one is misleading, the other looks
+  // broken. So the column appears only when at least half the displayed rows
+  // have a real figure, and the caption says when it does not.
   const top = all.slice(0, maxRows);
+  // Keep the story's own sector visible even if it falls outside the top rows.
   const focus = sector
     ? all.find((r) => r.sector.toLowerCase() === sector.toLowerCase())
     : null;
   const shown = focus && !top.some((r) => r.sector === focus.sector) ? [...top, focus] : top;
   const dropped = all.length - shown.length;
+  const withYoy = shown.filter((r) => r.yoyChangePct != null).length;
+  const showYoy = shown.length > 0 && withYoy >= Math.ceil(shown.length / 2);
 
   return (
     <VizFrame
@@ -64,6 +79,9 @@ export function SectorConvictionViz({
         <>
           A cluster buy is one company with two or more distinct insiders filing
           open-market purchases inside the window.
+          {!showYoy
+            ? " Year-over-year change is not shown: our Form 4 record does not yet cover a comparable window a year back, and a figure drawn from it would measure our own coverage rather than insider behaviour."
+            : ""}
           {dropped > 0 ? ` ${dropped} further sector${dropped === 1 ? "" : "s"} not shown — ` : " "}
           <Link href="/sectors" className="text-accent hover:underline">
             see every sector →
@@ -74,7 +92,7 @@ export function SectorConvictionViz({
       <table className="w-full text-[13px]" style={{ borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ borderBottom: "1px solid var(--border)" }}>
-            {["Sector", "Avg Insider Score", "Cluster buys", "Buy value", "YoY change"].map(
+            {["Sector", "Avg Insider Score", "Cluster buys", "Buy value", ...(showYoy ? ["YoY change"] : [])].map(
               (h, i) => (
                 <th
                   key={h}
@@ -117,21 +135,23 @@ export function SectorConvictionViz({
                 <td className="px-3 py-2 text-right tabular whitespace-nowrap">
                   {r.buyValue > 0 ? formatCurrency(r.buyValue) : "—"}
                 </td>
-                <td
-                  className="px-3 py-2 text-right tabular whitespace-nowrap font-semibold"
-                  style={{
-                    color:
-                      r.yoyChangePct == null
-                        ? "var(--text-mute)"
-                        : r.yoyChangePct >= 0
-                          ? "var(--good)"
-                          : "var(--bad)",
-                  }}
-                >
-                  {r.yoyChangePct == null
-                    ? "n/a"
-                    : `${r.yoyChangePct >= 0 ? "+" : ""}${r.yoyChangePct.toFixed(0)}%`}
-                </td>
+                {showYoy ? (
+                  <td
+                    className="px-3 py-2 text-right tabular whitespace-nowrap font-semibold"
+                    style={{
+                      color:
+                        r.yoyChangePct == null
+                          ? "var(--text-mute)"
+                          : r.yoyChangePct >= 0
+                            ? "var(--good)"
+                            : "var(--bad)",
+                    }}
+                  >
+                    {r.yoyChangePct == null
+                      ? "n/a"
+                      : `${r.yoyChangePct >= 0 ? "+" : ""}${r.yoyChangePct.toFixed(0)}%`}
+                  </td>
+                ) : null}
               </tr>
             );
           })}

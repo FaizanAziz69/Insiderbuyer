@@ -112,9 +112,12 @@ export class IqsController {
     @Query('minCompanies') minCompanies?: string,
   ) {
     const n = Math.min(365, Math.max(7, Number(days) || 30));
-    // Default floor of 5 scored companies per sector — see the service comment:
-    // `sector` mixes GICS names with one-company SIC descriptions.
-    const min = minCompanies == null ? 5 : Math.max(0, Number(minCompanies) || 0);
+    // Default floor of 15 scored companies per sector. At 5 the table put
+    // "Electromedical & Electrotherapeutic Apparatus" (6 companies) above
+    // "Healthcare" (119) purely on average score, which reads as a sector
+    // finding drawn from six names. See the service comment: `sector` mixes
+    // GICS names with one-company SIC descriptions.
+    const min = minCompanies == null ? 15 : Math.max(0, Number(minCompanies) || 0);
     return this.iqs.getSectorConviction(n, min);
   }
 
