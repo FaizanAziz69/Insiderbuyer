@@ -192,13 +192,13 @@ export function MockupGallery({ mockups, theme }: { mockups: Mockup[]; theme: "l
 export const MOCKUP_CSS = `
 /* Slots: one per row at full content-column width — "visually dominant",
    "generous whitespace" (brief §6.2). */
-.mk-grid { display: grid; grid-template-columns: 1fr; gap: 96px; margin-top: 56px; }
-.mk-slot { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2.1fr); gap: 40px; align-items: center; }
-.mk-slot:nth-child(even) { direction: rtl; }
-.mk-slot:nth-child(even) > * { direction: ltr; }
-.mk-slot-phone { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
-.mk-cap h3 { font-size: 26px; font-weight: 800; margin: 0 0 10px; color: var(--ink); line-height: 1.15; }
-.mk-cap p { font-size: 15.5px; line-height: 1.6; color: var(--dim); margin: 0 0 14px; }
+/* §6.2: "displayed at full content-column width or larger with generous
+   whitespace" — one mockup per row, caption above, frame spanning the column. */
+.mk-grid { display: grid; grid-template-columns: 1fr; gap: 112px; margin-top: 56px; }
+.mk-slot { margin: 0; display: grid; grid-template-columns: 1fr; gap: 28px; }
+.mk-cap { max-width: 720px; }
+.mk-cap h3 { font-size: 28px; font-weight: 800; margin: 0 0 10px; color: var(--ink); line-height: 1.15; }
+.mk-cap p { font-size: 16px; line-height: 1.6; color: var(--dim); margin: 0 0 14px; }
 .mk-link { color: var(--brand); font-weight: 700; text-decoration: none; font-size: 14.5px; }
 .mk-link:hover { text-decoration: underline; }
 .mk-open {
@@ -234,7 +234,7 @@ export const MOCKUP_CSS = `
 
 /* Phone frame */
 .mk-phone {
-  position: relative; width: 300px; max-width: 100%; margin: 0 auto; border-radius: 42px; padding: 12px;
+  position: relative; width: 340px; max-width: 100%; margin: 0 auto; border-radius: 42px; padding: 12px;
   background: #0B1424; border: 1px solid rgba(255,255,255,0.12);
   box-shadow: 0 34px 90px rgba(3,10,22,0.55), inset 0 0 0 2px rgba(255,255,255,0.05);
 }
@@ -272,8 +272,7 @@ export const MOCKUP_CSS = `
 
 @media (max-width: 960px) {
   .mk-grid { gap: 64px; margin-top: 40px; }
-  .mk-slot, .mk-slot-phone { grid-template-columns: 1fr; gap: 20px; }
-  .mk-slot:nth-child(even) { direction: ltr; }
+  .mk-slot { gap: 18px; }
   .mk-cap h3 { font-size: 22px; }
   .mk-slot-phone .mk-zoom { right: calc(50% - 130px); }
 }
