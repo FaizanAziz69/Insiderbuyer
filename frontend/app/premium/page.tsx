@@ -1063,7 +1063,7 @@ const CSS = `
   /* Wordmarks are cap-height artwork, so they get the names' CAP height
      (~0.72em), not the full line — that is what made Guggenheim "way bigger". */
   --word-h: clamp(8px, 0.72vw, 13px);
-  /* `safe center`: centred when it fits, start-aligned (never clipped on the
+  /* safe center: centred when it fits, start-aligned (never clipped on the
      left) when a narrow or zoomed window makes it overflow. */
   display: flex; flex-wrap: nowrap; gap: clamp(10px, 1.3vw, 26px); justify-content: safe center; align-items: center;
   list-style: none; margin: 0 auto; padding: 0 8px; width: 100%; max-width: 1400px; overflow-x: auto; scrollbar-width: none;
