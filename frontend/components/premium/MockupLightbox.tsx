@@ -212,7 +212,7 @@ export const MOCKUP_CSS = `
   border: 1px solid rgba(255,255,255,0.18); opacity: 0; transition: opacity .15s;
 }
 .mk-open:hover .mk-zoom, .mk-open:focus-visible .mk-zoom { opacity: 1; }
-.mk-slot-phone .mk-zoom { right: calc(50% - 90px); }
+.mk-slot-phone .mk-zoom { right: calc(50% - 156px); }
 
 /* Browser frame */
 .mk-browser {
