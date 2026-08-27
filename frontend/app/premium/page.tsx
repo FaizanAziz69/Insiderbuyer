@@ -40,23 +40,24 @@ import { MockupGallery, MOCKUP_CSS, type Mockup } from "@/components/premium/Moc
 
 /** Trust strip — the firms' LOGOS, not their names in type (client,
  *  2026-08-28: "these should be LOGOS of the companies mentioned there").
- *  `mark` = square logo mark shown in a chip beside the firm name (the public
- *  companies' marks, via the same FMP logo set the rest of the site uses);
- *  `wordmark` = the firm's own horizontal logotype, shown alone. `dark` names
- *  a separate asset for the dark theme where the artwork needs one; the
- *  Guggenheim SVG is single-colour and inherits the text colour instead. */
+ *  George's follow-up the same night: "on one line, without the white tile
+ *  background, larger, same size — Guggenheim is way bigger than most". So:
+ *  one non-wrapping row, every logo rendered monochrome at the SAME height,
+ *  no chip. `mark` = square logo mark + firm name (the public companies, via
+ *  the FMP logo set the rest of the site uses; backgrounds keyed out);
+ *  `wordmark` = the firm's own logotype at the same cap height. */
 const FIRMS: Array<{
   name: string;
   logo: string;
   kind: "mark" | "wordmark";
   dark?: string;
 }> = [
-  { name: "Morgan Stanley", logo: "/sales/firms/morgan-stanley.png", kind: "mark" },
-  { name: "Goldman Sachs", logo: "/sales/firms/goldman-sachs.png", kind: "mark" },
-  { name: "RBC Capital", logo: "/sales/firms/rbc-capital.png", kind: "mark" },
-  { name: "Piper Sandler", logo: "/sales/firms/piper-sandler.png", kind: "mark" },
-  { name: "Deutsche Bank", logo: "/sales/firms/deutsche-bank.png", kind: "mark" },
-  { name: "Scotiabank", logo: "/sales/firms/scotiabank.png", kind: "mark" },
+  { name: "Morgan Stanley", logo: "/sales/firms/morgan-stanley-2.png", kind: "mark" },
+  { name: "Goldman Sachs", logo: "/sales/firms/goldman-sachs-2.png", kind: "mark" },
+  { name: "RBC Capital", logo: "/sales/firms/rbc-capital-2.png", kind: "mark" },
+  { name: "Piper Sandler", logo: "/sales/firms/piper-sandler-2.png", kind: "mark" },
+  { name: "Deutsche Bank", logo: "/sales/firms/deutsche-bank-2.png", kind: "mark" },
+  { name: "Scotiabank", logo: "/sales/firms/scotiabank-2.png", kind: "mark" },
   { name: "Guggenheim", logo: "/sales/firms/guggenheim.svg", kind: "wordmark" },
   {
     name: "Melius Research",
@@ -1053,19 +1054,32 @@ const CSS = `
   font-family: var(--font-display), sans-serif; font-weight: 600; font-size: 13px;
   letter-spacing: 2.5px; text-transform: uppercase; color: var(--dim); text-align: center; margin: 0 0 22px;
 }
-.biv-firms { display: flex; flex-wrap: wrap; gap: 18px 40px; justify-content: center; align-items: center; list-style: none; margin: 0; padding: 0; }
-.biv-firm { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; color: rgba(245,247,250,0.82); }
-/* Square logo marks sit in a white chip so a coloured, transparent or
-   white-on-transparent mark all read the same against the navy. */
-.biv-firm-chip {
-  width: 34px; height: 34px; border-radius: 9px; background: #FFFFFF; display: grid; place-items: center;
-  overflow: hidden; flex: 0 0 auto; box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
+/* One line, no wrap (George). Every logo is monochrome and the same height,
+   so a colourful square mark and a wide wordmark read as one set. */
+.biv-firms {
+  /* Sizes track the viewport so all eight stay on ONE line from 1024px up;
+     below that the row scrolls sideways under a fade rather than wrapping. */
+  --logo-h: clamp(16px, 1.5vw, 26px); --name-fs: clamp(12px, 1.1vw, 19px);
+  /* Wordmarks are cap-height artwork, so they get the names' CAP height
+     (~0.72em), not the full line — that is what made Guggenheim "way bigger". */
+  --word-h: clamp(9px, 0.8vw, 14px);
+  display: flex; flex-wrap: nowrap; gap: clamp(12px, 1.6vw, 30px); justify-content: center; align-items: center;
+  list-style: none; margin: 0 auto; padding: 0 8px; max-width: 1400px; overflow-x: auto; scrollbar-width: none;
 }
-.biv-firm-chip img { width: 26px; height: 26px; object-fit: contain; display: block; }
-.biv-firm-name { font-family: var(--font-heading), sans-serif; font-weight: 800; font-size: 19px; }
-/* Horizontal logotypes render at the chip height; the Guggenheim SVG is
-   currentColor so it takes the strip's text colour in both themes. */
-.biv-firm-wordmark { height: 22px; width: auto; max-width: 220px; display: block; opacity: 0.9; }
+.biv-firms::-webkit-scrollbar { display: none; }
+.biv-firm { display: inline-flex; align-items: center; gap: 0.5em; white-space: nowrap; color: rgba(245,247,250,0.88); flex: 0 0 auto; font-size: var(--name-fs); }
+/* Marks: no tile; keyed-out backgrounds, forced to the strip's ink via
+   grayscale + brightness so Morgan Stanley's navy and Scotiabank's red sit
+   at the same weight as the text. */
+.biv-firm-chip { display: block; height: var(--logo-h); width: var(--logo-h); flex: 0 0 auto; }
+.biv-firm-chip img {
+  height: 100%; width: 100%; object-fit: contain; display: block;
+  filter: grayscale(1) brightness(1.9) contrast(0.9); opacity: 0.92;
+}
+.biv-firm-name { font-family: var(--font-heading), sans-serif; font-weight: 800; font-size: var(--name-fs); letter-spacing: -0.01em; line-height: 1; }
+/* Wordmarks: scaled to the same cap height as the firm names — the Guggenheim
+   SVG is currentColor, Melius ships a white variant for dark. */
+.biv-firm-wordmark { height: var(--word-h); width: auto; display: block; opacity: 0.9; }
 .biv-trust-fine { font-size: 11.5px; color: var(--faint); margin-top: 18px; }
 
 /* features */
@@ -1178,8 +1192,8 @@ const CSS = `
 }
 :root[data-theme="light"] .biv-bigstat { color: var(--green); }
 :root[data-theme="light"] .biv-chip { color: #2c7a51; }
-:root[data-theme="light"] .biv-firm { color: rgba(14,31,53,0.72); }
-:root[data-theme="light"] .biv-firm-chip { box-shadow: 0 0 0 1px rgba(14,31,53,0.12); }
+:root[data-theme="light"] .biv-firm { color: rgba(14,31,53,0.8); }
+:root[data-theme="light"] .biv-firm-chip img { filter: grayscale(1) brightness(0.35) contrast(1.1); }
 :root[data-theme="light"] .biv-mstat { color: var(--green); }
 :root[data-theme="light"] .biv-plus { background: rgba(62,155,95,0.12); color: var(--green); }
 :root[data-theme="light"] .biv-tool { background: #FFFFFF; }
@@ -1206,10 +1220,11 @@ const CSS = `
   .biv-btn { padding: 12px 18px; font-size: 14px; }
   .biv-mcard { width: 205px; min-height: 255px; }
   .biv-mstat { font-size: 34px; }
-  .biv-firms { gap: 12px 22px; }
-  .biv-firm-name { font-size: 15px; }
-  .biv-firm-chip { width: 28px; height: 28px; } .biv-firm-chip img { width: 22px; height: 22px; }
-  .biv-firm-wordmark { height: 18px; }
+  .biv-firms {
+    --logo-h: 22px; --name-fs: 16px; --word-h: 12px; gap: 26px; justify-content: flex-start; padding: 0 16px;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  }
   .biv-faq summary { font-size: 15.5px; }
 }
 ` + INSIDER_CARD_CSS + MOCKUP_CSS;
