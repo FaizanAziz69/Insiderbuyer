@@ -97,6 +97,12 @@ function num(v: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** ETFs and closed-end funds list through the same calendar; the brief's page
+ *  is about operating-company IPOs. */
+function isFund(name: any): boolean {
+  return /\b(ETF|ETFs|Fund|Funds|Trust Series|Portfolio)\b/i.test(String(name || ''));
+}
+
 /** "$10.00-$12.00" → midpoint 11; "$16.00" → 16. */
 function parsePriceRange(v: any): { price: number | null; exact: boolean } {
   if (v === null || v === undefined) return { price: null, exact: false };
@@ -270,15 +276,34 @@ export class IpoService implements OnModuleInit {
 
       const listed = new Map<string, Candidate>();
       const upcoming = new Map<string, IpoUpcoming>();
+      /** FMP leaves many rows at "Expected" long after the debut (or the deal
+       *  quietly died). Past-dated "expected" rows are admitted only if a live
+       *  quote proves the symbol trades. */
+      const pastExpected = new Map<string, Candidate>();
 
       for (const r of fmpRows) {
         const symbol = String(r.symbol || '').toUpperCase().trim();
         const date = toIso(r.date);
         if (!symbol || !date) continue;
+        if (isFund(r.company)) continue;
         const action = String(r.actions || '').toLowerCase();
         if (/withdrawn|postponed/.test(action)) continue;
         const { price, exact } = parsePriceRange(r.priceRange);
-        if (date <= today && !/expected|filed/.test(action)) {
+        if (date <= today && /expected|filed/.test(action)) {
+          pastExpected.set(symbol, {
+            symbol,
+            name: String(r.company || symbol),
+            exchange: r.exchange || null,
+            date,
+            pricedPrice: exact ? price : null,
+            rangeMid: exact ? null : price,
+            shares: num(r.shares),
+            marketCap: num(r.marketCap),
+            source: 'fmp',
+          });
+          continue;
+        }
+        if (date <= today) {
           listed.set(symbol, {
             symbol,
             name: String(r.company || symbol),
@@ -290,7 +315,7 @@ export class IpoService implements OnModuleInit {
             marketCap: num(r.marketCap),
             source: 'fmp',
           });
-        } else if (date > today || /expected|filed/.test(action)) {
+        } else {
           upcoming.set(symbol, {
             symbol,
             name: String(r.company || symbol),
@@ -306,7 +331,8 @@ export class IpoService implements OnModuleInit {
       for (const r of nasdaq.priced) {
         const symbol = String(r.proposedTickerSymbol || r.symbol || '').toUpperCase().trim();
         const date = toIso(r.pricedDate);
-        if (!symbol || !date || date > today) continue;
+        if (!symbol || !date || date > today || isFund(r.companyName)) continue;
+        pastExpected.delete(symbol);
         const price = num(r.proposedSharePrice);
         const prev = listed.get(symbol);
         listed.set(symbol, {
@@ -324,8 +350,9 @@ export class IpoService implements OnModuleInit {
       }
       for (const r of nasdaq.upcoming) {
         const symbol = String(r.proposedTickerSymbol || r.symbol || '').toUpperCase().trim();
-        if (!symbol || listed.has(symbol)) continue;
+        if (!symbol || listed.has(symbol) || isFund(r.companyName)) continue;
         const date = toIso(r.expectedPriceDate || r.pricedDate);
+        if (date && date < today) continue;
         const prev = upcoming.get(symbol);
         upcoming.set(symbol, {
           symbol,
@@ -337,6 +364,19 @@ export class IpoService implements OnModuleInit {
           source: prev ? 'fmp+nasdaq' : 'nasdaq',
         });
       }
+
+      // Past "expected" rows: admit only those that actually trade.
+      const unverified = Array.from(pastExpected.values()).filter((c) => !listed.has(c.symbol) && c.date >= isoDaysAgo(IPO_WINDOW_DAYS + 14));
+      if (unverified.length) {
+        const quotes = await this.fmp.getQuotesBatch(unverified.map((c) => c.symbol));
+        for (const c of unverified) {
+          const q = quotes.get(c.symbol);
+          if (num(q?.price) && num(q?.price)! > 0) listed.set(c.symbol, { ...c, source: 'fmp (verified by quote)' });
+        }
+      }
+
+      // Rows admitted by an earlier build before the fund filter existed.
+      await this.companies.query(`DELETE FROM ipo_listings WHERE name ~* '\\m(ETF|ETFs|Fund|Funds|Trust Series|Portfolio)\\M'`);
 
       // Upsert listings inside the window; the read filter does the roll-off.
       const inWindow = Array.from(listed.values()).filter((c) => c.date >= isoDaysAgo(IPO_WINDOW_DAYS + 14));
@@ -526,7 +566,7 @@ export class IpoService implements OnModuleInit {
     await this.ensureTables();
     const rows: any[] = await this.companies.query(
       `SELECT symbol, name, exchange, expected_date::text AS expected_date, price_range, shares_offered, source
-       FROM ipo_upcoming ORDER BY expected_date NULLS LAST, symbol`,
+       FROM ipo_upcoming WHERE expected_date IS NULL OR expected_date >= CURRENT_DATE ORDER BY expected_date NULLS LAST, symbol`,
     );
     return {
       count: rows.length,
