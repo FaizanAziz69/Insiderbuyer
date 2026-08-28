@@ -165,20 +165,26 @@ export function DataArticleView({ article }: { article: DataArticle }) {
       </aside>
 
       {/* Premium CTA */}
-      <section className="rounded-2xl p-5 sm:p-7 flex flex-col sm:flex-row sm:items-center gap-4" style={{ background: "#0A1E3C", color: "#fff" }} aria-labelledby="cta-h">
+      {/* Brand surface (navy in both themes) with every text colour set explicitly —
+          the heading used to inherit the page text colour and vanished in light mode. */}
+      <section
+        className="rounded-2xl p-5 sm:p-7 flex flex-col sm:flex-row sm:items-center gap-4"
+        style={{ background: "var(--brand-surface)", border: "1px solid var(--brand-surface-border)", color: "var(--on-accent)" }}
+        aria-labelledby="cta-h"
+      >
         <div className="flex-1 min-w-0">
-          <div className="font-mono text-[11px] uppercase tracking-[1.6px] mb-1.5" style={{ color: "#C9A227" }}>
+          <div className="font-mono text-[11px] uppercase tracking-[1.6px] mb-1.5" style={{ color: "var(--gold)" }}>
             Premium · $199 / year
           </div>
-          <h2 id="cta-h" className="text-[20px] sm:text-[24px] font-bold leading-tight" style={{ fontFamily: "var(--font-display)" }}>
+          <h2 id="cta-h" className="text-[20px] sm:text-[24px] font-bold leading-tight" style={{ fontFamily: "var(--font-display)", color: "var(--on-accent)" }}>
             {s.cta.headline}
           </h2>
-          <p className="mt-2 text-[14px] leading-relaxed" style={{ color: "rgba(255,255,255,0.78)" }} dangerouslySetInnerHTML={{ __html: s.cta.body }} />
+          <p className="mt-2 text-[14px] leading-relaxed" style={{ color: "var(--on-accent)", opacity: 0.82 }} dangerouslySetInnerHTML={{ __html: s.cta.body }} />
         </div>
         <Link
           href={SUBSCRIBE_HREF}
           className="shrink-0 inline-flex items-center justify-center rounded-lg px-5 py-3 font-bold text-[14.5px] transition-transform hover:-translate-y-0.5"
-          style={{ background: "#0E9F6E", color: "#fff" }}
+          style={{ background: "var(--good)", color: "#fff" }}
         >
           See Premium plans →
         </Link>
