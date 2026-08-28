@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Header, NotFoundException, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { AdminTokenGuard } from '../common/admin-token.guard';
+import { EditorialTokenGuard } from '../common/editorial-token.guard';
 import { DataArticlesService } from './data-articles.service';
 
 /**
@@ -8,7 +8,8 @@ import { DataArticlesService } from './data-articles.service';
  *  GET /data-articles                    index (headline, dek, refresh cadence, updated)
  *  GET /data-articles/:slug              article shell: editable sections filled from live data
  *  GET /data-articles/:slug/chart?period one endpoint per article per period (§3.2 data contract)
- *  admin (x-admin-token): list / PUT sections / POST refresh
+ *  editorial (x-admin-token = ADMIN or EDITORIAL token): list / PUT sections / POST refresh
+ *  — the only endpoints the editorial-scoped token opens.
  */
 @Controller('data-articles')
 export class DataArticlesController {
@@ -33,13 +34,13 @@ export class DataArticlesController {
   }
 
   @Get('admin/list')
-  @UseGuards(AdminTokenGuard)
+  @UseGuards(EditorialTokenGuard)
   async adminList() {
     return this.svc.adminList();
   }
 
   @Put('admin/:slug')
-  @UseGuards(AdminTokenGuard)
+  @UseGuards(EditorialTokenGuard)
   async adminUpdate(@Param('slug') slug: string, @Body() body: any) {
     const row = await this.svc.adminUpdate(slug, body || {});
     if (!row) throw new NotFoundException('Unknown article');
@@ -47,7 +48,7 @@ export class DataArticlesController {
   }
 
   @Post('admin/refresh')
-  @UseGuards(AdminTokenGuard)
+  @UseGuards(EditorialTokenGuard)
   async refresh(@Query('kind') kind?: string) {
     if (kind === 'weekly' || kind === 'monthly' || kind === 'quarterly') return { rebuilt: await this.svc.refreshKind(kind) };
     return { rebuilt: await this.svc.refreshAll() };
