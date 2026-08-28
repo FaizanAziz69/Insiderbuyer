@@ -1059,14 +1059,15 @@ const CSS = `
 .biv-firms {
   /* Sizes track the viewport so all eight stay on ONE line from 1024px up;
      below that the row scrolls sideways under a fade rather than wrapping. */
-  --logo-h: clamp(15px, 1.35vw, 22px); --name-fs: clamp(11px, 0.98vw, 17px);
+  --logo-h: clamp(14px, 1.2vw, 21px); --name-fs: clamp(11px, 0.9vw, 16.5px);
   /* Wordmarks are cap-height artwork, so they get the names' CAP height
      (~0.72em), not the full line — that is what made Guggenheim "way bigger". */
-  --word-h: clamp(8px, 0.72vw, 12px);
+  --word-h: clamp(8px, 0.66vw, 11.5px);
   /* safe center: centred when it fits, start-aligned (never clipped on the
      left) when a narrow or zoomed window makes it overflow. */
-  display: flex; flex-wrap: nowrap; gap: clamp(10px, 1.3vw, 26px); justify-content: safe center; align-items: center;
-  list-style: none; margin: 0 auto; padding: 0 8px; width: 100%; max-width: 1400px; overflow-x: auto; scrollbar-width: none;
+  display: flex; flex-wrap: nowrap; gap: clamp(10px, 1.2vw, 24px); justify-content: safe center; align-items: center;
+  /* Generous side padding so the first and last logo never touch the edge (George). */
+  list-style: none; margin: 0 auto; padding: 0 40px; width: 100%; max-width: 1400px; overflow-x: auto; scrollbar-width: none;
 }
 .biv-firms::-webkit-scrollbar { display: none; }
 .biv-firm { display: inline-flex; align-items: center; gap: 0.5em; white-space: nowrap; color: rgba(245,247,250,0.88); flex: 0 0 auto; font-size: var(--name-fs); }
