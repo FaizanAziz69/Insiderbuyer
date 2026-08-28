@@ -292,8 +292,10 @@ export function RankedBarChart({ slug, chart, periods, title, subtitle, onLoaded
                             className="h-full rounded-sm"
                             style={{
                               width: animated || reduced ? `${w}%` : "0%",
-                              background: i === 0 ? "var(--brand-surface)" : "var(--accent)",
-                              opacity: i === 0 ? 1 : 0.85 - i * 0.03,
+                              // #1 in the brand gold so it reads as the leader in BOTH themes —
+                              // navy (--brand-surface) vanished against the dark track (George, 2026-08-29).
+                              background: i === 0 ? "#C9A227" : "var(--accent)",
+                              opacity: i === 0 ? 1 : 0.9 - i * 0.03,
                               transition: reduced ? "none" : `width 700ms cubic-bezier(.2,.8,.2,1) ${i * 45}ms`,
                             }}
                           />
