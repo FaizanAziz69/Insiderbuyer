@@ -59,12 +59,10 @@ const FIRMS: Array<{
   { name: "Deutsche Bank", logo: "/sales/firms/deutsche-bank-2.png", kind: "mark" },
   { name: "Scotiabank", logo: "/sales/firms/scotiabank-2.png", kind: "mark" },
   { name: "Guggenheim", logo: "/sales/firms/guggenheim.svg", kind: "wordmark" },
-  {
-    name: "Melius Research",
-    logo: "/sales/firms/melius-research.png",
-    dark: "/sales/firms/melius-research-dark.png",
-    kind: "wordmark",
-  },
+  // Melius's own logotype is a thin, light face that read as the odd one out
+  // next to the bold names (George) — so it gets the same treatment as the
+  // banks: its icon as the mark, the name set in our type.
+  { name: "Melius Research", logo: "/sales/firms/melius-mark.png", kind: "mark" },
 ];
 
 /** §6.2 product mockup slots (Developer Project Brief, Workstream D).
