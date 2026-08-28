@@ -335,7 +335,7 @@ export default function InvestorDetailPage({ params }: { params: Promise<{ slug:
                     {fmtMoneyShort(o.insiderBought)} insider buys
                   </div>
                   <div style={{ color: "var(--text-mute)" }}>
-                    {o.buyers} buyer{o.buyers === 1 ? "" : "s"} · {o.fundPct.toFixed(1)}% of fund
+                    {o.buyers} buyer{o.buyers === 1 ? "" : "s"} · {o.fundPct > 0 && o.fundPct < 0.1 ? "<0.1" : o.fundPct.toFixed(1)}% of fund
                   </div>
                 </div>
               </Link>

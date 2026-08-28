@@ -302,7 +302,7 @@ export class InvestorsService implements OnModuleInit {
           this.logger.warn(`performance ${inv.slug} failed: ${e?.message || e}`);
         }
       }
-      // Portraits (Wikipedia, verified against the firm name) — a few per run.
+      // Portraits (Wikipedia, verified against the firm name) — 40 per run.
       await this.fillPortraits(onlySlug);
       return { investors: rows.length, quartersFetched, perfComputed };
     } finally {
@@ -312,7 +312,17 @@ export class InvestorsService implements OnModuleInit {
 
   /** Fetch the quarters we lack for one filer (newest QUARTERS_KEPT). */
   private async ingestInvestor(slug: string, cik: string): Promise<number> {
-    const dates = (await this.fmp.get13FDates(cik)).slice(0, QUARTERS_KEPT);
+    let dates = (await this.fmp.get13FDates(cik)).slice(0, QUARTERS_KEPT);
+    // FMP's `dates` endpoint is empty for a few real filers (Baillie Gifford,
+    // Brandes, Greenlight) although their holdings and summaries exist — fall
+    // back to the quarters the summary endpoint knows about.
+    let summaries = (await this.fmp.get13FSummary(cik)).slice(0, QUARTERS_KEPT);
+    if (!dates.length) {
+      dates = summaries
+        .map((x) => x.period)
+        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+        .map((d) => ({ date: d, year: Number(d.slice(0, 4)), quarter: Math.ceil(Number(d.slice(5, 7)) / 3) }));
+    }
     if (!dates.length) return 0;
     const have = new Set<string>(
       (await this.companies.query(`SELECT DISTINCT period::text AS p FROM investor_holdings WHERE slug = $1`, [slug])).map(
@@ -328,7 +338,6 @@ export class InvestorsService implements OnModuleInit {
       fetched += 1;
     }
     // Summaries are cheap and carry FMP's own portfolio value per quarter.
-    const summaries = (await this.fmp.get13FSummary(cik)).slice(0, QUARTERS_KEPT);
     for (const s of summaries) {
       await this.companies.query(
         `INSERT INTO investor_summary (slug, period, market_value, previous_market_value, portfolio_size, added, removed, turnover, fmp_perf_1y, "updatedAt")
@@ -543,12 +552,13 @@ export class InvestorsService implements OnModuleInit {
 
   /** Wikipedia lead image for the person, accepted only when the article
    *  mentions the firm — same rule as the insider profile portraits. Checked
-   *  at most once a week per investor; a miss is remembered too. */
+   *  at most once a week per investor; a miss is remembered too. 40 per run
+   *  so the whole 71-name roster is covered within two nightly runs. */
   private async fillPortraits(onlySlug?: string): Promise<void> {
     const rows: Array<{ slug: string; person: string; firm: string }> = await this.companies.query(
       `SELECT slug, person, firm FROM investors
        WHERE (photo_checked_at IS NULL OR photo_checked_at < now() - interval '7 days')
-       ${onlySlug ? 'AND slug = $1' : ''} ORDER BY sort LIMIT 12`,
+       ${onlySlug ? 'AND slug = $1' : ''} ORDER BY sort LIMIT 40`,
       onlySlug ? [onlySlug] : [],
     );
     const UA = { 'User-Agent': 'InsiderBuyingBot/1.0 (https://insiderbuying.com; contact@insiderbuying.com)' };
