@@ -34,36 +34,46 @@ export async function generateMetadata({
       override?.d || String(post.summary || ""),
     ).slice(0, 160);
     const url = `${SITE}/insights/${slug}`;
-    const image = post.imageUrl || undefined;
-    // An unlisted draft must never be indexed or unfurled. It is already
-    // absent from the sitemap and every feed (see BlogPost.draft); this closes
-    // the last door, which is a crawler that was handed the link.
+    // Absolute URL: chat apps (WhatsApp, iMessage, Slack) do not resolve a
+    // relative og:image against the page, they just fail and fall back to
+    // the site-wide card.
+    const rawImage = post.imageUrl ? String(post.imageUrl) : null;
+    const image = rawImage ? (rawImage.startsWith("/") ? `${SITE}${rawImage}` : rawImage) : undefined;
+    const openGraph = {
+      title,
+      description,
+      url,
+      type: "article" as const,
+      siteName: "InsiderBuying.com",
+      ...(image ? { images: [{ url: image, width: 1606, height: 1000, alt: maskScoreText(post.imageAlt || post.title) }] } : {}),
+    };
+    const twitter = {
+      card: (image ? "summary_large_image" : "summary") as "summary_large_image" | "summary",
+      title,
+      description,
+      ...(image ? { images: [image] } : {}),
+    };
+    // An unlisted draft is never indexed (absent from the sitemap and every
+    // feed, noindex here), but the link IS passed around for review, so the
+    // unfurl carries the real cover and headline instead of the site card
+    // (George, 2026-08-29). The title keeps the [DRAFT] marker.
     if (post.draft) {
+      const draftTitle = `[DRAFT] ${maskScoreText(post.title)}`;
       return {
-        title: `[DRAFT] ${maskScoreText(post.title)}`,
+        title: draftTitle,
         description,
         robots: { index: false, follow: false, nocache: true },
         alternates: { canonical: url },
+        openGraph: { ...openGraph, title: draftTitle },
+        twitter: { ...twitter, title: draftTitle },
       };
     }
     return {
       title,
       description,
       alternates: { canonical: url },
-      openGraph: {
-        title,
-        description,
-        url,
-        type: "article",
-        siteName: "InsiderBuying.com",
-        ...(image ? { images: [{ url: image }] } : {}),
-      },
-      twitter: {
-        card: image ? "summary_large_image" : "summary",
-        title,
-        description,
-        ...(image ? { images: [image] } : {}),
-      },
+      openGraph,
+      twitter,
     };
   } catch {
     if (override) {
