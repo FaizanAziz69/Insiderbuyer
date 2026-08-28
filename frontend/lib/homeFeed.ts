@@ -49,6 +49,10 @@ const ROTATION_POOL = 7;
 /** A story published inside this window is fresh news and takes the hero
  *  regardless of the rotation — rotation exists for the days nothing new lands. */
 const FRESH_MS = 24 * 60 * 60_000;
+/** Oldest an editorial may be and still take the hero slot. The first rotation
+ *  (2026-08-29, day % 6 = 5) put a 7-day-old story in the hero — George: "yeh
+ *  wala kafi days se ha". Older stories stay in the cards, never the hero. */
+const HERO_MAX_AGE_MS = 5 * 24 * 60 * 60_000;
 
 /**
  * George (2026-08-29): "every 24 hours we need to rotate the articles so that
@@ -65,14 +69,19 @@ export function rotateHero(editorial: BlogPostListItem[], nowMs = Date.now()): B
   if (editorial.length < 2) return editorial;
   const pool = editorial.slice(0, ROTATION_POOL);
   const rest = editorial.slice(ROTATION_POOL);
-  const newestMs = new Date(pool[0].generatedAt).getTime();
+  const ageOf = (i: BlogPostListItem) => nowMs - new Date(i.generatedAt).getTime();
+  // Hero candidates: the pool, minus anything older than HERO_MAX_AGE_MS. If
+  // everything is old (a quiet week), the newest still leads rather than a gap.
+  const eligible = pool.filter((i) => Number.isFinite(ageOf(i)) && ageOf(i) <= HERO_MAX_AGE_MS);
+  const candidates = eligible.length ? eligible : [pool[0]];
   let heroIdx = 0;
-  if (!(Number.isFinite(newestMs) && nowMs - newestMs < FRESH_MS)) {
+  const newestAge = ageOf(candidates[0]);
+  if (!(Number.isFinite(newestAge) && newestAge < FRESH_MS)) {
     const day = Math.floor(nowMs / 86_400_000);
-    heroIdx = day % pool.length;
+    heroIdx = day % candidates.length;
   }
-  const hero = pool[heroIdx];
-  return [hero, ...pool.filter((_, i) => i !== heroIdx), ...rest];
+  const hero = candidates[heroIdx];
+  return [hero, ...pool.filter((i) => i.slug !== hero.slug), ...rest];
 }
 
 /**
