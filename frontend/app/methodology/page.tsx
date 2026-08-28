@@ -55,7 +55,11 @@ const SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> = [
           The exchange filter classifies a listing by its exchange (NYSE, NASDAQ, AMEX and OTC
           as U.S.; TSX, TSX-V, CSE and NEO as Canada; XETRA and the Frankfurt, Stuttgart and
           Munich floors as Germany). German rows come from Directors&rsquo; Dealings
-          notifications under Article 19 MAR, the EU equivalent of Form 4. Sector chips map the
+          notifications under Article 19 MAR, the EU equivalent of Form 4, read from BaFin&rsquo;s public
+          managers&rsquo;-transactions database every two hours on business days (share buys and sells only;
+          option exercises, gifts and other natures are excluded). Trade values are converted to U.S.
+          dollars at the day&rsquo;s EURUSD rate for thresholds and rankings, while per-share prices stay
+          in euros so they compare with the XETRA quote. Sector chips map the
           market-data sector and industry onto six groups: Energy; Mining (Basic Materials
           companies in metals, mining and coal); Biotech &amp; Pharmaceuticals (Healthcare
           companies in biotechnology and drug manufacturing); Technology; Consumer Staples

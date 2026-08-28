@@ -120,6 +120,21 @@ export class FmpService {
     }
   }
 
+  /** ISIN → listed symbols (`search-isin`). Used to map BaFin Directors'
+   *  Dealings issuers onto tradeable .DE symbols. */
+  async searchIsin(isin: string): Promise<Array<{ symbol: string; name: string; currency: string | null; exchange: string | null; exchangeFullName: string | null }>> {
+    const rows = await this.get('search-isin', { isin: (isin || '').toUpperCase() });
+    return rows
+      .filter((r: any) => r?.symbol)
+      .map((r: any) => ({
+        symbol: String(r.symbol),
+        name: String(r.name || ''),
+        currency: r.currency ?? null,
+        exchange: r.exchange ?? null,
+        exchangeFullName: r.exchangeFullName ?? null,
+      }));
+  }
+
   /** IPO calendar (brief §8 / Workstream E). Stable endpoint rows:
    *  { symbol, date, daa, company, exchange, actions, shares, priceRange, marketCap }.
    *  Returns [] without a key or on error, like everything else here. */
