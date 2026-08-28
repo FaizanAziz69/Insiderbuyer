@@ -108,6 +108,14 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // Stock Ideas (breaking-news picks, 2026-08-28): pinned so the card and the
+  // article page show the exact topic-matched cover (pickEditorialThumb otherwise
+  // hash-picks among candidates). Topic → image, per client.
+  "stock-idea-nvda-2026-08-28": "englander-nvidia-etf",
+  "stock-idea-intc-2026-08-28": "chamath-perimeter-ai",
+  "stock-idea-iren-2026-08-28": "cathie-wood-bargain",
+  "stock-idea-nem-2026-08-28": "carl-icahn-fertilizer",
+  "stock-idea-aapl-2026-08-28": "apple-500b-investment",
   "editorial-trump-3b-critical-minerals-2026-08-08": "trump-social-posts",
   // 2026-08-14: swapped from bill-ackman-letter to the Uber-stake photo (client).
   "editorial-ackman-letter-top-13-positions-2026-08-13": "ackman-uber-stake",
