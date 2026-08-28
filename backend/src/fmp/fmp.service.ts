@@ -3,6 +3,31 @@ import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
 
 /** A normalized congressional disclosure (Senate or House). */
+export interface Fmp13FHolding {
+  period: string;
+  filingDate: string;
+  cusip: string;
+  symbol: string | null;
+  name: string;
+  shares: number;
+  value: number;
+  titleOfClass: string;
+  putCall: string;
+  link: string | null;
+}
+
+export interface Fmp13FSummary {
+  period: string;
+  investorName: string;
+  portfolioSize: number;
+  marketValue: number;
+  previousMarketValue: number;
+  securitiesAdded: number;
+  securitiesRemoved: number;
+  turnover: number;
+  fmpPerf1yPct: number | null;
+}
+
 export interface FmpCongressTrade {
   politicianName: string;
   chamber: 'Senate' | 'House';
@@ -603,6 +628,56 @@ export class FmpService {
       if (m) out.push(m);
     }
     return out;
+  }
+
+  // ── 13F institutional ownership (Top Insiders page, brief Workstream B) ──
+  // All three are on the `stable` tier this key is on (verified 2026-08-28).
+
+  /** Quarter-ends a filer has 13F data for, newest first. */
+  async get13FDates(cik: string): Promise<Array<{ date: string; year: number; quarter: number }>> {
+    const rows = await this.get('institutional-ownership/dates', { cik });
+    return rows
+      .map((r) => ({ date: String(r?.date || ''), year: Number(r?.year), quarter: Number(r?.quarter) }))
+      .filter((r) => r.date && r.year && r.quarter);
+  }
+
+  /** Every position on a filer's 13F for one quarter. The endpoint ignores
+   *  limit/page and returns the whole filing (5,685 rows for BlackRock). */
+  async get13FHoldings(cik: string, year: number, quarter: number): Promise<Fmp13FHolding[]> {
+    const rows = await this.get('institutional-ownership/extract', { cik, year, quarter });
+    return rows
+      .map((r) => ({
+        period: String(r?.date || ''),
+        filingDate: String(r?.filingDate || '').slice(0, 10),
+        cusip: String(r?.securityCusip || ''),
+        symbol: r?.symbol ? String(r.symbol).toUpperCase() : null,
+        name: String(r?.nameOfIssuer || ''),
+        shares: Number(r?.shares) || 0,
+        value: Number(r?.value) || 0,
+        titleOfClass: String(r?.titleOfClass || ''),
+        putCall: String(r?.putCallShare || ''),
+        link: r?.link ? String(r.link) : null,
+      }))
+      .filter((r) => r.period && r.cusip && r.value > 0);
+  }
+
+  /** FMP's own per-quarter summary for a filer (portfolio value, size, adds,
+   *  drops, its 1y performance). Newest first. */
+  async get13FSummary(cik: string): Promise<Fmp13FSummary[]> {
+    const rows = await this.get('institutional-ownership/holder-performance-summary', { cik });
+    return rows
+      .map((r) => ({
+        period: String(r?.date || ''),
+        investorName: String(r?.investorName || ''),
+        portfolioSize: Number(r?.portfolioSize) || 0,
+        marketValue: Number(r?.marketValue) || 0,
+        previousMarketValue: Number(r?.previousMarketValue) || 0,
+        securitiesAdded: Number(r?.securitiesAdded) || 0,
+        securitiesRemoved: Number(r?.securitiesRemoved) || 0,
+        turnover: Number(r?.turnover) || 0,
+        fmpPerf1yPct: Number.isFinite(Number(r?.performancePercentage1year)) ? Number(r.performancePercentage1year) : null,
+      }))
+      .filter((r) => r.period);
   }
 
   async getCongressional(pages = 1): Promise<FmpCongressTrade[]> {

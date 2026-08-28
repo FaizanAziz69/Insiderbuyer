@@ -68,6 +68,7 @@ export const NAV_GROUPS: NavGroup[] = [
           // Relisted 2026-08-24 (Faizan) — was direct-URL only while the map settled.
           { label: "Insider Bubbles", href: "/bubbles", icon: Orbit, badge: "new" },
           { label: "Congress Bubbles", href: "/congress-bubbles", icon: Orbit, badge: "new" },
+          { label: "Top Insiders", href: "/investors", icon: Landmark, badge: "new" },
           { label: "Top Insider Scores", href: "/insiders/hot", icon: Flame, badge: "popular" },
           { label: "Top Analysts", href: "/analyst-ratings", icon: Star },
           // Moved out of Stock Lists 2026-08-25 (client): it is a data view,

@@ -8,7 +8,7 @@ const STATIC_ROUTES = [
   "/insiders/hot", "/analyst-ratings", "/analyst-stocks", "/government-contracts", "/market-data/top-gainers",
   "/market-data/top-losers", "/earnings", "/dividends", "/ipos",
   "/short-interest", "/short-squeeze", "/congressional-trades",
-  "/heatmaps/market", "/sectors", "/screener", "/watchlist", "/bubbles", "/congress-bubbles", "/methodology",
+  "/heatmaps/market", "/sectors", "/screener", "/watchlist", "/bubbles", "/congress-bubbles", "/methodology", "/investors",
   "/stock-lists/hot-sectors", "/learn/insider-buying",
 ];
 

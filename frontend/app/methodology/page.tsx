@@ -88,6 +88,38 @@ const SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> = [
     ),
   },
   {
+    id: "top-insiders",
+    title: "Top Insiders — hedge fund and famous-investor performance",
+    body: (
+      <>
+        <p>
+          Portfolios come from each manager&rsquo;s quarterly SEC Form 13F-HR, which reports U.S.
+          long positions at quarter-end and is filed up to 45 days later; we keep the latest six
+          quarters. The <b>trailing-12-month performance</b> is the value-weighted return of those
+          disclosed long positions, <b>rebalanced at each filing date</b>: each quarter-to-quarter
+          leg weights every position by its value at the start of the leg and measures the change in
+          its filing-implied price (reported value ÷ shares); the final leg runs from the latest
+          quarter-end to today at live prices. A position that first appears at the end of a leg was
+          bought during it, so its purchase price is estimated as the <b>period average</b> of the
+          start-of-leg and end-of-leg prices and it is weighted by that estimated cost. Legs compound,
+          the earliest is pro-rated to the part of it inside the last 365 days, and the calculation
+          uses each filer&rsquo;s 100 largest positions by value (the covered share of the portfolio
+          is shown on every leg). Puts, calls and positions that cannot be priced at both ends are
+          excluded.
+        </p>
+        <p>
+          <b>Suppression.</b> Concentrated or near-empty portfolios produce meaningless figures, so
+          the performance line is blank for portfolios under <b>$100 million</b> or with fewer than{" "}
+          <b>4 positions</b>, and for managers with no current 13F filings (defunct or deregistered
+          funds are shown with no portfolio rather than an invented one). &ldquo;Insiders agree&rdquo;
+          marks holdings where corporate insiders have made open-market Form 4 purchases in the last
+          90 days. Category tabs (Growth, Value, Short Sellers, Long-Term) are editorial
+          classifications, not measurements.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "insider-score",
     title: "Insider Score (IQS)",
     body: (

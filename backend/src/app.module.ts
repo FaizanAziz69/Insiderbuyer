@@ -60,6 +60,7 @@ import { B2bModule } from './b2b/b2b.module';
 import { ReportLead } from './entities/report-lead.entity';
 import { EmailFlowsModule } from './email-flows/email-flows.module';
 import { GovContractsModule } from './gov-contracts/gov-contracts.module';
+import { InvestorsModule } from './investors/investors.module';
 import { EmailFlowState } from './entities/email-flow-state.entity';
 import { InsiderProfile } from './entities/insider-profile.entity';
 import { HistoricalInsiderBuy } from './entities/historical-insider-buy.entity';
@@ -183,6 +184,7 @@ import { BubblesModule } from './bubbles/bubbles.module';
     AuthModule,
     EmailFlowsModule,
     GovContractsModule,
+    InvestorsModule,
   ],
 })
 export class AppModule {}
