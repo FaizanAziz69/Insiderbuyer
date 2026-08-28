@@ -132,13 +132,32 @@ function textAround(html: string, from: number, to: number): string {
  */
 function maskScoreValues(html: string): string {
   const re = new RegExp(String.raw`\d{1,3}(?:\.\d+)?(?:\s*\/\s*100|\s*\+)?`, "g");
+  // Digits inside markup are never prose: `<h2>` in a heading whose text
+  // mentions "Insider Score" once became `<h<span>Pro</span>>`, which the
+  // browser rendered as a broken chip plus a literal "Pro>" after every
+  // numbered subheading. Tag ranges are computed once and skipped.
+  const tagRanges: Array<[number, number]> = [];
+  for (const t of html.matchAll(TAG)) {
+    const s = t.index ?? 0;
+    tagRanges.push([s, s + t[0].length]);
+  }
+  let tagIdx = 0;
+  const insideTag = (pos: number): boolean => {
+    while (tagIdx < tagRanges.length && tagRanges[tagIdx][1] <= pos) tagIdx++;
+    return tagIdx < tagRanges.length && tagRanges[tagIdx][0] <= pos;
+  };
   let out = "";
   let last = 0;
   for (const m of html.matchAll(re)) {
     const i = m.index ?? 0;
     const raw = m[0];
+    if (insideTag(i)) continue;
     const before = html.slice(Math.max(0, i - 30), i);
     const after = html.slice(i + raw.length, i + raw.length + 30);
+
+    // List ordinal at the start of an element — "<h2>2. FEMY — … (Strong
+    // Insider Score)" — is a rank, not a score.
+    if (!raw.includes(".") && /(?:^|>)\s*$/.test(before) && /^\.\s/.test(after)) continue;
 
     // Part of a larger number (thousands separators, decimals we already
     // consumed, "618,333") — never a score.
