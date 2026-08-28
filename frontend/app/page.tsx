@@ -64,8 +64,13 @@ export default function HomePage() {
         <SidebarListsAndTools />
       </div>
 
-      {/* STOCK IDEAS — AI-generated trade-idea cards refreshed daily */}
-      <AiStockIdeasSection />
+      {/* STOCK IDEAS — AI-generated trade-idea cards refreshed daily.
+          pb-6 adds a little breathing room before the datasets row below
+          (client 2026-08-29) — padding, so it can't collapse into the
+          space-y-10 margin and touches no other section. */}
+      <div className="pb-6">
+        <AiStockIdeasSection />
+      </div>
 
       {/* Three datasets side-by-side */}
       <HomeDatasets />
