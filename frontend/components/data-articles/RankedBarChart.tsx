@@ -176,8 +176,8 @@ export function RankedBarChart({ slug, chart, periods, title, subtitle, onLoaded
                   onClick={() => setPeriod(p)}
                   className="px-3 py-1 rounded-md text-[12px] font-semibold font-mono transition-colors"
                   style={{
-                    background: period === p ? "var(--brand-surface)" : "transparent",
-                    color: period === p ? "var(--on-accent)" : "var(--text-soft)",
+                    background: period === p ? "var(--accent)" : "transparent",
+                    color: period === p ? "#fff" : "var(--text-soft)",
                   }}
                 >
                   {PERIOD_LABEL[p] ?? p}
@@ -197,8 +197,8 @@ export function RankedBarChart({ slug, chart, periods, title, subtitle, onLoaded
                     onClick={() => setVariant(v)}
                     className="px-3 py-1 rounded-md text-[12px] font-semibold transition-colors"
                     style={{
-                      background: variant === v ? "var(--brand-surface)" : "transparent",
-                      color: variant === v ? "var(--on-accent)" : "var(--text-soft)",
+                      background: variant === v ? "var(--accent)" : "transparent",
+                      color: variant === v ? "#fff" : "var(--text-soft)",
                     }}
                   >
                     {VARIANT_LABEL[v]}
