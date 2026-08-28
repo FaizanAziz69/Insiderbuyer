@@ -37,6 +37,7 @@ const CAPACITY = 5;
  *  the kinds this feed actually carries. These fill slots 4–5 ahead of dated
  *  formats when editorial output is thin. */
 const EVERGREEN_KINDS = new Set<BlogPostListItem["kind"]>([
+  "top-iqs",
   "sector-roundup",
   "topic-roundup",
   "weekly-report",

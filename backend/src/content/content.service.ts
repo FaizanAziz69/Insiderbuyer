@@ -1902,9 +1902,17 @@ export class ContentService {
   /** Remove a published article by slug. Returns whether a row was deleted so
    *  the caller can tell "gone" from "was never there". */
   async deleteEditorial(slugRaw: string): Promise<{ slug: string; deleted: boolean }> {
-    const slug = (slugRaw || '').trim().toLowerCase();
+    const raw = (slugRaw || '').trim();
+    const slug = raw.toLowerCase();
     if (!slug) throw new BadRequestException('slug is required');
-    const res = await this.repo.delete({ slug });
+    let res = await this.repo.delete({ slug });
+    // Most slugs are stored lowercase, but a few carry case (ISO week reports
+    // like weekly-insider-report-2026-W35). The column is case-sensitive, so a
+    // lowercased-only delete silently matched nothing — fall back to the raw
+    // slug when the lowercased form hit no row.
+    if ((res.affected ?? 0) === 0 && raw !== slug) {
+      res = await this.repo.delete({ slug: raw });
+    }
     return { slug, deleted: (res.affected ?? 0) > 0 };
   }
 
