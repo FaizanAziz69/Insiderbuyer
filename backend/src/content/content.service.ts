@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Optional, Logger } from '@nestjs/commo
 import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThanOrEqual, Repository } from 'typeorm';
+import { In, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { BlogPost, BlogKind } from '../entities/blog-post.entity';
 import {
   ContentGeneratorService,
@@ -1878,7 +1878,17 @@ export class ContentService {
   private async guardPublishRamp(kind: BlogKind, isNew: boolean, slug: string): Promise<void> {
     if (!isNew) return;
     const programmatic = !ContentService.EDITORIAL_KINDS.has(kind);
-    if (programmatic && process.env.CONTENT_PROGRAMMATIC_FREEZE === 'true') {
+    // The phased volume ramp is an SEO throttle for PROGRAMMATIC (Tier 3) pages
+    // — it exists to protect Google indexation health while the domain is
+    // young. Editorial-tier kinds (daily summary, editorial, topic roundup,
+    // weekly report) are the signature desk and must publish freely: with the
+    // Phase-1 cap of 2/day applied to everything, daily-briefing + top-iqs ate
+    // both slots at 06:15 and every editorial was skipped for days, so Top
+    // Stories could only recycle stale covers (George 2026-08-29: the top story
+    // must be a freshly published one). So the ramp — freeze lever and daily
+    // cap alike — governs programmatic pages only.
+    if (!programmatic) return;
+    if (process.env.CONTENT_PROGRAMMATIC_FREEZE === 'true') {
       throw new Error(
         `publish gate: programmatic publishing frozen (CONTENT_PROGRAMMATIC_FREEZE) — skipped ${slug}`,
       );
@@ -1886,8 +1896,14 @@ export class ContentService {
     const { phase, dailyCap } = this.publishingPhase();
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
+    // Count only programmatic pages toward the cap — an editorial publishing
+    // must never consume a programmatic slot, or the ramp would silently
+    // tighten on the days the desk is busy.
     const publishedToday = await this.repo.count({
-      where: { generatedAt: MoreThanOrEqual(startOfDay) },
+      where: {
+        generatedAt: MoreThanOrEqual(startOfDay),
+        kind: Not(In([...ContentService.EDITORIAL_KINDS])),
+      },
     });
     if (publishedToday >= dailyCap) {
       throw new Error(

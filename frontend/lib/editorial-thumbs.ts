@@ -217,11 +217,26 @@ export function homeThumbAt(base: number, index: number): string {
 /** Assign editorial thumbnails to a LIST so no two cards repeat an image
  *  (like assignUniquePhotos for the curated library). Returns a map keyed by
  *  each item's `seed` (slug); value is a URL or null (→ curated fallback). */
-export function assignEditorialThumbs(items: ThumbInput[]): Record<string, string | null> {
+export function assignEditorialThumbs(
+  items: (ThumbInput & { image?: string | null })[],
+  opts: { preferOwnImage?: boolean } = {},
+): Record<string, string | null> {
   const used = new Set<string>();
   const out: Record<string, string | null> = {};
   items.forEach((item, i) => {
     const seed = (item.seed || `i${i}`).toLowerCase();
+    // George (2026-08-29): the freshly AI-published story at the top must show
+    // the NEW image the AI made for it, not a recycled library cover. An
+    // article that carries its OWN per-article image (an AI render — anything
+    // NOT under /editorial-thumbs/, which is the shared library) keeps that
+    // image: null tells the card to fall through to its own `primary`. It also
+    // claims no library slot, so the pool stays free for the library-only
+    // cards. Hand-authored editorials store a /editorial-thumbs/ file as their
+    // image, so they still draw from the deduped pool exactly as before.
+    if (opts.preferOwnImage && item.image && !item.image.startsWith("/editorial-thumbs/")) {
+      out[seed] = null;
+      return;
+    }
     let cands = candidatesFor(item);
     // A slug pin wins everywhere EXCEPT against another card in the same list
     // already showing that file (George 2026-08-29: two NVIDIA stories, both

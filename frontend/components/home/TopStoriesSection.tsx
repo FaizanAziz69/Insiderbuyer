@@ -48,7 +48,8 @@ export function TopStoriesSection() {
   // Editorial thumbs assigned list-wide so the lead and the four cards never
   // share a cover (pins included — see assignEditorialThumbs).
   const editorialThumbs = assignEditorialThumbs(
-    items.slice(0, 5).map((it) => ({ seed: it.slug, ticker: it.ticker, sector: it.sector, tags: it.tags })),
+    items.slice(0, 5).map((it) => ({ seed: it.slug, ticker: it.ticker, sector: it.sector, tags: it.tags, image: it.imageUrl })),
+    { preferOwnImage: true },
   );
   // Per-article eyebrow wording, de-duplicated across the visible cards.
   const labels = articleLabels(items);
