@@ -202,6 +202,12 @@ export class InvestorsService implements OnModuleInit {
     const cik = body.cik ? String(body.cik).replace(/\D/g, '').padStart(10, '0') : null;
     const existing = (await this.companies.query(`SELECT * FROM investors WHERE slug = $1`, [slug]))?.[0];
     if (!existing && (!body.person || !body.firm)) throw new Error('person and firm are required for a new investor');
+    // Postgres checks NOT NULL on the proposed row BEFORE resolving ON CONFLICT,
+    // so a partial edit must carry the existing person/firm or the insert 500s.
+    const person = body.person ?? existing?.person ?? null;
+    const firm = body.firm ?? existing?.firm ?? null;
+    const active = body.active ?? existing?.active ?? true;
+    const sort = body.sort ?? existing?.sort ?? 1000;
     await this.companies.query(
       `INSERT INTO investors (slug, person, firm, cik, categories, active, note, sort, "updatedAt")
        VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8, now())
@@ -213,13 +219,13 @@ export class InvestorsService implements OnModuleInit {
          sort = COALESCE($8, investors.sort), "updatedAt" = now()`,
       [
         slug,
-        body.person ?? null,
-        body.firm ?? null,
+        person,
+        firm,
         cik,
         JSON.stringify(cats),
-        body.active ?? null,
+        active,
         body.note ?? null,
-        body.sort ?? null,
+        sort,
         body.cik !== undefined,
         body.categories !== undefined,
         body.note !== undefined,
