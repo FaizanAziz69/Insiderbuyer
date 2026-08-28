@@ -135,9 +135,9 @@ export function starScore(
   nowMs: number,
 ): number {
   // Success rate, shrunk toward the field average for thin samples (Bayesian
-  // prior of 10 calls at 55%): 6/6 reads as ~72%, not 100%, so a perfect
+  // prior of 20 calls at 55%): 9/9 reads as ~69%, 12/12 as ~72%, so a perfect
   // handful cannot outrank 27/32. Anchor 40% → 0 and 75% → 1.
-  const PRIOR_N = 10;
+  const PRIOR_N = 20;
   const PRIOR_RATE = 55;
   const shrunk =
     successRate == null

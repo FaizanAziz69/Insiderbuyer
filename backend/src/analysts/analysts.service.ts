@@ -38,7 +38,7 @@ export interface TopAnalystRow {
 /** Implied upside inside ±3% is a reiteration, not a directional call. */
 const DIRECTION_DEADZONE = 0.03;
 /** Analysts need this many seasoned calls before a success rate is shown. */
-const MIN_SCORED = 6; // was 3 — a 3-for-3 record printed as 100% (George, 2026-08-29)
+const MIN_SCORED = 10; // was 3 — a 3-for-3 record printed as 100% (George, 2026-08-29); 100% on 6–9 calls still topped the board at 6
 
 /** Closes are graded over a two-year window — the same '2y' range this table has
  *  always scored on. Longer stored series are trimmed to it on read. */
