@@ -44,6 +44,37 @@ const EVERGREEN_KINDS = new Set<BlogPostListItem["kind"]>([
   "cluster-buy",
 ]);
 
+/** Editorial articles eligible for the hero rotation: the newest this many. */
+const ROTATION_POOL = 7;
+/** A story published inside this window is fresh news and takes the hero
+ *  regardless of the rotation — rotation exists for the days nothing new lands. */
+const FRESH_MS = 24 * 60 * 60_000;
+
+/**
+ * George (2026-08-29): "every 24 hours we need to rotate the articles so that
+ * there is a new story where the big one is and shift everything below it. If
+ * we have the same story there for too long it will affect our brand."
+ *
+ * The pool is the newest ROTATION_POOL editorial articles. If the newest one
+ * landed in the last 24 hours it is the hero (fresh news always wins). Otherwise
+ * the hero walks through the pool one step per UTC day, and the other stories
+ * keep publish order beneath it — so the block reads differently every day
+ * without hiding anything. Keyed on the UTC day so server and client agree.
+ */
+export function rotateHero(editorial: BlogPostListItem[], nowMs = Date.now()): BlogPostListItem[] {
+  if (editorial.length < 2) return editorial;
+  const pool = editorial.slice(0, ROTATION_POOL);
+  const rest = editorial.slice(ROTATION_POOL);
+  const newestMs = new Date(pool[0].generatedAt).getTime();
+  let heroIdx = 0;
+  if (!(Number.isFinite(newestMs) && nowMs - newestMs < FRESH_MS)) {
+    const day = Math.floor(nowMs / 86_400_000);
+    heroIdx = day % pool.length;
+  }
+  const hero = pool[heroIdx];
+  return [hero, ...pool.filter((_, i) => i !== heroIdx), ...rest];
+}
+
 /**
  * @param items the raw `/content/blogs` list — pass the SAME query from every
  *              block (SWR dedupes the identical key into one request) so all
@@ -91,10 +122,7 @@ export function dealHomeFeed(
   // roundups, case studies, weekly summaries, congressional trades — over
   // whatever happens to be newest in the general feed. A daily-summary in
   // slot 4 dates badly; a sector roundup does not.
-  const topStories = take(
-    organic.filter((i) => i.kind === "editorial"),
-    CAPACITY,
-  );
+  const topStories = take(rotateHero(organic.filter((i) => i.kind === "editorial")), CAPACITY);
   topStories.push(
     ...take(
       organic.filter((i) => EVERGREEN_KINDS.has(i.kind)),
