@@ -1059,10 +1059,10 @@ const CSS = `
 .biv-firms {
   /* Sizes track the viewport so all eight stay on ONE line from 1024px up;
      below that the row scrolls sideways under a fade rather than wrapping. */
-  --logo-h: clamp(15px, 1.35vw, 24px); --name-fs: clamp(11px, 0.98vw, 18px);
+  --logo-h: clamp(15px, 1.35vw, 22px); --name-fs: clamp(11px, 0.98vw, 17px);
   /* Wordmarks are cap-height artwork, so they get the names' CAP height
      (~0.72em), not the full line — that is what made Guggenheim "way bigger". */
-  --word-h: clamp(8px, 0.72vw, 13px);
+  --word-h: clamp(8px, 0.72vw, 12px);
   /* safe center: centred when it fits, start-aligned (never clipped on the
      left) when a narrow or zoomed window makes it overflow. */
   display: flex; flex-wrap: nowrap; gap: clamp(10px, 1.3vw, 26px); justify-content: safe center; align-items: center;
