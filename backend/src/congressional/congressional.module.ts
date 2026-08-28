@@ -6,6 +6,7 @@ import { BacktestCache } from '../entities/backtest-cache.entity';
 import { CongressionalController } from './congressional.controller';
 import { CongressionalService } from './congressional.service';
 import { CivicService } from './civic.service';
+import { MemberBioService } from './member-bio.service';
 import { PhotosService } from './photos.service';
 import { FmpModule } from '../fmp/fmp.module';
 import { MarketStatsModule } from '../market-stats/market-stats.module';
@@ -17,7 +18,7 @@ import { MarketStatsModule } from '../market-stats/market-stats.module';
     MarketStatsModule,
   ],
   controllers: [CongressionalController],
-  providers: [CongressionalService, CivicService, PhotosService],
+  providers: [CongressionalService, CivicService, PhotosService, MemberBioService],
   exports: [CongressionalService, PhotosService],
 })
 export class CongressionalModule {}

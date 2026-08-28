@@ -172,6 +172,23 @@ export class CongressionalService implements OnModuleInit {
     return this.roster;
   }
 
+  /** Roster facts for one member by name — party, seat and the committees
+   *  they sit on. Used to ground the Congress Bubbles "About" blurb. */
+  async memberMeta(name: string): Promise<{ party: string | null; state: string | null; chamber: string | null; committees: string[] }> {
+    const roster = await this.getRoster();
+    const low = name.trim().toLowerCase();
+    const parts = low.split(/\s+/);
+    const keys = [low, parts.length > 2 ? `${parts[0]} ${parts[parts.length - 1]}` : ''].filter(Boolean);
+    const pick = <T,>(m: Map<string, T>): T | undefined => keys.map((k) => m.get(k)).find((v) => v !== undefined);
+    const meta = pick(roster.metaByName);
+    return {
+      party: pick(roster.byName) ?? null,
+      state: meta?.state ?? null,
+      chamber: meta?.chamber ?? null,
+      committees: pick(roster.committeesByName) ?? [],
+    };
+  }
+
   /** Fill party on stored rows that miss it (bioguide isn't stored, so this
    *  matches on exact name). Returns how many rows were updated. */
   async backfillParty(): Promise<number> {

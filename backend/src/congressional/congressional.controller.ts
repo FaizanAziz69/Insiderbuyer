@@ -1,9 +1,10 @@
 import { Controller, Get, Header, Param, Post, Query } from '@nestjs/common';
+import { MemberBioService } from './member-bio.service';
 import { CongressionalService } from './congressional.service';
 
 @Controller('congressional-trades')
 export class CongressionalController {
-  constructor(private readonly svc: CongressionalService) {}
+  constructor(private readonly svc: CongressionalService, private readonly bios: MemberBioService) {}
 
   /** Re-ingest from FMP (or seed if unavailable). Lets prod repopulate an
    *  empty table without a redeploy. */
@@ -49,6 +50,16 @@ export class CongressionalController {
   async byTicker(@Param('ticker') ticker: string) {
     const rows = await this.svc.byTicker(ticker);
     return { total: rows.length, rows };
+  }
+
+  /** Congress Bubbles "About" blurb: party, seat, committees, a 2–3 sentence
+   *  summary and the policy areas the member is most influential on. Cached
+   *  30 days server-side; null while nothing can be grounded. */
+  @Get('member-bio')
+  @Header('Cache-Control', 'public, max-age=3600')
+  async memberBio(@Query('name') name?: string) {
+    const bio = name ? await this.bios.get(name) : null;
+    return { bio };
   }
 
   /** Full profile for one member of Congress (by exact name). */

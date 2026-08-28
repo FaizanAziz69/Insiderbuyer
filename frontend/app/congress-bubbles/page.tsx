@@ -781,6 +781,11 @@ function MemberPanel({
           </div>
         </div>
 
+        {/* Client request 2026-08-28: who this person is — party, committees,
+            and the policy areas they are most influential on. Grounded on the
+            public legislators roster; cached server-side for 30 days. */}
+        <MemberAbout name={m.name} />
+
         <div className="bm-p-grid">
           <div className="bm-p-cell">
             <div className="bm-lbl">Total buys · {days}d</div>
@@ -855,6 +860,55 @@ function MemberPanel({
   );
 }
 
+/* --------------------------------------------------------- about blurb */
+
+interface MemberBio {
+  summary: string;
+  influence: string[];
+  committees: string[];
+  source: string;
+}
+
+function MemberAbout({ name }: { name: string }) {
+  const { data, isLoading } = useSWR<{ bio: MemberBio | null }>(
+    `${API_BASE}/congressional-trades/member-bio?name=${encodeURIComponent(name)}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 3_600_000 },
+  );
+  const bio = data?.bio ?? null;
+  if (!bio && !isLoading) return null;
+  return (
+    <div className="bm-about" aria-live="polite">
+      <div className="bm-p-section">About</div>
+      {isLoading && !bio ? (
+        <div className="bm-about-skel">
+          <span /><span /><span style={{ width: "60%" }} />
+        </div>
+      ) : bio ? (
+        <>
+          <p className="bm-about-txt">{bio.summary}</p>
+          {bio.influence.length > 0 && (
+            <div className="bm-about-row">
+              <span className="bm-lbl">Most influential on</span>
+              <div className="bm-chips">
+                {bio.influence.map((t) => (
+                  <span className="bm-chip" key={t}>{t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {bio.committees.length > 0 && (
+            <div className="bm-about-row">
+              <span className="bm-lbl">Committees</span>
+              <div className="bm-about-coms">{bio.committees.join(" · ")}</div>
+            </div>
+          )}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 /* -------------------------------------------------------------- styles */
 
 const CSS_TEXT = `
@@ -870,6 +924,16 @@ const CSS_TEXT = `
   --bm-field: #F3F6FA; --bm-ink: #0E1F35; --bm-ink-dim: #4A5D75; --bm-ink-faint: #7C90A8;
   --bm-panel: #FFFFFF; --bm-line: rgba(14,31,53,0.12);
 }
+.bm-about { margin: 4px 0 2px; }
+.bm-about-txt { font-size: 13px; line-height: 1.55; color: var(--bm-ink); margin: 0 0 8px; }
+.bm-about-row { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.bm-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.bm-chip { font-size: 11px; line-height: 1; padding: 5px 8px; border-radius: 999px; border: 1px solid var(--bm-gold); color: var(--bm-gold); background: rgba(232,181,77,0.10); text-transform: lowercase; }
+.bm-about-coms { font-size: 11.5px; line-height: 1.45; color: var(--bm-ink-dim); }
+.bm-about-skel { display: flex; flex-direction: column; gap: 6px; }
+.bm-about-skel span { display: block; height: 11px; border-radius: 4px; background: var(--bm-line); animation: bm-pulse 1.2s ease-in-out infinite; }
+@keyframes bm-pulse { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .bm-about-skel span { animation: none; } }
 .bm-field { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
 .bm-field:focus-visible { box-shadow: inset 0 0 0 3px var(--bm-gold); }
 .bm-top {
