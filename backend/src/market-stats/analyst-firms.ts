@@ -134,8 +134,16 @@ export function starScore(
   ratingsPastYearShare: number,
   nowMs: number,
 ): number {
-  // Success rate: a coin flip is ~50%, so anchor 40% → 0 and 75% → 1.
-  const nSuccess = successRate == null ? 0 : clamp01((successRate - 40) / 35);
+  // Success rate, shrunk toward the field average for thin samples (Bayesian
+  // prior of 10 calls at 55%): 6/6 reads as ~72%, not 100%, so a perfect
+  // handful cannot outrank 27/32. Anchor 40% → 0 and 75% → 1.
+  const PRIOR_N = 10;
+  const PRIOR_RATE = 55;
+  const shrunk =
+    successRate == null
+      ? null
+      : (successRate * scoredRatings + PRIOR_RATE * PRIOR_N) / (scoredRatings + PRIOR_N);
+  const nSuccess = shrunk == null ? 0 : clamp01((shrunk - 40) / 35);
   // Average return: -5% → 0, +25% → 1.
   const nReturn = avgReturn == null ? 0 : clamp01((avgReturn + 5) / 30);
   // Rating count: log-damped so a prolific firm can't run away with the table.

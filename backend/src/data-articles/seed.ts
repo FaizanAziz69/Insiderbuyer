@@ -170,7 +170,7 @@ export const LAUNCH_ARTICLES: ArticleSeed[] = [
         '{{top1.label}} leads with a {{top1.value}} hit rate on seasoned calls and an average return of {{top1.avgReturn}}.',
         'The leaderboard is drawn from {{ratings}} rated calls by {{analysts}} named analysts.',
         'The average realised return across the top ten is {{avgReturnTop10}}.',
-        'An analyst needs at least three seasoned calls (30 days or older) before a hit rate is shown.',
+        'Only analysts with at least {{minGradedCalls}} graded calls qualify ({{eligibleAnalysts}} do); ranking uses the sample-adjusted lower bound of the hit rate, so a perfect record on a handful of calls cannot top the table.',
       ],
       body: [
         {
@@ -183,7 +183,7 @@ export const LAUNCH_ARTICLES: ArticleSeed[] = [
         },
         {
           heading: 'Why calls need to season',
-          html: '<p>A rating published yesterday cannot be judged yet. Calls are graded only once they are at least 30 days old, and an analyst needs three graded calls before a hit rate appears at all — otherwise a single lucky note would top the table every month.</p>',
+          html: '<p>A rating published yesterday cannot be judged yet. Calls are graded only once they are at least 30 days old, and this leaderboard admits only analysts with at least 20 graded calls. Even then, 6-for-6 is luck as often as skill, so the ranking uses the statistical lower bound of each hit rate (the 95% Wilson interval): 27 hits from 32 calls outranks a perfect 8 from 8. The bar still shows the plain hit rate.</p>',
         },
         {
           heading: 'The leader: {{top1.label}}',
@@ -195,7 +195,7 @@ export const LAUNCH_ARTICLES: ArticleSeed[] = [
         },
         {
           heading: 'What a good hit rate looks like',
-          html: '<p>Analysts as a group are right a little more often than not — the market drifts upward and most calls are bullish. A hit rate in the 70s over a meaningful number of calls is unusual; above 80 over many calls is rare. Sample size matters more than the headline percentage.</p>',
+          html: '<p>Analysts as a group are right a little more often than not — the market drifts upward and most calls are bullish. A hit rate in the 70s over a meaningful number of calls is unusual; above 80 over many calls is rare; 100% over any real sample does not exist, which is why a name showing it has simply not made enough calls yet. Sample size matters more than the headline percentage.</p>',
         },
         {
           heading: 'Sector concentration',

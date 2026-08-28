@@ -70,6 +70,9 @@ const PERIOD_LABEL: Record<Period, string> = { '30d': 'Last 30 days', '90d': 'La
 /** §3.2 cluster flag: three or more distinct insiders on the same side. */
 const CLUSTER_MIN_INSIDERS = 3;
 const TOP_N = 10;
+/** Analyst leaderboard: graded calls needed before a hit rate is credible. */
+const ANALYST_MIN_GRADED = 20;
+const ANALYST_MIN_GRADED_FALLBACK = 10;
 
 function fmtUsd(n: number | null | undefined): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return '—';
@@ -479,12 +482,33 @@ export class DataArticlesService implements OnModuleInit {
 
   /* ---------------------------------------------- builders: leaderboards */
 
+  /** George (2026-08-29): "no credible analyst has a 100% hit rate". With
+   *  3–9 graded calls a perfect record is noise, so the article needs a real
+   *  sample (StockAnalysis/TipRanks' top-100 carry 700–1,250 ratings each) and a
+   *  ranking that penalises thin samples: the 95% Wilson lower bound of the hit
+   *  rate, so 27/32 outranks 6/6. Displayed value stays the plain hit rate. */
   private async buildAnalysts(slug: string, period: Period): Promise<ChartPayload> {
-    const { rows, coverage } = await this.analysts.getTopAnalysts(60);
-    const ranked = rows
-      .filter((r) => r.successRate !== null && r.scoredRatings >= 3)
-      .sort((a, b) => (b.successRate! - a.successRate!) || ((b.avgReturn ?? 0) - (a.avgReturn ?? 0)))
-      .slice(0, TOP_N);
+    const { rows, coverage } = await this.analysts.getTopAnalysts(600);
+    const wilsonLow = (rate: number, n: number) => {
+      const p = rate / 100;
+      const z = 1.96;
+      const den = 1 + (z * z) / n;
+      const centre = p + (z * z) / (2 * n);
+      const spread = z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
+      return (centre - spread) / den;
+    };
+    const eligible = (min: number) => rows.filter((r) => r.successRate !== null && r.scoredRatings >= min);
+    let minScored = ANALYST_MIN_GRADED;
+    let pool = eligible(minScored);
+    if (pool.length < TOP_N) {
+      minScored = ANALYST_MIN_GRADED_FALLBACK;
+      pool = eligible(minScored);
+    }
+    const ranked = pool
+      .map((r) => ({ r, lb: wilsonLow(r.successRate!, r.scoredRatings) }))
+      .sort((a, b) => b.lb - a.lb || (b.r.avgReturn ?? 0) - (a.r.avgReturn ?? 0))
+      .slice(0, TOP_N)
+      .map((x) => x.r);
     const list: ChartRow[] = ranked.map((r, i) => ({
       rank: i + 1,
       key: r.slug,
@@ -514,12 +538,14 @@ export class DataArticlesService implements OnModuleInit {
       asOf: new Date().toISOString().slice(0, 10),
       refreshedAt: new Date().toISOString(),
       valueKind: 'pct',
-      valueLabel: 'Hit rate on seasoned calls',
+      valueLabel: `Hit rate (min. ${minScored} graded calls, ranked on the sample-adjusted lower bound)`,
       variants: { all: list },
       totals: {
         analysts: coverage.analysts,
         ratings: coverage.ratings,
         since: coverage.since,
+        minGradedCalls: minScored,
+        eligibleAnalysts: pool.length,
         avgReturnTop10: list.length ? list.reduce((s, r) => s + (Number(r.detail.avgReturn) || 0), 0) / list.length : null,
       },
       source: 'Analyst price targets and ratings via FMP, graded against subsequent closes',

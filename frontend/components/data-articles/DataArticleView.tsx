@@ -49,7 +49,7 @@ const CHART_TITLE: Record<DataArticle["chart"], string> = {
 const CHART_SUBTITLE: Record<DataArticle["chart"], string> = {
   "insider-buys": "Form 4 code P only — 10b5-1 plan buys, option exercises and awards excluded",
   "insider-sells": "Form 4 code S — filter planned 10b5-1 sales from discretionary ones",
-  analysts: "Directional hit rate on calls at least 30 days old; three graded calls minimum",
+  analysts: "Directional hit rate on calls at least 30 days old; 20 graded calls minimum, ranked on the sample-adjusted lower bound",
   "hedge-funds": "Value-weighted return of disclosed 13F long positions, rebalanced at filing dates",
 };
 

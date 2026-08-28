@@ -142,8 +142,11 @@ const SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> = [
         <p>
           The <b>analyst leaderboard</b> ranks named analysts by the directional hit rate of their rated calls
           (a target more than 3% from the price at the note is a call; inside that band is a reiteration and is
-          not graded), graded only once a call is at least 30 days old, with a minimum of three graded calls;
-          average subsequent return breaks ties. The <b>hedge-fund leaderboard</b> takes the trailing-12-month
+          not graded), graded only once a call is at least 30 days old. The article admits only analysts with at least
+          20 graded calls and ranks them on the 95% Wilson lower bound of the hit rate, so a thin perfect
+          record cannot outrank a long good one; average subsequent return breaks ties. The Top Analysts
+          table shows a hit rate only after six graded calls and shrinks thin samples toward the field
+          average (a prior of ten calls at 55%) inside its star score. The <b>hedge-fund leaderboard</b> takes the trailing-12-month
           figure from the Top Insiders section above, ranked highest first, and inherits every limit of a 13F.
         </p>
         <p>
