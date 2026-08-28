@@ -692,6 +692,8 @@ export class InvestorsService implements OnModuleInit {
     const holdingsTotal = holdings.length;
     const shown = all ? holdings : holdings.slice(0, 500);
     // Transaction history by filing period: what changed between consecutive quarters.
+    // Both sides are filtered BEFORE the full join — with the filter in WHERE
+    // Postgres seq-scans the whole table twice per pair (330ms × 5 quarters).
     const history: any[] = [];
     for (let i = 0; i < periods.length - 1; i++) {
       const cur = periods[i].period;
@@ -700,9 +702,9 @@ export class InvestorsService implements OnModuleInit {
         `SELECT COALESCE(a.ticker, b.ticker) AS ticker, COALESCE(a.name, b.name) AS name,
                 a.shares::float8 AS shares, b.shares::float8 AS "prevShares", a.value::float8 AS value, b.value::float8 AS "prevValue",
                 COALESCE(a.filing_date, b.filing_date)::text AS "filingDate"
-         FROM investor_holdings a FULL OUTER JOIN investor_holdings b
-           ON a.slug = b.slug AND a.cusip = b.cusip AND a.period = $2 AND b.period = $3
-         WHERE (a.slug = $1 AND a.period = $2) OR (b.slug = $1 AND b.period = $3)`,
+         FROM (SELECT * FROM investor_holdings WHERE slug = $1 AND period = $2) a
+         FULL OUTER JOIN (SELECT * FROM investor_holdings WHERE slug = $1 AND period = $3) b
+           ON a.cusip = b.cusip`,
         [slug, cur, prev],
       );
       const changes = rows
