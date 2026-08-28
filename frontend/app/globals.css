@@ -56,6 +56,10 @@
   /* Brand surface — header/footer chrome. Navy in light, dark in dark. */
   --brand-surface: #005882;
   --brand-surface-border: #003f5d;
+  /* Text ON the brand surface. NOT --on-accent: that flips dark in dark mode
+     (for the cyan accent) while the brand surface stays navy — the data-article
+     premium CTA was navy-on-navy (George 2026-08-29, "unable to read"). */
+  --on-brand-surface: #ffffff;
   --good: #11824d;
   --good-strong: #0f5f44;
   --good-soft: rgba(17, 130, 77, 0.12);
@@ -119,6 +123,7 @@
   /* Brand surface — header/footer chrome. Matches the dark page background. */
   --brand-surface: #070d1f;
   --brand-surface-border: #1f2c45;
+  --on-brand-surface: #ffffff;
   --good: #1bb471;
   --good-strong: #11824d;
   --good-soft: rgba(27, 180, 113, 0.14);

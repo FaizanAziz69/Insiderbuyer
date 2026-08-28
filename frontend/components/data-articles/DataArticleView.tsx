@@ -166,20 +166,21 @@ export function DataArticleView({ article }: { article: DataArticle }) {
 
       {/* Premium CTA */}
       {/* Brand surface (navy in both themes) with every text colour set explicitly —
-          the heading used to inherit the page text colour and vanished in light mode. */}
+          the heading used to inherit the page text colour and vanished in light mode,
+          then used --on-accent, which is near-black in dark mode (dark-on-dark). */}
       <section
         className="rounded-2xl p-5 sm:p-7 flex flex-col sm:flex-row sm:items-center gap-4"
-        style={{ background: "var(--brand-surface)", border: "1px solid var(--brand-surface-border)", color: "var(--on-accent)" }}
+        style={{ background: "var(--brand-surface)", border: "1px solid var(--brand-surface-border)", color: "var(--on-brand-surface)" }}
         aria-labelledby="cta-h"
       >
         <div className="flex-1 min-w-0">
           <div className="font-mono text-[11px] uppercase tracking-[1.6px] mb-1.5" style={{ color: "var(--gold)" }}>
             Premium · $199 / year
           </div>
-          <h2 id="cta-h" className="text-[20px] sm:text-[24px] font-bold leading-tight" style={{ fontFamily: "var(--font-display)", color: "var(--on-accent)" }}>
+          <h2 id="cta-h" className="text-[20px] sm:text-[24px] font-bold leading-tight" style={{ fontFamily: "var(--font-display)", color: "var(--on-brand-surface)" }}>
             {s.cta.headline}
           </h2>
-          <p className="mt-2 text-[14px] leading-relaxed" style={{ color: "var(--on-accent)", opacity: 0.82 }} dangerouslySetInnerHTML={{ __html: s.cta.body }} />
+          <p className="mt-2 text-[14px] leading-relaxed" style={{ color: "var(--on-brand-surface)", opacity: 0.82 }} dangerouslySetInnerHTML={{ __html: s.cta.body }} />
         </div>
         <Link
           href={SUBSCRIBE_HREF}

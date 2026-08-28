@@ -260,7 +260,7 @@ export function DataArticlesAdmin({ token }: { token: string }) {
         <label className="inline-flex items-center gap-2 text-[13px]">
           <input type="checkbox" checked={draft.published} onChange={(e) => set({ published: e.target.checked })} /> Published
         </label>
-        <button disabled={busy} onClick={save} className="rounded-md px-4 py-2 text-[13px] font-bold" style={{ background: "var(--brand-surface)", color: "var(--on-accent)", opacity: busy ? 0.6 : 1 }}>
+        <button disabled={busy} onClick={save} className="rounded-md px-4 py-2 text-[13px] font-bold" style={{ background: "var(--brand-surface)", color: "var(--on-brand-surface)", opacity: busy ? 0.6 : 1 }}>
           Save text
         </button>
         <button disabled={busy} onClick={rebuild} className="rounded-md px-4 py-2 text-[13px] font-semibold" style={{ border: "1px solid var(--border)", opacity: busy ? 0.6 : 1 }}>

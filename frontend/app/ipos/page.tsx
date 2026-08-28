@@ -159,7 +159,7 @@ export default function IposPage() {
                 className="inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold"
                 style={{
                   background: sort === k ? "var(--brand-surface)" : "var(--bg-2)",
-                  color: sort === k ? "var(--on-accent)" : "var(--text-soft)",
+                  color: sort === k ? "var(--on-brand-surface)" : "var(--text-soft)",
                   border: "1px solid var(--border)",
                 }}
               >
