@@ -72,8 +72,13 @@ export default function HomePage() {
         <AiStockIdeasSection />
       </div>
 
-      {/* Three datasets side-by-side */}
-      <HomeDatasets />
+      {/* Three datasets side-by-side.
+          pb-6: small gap before Upcoming Earnings (the ad slot between them is
+          null when ads are off), matching the Stock Ideas spacing (client
+          2026-08-29) — padding, touches no other section. */}
+      <div className="pb-6">
+        <HomeDatasets />
+      </div>
 
       {/* Inline ad before earnings */}
       <AdSlot slot="leaderboard" seed="home-mid-2" />
