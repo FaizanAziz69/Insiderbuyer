@@ -66,6 +66,7 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         links: [
           // Relisted 2026-08-24 (Faizan) — was direct-URL only while the map settled.
+          { label: "Data Articles", href: "/data", icon: FileText, badge: "new" },
           { label: "Insider Bubbles", href: "/bubbles", icon: Orbit, badge: "new" },
           { label: "Congress Bubbles", href: "/congress-bubbles", icon: Orbit, badge: "new" },
           { label: "Top Insiders", href: "/investors", icon: Landmark, badge: "new" },
@@ -85,7 +86,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Top Losers", href: "/market-data/top-losers", icon: TrendingUp },
           { label: "Short Squeeze List", href: "/short-squeeze", icon: Flame },
           { label: "Short Interest", href: "/short-interest", icon: TrendingUp },
-          { label: "IPOs", href: "/ipos", icon: Rocket },
+          { label: "IPO Calendar", href: "/ipos", icon: Rocket, badge: "new" },
         ],
       },
       {

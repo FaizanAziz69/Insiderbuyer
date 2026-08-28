@@ -120,6 +120,13 @@ export class FmpService {
     }
   }
 
+  /** IPO calendar (brief §8 / Workstream E). Stable endpoint rows:
+   *  { symbol, date, daa, company, exchange, actions, shares, priceRange, marketCap }.
+   *  Returns [] without a key or on error, like everything else here. */
+  async getIpoCalendar(from: string, to: string): Promise<any[]> {
+    return this.get('ipos-calendar', { from, to });
+  }
+
   // ── Company profile + quote gap-fillers ──────────────────────────────
   private readonly profileCache = new Map<string, { ts: number; data: any | null }>();
   private readonly PROFILE_TTL_MS = 24 * 60 * 60_000;

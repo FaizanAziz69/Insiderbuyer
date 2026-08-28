@@ -120,6 +120,60 @@ const SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> = [
     ),
   },
   {
+    id: "data-articles",
+    title: "Data articles — most-bought, most-sold, analyst and hedge-fund leaderboards",
+    body: (
+      <>
+        <p>
+          The <b>most-bought</b> and <b>most-sold</b> tables aggregate SEC Form 4 filings by company over a
+          calendar window of 30 or 90 days ending on the rebuild date. Buying counts transaction code <b>P</b>
+          only — open-market and private purchases paid for by the insider — and excludes anything the filer
+          marked as made under a 10b5-1 plan, together with option exercises, stock awards, tax withholding and
+          gifts. Selling counts code <b>S</b>; the planned flag comes from the filer&rsquo;s own 10b5-1 footnote,
+          so a sale without that footnote is counted as discretionary. Rows are ranked by total dollar value;
+          the average price is volume-weighted; &ldquo;% since purchase&rdquo; compares the live price with
+          that average; &ldquo;% above 52-week low&rdquo; uses the licensed quote&rsquo;s trailing range; the
+          <b> cluster</b> flag means three or more distinct insiders traded on the same side in the window.
+        </p>
+        <p>
+          The <b>analyst leaderboard</b> ranks named analysts by the directional hit rate of their rated calls
+          (a target more than 3% from the price at the note is a call; inside that band is a reiteration and is
+          not graded), graded only once a call is at least 30 days old, with a minimum of three graded calls;
+          average subsequent return breaks ties. The <b>hedge-fund leaderboard</b> takes the trailing-12-month
+          figure from the Top Insiders section above, ranked highest first, and inherits every limit of a 13F.
+        </p>
+        <p>
+          Buying and selling tables rebuild every Friday after the close, the analyst table on the first of each
+          month, the hedge-fund table the day after each 45-day 13F filing window closes. The &ldquo;Updated&rdquo;
+          date on each article is that rebuild timestamp; headlines and URLs never change.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "ipo-calendar",
+    title: "IPO calendar — return since listing and the insider-activity flag",
+    body: (
+      <>
+        <p>
+          The table lists every company that began trading in the trailing <b>90 days</b>, sourced from the
+          licensed IPO calendar merged with the exchange&rsquo;s public calendar for exact offering prices.
+          Rows leave the table automatically on day 91. <b>IPO price</b> is the published offering price;
+          where no offering price reached our feeds we show the midpoint of the filed range or, failing that,
+          the first session&rsquo;s opening price, and mark the figure with an asterisk. <b>Current price</b> is
+          the previous close, refreshed every evening after the U.S. close — including weekends and market
+          holidays, when it simply re-confirms the last close. <b>Return since IPO</b> is current ÷ IPO price
+          − 1 and is not annualised or adjusted for dividends.
+        </p>
+        <p>
+          The <b>insider activity</b> badge appears when at least one Form 4 open-market purchase (code P, not
+          under a 10b5-1 plan) has been filed with a transaction date on or after the listing date; it links
+          to the most recent such filing. It says nothing about selling, lock-up expiries or pre-IPO grants.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "insider-score",
     title: "Insider Score (IQS)",
     body: (

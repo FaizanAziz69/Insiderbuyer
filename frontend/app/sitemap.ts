@@ -8,7 +8,7 @@ const STATIC_ROUTES = [
   "/insiders/hot", "/analyst-ratings", "/analyst-stocks", "/government-contracts", "/market-data/top-gainers",
   "/market-data/top-losers", "/earnings", "/dividends", "/ipos",
   "/short-interest", "/short-squeeze", "/congressional-trades",
-  "/heatmaps/market", "/sectors", "/screener", "/watchlist", "/bubbles", "/congress-bubbles", "/methodology", "/investors",
+  "/heatmaps/market", "/sectors", "/screener", "/watchlist", "/bubbles", "/congress-bubbles", "/methodology", "/investors", "/data",
   "/stock-lists/hot-sectors", "/learn/insider-buying",
 ];
 
@@ -18,6 +18,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: r === "" || r === "/insights" ? "hourly" : "daily",
     priority: r === "" ? 1 : 0.7,
   }));
+
+  // Evergreen data articles (Workstream A) — permanent URLs, weekly data.
+  try {
+    const res = await fetch(`${BACKEND}/api/data-articles`, { next: { revalidate: 3600 } });
+    const data = await res.json();
+    for (const a of data?.articles || []) {
+      out.push({ url: `${SITE}/data/${a.slug}`, changeFrequency: "weekly", priority: 0.8, lastModified: a.refreshedAt || undefined });
+    }
+  } catch {
+    /* backend unreachable at build — static routes still ship */
+  }
 
   // Articles — the freshest, most SEO-valuable pages.
   try {

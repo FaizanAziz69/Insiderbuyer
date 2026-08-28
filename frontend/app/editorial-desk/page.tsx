@@ -1,5 +1,6 @@
 "use client";
 import { InvestorsAdmin } from "@/components/admin/InvestorsAdmin";
+import { DataArticlesAdmin } from "@/components/admin/DataArticlesAdmin";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
@@ -101,7 +102,7 @@ const PRIORITY_STYLE: Record<number, { label: string; color: string }> = {
 
 export default function EditorialDeskPage() {
   const [token, setToken] = useState("");
-  const [tab, setTab] = useState<"briefing" | "checklist" | "playbook" | "investors">("briefing");
+  const [tab, setTab] = useState<"briefing" | "checklist" | "playbook" | "investors" | "data">("briefing");
 
   useEffect(() => {
     try {
@@ -148,6 +149,7 @@ export default function EditorialDeskPage() {
             ["checklist", "Pre-publish check"],
             ["playbook", "The playbook"],
             ["investors", "Investors roster"],
+            ["data", "Data articles"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -174,6 +176,7 @@ export default function EditorialDeskPage() {
       {tab === "checklist" && <ChecklistTab token={token} />}
       {tab === "playbook" && <PlaybookTab />}
       {tab === "investors" && <InvestorsAdmin token={token} />}
+      {tab === "data" && <DataArticlesAdmin token={token} />}
     </main>
   );
 }
