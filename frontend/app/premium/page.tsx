@@ -38,32 +38,6 @@ import { MockupGallery, MOCKUP_CSS, type Mockup } from "@/components/premium/Moc
 
 /* ------------------------------------------------------------------ data */
 
-/** Trust strip — the firms' LOGOS, not their names in type (client,
- *  2026-08-28: "these should be LOGOS of the companies mentioned there").
- *  George's follow-up the same night: "on one line, without the white tile
- *  background, larger, same size — Guggenheim is way bigger than most". So:
- *  one non-wrapping row, every logo rendered monochrome at the SAME height,
- *  no chip. `mark` = square logo mark + firm name (the public companies, via
- *  the FMP logo set the rest of the site uses; backgrounds keyed out);
- *  `wordmark` = the firm's own logotype at the same cap height. */
-const FIRMS: Array<{
-  name: string;
-  logo: string;
-  kind: "mark" | "wordmark";
-  dark?: string;
-}> = [
-  { name: "Morgan Stanley", logo: "/sales/firms/morgan-stanley-2.png", kind: "mark" },
-  { name: "Goldman Sachs", logo: "/sales/firms/goldman-sachs-2.png", kind: "mark" },
-  { name: "RBC Capital", logo: "/sales/firms/rbc-capital-2.png", kind: "mark" },
-  { name: "Piper Sandler", logo: "/sales/firms/piper-sandler-2.png", kind: "mark" },
-  { name: "Deutsche Bank", logo: "/sales/firms/deutsche-bank-2.png", kind: "mark" },
-  { name: "Scotiabank", logo: "/sales/firms/scotiabank-2.png", kind: "mark" },
-  { name: "Guggenheim", logo: "/sales/firms/guggenheim.svg", kind: "wordmark" },
-  // Melius's own logotype is a thin, light face that read as the odd one out
-  // next to the bold names (George) — so it gets the same treatment as the
-  // banks: its icon as the mark, the name set in our type.
-  { name: "Melius Research", logo: "/sales/firms/melius-mark.png", kind: "mark" },
-];
 
 /** §6.2 product mockup slots (Developer Project Brief, Workstream D).
  *  "Minimum 4 mockups (IQS screener, insider report page, SMS alert on a
@@ -617,34 +591,17 @@ export default function PremiumPage() {
       </section>
 
       {/* ------------------------------------------------------ trust bar */}
+      {/* George 2026-08-29: the bank/firm logo strip is gone — a plain line
+          and five stars instead. */}
       <section className="biv-trust">
-        <p className="biv-eyebrow-center">
-          Trusted by top investors, researchers, and money managers
-        </p>
-        <ul className="biv-firms" aria-label="Firms tracked on the platform">
-          {FIRMS.map((f) => (
-            <li key={f.name} className={`biv-firm biv-firm-${f.kind}`}>
-              {f.kind === "mark" ? (
-                <>
-                  <span className="biv-firm-chip">
-                    <img src={f.logo} alt="" loading="lazy" />
-                  </span>
-                  <span className="biv-firm-name">{f.name}</span>
-                </>
-              ) : (
-                <img
-                  src={theme === "dark" && f.dark ? f.dark : f.logo}
-                  alt={f.name}
-                  loading="lazy"
-                  className="biv-firm-wordmark"
-                />
-              )}
-            </li>
+        <div className="biv-stars" role="img" aria-label="Rated five stars">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <svg key={i} viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2.6l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.4l-5.9 3.3 1.3-6.6L2.5 9.5l6.6-.8z" />
+            </svg>
           ))}
-        </ul>
-        <p className="biv-trust-fine">
-          Firms whose analysts and public filings are tracked on the platform.
-        </p>
+        </div>
+        <p className="biv-eyebrow-center biv-trust-line">Trusted by real investors</p>
       </section>
 
       {/* ------------------------------------------------------- features */}
@@ -1052,36 +1009,9 @@ const CSS = `
   font-family: var(--font-display), sans-serif; font-weight: 600; font-size: 13px;
   letter-spacing: 2.5px; text-transform: uppercase; color: var(--dim); text-align: center; margin: 0 0 22px;
 }
-/* One line, no wrap (George). Every logo is monochrome and the same height,
-   so a colourful square mark and a wide wordmark read as one set. */
-.biv-firms {
-  /* Sizes track the viewport so all eight stay on ONE line from 1024px up;
-     below that the row scrolls sideways under a fade rather than wrapping. */
-  --logo-h: clamp(14px, 1.2vw, 21px); --name-fs: clamp(11px, 0.9vw, 16.5px);
-  /* Wordmarks are cap-height artwork, so they get the names' CAP height
-     (~0.72em), not the full line — that is what made Guggenheim "way bigger". */
-  --word-h: clamp(8px, 0.66vw, 11.5px);
-  /* safe center: centred when it fits, start-aligned (never clipped on the
-     left) when a narrow or zoomed window makes it overflow. */
-  display: flex; flex-wrap: nowrap; gap: clamp(10px, 1.2vw, 24px); justify-content: safe center; align-items: center;
-  /* Generous side padding so the first and last logo never touch the edge (George). */
-  list-style: none; margin: 0 auto; padding: 0 40px; width: 100%; max-width: 1400px; overflow-x: auto; scrollbar-width: none;
-}
-.biv-firms::-webkit-scrollbar { display: none; }
-.biv-firm { display: inline-flex; align-items: center; gap: 0.5em; white-space: nowrap; color: rgba(245,247,250,0.88); flex: 0 0 auto; font-size: var(--name-fs); }
-/* Marks: no tile; keyed-out backgrounds, forced to the strip's ink via
-   grayscale + brightness so Morgan Stanley's navy and Scotiabank's red sit
-   at the same weight as the text. */
-.biv-firm-chip { display: block; height: var(--logo-h); width: var(--logo-h); flex: 0 0 auto; }
-.biv-firm-chip img {
-  height: 100%; width: 100%; object-fit: contain; display: block;
-  filter: grayscale(1) brightness(1.9) contrast(0.9); opacity: 0.92;
-}
-.biv-firm-name { font-family: var(--font-heading), sans-serif; font-weight: 800; font-size: var(--name-fs); letter-spacing: -0.01em; line-height: 1; }
-/* Wordmarks: scaled to the same cap height as the firm names — the Guggenheim
-   SVG is currentColor, Melius ships a white variant for dark. */
-.biv-firm-wordmark { height: var(--word-h); width: auto; display: block; opacity: 0.9; }
-.biv-trust-fine { font-size: 11.5px; color: var(--faint); margin-top: 18px; }
+.biv-stars { display: flex; justify-content: center; gap: 6px; margin: 0 0 14px; }
+.biv-stars svg { width: 26px; height: 26px; fill: #C9A227; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.18)); }
+.biv-trust-line { margin: 0; }
 
 /* features */
 .biv-h2 { font-size: clamp(32px, 4.2vw, 54px); }
@@ -1193,8 +1123,6 @@ const CSS = `
 }
 :root[data-theme="light"] .biv-bigstat { color: var(--green); }
 :root[data-theme="light"] .biv-chip { color: #2c7a51; }
-:root[data-theme="light"] .biv-firm { color: rgba(14,31,53,0.8); }
-:root[data-theme="light"] .biv-firm-chip img { filter: grayscale(1) brightness(0.35) contrast(1.1); }
 :root[data-theme="light"] .biv-mstat { color: var(--green); }
 :root[data-theme="light"] .biv-plus { background: rgba(62,155,95,0.12); color: var(--green); }
 :root[data-theme="light"] .biv-tool { background: #FFFFFF; }
@@ -1221,11 +1149,6 @@ const CSS = `
   .biv-btn { padding: 12px 18px; font-size: 14px; }
   .biv-mcard { width: 205px; min-height: 255px; }
   .biv-mstat { font-size: 34px; }
-  .biv-firms {
-    --logo-h: 22px; --name-fs: 16px; --word-h: 12px; gap: 26px; justify-content: flex-start; padding: 0 16px;
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
-    mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
-  }
   .biv-faq summary { font-size: 15.5px; }
 }
 ` + INSIDER_CARD_CSS + MOCKUP_CSS;
