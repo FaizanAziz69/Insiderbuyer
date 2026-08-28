@@ -40,6 +40,7 @@ const THUMBS: Thumb[] = [
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
   { file: "burry-portrait-clean", tickers: ["BABA"], kw: ["burry", "scion", "share-sale"] },
   { file: "white-gold-donofrio-clean", pinnedOnly: true },
+  { file: "white-gold-district-map", pinnedOnly: true },
   // Specific topic
   { file: "bill-ackman-letter", kw: ["ackman", "pershing"] },
   { file: "tom-lee-rally", kw: ["tom-lee", "fundstrat"] },
@@ -139,7 +140,12 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // EAGLE", "David Donofrio", "Shaun Ryan", "Strongest Bull Case Ever" and a
   // "TSX:SNC" map label — none of which survived the fact-check. New filename
   // because the thumbs folder is served with a 30-day cache.
-  "editorial-white-gold-corp-wgo-yukon-team-2026-08-27": "white-gold-donofrio-clean",
+  // 2026-08-28: client-supplied collage (CEO, White Gold District map, drill
+  // site). Carries baked text ("300,000+ hectares of prime land", "High-Grade
+  // Gold Intercepts", map labels) — pinnedOnly so it can never land on another
+  // article. 1672x941 source extended to 1606x1000 with blurred edge rows, not
+  // cropped. New filename: the thumbs folder is served with a 30-day cache.
+  "editorial-white-gold-corp-wgo-yukon-team-2026-08-27": "white-gold-district-map",
 };
 
 function candidatesFor(opts: ThumbInput): Thumb[] {
