@@ -322,7 +322,10 @@ export class IngestionService implements OnModuleInit {
       // without ever blowing the 60s serverless budget. Deduped, so overlap is
       // cheap. Wrapped so a BaFin hiccup never aborts the SEC cron. rescore is
       // false here — the recalculateAll() below scores US + German together.
-      if ((process.env.GERMAN_INGEST || 'true') === 'true') {
+      // 2026-08-28: superseded by DeInsidersModule (full BaFin database, every
+      // 2h, no issuer cap). Opt back in with GERMAN_INGEST=true only if that
+      // module is disabled — two writers would race on the same trades.
+      if (process.env.GERMAN_INGEST === 'true') {
         try {
           const slices = ['ABCD', 'EFGH', 'IJKL', 'MNOP', 'QRST', 'UVWX', 'YZ'];
           const dayIdx = new Date().getUTCDate() % slices.length;

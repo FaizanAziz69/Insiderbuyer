@@ -25,9 +25,9 @@ import { FmpService } from '../fmp/fmp.service';
  * Rows land in the SAME tables as Form 4 (companies + insider_transactions),
  * so bubbles, data articles, the trades feed and company pages pick them up
  * with no special casing:
- *   companies.cik        = "DE" + BaFin issuer ID          (e.g. DE40001244)
+ *   companies.cik        = "DE-" + BaFin issuer ID         (e.g. DE-40001244)
  *   companies.ticker     = FMP symbol for the ISIN         (e.g. SAP.DE)
- *   companies.exchange   = "XETRA"
+ *   companies.exchange   = "DE"  (what the Exchanges filter keys on)
  *   transactionCode      = P (Buy) / S (Sell); other natures are skipped
  *   pricePerShare        = EUR — the same currency as the .DE quote, so
  *                          price-vs-insider-price comparisons stay right
@@ -41,8 +41,13 @@ import { FmpService } from '../fmp/fmp.service';
 const BASE = 'https://portal.mvp.bafin.de/database/DealingsInfo';
 /** zeitraum: 1 = today, 2 = ~30 days, 3 = the full 12-month database. */
 type Zeitraum = 1 | 2 | 3;
-const EXCHANGE = 'XETRA';
-const CIK_PREFIX = 'DE';
+/** Same keys the original (capped, letter-sliced) BaFin ingest used, so the
+ *  Exchanges filter (`exchange = 'DE'`) and the 71 issuers already in prod
+ *  carry straight over instead of duplicating. */
+const EXCHANGE = 'DE';
+const CIK_PREFIX = 'DE-';
+/** Legacy accession pattern: B<bafinId>-<yyyymmdd>-<hash>, values in EUR. */
+const LEGACY_ACC = "^B[0-9]+-[0-9]{8}-";
 const ACC_PREFIX = 'BAFIN-';
 
 interface CsvRow {
@@ -338,7 +343,7 @@ export class DeInsidersService implements OnModuleInit {
           `INSERT INTO companies (id, cik, ticker, name, exchange, "mdaDocsAnalyzed", "updatedAt")
            VALUES ($5, $1, $2, $3, $4, 0, now())
            ON CONFLICT (cik) DO UPDATE SET
-             ticker = COALESCE(EXCLUDED.ticker, companies.ticker),
+             ticker = COALESCE(companies.ticker, EXCLUDED.ticker),
              name = CASE WHEN companies.name = '' THEN EXCLUDED.name ELSE companies.name END,
              exchange = EXCLUDED.exchange,
              "updatedAt" = now()
@@ -361,6 +366,16 @@ export class DeInsidersService implements OnModuleInit {
         const shares = r.volume! / r.avgPrice!;
         const totalUsd = r.volume! * fx;
         const filingUrl = `${BASE}/sucheForm.do?emittentIsin=${encodeURIComponent(r.isin)}&zeitraum=3&emittentButton=Search+for+issuer&locale=en_GB`;
+        // The original ingest stored the same trades under a different
+        // accession scheme; match on the economics so nothing doubles up.
+        const dup = await this.companies.query(
+          `SELECT 1 FROM insider_transactions
+           WHERE company_id = $1 AND "transactionDate" = $2 AND "transactionCode" = $3
+             AND ABS("pricePerShare" - $4) < 0.005 AND ABS("sharesBought" - $5) < 0.5
+             AND "accessionNumber" <> $6 LIMIT 1`,
+          [companyId, r.traded, code, r.avgPrice, shares, acc],
+        );
+        if (Array.isArray(dup) && dup.length) continue;
         const res = await this.companies.query(
           `INSERT INTO insider_transactions
              (id, company_id, "insiderName", "insiderCik", role, "rawTitle", "insiderCity", "insiderState", "insiderCountry",
@@ -375,6 +390,17 @@ export class DeInsidersService implements OnModuleInit {
         // TypeORM's query() hands back the RETURNING rows: 1 = inserted, 0 = duplicate.
         if (Array.isArray(res) && res.length) run.inserted++;
       }
+      // Legacy rows kept totalValue in EUR (= shares × price exactly). Convert
+      // once so $ thresholds and rankings compare like-for-like; after the
+      // update the equality no longer holds, which makes this idempotent.
+      await this.companies.query(
+        `UPDATE insider_transactions SET "totalValue" = "totalValue" * $1
+         WHERE "accessionNumber" ~ $2
+           AND ABS("totalValue" - "sharesBought" * "pricePerShare") < 0.01 * "totalValue"`,
+        [fx, LEGACY_ACC],
+      );
+
+      await this.enrichCompanies();
       this.logger.log(`de-insiders zeitraum=${z}: ${run.rows} rows, ${usable.length} usable, ${run.inserted} new, ${run.unresolvedIsins} unresolved ISINs, EURUSD ${fx}`);
     } catch (e: any) {
       run.error = String(e?.message || e);
@@ -384,6 +410,27 @@ export class DeInsidersService implements OnModuleInit {
       this.lastRun = run;
     }
     return run;
+  }
+
+  /** Sector / industry / price / market cap for German issuers that have none
+   *  yet (FMP profile on the .DE symbol), a bounded batch per run. */
+  private async enrichCompanies(limit = 40): Promise<void> {
+    const rows: Array<{ id: string; ticker: string }> = await this.companies.query(
+      `SELECT id, ticker FROM companies
+       WHERE exchange = $1 AND ticker IS NOT NULL AND (sector IS NULL OR "lastPrice" IS NULL)
+       ORDER BY "updatedAt" DESC LIMIT $2`,
+      [EXCHANGE, limit],
+    );
+    for (const r of rows) {
+      const p = await this.fmp.getCompanyProfile(r.ticker).catch(() => null);
+      if (!p) continue;
+      await this.companies.query(
+        `UPDATE companies SET sector = COALESCE(sector, $2), industry = COALESCE(industry, $3),
+           "lastPrice" = COALESCE($4, "lastPrice"), "marketCap" = COALESCE($5, "marketCap"), "updatedAt" = now()
+         WHERE id = $1`,
+        [r.id, p.sector || null, p.industry || null, Number(p.price) || null, Number(p.marketCap || p.mktCap) ? Math.round(Number(p.marketCap || p.mktCap)) : null],
+      );
+    }
   }
 
   /* -------------------------------------------------------------- read */
@@ -397,10 +444,17 @@ export class DeInsidersService implements OnModuleInit {
               MAX("transactionDate")::text AS latest_trade, MAX("createdAt") AS latest_ingest
        FROM insider_transactions WHERE "accessionNumber" LIKE '${ACC_PREFIX}%'`,
     );
+    const [all] = await this.companies.query(
+      `SELECT COUNT(*)::int AS "allGermanTransactions", COUNT(*) FILTER (WHERE t."accessionNumber" ~ $1)::int AS "legacyRows",
+              COUNT(DISTINCT c.id)::int AS "germanIssuers", COUNT(DISTINCT c.id) FILTER (WHERE c.ticker IS NOT NULL)::int AS "withTicker"
+       FROM insider_transactions t JOIN companies c ON c.id = t.company_id WHERE c.exchange = $2`,
+      [LEGACY_ACC, EXCHANGE],
+    );
     const [i] = await this.companies.query(`SELECT COUNT(*)::int AS n, COUNT(symbol)::int AS resolved FROM isin_symbols`);
     return {
       source: 'BaFin Directors’ Dealings database (Art. 19 MAR), public, free',
       ...t,
+      ...all,
       isins: i?.n ?? 0,
       isinsResolved: i?.resolved ?? 0,
       crons: { intraday: '0 5-19/2 * * 1-5 (UTC, 30-day window)', weekly: '0 3 * * 0 (full 12-month re-read)' },
