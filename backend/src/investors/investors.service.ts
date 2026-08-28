@@ -645,7 +645,10 @@ export class InvestorsService implements OnModuleInit {
     return { tab, count: out.length, cards: out, methodologyUrl: '/methodology#top-insiders' };
   }
 
-  async detail(slug: string): Promise<unknown | null> {
+  /** `all` returns every holding; by default the table is capped at the 500
+   *  largest so a 5,700-line BlackRock filing stays under the proxy timeout
+   *  (the UI fetches the rest on demand). */
+  async detail(slug: string, all = false): Promise<unknown | null> {
     await this.ensureTables();
     const [inv] = await this.companies.query(
       `SELECT i.*, i.photo_url AS photo, p.ttm_return::float8 AS performance, p.suppressed_reason AS "perfNote", p.legs, p.as_of::text AS "perfAsOf"
@@ -676,6 +679,8 @@ export class InvestorsService implements OnModuleInit {
         )
       : [];
     const total = holdings.reduce((a, h) => a + (h.putCall === 'Share' ? h.value : 0), 0);
+    const holdingsTotal = holdings.length;
+    const shown = all ? holdings : holdings.slice(0, 500);
     // Transaction history by filing period: what changed between consecutive quarters.
     const history: any[] = [];
     for (let i = 0; i < periods.length - 1; i++) {
@@ -723,7 +728,9 @@ export class InvestorsService implements OnModuleInit {
       priorPeriod: prior,
       portfolioValue: total || Number(summaries[0]?.marketValue) || 0,
       summaries,
-      holdings: holdings.map((h) => ({
+      holdingsTotal,
+      holdingsTruncated: shown.length < holdingsTotal,
+      holdings: shown.map((h) => ({
         ...h,
         pct: total && h.putCall === 'Share' ? (h.value / total) * 100 : 0,
         changeShares: h.priorShares != null ? h.shares - h.priorShares : h.shares,

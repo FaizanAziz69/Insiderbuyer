@@ -60,6 +60,8 @@ interface Detail {
   portfolioValue: number;
   summaries: Array<{ period: string; marketValue: number; previousMarketValue: number; positions: number; added: number; removed: number; turnover: number; fmpPerf1y: number | null }>;
   holdings: Holding[];
+  holdingsTotal?: number;
+  holdingsTruncated?: boolean;
   history: Array<{ period: string; filingDate: string | null; changes: Change[]; totalChanges: number }>;
   overlap: Array<{ ticker: string; name: string; fundValue: number; fundPct: number; insiderBought: number; buyers: number }>;
 }
@@ -116,11 +118,14 @@ function PerfChart({ legs }: { legs: Detail["legs"] }) {
 
 export default function InvestorDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
-  const { data, error, isLoading } = useSWR<Detail>(`${API_BASE}/investors/${encodeURIComponent(slug)}`, fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 120_000,
-  });
   const [showAll, setShowAll] = useState(false);
+  // The default payload carries the 500 largest positions; "Show all" refetches
+  // the complete filing (BlackRock is ~5,700 lines).
+  const { data, error, isLoading } = useSWR<Detail>(
+    `${API_BASE}/investors/${encodeURIComponent(slug)}${showAll ? "?all=1" : ""}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 120_000, keepPreviousData: true },
+  );
 
   if (error) {
     return (
@@ -145,7 +150,8 @@ export default function InvestorDetailPage({ params }: { params: Promise<{ slug:
   }
   const d = data;
   const shares = d.holdings.filter((h) => h.putCall === "Share");
-  const rows = showAll ? shares : shares.slice(0, 50);
+  const rows = shares;
+  const totalPositions = d.holdingsTotal ?? d.holdings.length;
   const up = (d.performance ?? 0) > 0;
 
   const cols: Column<Holding>[] = [
@@ -347,7 +353,7 @@ export default function InvestorDetailPage({ params }: { params: Promise<{ slug:
         <div className="flex items-baseline justify-between gap-3 flex-wrap">
           <h2 className="text-[16px] font-bold">Holdings · 13F for {d.asOf ?? "—"}</h2>
           <span className="text-[12px]" style={{ color: "var(--text-mute)" }}>
-            {shares.length} long positions{d.holdings.length > shares.length ? ` · ${d.holdings.length - shares.length} option positions not shown` : ""}
+            {totalPositions} positions{d.holdingsTruncated ? ` · showing the ${shares.length} largest` : ""}{d.holdings.length > shares.length ? ` · ${d.holdings.length - shares.length} option positions not shown` : ""}
           </span>
         </div>
         {rows.length ? (
@@ -355,9 +361,9 @@ export default function InvestorDetailPage({ params }: { params: Promise<{ slug:
             <div className="mt-3 overflow-x-auto">
               <DataTable columns={cols} rows={rows} rowKey={(h) => h.cusip} initialSort={{ key: "value", dir: "desc" }} />
             </div>
-            {shares.length > 50 && (
+            {(d.holdingsTruncated || showAll) && (
               <button onClick={() => setShowAll((v) => !v)} className="mt-3 text-[13px] font-semibold text-accent">
-                {showAll ? "Show top 50" : `Show all ${shares.length} positions`}
+                {showAll ? "Show the 500 largest" : `Show all ${totalPositions} positions`}
               </button>
             )}
           </>

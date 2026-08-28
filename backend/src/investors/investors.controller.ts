@@ -48,8 +48,8 @@ export class InvestorsController {
   /** §4.3 investor detail page. */
   @Get(':slug')
   @Header('Cache-Control', 'public, max-age=120')
-  async detail(@Param('slug') slug: string) {
-    const d = await this.svc.detail(slug);
+  async detail(@Param('slug') slug: string, @Query('all') all?: string) {
+    const d = await this.svc.detail(slug, all === '1');
     if (!d) throw new NotFoundException('Unknown investor');
     return d;
   }
