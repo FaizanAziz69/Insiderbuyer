@@ -3,6 +3,7 @@ import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
+import { AppSetting } from '../entities/app-setting.entity';
 import { BlogPost, BlogKind } from '../entities/blog-post.entity';
 import {
   ContentGeneratorService,
@@ -96,8 +97,33 @@ export class ContentService {
     private readonly iqs: IqsService,
     private readonly news: NewsService,
     private readonly marketStats: MarketStatsService,
+    @InjectRepository(AppSetting)
+    private readonly settings: Repository<AppSetting>,
     @Optional() private readonly fmp?: FmpService,
   ) {}
+
+  /** app_settings key: when "1", ALL automated article generation is paused
+   *  (daily cron + boot refresh). Toggled from the admin route; survives
+   *  restarts because it lives in the DB, not an env var (George 2026-08-29:
+   *  "stop AI articles until I say"). */
+  private static readonly GEN_OFF_KEY = 'content_generation_off';
+
+  async isGenerationOff(): Promise<boolean> {
+    const row = await this.settings.findOne({
+      where: { key: ContentService.GEN_OFF_KEY },
+    });
+    return row?.value === '1';
+  }
+
+  async setGenerationOff(off: boolean): Promise<{ generationOff: boolean }> {
+    await this.settings.save(
+      this.settings.create({
+        key: ContentService.GEN_OFF_KEY,
+        value: off ? '1' : '0',
+      }),
+    );
+    return { generationOff: off };
+  }
 
   /** Latest published posts, newest first. */
   async list(opts: {
@@ -942,6 +968,12 @@ export class ContentService {
     staleOnly?: boolean;
     limit?: number;
   }): Promise<{ generated: number; skipped: number; errors: string[] }> {
+    // Global pause switch — see GEN_OFF_KEY. Covers the daily cron AND the boot
+    // refresh (both call this). Off by an admin toggle, on by another.
+    if (await this.isGenerationOff()) {
+      this.logger.warn('Content generation is PAUSED (content_generation_off=1) — skipping refresh.');
+      return { generated: 0, skipped: 0, errors: ['content generation paused'] };
+    }
     // Auto-expiring lock — on serverless a function killed at the time cap can
     // leave `refreshing` stuck; expire it after 2 min so it self-heals. Safe
     // because persist() upserts by slug (a concurrent run can't duplicate).

@@ -117,6 +117,21 @@ export class ContentController {
    *  slug. Body: { slug, title, summary, body, category, imageUrl?, imageAlt?,
    *  eyebrow?, tags?, featuredTickers?, ticker?, sector?, kind?, force? }.
    *  Refuses on any §10 checklist error unless `force: true`. */
+  /** Global pause switch for automated article generation (George 2026-08-29).
+   *  POST /content/generation?on=0 pauses all AI article creation (daily cron +
+   *  boot refresh) until POST .../generation?on=1. Persisted in the DB. */
+  @Post('generation')
+  @UseGuards(AdminTokenGuard)
+  async setGeneration(@Query('on') on?: string) {
+    return this.content.setGenerationOff(on !== '1');
+  }
+
+  /** Read the pause switch (public — no secret revealed). */
+  @Get('generation')
+  async getGeneration() {
+    return { generationOff: await this.content.isGenerationOff() };
+  }
+
   @Post('editorial')
   @UseGuards(AdminTokenGuard)
   async publishEditorial(
