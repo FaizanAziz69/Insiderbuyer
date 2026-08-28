@@ -147,6 +147,10 @@ export class DeInsidersService implements OnModuleInit {
     this.http = axios.create({
       timeout: 60_000,
       responseType: 'text',
+      // BaFin emits a multi-line Permissions-Policy header that Node's strict
+      // parser rejects ("Invalid header value char") — same workaround as the
+      // legacy bafin.client.ts.
+      insecureHTTPParser: true,
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; InsiderBuying/1.0)', Accept: 'text/csv,text/html;q=0.9,*/*;q=0.8' },
       maxRedirects: 5,
     });
