@@ -36,7 +36,7 @@ const THUMBS: Thumb[] = [
   { file: "ryan-cohen-alibaba-2", tickers: ["BABA"] },
   { file: "ackman-uber-stake", tickers: ["UBER"] },
   { file: "apple-500b-investment", tickers: ["AAPL"] },
-  { file: "englander-nvidia-etf", tickers: ["NVDA"] },
+  { file: "englander-nvidia-etf", tickers: ["NVDA"], kw: ["nvidia", "nvda"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
   { file: "burry-portrait-clean", tickers: ["BABA"], kw: ["burry", "scion", "share-sale"] },
   { file: "white-gold-donofrio-clean", pinnedOnly: true },
@@ -148,9 +148,9 @@ const SLUG_OVERRIDES: Record<string, string> = {
   "editorial-white-gold-corp-wgo-yukon-team-2026-08-27": "white-gold-district-map",
 };
 
-function candidatesFor(opts: ThumbInput): Thumb[] {
+function candidatesFor(opts: ThumbInput, ignorePin = false): Thumb[] {
   const seed = (opts.seed || "").toLowerCase();
-  const pin = SLUG_OVERRIDES[seed];
+  const pin = ignorePin ? undefined : SLUG_OVERRIDES[seed];
   if (pin) {
     const t = THUMBS.find((x) => x.file === pin);
     if (t) return [t];
@@ -222,13 +222,24 @@ export function assignEditorialThumbs(items: ThumbInput[]): Record<string, strin
   const out: Record<string, string | null> = {};
   items.forEach((item, i) => {
     const seed = (item.seed || `i${i}`).toLowerCase();
-    const cands = candidatesFor(item);
+    let cands = candidatesFor(item);
+    // A slug pin wins everywhere EXCEPT against another card in the same list
+    // already showing that file (George 2026-08-29: two NVIDIA stories, both
+    // pinned to the Jensen Huang photo, sat side by side in Top Stories).
+    // Then the pinned card falls back to its ticker/keyword candidates, taken
+    // best-fit first (no hash rotation — the rotation is for spreading the
+    // neutral pool, and here it skipped the NVIDIA cover for a Buffett one).
+    let pinFallback = false;
+    if (cands.length === 1 && SLUG_OVERRIDES[seed] && used.has(cands[0].file)) {
+      cands = candidatesFor(item, true);
+      pinFallback = true;
+    }
     if (!cands.length) {
       out[seed] = null;
       return;
     }
     // Rotate candidate order deterministically, then take the first unused.
-    const start = hash(seed) % cands.length;
+    const start = pinFallback ? 0 : hash(seed) % cands.length;
     let chosen: Thumb | null = null;
     for (let k = 0; k < cands.length; k++) {
       const c = cands[(start + k) % cands.length];

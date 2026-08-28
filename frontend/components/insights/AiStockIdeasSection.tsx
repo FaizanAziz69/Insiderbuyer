@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import { AiCoverImage } from "./AiCoverImage";
 import { assignUniquePhotos } from "@/lib/sector-photos";
+import { assignEditorialThumbs } from "@/lib/editorial-thumbs";
 import { bylineFor } from "@/lib/byline";
 import { articleLabel, articleLabels } from "@/lib/articleLabel";
 import { maskScoreInList } from "@/lib/sanitizeArticleHtml";
@@ -32,6 +33,11 @@ export function AiStockIdeasSection() {
   const items = maskScoreInList(data?.items || [], { unlocked });
   const big = items[0];
   const small = items.slice(1, 5);
+  // Editorial thumbs assigned list-wide so no two cards in this section share
+  // a cover (pins included — see assignEditorialThumbs).
+  const editorialThumbs = assignEditorialThumbs(
+    [big, ...small].filter(Boolean).map((it) => ({ seed: it.slug, ticker: it.ticker, sector: it.sector, tags: it.tags })),
+  );
   const covers = assignUniquePhotos(
     [big, ...small].filter(Boolean).map((it) => ({ seed: it.slug, sector: it.sector })),
   );
@@ -78,7 +84,7 @@ export function AiStockIdeasSection() {
         <EmptyHint />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-6 lg:gap-8">
-          {big && <BigCard item={big} src={covers[big.slug]} label={labels[big.slug]} />}
+          {big && <BigCard item={big} src={covers[big.slug]} editorialSrc={editorialThumbs[big.slug.toLowerCase()]} label={labels[big.slug]} />}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
             {small.map((it, i) => (
               <motion.div
@@ -88,7 +94,7 @@ export function AiStockIdeasSection() {
                 viewport={{ once: true, amount: 0.1 }}
                 transition={{ duration: 0.3, delay: 0.05 * i }}
               >
-                <SmallCard item={it} src={covers[it.slug]} label={labels[it.slug]} />
+                <SmallCard item={it} src={covers[it.slug]} editorialSrc={editorialThumbs[it.slug.toLowerCase()]} label={labels[it.slug]} />
               </motion.div>
             ))}
           </div>

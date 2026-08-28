@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { API_BASE, BlogListResponse, fetcher } from "@/lib/api";
 import { AiCoverImage } from "@/components/insights/AiCoverImage";
+import { assignEditorialThumbs } from "@/lib/editorial-thumbs";
 import { bylineFor } from "@/lib/byline";
 import { dealHomeFeed } from "@/lib/homeFeed";
 import { articleLabels } from "@/lib/articleLabel";
@@ -44,6 +45,11 @@ export function TopStoriesSection() {
   const items = maskScoreInList(dealHomeFeed(data?.items)["top-stories"], { unlocked });
   const lead = items[0];
   const rest = items.slice(1, 5);
+  // Editorial thumbs assigned list-wide so the lead and the four cards never
+  // share a cover (pins included — see assignEditorialThumbs).
+  const editorialThumbs = assignEditorialThumbs(
+    items.slice(0, 5).map((it) => ({ seed: it.slug, ticker: it.ticker, sector: it.sector, tags: it.tags })),
+  );
   // Per-article eyebrow wording, de-duplicated across the visible cards.
   const labels = articleLabels(items);
 
@@ -94,6 +100,7 @@ export function TopStoriesSection() {
               <AiCoverImage
                 primary={lead.imageUrl}
                 seed={lead.slug}
+                editorialSrc={editorialThumbs[lead.slug.toLowerCase()]}
                 tags={lead.tags}
                 ticker={lead.ticker}
                 sector={lead.sector}
@@ -131,6 +138,7 @@ export function TopStoriesSection() {
                   <AiCoverImage
                     primary={item.imageUrl}
                     seed={item.slug}
+                    editorialSrc={editorialThumbs[item.slug.toLowerCase()]}
                     tags={item.tags}
                     ticker={item.ticker}
                     sector={item.sector}
