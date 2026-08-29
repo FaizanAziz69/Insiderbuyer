@@ -39,6 +39,8 @@ const THUMBS: Thumb[] = [
   { file: "englander-nvidia-etf", tickers: ["NVDA"], kw: ["nvidia", "nvda"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
   { file: "burry-portrait-clean", tickers: ["BABA"], kw: ["burry", "scion", "share-sale"] },
+  // 2026-08-29: Durant / Hugging Face cover (client-supplied). Pinned to its editorial.
+  { file: "kevin-durant-hugging-face", pinnedOnly: true },
   { file: "white-gold-donofrio-clean", pinnedOnly: true },
   { file: "white-gold-district-map", pinnedOnly: true },
   // Specific topic
@@ -108,6 +110,8 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-08-29: Durant / Hugging Face / NVIDIA editorial (client cover).
+  "editorial-kevin-durant-hugging-face-nvidia-2026-08-29": "kevin-durant-hugging-face",
   // Stock Ideas (breaking-news picks, 2026-08-28): pinned so the card and the
   // article page show the exact topic-matched cover (pickEditorialThumb otherwise
   // hash-picks among candidates). Topic → image, per client.
