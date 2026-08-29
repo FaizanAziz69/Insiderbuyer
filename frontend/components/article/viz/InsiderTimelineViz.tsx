@@ -64,6 +64,31 @@ export function InsiderTimelineViz({
     { revalidateOnFocus: false, dedupingInterval: 5 * 60_000 },
   );
 
+  // Awards, gifts and exercises carry no transaction price (Form 4 reports
+  // $0), so Price/Value rendered as "—" and read as missing data. Show the
+  // market close on the filing date instead, marked ≈ so it is not mistaken
+  // for a price the insider paid.
+  const { data: hist } = useSWR<{
+    history: { bars: Array<{ date: string; close: number }> } | null;
+  }>(
+    `${API_BASE}/market-stats/history?symbol=${encodeURIComponent(sym)}&range=${
+      months > 12 ? "5y" : "1y"
+    }`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 },
+  );
+  const closeOn = (isoDate: string): number | null => {
+    const bars = hist?.history?.bars;
+    if (!bars?.length) return null;
+    const d = isoDate.slice(0, 10);
+    let best: number | null = null;
+    for (const b of bars) {
+      if (b.date <= d) best = b.close;
+      else break;
+    }
+    return best;
+  };
+
   if (isLoading && !data) return <VizSkeleton height={230} />;
   if (!data?.company) return null;
   // A company that does not file with the SEC has no Form 4 record BY
@@ -111,35 +136,53 @@ export function InsiderTimelineViz({
       }
     >
       {rows.length === 0 ? (
-        <div className="px-4 py-6 text-[13.5px]" style={{ color: "var(--text-soft)" }}>
+        <div
+          className="px-4 py-6 text-[13.5px]"
+          style={{ color: "var(--text-soft)" }}
+        >
           No Form 4 filings for {name} in the last {months} months.{" "}
-          <Link href={`/companies/${sym}`} className="text-accent hover:underline">
+          <Link
+            href={`/companies/${sym}`}
+            className="text-accent hover:underline"
+          >
             See the full filing history →
           </Link>
         </div>
       ) : (
-        <table className="w-full text-[13px]" style={{ borderCollapse: "collapse" }}>
+        <table
+          className="w-full text-[13px]"
+          style={{ borderCollapse: "collapse" }}
+        >
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              {["Date", "Insider", "Title", "Type", "Shares", "Price", "Value"].map(
-                (h, i) => (
-                  <th
-                    key={h}
-                    className="px-3 py-2 text-[10.5px] font-bold uppercase tracking-wider whitespace-nowrap"
-                    style={{
-                      color: "var(--text-mute)",
-                      textAlign: i >= 4 ? "right" : "left",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ),
-              )}
+              {[
+                "Date",
+                "Insider",
+                "Title",
+                "Type",
+                "Shares",
+                "Price",
+                "Value",
+              ].map((h, i) => (
+                <th
+                  key={h}
+                  className="px-3 py-2 text-[10.5px] font-bold uppercase tracking-wider whitespace-nowrap"
+                  style={{
+                    color: "var(--text-mute)",
+                    textAlign: i >= 4 ? "right" : "left",
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((t) => (
-              <tr key={t.id} style={{ borderBottom: "1px solid var(--border)" }}>
+              <tr
+                key={t.id}
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
                 <td className="px-3 py-2 whitespace-nowrap tabular">
                   {formatDate(t.transactionDate)}
                 </td>
@@ -175,12 +218,44 @@ export function InsiderTimelineViz({
                 <td className="px-3 py-2 text-right tabular whitespace-nowrap">
                   {formatNumber(Number(t.sharesBought))}
                 </td>
-                <td className="px-3 py-2 text-right tabular whitespace-nowrap">
-                  {t.priceSuspect ? "—" : `$${Number(t.pricePerShare).toFixed(2)}`}
-                </td>
-                <td className="px-3 py-2 text-right tabular whitespace-nowrap font-semibold">
-                  {t.priceSuspect ? "—" : formatCurrency(Number(t.totalValue))}
-                </td>
+                {(() => {
+                  if (!t.priceSuspect) {
+                    return (
+                      <>
+                        <td className="px-3 py-2 text-right tabular whitespace-nowrap">
+                          ${Number(t.pricePerShare).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular whitespace-nowrap font-semibold">
+                          {formatCurrency(Number(t.totalValue))}
+                        </td>
+                      </>
+                    );
+                  }
+                  const mkt = closeOn(t.transactionDate);
+                  const est = { color: "var(--text-soft)" } as const;
+                  const tip =
+                    "Market close on the filing date — not a price the insider paid";
+                  return (
+                    <>
+                      <td
+                        className="px-3 py-2 text-right tabular whitespace-nowrap"
+                        style={est}
+                        title={tip}
+                      >
+                        {mkt == null ? "—" : `≈$${mkt.toFixed(2)}`}
+                      </td>
+                      <td
+                        className="px-3 py-2 text-right tabular whitespace-nowrap font-semibold"
+                        style={est}
+                        title={tip}
+                      >
+                        {mkt == null
+                          ? "—"
+                          : `≈${formatCurrency(mkt * Number(t.sharesBought))}`}
+                      </td>
+                    </>
+                  );
+                })()}
               </tr>
             ))}
           </tbody>

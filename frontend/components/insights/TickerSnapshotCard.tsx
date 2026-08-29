@@ -2,12 +2,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { ArrowUpRight, Plus } from "lucide-react";
-import {
-  API_BASE,
-  CompanyDetail,
-  fetcher,
-  formatCurrency,
-} from "@/lib/api";
+import { API_BASE, CompanyDetail, fetcher, formatCurrency } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { TierBadge } from "@/components/TierBadge";
 import { PremiumValue } from "@/components/premium/PremiumValue";
@@ -120,16 +115,19 @@ export function KeyStatsGrid({ detail }: { detail: CompanyDetail }) {
           <span>{Number(s.iqs).toFixed(2)}</span>
         </PremiumValue>
       ) : (
-        "—"
+        <span style={{ color: "var(--text-mute)" }}>None</span>
       ),
     ],
-    ["Distinct Buyers", s ? String(s.distinctBuyers) : "—"],
-    ["Form 4 Buys", s ? String(s.transactionCount) : "—"],
+    // No score means no qualifying open-market buys — a fact, not a gap.
+    // "—" reads as missing data (client, 2026-08-29: "data missing hai"), so
+    // the buy counters print real zeros and the score cell says why.
+    ["Distinct Buyers", s ? String(s.distinctBuyers) : "0"],
+    ["Form 4 Buys", s ? String(s.transactionCount) : "0"],
     [
       "Insider $ Bought",
-      s ? formatCurrency(Number(s.totalPurchaseValue)) : "—",
+      s ? formatCurrency(Number(s.totalPurchaseValue)) : "$0",
     ],
-    ["Score As Of", s?.asOfDate || "—"],
+    ["Score As Of", s?.asOfDate || "No open-market buys"],
   ];
   return (
     <div className="grid grid-cols-2">

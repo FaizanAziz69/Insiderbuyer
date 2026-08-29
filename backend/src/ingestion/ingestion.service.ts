@@ -1,19 +1,19 @@
-import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Company } from '../entities/company.entity';
-import { InsiderTransaction } from '../entities/insider-transaction.entity';
-import { ProcessedFiling } from '../entities/processed-filing.entity';
-import { normalizeRole } from '../common/role.util';
-import { deriveCountry, cleanCity } from '../common/country.util';
-import { SecClient } from './sec.client';
-import { QuoteClient } from './quote.client';
-import { BafinClient, BafinDealing } from './bafin.client';
-import { IqsService } from '../iqs/iqs.service';
-import { MdaSentimentService } from '../iqs/mda-sentiment.service';
-import { MarketStatsService } from '../market-stats/market-stats.service';
-import { FmpService } from '../fmp/fmp.service';
+import { Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
+import { Cron } from "@nestjs/schedule";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Company } from "../entities/company.entity";
+import { InsiderTransaction } from "../entities/insider-transaction.entity";
+import { ProcessedFiling } from "../entities/processed-filing.entity";
+import { normalizeRole } from "../common/role.util";
+import { deriveCountry, cleanCity } from "../common/country.util";
+import { SecClient, SecFilingHit } from "./sec.client";
+import { QuoteClient } from "./quote.client";
+import { BafinClient, BafinDealing } from "./bafin.client";
+import { IqsService } from "../iqs/iqs.service";
+import { MdaSentimentService } from "../iqs/mda-sentiment.service";
+import { MarketStatsService } from "../market-stats/market-stats.service";
+import { FmpService } from "../fmp/fmp.service";
 
 /** Ceiling for a plausible per-share price. BRK-A (~$700k) is the priciest
  *  real stock ever, so anything above this is a Form 4 parse artifact. */
@@ -23,12 +23,14 @@ const MAX_PLAUSIBLE_PRICE = 1_000_000;
  *  ("Protagenic Therapeutics, Inc.\\new") or control characters — strip them
  *  so they never reach the UI or article copy. */
 function sanitizeName(raw: string): string {
-  return (raw || '')
-    .replace(/\\[nrt]?/g, ' ') // literal backslash escapes → space
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\x00-\x1f\x7f]/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  return (
+    (raw || "")
+      .replace(/\\[nrt]?/g, " ") // literal backslash escapes → space
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\x00-\x1f\x7f]/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+  );
 }
 
 @Injectable()
@@ -39,8 +41,10 @@ export class IngestionService implements OnModuleInit {
 
   constructor(
     @InjectRepository(Company) private readonly companies: Repository<Company>,
-    @InjectRepository(InsiderTransaction) private readonly txRepo: Repository<InsiderTransaction>,
-    @InjectRepository(ProcessedFiling) private readonly processedRepo: Repository<ProcessedFiling>,
+    @InjectRepository(InsiderTransaction)
+    private readonly txRepo: Repository<InsiderTransaction>,
+    @InjectRepository(ProcessedFiling)
+    private readonly processedRepo: Repository<ProcessedFiling>,
     private readonly sec: SecClient,
     private readonly quote: QuoteClient,
     private readonly bafin: BafinClient,
@@ -55,11 +59,15 @@ export class IngestionService implements OnModuleInit {
     // which outlives the invocation and burns database transfer on each one.
     // Scheduled ingestion there runs through vercel.json crons → /api/ingest/cron.
     if (process.env.VERCEL) return;
-    if ((process.env.INGEST_ON_BOOT || 'true') !== 'true') return;
-    setTimeout(() => this.runIngestion(30).catch((e) => this.logger.error(e?.message || e)), 2000);
+    if ((process.env.INGEST_ON_BOOT || "true") !== "true") return;
+    setTimeout(
+      () =>
+        this.runIngestion(30).catch((e) => this.logger.error(e?.message || e)),
+      2000,
+    );
   }
 
-  @Cron(process.env.INGEST_CRON || '0 */6 * * *')
+  @Cron(process.env.INGEST_CRON || "0 */6 * * *")
   async scheduled() {
     await this.runIngestion(3);
   }
@@ -67,31 +75,245 @@ export class IngestionService implements OnModuleInit {
   /** One-time backfill: rewrite legacy folder-index filing URLs to the exact
    *  XSL-rendered Form 4 document URL, so the table's filing link opens the
    *  actual Form 4. Deduped by accession; rate-limited for SEC. */
-  async backfillFilingUrls(batch = 120): Promise<{ scanned: number; updated: number }> {
+  async backfillFilingUrls(
+    batch = 120,
+  ): Promise<{ scanned: number; updated: number }> {
     const filings = await this.txRepo
-      .createQueryBuilder('t')
-      .select('t.accessionNumber', 'acc')
-      .addSelect('MIN(t.filingUrl)', 'url')
+      .createQueryBuilder("t")
+      .select("t.accessionNumber", "acc")
+      .addSelect("MIN(t.filingUrl)", "url")
       .where("t.filingUrl LIKE '%/'")
-      .groupBy('t.accessionNumber')
+      .groupBy("t.accessionNumber")
       .limit(batch)
       .getRawMany<{ acc: string; url: string }>();
     let updated = 0;
     for (const f of filings) {
-      const m = (f.url || '').match(/\/data\/(\d+)\//);
+      const m = (f.url || "").match(/\/data\/(\d+)\//);
       if (!m || !f.acc) continue;
       const doc = await this.sec.resolveForm4DocUrl(m[1], f.acc);
       if (doc) {
-        await this.txRepo.update({ accessionNumber: f.acc }, { filingUrl: doc });
+        await this.txRepo.update(
+          { accessionNumber: f.acc },
+          { filingUrl: doc },
+        );
         updated++;
       }
       await new Promise((res) => setTimeout(res, 120)); // ~8 req/s, SEC-friendly
     }
-    this.logger.log(`Filing-URL backfill: ${updated}/${filings.length} filings updated`);
+    this.logger.log(
+      `Filing-URL backfill: ${updated}/${filings.length} filings updated`,
+    );
     return { scanned: filings.length, updated };
   }
 
-  async runIngestion(daysBack = 7): Promise<{ filings: number; transactions: number; companies: number }> {
+  /**
+   * Parse one Form 4 filing and persist its transactions. Shared by the
+   * market-wide cron (`runIngestion`) and the per-issuer backfill
+   * (`ingestCompany`), so both paths apply the same guards and write the same
+   * rows. Idempotent: a filing already in `processed_filings` is skipped.
+   */
+  private async processFiling(
+    f: SecFilingHit,
+    seenCompanies: Set<string>,
+    summary: { filings: number; transactions: number; companies: number },
+  ): Promise<void> {
+    if (!f.cik || !f.accessionNo) return;
+
+    const alreadyProcessed = await this.processedRepo.findOne({
+      where: { accessionNumber: f.accessionNo },
+    });
+    if (alreadyProcessed) return;
+
+    try {
+      const xml = await this.sec.fetchForm4Xml(
+        f.cik,
+        f.accessionNo,
+        f.primaryDoc,
+      );
+      if (!xml) {
+        await this.processedRepo.save(
+          this.processedRepo.create({
+            accessionNumber: f.accessionNo,
+            qualifyingTransactions: 0,
+          }),
+        );
+        return;
+      }
+      const parsed = this.sec.parseForm4(xml);
+      if (!parsed || !parsed.transactions.length) {
+        await this.processedRepo.save(
+          this.processedRepo.create({
+            accessionNumber: f.accessionNo,
+            qualifyingTransactions: 0,
+          }),
+        );
+        return;
+      }
+
+      const issuerCik = parsed.issuerCik || f.cik;
+      const issuerName =
+        sanitizeName(parsed.issuerName || f.companyName || "") || "Unknown";
+      const issuerTicker = parsed.issuerTicker || f.ticker || null;
+
+      let company = await this.companies.findOne({ where: { cik: issuerCik } });
+      if (!company) {
+        company = this.companies.create({
+          cik: issuerCik,
+          ticker: issuerTicker,
+          name: issuerName,
+        });
+        company = await this.companies.save(company);
+      } else {
+        let dirty = false;
+        if (issuerTicker && !company.ticker) {
+          company.ticker = issuerTicker;
+          dirty = true;
+        }
+        if (issuerName && (!company.name || company.name === "Unknown")) {
+          company.name = issuerName;
+          dirty = true;
+        }
+        if (dirty) await this.companies.save(company);
+      }
+
+      seenCompanies.add(company.id);
+      // Link to the XSL-RENDERED Form 4 (human-readable HTML), not the raw
+      // XML doc or the folder index. SEC renders via the xslF345X05/ path.
+      const primaryDoc = f.primaryDoc
+        ? f.primaryDoc.startsWith("xsl")
+          ? f.primaryDoc
+          : `xslF345X05/${f.primaryDoc}`
+        : null;
+      const filingUrl = primaryDoc
+        ? this.sec.buildFilingDocUrl(issuerCik, f.accessionNo, primaryDoc)
+        : this.sec.buildFilingIndexUrl(issuerCik, f.accessionNo);
+
+      const insiderCity = cleanCity(parsed.ownerCity);
+      const insiderState = parsed.ownerState;
+      const insiderCountry = deriveCountry(
+        parsed.ownerState,
+        parsed.ownerStateDescription,
+      );
+
+      let qualifying = 0;
+      for (let i = 0; i < parsed.transactions.length; i++) {
+        const p = parsed.transactions[i];
+        // Data-quality guard: a price above ~$1M/share (BRK-A, the priciest
+        // real stock, is ~$700k) is a Form 4 XML parse artifact — skip it
+        // so garbage like "$40,000,000/share → $1600T" never gets stored.
+        if (
+          !Number.isFinite(p.pricePerShare) ||
+          p.pricePerShare > MAX_PLAUSIBLE_PRICE ||
+          !Number.isFinite(p.sharesBought) ||
+          p.sharesBought < 0
+        ) {
+          continue;
+        }
+        const role = normalizeRole(p.rawTitle, p.isDirector, p.isOfficer);
+        const totalValue = p.sharesBought * p.pricePerShare;
+        // Acquisitions reduce to post − shares; disposals held MORE before
+        // the transaction. Keyed off the filing's acquired/disposed flag
+        // rather than the code, since J can be either.
+        const disposed = p.acquiredDisposed === "D";
+        const previousHoldings = disposed
+          ? p.postHoldings + p.sharesBought
+          : Math.max(0, p.postHoldings - p.sharesBought);
+        await this.txRepo.save(
+          this.txRepo.create({
+            companyId: company.id,
+            insiderName: p.insiderName,
+            insiderCik: p.reportingOwnerCik ?? null,
+            role,
+            rawTitle: p.rawTitle,
+            insiderCity,
+            insiderState,
+            insiderCountry,
+            transactionDate: new Date(p.transactionDate),
+            transactionCode: p.transactionCode,
+            acquiredDisposed: p.acquiredDisposed,
+            plannedBuy: p.plannedBuy === true,
+            sharesBought: p.sharesBought,
+            pricePerShare: p.pricePerShare,
+            totalValue,
+            previousHoldings,
+            postHoldings: p.postHoldings,
+            accessionNumber: f.accessionNo,
+            lineNumber: i,
+            filingUrl,
+          }),
+        );
+        qualifying++;
+        summary.transactions++;
+      }
+
+      await this.processedRepo.save(
+        this.processedRepo.create({
+          accessionNumber: f.accessionNo,
+          qualifyingTransactions: qualifying,
+        }),
+      );
+    } catch (err: any) {
+      this.logger.warn(`Filing ${f.accessionNo}: ${err?.message || err}`);
+    }
+  }
+
+  /**
+   * Backfill one issuer's Form 4 history straight from its EDGAR submissions
+   * index. The daily cron reads the market-wide EFTS feed, which is capped and
+   * drops busy filers' history — NVIDIA held 3 rows for 2018–2026 while its
+   * insiders filed dozens of 10b5-1 sales. `rescore` re-runs IQS afterwards
+   * (only needed when purchases were added; sales do not move the score).
+   */
+  async ingestCompany(opts: {
+    ticker?: string;
+    cik?: string;
+    daysBack?: number;
+    rescore?: boolean;
+  }): Promise<{
+    cik: string;
+    filings: number;
+    transactions: number;
+    skipped: number;
+  }> {
+    const daysBack = Math.min(Math.max(opts.daysBack ?? 365, 1), 3650);
+    let cik = (opts.cik || "").replace(/\D/g, "");
+    if (!cik && opts.ticker) {
+      const c = await this.companies.findOne({
+        where: { ticker: opts.ticker.toUpperCase() },
+      });
+      cik = c?.cik || "";
+    }
+    if (!cik) throw new Error("ingestCompany: unknown ticker/cik");
+    const filings = await this.sec.listForm4ByCik(cik, daysBack);
+    this.logger.log(
+      `Company backfill ${opts.ticker || cik}: ${filings.length} Form 4s in ${daysBack}d`,
+    );
+    const summary = { filings: filings.length, transactions: 0, companies: 0 };
+    const seen = new Set<string>();
+    let skipped = 0;
+    for (const f of filings) {
+      const done = await this.processedRepo.findOne({
+        where: { accessionNumber: f.accessionNo },
+      });
+      if (done) {
+        skipped++;
+        continue;
+      }
+      await this.processFiling(f, seen, summary);
+      await this.delay(120);
+    }
+    if (opts.rescore) await this.iqs.recalculateAll();
+    return {
+      cik,
+      filings: filings.length,
+      transactions: summary.transactions,
+      skipped,
+    };
+  }
+
+  async runIngestion(
+    daysBack = 7,
+  ): Promise<{ filings: number; transactions: number; companies: number }> {
     // A serverless invocation killed at maxDuration never reaches the finally
     // below, and the warm instance then reports "running" forever — treat a
     // flag older than 6 minutes as stale rather than trusting it.
@@ -100,7 +322,8 @@ export class IngestionService implements OnModuleInit {
     }
     this.running = true;
     this.runningSince = Date.now();
-    const deadline = Date.now() + (Number(process.env.INGEST_BUDGET_MS) || 50000);
+    const deadline =
+      Date.now() + (Number(process.env.INGEST_BUDGET_MS) || 50000);
     const summary = { filings: 0, transactions: 0, companies: 0 };
     try {
       this.logger.log(`Fetching SEC Form 4 filings (${daysBack}d back)...`);
@@ -112,159 +335,48 @@ export class IngestionService implements OnModuleInit {
 
       for (const f of filings) {
         if (Date.now() > deadline) {
-          this.logger.warn('Deadline reached, stopping early');
+          this.logger.warn("Deadline reached, stopping early");
           break;
         }
-        if (!f.cik || !f.accessionNo) continue;
-
-        const alreadyProcessed = await this.processedRepo.findOne({
-          where: { accessionNumber: f.accessionNo },
-        });
-        if (alreadyProcessed) continue;
-
-        try {
-          const xml = await this.sec.fetchForm4Xml(f.cik, f.accessionNo, f.primaryDoc);
-          if (!xml) {
-            await this.processedRepo.save(
-              this.processedRepo.create({ accessionNumber: f.accessionNo, qualifyingTransactions: 0 }),
-            );
-            continue;
-          }
-          const parsed = this.sec.parseForm4(xml);
-          if (!parsed || !parsed.transactions.length) {
-            await this.processedRepo.save(
-              this.processedRepo.create({ accessionNumber: f.accessionNo, qualifyingTransactions: 0 }),
-            );
-            continue;
-          }
-
-          const issuerCik = parsed.issuerCik || f.cik;
-          const issuerName = sanitizeName(parsed.issuerName || f.companyName || '') || 'Unknown';
-          const issuerTicker = parsed.issuerTicker || f.ticker || null;
-
-          let company = await this.companies.findOne({ where: { cik: issuerCik } });
-          if (!company) {
-            company = this.companies.create({
-              cik: issuerCik,
-              ticker: issuerTicker,
-              name: issuerName,
-            });
-            company = await this.companies.save(company);
-          } else {
-            let dirty = false;
-            if (issuerTicker && !company.ticker) {
-              company.ticker = issuerTicker;
-              dirty = true;
-            }
-            if (issuerName && (!company.name || company.name === 'Unknown')) {
-              company.name = issuerName;
-              dirty = true;
-            }
-            if (dirty) await this.companies.save(company);
-          }
-
-          seenCompanies.add(company.id);
-          // Link to the XSL-RENDERED Form 4 (human-readable HTML), not the raw
-          // XML doc or the folder index. SEC renders via the xslF345X05/ path.
-          const primaryDoc = f.primaryDoc
-            ? f.primaryDoc.startsWith('xsl')
-              ? f.primaryDoc
-              : `xslF345X05/${f.primaryDoc}`
-            : null;
-          const filingUrl = primaryDoc
-            ? this.sec.buildFilingDocUrl(issuerCik, f.accessionNo, primaryDoc)
-            : this.sec.buildFilingIndexUrl(issuerCik, f.accessionNo);
-
-          const insiderCity = cleanCity(parsed.ownerCity);
-          const insiderState = parsed.ownerState;
-          const insiderCountry = deriveCountry(parsed.ownerState, parsed.ownerStateDescription);
-
-          let qualifying = 0;
-          for (let i = 0; i < parsed.transactions.length; i++) {
-            const p = parsed.transactions[i];
-            // Data-quality guard: a price above ~$1M/share (BRK-A, the priciest
-            // real stock, is ~$700k) is a Form 4 XML parse artifact — skip it
-            // so garbage like "$40,000,000/share → $1600T" never gets stored.
-            if (
-              !Number.isFinite(p.pricePerShare) ||
-              p.pricePerShare > MAX_PLAUSIBLE_PRICE ||
-              !Number.isFinite(p.sharesBought) ||
-              p.sharesBought < 0
-            ) {
-              continue;
-            }
-            const role = normalizeRole(p.rawTitle, p.isDirector, p.isOfficer);
-            const totalValue = p.sharesBought * p.pricePerShare;
-            // Acquisitions reduce to post − shares; disposals held MORE before
-            // the transaction. Keyed off the filing's acquired/disposed flag
-            // rather than the code, since J can be either.
-            const disposed = p.acquiredDisposed === 'D';
-            const previousHoldings = disposed
-              ? p.postHoldings + p.sharesBought
-              : Math.max(0, p.postHoldings - p.sharesBought);
-            await this.txRepo.save(
-              this.txRepo.create({
-                companyId: company.id,
-                insiderName: p.insiderName,
-                insiderCik: p.reportingOwnerCik ?? null,
-                role,
-                rawTitle: p.rawTitle,
-                insiderCity,
-                insiderState,
-                insiderCountry,
-                transactionDate: new Date(p.transactionDate),
-                transactionCode: p.transactionCode,
-                acquiredDisposed: p.acquiredDisposed,
-                plannedBuy: p.plannedBuy === true,
-                sharesBought: p.sharesBought,
-                pricePerShare: p.pricePerShare,
-                totalValue,
-                previousHoldings,
-                postHoldings: p.postHoldings,
-                accessionNumber: f.accessionNo,
-                lineNumber: i,
-                filingUrl,
-              }),
-            );
-            qualifying++;
-            summary.transactions++;
-          }
-
-          await this.processedRepo.save(
-            this.processedRepo.create({
-              accessionNumber: f.accessionNo,
-              qualifyingTransactions: qualifying,
-            }),
-          );
-        } catch (err: any) {
-          this.logger.warn(`Filing ${f.accessionNo}: ${err?.message || err}`);
-        }
+        await this.processFiling(f, seenCompanies, summary);
         await this.delay(80);
       }
 
       summary.companies = seenCompanies.size;
-      this.logger.log(`Enriching ${seenCompanies.size} companies from SEC companyfacts...`);
+      this.logger.log(
+        `Enriching ${seenCompanies.size} companies from SEC companyfacts...`,
+      );
       for (const companyId of seenCompanies) {
-        const company = await this.companies.findOne({ where: { id: companyId } });
+        const company = await this.companies.findOne({
+          where: { id: companyId },
+        });
         if (!company) continue;
 
         const facts = await this.quote.fetchSecFacts(company.cik);
         if (facts?.sicDescription) company.sector = facts.sicDescription;
 
         // Dilution component (IQ v2): trailing-12-month share-count growth.
-        if (facts?.sharesOutstanding && facts?.sharesOutstandingYearAgo && facts.sharesOutstandingYearAgo > 0) {
-          company.dilutionPctTtm =
-            +(facts.sharesOutstanding / facts.sharesOutstandingYearAgo - 1).toFixed(6);
+        if (
+          facts?.sharesOutstanding &&
+          facts?.sharesOutstandingYearAgo &&
+          facts.sharesOutstandingYearAgo > 0
+        ) {
+          company.dilutionPctTtm = +(
+            facts.sharesOutstanding / facts.sharesOutstandingYearAgo -
+            1
+          ).toFixed(6);
         }
         // §2G denominator — persist the REAL share count for the scorer.
         if (facts?.sharesOutstanding) {
-          company.sharesOutstanding = Math.round(Number(facts.sharesOutstanding));
+          company.sharesOutstanding = Math.round(
+            Number(facts.sharesOutstanding),
+          );
         }
 
         const latestTx = await this.txRepo
-          .createQueryBuilder('t')
-          .where('t.company_id = :id', { id: company.id })
-          .orderBy('t.transactionDate', 'DESC')
+          .createQueryBuilder("t")
+          .where("t.company_id = :id", { id: company.id })
+          .orderBy("t.transactionDate", "DESC")
           .limit(1)
           .getOne();
         if (latestTx) company.lastPrice = Number(latestTx.pricePerShare);
@@ -287,7 +399,9 @@ export class IngestionService implements OnModuleInit {
           facts.sharesOutstanding >= 100_000 &&
           company.lastPrice
         ) {
-          const mc = Math.round(Number(facts.sharesOutstanding) * Number(company.lastPrice));
+          const mc = Math.round(
+            Number(facts.sharesOutstanding) * Number(company.lastPrice),
+          );
           if (mc > 0) company.marketCap = String(mc);
         }
         const capNum = Number(company.marketCap) || 0;
@@ -295,7 +409,10 @@ export class IngestionService implements OnModuleInit {
         const px = Number(company.lastPrice) || 0;
         if (capNum > 0 && shs > 0 && px > 0) {
           const implied = shs * px;
-          if (Math.abs(capNum - implied) / capNum > 0.25 && capNum < 1_000_000) {
+          if (
+            Math.abs(capNum - implied) / capNum > 0.25 &&
+            capNum < 1_000_000
+          ) {
             this.logger.warn(
               `Quarantining implausible market cap for ${company.ticker || company.cik}: ` +
                 `stored ${capNum} vs implied ${Math.round(implied)}`,
@@ -305,12 +422,14 @@ export class IngestionService implements OnModuleInit {
         }
         // Canonical sector/industry for the sector-sentiment mapper — FMP's
         // GICS-style strings resolve where raw SIC descriptions don't.
-        if (fmpProfile?.sector && !company.sector) company.sector = fmpProfile.sector;
-        if (fmpProfile?.industry && !company.industry) company.industry = fmpProfile.industry;
+        if (fmpProfile?.sector && !company.sector)
+          company.sector = fmpProfile.sector;
+        if (fmpProfile?.industry && !company.industry)
+          company.industry = fmpProfile.industry;
         // Canadian-HQ issuers filing SEC Form 4s power the "Canada" exchange
         // tab (SEDI itself has no accessible feed).
-        if (fmpProfile?.country === 'CA' && company.exchange === 'US') {
-          company.exchange = 'CA';
+        if (fmpProfile?.country === "CA" && company.exchange === "US") {
+          company.exchange = "CA";
         }
 
         await this.companies.save(company);
@@ -325,11 +444,14 @@ export class IngestionService implements OnModuleInit {
       // 2026-08-28: superseded by DeInsidersModule (full BaFin database, every
       // 2h, no issuer cap). Opt back in with GERMAN_INGEST=true only if that
       // module is disabled — two writers would race on the same trades.
-      if (process.env.GERMAN_INGEST === 'true') {
+      if (process.env.GERMAN_INGEST === "true") {
         try {
-          const slices = ['ABCD', 'EFGH', 'IJKL', 'MNOP', 'QRST', 'UVWX', 'YZ'];
+          const slices = ["ABCD", "EFGH", "IJKL", "MNOP", "QRST", "UVWX", "YZ"];
           const dayIdx = new Date().getUTCDate() % slices.length;
-          await this.ingestGermanDealings({ letters: slices[dayIdx], rescore: false });
+          await this.ingestGermanDealings({
+            letters: slices[dayIdx],
+            rescore: false,
+          });
         } catch (e: any) {
           this.logger.warn(`German cron slice failed: ${e?.message || e}`);
         }
@@ -351,7 +473,9 @@ export class IngestionService implements OnModuleInit {
       try {
         await this.repairCompanyFacts({ limit: 200 });
       } catch (e: any) {
-        this.logger.warn(`Company-facts repair slice failed: ${e?.message || e}`);
+        this.logger.warn(
+          `Company-facts repair slice failed: ${e?.message || e}`,
+        );
       }
 
       this.logger.log(`Computing IQS scores...`);
@@ -368,12 +492,12 @@ export class IngestionService implements OnModuleInit {
    *  distinct Form 4 and updates all its rows. */
   async backfillLocations(): Promise<{ filings: number; updated: number }> {
     const rows = await this.txRepo
-      .createQueryBuilder('t')
-      .select('t."accessionNumber"', 'acc')
-      .addSelect('t.company_id', 'cid')
+      .createQueryBuilder("t")
+      .select('t."accessionNumber"', "acc")
+      .addSelect("t.company_id", "cid")
       .where('t."insiderCountry" IS NULL')
       .groupBy('t."accessionNumber"')
-      .addGroupBy('t.company_id')
+      .addGroupBy("t.company_id")
       .getRawMany<{ acc: string; cid: string }>();
 
     let filings = 0;
@@ -382,7 +506,7 @@ export class IngestionService implements OnModuleInit {
       const company = await this.companies.findOne({ where: { id: r.cid } });
       if (!company) continue;
       try {
-        const xml = await this.sec.fetchForm4Xml(company.cik, r.acc, '');
+        const xml = await this.sec.fetchForm4Xml(company.cik, r.acc, "");
         if (!xml) continue;
         const parsed = this.sec.parseForm4(xml);
         if (!parsed) continue;
@@ -392,7 +516,10 @@ export class IngestionService implements OnModuleInit {
           {
             insiderCity: cleanCity(parsed.ownerCity),
             insiderState: parsed.ownerState,
-            insiderCountry: deriveCountry(parsed.ownerState, parsed.ownerStateDescription),
+            insiderCountry: deriveCountry(
+              parsed.ownerState,
+              parsed.ownerStateDescription,
+            ),
           },
         );
         updated += res.affected || 0;
@@ -401,7 +528,9 @@ export class IngestionService implements OnModuleInit {
       }
       await this.delay(120);
     }
-    this.logger.log(`Location backfill: ${updated} rows across ${filings} filings.`);
+    this.logger.log(
+      `Location backfill: ${updated} rows across ${filings} filings.`,
+    );
     return { filings, updated };
   }
 
@@ -418,18 +547,18 @@ export class IngestionService implements OnModuleInit {
   /** Map BaFin "Nature of transaction" → our P (buy) / S (sell) code, or null
    *  to skip (grants, exercises, pledges — not directional open-market trades
    *  we can score honestly). */
-  private mapNature(nature: string): 'P' | 'S' | null {
-    const n = (nature || '').toLowerCase();
-    if (/(buy|purchase|acquisition|subscription)/.test(n)) return 'P';
-    if (/(sell|sale|disposal)/.test(n)) return 'S';
+  private mapNature(nature: string): "P" | "S" | null {
+    const n = (nature || "").toLowerCase();
+    if (/(buy|purchase|acquisition|subscription)/.test(n)) return "P";
+    if (/(sell|sale|disposal)/.test(n)) return "S";
     return null;
   }
 
   /** Map BaFin "Position / status" → our InsiderRole. We can't tell CEO/CFO
    *  from the category, so executives map to 'Other' (honest) and the
    *  supervisory board to 'Director'. */
-  private mapRole(position: string): 'Director' | 'Other' {
-    return /supervis/i.test(position || '') ? 'Director' : 'Other';
+  private mapRole(position: string): "Director" | "Other" {
+    return /supervis/i.test(position || "") ? "Director" : "Other";
   }
 
   private shortHash(s: string): string {
@@ -451,9 +580,12 @@ export class IngestionService implements OnModuleInit {
       // Reject ISIN-as-symbol results (e.g. "DE000A460Q50.SG") — an ISIN is
       // not a ticker, and storing one breaks every quote/profile lookup.
       const isIsin = (sym: string) => /^[A-Z]{2}[A-Z0-9]{9,10}\./i.test(sym);
-      const de = results.find((r) => /\.DE$/i.test(r.symbol) && !isIsin(r.symbol));
+      const de = results.find(
+        (r) => /\.DE$/i.test(r.symbol) && !isIsin(r.symbol),
+      );
       const other = results.find(
-        (r) => /\.(F|MU|SG|DU|BE|HM|HA|STU)$/i.test(r.symbol) && !isIsin(r.symbol),
+        (r) =>
+          /\.(F|MU|SG|DU|BE|HM|HA|STU)$/i.test(r.symbol) && !isIsin(r.symbol),
       );
       ticker = de?.symbol || other?.symbol || null;
     } catch {
@@ -477,8 +609,10 @@ export class IngestionService implements OnModuleInit {
     skippedNoTicker: number;
   }> {
     const maxIssuers = opts?.maxIssuers ?? 120;
-    const letters = opts?.letters || 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    this.logger.log(`German (BaFin) ingestion: fetching directors' dealings [${letters}]…`);
+    const letters = opts?.letters || "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    this.logger.log(
+      `German (BaFin) ingestion: fetching directors' dealings [${letters}]…`,
+    );
     const rows = await this.bafin.fetchAllDealings(letters);
     this.logger.log(`BaFin: ${rows.length} total dealings fetched.`);
 
@@ -527,7 +661,7 @@ export class IngestionService implements OnModuleInit {
           cik,
           ticker,
           name: sanitizeName(head.issuer),
-          exchange: 'DE',
+          exchange: "DE",
         });
         company = await this.companies.save(company);
       } else {
@@ -536,8 +670,8 @@ export class IngestionService implements OnModuleInit {
           company.ticker = ticker;
           dirty = true;
         }
-        if (company.exchange !== 'DE') {
-          company.exchange = 'DE';
+        if (company.exchange !== "DE") {
+          company.exchange = "DE";
           dirty = true;
         }
         if (dirty) await this.companies.save(company);
@@ -548,9 +682,9 @@ export class IngestionService implements OnModuleInit {
       const existing = new Set(
         (
           await this.txRepo
-            .createQueryBuilder('t')
-            .select('t.accessionNumber', 'acc')
-            .where('t.company_id = :id', { id: company.id })
+            .createQueryBuilder("t")
+            .select("t.accessionNumber", "acc")
+            .where("t.company_id = :id", { id: company.id })
             .getRawMany<{ acc: string }>()
         ).map((r) => r.acc),
       );
@@ -562,20 +696,21 @@ export class IngestionService implements OnModuleInit {
         if (!code || !d.transactionDate) continue;
         const shares = d.avgPrice > 0 ? d.volumeEur / d.avgPrice : 0;
         if (!(shares > 0)) continue;
-        const acc = `B${d.bafinId}-${d.transactionDate.replace(/-/g, '')}-${this.shortHash(
-          `${d.insiderName}|${d.volumeEur}|${d.nature}|${d.avgPrice}`,
-        )}`.slice(0, 64);
+        const acc =
+          `B${d.bafinId}-${d.transactionDate.replace(/-/g, "")}-${this.shortHash(
+            `${d.insiderName}|${d.volumeEur}|${d.nature}|${d.avgPrice}`,
+          )}`.slice(0, 64);
         if (existing.has(acc)) continue;
         existing.add(acc);
         await this.txRepo.save(
           this.txRepo.create({
             companyId: company.id,
-            insiderName: d.insiderName || 'Undisclosed',
+            insiderName: d.insiderName || "Undisclosed",
             role: this.mapRole(d.position),
             rawTitle: d.position || null,
             insiderCity: null,
             insiderState: null,
-            insiderCountry: 'Germany',
+            insiderCountry: "Germany",
             transactionDate: new Date(d.transactionDate),
             transactionCode: code,
             sharesBought: shares,
@@ -608,9 +743,11 @@ export class IngestionService implements OnModuleInit {
           // Real sector/industry for .DE tickers (v7 quote omits it).
           this.marketStats.getCompanyProfiles(tickers),
         ]);
-        const deCompanies = await this.companies.find({ where: { exchange: 'DE' } });
+        const deCompanies = await this.companies.find({
+          where: { exchange: "DE" },
+        });
         for (const c of deCompanies) {
-          const sym = c.ticker ? c.ticker.toUpperCase() : '';
+          const sym = c.ticker ? c.ticker.toUpperCase() : "";
           const q = sym ? quotes.get(sym) : null;
           const prof = sym ? profiles.get(sym) : null;
           let dirty = false;
@@ -643,7 +780,9 @@ export class IngestionService implements OnModuleInit {
         }
       }
     } catch (e: any) {
-      this.logger.warn(`German market-data backfill failed: ${e?.message || e}`);
+      this.logger.warn(
+        `German market-data backfill failed: ${e?.message || e}`,
+      );
     }
 
     this.logger.log(
@@ -653,7 +792,7 @@ export class IngestionService implements OnModuleInit {
     // Rescore only when explicitly asked — chunked serverless calls should
     // rescore once at the end (via POST /iqs/recalculate) to fit the 60s budget.
     if (opts?.rescore === true) {
-      this.logger.log('Rescoring after German ingestion…');
+      this.logger.log("Rescoring after German ingestion…");
       await this.iqs.recalculateAll();
     }
 
@@ -673,7 +812,7 @@ export class IngestionService implements OnModuleInit {
     onlyMissing?: boolean;
   }): Promise<{ scanned: number; updated: number; remaining: number }> {
     const onlyMissing = opts?.onlyMissing !== false;
-    const all = await this.companies.find({ where: { exchange: 'DE' } });
+    const all = await this.companies.find({ where: { exchange: "DE" } });
     const pending = onlyMissing ? all.filter((c) => !c.sector) : all;
     const batch = pending.slice(0, opts?.limit ?? 60);
     const tickers = batch.map((c) => c.ticker).filter((t): t is string => !!t);
@@ -716,7 +855,9 @@ export class IngestionService implements OnModuleInit {
       .where('"pricePerShare" > :max', { max: MAX_PLAUSIBLE_PRICE })
       .execute();
     const deleted = res.affected ?? 0;
-    this.logger.log(`Cleanup: deleted ${deleted} transactions with implausible price.`);
+    this.logger.log(
+      `Cleanup: deleted ${deleted} transactions with implausible price.`,
+    );
     return { deleted };
   }
 
@@ -728,11 +869,13 @@ export class IngestionService implements OnModuleInit {
   }): Promise<{ scanned: number; updated: number; remaining: number }> {
     const onlyMissing = opts?.onlyMissing !== false;
     const scored = await this.companies
-      .createQueryBuilder('c')
-      .innerJoin('iqs_scores', 's', 's.company_id = c.id')
-      .where('c.exchange = :ex', { ex: 'US' })
+      .createQueryBuilder("c")
+      .innerJoin("iqs_scores", "s", "s.company_id = c.id")
+      .where("c.exchange = :ex", { ex: "US" })
       .getMany();
-    const pending = onlyMissing ? scored.filter((c) => c.dilutionPctTtm == null) : scored;
+    const pending = onlyMissing
+      ? scored.filter((c) => c.dilutionPctTtm == null)
+      : scored;
     const batch = pending.slice(0, opts?.limit ?? 40);
     let updated = 0;
     for (const c of batch) {
@@ -757,8 +900,15 @@ export class IngestionService implements OnModuleInit {
         }
         if (!dirty) {
           const facts = await this.quote.fetchSecFacts(c.cik);
-          if (facts?.sharesOutstanding && facts?.sharesOutstandingYearAgo && facts.sharesOutstandingYearAgo > 0) {
-            c.dilutionPctTtm = +(facts.sharesOutstanding / facts.sharesOutstandingYearAgo - 1).toFixed(6);
+          if (
+            facts?.sharesOutstanding &&
+            facts?.sharesOutstandingYearAgo &&
+            facts.sharesOutstandingYearAgo > 0
+          ) {
+            c.dilutionPctTtm = +(
+              facts.sharesOutstanding / facts.sharesOutstandingYearAgo -
+              1
+            ).toFixed(6);
             c.sharesOutstanding = Math.round(Number(facts.sharesOutstanding));
             dirty = true;
           }
@@ -790,11 +940,19 @@ export class IngestionService implements OnModuleInit {
     /** Cursor: skip companies already refreshed this pass (by ticker > after). */
     after?: string;
   }): Promise<{
-    scanned: number; capFixed: number; sectorFixed: number; sharesFixed: number;
-    remaining: number; cursor: string | null;
+    scanned: number;
+    capFixed: number;
+    sectorFixed: number;
+    sharesFixed: number;
+    remaining: number;
+    cursor: string | null;
   }> {
     const out = {
-      scanned: 0, capFixed: 0, sectorFixed: 0, sharesFixed: 0, remaining: 0,
+      scanned: 0,
+      capFixed: 0,
+      sectorFixed: 0,
+      sharesFixed: 0,
+      remaining: 0,
       cursor: null as string | null,
     };
     if (!this.fmp?.enabled) return out;
@@ -802,16 +960,16 @@ export class IngestionService implements OnModuleInit {
     // still reaches the UI through the trades feed and company profile
     // (CHWY's $1,949 cap lived on an unscored row).
     const all = await this.companies
-      .createQueryBuilder('c')
-      .leftJoin('iqs_scores', 's', 's.company_id = c.id')
-      .where('c.ticker IS NOT NULL')
-      .orderBy('CASE WHEN s.id IS NULL THEN 1 ELSE 0 END', 'ASC')
+      .createQueryBuilder("c")
+      .leftJoin("iqs_scores", "s", "s.company_id = c.id")
+      .where("c.ticker IS NOT NULL")
+      .orderBy("CASE WHEN s.id IS NULL THEN 1 ELSE 0 END", "ASC")
       .getMany();
     const wantAll = opts?.all === true;
-    const after = opts?.after || '';
+    const after = opts?.after || "";
     const sortedAll = all
-      .filter((c) => (c.ticker || '') > after)
-      .sort((a, b) => (a.ticker || '').localeCompare(b.ticker || ''));
+      .filter((c) => (c.ticker || "") > after)
+      .sort((a, b) => (a.ticker || "").localeCompare(b.ticker || ""));
     const needy = wantAll
       ? sortedAll
       : sortedAll.filter((c) => {
@@ -839,7 +997,11 @@ export class IngestionService implements OnModuleInit {
             out.capFixed++;
             dirty = true;
           }
-          if (prof.price && prof.price > 0 && Number(c.lastPrice) !== prof.price) {
+          if (
+            prof.price &&
+            prof.price > 0 &&
+            Number(c.lastPrice) !== prof.price
+          ) {
             c.lastPrice = prof.price;
             dirty = true;
           }
@@ -853,8 +1015,8 @@ export class IngestionService implements OnModuleInit {
           c.industry = prof.industry;
           dirty = true;
         }
-        if (prof?.country === 'CA' && c.exchange === 'US') {
-          c.exchange = 'CA';
+        if (prof?.country === "CA" && c.exchange === "US") {
+          c.exchange = "CA";
           dirty = true;
         }
         if (!(Number(c.sharesOutstanding) > 0)) {
@@ -886,12 +1048,14 @@ export class IngestionService implements OnModuleInit {
     // transactionCount > 0 — sells-only rows never rank) — no point spending
     // LLM calls on names that never rank.
     const scored = await this.companies
-      .createQueryBuilder('c')
-      .innerJoin('iqs_scores', 's', 's.company_id = c.id')
-      .where('c.exchange = :ex', { ex: 'US' })
+      .createQueryBuilder("c")
+      .innerJoin("iqs_scores", "s", "s.company_id = c.id")
+      .where("c.exchange = :ex", { ex: "US" })
       .andWhere('s."transactionCount" > 0')
       .getMany();
-    const pending = onlyMissing ? scored.filter((c) => c.mdaSentiment == null) : scored;
+    const pending = onlyMissing
+      ? scored.filter((c) => c.mdaSentiment == null)
+      : scored;
     const batch = pending.slice(0, opts?.limit ?? 12);
     let updated = 0;
     for (const c of batch) {
@@ -904,7 +1068,9 @@ export class IngestionService implements OnModuleInit {
           updated++;
         }
       } catch (e: any) {
-        this.logger.debug?.(`MD&A backfill failed for ${c.ticker}: ${e?.message || e}`);
+        this.logger.debug?.(
+          `MD&A backfill failed for ${c.ticker}: ${e?.message || e}`,
+        );
       }
     }
     return {

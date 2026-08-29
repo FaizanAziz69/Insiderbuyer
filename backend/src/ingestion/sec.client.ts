@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import axios, { AxiosInstance } from 'axios';
-import * as https from 'https';
-import { XMLParser } from 'fast-xml-parser';
+import { Injectable } from "@nestjs/common";
+import axios, { AxiosInstance } from "axios";
+import * as https from "https";
+import { XMLParser } from "fast-xml-parser";
 
 export interface SecFilingHit {
   accessionNo: string;
@@ -26,7 +26,7 @@ export interface SecFilingHit {
  *   G  gift
  *   J  other acquisition or disposition — how private placements usually appear
  */
-const KEPT_CODES = new Set(['P', 'S', 'A', 'M', 'X', 'F', 'C', 'G', 'J']);
+const KEPT_CODES = new Set(["P", "S", "A", "M", "X", "F", "C", "G", "J"]);
 
 export interface ParsedTransaction {
   insiderName: string;
@@ -69,28 +69,32 @@ export class SecClient {
   private readonly xml: XMLParser;
 
   constructor() {
-    const userAgent = process.env.SEC_USER_AGENT || 'IQS Dashboard contact@iqs.local';
+    const userAgent =
+      process.env.SEC_USER_AGENT || "IQS Dashboard contact@iqs.local";
     this.http = axios.create({
       timeout: 20000,
       // Force IPv4 — Node intermittently resolves SEC hosts to IPv6 and fails
       // (AggregateError/ETIMEDOUT) while IPv4 works.
       httpsAgent: new https.Agent({ family: 4, keepAlive: true }),
       headers: {
-        'User-Agent': userAgent,
-        'Accept-Encoding': 'gzip, deflate',
+        "User-Agent": userAgent,
+        "Accept-Encoding": "gzip, deflate",
         Host: undefined,
       },
     });
     this.xml = new XMLParser({
       ignoreAttributes: false,
-      attributeNamePrefix: '@_',
+      attributeNamePrefix: "@_",
       parseTagValue: true,
       trimValues: true,
     });
   }
 
-  async searchRecentForm4(daysBack = 7, maxTotal = 4000): Promise<SecFilingHit[]> {
-    const url = 'https://efts.sec.gov/LATEST/search-index';
+  async searchRecentForm4(
+    daysBack = 7,
+    maxTotal = 4000,
+  ): Promise<SecFilingHit[]> {
+    const url = "https://efts.sec.gov/LATEST/search-index";
     const pageSize = 100;
     const out: SecFilingHit[] = [];
     const seen = new Set<string>();
@@ -103,17 +107,19 @@ export class SecClient {
 
     for (let c = 0; c < totalChunks && out.length < maxTotal; c++) {
       const endDate = new Date(today.getTime() - c * chunkDays * 86400000);
-      const startDate = new Date(today.getTime() - (c + 1) * chunkDays * 86400000 + 86400000);
+      const startDate = new Date(
+        today.getTime() - (c + 1) * chunkDays * 86400000 + 86400000,
+      );
       const dateFrom = fmt(startDate);
       const dateTo = fmt(endDate);
 
       for (let from = 0; from < 2000; from += pageSize) {
         const params = {
-          q: '',
-          dateRange: 'custom',
+          q: "",
+          dateRange: "custom",
           startdt: dateFrom,
           enddt: dateTo,
-          forms: '4',
+          forms: "4",
           from,
           size: pageSize,
         };
@@ -128,22 +134,24 @@ export class SecClient {
 
         for (const h of hits) {
           const src = h._source || {};
-          const accessionNo = (h._id || '').split(':')[0] || src.adsh || '';
+          const accessionNo = (h._id || "").split(":")[0] || src.adsh || "";
           if (!accessionNo || seen.has(accessionNo)) continue;
           seen.add(accessionNo);
-          const cik = Array.isArray(src.ciks) ? src.ciks[0] : src.ciks || '';
-          const ticker = Array.isArray(src.tickers) ? src.tickers[0] : src.tickers || null;
+          const cik = Array.isArray(src.ciks) ? src.ciks[0] : src.ciks || "";
+          const ticker = Array.isArray(src.tickers)
+            ? src.tickers[0]
+            : src.tickers || null;
           const name = Array.isArray(src.display_names)
-            ? (src.display_names[0] || '').replace(/\s+\(.*\)\s*$/, '')
-            : src.display_names || '';
-          const primaryDoc = (h._id || '').split(':')[1] || '';
+            ? (src.display_names[0] || "").replace(/\s+\(.*\)\s*$/, "")
+            : src.display_names || "";
+          const primaryDoc = (h._id || "").split(":")[1] || "";
           out.push({
             accessionNo,
-            cik: String(cik).replace(/^0+/, ''),
+            cik: String(cik).replace(/^0+/, ""),
             ticker: ticker ? String(ticker).toUpperCase() : null,
             companyName: name,
-            formType: src.form || '4',
-            filedAt: src.file_date || '',
+            formType: src.form || "4",
+            filedAt: src.file_date || "",
             primaryDoc,
           });
           if (out.length >= maxTotal) break;
@@ -155,84 +163,125 @@ export class SecClient {
     return out;
   }
 
-  buildFilingDocUrl(cik: string, accessionNo: string, primaryDoc: string): string {
-    const accClean = accessionNo.replace(/-/g, '');
+  buildFilingDocUrl(
+    cik: string,
+    accessionNo: string,
+    primaryDoc: string,
+  ): string {
+    const accClean = accessionNo.replace(/-/g, "");
     return `https://www.sec.gov/Archives/edgar/data/${cik}/${accClean}/${primaryDoc}`;
   }
 
   buildFilingIndexUrl(cik: string, accessionNo: string): string {
-    const accClean = accessionNo.replace(/-/g, '');
+    const accClean = accessionNo.replace(/-/g, "");
     return `https://www.sec.gov/Archives/edgar/data/${cik}/${accClean}/`;
   }
 
-  async resolveForm4DocUrl(cik: string, accessionNo: string): Promise<string | null> {
+  async resolveForm4DocUrl(
+    cik: string,
+    accessionNo: string,
+  ): Promise<string | null> {
     try {
-      const indexUrl = this.buildFilingIndexUrl(cik, accessionNo) + 'index.json';
+      const indexUrl =
+        this.buildFilingIndexUrl(cik, accessionNo) + "index.json";
       const { data } = await this.http.get(indexUrl);
       const items: any[] = data?.directory?.item || [];
-      const xmlItem = items.find((i) => /\.xml$/i.test(i.name) && !/index/i.test(i.name));
+      const xmlItem = items.find(
+        (i) => /\.xml$/i.test(i.name) && !/index/i.test(i.name),
+      );
       if (!xmlItem) return null;
-      return this.buildFilingDocUrl(cik, accessionNo, `xslF345X05/${xmlItem.name}`);
+      return this.buildFilingDocUrl(
+        cik,
+        accessionNo,
+        `xslF345X05/${xmlItem.name}`,
+      );
     } catch {
       return null;
     }
   }
 
-  async fetchForm4Xml(cik: string, accessionNo: string, primaryDoc: string): Promise<string | null> {
+  async fetchForm4Xml(
+    cik: string,
+    accessionNo: string,
+    primaryDoc: string,
+  ): Promise<string | null> {
     const docUrl = this.buildFilingDocUrl(cik, accessionNo, primaryDoc);
-    const directXml = docUrl.endsWith('.xml') ? docUrl : null;
+    const directXml = docUrl.endsWith(".xml") ? docUrl : null;
     if (directXml) {
-      const { data } = await this.http.get(directXml, { responseType: 'text' });
+      const { data } = await this.http.get(directXml, { responseType: "text" });
       return data;
     }
-    const indexUrl = this.buildFilingIndexUrl(cik, accessionNo) + 'index.json';
+    const indexUrl = this.buildFilingIndexUrl(cik, accessionNo) + "index.json";
     const { data } = await this.http.get(indexUrl);
     const items: any[] = data?.directory?.item || [];
-    const xmlItem = items.find((i) => /\.xml$/i.test(i.name) && !/index/i.test(i.name));
+    const xmlItem = items.find(
+      (i) => /\.xml$/i.test(i.name) && !/index/i.test(i.name),
+    );
     if (!xmlItem) return null;
     const xmlUrl = this.buildFilingDocUrl(cik, accessionNo, xmlItem.name);
-    const { data: xml } = await this.http.get(xmlUrl, { responseType: 'text' });
+    const { data: xml } = await this.http.get(xmlUrl, { responseType: "text" });
     return xml;
   }
 
   parseForm4(xml: string): ParsedForm4 | null {
     const parsed = this.xml.parse(xml);
-    const doc = parsed.ownershipDocument || parsed?.['ownershipDocument'];
+    const doc = parsed.ownershipDocument || parsed?.["ownershipDocument"];
     if (!doc) return null;
 
     // Rule 10b5-1(c) plan checkbox (added to Form 4 in 2023) — document-level.
     const aff = doc.aff10b5One;
-    const affVal = typeof aff === 'object' ? aff?.value : aff;
-    const plannedBuy = String(affVal ?? '').trim() === '1' || affVal === true || String(affVal).toLowerCase() === 'true';
+    const affVal = typeof aff === "object" ? aff?.value : aff;
+    const plannedBuy =
+      String(affVal ?? "").trim() === "1" ||
+      affVal === true ||
+      String(affVal).toLowerCase() === "true";
 
     const issuer = doc.issuer || {};
-    const issuerCik = String(issuer?.issuerCik || '').replace(/^0+/, '');
-    const issuerName = String(issuer?.issuerName || '').trim();
+    const issuerCik = String(issuer?.issuerCik || "").replace(/^0+/, "");
+    const issuerName = String(issuer?.issuerName || "").trim();
     const rawTicker = issuer?.issuerTradingSymbol
       ? String(issuer.issuerTradingSymbol)
           .toUpperCase()
-          .replace(/[\s\[\]()]/g, '') // "N O G" → NOG, "[NONE]" → NONE
+          .replace(/[\s\[\]()]/g, "") // "N O G" → NOG, "[NONE]" → NONE
           .trim()
-      : '';
+      : "";
     // Unlisted filers put "N/A"/"NONE" in the symbol field — that is not a ticker.
-    const issuerTicker = rawTicker && rawTicker !== 'N/A' && rawTicker !== 'NONE' ? rawTicker : null;
+    const issuerTicker =
+      rawTicker && rawTicker !== "N/A" && rawTicker !== "NONE"
+        ? rawTicker
+        : null;
 
     const reportingOwner = doc.reportingOwner;
-    const ownerArr = Array.isArray(reportingOwner) ? reportingOwner : [reportingOwner].filter(Boolean);
+    const ownerArr = Array.isArray(reportingOwner)
+      ? reportingOwner
+      : [reportingOwner].filter(Boolean);
     const owner = ownerArr[0] || {};
-    const insiderName = owner?.reportingOwnerId?.rptOwnerName || 'Unknown';
+    const insiderName = owner?.reportingOwnerId?.rptOwnerName || "Unknown";
     // Canonical person key (spec §6.3.1) — zero-padded to the SEC's 10 digits.
-    const rawOwnerCik = String(owner?.reportingOwnerId?.rptOwnerCik ?? '').replace(/\D/g, '');
-    const reportingOwnerCik = rawOwnerCik ? rawOwnerCik.padStart(10, '0') : null;
+    const rawOwnerCik = String(
+      owner?.reportingOwnerId?.rptOwnerCik ?? "",
+    ).replace(/\D/g, "");
+    const reportingOwnerCik = rawOwnerCik
+      ? rawOwnerCik.padStart(10, "0")
+      : null;
     const relationship = owner?.reportingOwnerRelationship || {};
-    const isDirector = String(relationship?.isDirector || '').trim() === '1' || relationship?.isDirector === true;
-    const isOfficer = String(relationship?.isOfficer || '').trim() === '1' || relationship?.isOfficer === true;
-    const rawTitle = relationship?.officerTitle || (isDirector ? 'Director' : '');
+    const isDirector =
+      String(relationship?.isDirector || "").trim() === "1" ||
+      relationship?.isDirector === true;
+    const isOfficer =
+      String(relationship?.isOfficer || "").trim() === "1" ||
+      relationship?.isOfficer === true;
+    const rawTitle =
+      relationship?.officerTitle || (isDirector ? "Director" : "");
 
     // Reporting-owner filing address (city/state/country hints).
     const addr = owner?.reportingOwnerAddress || {};
-    const ownerCity = addr?.rptOwnerCity ? String(addr.rptOwnerCity).trim() : null;
-    const ownerState = addr?.rptOwnerState ? String(addr.rptOwnerState).trim().toUpperCase() : null;
+    const ownerCity = addr?.rptOwnerCity
+      ? String(addr.rptOwnerCity).trim()
+      : null;
+    const ownerState = addr?.rptOwnerState
+      ? String(addr.rptOwnerState).trim().toUpperCase()
+      : null;
     const ownerStateDescription = addr?.rptOwnerStateDescription
       ? String(addr.rptOwnerStateDescription).trim()
       : null;
@@ -246,13 +295,22 @@ export class SecClient {
 
     const results: ParsedTransaction[] = [];
     for (const tx of txs) {
-      const code = tx?.transactionCoding?.transactionCode?.value ?? tx?.transactionCoding?.transactionCode;
-      const codeStr = typeof code === 'object' ? code?.value : code;
-      const acqDisp = tx?.transactionAmounts?.transactionAcquiredDisposedCode?.value;
-      const shares = Number(tx?.transactionAmounts?.transactionShares?.value || 0);
-      const price = Number(tx?.transactionAmounts?.transactionPricePerShare?.value || 0);
+      const code =
+        tx?.transactionCoding?.transactionCode?.value ??
+        tx?.transactionCoding?.transactionCode;
+      const codeStr = typeof code === "object" ? code?.value : code;
+      const acqDisp =
+        tx?.transactionAmounts?.transactionAcquiredDisposedCode?.value;
+      const shares = Number(
+        tx?.transactionAmounts?.transactionShares?.value || 0,
+      );
+      const price = Number(
+        tx?.transactionAmounts?.transactionPricePerShare?.value || 0,
+      );
       const date = tx?.transactionDate?.value;
-      const post = Number(tx?.postTransactionAmounts?.sharesOwnedFollowingTransaction?.value || 0);
+      const post = Number(
+        tx?.postTransactionAmounts?.sharesOwnedFollowingTransaction?.value || 0,
+      );
 
       const codeU = String(codeStr).toUpperCase();
       const acqDispU = String(acqDisp).toUpperCase();
@@ -261,17 +319,17 @@ export class SecClient {
       // trade — only the share count is genuinely required.
       if (!shares) continue;
       if (!KEPT_CODES.has(codeU)) continue;
-      if ((codeU === 'P' || codeU === 'S') && !price) continue;
+      if ((codeU === "P" || codeU === "S") && !price) continue;
 
       results.push({
         insiderName,
         reportingOwnerCik,
-        rawTitle: String(rawTitle || ''),
+        rawTitle: String(rawTitle || ""),
         isDirector: !!isDirector,
         isOfficer: !!isOfficer,
         transactionDate: String(date),
         transactionCode: codeU,
-        acquiredDisposed: acqDispU === 'D' ? 'D' : 'A',
+        acquiredDisposed: acqDispU === "D" ? "D" : "A",
         plannedBuy,
         sharesBought: shares,
         pricePerShare: price,
@@ -289,12 +347,14 @@ export class SecClient {
     };
   }
 
-  async getCompanyProfile(cik: string): Promise<{ name: string; ticker: string | null; sic: string | null }> {
-    const padded = cik.padStart(10, '0');
+  async getCompanyProfile(
+    cik: string,
+  ): Promise<{ name: string; ticker: string | null; sic: string | null }> {
+    const padded = cik.padStart(10, "0");
     const url = `https://data.sec.gov/submissions/CIK${padded}.json`;
     const { data } = await this.http.get(url);
     return {
-      name: data?.name || '',
+      name: data?.name || "",
       ticker: (data?.tickers && data.tickers[0]) || null,
       sic: data?.sic || null,
     };
@@ -308,11 +368,16 @@ export class SecClient {
     if (this.tickerCik) return this.tickerCik;
     const m = new Map<string, string>();
     try {
-      const { data } = await this.http.get('https://www.sec.gov/files/company_tickers.json');
+      const { data } = await this.http.get(
+        "https://www.sec.gov/files/company_tickers.json",
+      );
       for (const k of Object.keys(data || {})) {
         const e = data[k];
         if (e?.ticker && e?.cik_str != null) {
-          m.set(String(e.ticker).toUpperCase(), String(e.cik_str).padStart(10, '0'));
+          m.set(
+            String(e.ticker).toUpperCase(),
+            String(e.cik_str).padStart(10, "0"),
+          );
         }
       }
     } catch {
@@ -334,7 +399,13 @@ export class SecClient {
     ownerRe: RegExp,
     maxFilings = 90,
   ): Promise<
-    { owner: string; role: string; shares: number; lastDate: string; filingUrl: string }[]
+    {
+      owner: string;
+      role: string;
+      shares: number;
+      lastDate: string;
+      filingUrl: string;
+    }[]
   > {
     const cikMap = await this.loadTickerCik();
     const cik10 = cikMap.get(ticker.toUpperCase());
@@ -353,8 +424,11 @@ export class SecClient {
 
     const jobs: { acc: string; doc: string }[] = [];
     for (let i = 0; i < recent.form.length && jobs.length < maxFilings; i++) {
-      if (recent.form[i] === '4') {
-        const doc = String(recent.primaryDocument[i] || '').replace(/^xsl[^/]*\//i, '');
+      if (recent.form[i] === "4") {
+        const doc = String(recent.primaryDocument[i] || "").replace(
+          /^xsl[^/]*\//i,
+          "",
+        );
         jobs.push({ acc: recent.accessionNumber[i], doc });
       }
     }
@@ -362,7 +436,13 @@ export class SecClient {
     // owner(lower) -> best (latest) record
     const best = new Map<
       string,
-      { owner: string; role: string; shares: number; lastDate: string; filingUrl: string }
+      {
+        owner: string;
+        role: string;
+        shares: number;
+        lastDate: string;
+        filingUrl: string;
+      }
     >();
     for (let i = 0; i < jobs.length; i += 4) {
       const chunk = jobs.slice(i, i + 4);
@@ -373,16 +453,22 @@ export class SecClient {
             if (!xml) return;
             const parsed = this.parseForm4(xml);
             if (!parsed) return;
-            const accnd = acc.replace(/-/g, '');
+            const accnd = acc.replace(/-/g, "");
             const filingUrl = `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accnd}/${acc}-index.htm`;
             for (const t of parsed.transactions) {
-              if (!ownerRe.test(t.insiderName || '')) continue;
+              if (!ownerRe.test(t.insiderName || "")) continue;
               const key = t.insiderName.toLowerCase();
               const prev = best.get(key);
               if (!prev || t.transactionDate > prev.lastDate) {
                 best.set(key, {
                   owner: t.insiderName,
-                  role: t.rawTitle || (t.isDirector ? 'Director' : t.isOfficer ? 'Officer' : '10% Owner'),
+                  role:
+                    t.rawTitle ||
+                    (t.isDirector
+                      ? "Director"
+                      : t.isOfficer
+                        ? "Officer"
+                        : "10% Owner"),
                   shares: t.postHoldings || prev?.shares || 0,
                   lastDate: t.transactionDate,
                   filingUrl,
@@ -401,6 +487,72 @@ export class SecClient {
   /** Most recent open-market insider transactions (buys AND sells) for a
    *  ticker, fetched live from SEC EDGAR. Parses up to `maxFilings` recent
    *  Form 4s. Returns [] if the ticker can't be resolved. */
+  /**
+   * Every Form 4 an issuer filed in the last `daysBack` days, from the
+   * data.sec.gov submissions index (the EFTS full-text search behind
+   * `searchRecentForm4` is market-wide and capped, so a busy filer's history
+   * silently falls out of it — NVIDIA had 3 rows on file for 2018–2026).
+   * Walks the older `filings.files` pages when the window outruns `recent`.
+   * Returns the same hit shape `runIngestion` consumes.
+   */
+  async listForm4ByCik(cik: string, daysBack = 365): Promise<SecFilingHit[]> {
+    const cik10 = String(cik).replace(/\D/g, "").padStart(10, "0");
+    const cikNum = String(Number(cik10));
+    const cutoff = new Date(Date.now() - daysBack * 86400_000)
+      .toISOString()
+      .slice(0, 10);
+    const out: SecFilingHit[] = [];
+    let root: any;
+    try {
+      ({ data: root } = await this.http.get(
+        `https://data.sec.gov/submissions/CIK${cik10}.json`,
+      ));
+    } catch {
+      return out;
+    }
+    const ticker: string | null = root?.tickers?.[0] ?? null;
+    const companyName: string = root?.name ?? "";
+    const collect = (block: any) => {
+      if (!block?.form) return { oldest: null as string | null };
+      let oldest: string | null = null;
+      for (let i = 0; i < block.form.length; i++) {
+        const filed = String(block.filingDate?.[i] || "");
+        if (!oldest || filed < oldest) oldest = filed;
+        if (block.form[i] !== "4" || filed < cutoff) continue;
+        const doc = String(block.primaryDocument?.[i] || "").replace(
+          /^xsl[^/]*\//i,
+          "",
+        );
+        out.push({
+          accessionNo: block.accessionNumber[i],
+          cik: cikNum,
+          ticker,
+          companyName,
+          formType: "4",
+          filedAt: filed,
+          primaryDoc: doc,
+        });
+      }
+      return { oldest };
+    };
+    const { oldest } = collect(root?.filings?.recent);
+    if (oldest && oldest > cutoff) {
+      for (const f of root?.filings?.files ?? []) {
+        if (String(f?.filingTo || "") < cutoff) continue;
+        try {
+          const { data } = await this.http.get(
+            `https://data.sec.gov/submissions/${f.name}`,
+          );
+          collect(data);
+        } catch {
+          /* one missing page is not a reason to drop the rest */
+        }
+        await new Promise((r) => setTimeout(r, 150));
+      }
+    }
+    return out;
+  }
+
   async getRecentForm4ByTicker(
     ticker: string,
     maxFilings = 14,
@@ -423,10 +575,13 @@ export class SecClient {
     // Collect the most recent Form 4 accessions.
     const jobs: { acc: string; doc: string }[] = [];
     for (let i = 0; i < recent.form.length && jobs.length < maxFilings; i++) {
-      if (recent.form[i] === '4') {
+      if (recent.form[i] === "4") {
         // primaryDocument is the XSL-rendered viewer (e.g. "xslF345X06/form4.xml")
         // — strip the xsl folder to hit the raw, parseable XML.
-        const doc = String(recent.primaryDocument[i] || '').replace(/^xsl[^/]*\//i, '');
+        const doc = String(recent.primaryDocument[i] || "").replace(
+          /^xsl[^/]*\//i,
+          "",
+        );
         jobs.push({ acc: recent.accessionNumber[i], doc });
       }
     }
@@ -442,7 +597,7 @@ export class SecClient {
             if (!xml) return null;
             const parsed = this.parseForm4(xml);
             if (!parsed) return null;
-            const accnd = acc.replace(/-/g, '');
+            const accnd = acc.replace(/-/g, "");
             // SEC filing detail page so the link opens the Form 4 itself,
             // not the bare archive folder listing.
             const filingUrl = `https://www.sec.gov/Archives/edgar/data/${cikNum}/${accnd}/${acc}-index.htm`;
