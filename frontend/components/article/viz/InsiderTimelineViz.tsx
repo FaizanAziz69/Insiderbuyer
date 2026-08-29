@@ -104,7 +104,21 @@ export function InsiderTimelineViz({
   );
   const purchases = inWindow.filter((t) => t.transactionCode === "P");
   const other = inWindow.filter((t) => t.transactionCode !== "P");
-  const rows = (purchases.length ? purchases : other).slice(0, limit);
+  // With no purchases the table falls back to "what IS on file". Date order
+  // alone fills the eight visible rows with $0 director awards and hides the
+  // filings a reader actually wants to see — NVIDIA's 141 sales sat below the
+  // cut (2026-08-29). Rank the fallback by dollar value (priced rows first),
+  // then show the chosen rows newest-first.
+  const byValue = (a: (typeof other)[number], b: (typeof other)[number]) => {
+    if (!!a.priceSuspect !== !!b.priceSuspect) return a.priceSuspect ? 1 : -1;
+    return Number(b.totalValue || 0) - Number(a.totalValue || 0);
+  };
+  const picked = purchases.length
+    ? purchases.slice(0, limit)
+    : [...other].sort(byValue).slice(0, limit);
+  const rows = [...picked].sort((a, b) =>
+    a.transactionDate < b.transactionDate ? 1 : -1,
+  );
   const name = data.company.name || sym;
 
   return (
@@ -116,9 +130,11 @@ export function InsiderTimelineViz({
           <strong style={{ color: "var(--text-soft)" }}>
             No open-market purchases on file for {name} in this window.
             {other.length > 0
-              ? ` The ${other.length} filing${other.length === 1 ? "" : "s"} below ${
+              ? ` The ${other.length}${other.length >= 200 ? "+" : ""} filing${
+                  other.length === 1 ? "" : "s"
+                } on record ${
                   other.length === 1 ? "is" : "are"
-                } compensation activity — awards, option exercises and sales — which carry no conviction signal.`
+                } sales and compensation activity — awards, option exercises, gifts — which carry no conviction signal; the largest are shown.`
               : " No Form 4 activity of any kind was filed."}
           </strong>
         ) : (
