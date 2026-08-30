@@ -49,7 +49,9 @@ const EVERGREEN_KINDS = new Set<BlogPostListItem["kind"]>([
 const ROTATION_POOL = 7;
 /** A story published inside this window is fresh news and takes the hero
  *  regardless of the rotation — rotation exists for the days nothing new lands. */
-const FRESH_MS = 24 * 60 * 60_000;
+// George (2026-08-30): the newest editorial must lead for its first few days,
+// not just 24h — the Durant/HF story dropped to a card on day 2.
+const FRESH_MS = 3 * 24 * 60 * 60_000;
 /** Oldest an editorial may be and still take the hero slot. The first rotation
  *  (2026-08-29, day % 6 = 5) put a 7-day-old story in the hero — George: "yeh
  *  wala kafi days se ha". Older stories stay in the cards, never the hero. */
@@ -66,10 +68,17 @@ const HERO_MAX_AGE_MS = 5 * 24 * 60 * 60_000;
  * keep publish order beneath it — so the block reads differently every day
  * without hiding anything. Keyed on the UTC day so server and client agree.
  */
+/** Hard hero pin (George, 2026-08-30: "top stories per top per aana chahiye").
+ *  While this slug is in the pool it leads regardless of rotation; the rest of
+ *  the block still rotates beneath it. Clear it (null) to go back to pure rotation. */
+export const HERO_PIN: string | null = "editorial-kevin-durant-hugging-face-nvidia-2026-08-29";
+
 export function rotateHero(editorial: BlogPostListItem[], nowMs = Date.now()): BlogPostListItem[] {
   if (editorial.length < 2) return editorial;
   const pool = editorial.slice(0, ROTATION_POOL);
   const rest = editorial.slice(ROTATION_POOL);
+  const pinned = HERO_PIN ? pool.find((i) => i.slug === HERO_PIN) : undefined;
+  if (pinned) return [pinned, ...pool.filter((i) => i.slug !== pinned.slug), ...rest];
   const ageOf = (i: BlogPostListItem) => nowMs - new Date(i.generatedAt).getTime();
   // Hero candidates: the pool, minus anything older than HERO_MAX_AGE_MS. If
   // everything is old (a quiet week), the newest still leads rather than a gap.
