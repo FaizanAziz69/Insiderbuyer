@@ -58,7 +58,7 @@ export async function generateMetadata({
     // show a text-only card (George, 2026-08-30 — the 432 KB Durant cover).
     // The house 1606x1000 thumbs are 100–430 KB, so the unfurl uses a
     // 1200x747 copy in /editorial-thumbs/og/ (≤200 KB, generated with
-    // `npm run thumbs:og`). The page itself keeps the full-size cover.
+    // `npm run thumbs:og`, baseline JPEG — WhatsApp rejects progressive). The page itself keeps the full-size cover.
     const rawImage =
       (editorialThumb && editorialThumb.replace("/editorial-thumbs/", "/editorial-thumbs/og/")) ||
       (post.imageUrl ? String(post.imageUrl) : null) ||
