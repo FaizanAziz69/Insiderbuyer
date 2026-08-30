@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { maskScoreText } from "@/lib/sanitizeArticleHtml";
 import { seoEntry } from "@/lib/seo-meta";
+import { pickEditorialThumb } from "@/lib/editorial-thumbs";
+import { pickSectorPhoto } from "@/lib/sector-photos";
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:4000";
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuying.com";
@@ -37,21 +39,42 @@ export async function generateMetadata({
     // Absolute URL: chat apps (WhatsApp, iMessage, Slack) do not resolve a
     // relative og:image against the page, they just fail and fall back to
     // the site-wide card.
-    const rawImage = post.imageUrl ? String(post.imageUrl) : null;
-    const image = rawImage ? (rawImage.startsWith("/") ? `${SITE}${rawImage}` : rawImage) : undefined;
+    //
+    // The unfurl must show the SAME picture the article page renders (George,
+    // 2026-08-30: the Durant/Hugging Face card unfurled with the IB logo while
+    // the page showed the client cover). The page (AiCoverImage, no
+    // preferPrimary) resolves its cover as: editorial thumb (SLUG_OVERRIDES
+    // pin / keyword match) → curated sector photo; the stored AI imageUrl is
+    // only a fallback. Mirror that order here instead of reading imageUrl
+    // alone — most editorials have imageUrl = null, which is exactly when the
+    // site-wide card used to leak in.
+    const editorialThumb = pickEditorialThumb({
+      ticker: post.ticker,
+      sector: post.sector,
+      tags: post.tags,
+      seed: String(post.slug || slug),
+    });
+    const rawImage =
+      editorialThumb ||
+      (post.imageUrl ? String(post.imageUrl) : null) ||
+      pickSectorPhoto(post.sector, String(post.slug || slug));
+    const image = rawImage.startsWith("/") ? `${SITE}${rawImage}` : rawImage;
+    // Editorial thumbs are the 1606x1000 house size; other sources are
+    // unknown, so only declare dimensions we actually know.
+    const dims = editorialThumb ? { width: 1606, height: 1000 } : {};
     const openGraph = {
       title,
       description,
       url,
       type: "article" as const,
       siteName: "InsiderBuying.com",
-      ...(image ? { images: [{ url: image, width: 1606, height: 1000, alt: maskScoreText(post.imageAlt || post.title) }] } : {}),
+      images: [{ url: image, ...dims, alt: maskScoreText(post.imageAlt || post.title) }],
     };
     const twitter = {
-      card: (image ? "summary_large_image" : "summary") as "summary_large_image" | "summary",
+      card: "summary_large_image" as const,
       title,
       description,
-      ...(image ? { images: [image] } : {}),
+      images: [image],
     };
     // An unlisted draft is never indexed (absent from the sitemap and every
     // feed, noindex here), but the link IS passed around for review, so the
