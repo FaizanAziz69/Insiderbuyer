@@ -54,14 +54,19 @@ export async function generateMetadata({
       tags: post.tags,
       seed: String(post.slug || slug),
     });
+    // WhatsApp (and iMessage) silently DROP an og:image above ~300 KB and
+    // show a text-only card (George, 2026-08-30 — the 432 KB Durant cover).
+    // The house 1606x1000 thumbs are 100–430 KB, so the unfurl uses a
+    // 1200x747 copy in /editorial-thumbs/og/ (≤270 KB, generated with
+    // `npm run thumbs:og`). The page itself keeps the full-size cover.
     const rawImage =
-      editorialThumb ||
+      (editorialThumb && editorialThumb.replace("/editorial-thumbs/", "/editorial-thumbs/og/")) ||
       (post.imageUrl ? String(post.imageUrl) : null) ||
       pickSectorPhoto(post.sector, String(post.slug || slug));
     const image = rawImage.startsWith("/") ? `${SITE}${rawImage}` : rawImage;
-    // Editorial thumbs are the 1606x1000 house size; other sources are
-    // unknown, so only declare dimensions we actually know.
-    const dims = editorialThumb ? { width: 1606, height: 1000 } : {};
+    // OG copies are 1200x747; other sources are unknown, so only declare
+    // dimensions we actually know.
+    const dims = editorialThumb ? { width: 1200, height: 747 } : {};
     const openGraph = {
       title,
       description,
