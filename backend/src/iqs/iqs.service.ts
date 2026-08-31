@@ -1073,7 +1073,12 @@ export class IqsService {
     const countRow = await qb.clone().select('COUNT(*)', 'count').getRawOne<{ count: string }>();
     const total = Number(countRow?.count || 0);
 
-    let raw = await qb.orderBy('s.iqs', 'DESC').limit(limit * 4).offset(offset).getRawMany();
+    // A post-query group/keyword filter must see the WHOLE ranked set, not
+    // just limit*4 rows: healthcare and financials dominate the top of the
+    // board, so a small page of ?sectorGroup=technology filtered from the top
+    // 32 rows came back empty even with 50+ scored tech names further down.
+    const fetchLimit = opts.sectorMatch || opts.sectorGroup ? 10000 : limit * 4;
+    let raw = await qb.orderBy('s.iqs', 'DESC').limit(fetchLimit).offset(offset).getRawMany();
 
     if (opts.sectorMatch) {
       const rx = opts.sectorMatch;
@@ -1095,6 +1100,10 @@ export class IqsService {
         (r) => sectorGroupFor(r.sector, r.industry)?.slug === slug,
       );
     }
+    // With a post-query filter the DB count is wrong — the filtered set is
+    // the real total for pagination.
+    const filteredTotal =
+      opts.sectorMatch || opts.sectorGroup ? raw.length : null;
     raw = raw.slice(0, limit);
 
     const rows: RankingRow[] = raw.map((r: any, i: number) => ({
@@ -1237,7 +1246,7 @@ export class IqsService {
       }
     }
 
-    const result = { total, rows };
+    const result = { total: filteredTotal ?? total, rows };
     this.rankCache.set(cacheKey, { ts: Date.now(), data: result });
     // Bound the cache — only a handful of distinct query shapes are ever hot.
     if (this.rankCache.size > 64) {
