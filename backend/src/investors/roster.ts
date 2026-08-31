@@ -17,6 +17,14 @@
  * asks editorial to supply the initial spreadsheet. These defaults are the
  * conventional public characterisation of each manager so the tabs are not
  * empty on launch; editorial re-tags in the admin.
+ *
+ * Deliberately UNTAGGED (2026-09-01, not an oversight): the quant, global-macro
+ * and multi-strategy books — Citadel, Renaissance, Point72, Tudor, Soros — plus
+ * Jefferies, which is a bank rather than a strategy fund. The brief fixes four
+ * buckets (growth/value/short/longterm) and none of them describes a
+ * high-turnover quant or a macro trader; tagging them anyway would put a
+ * wrong label on a real manager to fill a tab. They still appear under Popular
+ * and Best Performance, which is the honest home for them.
  */
 
 export type InvestorCategory = 'growth' | 'value' | 'short' | 'longterm';
@@ -36,7 +44,9 @@ export const ROSTER: RosterEntry[] = [
   { slug: 'warren-buffett', person: 'Warren Buffett', firm: 'Berkshire Hathaway', cik: '0001067983', categories: ['value', 'longterm'], active: true },
   { slug: 'cathie-wood', person: 'Cathie Wood', firm: 'ARK Invest', cik: '0001697748', categories: ['growth'], active: true },
   { slug: 'li-lu', person: 'Li Lu', firm: 'Himalaya Capital', cik: '0001709323', categories: ['value', 'longterm'], active: true },
-  { slug: 'ray-dalio', person: 'Ray Dalio', firm: 'Bridgewater Associates', cik: '0001350694', categories: [], active: true },
+  // All Weather / risk parity is explicitly a long-horizon strategy — the one
+  // macro book that does map onto a brief bucket.
+  { slug: 'ray-dalio', person: 'Ray Dalio', firm: 'Bridgewater Associates', cik: '0001350694', categories: ['longterm'], active: true },
   { slug: 'bill-ackman', person: 'Bill Ackman', firm: 'Pershing Square Capital Management', cik: '0001336528', categories: ['value', 'longterm'], active: true },
   { slug: 'charlie-munger', person: 'Charlie Munger', firm: 'Daily Journal', cik: '0000783412', categories: ['value', 'longterm'], active: true },
   { slug: 'leopold-aschenbrenner', person: 'Leopold Aschenbrenner', firm: 'Situational Awareness LP', cik: '0002045724', categories: ['growth'], active: true },

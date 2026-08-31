@@ -20,6 +20,18 @@ import { API_BASE } from "@/lib/api";
 import { InvestorCard, type InvestorCardData } from "@/components/investors/InvestorCard";
 import { ComplianceFooter } from "@/components/ComplianceFooter";
 
+/**
+ * Per-tab caveats. "Short Sellers" needs one: a 13F discloses LONG positions
+ * only — short books are never public — so these managers are listed for the
+ * short-side research they are known for while the holdings shown are their
+ * disclosed longs. Saying so is the same rule as §2.4 compliance (and the same
+ * class of mislabel as calling a low insider score "Bearish").
+ */
+const TAB_NOTES: Record<string, string> = {
+  short:
+    "13F filings disclose long positions only — no fund's short book is public. These managers are listed for the short-side research they are known for; the holdings and performance shown are their disclosed long positions. Two of them no longer file: Scion deregistered in 2025 and Kynikos closed in 2023.",
+};
+
 const TABS: Array<[string, string]> = [
   ["popular", "Popular"],
   ["performance", "Best Performance"],
@@ -64,6 +76,19 @@ export default function InvestorsPage() {
           buying their own stock right now.
         </p>
       </header>
+
+      {TAB_NOTES[tab] && (
+        <p
+          className="text-[12.5px] leading-relaxed max-w-[80ch] rounded-lg px-3.5 py-2.5"
+          style={{
+            color: "var(--text-mute)",
+            background: "var(--bg-2)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          {TAB_NOTES[tab]}
+        </p>
+      )}
 
       <nav className="flex gap-1 overflow-x-auto pb-1" role="tablist" aria-label="Investor categories">
         {TABS.map(([key, label]) => (
