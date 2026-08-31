@@ -58,8 +58,9 @@ export class IqsController {
       offset: offset ? Number(offset) : undefined,
       sector: sector || undefined,
       // Canonical sector bucket (see sector-groups.ts) — keyword match over
-      // sector+industry, because exact `sector` misses the raw SIC labels.
-      sectorMatch: sectorGroupBySlug(sectorGroup)?.rx,
+      // sector+industry with group precedence, because exact `sector` misses
+      // the raw SIC labels and a bare regex misfiles biotech under tech.
+      sectorGroup: sectorGroupBySlug(sectorGroup)?.slug,
       minMarketCap: minMc ? Number(minMc) : undefined,
       maxMarketCap: maxMc ? Number(maxMc) : undefined,
       minIqs: minIqs ? Number(minIqs) : undefined,

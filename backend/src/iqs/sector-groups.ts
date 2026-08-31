@@ -26,6 +26,13 @@ export const SECTOR_GROUPS: SectorGroup[] = [
     rx: /health|pharmaceutical|biological|medical|surgical|biotech|drug|diagnostic|hospital|dental|ophthalmic/i,
   },
   {
+    // Before Financials: "Real Estate Investment Trusts" must land here, not
+    // be claimed by the financials 'invest' keyword.
+    slug: 'real-estate',
+    label: 'Real Estate',
+    rx: /real estate|reit/i,
+  },
+  {
     slug: 'financials',
     label: 'Financials',
     rx: /financial|bank|insurance|finance|invest|savings|securit|asset management|blank check|loan|credit/i,
@@ -59,11 +66,6 @@ export const SECTOR_GROUPS: SectorGroup[] = [
     slug: 'consumer-defensive',
     label: 'Consumer Defensive',
     rx: /consumer defensive|food|beverage|grocery|household|tobacco|agricultur|dairy|bakery/i,
-  },
-  {
-    slug: 'real-estate',
-    label: 'Real Estate',
-    rx: /real estate|reit/i,
   },
   {
     slug: 'utilities',

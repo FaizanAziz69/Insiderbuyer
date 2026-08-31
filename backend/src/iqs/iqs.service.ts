@@ -977,6 +977,8 @@ export class IqsService {
     offset?: number;
     sector?: string;
     sectorMatch?: RegExp;
+    /** Canonical bucket slug (sector-groups.ts) — precedence-aware. */
+    sectorGroup?: string;
     minMarketCap?: number;
     maxMarketCap?: number;
     minIqs?: number;
@@ -986,7 +988,8 @@ export class IqsService {
   }): Promise<{ total: number; rows: RankingRow[] }> {
     const cacheKey = JSON.stringify({
       l: opts.limit, o: opts.offset, s: opts.sector,
-      sm: opts.sectorMatch?.source, mn: opts.minMarketCap, mx: opts.maxMarketCap,
+      sm: opts.sectorMatch?.source, sg: opts.sectorGroup,
+      mn: opts.minMarketCap, mx: opts.maxMarketCap,
       mi: opts.minIqs, c: opts.country, e: opts.exchange, lv: !!opts.withLive,
     });
     const hit = this.rankCache.get(cacheKey);
@@ -1081,6 +1084,15 @@ export class IqsService {
         (r) =>
           (r.sector && rx.test(String(r.sector))) ||
           (r.industry && rx.test(String(r.industry))),
+      );
+    }
+    if (opts.sectorGroup) {
+      // Canonical bucket with PRECEDENCE — a bare regex test put biotech under
+      // Technology (/technology/ matches "Biotechnology"); classifying each
+      // row via sectorGroupFor lets the earlier Healthcare group claim it.
+      const slug = opts.sectorGroup;
+      raw = raw.filter(
+        (r) => sectorGroupFor(r.sector, r.industry)?.slug === slug,
       );
     }
     raw = raw.slice(0, limit);
@@ -1386,7 +1398,7 @@ export class IqsService {
     const group = sectorGroupFor(sector, industry);
     if (!group || !ticker) return null;
     try {
-      const { rows } = await this.getRankings({ sectorMatch: group.rx, limit: 2000 });
+      const { rows } = await this.getRankings({ sectorGroup: group.slug, limit: 2000 });
       if (!rows.length) return null;
       const scores = rows.map((r) => Number(r.iqs)).filter((n) => Number.isFinite(n));
       const avgIqs = scores.length
