@@ -118,6 +118,13 @@ export interface CompanyDetail {
     marketCap: number | null;
     lastPrice: number | null;
   };
+  /** Wall Street consensus (avg analyst target vs price) — drives the ticker
+   *  badge; null when no analyst targets exist for the symbol. */
+  analyst?: {
+    ptCount: number | null;
+    avgTarget: number;
+    upsidePct: number;
+  } | null;
   score: {
     iqs: number; // 0–100
     insiderWeight: number;

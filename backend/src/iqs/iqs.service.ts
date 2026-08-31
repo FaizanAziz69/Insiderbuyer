@@ -9,6 +9,7 @@ import { CongressionalService } from '../congressional/congressional.service';
 import { FmpService } from '../fmp/fmp.service';
 import { SecClient } from '../ingestion/sec.client';
 import { MarketStatsService } from '../market-stats/market-stats.service';
+import { FundamentalsCacheService } from '../market-stats/fundamentals-cache.service';
 import {
   CompositeScore,
   analystPillarScore,
@@ -188,6 +189,7 @@ export class IqsService {
     @InjectRepository(InsiderProfile) private readonly profiles: Repository<InsiderProfile>,
     private readonly congress: CongressionalService,
     private readonly marketStats: MarketStatsService,
+    private readonly fundamentalsCache: FundamentalsCacheService,
     private readonly fmp: FmpService,
     private readonly sec: SecClient,
     private readonly sentiment: SentimentService,
@@ -1331,7 +1333,30 @@ export class IqsService {
       }
     }
 
-    return { company: companyOut, score, scoreHistory, transactions, congressionalTrades };
+    const analyst = await this.analystConsensus(company.ticker, companyOut.lastPrice);
+
+    return { company: companyOut, score, scoreHistory, transactions, congressionalTrades, analyst };
+  }
+
+  /** Wall Street consensus for the ticker header badge: average analyst price
+   *  target (fundamentals_cache, price-target-summary-bulk) vs the last price.
+   *  Kept separate from the Insider Score — a stock insiders aren't buying can
+   *  still be a Street favourite (George, 2026-09-01: NVDA must read bullish). */
+  private async analystConsensus(ticker: string | null, lastPrice: number | null) {
+    if (!ticker || !lastPrice || lastPrice <= 0) return null;
+    try {
+      const sym = ticker.toUpperCase();
+      const fund = (await this.fundamentalsCache.lookup([sym])).get(sym);
+      const target = fund?.ptAvgTarget ?? null;
+      if (!target || target <= 0) return null;
+      return {
+        ptCount: fund?.ptCount ?? null,
+        avgTarget: target,
+        upsidePct: (target / lastPrice - 1) * 100,
+      };
+    } catch {
+      return null;
+    }
   }
 
   /** Build a company-detail payload from a live market quote for a ticker we
@@ -1379,12 +1404,18 @@ export class IqsService {
       score = null;
     }
 
+    const analyst = await this.analystConsensus(
+      sym,
+      company.lastPrice == null ? null : Number(company.lastPrice),
+    );
+
     return {
       company,
       score,
       scoreHistory: [],
       transactions,
       congressionalTrades,
+      analyst,
       quoteOnly: true,
     };
   }
