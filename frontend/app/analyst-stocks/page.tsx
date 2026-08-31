@@ -12,7 +12,7 @@ import { rankColumn } from "@/components/tableColumns";
 
 /**
  * Top Analyst Stocks — rebuilt on measured top-analyst coverage (client rule
- * 2026-08-24): a stock is only listed when at least five analysts whose OWN
+ * 2026-08-24, relaxed 2026-09-01): a stock is only listed when analysts whose OWN
  * success rate clears 70% carry a live price target on it, and the ranking is
  * that coverage combined with their accuracy and the upside to the average of
  * exactly those analysts' targets. Everything on the row comes from
@@ -75,7 +75,10 @@ export default function AnalystStocksPage() {
   );
 
   const minRate = u?.minSuccessRate ?? 70;
-  const minCount = u?.minTopAnalysts ?? 5;
+  const minCount = u?.minTopAnalysts ?? 1;
+  // Reads naturally at any threshold — "one analyst" vs "3 analysts".
+  const minCountPhrase =
+    minCount === 1 ? "one analyst" : `${minCount} analysts`;
 
   const columns: Column<StockRow>[] = [
     // Paygated ranking: count DOWN so the free rows are the tail of the list
@@ -108,7 +111,7 @@ export default function AnalystStocksPage() {
       align: "right",
       // Real provenance now: these are analysts from OUR leaderboard whose
       // measured success rate clears the floor — not a sell-side head-count.
-      info: `How many top-rated analysts currently cover the stock. An analyst only counts here if their own measured success rate is ${minRate}% or better and their price target is less than a year old. A stock needs at least ${minCount} of them to appear on this list at all.`,
+      info: `How many top-rated analysts currently cover the stock. An analyst only counts here if their own measured success rate is ${minRate}% or better and their price target is less than a year old. A stock needs at least ${minCountPhrase === "one analyst" ? "one" : minCount} of them to appear on this list at all.`,
       sortValue: (r) => r.topAnalysts,
       render: (r) => (
         // Native title: the covering analysts, with no fixed-position portal
@@ -200,9 +203,10 @@ export default function AnalystStocksPage() {
         </h1>
         <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
           Up to the top 50 stocks backed by Wall Street&rsquo;s most accurate
-          analysts. A stock only makes this list when at least {minCount}{" "}
-          analysts with a measured success rate of {minRate}% or better hold a
-          live price target on it, and the ranking combines how many of those
+          analysts. A stock only makes this list when at least {minCountPhrase}{" "}
+          with a measured success rate of {minRate}% or better{" "}
+          {minCount === 1 ? "holds" : "hold"} a live price target on it, and
+          the ranking combines how many of those
           analysts cover it, how accurate they have been, and the upside to the
           average of their targets. Informational, not investment advice.
         </p>
@@ -257,13 +261,13 @@ export default function AnalystStocksPage() {
             empty={
               q
                 ? "No qualifying stocks match your search."
-                : `No stock currently carries live targets from ${minCount} or more analysts above ${minRate}%.`
+                : `No stock currently carries a live target from ${minCountPhrase} above ${minRate}%.`
             }
             columns={columns}
             gate={{
               label: "Top Analyst Stocks",
               bullets: [
-                `Only stocks covered by ${minCount}+ analysts above ${minRate}% success`,
+                `Only stocks covered by proven analysts above ${minRate}% success`,
                 "Their average price target and the upside to it",
                 "Ranked by coverage, accuracy and upside — counted down to #1",
                 "Re-priced with live quotes all session",

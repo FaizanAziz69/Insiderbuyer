@@ -56,8 +56,14 @@ const HIST_WINDOW_MS = 2 * 365 * 86_400_000;
  */
 /** Success-rate floor for an analyst to count as a "top analyst". */
 const TOP_ANALYST_MIN_SUCCESS = 70;
-/** A stock needs this many top analysts covering it to appear at all. */
-const MIN_TOP_ANALYSTS = 5;
+/** A stock needs this many top analysts covering it to appear at all.
+ *  Was 5 — after the 2026-08-29 shrinkage fix only 47 analysts clear 70%
+ *  (FMP's feed has a median of ~8 graded calls per analyst), so exactly ONE
+ *  stock had 5 of them and the page showed a single row. George 2026-09-01:
+ *  keep the 70% floor but fill the top 50 — so the bar is one PROVEN analyst
+ *  and the ranking still rewards deeper coverage (coverage × accuracy ×
+ *  upside). Revisit if the TipRanks module lands and coverage deepens. */
+const MIN_TOP_ANALYSTS = 1;
 /** Older than this, a price target is history — not live coverage. */
 const TARGET_LIVE_DAYS = 365;
 /** Rows kept in the stock payload (client: "show top 50"). */
