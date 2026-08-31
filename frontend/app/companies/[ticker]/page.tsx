@@ -637,7 +637,9 @@ export default function CompanyPage({
 
             {/* ── Overview ───────────────────────────────────────────── */}
             <div className="space-y-6">
-                {data.score && <SmartScorePanel score={data.score} />}
+                {data.score && (
+                  <SmartScorePanel score={data.score} sectorContext={data.sectorContext} />
+                )}
 
                 {/* Composite pillars — insider + analyst + news sentiment */}
                 <ScorePillarsCard ticker={sym} />
@@ -1070,7 +1072,13 @@ function ringColorForTier(iqs: number): string {
   return "var(--bad)";
 }
 
-function SmartScorePanel({ score }: { score: NonNullable<CompanyDetail["score"]> }) {
+function SmartScorePanel({
+  score,
+  sectorContext,
+}: {
+  score: NonNullable<CompanyDetail["score"]>;
+  sectorContext?: CompanyDetail["sectorContext"];
+}) {
   const { unlocked } = usePremium();
   const iqs = Math.round(Number(score.iqs) || 0);
   const ring = ringColorForTier(iqs);
@@ -1193,6 +1201,23 @@ function SmartScorePanel({ score }: { score: NonNullable<CompanyDetail["score"]>
           })}
         </div>
       </div>
+      {/* Sector context (George 2026-09-01): the score against its own
+          sector's scored peers — cross-market comparison misreads sectors
+          where insiders rarely buy. */}
+      {sectorContext && (
+        <p className="mt-4 text-[12.5px] leading-relaxed" style={{ color: "var(--text-mute)" }}>
+          {sectorContext.label}:{" "}
+          {sectorContext.rank != null ? (
+            <>
+              ranks <b style={{ color: "var(--text)" }}>#{sectorContext.rank}</b> of{" "}
+              {sectorContext.scored} scored {sectorContext.label} stocks
+            </>
+          ) : (
+            <>{sectorContext.scored} sector peers carry a ranked score; this one has no qualifying buying in the window</>
+          )}
+          {sectorContext.avgIqs != null && <> · sector average {sectorContext.avgIqs}</>}
+        </p>
+      )}
     </section>
   );
 }

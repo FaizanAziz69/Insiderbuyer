@@ -10,6 +10,7 @@ import { FmpService } from '../fmp/fmp.service';
 import { SecClient } from '../ingestion/sec.client';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 import { FundamentalsCacheService } from '../market-stats/fundamentals-cache.service';
+import { sectorGroupFor } from './sector-groups';
 import {
   CompositeScore,
   analystPillarScore,
@@ -1334,8 +1335,21 @@ export class IqsService {
     }
 
     const analyst = await this.analystConsensus(company.ticker, companyOut.lastPrice);
+    const sectorContext = await this.sectorScoreContext(
+      company.sector,
+      (company as { industry?: string | null }).industry,
+      company.ticker,
+    );
 
-    return { company: companyOut, score, scoreHistory, transactions, congressionalTrades, analyst };
+    return {
+      company: companyOut,
+      score,
+      scoreHistory,
+      transactions,
+      congressionalTrades,
+      analyst,
+      sectorContext,
+    };
   }
 
   /** Wall Street consensus for the ticker header badge: average analyst price
@@ -1353,6 +1367,41 @@ export class IqsService {
         ptCount: fund?.ptCount ?? null,
         avgTarget: target,
         upsidePct: (target / lastPrice - 1) * 100,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Where this company's Insider Score sits inside its own sector bucket
+   *  (see sector-groups.ts): rank, peer count and sector average over the
+   *  latest scored companies with buying in the window. George 2026-09-01 —
+   *  sector context wherever the score is shown, because raw cross-market
+   *  comparison misreads sectors where insiders rarely buy (tech mega-caps). */
+  async sectorScoreContext(
+    sector: string | null | undefined,
+    industry: string | null | undefined,
+    ticker: string | null | undefined,
+  ) {
+    const group = sectorGroupFor(sector, industry);
+    if (!group || !ticker) return null;
+    try {
+      const { rows } = await this.getRankings({ sectorMatch: group.rx, limit: 2000 });
+      if (!rows.length) return null;
+      const scores = rows.map((r) => Number(r.iqs)).filter((n) => Number.isFinite(n));
+      const avgIqs = scores.length
+        ? scores.reduce((a, b) => a + b, 0) / scores.length
+        : null;
+      const idx = rows.findIndex(
+        (r) => (r.ticker || '').toUpperCase() === ticker.toUpperCase(),
+      );
+      return {
+        slug: group.slug,
+        label: group.label,
+        scored: rows.length,
+        // null when this company has no ranked score (e.g. sells-only rows).
+        rank: idx >= 0 ? idx + 1 : null,
+        avgIqs: avgIqs == null ? null : +avgIqs.toFixed(1),
       };
     } catch {
       return null;
@@ -1768,9 +1817,17 @@ export class IqsService {
       ? +Math.min(99, (v1Log / 6.5) * 100).toFixed(1)
       : null;
 
+    // Sector context — where this score sits among sector peers.
+    const sectorContext = await this.sectorScoreContext(
+      company?.sector ?? liveQ?.sector ?? null,
+      (company as { industry?: string | null } | null)?.industry ?? null,
+      ticker,
+    );
+
     return {
       found: true,
       ticker,
+      sectorContext,
       comparison: {
         old: {
           label: 'Old Insider Score (v1)',

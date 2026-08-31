@@ -4,6 +4,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { Flame, Activity, ArrowUp, ArrowDown, ChevronDown } from "lucide-react";
 import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
+import { SectorFilter, SectorValue } from "@/components/SectorFilter";
 import {
   API_BASE,
   RankingRow,
@@ -59,6 +60,9 @@ export default function InsiderHotStocksPage() {
   // "Exchanges" filter — narrows the ranking by listing venue (ranking stays
   // global; sent to the API as &exchange=).
   const [exchange, setExchange] = useState<ExchangeValue>("all");
+  // Sector filter (George 2026-09-01) — canonical buckets, matched server-side
+  // over sector+industry so raw SIC-labelled rows are included too.
+  const [sector, setSector] = useState<SectorValue>("all");
   const { data: bt } = useBacktest();
 
   const { data, isLoading } = useSWR<RankingsResponse>(
@@ -66,7 +70,7 @@ export default function InsiderHotStocksPage() {
     // first 150 tickers feed the coverage lookup); pulling 1000 was needless
     // database egress. Refresh every 30 min — scores only change on the ~6h
     // recalc, so tighter polling just re-transfers identical rows.
-    `${API_BASE}/rankings?limit=300&live=1${exchange !== "all" ? `&exchange=${exchange}` : ""}`,
+    `${API_BASE}/rankings?limit=300&live=1${exchange !== "all" ? `&exchange=${exchange}` : ""}${sector !== "all" ? `&sectorGroup=${sector}` : ""}`,
     fetcher,
     { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
@@ -547,8 +551,11 @@ export default function InsiderHotStocksPage() {
 
       <AdSlot slot="leaderboard" seed="insider-hot-top" />
 
-      {/* Exchanges filter — All / U.S. / Canada / Germany */}
-      <ExchangeFilter value={exchange} onChange={setExchange} />
+      {/* Exchanges filter — All / U.S. / Canada / Germany — plus sector */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <ExchangeFilter value={exchange} onChange={setExchange} />
+        <SectorFilter value={sector} onChange={setSector} />
+      </div>
 
       {/* Top 50 — one page, counting down #50 → #1 */}
       <div className="card overflow-hidden">

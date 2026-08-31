@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Query, Res, UseGuards } from '@nest
 import { AdminTokenGuard } from '../common/admin-token.guard';
 import type { Response } from 'express';
 import { IqsService } from './iqs.service';
+import { sectorGroupBySlug } from './sector-groups';
 
 function csvEscape(v: any): string {
   if (v === null || v === undefined) return '';
@@ -44,6 +45,7 @@ export class IqsController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('sector') sector?: string,
+    @Query('sectorGroup') sectorGroup?: string,
     @Query('minMarketCap') minMc?: string,
     @Query('maxMarketCap') maxMc?: string,
     @Query('minIqs') minIqs?: string,
@@ -55,6 +57,9 @@ export class IqsController {
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
       sector: sector || undefined,
+      // Canonical sector bucket (see sector-groups.ts) — keyword match over
+      // sector+industry, because exact `sector` misses the raw SIC labels.
+      sectorMatch: sectorGroupBySlug(sectorGroup)?.rx,
       minMarketCap: minMc ? Number(minMc) : undefined,
       maxMarketCap: maxMc ? Number(maxMc) : undefined,
       minIqs: minIqs ? Number(minIqs) : undefined,

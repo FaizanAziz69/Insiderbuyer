@@ -125,6 +125,14 @@ export interface CompanyDetail {
     avgTarget: number;
     upsidePct: number;
   } | null;
+  /** Where the Insider Score sits inside its own sector bucket. */
+  sectorContext?: {
+    slug: string;
+    label: string;
+    scored: number;
+    rank: number | null;
+    avgIqs: number | null;
+  } | null;
   score: {
     iqs: number; // 0–100
     insiderWeight: number;

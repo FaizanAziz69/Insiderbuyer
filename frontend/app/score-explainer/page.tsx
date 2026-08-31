@@ -40,6 +40,13 @@ interface Explain {
   found: boolean;
   ticker: string;
   filingsSource?: string;
+  sectorContext?: {
+    slug: string;
+    label: string;
+    scored: number;
+    rank: number | null;
+    avgIqs: number | null;
+  } | null;
   comparison?: { old: ScoreVersion; new: ScoreVersion };
   company?: { name: string; sector: string | null; industry: string | null };
   config?: { windowDays: number; neutral: number; ceiling: number };
@@ -240,6 +247,28 @@ export default function ScoreExplainerPage() {
           </div>
           {d.final?.scoreNote && (
             <div className="card p-4 text-[13px]" style={{ color: "var(--gold)" }}>{d.final.scoreNote}</div>
+          )}
+
+          {/* Sector context — the score against its own sector's scored peers
+              (George 2026-09-01): raw cross-market comparison misreads sectors
+              where insiders rarely buy. */}
+          {d.sectorContext && (
+            <div className="card p-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+              <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: "var(--text-mute)" }}>
+                Sector context
+              </span>
+              <span className="text-[13.5px]">
+                <b>{d.sectorContext.label}</b>
+                {d.sectorContext.rank != null ? (
+                  <> — ranks <b>#{d.sectorContext.rank}</b> of {d.sectorContext.scored} scored {d.sectorContext.label} stocks</>
+                ) : (
+                  <> — not ranked (no qualifying insider buying in the window); {d.sectorContext.scored} {d.sectorContext.label} stocks are scored</>
+                )}
+                {d.sectorContext.avgIqs != null && (
+                  <>; sector average score {d.sectorContext.avgIqs}</>
+                )}
+              </span>
+            </div>
           )}
 
           {/* Old vs New score — side by side */}
