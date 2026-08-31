@@ -27,6 +27,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
+import { DATA_ARTICLES_ENABLED } from "@/lib/data-articles-flag";
 
 export interface NavLink {
   label: string;
@@ -65,8 +66,8 @@ export const NAV_GROUPS: NavGroup[] = [
     columns: [
       {
         links: [
-          // Relisted 2026-08-24 (Faizan) — was direct-URL only while the map settled.
-          { label: "Data Articles", href: "/data", icon: FileText, badge: "new" },
+          // Delisted 2026-09-01 (George: needs work, remove for now) — see lib/data-articles-flag.ts.
+          ...(DATA_ARTICLES_ENABLED ? [{ label: "Data Articles", href: "/data", icon: FileText, badge: "new" as const }] : []),
           { label: "Insider Bubbles", href: "/bubbles", icon: Orbit, badge: "new" },
           { label: "Congress Bubbles", href: "/congress-bubbles", icon: Orbit, badge: "new" },
           { label: "Top Insiders", href: "/investors", icon: Landmark, badge: "new" },

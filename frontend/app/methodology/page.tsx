@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { pageMetadata } from "@/lib/seo-meta";
+import { DATA_ARTICLES_ENABLED } from "@/lib/data-articles-flag";
 
 /**
  * /methodology — Developer Project Brief (Aug 24 2026), §2.4: "Where a page
@@ -14,7 +15,8 @@ export const metadata = pageMetadata("/methodology", {
     "How every figure on Insider Buying is computed: insider return on disclosed buys, the Bubbles maps, congressional trade sizing from PTR ranges, and what each number can and cannot tell you.",
 });
 
-const SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> = [
+// Data-articles methodology hides with the section itself (lib/data-articles-flag.ts).
+const ALL_SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> = [
   {
     id: "insider-returns",
     title: "Return on disclosed buys (insider cards and profiles)",
@@ -206,6 +208,8 @@ const SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> = [
     ),
   },
 ];
+
+const SECTIONS = ALL_SECTIONS.filter((s) => DATA_ARTICLES_ENABLED || s.id !== "data-articles");
 
 export default function MethodologyPage() {
   return (

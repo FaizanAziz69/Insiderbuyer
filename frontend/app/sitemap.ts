@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { DATA_ARTICLES_ENABLED } from "@/lib/data-articles-flag";
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:4000";
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuying.com";
@@ -8,8 +9,9 @@ const STATIC_ROUTES = [
   "/insiders/hot", "/analyst-ratings", "/analyst-stocks", "/government-contracts", "/market-data/top-gainers",
   "/market-data/top-losers", "/earnings", "/dividends", "/ipos",
   "/short-interest", "/short-squeeze", "/congressional-trades",
-  "/heatmaps/market", "/sectors", "/screener", "/watchlist", "/bubbles", "/congress-bubbles", "/methodology", "/investors", "/data",
+  "/heatmaps/market", "/sectors", "/screener", "/watchlist", "/bubbles", "/congress-bubbles", "/methodology", "/investors",
   "/stock-lists/hot-sectors", "/learn/insider-buying",
+  ...(DATA_ARTICLES_ENABLED ? ["/data"] : []),
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -20,7 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // Evergreen data articles (Workstream A) — permanent URLs, weekly data.
-  try {
+  if (DATA_ARTICLES_ENABLED) try {
     const res = await fetch(`${BACKEND}/api/data-articles`, { next: { revalidate: 3600 } });
     const data = await res.json();
     for (const a of data?.articles || []) {

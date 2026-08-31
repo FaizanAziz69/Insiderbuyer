@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DataArticleView, type DataArticle } from "@/components/data-articles/DataArticleView";
+import { DATA_ARTICLES_ENABLED } from "@/lib/data-articles-flag";
 
 /**
  * Evergreen data article — Developer Project Brief (Aug 24 2026), Workstream A.
@@ -23,6 +24,7 @@ async function load(slug: string): Promise<DataArticle | null> {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  if (!DATA_ARTICLES_ENABLED) return { title: "Data article | InsiderBuying.com" };
   const { slug } = await params;
   const a = await load(slug);
   if (!a) return { title: "Data article | InsiderBuying.com" };
@@ -38,6 +40,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 export default async function DataArticlePage({ params }: { params: Promise<{ slug: string }> }) {
+  if (!DATA_ARTICLES_ENABLED) notFound();
   const { slug } = await params;
   const article = await load(slug);
   if (!article) notFound();

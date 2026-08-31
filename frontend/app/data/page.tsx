@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { ComplianceFooter } from "@/components/ComplianceFooter";
+import { DATA_ARTICLES_ENABLED } from "@/lib/data-articles-flag";
 
 /**
  * Data articles index — Developer Project Brief (Aug 24 2026), Workstream A.
@@ -30,6 +32,7 @@ function fmt(iso: string | null): string {
 export const revalidate = 300;
 
 export default async function DataIndexPage() {
+  if (!DATA_ARTICLES_ENABLED) notFound();
   let items: Item[] = [];
   try {
     const res = await fetch(`${BACKEND}/api/data-articles`, { next: { revalidate: 300 } });
