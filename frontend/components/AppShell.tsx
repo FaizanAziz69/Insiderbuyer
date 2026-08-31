@@ -6,6 +6,7 @@ import { TopTickerBar } from "./TopTickerBar";
 // import { ChatWidget } from "./chat/ChatWidget"; // hidden for now
 import { PREMIUM_UNLOCKED } from "@/lib/premium";
 import { InsiderActivityToast } from "@/components/home/InsiderActivityToast";
+import { useBarePage } from "@/lib/use-bare-page";
 
 /**
  * Standalone funnel pages that render without the site chrome.
@@ -30,6 +31,7 @@ const BARE_ROUTES = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const bare = useBarePage();
   if (BARE_ROUTES.some((r) => pathname?.startsWith(r))) {
     return <>{children}</>;
   }
@@ -64,10 +66,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Footer />
       </div>
       {/* <ChatWidget /> */}{/* "Ask the Insider" chat button — hidden for now */}
-      {/* Live insider-buy notification — appears ~10s after landing, any page */}
-      <div data-app-chrome>
-        <InsiderActivityToast />
-      </div>
+      {/* Live insider-buy notification — appears ~10s after landing, any page.
+          Not mounted on bare pages: CSS only hides it, and its cha-ching was
+          audible on press.insiderbuying.com (George, 2026-09-01). */}
+      {!bare && (
+        <div data-app-chrome>
+          <InsiderActivityToast />
+        </div>
+      )}
     </div>
   );
 }

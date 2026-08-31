@@ -19,6 +19,7 @@ import { API_BASE } from "@/lib/api";
 import { identifyByEmail, track } from "@/lib/analytics";
 import { useAuth } from "@/lib/auth";
 import { usePremium } from "@/components/premium/PremiumContext";
+import { useBarePage } from "@/lib/use-bare-page";
 import {
   FUNNEL_COOKIES,
   getCookie,
@@ -82,6 +83,10 @@ const POPUP1_DELAY_MS = 30_000;
 
 export function FunnelPopups() {
   const pathname = usePathname() || "/";
+  // Host-agnostic bare-page check: press.insiderbuying.com serves /press at
+  // the browser path "/", so popupsAllowedOn alone let both popups through
+  // on the B2B site (George, 2026-09-01).
+  const bare = useBarePage();
   const { user } = useAuth();
   const { premium } = usePremium();
   const [active, setActive] = useState<PopupId | null>(null);
@@ -91,6 +96,7 @@ export function FunnelPopups() {
   /** Everything the brief says must suppress a popup. */
   const eligible = useCallback(
     (id: PopupId): boolean => {
+      if (bare) return false;
       if (!popupsAllowedOn(pathname)) return false;
       if (premium) return false; // already a subscriber
       if (hasOptedIn()) return false; // already on the list
@@ -103,7 +109,7 @@ export function FunnelPopups() {
       if (getCookie(COPY[id].shownCookie) === "true") return false;
       return true;
     },
-    [pathname, premium],
+    [pathname, premium, bare],
   );
 
   // ── Popup 1: 30 seconds after load ───────────────────────────────────
