@@ -98,7 +98,10 @@ const PACKAGES = [
   { name: "Go Viral", price: "$48,889" },
 ];
 
-const CALENDLY = process.env.NEXT_PUBLIC_CALENDLY_URL || "";
+// George's booking link (2026-09-01) — env var still wins if ever set.
+const CALENDLY =
+  process.env.NEXT_PUBLIC_CALENDLY_URL ||
+  "https://calendly.com/george-insiderbuying/30min";
 
 export default function PressPage() {
   return (
