@@ -475,22 +475,26 @@ export class Iqs2Service {
       [asOf],
     );
 
-    // Everything else the v2 run looked at and did NOT score. `iqs` is NOT
-    // NULL in this schema, so "unscored" cannot be stored as null; leaving the
-    // old value would be worse — a company page would keep showing a number
-    // from the retired methodology beside zero counted buys (NVDA sat at 23
-    // with no qualifying purchase at all). Zeroing both is at least
-    // self-consistent, and the board filters these rows out on the count.
+    // Every other published row. Under the v2 rules a company with no
+    // qualifying officer/director purchase in the trailing 90 days simply has
+    // no score, and that is most of what is left here — including names the
+    // v2 run never wrote a row for at all because none of their filings
+    // survived Workstream A (NVDA and AAPL both sat at 23 with zero counted
+    // buys). Leaving them alone would keep a retired methodology's number on
+    // a live page, so the whole board moves to v2 together or not at all.
     const cleared = await this.q(
       `UPDATE iqs_scores s
           SET "transactionCount" = 0, "distinctBuyers" = 0, iqs = 0
-         FROM iqs2_company_scores v2
-        WHERE v2.as_of = $1
-          AND v2.score IS NULL
-          AND s.company_id = v2.company_id
-          AND s."asOfDate" = (
-            SELECT MAX(x."asOfDate") FROM iqs_scores x WHERE x.company_id = s.company_id
-          )
+        WHERE s."asOfDate" = (
+                SELECT MAX(x."asOfDate") FROM iqs_scores x WHERE x.company_id = s.company_id
+              )
+          AND s."transactionCount" > 0
+          AND NOT EXISTS (
+                SELECT 1 FROM iqs2_company_scores v2
+                 WHERE v2.company_id = s.company_id
+                   AND v2.as_of = $1
+                   AND v2.score IS NOT NULL
+              )
         RETURNING s.id`,
       [asOf],
     );
