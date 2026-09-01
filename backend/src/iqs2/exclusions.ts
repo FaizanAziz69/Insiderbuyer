@@ -32,6 +32,9 @@ export type ExclusionReason =
   | 'RULE_10B5_1_PLAN'
   /** Filer's only relationship is 10% ownership, no officer/director role. */
   | 'TEN_PERCENT_OWNER_ONLY'
+  /** Form 4 recorded no officer title and no director flag — an institutional
+   *  or entity filer whose buying is not the officer/director signal. */
+  | 'NOT_OFFICER_OR_DIRECTOR'
   /** Purchased within the financing window of a deal the insider joined. */
   | 'FINANCING_PARTICIPANT'
   /** Implausible price/size — the existing filer-error guard. */
@@ -49,6 +52,10 @@ export interface TxForExclusion {
   /** Raw Form 4 title text — carries "10% owner", "CFO", "Director"… */
   rawTitle?: string | null;
   role?: string | null;
+  /** reportingOwnerRelationship flags, where the ingest captured them. */
+  isOfficer?: boolean | null;
+  isDirector?: boolean | null;
+  isTenPercentOwner?: boolean | null;
   /** True for derivative-table lines (Table II). */
   isDerivative?: boolean | null;
   /** Set by the financing cross-reference, or by the manual flag at launch. */
@@ -97,6 +104,30 @@ export function isTenPercentOwnerOnly(
   );
 }
 
+/**
+ * Whether the filing establishes an officer or director relationship.
+ *
+ * The brief excludes filers whose only relationship is a 10% holding, but the
+ * Form 4 ingest does not persist `isTenPercentOwner`, so that flag alone
+ * cannot be tested against the archive. What the archive DOES carry is
+ * decisive in the other direction: the parser sets rawTitle to the officer
+ * title, or to "Director" when the director flag is set, and to '' when
+ * neither holds. An empty title with no officer/director role is therefore a
+ * filing that recorded neither relationship — in practice the institutional
+ * entities (measured 2026-09-02: 439 of 2,047 counted purchases, every one of
+ * the top filers an LLC/LP/asset manager, led by Cascade Investment).
+ *
+ * Explicit flags win when the ingest supplies them; the title inference is
+ * the fallback for rows filed before that.
+ */
+export function isOfficerOrDirector(tx: TxForExclusion): boolean {
+  if (tx.isOfficer || tx.isDirector) return true;
+  if (tx.isOfficer === false && tx.isDirector === false) return false;
+  const role = (tx.role || '').trim();
+  if (role && role !== 'Other') return true;
+  return !!(tx.rawTitle || '').trim();
+}
+
 /** Workstream A decision for a single transaction. */
 export function classifyTransaction(tx: TxForExclusion): ExclusionDecision {
   if (tx.isDerivative) {
@@ -142,6 +173,15 @@ export function classifyTransaction(tx: TxForExclusion): ExclusionDecision {
       scored: false,
       reason: 'TEN_PERCENT_OWNER_ONLY',
       detail: 'Filer is a 10% holder with no officer or director role.',
+    };
+  }
+
+  if (!isOfficerOrDirector(tx)) {
+    return {
+      scored: false,
+      reason: 'NOT_OFFICER_OR_DIRECTOR',
+      detail:
+        'The filing records no officer title and no director flag — an entity or institutional holder, not an officer or director.',
     };
   }
 

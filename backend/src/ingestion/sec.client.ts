@@ -36,6 +36,9 @@ export interface ParsedTransaction {
   rawTitle: string;
   isDirector: boolean;
   isOfficer: boolean;
+  /** Form 4 reportingOwnerRelationship/isTenPercentOwner. IQS 2.0 excludes
+   *  filers whose ONLY relationship is a 10% holding (Workstream A). */
+  isTenPercentOwner: boolean;
   transactionDate: string;
   transactionCode: string;
   /** 'A' acquired or 'D' disposed — the only reliable direction signal for
@@ -271,6 +274,9 @@ export class SecClient {
     const isOfficer =
       String(relationship?.isOfficer || "").trim() === "1" ||
       relationship?.isOfficer === true;
+    const isTenPercentOwner =
+      String(relationship?.isTenPercentOwner || "").trim() === "1" ||
+      relationship?.isTenPercentOwner === true;
     const rawTitle =
       relationship?.officerTitle || (isDirector ? "Director" : "");
 
@@ -327,6 +333,7 @@ export class SecClient {
         rawTitle: String(rawTitle || ""),
         isDirector: !!isDirector,
         isOfficer: !!isOfficer,
+        isTenPercentOwner: !!isTenPercentOwner,
         transactionDate: String(date),
         transactionCode: codeU,
         acquiredDisposed: acqDispU === "D" ? "D" : "A",

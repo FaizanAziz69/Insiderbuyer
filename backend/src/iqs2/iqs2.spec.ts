@@ -11,7 +11,12 @@
  *   npm run build && node dist/iqs2/iqs2.spec.js
  */
 import * as assert from 'assert';
-import { classifyTransaction, liquidityGate, isTenPercentOwnerOnly } from './exclusions';
+import {
+  classifyTransaction,
+  liquidityGate,
+  isTenPercentOwnerOnly,
+  isOfficerOrDirector,
+} from './exclusions';
 import {
   scoreTrade,
   scoreConvictionDollars,
@@ -120,6 +125,38 @@ ok(
   liquidityGate({ lastPrice: 4, medianDollarVolume30d: null }) === null,
   'unknown volume is not treated as illiquid',
 );
+
+// Officer/director requirement — the institutional-entity gap the first live
+// shadow run exposed (Cascade Investment et al. filed 439 of 2,047 "counted"
+// purchases with a blank title and no role).
+ok(
+  classifyTransaction({ transactionCode: 'P', rawTitle: '', role: 'Other' }).reason ===
+    'NOT_OFFICER_OR_DIRECTOR',
+  'a blank-title entity filer is excluded',
+);
+ok(
+  classifyTransaction({ transactionCode: 'P', rawTitle: '', role: 'Other', isOfficer: true })
+    .scored,
+  'an explicit officer flag beats the blank title',
+);
+ok(
+  classifyTransaction({ transactionCode: 'P', rawTitle: '', role: 'Other', isDirector: true })
+    .scored,
+  'an explicit director flag beats the blank title',
+);
+ok(
+  !classifyTransaction({
+    transactionCode: 'P',
+    rawTitle: 'Chief Executive Officer',
+    role: 'CEO',
+    isOfficer: false,
+    isDirector: false,
+  }).scored,
+  'explicit false flags win over a title string',
+);
+ok(isOfficerOrDirector({ transactionCode: 'P', role: 'Director' }), 'a director role counts');
+ok(isOfficerOrDirector({ transactionCode: 'P', rawTitle: 'EVP, COO' }), 'a title counts');
+ok(!isOfficerOrDirector({ transactionCode: 'P', rawTitle: '', role: 'Other' }), 'neither does not');
 
 /* ── Workstream B: component behaviour ────────────────────────────────── */
 
