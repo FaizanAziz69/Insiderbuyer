@@ -435,6 +435,70 @@ export class Iqs2Service {
     }
   }
 
+  /**
+   * Publish IQS 2.0 into the score the whole site already reads.
+   *
+   * George, 2026-09-02: the new score goes live everywhere, and into the
+   * EXISTING column rather than a parallel one — so `iqs_scores.iqs` (which
+   * /rankings, /insiders/hot, company pages, movers, lists and the home rail
+   * all read) becomes the v2 number, and no query anywhere has to change.
+   *
+   * The whole published row is moved to v2 together — score, counted buys and
+   * distinct buyers — because a v2 score beside a v1 buy-count would be two
+   * methodologies in one row. Companies whose only buyers are now excluded
+   * therefore land at 0 counted buys and drop off the board, which is the
+   * honest outcome: under the published rules they have no insider buying.
+   *
+   * Reversible: `POST /iqs/recalculate` rewrites these columns from the v1
+   * model, and every v2 value is kept in iqs2_company_scores regardless.
+   */
+  async publish(): Promise<{ updated: number; cleared: number; asOf: string }> {
+    await this.ensureTables();
+    const [latest] = await this.q(`SELECT MAX(as_of) AS d FROM iqs2_company_scores`);
+    const asOf = latest?.d ? new Date(latest.d).toISOString().slice(0, 10) : null;
+    if (!asOf) return { updated: 0, cleared: 0, asOf: '' };
+
+    // Scored companies take the v2 number on their latest v1 row.
+    const updated = await this.q(
+      `UPDATE iqs_scores s
+          SET iqs = v2.score,
+              "transactionCount" = v2.counted_trades,
+              "distinctBuyers" = v2.distinct_buyers
+         FROM iqs2_company_scores v2
+        WHERE v2.as_of = $1
+          AND v2.score IS NOT NULL
+          AND s.company_id = v2.company_id
+          AND s."asOfDate" = (
+            SELECT MAX(x."asOfDate") FROM iqs_scores x WHERE x.company_id = s.company_id
+          )
+        RETURNING s.id`,
+      [asOf],
+    );
+
+    // Everything else the v2 run looked at and did NOT score: zero the counted
+    // buys so it leaves the board instead of showing a v1 number under a v2
+    // heading. `iqs` is NOT NULL in this schema, so the count — not a fake
+    // score — is what carries "unscored" here.
+    const cleared = await this.q(
+      `UPDATE iqs_scores s
+          SET "transactionCount" = 0
+         FROM iqs2_company_scores v2
+        WHERE v2.as_of = $1
+          AND v2.score IS NULL
+          AND s.company_id = v2.company_id
+          AND s."asOfDate" = (
+            SELECT MAX(x."asOfDate") FROM iqs_scores x WHERE x.company_id = s.company_id
+          )
+        RETURNING s.id`,
+      [asOf],
+    );
+
+    this.logger.log(
+      `IQS 2.0 published: ${updated.length} scored, ${cleared.length} cleared (as of ${asOf})`,
+    );
+    return { updated: updated.length, cleared: cleared.length, asOf };
+  }
+
   async status() {
     await this.ensureTables();
     const [row] = await this.q(

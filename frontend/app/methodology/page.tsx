@@ -187,10 +187,18 @@ const ALL_SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> 
     title: "Insider Score (IQS)",
     body: (
       <p>
-        A 0–99 composite of the buying itself (size versus market cap, cluster, seniority, stake
-        growth, aggregate insider ownership), sector strength, management tone, trading momentum,
-        insider calibre and share dilution, less a litigation deduction; recomputed daily. Green
-        badges mark scores of 75 and above, gold 50–74. Full definition on the{" "}
+        Only open-market purchases by officers and directors are scored. Awards, option exercises,
+        tax withholding, gifts, 10b5-1 plan buys and purchases by holders with no officer or
+        director role are excluded, each with a recorded reason. Every surviving purchase is scored
+        on seven things — how much was committed and how far it grew the buyer&rsquo;s own stake,
+        their record on past buys, their seniority, whether they buy rarely or routinely, whether
+        they bought into price weakness, the company&rsquo;s valuation and size, and total insider
+        ownership. Buying into weakness scores up, routine buying scores down. Those trade scores
+        are summed over 90 days with a 30-day half-life, multiplied by up to 1.6× when several
+        distinct insiders buy, then ranked against every scored company that day to give the 0–99
+        number; share issuance over 5% deducts up to 30 points and confirmed litigation up to 15.
+        A company with no qualifying purchases is unscored, not zero. Green badges mark 75 and
+        above, gold 50–74. Every counted and excluded filing is listed on the{" "}
         <Link href="/score-explainer">score explainer</Link>.
       </p>
     ),

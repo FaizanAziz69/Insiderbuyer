@@ -38,7 +38,7 @@ const MIN_ANALYSTS = 2;
 const FAQS = [
   {
     q: "How does the IQ Score work?",
-    a: "It is a 0–99 composite of six weighted parts: the quality of the insider buying itself (45%), how strong the company's sector is right now (22%), the tone of management's own discussion in their latest filing (10%), how busy the stock's trading is versus normal (10%), the caliber of the insiders doing the buying (8%), and how much the company is diluting shareholders (5%) — minus a deduction of up to 15 points for confirmed litigation against the insiders. The buying part looks at purchase size against market cap, how many separate insiders bought, how senior they are, how much they grew their own stake, whether the stock trades below what they paid, how much of the company insiders own in total, and insider buying versus selling.",
+    a: "Every open-market purchase an officer or director files is scored on seven things: how much they committed and how far it grew their own stake (the largest part), their record on past buys, how senior they are, whether they buy rarely or on a routine schedule, whether they bought into price weakness or strength, the company's valuation and size, and how much of the company insiders own between them. Awards, option exercises, tax withholding, gifts and anything bought under a pre-arranged 10b5-1 plan are not purchases and score nothing. Those trade scores are then added up over the last 90 days with older buys counting less — a 30-day-old buy counts half — multiplied by up to 1.6× when several different insiders are buying, and ranked against every other company that day to give the 0–99 number. Heavy share issuance subtracts up to 30 points and confirmed litigation up to 15.",
   },
   {
     q: "Why do some stocks with insider buying not appear here?",
@@ -243,7 +243,7 @@ export default function InsiderHotStocksPage() {
     {
       key: "iqs",
       pro: true,
-      info: "Our 0–99 Insider Score — a weighted composite of the buying itself (size vs market cap, cluster, seniority, stake growth, aggregate insider ownership), sector strength, management tone, trading momentum, insider caliber and share dilution, minus a litigation deduction. Recomputed daily.",
+      info: "Our 0–99 Insider Score. Each officer/director open-market purchase is scored on conviction size, the buyer's track record and seniority, how routine their buying is, whether they bought into weakness, valuation and size, and insider ownership. Scores decay over 90 days, gain a cluster multiplier when several insiders buy, and are ranked market-wide; dilution and litigation are deducted. Recomputed daily.",
       label: "Insider Score",
       align: "center",
       sortValue: (r) => r.iqs ?? null,
@@ -440,12 +440,15 @@ export default function InsiderHotStocksPage() {
         </h1>
         <p className="text-mute text-[14px] sm:text-[15px] mt-2 max-w-4xl leading-relaxed">
           Top Insider Scores displays the best stocks according to our{" "}
-          <strong style={{ color: "var(--text)" }}>IQ Score</strong> — a 0–99
-          measure of how strong and meaningful a company&rsquo;s insider buying
-          is, built from six components: the buying itself (including insider
-          ownership and selling), sector strength, management&rsquo;s own
-          outlook, trading momentum, the caliber of the insiders buying, and
-          share dilution — less a deduction for confirmed litigation.
+          <strong style={{ color: "var(--text)" }}>Insider Score</strong> — a
+          0–99 measure of how strong and meaningful a company&rsquo;s insider
+          buying is. Every officer and director purchase is scored on its size
+          and stake growth, the buyer&rsquo;s record and seniority, whether it
+          was opportunistic or routine, whether they bought into weakness, and
+          the company&rsquo;s valuation, size and insider ownership. Those
+          scores decay over 90 days, rise when several insiders buy together,
+          and are ranked against the whole market — then share issuance and
+          confirmed litigation are deducted.
           Only stocks with real analyst coverage appear here: every name below
           carries a published price target from at least {MIN_ANALYSTS}{" "}
           analysts. Anyone can preview the first six ranked names — no account needed. Insider Access counts the list down to #1.

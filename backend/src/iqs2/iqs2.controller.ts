@@ -30,6 +30,17 @@ export class Iqs2Controller {
     return { launch: WEIGHTS_LAUNCH, alternate: WEIGHTS_ALTERNATE };
   }
 
+  /**
+   * Publish the latest IQS 2.0 run into the score every page reads
+   * (iqs_scores.iqs). Admin-only and immediately reversible via
+   * POST /iqs/recalculate, which rewrites the same columns from the v1 model.
+   */
+  @Post('publish')
+  @UseGuards(AdminTokenGuard)
+  async publish() {
+    return this.svc.publish();
+  }
+
   /** Force a shadow recompute. `alt=1` runs the 25/20 comparison vector. */
   @Post('recompute')
   @UseGuards(AdminTokenGuard)

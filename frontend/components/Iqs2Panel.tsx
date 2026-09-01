@@ -8,11 +8,10 @@ import { API_BASE, fetcher } from "@/lib/api";
  * (counted or excluded + reason), each component's inputs, sub-scores, decay
  * factors, penalties, and the final number").
  *
- * It is labelled SHADOW on purpose: Phase 2 computes the score but does not
- * publish it, and the brief gates the public switch behind the Workstream D
- * backtest and George's Phase 3 sign-off. Showing the working while the
- * ranking still runs on v1 is the honest state, and it is what makes the
- * backtest reviewable.
+ * Published site-wide on George's instruction (2026-09-02): the score written
+ * into iqs_scores.iqs is this one, so every surface reads it. The panel is the
+ * audit trail behind that number — the brief calls the explainer "the trust
+ * product", and it must be complete rather than illustrative.
  */
 interface TradeRow {
   tx_id: string;
@@ -83,19 +82,19 @@ export function Iqs2Panel({ ticker }: { ticker: string }) {
         <h2 className="text-[17px] font-bold">IQS 2.0</h2>
         <span
           className="text-[10.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-          style={{ background: "var(--gold)", color: "#3b2300" }}
+          style={{ background: "var(--good)", color: "#fff" }}
         >
-          Shadow — not published
+          Live
         </span>
         {s?.as_of && (
           <span className="text-[12px] text-mute">as of {String(s.as_of).slice(0, 10)}</span>
         )}
       </div>
       <p className="text-[12.5px] leading-relaxed" style={{ color: "var(--text-mute)" }}>
-        The rebuilt score, computed daily alongside the live one. It is not what
-        ranks this stock today: the methodology only goes live once the
-        walk-forward backtest is signed off, so this panel is here to show the
-        working while that runs.
+        This is the score shown across the site. Below is the full working: every
+        purchase counted, every filing excluded and why, each component of each
+        trade score, the decay and cluster multiplier, and the penalties applied
+        after ranking.
       </p>
 
       {s?.unscored_reason ? (
