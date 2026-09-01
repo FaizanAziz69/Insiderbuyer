@@ -61,8 +61,8 @@ const TOP_ANALYST_MIN_SUCCESS = 70;
  *  (FMP's feed has a median of ~8 graded calls per analyst), so exactly ONE
  *  stock had 5 of them and the page showed a single row. George 2026-09-01:
  *  keep the 70% floor but fill the top 50 — so the bar is one PROVEN analyst
- *  and the ranking still rewards deeper coverage (coverage × accuracy ×
- *  upside). Revisit if the TipRanks module lands and coverage deepens. */
+ *  and the ranking leads on upside (see stockScore). Revisit if the TipRanks
+ *  module lands and coverage deepens. */
 const MIN_TOP_ANALYSTS = 1;
 /** Older than this, a price target is history — not live coverage. */
 const TARGET_LIVE_DAYS = 365;
@@ -109,7 +109,7 @@ export interface TopAnalystStockRow {
   consensusTarget: number | null;
   /** Days since the most recent of those analysts' notes. */
   lastRatedDaysAgo: number;
-  /** coverage × accuracy × target multiple — see buildStockBoard. */
+  /** upside × accuracy × √coverage — see stockScore. */
   score: number;
   /** The covering analysts themselves, best success rate first. */
   analysts: Array<{
@@ -753,13 +753,19 @@ export class AnalystsService {
         analysts,
       });
     }
-    rows.sort(
+    // A stock trading above its analysts' average target has no upside left to
+    // show, so it is not a top analyst pick — George, 2026-09-02, after OKTA
+    // led the page at 9% BELOW its target. Dropped rather than ranked last.
+    const withUpside = rows.filter((r) => r.upsidePct > 0);
+    withUpside.sort(
       (a, b) =>
         b.score - a.score ||
-        b.topAnalysts - a.topAnalysts ||
         b.upsidePct - a.upsidePct ||
+        b.topAnalysts - a.topAnalysts ||
         a.symbol.localeCompare(b.symbol),
     );
+    rows.length = 0;
+    rows.push(...withUpside);
 
     const payload: StoredStocks = {
       rows: rows.slice(0, STOCK_ROWS),
@@ -784,15 +790,24 @@ export class AnalystsService {
   /**
    * The ranking, stated once so the page can explain it:
    *   coverage × accuracy × target multiple
-   *     = topAnalysts × (avgSuccessRate / 100) × (1 + upside/100)
-   * Monotone in all three inputs — more top analysts, better track records or
-   * more room to their average target all raise it — and the multiple is
-   * floored so a stock already trading through its targets is pushed down the
-   * list rather than scoring negative.
+   *     = upside% × (avgSuccessRate / 100) × √topAnalysts
+   *
+   * Upside leads, because this is a list of stocks to look at and George's
+   * rule is that a higher rank must mean more room to the analysts' targets.
+   * The previous form multiplied a coverage COUNT by (1 + upside/100), so
+   * coverage dominated and the ordering could invert: OKTA sat at #1 on six
+   * analysts while trading 9% ABOVE their average target, ahead of CRWD at
+   * +19%. Analyst quality still scales the result and coverage still helps,
+   * but under a square root, so one extra analyst cannot outweigh a large
+   * difference in upside.
+   *
+   * Negative-upside names are excluded upstream rather than floored into the
+   * list: a stock already through its targets is not a top analyst pick, and
+   * showing it as one is what George flagged.
    */
   private static stockScore(count: number, avgSuccess: number, upsidePct: number): number {
-    const multiple = Math.max(0.25, 1 + upsidePct / 100);
-    return +(count * (avgSuccess / 100) * multiple).toFixed(2);
+    if (!(upsidePct > 0) || !(count > 0)) return 0;
+    return +(upsidePct * (avgSuccess / 100) * Math.sqrt(count)).toFixed(2);
   }
 
   /** Re-read prices for the stored rows so upside/score are current between

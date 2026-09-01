@@ -1151,16 +1151,28 @@ export class FmpService {
         const symbol = (cells[idx.symbol] || '').toUpperCase();
         if (!symbol || (keep && !keep.has(symbol))) continue;
         const at = (k: string) => this.num(cells[idx![k]]);
-        const windows: Array<[number | null, number | null]> = [
-          [at('lastMonthCount'), at('lastMonthAvgPriceTarget')],
-          [at('lastQuarterCount'), at('lastQuarterAvgPriceTarget')],
-          [at('lastYearCount'), at('lastYearAvgPriceTarget')],
-        ];
-        for (const [count, avg] of windows) {
-          if (count && count > 0 && avg && avg > 0 && avg < 1e9) {
-            out.set(symbol, { count, avgTarget: +avg.toFixed(4) });
-            break;
-          }
+        // Coverage and freshness are two different questions and used to be
+        // answered by one window pick: taking the first non-empty window meant
+        // an actively covered name reported its LAST MONTH's rating count as
+        // its analyst coverage — AAPL came back with 2 analysts when FMP's own
+        // row said 71 over the year, and only 149 symbols site-wide cleared
+        // "10+ analysts". So the count is the widest window available and the
+        // target stays the freshest, which is what each is actually for.
+        const monthAvg = at('lastMonthAvgPriceTarget');
+        const quarterAvg = at('lastQuarterAvgPriceTarget');
+        const yearAvg = at('lastYearAvgPriceTarget');
+        const plausible = (v: number | null) => !!v && v > 0 && v < 1e9;
+        const avgTarget = plausible(monthAvg)
+          ? monthAvg
+          : plausible(quarterAvg)
+            ? quarterAvg
+            : plausible(yearAvg)
+              ? yearAvg
+              : null;
+        const count =
+          at('lastYearCount') || at('lastQuarterCount') || at('lastMonthCount') || null;
+        if (count && count > 0 && avgTarget) {
+          out.set(symbol, { count, avgTarget: +avgTarget.toFixed(4) });
         }
       }
     } catch (e: any) {
