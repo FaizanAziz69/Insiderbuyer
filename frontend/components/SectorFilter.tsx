@@ -1,24 +1,29 @@
 "use client";
 
 /**
- * Sector filter for Insider Score tables (George, 2026-09-01). Slugs mirror
- * backend/src/iqs/sector-groups.ts — the API matches them by keyword over
- * sector + industry (`?sectorGroup=`), because the raw sector column mixes
- * GICS names with one-company SIC descriptions.
+ * Sector filter for Insider Score tables. The options are the eleven "main
+ * sectors" George named (2026-09-01) — the earlier GICS-shaped list read as
+ * random on the page. Order here is HIS order, deliberately not the backend's
+ * classification precedence.
+ *
+ * Slugs mirror backend/src/iqs/sector-groups.ts — the API matches them by
+ * keyword over sector + industry (`?sectorGroup=`), because the raw sector
+ * column mixes GICS names with one-company SIC descriptions. Real Estate,
+ * Utilities and Communication stay in that table (so REITs aren't filed as
+ * Financials) but are `hidden` there and absent here on purpose.
  */
 export const SECTOR_OPTIONS = [
-  { value: "all", label: "All sectors" },
-  { value: "healthcare", label: "Healthcare" },
-  { value: "financials", label: "Financials" },
+  { value: "all", label: "All" },
   { value: "technology", label: "Technology" },
+  { value: "biotech", label: "Biotech" },
+  { value: "healthcare", label: "Healthcare" },
+  { value: "metals-mining", label: "Metals and Mining" },
+  { value: "materials", label: "Materials" },
+  { value: "manufacturing", label: "Manufacturing" },
   { value: "energy", label: "Energy" },
-  { value: "materials", label: "Basic Materials" },
-  { value: "industrials", label: "Industrials" },
-  { value: "consumer-cyclical", label: "Consumer Cyclical" },
-  { value: "consumer-defensive", label: "Consumer Defensive" },
-  { value: "real-estate", label: "Real Estate" },
-  { value: "utilities", label: "Utilities" },
-  { value: "communication", label: "Communication & Media" },
+  { value: "consumer-discretionary", label: "Consumer Discretionary" },
+  { value: "consumer-staples", label: "Consumer Staples" },
+  { value: "financials", label: "Financials" },
 ] as const;
 
 export type SectorValue = (typeof SECTOR_OPTIONS)[number]["value"];
