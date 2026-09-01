@@ -475,13 +475,15 @@ export class Iqs2Service {
       [asOf],
     );
 
-    // Everything else the v2 run looked at and did NOT score: zero the counted
-    // buys so it leaves the board instead of showing a v1 number under a v2
-    // heading. `iqs` is NOT NULL in this schema, so the count — not a fake
-    // score — is what carries "unscored" here.
+    // Everything else the v2 run looked at and did NOT score. `iqs` is NOT
+    // NULL in this schema, so "unscored" cannot be stored as null; leaving the
+    // old value would be worse — a company page would keep showing a number
+    // from the retired methodology beside zero counted buys (NVDA sat at 23
+    // with no qualifying purchase at all). Zeroing both is at least
+    // self-consistent, and the board filters these rows out on the count.
     const cleared = await this.q(
       `UPDATE iqs_scores s
-          SET "transactionCount" = 0
+          SET "transactionCount" = 0, "distinctBuyers" = 0, iqs = 0
          FROM iqs2_company_scores v2
         WHERE v2.as_of = $1
           AND v2.score IS NULL
