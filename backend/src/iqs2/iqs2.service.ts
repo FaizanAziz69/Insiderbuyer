@@ -493,10 +493,20 @@ export class Iqs2Service {
       [asOf],
     );
 
+    // TypeORM's query() returns [rows, affectedCount] for UPDATE ... RETURNING,
+    // so .length on the result is always 2 and reads like a failed publish.
+    const rowCount = (r: unknown): number => {
+      if (!Array.isArray(r)) return 0;
+      const [rows, affected] = r as [unknown, unknown];
+      if (Array.isArray(rows)) return typeof affected === 'number' ? affected : rows.length;
+      return r.length;
+    };
+    const updatedN = rowCount(updated);
+    const clearedN = rowCount(cleared);
     this.logger.log(
-      `IQS 2.0 published: ${updated.length} scored, ${cleared.length} cleared (as of ${asOf})`,
+      `IQS 2.0 published: ${updatedN} scored, ${clearedN} cleared (as of ${asOf})`,
     );
-    return { updated: updated.length, cleared: cleared.length, asOf };
+    return { updated: updatedN, cleared: clearedN, asOf };
   }
 
   async status() {
