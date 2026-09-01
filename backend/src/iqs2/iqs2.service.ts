@@ -352,9 +352,10 @@ export class Iqs2Service {
           const badges = badgesFor({
             dollars: input.dollars,
             holdingsRatio:
-              num(t.previousHoldings) && (num(t.previousHoldings) as number) > 0
+              (num(t.previousHoldings) ?? 0) > 0
                 ? (num(t.sharesBought) ?? 0) / (num(t.previousHoldings) as number)
-                : 1,
+                : null,
+            hasPriorPosition: (num(t.previousHoldings) ?? 0) > 0,
             contrarianZ: breakdown.detail.contrarianZ as number | null,
             role: t.role,
             rawTitle: t.rawTitle,

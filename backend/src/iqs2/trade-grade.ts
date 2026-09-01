@@ -78,7 +78,8 @@ export const BADGES: Record<BadgeKey, BadgeDef> = {
   STAKE_DOUBLER: {
     key: 'STAKE_DOUBLER',
     label: 'Stake Doubler',
-    criterion: 'The purchase at least doubled the shares this insider already held.',
+    criterion:
+      'The purchase at least doubled a position the insider already held. A first-ever purchase is badged First Buy instead.',
   },
   CFO_BUY: {
     key: 'CFO_BUY',
@@ -137,6 +138,17 @@ export interface BadgeContext {
   dollars: number | null;
   /** shares bought ÷ prior holdings; ≥ 1 doubles the stake. */
   holdingsRatio: number | null;
+  /**
+   * Whether the insider held anything before this purchase. Required, because
+   * "at least doubled their position" is simply false of someone who held
+   * nothing — that trade is a FIRST BUY, and badging it a Stake Doubler too
+   * says the same fact twice while claiming something untrue. (Measured
+   * 2026-09-02: 1,352 of 1,435 Stake Doubler badges were on insiders with no
+   * prior position.) The trade SCORE still gives first-ever holders full marks
+   * on that component — that is the brief's rule for the score, not a licence
+   * for the badge to make a claim the filing does not support.
+   */
+  hasPriorPosition: boolean;
   /** Contrarian z from the trade score; ≤ −1 is the maxed timing component. */
   contrarianZ: number | null;
   role: string | null;
@@ -163,7 +175,7 @@ export function badgesFor(ctx: BadgeContext): BadgeKey[] {
 
   if ((num(ctx.clusterBuyers30d) ?? 0) >= 3) out.push('CLUSTER_BUY');
   if (ctx.firstBuy) out.push('FIRST_BUY');
-  if ((num(ctx.holdingsRatio) ?? 0) >= 1) out.push('STAKE_DOUBLER');
+  if (ctx.hasPriorPosition && (num(ctx.holdingsRatio) ?? 0) >= 1) out.push('STAKE_DOUBLER');
 
   // One seniority badge only: finance beats chief-exec beats the rest, which
   // is the order the brief gives for signal strength.

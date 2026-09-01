@@ -304,6 +304,7 @@ ok(JSON.stringify(widths) === JSON.stringify([2, 8, 20, 30, 25, 15]), 'grade ban
 const baseCtx = {
   dollars: 50_000,
   holdingsRatio: 0.1,
+  hasPriorPosition: true,
   contrarianZ: 0,
   role: 'Director',
   rawTitle: 'Director',
@@ -319,6 +320,14 @@ ok(!has({ clusterBuyers30d: 2 }, 'CLUSTER_BUY'), 'two buyers does not');
 ok(has({ firstBuy: true }, 'FIRST_BUY'), 'a first buy is badged');
 ok(has({ holdingsRatio: 1 }, 'STAKE_DOUBLER'), 'doubling the stake is badged');
 ok(!has({ holdingsRatio: 0.99 }, 'STAKE_DOUBLER'), 'just under doubling is not');
+ok(
+  !has({ holdingsRatio: null, hasPriorPosition: false }, 'STAKE_DOUBLER'),
+  'an insider who held nothing is not a Stake Doubler',
+);
+ok(
+  has({ holdingsRatio: null, hasPriorPosition: false, firstBuy: true }, 'FIRST_BUY'),
+  'that trade is a First Buy instead',
+);
 ok(has({ dollars: 1_000_000 }, 'BIG_BUY'), '$1M earns Big Buy');
 ok(!has({ dollars: 999_999 }, 'BIG_BUY'), 'just under $1M does not');
 ok(has({ contrarianZ: -1 }, 'BUYING_WEAKNESS'), 'z = -1 earns Buying Weakness');
