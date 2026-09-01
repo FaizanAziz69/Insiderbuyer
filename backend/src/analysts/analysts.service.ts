@@ -891,6 +891,25 @@ export class AnalystsService {
         consensus = null;
       }
       if (!consensus) continue;
+
+      // The cached ptAvgTarget is the FRESHEST window's average, which on a
+      // thinly-updated name is one note — DYN came back at $50.00, FMP's high
+      // target, against a $38.00 consensus, a 31% inflated upside. Pairing a
+      // year-wide analyst count with a one-month target average is two
+      // different windows in one row, so the published target is the real
+      // consensus and the cached value is only a fallback.
+      let target = Number(c.target);
+      try {
+        const ptc = await this.fmp.getPriceTargetConsensus(c.symbol);
+        const t = Number(ptc?.targetConsensus);
+        if (Number.isFinite(t) && t > 0) target = t;
+      } catch {
+        /* keep the cached average */
+      }
+      const upsidePct = (target / Number(c.price) - 1) * 100;
+      // Re-check the gate on the corrected figure, not the one that got it here.
+      if (!(upsidePct > 2) || upsidePct > 100) continue;
+
       const bullish = consensus.strongBuy + consensus.buy;
       const total = bullish + consensus.hold + consensus.sell + consensus.strongSell;
       if (!total) continue;
@@ -909,8 +928,8 @@ export class AnalystsService {
         buy: consensus.buy,
         hold: consensus.hold,
         sell: consensus.sell + consensus.strongSell,
-        target: +Number(c.target).toFixed(2),
-        upsidePct: +Number(c.upsidePct).toFixed(2),
+        target: +target.toFixed(2),
+        upsidePct: +upsidePct.toFixed(2),
       });
     }
     rows.sort((a, b) => b.upsidePct - a.upsidePct || b.analysts - a.analysts);
