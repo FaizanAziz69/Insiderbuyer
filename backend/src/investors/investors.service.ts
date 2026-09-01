@@ -31,6 +31,19 @@ export type InvestorTab = (typeof TABS)[number];
 
 /** §4.4: suppress the performance line for small or near-empty portfolios. */
 const MIN_AUM = 100_000_000;
+
+/**
+ * §4.4 again, generalised: a manager who has stopped filing must not show a
+ * performance figure computed from a portfolio nobody holds any more.
+ *
+ * A 13F period ends and the filing is due 45 days later, so consecutive
+ * filings are at most ~135 days apart. Past 200 days a manager has missed a
+ * full cycle. Found by audit 2026-09-01: Icahn was serving a 2011 portfolio
+ * (wrong CIK — an entity that files notices only) and Greenlight a 2023 one
+ * with a live-looking "+10.97%"; the SEC has nothing newer for Greenlight, so
+ * no vendor can supply it either.
+ */
+const STALE_AFTER_DAYS = 200;
 const MIN_POSITIONS = 4;
 /** Positions used in the return calculation, by value — the tail of a 5,000-
  *  line BlackRock filing moves the figure by basis points and costs quotes. */
@@ -447,6 +460,20 @@ export class InvestorsService implements OnModuleInit {
     const latestPeriod = periods[periods.length - 1].period;
     const aum = Number(summary?.mv) || 0;
     const n = Number(summary?.n) || 0;
+
+    const ageDays = Math.floor(
+      (Date.now() - new Date(latestPeriod).getTime()) / 86_400_000,
+    );
+    if (ageDays > STALE_AFTER_DAYS) {
+      const asOfLabel = new Date(latestPeriod).toISOString().slice(0, 10);
+      await write(
+        null,
+        `Performance suppressed: no 13F filed since ${asOfLabel}. The holdings below are that filing and are not current.`,
+        [],
+        latestPeriod,
+      );
+      return true;
+    }
     if (aum && aum < MIN_AUM) {
       await write(null, `Performance suppressed: portfolio under $100M ($${(aum / 1e6).toFixed(0)}M).`, [], latestPeriod);
       return true;

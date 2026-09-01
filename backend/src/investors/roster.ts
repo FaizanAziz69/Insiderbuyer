@@ -83,7 +83,10 @@ export const ROSTER: RosterEntry[] = [
   { slug: 'jefferies-group', person: 'Jefferies Group', firm: 'Jefferies Financial Group', cik: '0000096223', categories: [], active: true },
   { slug: 'john-w-rogers-jr', person: 'John W. Rogers Jr.', firm: 'Ariel Investments', cik: '0000936753', categories: ['value'], active: true },
   { slug: 'donald-yacktman', person: 'Donald Yacktman', firm: 'Yacktman Asset Management', cik: '0000905567', categories: ['value', 'longterm'], active: true },
-  { slug: 'carl-icahn', person: 'Carl Icahn', firm: 'Icahn Capital Management', cik: '0001412093', categories: ['value'], active: true },
+  // CIK corrected 2026-09-01: 0001412093 (Icahn Capital LP) files 13F-NT
+  // notices only, so the card was serving a 2011 portfolio. Carl C. Icahn
+  // himself is the 13F-HR filer and is current through Q2 2026.
+  { slug: 'carl-icahn', person: 'Carl Icahn', firm: 'Icahn Capital Management', cik: '0000921669', categories: ['value'], active: true },
   { slug: 'pat-dorsey', person: 'Pat Dorsey', firm: 'Dorsey Asset Management', cik: '0001671657', categories: ['growth', 'longterm'], active: true },
   { slug: 'george-soros', person: 'George Soros', firm: 'Soros Fund Management', cik: '0001029160', categories: [], active: true },
   { slug: 'david-tepper', person: 'David Tepper', firm: 'Appaloosa LP', cik: '0001656456', categories: ['value'], active: true },
@@ -98,7 +101,7 @@ export const ROSTER: RosterEntry[] = [
   { slug: 'stanley-druckenmiller', person: 'Stanley Druckenmiller', firm: 'Duquesne Family Office', cik: '0001536411', categories: ['growth'], active: true },
   { slug: 'howard-marks', person: 'Howard Marks', firm: 'Oaktree Capital Management', cik: '0000949509', categories: ['value'], active: true },
   { slug: 'prem-watsa', person: 'Prem Watsa', firm: 'Fairfax Financial Holdings', cik: '0000915191', categories: ['value', 'longterm'], active: true },
-  { slug: 'david-einhorn', person: 'David Einhorn', firm: 'Greenlight Capital', cik: '0001079114', categories: ['value', 'short'], active: true },
+  { slug: 'david-einhorn', person: 'David Einhorn', firm: 'Greenlight Capital', cik: '0001079114', categories: ['value', 'short'], active: true, note: 'Greenlight Capital last filed 13F holdings for Q4 2023; its related entities (DME Advisors, Greenlight Masters) file notices with no reportable positions. Verified against SEC EDGAR 2026-09-01 — this is the filing record itself, not a data-provider gap, so no vendor can supply newer holdings.' },
   { slug: 'john-paulson', person: 'John Paulson', firm: 'Paulson & Co', cik: '0001035674', categories: ['value'], active: true },
   { slug: 'cliff-sosin', person: 'Cliff Sosin', firm: 'CAS Investment Partners', cik: '0001697591', categories: ['value', 'longterm'], active: true },
   { slug: 'bruce-berkowitz', person: 'Bruce Berkowitz', firm: 'Fairholme Capital Management', cik: '0001056831', categories: ['value'], active: true },
