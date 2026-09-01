@@ -83,6 +83,8 @@ const STOCK_ROWS = 50;
  * A stock that then falls below MIN_TOP_ANALYSTS drops off the list, which is
  * the honest outcome — better a short list than a wrong headline number.
  */
+/** Upside past this counts no further toward the ranking (see stockScore). */
+const UPSIDE_SCORE_CAP = 60;
 const MIN_TARGET_RATIO = 0.4;
 const MAX_TARGET_RATIO = 2.0;
 const MAX_CONSENSUS_MULTIPLE = 3;
@@ -807,7 +809,13 @@ export class AnalystsService {
    */
   private static stockScore(count: number, avgSuccess: number, upsidePct: number): number {
     if (!(upsidePct > 0) || !(count > 0)) return 0;
-    return +(upsidePct * (avgSuccess / 100) * Math.sqrt(count)).toFixed(2);
+    // Credibility of an upside figure falls off well before 100%: past the cap
+    // it is almost always one stale or outlier target rather than real room,
+    // and uncapped it handed the top of the page to single-analyst names at
+    // +101% over stocks with several analysts agreeing on +45%. The cap is for
+    // SCORING only — the row still displays its true upside.
+    const effective = Math.min(upsidePct, UPSIDE_SCORE_CAP);
+    return +(effective * (avgSuccess / 100) * Math.sqrt(count)).toFixed(2);
   }
 
   /** Re-read prices for the stored rows so upside/score are current between
