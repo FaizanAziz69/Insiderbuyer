@@ -124,6 +124,24 @@ export interface TopAnalystStockRow {
   }>;
 }
 
+/** One row of the consensus board — the stockanalysis-shaped list. */
+export interface ConsensusStockRow {
+  symbol: string;
+  name: string;
+  sector: string | null;
+  price: number;
+  marketCap: number | null;
+  rating: 'Strong Buy' | 'Buy';
+  /** Analysts with a price target on file over the trailing year. */
+  analysts: number;
+  strongBuy: number;
+  buy: number;
+  hold: number;
+  sell: number;
+  target: number;
+  upsidePct: number;
+}
+
 /** The persisted /analysts/top-stocks payload. */
 interface StoredStocks {
   rows: TopAnalystStockRow[];
@@ -816,6 +834,117 @@ export class AnalystsService {
     // SCORING only — the row still displays its true upside.
     const effective = Math.min(upsidePct, UPSIDE_SCORE_CAP);
     return +(effective * (avgSuccess / 100) * Math.sqrt(count)).toFixed(2);
+  }
+
+  /* ── Consensus board: the stockanalysis.com-shaped list ────────────────
+   *
+   * George, 2026-09-02: "stockanalysis top analyst stock lists have more data
+   * … hum wohi exactly dikhayain". Their columns are Top Rating / Top Analysts
+   * / Top PT / Upside, and all three "Top" figures are the subset of analysts
+   * TipRanks stars at 4+ — data we do not license (their endpoints answer
+   * "Restricted Endpoint" on our key).
+   *
+   * What we do have is the full sell-side consensus, and on the names they
+   * show it lands in the same place: TER 47 analysts at $468.50 against their
+   * 12 at $464.70, MRVL 94 at $277.78 against their 29 at $292.48. So the list
+   * is built to the same RULE — a buy-rated consensus, real coverage, ranked
+   * by room to the average target — and the column says "Analysts", not "Top
+   * Analysts", because ours is every analyst rather than a starred subset.
+   */
+  private static readonly CONSENSUS_MIN_ANALYSTS = 10;
+  private static readonly CONSENSUS_CANDIDATES = 220;
+
+  async buildConsensusStocks(): Promise<{ rows: ConsensusStockRow[]; computedAtMs: number }> {
+    // Candidates: real coverage, a live target, and room left to it. Ordered by
+    // upside so the per-symbol consensus calls are spent on the names that can
+    // actually make the list.
+    const candidates: Array<{
+      symbol: string; name: string; sector: string | null; price: number;
+      marketCap: number | null; analysts: number; target: number; upsidePct: number;
+    }> = await this.kv.query(
+      `SELECT f.symbol,
+              co.name,
+              co.sector,
+              co."lastPrice"::float8   AS price,
+              co."marketCap"::float8   AS "marketCap",
+              f."ptCount"              AS analysts,
+              f."ptAvgTarget"::float8  AS target,
+              ((f."ptAvgTarget" / NULLIF(co."lastPrice", 0) - 1) * 100)::float8 AS "upsidePct"
+         FROM fundamentals_cache f
+         JOIN companies co ON UPPER(co.ticker) = f.symbol
+        WHERE f."ptCount" >= $1
+          AND f."ptAvgTarget" > 0
+          AND co."lastPrice" > 0
+          AND f."ptAvgTarget" / co."lastPrice" BETWEEN 1.02 AND 2.0
+        ORDER BY "upsidePct" DESC
+        LIMIT $2`,
+      [AnalystsService.CONSENSUS_MIN_ANALYSTS, AnalystsService.CONSENSUS_CANDIDATES],
+    );
+
+    const rows: ConsensusStockRow[] = [];
+    for (const c of candidates) {
+      if (rows.length >= STOCK_ROWS) break;
+      let consensus: Awaited<ReturnType<FmpService['getGradesConsensus']>> = null;
+      try {
+        consensus = await this.fmp.getGradesConsensus(c.symbol);
+      } catch {
+        consensus = null;
+      }
+      if (!consensus) continue;
+      const bullish = consensus.strongBuy + consensus.buy;
+      const total = bullish + consensus.hold + consensus.sell + consensus.strongSell;
+      if (!total) continue;
+      // Their filter is "Strong Buy"; ours is the same idea expressed on the
+      // full board — a clear bullish majority, not a bare plurality.
+      if (bullish / total < 0.6) continue;
+      rows.push({
+        symbol: c.symbol,
+        name: c.name,
+        sector: c.sector,
+        price: +Number(c.price).toFixed(2),
+        marketCap: c.marketCap == null ? null : Number(c.marketCap),
+        rating: consensus.strongBuy > consensus.buy ? 'Strong Buy' : 'Buy',
+        analysts: Number(c.analysts),
+        strongBuy: consensus.strongBuy,
+        buy: consensus.buy,
+        hold: consensus.hold,
+        sell: consensus.sell + consensus.strongSell,
+        target: +Number(c.target).toFixed(2),
+        upsidePct: +Number(c.upsidePct).toFixed(2),
+      });
+    }
+    rows.sort((a, b) => b.upsidePct - a.upsidePct || b.analysts - a.analysts);
+    const payload = { rows, computedAtMs: Date.now() };
+    await this.kv.query(
+      `INSERT INTO backtest_cache (key, payload, "computedAt") VALUES ($1, $2::jsonb, now())
+       ON CONFLICT (key) DO UPDATE SET payload = EXCLUDED.payload, "computedAt" = now()`,
+      ['analyst-consensus-stocks', JSON.stringify(payload)],
+    );
+    this.logger.log(`Consensus stock board: ${rows.length} rows from ${candidates.length} candidates`);
+    return payload;
+  }
+
+  /** Cached read; rebuilds when older than six hours. */
+  async getConsensusStocks(limit = STOCK_ROWS) {
+    const [hit] = await this.kv.query(
+      `SELECT payload, "computedAt" FROM backtest_cache WHERE key = $1`,
+      ['analyst-consensus-stocks'],
+    );
+    let payload = hit?.payload as { rows: ConsensusStockRow[]; computedAtMs: number } | undefined;
+    const stale = !payload || Date.now() - (payload.computedAtMs || 0) > 6 * 3600_000;
+    if (stale) {
+      try {
+        payload = await this.buildConsensusStocks();
+      } catch (e: any) {
+        this.logger.warn(`Consensus board rebuild failed: ${e?.message || e}`);
+      }
+    }
+    const rows = (payload?.rows || []).slice(0, Math.max(1, Math.min(limit, STOCK_ROWS)));
+    return {
+      rows,
+      minAnalysts: AnalystsService.CONSENSUS_MIN_ANALYSTS,
+      computedAt: payload?.computedAtMs ? new Date(payload.computedAtMs).toISOString() : null,
+    };
   }
 
   /** Re-read prices for the stored rows so upside/score are current between

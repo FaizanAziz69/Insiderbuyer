@@ -25,6 +25,16 @@ export class AnalystsController {
 
   /** Qualification diagnostics for the list above (coverage depth, analyst
    *  pool, where the cut falls) — a thin list should be explainable. */
+  /**
+   * The consensus board — same shape as stockanalysis.com's Top Analyst
+   * Stocks: buy-rated consensus, real coverage, ranked by upside.
+   */
+  @Get('consensus-stocks')
+  async consensusStocks(@Query('limit') limit?: string) {
+    const n = Number(limit);
+    return this.svc.getConsensusStocks(Number.isFinite(n) && n > 0 ? n : 50);
+  }
+
   @Get('top-stocks/status')
   async topStocksStatus() {
     return this.svc.topAnalystStocksStatus();
