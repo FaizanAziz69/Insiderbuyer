@@ -61,6 +61,7 @@ import { ReportLead } from './entities/report-lead.entity';
 import { EmailFlowsModule } from './email-flows/email-flows.module';
 import { GovContractsModule } from './gov-contracts/gov-contracts.module';
 import { InvestorsModule } from './investors/investors.module';
+import { Iqs2Module } from './iqs2/iqs2.module';
 import { DataArticlesModule } from './data-articles/data-articles.module';
 import { DeInsidersModule } from './de-insiders/de-insiders.module';
 import { EmailFlowState } from './entities/email-flow-state.entity';
@@ -187,6 +188,7 @@ import { BubblesModule } from './bubbles/bubbles.module';
     EmailFlowsModule,
     GovContractsModule,
     InvestorsModule,
+    Iqs2Module,
     DataArticlesModule,
     DeInsidersModule,
   ],
