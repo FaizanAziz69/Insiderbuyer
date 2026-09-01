@@ -28,7 +28,6 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { effectiveZoom } from "@/lib/zoom";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { stepPhysics, radiusForDollars, fitFactor } from "@/lib/bubbles-physics";
-import { SubscriberOnlyPage } from "@/components/PageSubscribeGate";
 
 const archivo = Archivo({ subsets: ["latin"], weight: ["600", "800", "900"], variable: "--bm-head" });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--bm-mono" });
@@ -274,7 +273,7 @@ const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 /* ---------------------------------------------------------------- page */
 
-function BubblesMap() {
+export default function BubblesPage() {
   const { unlocked } = usePremium();
   const [win, setWin] = useState(DEFAULT_WINDOW);
   const [exch, setExch] = useState<ExchangeKey>("us");
@@ -1539,25 +1538,3 @@ const CSS_TEXT = `
 .bm-p-disclaimer a { color: var(--bm-ink-dim); }
 @media (max-width: 1100px) { .bm-chips-row { display: none; } .bm-exch { display: none; } .bm-switch { display: none; } }
 `;
-
-
-/**
- * Subscriber gate (George, 2026-09-02). The map lives in BubblesMap above and is
- * only mounted for subscribers, so a guest's browser never issues its data
- * fetches — the page is withheld, not merely covered.
- */
-export default function BubblesPage() {
-  return (
-    <SubscriberOnlyPage
-      title="Insider Bubbles is part of Insider Access"
-      subtitle="The live map of every open-market insider purchase of $250,000 or more, sized by conviction and coloured against what the insiders paid."
-      bullets={[
-        "Every qualifying buy, updated as filings land",
-        "Sized by net insider flow, coloured vs. the price insiders paid",
-        "Exchange and sector filters, and the 1D and 1W windows",
-      ]}
-    >
-      <BubblesMap />
-    </SubscriberOnlyPage>
-  );
-}
