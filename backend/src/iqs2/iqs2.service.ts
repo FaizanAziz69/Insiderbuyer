@@ -332,6 +332,15 @@ export class Iqs2Service {
       // Calibration basis: every company's M×Raw for this as-of date.
       const universeRaw = results.filter((r) => !r.unscored).map((r) => r.adjusted);
 
+      // A recompute is AUTHORITATIVE for its as-of date. Without this, a
+      // company that stops qualifying — because an exclusion rule newly
+      // catches its only buyer — keeps the score from the previous run
+      // forever, which is how Republic Services held the top of the board on
+      // 50 purchases that had just been excluded. It also gives the brief's
+      // determinism criterion its meaning: re-running a date reproduces that
+      // date, it does not merge with what was there before.
+      await this.q(`DELETE FROM iqs2_company_scores WHERE as_of = $1`, [asOfISO]);
+
       let written = 0;
       for (const r of results) {
         const final = scoreCompany({
