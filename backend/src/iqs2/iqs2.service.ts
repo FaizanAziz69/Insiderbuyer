@@ -548,6 +548,10 @@ export class Iqs2Service {
   async dailyRefresh() {
     try {
       await this.computeAll();
+      // Compute alone would leave the site frozen on whatever was last
+      // published by hand: the score every page reads lives in iqs_scores,
+      // and nothing else writes it now that v2 is the published model.
+      await this.publish();
     } catch (e: any) {
       this.logger.error(`IQS 2.0 daily run failed: ${e?.message || e}`);
     }
