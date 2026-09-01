@@ -41,6 +41,7 @@ import { RightRailArticles } from "@/components/article/RightRailArticles";
 import { RightRailStockLists } from "@/components/article/RightRailStockLists";
 import { IqsTooltip } from "@/components/IqsTooltip";
 import { TierBadge, tierFor } from "@/components/TierBadge";
+import { TradeGradeChip, BadgeRow } from "@/components/TradeGrade";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsTrendChart } from "@/components/IqsTrendChart";
 import { PriceChart } from "@/components/PriceChart";
@@ -182,6 +183,18 @@ export default function CompanyPage({
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 10 * 60_000 },
   );
+
+  // Trade Grades for this company's filings — one call, keyed by tx id.
+  const { data: gradeData } = useSWR<{
+    rows: Array<{ txId: string; grade: string; badges: string[] }>;
+  }>(`${API_BASE}/iqs2/grades/${encodeURIComponent(ticker)}`, fetcher, {
+    revalidateOnFocus: false,
+  });
+  const gradeByTx = useMemo(() => {
+    const m: Record<string, { grade: string; badges: string[] }> = {};
+    for (const r of gradeData?.rows || []) m[r.txId] = { grade: r.grade, badges: r.badges || [] };
+    return m;
+  }, [gradeData]);
 
   const stats = statsData?.stats ?? null;
   const profile = profileData?.profile ?? null;
@@ -341,13 +354,14 @@ export default function CompanyPage({
                           <th className="text-right">&Delta; Holdings</th>
                           <th className="text-right">Held After</th>
                           <th>Date</th>
+                          <th>Grade</th>
                           <th className="text-center">Form 4</th>
                         </tr>
                       </thead>
                       <tbody>
                         {data.transactions.length === 0 ? (
                           <tr>
-                            <td colSpan={9} className="text-center text-mute py-10">
+                            <td colSpan={10} className="text-center text-mute py-10">
                               No Form 4 filings on record for this company.
                             </td>
                           </tr>
@@ -451,6 +465,16 @@ export default function CompanyPage({
                                 </td>
                                 <td className="text-[14px] font-bold tabular text-soft">
                                   {formatShortDate(t.transactionDate)}
+                                </td>
+                                {/* Trade Grade + signal badges for this filing
+                                    (follow-up IQS 2.0 brief). Only graded
+                                    purchases carry one — a sale or an award is
+                                    not a purchase, so it has no grade. */}
+                                <td>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <TradeGradeChip grade={gradeByTx[t.id]?.grade ?? null} size="sm" />
+                                    <BadgeRow badges={gradeByTx[t.id]?.badges} max={2} />
+                                  </span>
                                 </td>
                                 <td className="text-center">
                                   <a
