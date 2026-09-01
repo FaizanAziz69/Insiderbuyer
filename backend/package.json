@@ -7,7 +7,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
-    "test": "npm run build && node dist/iqs/tx-sanity.spec.js"
+    "test": "npm run build && node dist/iqs/tx-sanity.spec.js && node dist/iqs2/iqs2.spec.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
