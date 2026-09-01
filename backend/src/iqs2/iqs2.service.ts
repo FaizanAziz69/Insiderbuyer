@@ -488,7 +488,10 @@ export class Iqs2Service {
         WHERE s."asOfDate" = (
                 SELECT MAX(x."asOfDate") FROM iqs_scores x WHERE x.company_id = s.company_id
               )
-          AND s."transactionCount" > 0
+          -- Either half may already be zero from an earlier partial publish,
+          -- so this cannot key on the count alone: NVDA kept iqs 23 with a
+          -- count of 0 because a previous run had zeroed only the count.
+          AND (s."transactionCount" > 0 OR s.iqs > 0)
           AND NOT EXISTS (
                 SELECT 1 FROM iqs2_company_scores v2
                  WHERE v2.company_id = s.company_id
