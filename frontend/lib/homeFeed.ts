@@ -70,8 +70,14 @@ const HERO_MAX_AGE_MS = 5 * 24 * 60 * 60_000;
  */
 /** Hard hero pin (George, 2026-08-30: "top stories per top per aana chahiye").
  *  While this slug is in the pool it leads regardless of rotation; the rest of
- *  the block still rotates beneath it. Clear it (null) to go back to pure rotation. */
-export const HERO_PIN: string | null = "editorial-kevin-durant-hugging-face-nvidia-2026-08-29";
+ *  the block still rotates beneath it. Clear it (null) to go back to pure rotation.
+ *
+ *  2026-09-01: repointed to the Anthropic/Lambda story on request — the Durant
+ *  pin was still holding the hero on day 3 even though a newer editorial had
+ *  published, because a pin beats both the freshness rule and HERO_MAX_AGE_MS.
+ *  That is the pin's whole point, so it has to be MOVED when a new lead story
+ *  lands; it does not expire on its own. */
+export const HERO_PIN: string | null = "editorial-anthropic-lambda-cloud-deal-2026-09-01";
 
 export function rotateHero(editorial: BlogPostListItem[], nowMs = Date.now()): BlogPostListItem[] {
   if (editorial.length < 2) return editorial;
