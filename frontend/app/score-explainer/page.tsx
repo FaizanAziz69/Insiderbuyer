@@ -8,6 +8,7 @@
 import useSWR from "swr";
 import { useEffect, useState } from "react";
 import { Calculator, Search } from "lucide-react";
+import { Iqs2Panel } from "@/components/Iqs2Panel";
 import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 
 interface SubFactor {
@@ -270,6 +271,9 @@ export default function ScoreExplainerPage() {
               </span>
             </div>
           )}
+
+          {/* IQS 2.0 shadow score — Workstream E, labelled as not-yet-published */}
+          <Iqs2Panel ticker={d.ticker} />
 
           {/* Old vs New score — side by side */}
           {d.comparison && (
