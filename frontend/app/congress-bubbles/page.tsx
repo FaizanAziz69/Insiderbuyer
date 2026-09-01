@@ -30,6 +30,7 @@ import { API_BASE } from "@/lib/api";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { effectiveZoom } from "@/lib/zoom";
 import { stepPhysics, radiusForDollars, fitFactor, type PhysBody } from "@/lib/bubbles-physics";
+import { SubscriberOnlyPage } from "@/components/PageSubscribeGate";
 
 const archivo = Archivo({ subsets: ["latin"], weight: ["600", "800", "900"], variable: "--bm-head" });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--bm-mono" });
@@ -126,7 +127,7 @@ function tone(b: Body): string {
 
 /* ---------------------------------------------------------------- page */
 
-export default function CongressBubblesPage() {
+function CongressBubblesMap() {
   const [period, setPeriod] = useState("30d");
   const [chamber, setChamber] = useState<Chamber>("");
   const [party, setParty] = useState<Party>("");
@@ -1078,3 +1079,25 @@ const CSS_TEXT = `
   .bm-legend, .bm-stats { display: none; }
 }
 `;
+
+
+/**
+ * Subscriber gate (George, 2026-09-02). The map lives in CongressBubblesMap above and is
+ * only mounted for subscribers, so a guest's browser never issues its data
+ * fetches — the page is withheld, not merely covered.
+ */
+export default function CongressBubblesPage() {
+  return (
+    <SubscriberOnlyPage
+      title="Congress Bubbles is part of Insider Access"
+      subtitle="Every stock trade disclosed by a member of Congress, sized by reported value and coloured by net buying or selling."
+      bullets={[
+        "House and Senate disclosures, refreshed daily",
+        "Filter by chamber, party and period",
+        "Each member’s committees and most-traded tickers",
+      ]}
+    >
+      <CongressBubblesMap />
+    </SubscriberOnlyPage>
+  );
+}

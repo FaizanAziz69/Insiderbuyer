@@ -28,6 +28,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { effectiveZoom } from "@/lib/zoom";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { stepPhysics, radiusForDollars, fitFactor } from "@/lib/bubbles-physics";
+import { SubscriberOnlyPage } from "@/components/PageSubscribeGate";
 
 const archivo = Archivo({ subsets: ["latin"], weight: ["600", "800", "900"], variable: "--bm-head" });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--bm-mono" });
@@ -114,6 +115,14 @@ const WINDOWS: Array<[string, string]> = [
   ["1y", "1Y"],
 ];
 const VALID_WINDOWS = new Set(WINDOWS.map(([v]) => v));
+
+/**
+ * The freshest two windows are subscriber-only (George, 2026-09-02: "paygate
+ * 1D and 1W filters"). Same-day and same-week filings are the part of this map
+ * that is actually actionable, which is exactly why they sit behind the wall.
+ */
+const PREMIUM_WINDOWS = new Set(["1d", "1w"]);
+const DEFAULT_WINDOW = "30d";
 
 /* ------------------------------------------------- filters (brief §5.1) */
 
@@ -265,9 +274,9 @@ const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 /* ---------------------------------------------------------------- page */
 
-export default function BubblesPage() {
+function BubblesMap() {
   const { unlocked } = usePremium();
-  const [win, setWin] = useState("30d");
+  const [win, setWin] = useState(DEFAULT_WINDOW);
   const [exch, setExch] = useState<ExchangeKey>("us");
   const [sectors, setSectors] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<string | null>(null);
@@ -302,11 +311,19 @@ export default function BubblesPage() {
     { refreshInterval: 60_000, keepPreviousData: true },
   );
 
+  // If entitlement lapses while a premium window is selected, fall back
+  // rather than leaving paid data on screen.
+  useEffect(() => {
+    if (!unlocked && PREMIUM_WINDOWS.has(win)) setWin(DEFAULT_WINDOW);
+  }, [unlocked, win]);
+
   /* URL state: read once on mount, write on every change. */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const w = (params.get("window") || "").toLowerCase();
-    if (VALID_WINDOWS.has(w)) setWin(w);
+    // A paygate that a query string walks around is not a paygate: a locked
+    // visitor arriving on ?window=1d lands on the default window instead.
+    if (VALID_WINDOWS.has(w) && !(PREMIUM_WINDOWS.has(w) && !unlocked)) setWin(w);
     const t = (params.get("ticker") || "").toUpperCase();
     if (t) setSelected(t);
     const ex = (params.get("exchange") || "").toLowerCase();
@@ -868,18 +885,27 @@ export default function BubblesPage() {
           <span className="bm-tag">Insider buys &ge; $250K</span>
         </div>
         <nav className="bm-windows" aria-label="Time window">
-          {WINDOWS.map(([value, label]) => (
-            <button
-              key={value}
-              className={value === win ? "bm-active" : ""}
-              onClick={() => {
-                setWin(value);
-                for (const b of bodiesRef.current) b.expanded = false;
-              }}
-            >
-              {label}
-            </button>
-          ))}
+          {WINDOWS.map(([value, label]) => {
+            const locked = PREMIUM_WINDOWS.has(value) && !unlocked;
+            return (
+              <button
+                key={value}
+                className={value === win ? "bm-active" : ""}
+                title={locked ? "Same-day and weekly windows are part of Insider Access" : undefined}
+                onClick={() => {
+                  if (locked) {
+                    window.location.href = SUBSCRIBE_HREF;
+                    return;
+                  }
+                  setWin(value);
+                  for (const b of bodiesRef.current) b.expanded = false;
+                }}
+              >
+                {label}
+                {locked ? " \u{1F512}" : ""}
+              </button>
+            );
+          })}
         </nav>
         <nav className="bm-windows bm-exch" aria-label="Exchange">
           {EXCHANGES.map(([value, label]) => (
@@ -929,19 +955,27 @@ export default function BubblesPage() {
               aria-label="Search tickers on the map"
             />
             <div className="bm-mmenu-windows">
-              {WINDOWS.map(([value, label]) => (
-                <button
-                  key={value}
-                  className={value === win ? "bm-active" : ""}
-                  onClick={() => {
-                    setWin(value);
-                    setMobileMenu(false);
-                    for (const b of bodiesRef.current) b.expanded = false;
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
+              {WINDOWS.map(([value, label]) => {
+                const locked = PREMIUM_WINDOWS.has(value) && !unlocked;
+                return (
+                  <button
+                    key={value}
+                    className={value === win ? "bm-active" : ""}
+                    onClick={() => {
+                      if (locked) {
+                        window.location.href = SUBSCRIBE_HREF;
+                        return;
+                      }
+                      setWin(value);
+                      setMobileMenu(false);
+                      for (const b of bodiesRef.current) b.expanded = false;
+                    }}
+                  >
+                    {label}
+                    {locked ? " \u{1F512}" : ""}
+                  </button>
+                );
+              })}
             </div>
             <div className="bm-mmenu-lbl">Exchange</div>
             <div className="bm-mmenu-windows">
@@ -1505,3 +1539,25 @@ const CSS_TEXT = `
 .bm-p-disclaimer a { color: var(--bm-ink-dim); }
 @media (max-width: 1100px) { .bm-chips-row { display: none; } .bm-exch { display: none; } .bm-switch { display: none; } }
 `;
+
+
+/**
+ * Subscriber gate (George, 2026-09-02). The map lives in BubblesMap above and is
+ * only mounted for subscribers, so a guest's browser never issues its data
+ * fetches — the page is withheld, not merely covered.
+ */
+export default function BubblesPage() {
+  return (
+    <SubscriberOnlyPage
+      title="Insider Bubbles is part of Insider Access"
+      subtitle="The live map of every open-market insider purchase of $250,000 or more, sized by conviction and coloured against what the insiders paid."
+      bullets={[
+        "Every qualifying buy, updated as filings land",
+        "Sized by net insider flow, coloured vs. the price insiders paid",
+        "Exchange and sector filters, and the 1D and 1W windows",
+      ]}
+    >
+      <BubblesMap />
+    </SubscriberOnlyPage>
+  );
+}
