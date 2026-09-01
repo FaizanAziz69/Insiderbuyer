@@ -15,6 +15,7 @@ import { AdSlot } from "@/components/AdSlot";
 import { DATA_REFRESHING, useStalled } from "@/lib/useStalled";
 import { AiCatalyst, useExplainerPrewarm } from "@/components/AiCatalyst";
 import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
+import { TopInsiderBuys } from "@/components/home/TopInsiderBuys";
 import { AiPopularArticlesSection } from "@/components/insights/AiPopularArticlesSection";
 import { AiLatestNewsSection } from "@/components/insights/AiLatestNewsSection";
 
@@ -70,6 +71,11 @@ export default function HomePage() {
           space-y-10 margin and touches no other section. */}
       <div className="pb-6">
         <AiStockIdeasSection />
+      </div>
+
+      {/* Top Insider Buys — the graded-transaction product (follow-up brief) */}
+      <div className="pb-6">
+        <TopInsiderBuys />
       </div>
 
       {/* Three datasets side-by-side.

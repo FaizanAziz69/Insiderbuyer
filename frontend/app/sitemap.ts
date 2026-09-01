@@ -6,7 +6,7 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuying.com";
 
 const STATIC_ROUTES = [
   "", "/insights", "/editorial", "/stock-lists", "/companies", "/trades",
-  "/insiders/hot", "/analyst-ratings", "/analyst-stocks", "/government-contracts", "/market-data/top-gainers",
+  "/insiders/hot", "/insiders/top-buys", "/analyst-ratings", "/analyst-stocks", "/government-contracts", "/market-data/top-gainers",
   "/market-data/top-losers", "/earnings", "/dividends", "/ipos",
   "/short-interest", "/short-squeeze", "/congressional-trades",
   "/heatmaps/market", "/sectors", "/screener", "/watchlist", "/bubbles", "/congress-bubbles", "/methodology", "/investors",
