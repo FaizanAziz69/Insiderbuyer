@@ -9,6 +9,7 @@ import { DataTable, Column } from "@/components/DataTable";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { PriceTargetCell } from "@/components/PriceTargetCell";
 import { rankColumn } from "@/components/tableColumns";
+import { sectorFilterPresets } from "@/lib/sector-groups";
 
 /**
  * Top Analyst Stocks — rebuilt on measured top-analyst coverage (client rule
@@ -184,6 +185,10 @@ export default function AnalystStocksPage() {
       label: "Sector",
       sortValue: (r) => r.sector || "",
       filterable: true,
+      // George 2026-09-01: the eleven main sectors, not the SEC's raw SIC
+      // strings that a distinct-value dropdown produced here.
+      filterType: "preset",
+      filterPresets: sectorFilterPresets((r) => ({ sector: r.sector })),
       render: (r) => <span className="text-[12.5px] text-mute">{r.sector || "—"}</span>,
     },
   ];

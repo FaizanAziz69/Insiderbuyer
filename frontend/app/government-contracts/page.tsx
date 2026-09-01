@@ -10,6 +10,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { PriceTargetCell } from "@/components/PriceTargetCell";
 import { rankColumn } from "@/components/tableColumns";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { sectorFilterPresets } from "@/lib/sector-groups";
 
 /** One public federal contractor — trailing-12-month contract dollars from
  *  USAspending.gov, its top awarding agency, plus live analyst consensus and
@@ -170,6 +171,10 @@ export default function GovernmentContractsPage() {
       key: "sector",
       label: "Sector",
       filterable: true,
+      // George 2026-09-01: the eleven main sectors, not the SEC's raw SIC
+      // strings that a distinct-value dropdown produced here.
+      filterType: "preset",
+      filterPresets: sectorFilterPresets((r) => ({ sector: r.sector })),
       sortValue: (r) => r.sector || "",
       render: (r) => <span className="text-[12.5px] text-mute">{r.sector || "—"}</span>,
     },

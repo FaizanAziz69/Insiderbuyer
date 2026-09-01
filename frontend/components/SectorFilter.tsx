@@ -1,4 +1,5 @@
 "use client";
+import { VISIBLE_SECTOR_GROUPS } from "@/lib/sector-groups";
 
 /**
  * Sector filter for Insider Score tables. The options are the eleven "main
@@ -12,21 +13,30 @@
  * Utilities and Communication stay in that table (so REITs aren't filed as
  * Financials) but are `hidden` there and absent here on purpose.
  */
-export const SECTOR_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "technology", label: "Technology" },
-  { value: "biotech", label: "Biotech" },
-  { value: "healthcare", label: "Healthcare" },
-  { value: "metals-mining", label: "Metals and Mining" },
-  { value: "materials", label: "Materials" },
-  { value: "manufacturing", label: "Manufacturing" },
-  { value: "energy", label: "Energy" },
-  { value: "consumer-discretionary", label: "Consumer Discretionary" },
-  { value: "consumer-staples", label: "Consumer Staples" },
-  { value: "financials", label: "Financials" },
+/** George's display order — deliberately NOT the backend's precedence order. */
+const DISPLAY_ORDER = [
+  "technology",
+  "biotech",
+  "healthcare",
+  "metals-mining",
+  "materials",
+  "manufacturing",
+  "energy",
+  "consumer-discretionary",
+  "consumer-staples",
+  "financials",
 ] as const;
 
-export type SectorValue = (typeof SECTOR_OPTIONS)[number]["value"];
+/** Labels come from the shared table so the two lists cannot drift apart. */
+export const SECTOR_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "all", label: "All" },
+  ...DISPLAY_ORDER.map((slug) => {
+    const g = VISIBLE_SECTOR_GROUPS.find((x) => x.slug === slug);
+    return { value: slug, label: g ? g.label : slug };
+  }),
+];
+
+export type SectorValue = string;
 
 export function SectorFilter({
   value,

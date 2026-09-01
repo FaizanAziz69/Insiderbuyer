@@ -14,6 +14,7 @@ import {
 import { shortSector } from "@/components/heatmap/StockHeatmap";
 import { DataTable, Column } from "@/components/DataTable";
 import { rankColumn } from "@/components/tableColumns";
+import { sectorFilterPresets } from "@/lib/sector-groups";
 
 type PeriodKey = "sinceClose" | "1d" | "7d" | "30d" | "180d" | "1y";
 
@@ -194,6 +195,10 @@ export default function SectorsPage() {
       key: "sector",
       label: "Sector",
       filterable: true,
+      // George 2026-09-01: the eleven main sectors, not the SEC's raw SIC
+      // strings that a distinct-value dropdown produced here.
+      filterType: "preset",
+      filterPresets: sectorFilterPresets((r) => ({ sector: r.sector })),
       sortValue: (r) => r.sector,
       render: (r) => <span className="font-bold text-[15px]">{r.sector}</span>,
     },

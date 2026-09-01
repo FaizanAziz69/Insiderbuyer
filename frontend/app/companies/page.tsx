@@ -11,6 +11,7 @@ import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { rankColumn } from "@/components/tableColumns";
+import { sectorFilterPresets } from "@/lib/sector-groups";
 
 // Shared column definitions — reused by both the free and paywall tables.
 const tickerCol: Column<RankingRow> = {
@@ -42,6 +43,10 @@ const sectorCol: Column<RankingRow> = {
   key: "sector",
   label: "Sector",
   filterable: true,
+  // George 2026-09-01: the eleven main sectors, not the SEC's raw SIC
+  // strings that a distinct-value dropdown produced here.
+  filterType: "preset",
+  filterPresets: sectorFilterPresets((r) => ({ sector: r.sector })),
   sortValue: (r) => r.sector ?? "",
   render: (r) => (
     <span className="text-[14px] truncate max-w-[180px]" style={{ color: "var(--text)" }}>{r.sector || "—"}</span>

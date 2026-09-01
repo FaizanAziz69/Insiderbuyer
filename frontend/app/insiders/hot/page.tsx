@@ -23,6 +23,7 @@ import { ReasoningTip } from "@/components/ReasoningTip";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { BacktestChart } from "@/components/backtest/BacktestChart";
 import { useBacktest } from "@/components/backtest/BacktestPanel";
+import { sectorFilterPresets } from "@/lib/sector-groups";
 
 /**
  * Insider strategy signal — how strong/clustered the recent insider buying is,
@@ -349,6 +350,10 @@ export default function InsiderHotStocksPage() {
       key: "sector",
       label: "Sector",
       filterable: true,
+      // George 2026-09-01: the eleven main sectors, not the SEC's raw SIC
+      // strings that a distinct-value dropdown produced here.
+      filterType: "preset",
+      filterPresets: sectorFilterPresets((r) => ({ sector: r.sector })),
       sortValue: (r) => r.sector || "",
       render: (r) => (
         <span className="text-[12.5px] text-mute truncate inline-block max-w-[140px]">
