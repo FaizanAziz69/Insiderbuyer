@@ -7,6 +7,7 @@ import { FmpService } from '../fmp/fmp.service';
 import { classifyTransaction, liquidityGate, ExclusionReason } from './exclusions';
 import { scoreTrade, TradeInputs, num } from './trade-score';
 import { scoreCompany, ScoredTrade } from './company-score';
+import { gradeFor, badgesFor, BadgeKey } from './trade-grade';
 import { IQS2_CONFIG, WEIGHTS_LAUNCH, TradeWeights } from './config';
 
 /**
@@ -48,6 +49,9 @@ export class Iqs2Service {
       reason varchar(48),
       detail text,
       trade_score numeric(8,3),
+      grade varchar(2),
+      grade_percentile numeric(8,6),
+      badges jsonb,
       components jsonb,
       inputs jsonb,
       as_of date NOT NULL,
@@ -58,6 +62,20 @@ export class Iqs2Service {
     );
     await this.q(
       `CREATE INDEX IF NOT EXISTS iqs2_trade_insider_idx ON iqs2_trade_scores (insider_key)`,
+    );
+    // Added after the table shipped, so they are patched in rather than
+    // assumed — an existing install has the table without them.
+    for (const col of [
+      'grade varchar(2)',
+      'grade_percentile numeric(8,6)',
+      'badges jsonb',
+    ]) {
+      await this.q(
+        `ALTER TABLE iqs2_trade_scores ADD COLUMN IF NOT EXISTS ${col}`,
+      );
+    }
+    await this.q(
+      `CREATE INDEX IF NOT EXISTS iqs2_trade_grade_idx ON iqs2_trade_scores (transaction_date DESC, grade)`,
     );
     await this.q(`CREATE TABLE IF NOT EXISTS iqs2_company_scores (
       company_id uuid NOT NULL,
@@ -165,7 +183,8 @@ export class Iqs2Service {
                 t."previousHoldings"::float8 AS "previousHoldings",
                 c.ticker, c.sector, c.industry,
                 c."marketCap"::float8 AS "marketCap",
-                c."lastPrice"::float8 AS "lastPrice"
+                c."lastPrice"::float8 AS "lastPrice",
+                c."dilutionPctTtm"::float8 AS "dilutionPctTtm"
            FROM insider_transactions t
            JOIN companies c ON c.id = t.company_id
           WHERE t."transactionDate" >= $1 AND t."transactionDate" <= $2`,
@@ -182,7 +201,16 @@ export class Iqs2Service {
       for (const t of txs) decisions.set(t.id, classifyTransaction(t));
 
       const scoredHistory = txs.filter((t) => decisions.get(t.id)!.scored);
-      const inWindow = scoredHistory.filter(
+      // Trade Grades are percentile-ranked against a TRAILING YEAR of graded
+      // purchases (follow-up brief), while the company roll-up stays on its
+      // 90-day window. Only ~3k code-P purchases survive Workstream A in a
+      // year, so scoring the whole year costs one extra price fetch per
+      // company rather than an order of magnitude more work.
+      const gradeStart = new Date(asOf.getTime() - IQS2_CONFIG.gradeWindowDays * 86400000);
+      const inGradeWindow = scoredHistory.filter(
+        (t) => new Date(t.transactionDate).getTime() >= gradeStart.getTime(),
+      );
+      const inWindow = inGradeWindow.filter(
         (t) => new Date(t.transactionDate).getTime() >= windowStart.getTime(),
       );
 
@@ -212,10 +240,10 @@ export class Iqs2Service {
       };
 
       // Companies in play, and their price context (one fetch per symbol).
-      const companyIds = Array.from(new Set(inWindow.map((t) => t.companyId)));
+      const companyIds = Array.from(new Set(inGradeWindow.map((t) => t.companyId)));
       const limited = opts.limit ? companyIds.slice(0, opts.limit) : companyIds;
       const byCompany = new Map<string, any[]>();
-      for (const t of inWindow) {
+      for (const t of inGradeWindow) {
         if (!limited.includes(t.companyId)) continue;
         if (!byCompany.has(t.companyId)) byCompany.set(t.companyId, []);
         byCompany.get(t.companyId)!.push(t);
@@ -299,17 +327,59 @@ export class Iqs2Service {
                 : null,
             netDistinctBuyers: netBuyers,
           };
-          return { tx: t, breakdown: scoreTrade(input, weights), input };
+          // Badge context, all of it decided by filing data.
+          const priorAtCompany = priorBuys.filter((x) => x.companyId === companyId);
+          const lastAtCompany = priorAtCompany.length
+            ? Math.max(...priorAtCompany.map((x) => new Date(x.transactionDate).getTime()))
+            : null;
+          const firstBuy =
+            lastAtCompany === null ||
+            when.getTime() - lastAtCompany >
+              IQS2_CONFIG.firstBuyGapYears * 365 * 86400000;
+          const clusterBuyers30d = new Set(
+            group
+              .filter(
+                (x) =>
+                  Math.abs(new Date(x.transactionDate).getTime() - when.getTime()) <=
+                  30 * 86400000,
+              )
+              .map(keyOf),
+          ).size;
+          const shareGrowthTtm =
+            num(t.dilutionPctTtm) === null ? null : (num(t.dilutionPctTtm) as number) / 100;
+
+          const breakdown = scoreTrade(input, weights);
+          const badges = badgesFor({
+            dollars: input.dollars,
+            holdingsRatio:
+              num(t.previousHoldings) && (num(t.previousHoldings) as number) > 0
+                ? (num(t.sharesBought) ?? 0) / (num(t.previousHoldings) as number)
+                : 1,
+            contrarianZ: breakdown.detail.contrarianZ as number | null,
+            role: t.role,
+            rawTitle: t.rawTitle,
+            clusterBuyers30d,
+            firstBuy,
+            shareGrowthTtm,
+          });
+          return { tx: t, breakdown, input, badges, shareGrowthTtm };
         });
 
-        const trades: ScoredTrade[] = perTrade.map((p) => ({
-          score: p.breakdown.score,
-          ageDays: Math.max(
-            0,
-            Math.floor((asOf.getTime() - new Date(p.tx.transactionDate).getTime()) / 86400000),
-          ),
-          insiderKey: keyOf(p.tx),
-        }));
+        // The roll-up is a 90-day product even though the grade population is
+        // a year, so the older trades are scored and graded but never counted
+        // into a company score.
+        const trades: ScoredTrade[] = perTrade
+          .filter(
+            (p) => new Date(p.tx.transactionDate).getTime() >= windowStart.getTime(),
+          )
+          .map((p) => ({
+            score: p.breakdown.score,
+            ageDays: Math.max(
+              0,
+              Math.floor((asOf.getTime() - new Date(p.tx.transactionDate).getTime()) / 86400000),
+            ),
+            insiderKey: keyOf(p.tx),
+          }));
 
         // Provisional roll-up to get this company's M×Raw for the universe.
         const provisional = scoreCompany({
@@ -325,12 +395,36 @@ export class Iqs2Service {
           adjusted: provisional.raw * provisional.multiplier,
           unscored: gate,
           perTrade: perTrade as any,
-          shareGrowth: null,
+          // dilutionPctTtm is stored as a PERCENT (563 = +563%), not the
+          // fraction the penalty curve expects — dividing is not optional.
+          shareGrowth:
+            num(first.dilutionPctTtm) === null
+              ? null
+              : (num(first.dilutionPctTtm) as number) / 100,
         });
       }
 
       // Calibration basis: every company's M×Raw for this as-of date.
       const universeRaw = results.filter((r) => !r.unscored).map((r) => r.adjusted);
+
+      // Trade Grades: percentile-rank every graded purchase in the trailing
+      // year against the others, then map to a letter. Ties take the midpoint
+      // so a run of identical scores does not all land in the top band.
+      const allTradeScores = results
+        .flatMap((r) => r.perTrade as any[])
+        .map((p) => p.breakdown.score)
+        .sort((a, b) => a - b);
+      const percentileOfScore = (v: number): number => {
+        if (!allTradeScores.length) return 0;
+        let below = 0;
+        let equal = 0;
+        for (const x of allTradeScores) {
+          if (x < v) below++;
+          else if (x === v) equal++;
+          else break;
+        }
+        return (below + equal / 2) / allTradeScores.length;
+      };
 
       // A recompute is AUTHORITATIVE for its as-of date. Without this, a
       // company that stops qualifying — because an exclusion rule newly
@@ -377,39 +471,62 @@ export class Iqs2Service {
         written++;
       }
 
-      // Per-trade rows: every transaction in the window, scored or excluded.
-      let txWritten = 0;
+      // Per-trade rows: every transaction in the grade window, scored or
+      // excluded — the explainer renders the decision for all of them.
+      const scoredByTx = new Map<string, any>();
+      for (const r of results) for (const p of r.perTrade as any[]) scoredByTx.set(p.tx.id, p);
+
+      const rows: any[][] = [];
       for (const t of txs) {
         const d = decisions.get(t.id)!;
         const when = new Date(t.transactionDate).getTime();
-        if (when < windowStart.getTime()) continue;
-        const hit = results
-          .find((r) => r.companyId === t.companyId)
-          ?.perTrade.find((p: any) => p.tx.id === t.id) as any;
+        if (when < gradeStart.getTime()) continue;
+        const hit = scoredByTx.get(t.id);
+        const pct = hit ? percentileOfScore(hit.breakdown.score) : null;
+        rows.push([
+          t.id,
+          t.companyId,
+          keyOf(t),
+          new Date(t.transactionDate).toISOString().slice(0, 10),
+          d.scored,
+          d.reason,
+          d.detail,
+          hit ? hit.breakdown.score : null,
+          pct === null ? null : gradeFor(pct),
+          pct,
+          JSON.stringify(hit ? (hit.badges as BadgeKey[]) : []),
+          JSON.stringify(hit ? hit.breakdown.components : null),
+          JSON.stringify(hit ? hit.input : null),
+          asOfISO,
+        ]);
+      }
+
+      // Batched upsert: one statement per 200 rows. The row-at-a-time loop
+      // this replaces was the whole cost of a run.
+      const COLS = 14;
+      let txWritten = 0;
+      for (let i = 0; i < rows.length; i += 200) {
+        const chunk = rows.slice(i, i + 200);
+        const values = chunk
+          .map(
+            (_, n) =>
+              `(${Array.from({ length: COLS }, (__, k) => `$${n * COLS + k + 1}`).join(',')})`,
+          )
+          .join(',');
         await this.q(
           `INSERT INTO iqs2_trade_scores
              (tx_id, company_id, insider_key, transaction_date, scored, reason, detail,
-              trade_score, components, inputs, as_of, "updatedAt")
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11, now())
+              trade_score, grade, grade_percentile, badges, components, inputs, as_of)
+           VALUES ${values}
            ON CONFLICT (tx_id) DO UPDATE SET
              scored = EXCLUDED.scored, reason = EXCLUDED.reason, detail = EXCLUDED.detail,
-             trade_score = EXCLUDED.trade_score, components = EXCLUDED.components,
-             inputs = EXCLUDED.inputs, as_of = EXCLUDED.as_of, "updatedAt" = now()`,
-          [
-            t.id,
-            t.companyId,
-            keyOf(t),
-            new Date(t.transactionDate).toISOString().slice(0, 10),
-            d.scored,
-            d.reason,
-            d.detail,
-            hit ? hit.breakdown.score : null,
-            JSON.stringify(hit ? hit.breakdown.components : null),
-            JSON.stringify(hit ? hit.input : null),
-            asOfISO,
-          ],
+             trade_score = EXCLUDED.trade_score, grade = EXCLUDED.grade,
+             grade_percentile = EXCLUDED.grade_percentile, badges = EXCLUDED.badges,
+             components = EXCLUDED.components, inputs = EXCLUDED.inputs,
+             as_of = EXCLUDED.as_of, "updatedAt" = now()`,
+          chunk.flat(),
         );
-        txWritten++;
+        txWritten += chunk.length;
       }
 
       const ms = Date.now() - started;
@@ -516,6 +633,89 @@ export class Iqs2Service {
       `IQS 2.0 published: ${updatedN} scored, ${clearedN} cleared (as of ${asOf})`,
     );
     return { updated: updatedN, cleared: clearedN, asOf };
+  }
+
+  /**
+   * "Top Insider Buys" — the ranked TRANSACTION list (follow-up brief). The
+   * company board ranks issuers by IQS; this ranks individual purchases by
+   * Trade Grade, then by dollar value inside a grade.
+   */
+  async topBuys(opts: {
+    period?: string;
+    grade?: string;
+    badge?: string;
+    sector?: string;
+    minMarketCap?: number;
+    maxMarketCap?: number;
+    limit?: number;
+  }) {
+    await this.ensureTables();
+    const days = opts.period === '24h' ? 1 : opts.period === '30d' ? 30 : 7;
+    const limit = Math.min(Math.max(opts.limit ?? 100, 1), 500);
+
+    const params: unknown[] = [days];
+    const where: string[] = [
+      't.scored = true',
+      't.grade IS NOT NULL',
+      't.transaction_date >= CURRENT_DATE - $1::int',
+    ];
+    if (opts.grade === 'A') where.push("t.grade IN ('A+','A')");
+    else if (opts.grade === 'B') where.push("t.grade IN ('A+','A','B')");
+    if (opts.badge) {
+      params.push(JSON.stringify([opts.badge]));
+      where.push(`t.badges @> $${params.length}::jsonb`);
+    }
+    if (opts.sector) {
+      params.push(opts.sector);
+      where.push(`(c.sector ILIKE $${params.length} OR c.industry ILIKE $${params.length})`);
+    }
+    if (opts.minMarketCap != null) {
+      params.push(opts.minMarketCap);
+      where.push(`c."marketCap" >= $${params.length}`);
+    }
+    if (opts.maxMarketCap != null) {
+      params.push(opts.maxMarketCap);
+      where.push(`c."marketCap" <= $${params.length}`);
+    }
+    params.push(limit);
+
+    const rows = await this.q(
+      `SELECT t.tx_id AS "txId", t.transaction_date AS "date", t.grade,
+              t.trade_score::float8 AS "tradeScore", t.badges,
+              t.grade_percentile::float8 AS percentile,
+              x."insiderName", x."rawTitle", x.role,
+              x."sharesBought"::float8 AS shares, x."pricePerShare"::float8 AS price,
+              x."totalValue"::float8 AS value, x."filingUrl" AS "filingUrl",
+              x."accessionNumber" AS accession,
+              c.ticker, c.name, c.sector, c."marketCap"::float8 AS "marketCap"
+         FROM iqs2_trade_scores t
+         JOIN insider_transactions x ON x.id = t.tx_id
+         JOIN companies c ON c.id = t.company_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY CASE t.grade WHEN 'A+' THEN 6 WHEN 'A' THEN 5 WHEN 'B' THEN 4
+                              WHEN 'C' THEN 3 WHEN 'D' THEN 2 ELSE 1 END DESC,
+                 x."totalValue" DESC
+        LIMIT $${params.length}`,
+      params,
+    );
+    return { period: opts.period ?? '7d', count: rows.length, rows };
+  }
+
+  /** Trade grades + badges for one company's filings (ticker page column). */
+  async gradesForTicker(tickerRaw: string) {
+    await this.ensureTables();
+    const ticker = (tickerRaw || '').trim().toUpperCase();
+    if (!ticker) return { rows: [] };
+    const rows = await this.q(
+      `SELECT t.tx_id AS "txId", t.grade, t.trade_score::float8 AS "tradeScore", t.badges,
+              t.transaction_date AS "date"
+         FROM iqs2_trade_scores t
+         JOIN companies c ON c.id = t.company_id
+        WHERE UPPER(c.ticker) = $1 AND t.scored = true AND t.grade IS NOT NULL
+        ORDER BY t.transaction_date DESC LIMIT 500`,
+      [ticker],
+    );
+    return { ticker, rows };
   }
 
   async status() {

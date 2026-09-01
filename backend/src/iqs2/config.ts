@@ -73,4 +73,11 @@ export const IQS2_CONFIG = {
 
   /** Published score ceiling — unchanged from IQS 1.0. */
   ceiling: 99,
+
+  /** BIG BUY badge threshold. Config, not a constant: George expects to tune it. */
+  bigBuyDollars: 1_000_000,
+  /** A purchase counts as a FIRST BUY again after this long without one. */
+  firstBuyGapYears: 3,
+  /** Trade grades are percentile-ranked against this trailing window. */
+  gradeWindowDays: 365,
 } as const;

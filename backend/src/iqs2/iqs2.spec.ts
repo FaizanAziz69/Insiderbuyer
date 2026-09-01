@@ -36,6 +36,15 @@ import {
   percentileOf,
 } from './company-score';
 import { WEIGHTS_LAUNCH, WEIGHTS_ALTERNATE } from './config';
+import {
+  gradeFor,
+  isTopGrade,
+  GRADE_BANDS,
+  badgesFor,
+  visibleBadges,
+  BADGES,
+  TRADE_GRADE_DISCLAIMER,
+} from './trade-grade';
 
 let checks = 0;
 const ok = (cond: boolean, msg: string) => {
@@ -271,5 +280,82 @@ for (const weights of [WEIGHTS_LAUNCH, WEIGHTS_ALTERNATE]) {
     `BIVI case stays below the 60th percentile (got ${biviCompany.score})`,
   );
 }
+
+/* ── Trade Grade and Signal Badges (follow-up brief, 2026-09-02) ──────── */
+
+ok(gradeFor(0.995) === 'A+', 'the top 2% is A+');
+ok(gradeFor(0.98) === 'A+', 'the A+ band starts at the 98th percentile');
+ok(gradeFor(0.97) === 'A', 'just below A+ is A');
+ok(gradeFor(0.9) === 'A', 'the A band reaches down to the top decile');
+ok(gradeFor(0.89) === 'B', 'below the top decile is B');
+ok(gradeFor(0.7) === 'B' && gradeFor(0.69) === 'C', 'B/C split at the 70th percentile');
+ok(gradeFor(0.4) === 'C' && gradeFor(0.39) === 'D', 'C/D split at the 40th');
+ok(gradeFor(0.15) === 'D' && gradeFor(0.149) === 'F', 'the bottom 15% is F');
+ok(gradeFor(0) === 'F', 'the very bottom is F');
+ok(gradeFor(null) === null, 'no percentile means no grade, not an F');
+ok(isTopGrade('A+') && isTopGrade('A') && !isTopGrade('B'), 'A-grade means A or A+');
+
+// Band widths must match the brief exactly: 2 / 8 / 20 / 30 / 25 / 15.
+const widths = GRADE_BANDS.map((b, i) =>
+  Math.round(((i === 0 ? 1 : GRADE_BANDS[i - 1].minPercentile) - b.minPercentile) * 100),
+);
+ok(JSON.stringify(widths) === JSON.stringify([2, 8, 20, 30, 25, 15]), 'grade bands are 2/8/20/30/25/15');
+
+const baseCtx = {
+  dollars: 50_000,
+  holdingsRatio: 0.1,
+  contrarianZ: 0,
+  role: 'Director',
+  rawTitle: 'Director',
+  clusterBuyers30d: 1,
+  firstBuy: false,
+  shareGrowthTtm: 0,
+};
+const has = (c: Partial<typeof baseCtx>, k: string) =>
+  badgesFor({ ...baseCtx, ...c } as never).includes(k as never);
+
+ok(has({ clusterBuyers30d: 3 }, 'CLUSTER_BUY'), 'three buyers earns Cluster Buy');
+ok(!has({ clusterBuyers30d: 2 }, 'CLUSTER_BUY'), 'two buyers does not');
+ok(has({ firstBuy: true }, 'FIRST_BUY'), 'a first buy is badged');
+ok(has({ holdingsRatio: 1 }, 'STAKE_DOUBLER'), 'doubling the stake is badged');
+ok(!has({ holdingsRatio: 0.99 }, 'STAKE_DOUBLER'), 'just under doubling is not');
+ok(has({ dollars: 1_000_000 }, 'BIG_BUY'), '$1M earns Big Buy');
+ok(!has({ dollars: 999_999 }, 'BIG_BUY'), 'just under $1M does not');
+ok(has({ contrarianZ: -1 }, 'BUYING_WEAKNESS'), 'z = -1 earns Buying Weakness');
+ok(!has({ contrarianZ: -0.9 }, 'BUYING_WEAKNESS'), 'z = -0.9 does not');
+ok(!has({ contrarianZ: null }, 'BUYING_WEAKNESS'), 'no price history earns nothing');
+
+// One seniority badge only, finance first.
+ok(has({ rawTitle: 'Chief Financial Officer', role: 'CFO' }, 'CFO_BUY'), 'a CFO is badged CFO');
+ok(!has({ rawTitle: 'Chief Financial Officer', role: 'CFO' }, 'CEO_BUY'), 'and not also CEO');
+ok(has({ rawTitle: 'Chief Executive Officer', role: 'CEO' }, 'CEO_BUY'), 'a CEO is badged CEO');
+ok(has({ rawTitle: 'Chief Operating Officer', role: 'COO' }, 'EXEC_BUY'), 'other C-suite rolls up to Exec');
+ok(!has({ rawTitle: 'Director', role: 'Director' }, 'EXEC_BUY'), 'a plain director earns no seniority badge');
+
+// The dilution warning is mandatory and is never dropped by the cap.
+ok(has({ shareGrowthTtm: 0.06 }, 'DILUTION_FLAG'), '6% TTM dilution raises the flag');
+ok(!has({ shareGrowthTtm: 0.05 }, 'DILUTION_FLAG'), '5% does not');
+ok(!has({ shareGrowthTtm: null }, 'DILUTION_FLAG'), 'unknown share growth is not a warning');
+
+const loaded = badgesFor({
+  ...baseCtx,
+  dollars: 5_000_000,
+  holdingsRatio: 2,
+  contrarianZ: -2,
+  role: 'CFO',
+  rawTitle: 'Chief Financial Officer',
+  clusterBuyers30d: 5,
+  firstBuy: true,
+  shareGrowthTtm: 0.4,
+});
+const shown = visibleBadges(loaded);
+ok(shown.filter((b) => !BADGES[b].warning).length === 3, 'at most three positive badges are shown');
+ok(shown.includes('DILUTION_FLAG'), 'the dilution warning survives the cap');
+ok(
+  JSON.stringify(shown.filter((b) => !BADGES[b].warning)) ===
+    JSON.stringify(['CLUSTER_BUY', 'FIRST_BUY', 'STAKE_DOUBLER']),
+  'the cap keeps the highest-priority positives',
+);
+ok(!!TRADE_GRADE_DISCLAIMER && /not a prediction/i.test(TRADE_GRADE_DISCLAIMER), 'the disclaimer is defined');
 
 console.log(`IQS 2.0: ${checks} checks passed.`);
