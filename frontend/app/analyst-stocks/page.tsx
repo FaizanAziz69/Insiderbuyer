@@ -43,6 +43,21 @@ interface StockRow {
   score: number;
   analysts: CoveringAnalyst[];
 }
+interface ConsensusRow {
+  symbol: string;
+  name: string;
+  sector: string | null;
+  price: number;
+  marketCap: number | null;
+  rating: string;
+  analysts: number;
+  strongBuy: number;
+  buy: number;
+  hold: number;
+  sell: number;
+  target: number;
+  upsidePct: number;
+}
 interface Universe {
   topAnalysts: number;
   covered: number;
@@ -53,6 +68,20 @@ interface Universe {
 
 export default function AnalystStocksPage() {
   const [q, setQ] = useState("");
+  // Two honest answers to "which stocks do analysts like most", kept side by
+  // side rather than one replacing the other: our own measured track records
+  // (deep, but only 47 analysts clear the 70% bar on FMP's per-analyst data),
+  // and the full sell-side consensus (broad, and what stockanalysis.com's
+  // list is built from — George, 2026-09-02).
+  const [view, setView] = useState<"measured" | "consensus">("consensus");
+  const { data: consensus, isLoading: consensusLoading } = useSWR<{
+    rows: ConsensusRow[];
+    minAnalysts: number;
+    computedAt: string | null;
+  }>(view === "consensus" ? `${API_BASE}/analysts/consensus-stocks?limit=50` : null, fetcher, {
+    refreshInterval: 60 * 60_000,
+    revalidateOnFocus: false,
+  });
   const { data, isLoading } = useSWR<{
     rows: StockRow[];
     universe: Universe;
@@ -236,6 +265,111 @@ export default function AnalystStocksPage() {
 
       <AdSlot slot="leaderboard" seed="analyst-stocks" />
 
+      {/* Which measurement the list is built from. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[12px] font-bold uppercase tracking-wider text-mute">Ranked by</span>
+        <div
+          className="inline-flex items-center gap-1 rounded-lg p-1"
+          style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+        >
+          {([
+            ["consensus", "Analyst consensus"],
+            ["measured", "Our measured track records"],
+          ] as const).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className="px-3 py-1.5 rounded-md text-[13px] font-semibold transition"
+              style={{
+                background: view === v ? "var(--accent)" : "transparent",
+                color: view === v ? "#fff" : "var(--text)",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {view === "consensus" && (
+        <div className="card overflow-hidden">
+          {consensusLoading && !consensus ? (
+            <div className="text-center text-mute py-10">Loading analyst consensus…</div>
+          ) : !consensus?.rows?.length ? (
+            <div className="text-center text-mute py-10">
+              No stock currently carries a buy-rated consensus from{" "}
+              {consensus?.minAnalysts ?? 10}+ analysts with room left to their target.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="text-mute text-left" style={{ borderBottom: "1px solid var(--border)" }}>
+                    <th className="py-2.5 px-3">#</th>
+                    <th className="py-2.5 px-3">Symbol</th>
+                    <th className="py-2.5 px-3">Company</th>
+                    <th className="py-2.5 px-3">Rating</th>
+                    <th className="py-2.5 px-3 text-right">Analysts</th>
+                    <th className="py-2.5 px-3 text-right">Avg target</th>
+                    <th className="py-2.5 px-3 text-right">Upside</th>
+                    <th className="py-2.5 px-3 text-right">Market cap</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consensus.rows
+                    .filter(
+                      (r) =>
+                        !q ||
+                        `${r.symbol} ${r.name}`.toLowerCase().includes(q.toLowerCase()),
+                    )
+                    .map((r, i) => (
+                      <tr key={r.symbol} style={{ borderTop: "1px solid var(--border)" }}>
+                        <td className="py-2.5 px-3 tabular text-mute">{i + 1}</td>
+                        <td className="py-2.5 px-3">
+                          <Link href={`/companies/${r.symbol}`} className="font-bold hover:text-accent">
+                            {r.symbol}
+                          </Link>
+                        </td>
+                        <td className="py-2.5 px-3 truncate max-w-[220px]">{r.name}</td>
+                        <td className="py-2.5 px-3">
+                          <span
+                            className="inline-flex items-center h-5 px-2 rounded text-[11px] font-bold uppercase tracking-wide"
+                            style={{
+                              background: "color-mix(in srgb, var(--good) 16%, transparent)",
+                              color: "var(--good)",
+                            }}
+                            title={`${r.strongBuy} strong buy · ${r.buy} buy · ${r.hold} hold · ${r.sell} sell`}
+                          >
+                            {r.rating}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right tabular">{r.analysts}</td>
+                        <td className="py-2.5 px-3 text-right tabular">${r.target.toFixed(2)}</td>
+                        <td
+                          className="py-2.5 px-3 text-right tabular font-bold"
+                          style={{ color: "var(--good)" }}
+                        >
+                          +{r.upsidePct.toFixed(1)}%
+                        </td>
+                        <td className="py-2.5 px-3 text-right tabular text-mute">
+                          {r.marketCap ? formatCurrency(r.marketCap) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="text-faint text-[12px] p-3 leading-relaxed">
+            Every analyst with a price target on file over the trailing year, not a
+            starred subset. A stock appears when at least{" "}
+            {consensus?.minAnalysts ?? 10} analysts cover it, the consensus is
+            buy-rated, and the average target is above the current price; rows are
+            ranked by that room. Informational, not investment advice.
+          </p>
+        </div>
+      )}
+
       <div
         className="card p-4"
         style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
@@ -256,6 +390,7 @@ export default function AnalystStocksPage() {
         />
       </div>
 
+      {view === "measured" && (
       <div className="card overflow-hidden">
         {isLoading ? (
           <div className="text-center text-mute py-10">Loading top-analyst coverage…</div>
@@ -281,6 +416,7 @@ export default function AnalystStocksPage() {
           />
         )}
       </div>
+      )}
 
       <p className="text-[12px] text-mute leading-relaxed">
         Success rates are measured from each analyst&rsquo;s own past price
