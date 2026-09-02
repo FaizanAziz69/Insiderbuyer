@@ -72,10 +72,14 @@ export class Iqs2Controller {
   async backtest(
     @Query('horizon') horizon?: string,
     @Query('benchmark') benchmark?: string,
+    @Query('alt') alt?: string,
   ) {
     return this.svc.backtest({
       horizonDays: horizon ? Number(horizon) : undefined,
       benchmark: benchmark || undefined,
+      // ?alt=1 re-scores the same trades under the 25/20 vector, so both
+      // candidates are measured against identical forward returns.
+      weights: alt === '1' || alt === 'true' ? WEIGHTS_ALTERNATE : undefined,
     });
   }
 

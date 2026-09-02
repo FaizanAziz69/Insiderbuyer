@@ -744,7 +744,7 @@ export class Iqs2Service {
    * Deliberately reports its own sample size everywhere — see backtest.ts on
    * why this cannot be the walk-forward design the brief specifies.
    */
-  async backtest(opts: { horizonDays?: number; benchmark?: string } = {}) {
+  async backtest(opts: { horizonDays?: number; benchmark?: string; weights?: TradeWeights } = {}) {
     await this.ensureTables();
     const horizon = [30, 91, 182].includes(Number(opts.horizonDays))
       ? Number(opts.horizonDays)
@@ -753,7 +753,7 @@ export class Iqs2Service {
 
     const rows: any[] = await this.q(
       `SELECT t.trade_score::float8 AS score, t.grade, t.transaction_date AS "date",
-              c.ticker
+              t.inputs, c.ticker
          FROM iqs2_trade_scores t
          JOIN companies c ON c.id = t.company_id
         WHERE t.scored = true
@@ -807,8 +807,16 @@ export class Iqs2Service {
           missingPrices++;
           continue;
         }
+        // The brief requires the two candidate weightings to be compared side
+        // by side. Re-scoring the STORED inputs in memory does that against
+        // identical forward returns and without touching the published run —
+        // the alternative, recomputing the tables under each vector, would put
+        // the other weighting live for as long as the comparison took.
+        const rescored = opts.weights && r.inputs
+          ? scoreTrade(r.inputs as TradeInputs, opts.weights).score
+          : Number(r.score);
         obs.push({
-          score: Number(r.score),
+          score: rescored,
           grade: r.grade,
           stockReturnPct: stock,
           benchmarkReturnPct: bench,
@@ -820,6 +828,7 @@ export class Iqs2Service {
     return {
       horizonDays: horizon,
       benchmark,
+      weights: opts.weights ?? WEIGHTS_LAUNCH,
       observations: obs.length,
       /** Trades we could not price at both ends — reported, never dropped silently. */
       unpriced: missingPrices,
