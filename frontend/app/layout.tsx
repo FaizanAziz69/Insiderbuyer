@@ -10,6 +10,7 @@ import { AuthProvider } from "@/lib/auth";
 import { OG_IMAGE, seoEntry } from "@/lib/seo-meta";
 import { AppleSplash } from "@/components/pwa/AppleSplash";
 import { RegisterServiceWorker } from "@/components/pwa/RegisterServiceWorker";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 
 const barlow = Barlow({
   subsets: ["latin"],
@@ -137,6 +138,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <PremiumProvider>
             <AppShell>{children}</AppShell>
             <FunnelPopups />
+            <InstallPrompt />
           </PremiumProvider>
         </AuthProvider>
       </body>
