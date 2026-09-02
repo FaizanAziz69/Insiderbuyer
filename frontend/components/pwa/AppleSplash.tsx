@@ -22,6 +22,13 @@ const THREE_X: Array<[number, number]> = [
 export function AppleSplash() {
   return (
     <>
+      {/*
+        iOS standalone mode still keys off the apple- prefixed tag. Next emits
+        only the standardised `mobile-web-app-capable`, which current iOS
+        Safari does not honour — without this one, "Add to Home Screen" opens
+        in a browser view with Safari chrome and the install is pointless.
+      */}
+      <meta name="apple-mobile-web-app-capable" content="yes" />
       {TWO_X.map(([w, h]) => (
         <link
           key={`2x-${w}x${h}`}
