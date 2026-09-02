@@ -37,6 +37,15 @@ import {
 } from './company-score';
 import { WEIGHTS_LAUNCH, WEIGHTS_ALTERNATE } from './config';
 import {
+  excessReturn,
+  median,
+  spearman,
+  decileBuckets,
+  gradeBuckets,
+  monotonicity,
+  BACKTEST_DISCLAIMER,
+} from './backtest';
+import {
   gradeFor,
   isTopGrade,
   GRADE_BANDS,
@@ -366,5 +375,49 @@ ok(
   'the cap keeps the highest-priority positives',
 );
 ok(!!TRADE_GRADE_DISCLAIMER && /not a prediction/i.test(TRADE_GRADE_DISCLAIMER), 'the disclaimer is defined');
+
+/* ── Workstream D: forward-return measurement ─────────────────────────── */
+
+const mk = (score: number, grade: string, stock: number, bench = 0) => ({
+  score,
+  grade,
+  stockReturnPct: stock,
+  benchmarkReturnPct: bench,
+});
+
+ok(excessReturn(mk(50, 'C', 12, 5)) === 7, 'excess return subtracts the benchmark');
+ok(median([3, 1, 2]) === 2 && median([4, 1, 2, 3]) === 2.5, 'median handles odd and even');
+
+// A perfectly ordered sample must produce a positive rank IC and spread.
+const ordered = Array.from({ length: 40 }, (_, i) => mk(i * 2, 'C', i - 20));
+const ic = spearman(ordered);
+ok(ic !== null && ic > 0.95, `rank IC is ~1 when score tracks return (got ${ic})`);
+const dec = decileBuckets(ordered);
+ok(dec.length === 10, 'ten deciles');
+ok(dec[0].label === 'D1' && dec[9].label === 'D10', 'deciles run low to high');
+const mono = monotonicity(dec);
+ok(mono.spreadPct > 0 && mono.broadlyMonotonic, 'an ordered sample is monotonic');
+
+// Reversed: the check must FAIL rather than quietly pass.
+const reversed = Array.from({ length: 40 }, (_, i) => mk(i * 2, 'C', 20 - i));
+const icRev = spearman(reversed);
+ok(icRev !== null && icRev < -0.95, 'rank IC goes negative when the score is backwards');
+ok(!monotonicity(decileBuckets(reversed)).broadlyMonotonic, 'a backwards sample is not monotonic');
+
+ok(spearman([mk(1, 'C', 1)]) === null, 'too few observations yields no IC, not a fake one');
+ok(decileBuckets([mk(1, 'C', 1)]).length === 0, 'too few observations yields no deciles');
+
+const graded = [
+  mk(95, 'A+', 20), mk(90, 'A', 15), mk(70, 'B', 5),
+  mk(50, 'C', 0), mk(30, 'D', -5), mk(10, 'F', -12),
+];
+const gb = gradeBuckets(graded);
+ok(gb.length === 6 && gb[0].label === 'A+', 'grade buckets are ordered best first');
+ok(
+  (gb.find((b) => b.label === 'A+')?.meanExcessPct ?? 0) >
+    (gb.find((b) => b.label === 'F')?.meanExcessPct ?? 0),
+  'the brief\'s check: A trades outperform F trades',
+);
+ok(/hypothetical/i.test(BACKTEST_DISCLAIMER), 'the hypothetical-performance disclaimer exists');
 
 console.log(`IQS 2.0: ${checks} checks passed.`);

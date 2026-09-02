@@ -8,6 +8,14 @@ import { classifyTransaction, liquidityGate, ExclusionReason } from './exclusion
 import { scoreTrade, TradeInputs, num } from './trade-score';
 import { scoreCompany, ScoredTrade } from './company-score';
 import { gradeFor, badgesFor, BadgeKey } from './trade-grade';
+import {
+  ForwardObservation,
+  decileBuckets,
+  gradeBuckets,
+  monotonicity,
+  spearman,
+  BACKTEST_DISCLAIMER,
+} from './backtest';
 import { IQS2_CONFIG, WEIGHTS_LAUNCH, TradeWeights } from './config';
 
 /**
@@ -722,6 +730,108 @@ export class Iqs2Service {
       [ticker],
     );
     return { ticker, rows };
+  }
+
+  /**
+   * Workstream D: measure how graded purchases actually performed.
+   *
+   * Market-adjusted, so a rising tape does not read as skill: every stock
+   * return has the benchmark's return over the SAME window subtracted. SPY is
+   * the benchmark by default; the brief also wants Russell 2000 (IWM), which
+   * is passed as `benchmark` rather than hard-coded because most of what
+   * scores well here is small-cap.
+   *
+   * Deliberately reports its own sample size everywhere — see backtest.ts on
+   * why this cannot be the walk-forward design the brief specifies.
+   */
+  async backtest(opts: { horizonDays?: number; benchmark?: string } = {}) {
+    await this.ensureTables();
+    const horizon = [30, 91, 182].includes(Number(opts.horizonDays))
+      ? Number(opts.horizonDays)
+      : 91;
+    const benchmark = (opts.benchmark || 'SPY').toUpperCase();
+
+    const rows: any[] = await this.q(
+      `SELECT t.trade_score::float8 AS score, t.grade, t.transaction_date AS "date",
+              c.ticker
+         FROM iqs2_trade_scores t
+         JOIN companies c ON c.id = t.company_id
+        WHERE t.scored = true
+          AND t.grade IS NOT NULL
+          AND t.trade_score IS NOT NULL
+          AND c.ticker IS NOT NULL
+          AND t.transaction_date <= CURRENT_DATE - $1::int
+        ORDER BY t.transaction_date`,
+      [horizon],
+    );
+    if (!rows.length) {
+      return { horizonDays: horizon, benchmark, observations: 0, note: 'No graded trades are old enough for this horizon yet.' };
+    }
+
+    const earliest = rows.reduce(
+      (min, r) => (new Date(r.date) < new Date(min) ? r.date : min),
+      rows[0].date,
+    );
+    const from = new Date(new Date(earliest).getTime() - 10 * 86400000)
+      .toISOString()
+      .slice(0, 10);
+
+    const benchBars = await this.bars(benchmark, from);
+    if (benchBars.length < 2) {
+      return { horizonDays: horizon, benchmark, observations: 0, note: `No price history for the ${benchmark} benchmark.` };
+    }
+
+    // One price series per symbol, not per trade — the same ticker appears
+    // many times and each fetch is a network round trip.
+    const bySymbol = new Map<string, any[]>();
+    for (const r of rows) {
+      const sym = String(r.ticker).toUpperCase();
+      if (!bySymbol.has(sym)) bySymbol.set(sym, []);
+      bySymbol.get(sym)!.push(r);
+    }
+
+    const obs: ForwardObservation[] = [];
+    let missingPrices = 0;
+    for (const [sym, group] of bySymbol) {
+      const series = await this.bars(sym, from);
+      if (series.length < 2) {
+        missingPrices += group.length;
+        continue;
+      }
+      for (const r of group) {
+        const t0 = new Date(r.date).getTime();
+        const t1 = t0 + horizon * 86400000;
+        const stock = this.returnBetween(series, t0, t1);
+        const bench = this.returnBetween(benchBars, t0, t1);
+        if (stock === null || bench === null) {
+          missingPrices++;
+          continue;
+        }
+        obs.push({
+          score: Number(r.score),
+          grade: r.grade,
+          stockReturnPct: stock,
+          benchmarkReturnPct: bench,
+        });
+      }
+    }
+
+    const deciles = decileBuckets(obs);
+    return {
+      horizonDays: horizon,
+      benchmark,
+      observations: obs.length,
+      /** Trades we could not price at both ends — reported, never dropped silently. */
+      unpriced: missingPrices,
+      periodFrom: earliest,
+      rankIC: spearman(obs),
+      deciles,
+      ...monotonicity(deciles),
+      grades: gradeBuckets(obs),
+      disclaimer: BACKTEST_DISCLAIMER,
+      limitation:
+        'Single-period study, not the walk-forward design in the brief: the Form 4 archive holds 3 purchases before 2025, so a seven-year refit and an independent held-out period cannot be computed until it is backfilled from EDGAR.',
+    };
   }
 
   async status() {

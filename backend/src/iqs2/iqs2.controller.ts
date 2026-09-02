@@ -62,6 +62,23 @@ export class Iqs2Controller {
     return { badges: BADGES, priority: BADGE_PRIORITY, disclaimer: TRADE_GRADE_DISCLAIMER };
   }
 
+  /**
+   * Workstream D results. Admin-only: these are hypothetical performance
+   * figures and the brief has compliance rules about publishing them, so they
+   * are reviewed before they go anywhere public.
+   */
+  @Get('backtest')
+  @UseGuards(AdminTokenGuard)
+  async backtest(
+    @Query('horizon') horizon?: string,
+    @Query('benchmark') benchmark?: string,
+  ) {
+    return this.svc.backtest({
+      horizonDays: horizon ? Number(horizon) : undefined,
+      benchmark: benchmark || undefined,
+    });
+  }
+
   /** The weight vectors in play, so the methodology page can render them. */
   @Get('weights')
   weights() {
