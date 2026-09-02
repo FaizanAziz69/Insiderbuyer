@@ -345,8 +345,13 @@ export class Iqs2Service {
               )
               .map(keyOf),
           ).size;
-          const shareGrowthTtm =
-            num(t.dilutionPctTtm) === null ? null : (num(t.dilutionPctTtm) as number) / 100;
+          // companies.dilutionPctTtm is already a FRACTION — getDilutionTtm
+          // returns latest/prior - 1, so AAPL reads -0.0166 for its ~1.7%
+          // buyback. Dividing by 100 (as an earlier reading of ACON's 563 as
+          // a percent did) made the penalty 100x too small and effectively
+          // switched it off: 272 companies clear the 25% cap as fractions,
+          // only 12 did under the divided value.
+          const shareGrowthTtm = num(t.dilutionPctTtm);
 
           const breakdown = scoreTrade(input, weights);
           const badges = badgesFor({
@@ -396,12 +401,8 @@ export class Iqs2Service {
           adjusted: provisional.raw * provisional.multiplier,
           unscored: gate,
           perTrade: perTrade as any,
-          // dilutionPctTtm is stored as a PERCENT (563 = +563%), not the
-          // fraction the penalty curve expects — dividing is not optional.
-          shareGrowth:
-            num(first.dilutionPctTtm) === null
-              ? null
-              : (num(first.dilutionPctTtm) as number) / 100,
+          // Already a fraction (see the note on shareGrowthTtm above).
+          shareGrowth: num(first.dilutionPctTtm),
         });
       }
 
