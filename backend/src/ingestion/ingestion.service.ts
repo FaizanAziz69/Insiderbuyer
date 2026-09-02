@@ -11,6 +11,7 @@ import { SecClient, SecFilingHit } from "./sec.client";
 import { QuoteClient } from "./quote.client";
 import { BafinClient, BafinDealing } from "./bafin.client";
 import { IqsService } from "../iqs/iqs.service";
+import { Iqs2Service } from "../iqs2/iqs2.service";
 import { MdaSentimentService } from "../iqs/mda-sentiment.service";
 import { MarketStatsService } from "../market-stats/market-stats.service";
 import { FmpService } from "../fmp/fmp.service";
@@ -49,6 +50,7 @@ export class IngestionService implements OnModuleInit {
     private readonly quote: QuoteClient,
     private readonly bafin: BafinClient,
     private readonly iqs: IqsService,
+    private readonly iqs2: Iqs2Service,
     private readonly marketStats: MarketStatsService,
     private readonly mda: MdaSentimentService,
     @Optional() private readonly fmp?: FmpService,
@@ -65,6 +67,23 @@ export class IngestionService implements OnModuleInit {
         this.runIngestion(30).catch((e) => this.logger.error(e?.message || e)),
       2000,
     );
+  }
+
+  /**
+   * IQS 2.0 is the published model, but it lives in the same column the v1
+   * scorer writes — so every recalculateAll() silently reverted the site to
+   * v1 until the next nightly publish. It ran every six hours on this cron,
+   * which is how BIVI (the Appendix A case IQS 2.0 exists to cap) came back
+   * to the top of the board. Whoever rescores must republish.
+   */
+  private async republishIqs2(): Promise<void> {
+    try {
+      await this.iqs2.computeAll();
+      const r = await this.iqs2.publish();
+      this.logger.log(`IQS 2.0 republished after rescore: ${r.updated} scored, ${r.cleared} cleared`);
+    } catch (e: any) {
+      this.logger.error(`IQS 2.0 republish failed: ${e?.message || e}`);
+    }
   }
 
   @Cron(process.env.INGEST_CRON || "0 */6 * * *")
@@ -302,7 +321,10 @@ export class IngestionService implements OnModuleInit {
       await this.processFiling(f, seen, summary);
       await this.delay(120);
     }
-    if (opts.rescore) await this.iqs.recalculateAll();
+    if (opts.rescore) {
+      await this.iqs.recalculateAll();
+      await this.republishIqs2();
+    }
     return {
       cik,
       filings: filings.length,
@@ -480,6 +502,7 @@ export class IngestionService implements OnModuleInit {
 
       this.logger.log(`Computing IQS scores...`);
       await this.iqs.recalculateAll();
+      await this.republishIqs2();
       this.logger.log(`Ingestion done: ${JSON.stringify(summary)}`);
       return summary;
     } finally {
@@ -794,6 +817,7 @@ export class IngestionService implements OnModuleInit {
     if (opts?.rescore === true) {
       this.logger.log("Rescoring after German ingestion…");
       await this.iqs.recalculateAll();
+      await this.republishIqs2();
     }
 
     return {

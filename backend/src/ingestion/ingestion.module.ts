@@ -9,6 +9,7 @@ import { SecClient } from './sec.client';
 import { QuoteClient } from './quote.client';
 import { BafinClient } from './bafin.client';
 import { IqsModule } from '../iqs/iqs.module';
+import { Iqs2Module } from '../iqs2/iqs2.module';
 import { MarketStatsModule } from '../market-stats/market-stats.module';
 import { CongressionalModule } from '../congressional/congressional.module';
 import { AnalystsModule } from '../analysts/analysts.module';
@@ -18,6 +19,7 @@ import { FmpModule } from '../fmp/fmp.module';
   imports: [
     TypeOrmModule.forFeature([Company, InsiderTransaction, ProcessedFiling]),
     IqsModule,
+    Iqs2Module,
     MarketStatsModule,
     CongressionalModule,
     AnalystsModule,
