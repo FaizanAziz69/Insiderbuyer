@@ -8,6 +8,8 @@ import { FunnelPopups } from "@/components/funnel/FunnelPopups";
 import { PremiumProvider } from "@/components/premium/PremiumContext";
 import { AuthProvider } from "@/lib/auth";
 import { OG_IMAGE, seoEntry } from "@/lib/seo-meta";
+import { AppleSplash } from "@/components/pwa/AppleSplash";
+import { RegisterServiceWorker } from "@/components/pwa/RegisterServiceWorker";
 
 const barlow = Barlow({
   subsets: ["latin"],
@@ -49,6 +51,22 @@ const defaultDescription =
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuying.com"),
+  // Installable app (app/manifest.ts). iOS ignores most of the manifest, so
+  // the standalone behaviour, home-screen title and touch icon come from
+  // appleWebApp below and the launch images in <head>.
+  manifest: "/manifest.webmanifest",
+  applicationName: "InsiderBuying",
+  appleWebApp: {
+    capable: true,
+    title: "InsiderBuying",
+    // "black-translucent" lets the page paint under the status bar; the app
+    // has its own dark chrome, so that is the seam-free option.
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: { telephone: false },
+  icons: {
+    apple: [{ url: "/pwa/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   title: defaultTitle,
   description: defaultDescription,
   // Branded link previews (client 2026-08-22): every shared link shows the
@@ -72,6 +90,15 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Fills the notch/home-indicator area when installed, so the standalone app
+  // does not sit in a letterbox.
+  viewportFit: "cover",
+  // Matches the manifest so the Android task-switcher and the iOS status bar
+  // carry the brand colour instead of browser default.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#005882" },
+    { media: "(prefers-color-scheme: dark)", color: "#070d1f" },
+  ],
   // Stops iOS Safari from auto-zooming into sub-16px inputs and staying
   // zoomed (the "everything is zoomed in" bug after the opt-in modal).
   // Pinch-zoom still works — iOS ≥10 ignores maximumScale for user gestures.
@@ -98,9 +125,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <AppleSplash />
       </head>
       <body className="antialiased">
         <GoogleAnalytics />
+        <RegisterServiceWorker />
         <PostHogProvider />
         {/* Auth first: PremiumProvider derives the entitlement from the
             signed-in user's Stripe subscription. */}
