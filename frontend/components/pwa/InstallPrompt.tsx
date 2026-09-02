@@ -1,28 +1,30 @@
 "use client";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Share, X } from "lucide-react";
+import { Share, X, Plus } from "lucide-react";
 import { popupsAllowedOn } from "@/lib/funnel";
 
 /**
  * In-app install prompt.
  *
- * Two platforms, two mechanisms:
- *  · Android/Chrome fires `beforeinstallprompt`, which we capture and replay
- *    on a click — the native sheet only opens from a user gesture, so the
- *    event has to be stashed rather than used immediately.
- *  · iOS has no API at all. Safari installs only through Share → Add to Home
- *    Screen, so there the bar can do nothing but say so.
+ * Android/Chrome fires `beforeinstallprompt`, which is captured and replayed
+ * on a click — the native sheet only opens from a gesture, so the event has to
+ * be stashed rather than used on arrival.
  *
- * Appears as soon as the page is up. Still deliberately quiet, because George
- * has just had popups taken off the sales page: a bottom bar rather than a
- * modal, nothing above the fold, no dark pattern on the dismiss, and it obeys
- * the same POPUP_FREE_PREFIXES the funnel popups do. A dismissal is remembered
- * for 60 days; an install hides it for good. It never appears to someone
- * already running the installed app.
+ * iOS has NO install API. Safari installs only through Share → Add to Home
+ * Screen, and no script can open that sheet. The first version therefore had
+ * nothing to tap on iPhone: the button only rendered when a captured event
+ * existed, so the bar looked actionable and did nothing. On iOS the whole bar
+ * is now a button that opens the actual steps, which is the only thing a page
+ * can do there.
+ *
+ * Dismissal is per SESSION, not for weeks: the bar comes back on the next
+ * visit until the app is actually installed (George, 2026-09-02). An install
+ * silences it for good — `appinstalled` on Android, and on iOS the fact that a
+ * standalone launch reports itself.
  */
-const DISMISS_KEY = "ib-install-dismissed";
-const DISMISS_DAYS = 60;
+const INSTALLED_KEY = "ib-install-done";
+const SESSION_KEY = "ib-install-hidden";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -33,60 +35,61 @@ function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   return (
     window.matchMedia?.("(display-mode: standalone)").matches ||
-    // iOS reports it here rather than through display-mode.
     (window.navigator as unknown as { standalone?: boolean }).standalone === true
   );
-}
-
-function dismissedRecently(): boolean {
-  try {
-    const raw = localStorage.getItem(DISMISS_KEY);
-    if (!raw) return false;
-    if (raw === "installed") return true;
-    return Date.now() - Number(raw) < DISMISS_DAYS * 86_400_000;
-  } catch {
-    // Private mode or storage blocked: err towards not nagging.
-    return true;
-  }
 }
 
 export function InstallPrompt() {
   const pathname = usePathname() || "/";
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [iosHint, setIosHint] = useState(false);
+  const [ios, setIos] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [steps, setSteps] = useState(false);
 
   useEffect(() => {
-    if (isStandalone() || dismissedRecently()) return;
+    if (typeof window === "undefined") return;
+
+    // Running as the installed app: mark it and never ask again.
+    if (isStandalone()) {
+      try {
+        localStorage.setItem(INSTALLED_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    try {
+      if (localStorage.getItem(INSTALLED_KEY) === "1") return;
+      if (sessionStorage.getItem(SESSION_KEY) === "1") return;
+    } catch {
+      /* storage blocked — still show, it is only a bar */
+    }
 
     const onBeforeInstall = (e: Event) => {
-      // Chrome shows its own mini-infobar unless this is prevented.
-      e.preventDefault();
+      e.preventDefault(); // suppress Chrome's own mini-infobar
       setDeferred(e as BeforeInstallPromptEvent);
     };
-    window.addEventListener("beforeinstallprompt", onBeforeInstall);
-
     const onInstalled = () => {
       try {
-        localStorage.setItem(DISMISS_KEY, "installed");
+        localStorage.setItem(INSTALLED_KEY, "1");
       } catch {
         /* ignore */
       }
       setVisible(false);
     };
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
     window.addEventListener("appinstalled", onInstalled);
 
-    // iOS never fires beforeinstallprompt, so it is detected instead. Chrome
-    // and Firefox on iOS cannot install either — only Safari can.
+    // Only Safari can install on iOS — Chrome and Firefox there cannot, so
+    // telling their users to "Add to Home Screen" would be a dead end.
     const ua = navigator.userAgent;
-    const isIos = /iPad|iPhone|iPod/.test(ua);
+    const isIos =
+      /iPad|iPhone|iPod/.test(ua) ||
+      // iPadOS 13+ reports itself as a Mac; the touch points give it away.
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
-    if (isIos && isSafari) setIosHint(true);
+    if (isIos && isSafari) setIos(true);
 
-    // Shown as soon as the page is up (George, 2026-09-02) rather than on a
-    // timer. On Android this still waits in practice: the bar needs the
-    // captured `beforeinstallprompt`, and Chrome fires that when it is ready,
-    // so setting this now just means "the moment there is something to offer".
     setVisible(true);
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
@@ -94,85 +97,133 @@ export function InstallPrompt() {
     };
   }, []);
 
+  /** Hidden for this session only — it returns next visit until installed. */
   const dismiss = () => {
     try {
-      localStorage.setItem(DISMISS_KEY, String(Date.now()));
+      sessionStorage.setItem(SESSION_KEY, "1");
     } catch {
       /* ignore */
     }
     setVisible(false);
+    setSteps(false);
   };
 
   const install = async () => {
     if (!deferred) return;
-    setVisible(false);
     try {
       await deferred.prompt();
       const { outcome } = await deferred.userChoice;
-      if (outcome === "dismissed") dismiss();
+      if (outcome === "accepted") {
+        try {
+          localStorage.setItem(INSTALLED_KEY, "1");
+        } catch {
+          /* ignore */
+        }
+      }
+      setVisible(false);
     } catch {
-      /* the sheet was closed — nothing to do */
+      /* sheet closed */
     }
     setDeferred(null);
   };
 
-  // Nothing to offer, or a surface that must stay clean.
   if (!visible) return null;
-  if (!deferred && !iosHint) return null;
+  if (!deferred && !ios) return null;
   if (!popupsAllowedOn(pathname)) return null;
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-[45] px-3 pb-3 pointer-events-none"
+      className="fixed inset-x-0 bottom-0 z-[45] px-3 pointer-events-none"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
     >
       <div
-        className="pointer-events-auto mx-auto flex max-w-lg items-center gap-3 rounded-xl p-3 shadow-lg"
+        className="pointer-events-auto mx-auto max-w-lg rounded-xl shadow-lg overflow-hidden"
         style={{
           background: "var(--bg-2)",
           border: "1px solid color-mix(in srgb, var(--accent) 34%, var(--border))",
         }}
       >
-        <img
-          src="/pwa/icon-192.png"
-          alt=""
-          width={40}
-          height={40}
-          className="rounded-lg flex-shrink-0"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="text-[13.5px] font-bold leading-tight">
-            Add InsiderBuying to your home screen
-          </div>
-          {deferred ? (
+        <div className="flex items-center gap-3 p-3">
+          <img
+            src="/pwa/icon-192.png"
+            alt=""
+            width={40}
+            height={40}
+            className="rounded-lg flex-shrink-0"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="text-[13.5px] font-bold leading-tight">
+              Add InsiderBuying to your home screen
+            </div>
             <div className="text-[11.5px] text-mute leading-snug mt-0.5">
               Full screen, opens straight to the scores.
             </div>
+          </div>
+
+          {deferred ? (
+            <button
+              onClick={install}
+              className="flex-shrink-0 rounded-lg px-3.5 py-2 text-[13px] font-bold"
+              style={{ background: "var(--accent)", color: "#fff" }}
+            >
+              Install
+            </button>
           ) : (
-            <div className="text-[11.5px] text-mute leading-snug mt-0.5 inline-flex items-center gap-1 flex-wrap">
-              Tap
-              <Share className="h-3 w-3 inline" aria-label="the Share button" />
-              then <b>Add to Home Screen</b>.
-            </div>
+            // iOS: no API exists, so the button can only reveal the steps.
+            <button
+              onClick={() => setSteps((v) => !v)}
+              className="flex-shrink-0 rounded-lg px-3.5 py-2 text-[13px] font-bold"
+              style={{ background: "var(--accent)", color: "#fff" }}
+            >
+              {steps ? "Close" : "How"}
+            </button>
           )}
-        </div>
-        {deferred && (
+
           <button
-            onClick={install}
-            className="flex-shrink-0 rounded-lg px-3.5 py-2 text-[13px] font-bold"
-            style={{ background: "var(--accent)", color: "#fff" }}
+            onClick={dismiss}
+            aria-label="Dismiss"
+            className="flex-shrink-0 rounded-md p-1.5"
+            style={{ color: "var(--text-mute)" }}
           >
-            Install
+            <X className="h-4 w-4" />
           </button>
+        </div>
+
+        {steps && (
+          <div
+            className="px-3 pb-3 pt-1 text-[12.5px] leading-relaxed"
+            style={{ borderTop: "1px solid var(--border)", color: "var(--text)" }}
+          >
+            <ol className="space-y-2 mt-2">
+              <li className="flex items-start gap-2">
+                <span className="font-bold" style={{ color: "var(--accent)" }}>1.</span>
+                <span className="inline-flex items-center gap-1.5 flex-wrap">
+                  Tap the Share button
+                  <Share className="h-4 w-4" style={{ color: "var(--accent)" }} />
+                  at the bottom of Safari
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold" style={{ color: "var(--accent)" }}>2.</span>
+                <span className="inline-flex items-center gap-1.5 flex-wrap">
+                  Scroll down and tap
+                  <b className="inline-flex items-center gap-1">
+                    <Plus className="h-3.5 w-3.5" /> Add to Home Screen
+                  </b>
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold" style={{ color: "var(--accent)" }}>3.</span>
+                <span>
+                  Tap <b>Add</b> — the app appears on your home screen.
+                </span>
+              </li>
+            </ol>
+            <p className="text-mute text-[11.5px] mt-2.5">
+              Safari only — iPhone does not allow other browsers to install apps.
+            </p>
+          </div>
         )}
-        <button
-          onClick={dismiss}
-          aria-label="Dismiss"
-          className="flex-shrink-0 rounded-md p-1.5"
-          style={{ color: "var(--text-mute)" }}
-        >
-          <X className="h-4 w-4" />
-        </button>
       </div>
     </div>
   );
