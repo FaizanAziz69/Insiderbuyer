@@ -23,20 +23,21 @@ publishEditorial()
       ├─► compose thread   (Claude, our existing Anthropic client)
       ├─► render 3–5 visuals (templated cards + the article cover)
       └─► emit webhook ──► n8n ──► X API  ──► reply-chain posted
-                             │
-                             └─► (optional) hold for approval in Slack/email
 ```
+
+Fully automatic: the article going live is the only trigger, and the thread
+follows it without anyone touching anything.
 
 **Why split it that way.** Composition belongs in our backend: that is where
 the article body, the ticker, the filing links and the editorial checklist
 already live, and where the Anthropic client is already wired. Posting belongs
-in n8n: retries, rate limits, media upload order, credential storage and a
-human approval step are exactly what it is good at, and editorial can change
-the flow without a deploy. Putting composition in n8n would mean duplicating
+in n8n: retries, rate limits, media upload order and credential storage are
+exactly what it is good at, and editorial can change the flow without a
+deploy. Putting composition in n8n would mean duplicating
 the compliance rules in a second place, which is how the two drift apart.
 
 **If you want fewer moving parts,** everything can live in the backend and skip
-n8n entirely — the trade is that changing the prompt or adding an approver
+n8n entirely — the trade is that changing the prompt or the posting rules
 becomes a deploy instead of a drag-and-drop.
 
 ---
@@ -142,47 +143,40 @@ media → create post → chain the next as a reply to the previous. On failure,
 retry twice then alert. Posts the thread only after the article URL returns
 200, so a thread can never point at a page that has not deployed yet.
 
-**Phase 4 — approval (toggle).**
-Ship with **approval ON**: the thread lands in the Editorial Desk (or Slack)
-and goes out on a click. Flip to fully automatic once the copy has proven
-itself over a couple of weeks. This is a public company account — the first
-version of anything that posts to it unattended should have a person in the
-loop, and it costs one click.
-
 ---
 
 ## 6. What is needed to start
 
-**From George:**
+**From George — two things, and they are the only blockers:**
 
-1. **An X developer account on the InsiderBuying handle** — with pay-per-use
-   billing enabled and a credit balance. Everything else waits on this.
-2. **API credentials** for it: API key + secret, and an **OAuth 2.0 access
-   token with `tweet.write`, `users.read` and `media.write` scopes** for the
-   posting account. Read-only keys will not post.
-3. **A decision on the approval gate** — start with a human click (recommended)
-   or go straight to fully automatic.
-4. **Where approvals should land** if we use them: Editorial Desk, Slack, or
-   email.
-5. **Confirmation on the paywall question**: how much of a gated article's
-   substance the thread may give away. A thread that answers the question
-   removes the reason to click.
+1. **An X developer account on the InsiderBuying handle**, with pay-per-use
+   billing enabled and a credit balance on it.
+2. **Posting credentials from that account**: API key + secret, and an
+   **OAuth 2.0 access token carrying `tweet.write`, `users.read` and
+   `media.write`**. Read-only keys will not post, which is the usual reason a
+   first attempt fails.
 
-**From us, once those exist:** an n8n instance (a small container on the
-existing box is enough — it does not need its own server), and the three build
-phases above, ~2 days of work in total.
+**Decided here rather than asked** — the thread teases and the article
+answers: enough of the finding to be worth reading, the substance behind the
+link. That keeps the funnel intact without needing a ruling.
+
+**From us, once the credentials exist:** an n8n instance (a small container on
+the existing box — it does not need its own server) and the three build phases
+above, roughly two days.
 
 **Not needed:** any new AI vendor. The composition runs on the Anthropic client
 the article generator already uses.
 
 ---
 
-## 7. One thing worth deciding early
+## 7. One fact that affects the timing
 
-Article generation is currently **paused** (`content_generation_off`), and the
-site is under an article freeze. Nothing will publish, and therefore nothing
-will tweet, until that is lifted. Whichever way this is built, it should be
-tested end to end against a **draft** article first — `publishEditorial`
-already supports `draft: true`, which makes a post live at its URL but absent
-from every feed. That gives a real article and a real thread to review without
-either appearing on the site or the timeline.
+Article generation is currently **paused** (`content_generation_off`) and the
+site is under an article freeze. Nothing publishes today, so nothing would
+tweet either — the automation would sit idle until that is lifted.
+
+That is not a reason to wait: it is what makes the build safe to test.
+`publishEditorial` already supports `draft: true`, which makes an article live
+at its URL but absent from every feed and the sitemap, so we can run the whole
+chain end to end on a real article and a real thread without either showing up
+on the site or the timeline.
