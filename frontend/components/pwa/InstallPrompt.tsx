@@ -148,7 +148,10 @@ export function InstallPrompt() {
   return (
     <div
       className="fixed inset-x-0 bottom-0 z-[45] px-3 pointer-events-none"
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
+      // Safari's floating URL bar sits above the safe-area inset and is not
+      // covered by it, so the bar has to clear both or it renders half-hidden
+      // behind Safari's own chrome (seen in the iOS 26 simulator).
+      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 68px)" }}
     >
       <div
         className="pointer-events-auto mx-auto max-w-lg rounded-xl shadow-lg overflow-hidden"
