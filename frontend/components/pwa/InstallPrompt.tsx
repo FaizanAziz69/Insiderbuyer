@@ -14,15 +14,15 @@ import { popupsAllowedOn } from "@/lib/funnel";
  *  · iOS has no API at all. Safari installs only through Share → Add to Home
  *    Screen, so there the bar can do nothing but say so.
  *
- * Deliberately quiet, because George has just had popups taken off the sales
- * page: a bottom bar rather than a modal, nothing above the fold, no dark
- * pattern on the dismiss, and it obeys the same POPUP_FREE_PREFIXES the funnel
- * popups do. A dismissal is remembered for 60 days; an install hides it for
- * good. It never appears to someone already running the installed app.
+ * Appears as soon as the page is up. Still deliberately quiet, because George
+ * has just had popups taken off the sales page: a bottom bar rather than a
+ * modal, nothing above the fold, no dark pattern on the dismiss, and it obeys
+ * the same POPUP_FREE_PREFIXES the funnel popups do. A dismissal is remembered
+ * for 60 days; an install hides it for good. It never appears to someone
+ * already running the installed app.
  */
 const DISMISS_KEY = "ib-install-dismissed";
 const DISMISS_DAYS = 60;
-const SHOW_AFTER_MS = 12_000;
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -83,11 +83,14 @@ export function InstallPrompt() {
     const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
     if (isIos && isSafari) setIosHint(true);
 
-    const t = setTimeout(() => setVisible(true), SHOW_AFTER_MS);
+    // Shown as soon as the page is up (George, 2026-09-02) rather than on a
+    // timer. On Android this still waits in practice: the bar needs the
+    // captured `beforeinstallprompt`, and Chrome fires that when it is ready,
+    // so setting this now just means "the moment there is something to offer".
+    setVisible(true);
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
       window.removeEventListener("appinstalled", onInstalled);
-      clearTimeout(t);
     };
   }, []);
 
