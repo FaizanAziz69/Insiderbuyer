@@ -1,27 +1,29 @@
 /*
- * InsiderBuying service worker.
+ * InsiderBuying service worker — deliberately caches NOTHING.
  *
- * Deliberately conservative. This site is a live market-data product: a stale
- * price or a cached Insider Score is worse than a slow one, so NOTHING from
- * /api is ever served from cache. The worker exists for two reasons only:
+ * The first version cached fingerprinted /_next/static cache-first, which is
+ * safe in theory (a changed file is a changed URL) but was not in practice:
+ * across a day of frequent deploys a visitor could hold chunks from an older
+ * build while being served newer HTML, and a chunk mismatch makes App Router
+ * client navigation fail silently — clicks that do nothing. That is exactly
+ * what was reported, so the caching is gone rather than tuned.
  *
- *   1. Android will not offer "Install app" without a fetch handler.
- *   2. An installed app that opens to a blank page on a dropped connection
- *      looks broken, so navigations fall back to a tiny offline shell.
+ * A fetch handler still has to exist, because Chrome will not offer "Install"
+ * without one. This one only adds an offline fallback for navigations and is
+ * otherwise a pass-through, so the worker cannot serve anything stale.
  *
- * Static build assets are cache-first because Next.js fingerprints their
- * filenames — a changed file is a changed URL, so it can never go stale.
+ * Bumping VERSION also deletes every cache the previous worker created, which
+ * is what releases anyone currently stuck.
  */
-const VERSION = "ib-v1";
+const VERSION = "ib-v2-nocache";
 const SHELL = `${VERSION}-shell`;
-const ASSETS = `${VERSION}-assets`;
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(SHELL)
-      .then((c) => c.addAll([OFFLINE_URL, "/pwa/icon-192.png"]))
+      .then((c) => c.add(OFFLINE_URL))
       .then(() => self.skipWaiting())
       .catch(() => self.skipWaiting()),
   );
@@ -40,49 +42,12 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-  if (req.method !== "GET") return;
-
-  let url;
-  try {
-    url = new URL(req.url);
-  } catch {
-    return;
-  }
-  if (url.origin !== self.location.origin) return;
-
-  // Never cache data, auth or billing. Freshness is the product here.
-  if (
-    url.pathname.startsWith("/api") ||
-    url.pathname.startsWith("/auth") ||
-    url.pathname.includes("/billing")
-  ) {
-    return;
-  }
-
-  // Fingerprinted build output: cache-first, safe by construction.
-  if (url.pathname.startsWith("/_next/static/")) {
-    event.respondWith(
-      caches.match(req).then(
-        (hit) =>
-          hit ||
-          fetch(req).then((res) => {
-            if (res.ok) {
-              const copy = res.clone();
-              caches.open(ASSETS).then((c) => c.put(req, copy));
-            }
-            return res;
-          }),
-      ),
-    );
-    return;
-  }
-
-  // Page navigations: network first, offline shell as the last resort.
-  if (req.mode === "navigate") {
-    event.respondWith(
-      fetch(req).catch(() =>
-        caches.match(OFFLINE_URL).then((hit) => hit || new Response("", { status: 504 })),
-      ),
-    );
-  }
+  // Everything except a page navigation is left entirely alone — no
+  // respondWith, so the browser's own cache and network path are untouched.
+  if (req.method !== "GET" || req.mode !== "navigate") return;
+  event.respondWith(
+    fetch(req).catch(() =>
+      caches.match(OFFLINE_URL).then((hit) => hit || new Response("", { status: 504 })),
+    ),
+  );
 });
