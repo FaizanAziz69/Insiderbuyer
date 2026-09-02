@@ -45,6 +45,20 @@ export function InstallPrompt() {
   const [ios, setIos] = useState(false);
   const [visible, setVisible] = useState(false);
   const [steps, setSteps] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  // The funnel popups are full-screen modals anchored over the same corner.
+  // While one is open its backdrop eats every tap, so the install bar looks
+  // present but dead — which is exactly how this was reported on iPhone.
+  // Yield to them rather than stack on top.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const check = () => setModalOpen(!!document.querySelector('[role="dialog"][aria-modal="true"]'));
+    check();
+    const mo = new MutationObserver(check);
+    mo.observe(document.body, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -127,7 +141,7 @@ export function InstallPrompt() {
     setDeferred(null);
   };
 
-  if (!visible) return null;
+  if (!visible || modalOpen) return null;
   if (!deferred && !ios) return null;
   if (!popupsAllowedOn(pathname)) return null;
 
@@ -198,9 +212,10 @@ export function InstallPrompt() {
               <li className="flex items-start gap-2">
                 <span className="font-bold" style={{ color: "var(--accent)" }}>1.</span>
                 <span className="inline-flex items-center gap-1.5 flex-wrap">
-                  Tap the Share button
+                  At the bottom of Safari, tap
+                  <b className="whitespace-nowrap">&#8943;</b>
+                  <span className="text-mute">(newer iOS)</span> or the Share icon
                   <Share className="h-4 w-4" style={{ color: "var(--accent)" }} />
-                  at the bottom of Safari
                 </span>
               </li>
               <li className="flex items-start gap-2">
