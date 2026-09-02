@@ -123,6 +123,69 @@ export function MegaDropdown({ group }: Props) {
       >
         {g.callouts.map((c) => {
           const Icon = c.icon;
+          // Banner layout: a headline, what goes into the score, and the live
+          // sample — a mini above-the-fold rather than a one-line upsell
+          // (George, 2026-09-02: "make it more bold … use all the blank
+          // space"). Callouts without bullets keep the original compact card.
+          if (c.bullets?.length) {
+            return (
+              <Link
+                key={c.href + c.title}
+                href={c.href}
+                onClick={() => setOpen(false)}
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl transition w-full group"
+                style={{
+                  background:
+                    "linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, var(--bg-2)) 0%, var(--bg-2) 60%)",
+                  border: "1px solid color-mix(in srgb, var(--accent) 34%, var(--border))",
+                }}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <span
+                      className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, var(--accent), var(--accent-2))",
+                      }}
+                    >
+                      <Icon className="h-4 w-4" style={{ color: "#fff" }} />
+                    </span>
+                    <span
+                      className="text-[17px] sm:text-[19px] font-extrabold leading-tight tracking-tight group-hover:underline"
+                      style={{ color: "var(--text)" }}
+                    >
+                      {c.title}
+                    </span>
+                  </div>
+                  <ul className="flex flex-wrap gap-x-5 gap-y-1.5 mb-2.5">
+                    {c.bullets.map((b) => (
+                      <li
+                        key={b}
+                        className="text-[12.5px] font-semibold inline-flex items-center gap-1.5"
+                        style={{ color: "var(--text-mute)" }}
+                      >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full flex-shrink-0"
+                          style={{ background: "var(--accent)" }}
+                        />
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                  {c.footnote && (
+                    <div
+                      className="text-[13.5px] font-bold leading-snug"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      {c.footnote}
+                    </div>
+                  )}
+                </div>
+                {c.score && <ScorePreview />}
+              </Link>
+            );
+          }
           return (
             <Link
               key={c.href + c.title}
@@ -170,9 +233,6 @@ export function MegaDropdown({ group }: Props) {
                     </span>
                   )}
                 </div>
-                {/* width:0 + min-width:100% keeps this long text from inflating
-                    the panel's max-content width — it wraps inside whatever
-                    width the link columns produce. */}
                 <div
                   className="text-[11px] text-mute leading-snug mt-0.5"
                   style={{ width: 0, minWidth: "100%" }}

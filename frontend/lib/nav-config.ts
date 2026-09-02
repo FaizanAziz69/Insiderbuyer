@@ -49,8 +49,14 @@ export interface NavCallout {
   description: string;
   href: string;
   icon: any;
-  /** Marks the callout as a premium feature (lock icon + standout styling). */
+  /** Marks the callout as a premium feature (standout styling). */
   premium?: boolean;
+  /** Renders the banner layout: headline, bullets, closing line. */
+  bullets?: string[];
+  /** The line under the bullets. */
+  footnote?: string;
+  /** Show the live-score sample panel on the right. */
+  score?: boolean;
 }
 
 export interface NavGroup {
@@ -119,7 +125,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Hot Sectors", href: "/stock-lists/hot-sectors", icon: Flame, badge: "new" },
           { label: "Government Contracts", href: "/government-contracts", icon: Briefcase, badge: "new" },
           { label: "Stock Ideas", href: "/lists", icon: Sparkles },
-          { label: "Blue Sky Stocks", href: "/stock-lists/blue-sky", icon: Rocket, badge: "premium" },
+          { label: "Blue Sky Stocks", href: "/stock-lists/blue-sky", icon: Rocket },
           { label: "Large Cap", href: "/stock-lists/large-cap", icon: Building2 },
           { label: "Small Cap", href: "/stock-lists/small-cap", icon: Rocket },
           { label: "Penny Stocks", href: "/stock-lists/penny-stocks", icon: Coins },
@@ -164,11 +170,21 @@ export const NAV_GROUPS: NavGroup[] = [
     calloutPosition: "bottom",
     callouts: [
       {
-        title: "Top Insider Scores",
-        description: "Unlock the top-ranked Insider Scores — the highest-quality insider-buying signals, ranked #50 → #1.",
-        href: "/stock-lists/iqs-top-picks",
-        icon: Lock,
-        premium: true,
+        // Points at the main scores board, not the gated picks page: that page
+        // shows no scores at all, and the top ranks here are gated anyway, so
+        // this is the better landing (George, 2026-09-02).
+        title: "Every stock's insider quality (IQ) score.",
+        description: "",
+        href: "/insiders/hot",
+        icon: Flame,
+        bullets: [
+          "Transaction size",
+          "Insider history & track record",
+          "Ownership change",
+          "+ more",
+        ],
+        footnote: "One score that tells you what insiders are doing right now.",
+        score: true,
       },
     ],
   },

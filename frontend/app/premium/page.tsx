@@ -29,10 +29,8 @@ import { getAuthToken, useAuth } from "@/lib/auth";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { LoginModal } from "@/components/LoginModal";
 import { AlreadySubscribedModal } from "@/components/premium/AlreadySubscribedModal";
-import { PremiumDownsell } from "@/components/funnel/PremiumDownsell";
 import { getFunnelEntry, setFunnelEntry } from "@/lib/funnel";
 import { track } from "@/lib/analytics";
-import { markPopupShown, popupShownThisSession } from "@/lib/funnel";
 import { InsiderCard, INSIDER_CARD_CSS } from "@/components/premium/InsiderCard";
 import { MockupGallery, MOCKUP_CSS, type Mockup } from "@/components/premium/MockupLightbox";
 
@@ -356,8 +354,6 @@ export default function PremiumPage() {
   const [err, setErr] = useState<string | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [thanksOpen, setThanksOpen] = useState(false);
-  const [popupOpen, setPopupOpen] = useState(false);
-  const popupFired = useRef(false);
 
   // Live Stripe amounts — the card prints these, never a hardcoded figure.
   const { data: billing } = useSWR<BillingPlans>(`${API_BASE}/billing/plans`, fetcher, {
@@ -400,55 +396,12 @@ export default function PremiumPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Downsell 1 (Round-2 brief, Section 2, Step 4): the monthly plan, offered
-  // on exit intent or once the visitor has scrolled past pricing. Once per
-  // session, counted against the brief's two-popup cap, never to a subscriber.
-  useEffect(() => {
-    if (premium) return;
-    if (popupShownThisSession("premium-downsell")) return;
-    const fire = () => {
-      if (popupFired.current) return;
-      if (popupShownThisSession("premium-downsell")) return;
-      popupFired.current = true;
-      markPopupShown("premium-downsell");
-      track("web_downsell_shown", { plan: "monthly", entry: getFunnelEntry() });
-      setPopupOpen(true);
-    };
-    // Cursor leaves through the top of the window.
-    const onMouseOut = (e: MouseEvent) => {
-      if (!e.relatedTarget && e.clientY <= 0) fire();
-    };
-    // Scrolled past the pricing block — "clicked away from the CTA".
-    const onScroll = () => {
-      const pricing = document.getElementById("pricing");
-      if (!pricing) return;
-      if (pricing.getBoundingClientRect().bottom < 0) fire();
-    };
-    // Mobile back gesture, one-shot: an extra history entry absorbs the first
-    // press, the listener then detaches so the next one navigates.
-    const coarse =
-      typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
-    let onPop: (() => void) | null = null;
-    if (coarse) {
-      try {
-        history.pushState({ ibPremiumGuard: true }, "");
-      } catch {
-        /* history blocked — the other two triggers still apply */
-      }
-      onPop = () => {
-        if (onPop) window.removeEventListener("popstate", onPop);
-        fire();
-      };
-      window.addEventListener("popstate", onPop);
-    }
-    document.addEventListener("mouseout", onMouseOut);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      document.removeEventListener("mouseout", onMouseOut);
-      window.removeEventListener("scroll", onScroll);
-      if (onPop) window.removeEventListener("popstate", onPop);
-    };
-  }, [premium]);
+  // The exit-intent monthly downsell is REMOVED (George, 2026-09-02: "remove
+  // all pop ups on that page"). The Round-2 brief asked for it here, but the
+  // sales page is now the place a visitor lands ready to buy, and an
+  // interrupt on the way out was the one thing on it nobody chose to see.
+  // The login and already-subscribed modals stay: those open from a click,
+  // not on their own, and removing them would break subscribing.
 
   const checkout = async (plan: "monthly" | "annual") => {
     if (busy) return;
@@ -815,23 +768,6 @@ export default function PremiumPage() {
 
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
       <AlreadySubscribedModal open={thanksOpen} onClose={() => setThanksOpen(false)} />
-      <PremiumDownsell
-        open={popupOpen}
-        monthlyLabel={priceOf("monthly") ?? "$39.99"}
-        busy={busy === "monthly"}
-        onStart={() => {
-          setPopupOpen(false);
-          track("web_downsell_accept", { plan: "monthly" });
-          checkout("monthly");
-        }}
-        onDismiss={() => {
-          setPopupOpen(false);
-          track("web_downsell_decline", { next: "/top-picks-report" });
-          setFunnelEntry("downsell");
-          router.push("/top-picks-report");
-        }}
-        onClose={() => setPopupOpen(false)}
-      />
     </div>
   );
 }
