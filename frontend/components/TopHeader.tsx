@@ -233,6 +233,7 @@ export function TopHeader() {
             onClick={() => setMobileOpen(false)}
           />
           <div
+            data-safe-drawer
             className="absolute top-0 right-0 bottom-0 w-[88%] max-w-sm border-l p-5 overflow-y-auto"
             style={{ background: "var(--bg-2)", borderColor: "var(--border)" }}
           >

@@ -60,9 +60,18 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "InsiderBuying",
-    // "black-translucent" lets the page paint under the status bar; the app
-    // has its own dark chrome, so that is the seam-free option.
-    statusBarStyle: "black-translucent",
+    // "black" — an OPAQUE status bar the web view starts BELOW.
+    //
+    // Was "black-translucent", which paints the page under the status bar and
+    // only works if every top-of-screen element pads itself by
+    // env(safe-area-inset-top). Nothing did: in the installed app the ticker
+    // bar and header sat under the clock, and the nav drawer lost its "Menu"
+    // row and search box entirely (George, 2026-09-03: "certain parts on site
+    // at the top and the menu bar is not formatted correctly"). Safari was
+    // fine throughout, which is why it only showed up once the app was
+    // installed. "black" makes iOS reserve the strip, so nothing can be
+    // clipped in any state — header, drawer, light theme or dark.
+    statusBarStyle: "black",
   },
   formatDetection: { telephone: false },
   icons: {

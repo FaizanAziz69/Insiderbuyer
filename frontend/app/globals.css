@@ -179,6 +179,23 @@ body {
   overflow-x: clip;
 }
 
+/* Installed-app (standalone) safe areas.
+   iOS reserves the status bar for us (appleWebApp.statusBarStyle "black"), but
+   the web view still runs to the physical bottom edge, so the home indicator
+   sits over whatever is last on the page — the final rows of the nav drawer,
+   the footer links. Pad the bottom by the inset, and the sides too so a
+   landscape notch cannot clip a gutter. Browsers report 0 for every inset
+   outside standalone, so these are no-ops in Safari and Chrome. */
+@media (display-mode: standalone) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  [data-safe-drawer] {
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+    padding-right: calc(1.25rem + env(safe-area-inset-right, 0px));
+  }
+}
+
 /* Site-wide readability zoom. Enlarges EVERYTHING proportionally — text
    (including fixed-px Tailwind classes), spacing, logos, charts — so the whole
    site reads bigger without touching hundreds of per-component sizes. Tune the
