@@ -35,6 +35,8 @@ const THUMBS: Thumb[] = [
   { file: "ryan-cohen-alibaba", tickers: ["BABA"] },
   { file: "ryan-cohen-alibaba-2", tickers: ["BABA"] },
   { file: "ackman-uber-stake", tickers: ["UBER"] },
+  // 2026-09-04: Markiplier / GoPro cover (client-supplied for the GPRO 13G story).
+  { file: "markiplier-gopro-stake", tickers: ["GPRO"], kw: ["markiplier", "gopro"] },
   { file: "apple-500b-investment", tickers: ["AAPL"] },
   { file: "englander-nvidia-etf", tickers: ["NVDA"], kw: ["nvidia", "nvda"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
@@ -110,6 +112,9 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-04: the Markiplier / GoPro 13G editorial. Cover is the person the
+  // story is about, per the standing rule.
+  "editorial-gpro-markiplier-stake-2026-09-04": "markiplier-gopro-stake",
   // 2026-09-03 Top Stories. Pinned, not left to the keyword/ticker rules:
   // George's standing rule is that the cover must be the person the story is
   // about, chosen from the covers already in public/editorial-thumbs — no new

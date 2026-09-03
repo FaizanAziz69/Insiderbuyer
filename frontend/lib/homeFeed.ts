@@ -76,8 +76,10 @@ const HERO_MAX_AGE_MS = 5 * 24 * 60 * 60_000;
  *  pin was still holding the hero on day 3 even though a newer editorial had
  *  published, because a pin beats both the freshness rule and HERO_MAX_AGE_MS.
  *  That is the pin's whole point, so it has to be MOVED when a new lead story
- *  lands; it does not expire on its own. */
-export const HERO_PIN: string | null = "editorial-buffett-ackman-alphabet-split-2026-09-03";
+ *  lands; it does not expire on its own.
+ *
+ *  2026-09-04: repointed to the Markiplier/GoPro story, the new lead. */
+export const HERO_PIN: string | null = "editorial-gpro-markiplier-stake-2026-09-04";
 
 export function rotateHero(editorial: BlogPostListItem[], nowMs = Date.now()): BlogPostListItem[] {
   if (editorial.length < 2) return editorial;

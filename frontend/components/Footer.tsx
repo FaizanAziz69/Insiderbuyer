@@ -1,6 +1,5 @@
 "use client";
 import Link from "next/link";
-import { Github, Mail, Twitter } from "lucide-react";
 import { Logo } from "./Logo";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
@@ -41,32 +40,6 @@ export function Footer() {
               CEOs, CFOs, and directors — and scores each transaction with the Insider Quality
               Score (IQS). Follow the smart money, legally.
             </p>
-            <div className="flex items-center gap-3 mt-5">
-              <a
-                href="#"
-                aria-label="Twitter"
-                className="h-8 w-8 rounded-md flex items-center justify-center hover:bg-[var(--bg-3)] transition"
-                style={{ border: "1px solid var(--border)" }}
-              >
-                <Twitter className="h-4 w-4 text-soft" />
-              </a>
-              <a
-                href="#"
-                aria-label="GitHub"
-                className="h-8 w-8 rounded-md flex items-center justify-center hover:bg-[var(--bg-3)] transition"
-                style={{ border: "1px solid var(--border)" }}
-              >
-                <Github className="h-4 w-4 text-soft" />
-              </a>
-              <a
-                href="mailto:info@insiderbuying.com"
-                aria-label="Email"
-                className="h-8 w-8 rounded-md flex items-center justify-center hover:bg-[var(--bg-3)] transition"
-                style={{ border: "1px solid var(--border)" }}
-              >
-                <Mail className="h-4 w-4 text-soft" />
-              </a>
-            </div>
           </div>
 
           {/* Market Data */}
