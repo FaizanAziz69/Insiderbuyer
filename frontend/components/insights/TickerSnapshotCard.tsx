@@ -19,6 +19,19 @@ export function TickerSnapshotCard({ ticker }: Props) {
     fetcher,
     { revalidateOnFocus: false, refreshInterval: 5 * 60_000 },
   );
+  /**
+   * `companies.lastPrice` is written by the ingest when a filing is processed
+   * and by the market-cap repair pass — neither is a price feed, so a name
+   * nobody has filed on sits at a stale price for weeks. GoPro read $0.59 next
+   * to an article about its run to $1.46 (2026-09-04). The quote endpoint is
+   * live, so it wins and the table is only the fallback.
+   */
+  const { data: quotes } = useSWR<{ rows: Array<{ price: number; changePct: number; marketCap: number | null }> }>(
+    `${API_BASE}/market-stats/quotes?symbols=${encodeURIComponent(ticker)}`,
+    fetcher,
+    { revalidateOnFocus: false, refreshInterval: 5 * 60_000 },
+  );
+  const quote = quotes?.rows?.[0] || null;
 
   if (isLoading && !data) {
     return <div className="shimmer rounded-lg" style={{ height: 280 }} />;
@@ -27,6 +40,12 @@ export function TickerSnapshotCard({ ticker }: Props) {
 
   const c = data.company;
   const s = data.score;
+  const price =
+    quote && quote.price > 0
+      ? quote.price
+      : c.lastPrice
+        ? Number(c.lastPrice)
+        : null;
 
   return (
     <div
@@ -71,19 +90,30 @@ export function TickerSnapshotCard({ ticker }: Props) {
         className="flex items-baseline justify-between px-4 py-3 border-b"
         style={{ borderColor: "var(--border)" }}
       >
-        <span
-          className="tabular font-bold"
-          style={{ fontSize: 26, letterSpacing: "-0.5px" }}
-        >
-          {c.lastPrice ? `$${Number(c.lastPrice).toFixed(2)}` : "—"}
-        </span>
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span
+            className="tabular font-bold"
+            style={{ fontSize: 26, letterSpacing: "-0.5px" }}
+          >
+            {price != null ? `$${price.toFixed(2)}` : "—"}
+          </span>
+          {quote && Number.isFinite(quote.changePct) ? (
+            <span
+              className="tabular text-[12px] font-bold"
+              style={{ color: quote.changePct >= 0 ? "var(--good)" : "var(--bad)" }}
+            >
+              {quote.changePct >= 0 ? "+" : ""}
+              {quote.changePct.toFixed(2)}%
+            </span>
+          ) : null}
+        </div>
         <span className="text-[10px] uppercase tracking-wider font-bold text-mute">
           {c.sector || "—"}
         </span>
       </div>
 
       {/* Key stats grid */}
-      <KeyStatsGrid detail={data} />
+      <KeyStatsGrid detail={data} marketCap={quote?.marketCap ?? null} />
 
       {/* Actions */}
       <div
@@ -114,14 +144,23 @@ export function TickerSnapshotCard({ ticker }: Props) {
 
 /** 2-column stats grid — Market Cap / Insider Score / Buyers / Transactions /
  *  Insider $ bought / As-of date. Reused inline in article bodies too. */
-export function KeyStatsGrid({ detail }: { detail: CompanyDetail }) {
+export function KeyStatsGrid({
+  detail,
+  marketCap,
+}: {
+  detail: CompanyDetail;
+  /** Live market cap from the quote feed; the stored one is as stale as the
+   *  stored price, so it is only the fallback. */
+  marketCap?: number | null;
+}) {
   const c = detail.company;
   const s = detail.score;
+  const cap = marketCap && marketCap > 0 ? marketCap : c.marketCap ? Number(c.marketCap) : null;
   // The Insider Score cell is paygated like the stock-list column it mirrors —
   // `PremiumValue` keeps the row and its label visible (so readers see the
   // data exists) but never puts the number in the DOM for non-subscribers.
   const stats: Array<[string, React.ReactNode]> = [
-    ["Market Cap", c.marketCap ? formatCurrency(Number(c.marketCap)) : "—"],
+    ["Market Cap", cap ? formatCurrency(cap) : "—"],
     [
       "Insider Score",
       s ? (

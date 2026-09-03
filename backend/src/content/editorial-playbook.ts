@@ -55,7 +55,7 @@ export const WORD_COUNT_SMALL = { min: 250, max: 400 } as const;
 export const ARTICLE_ARC = [
   { section: 'Lede', length: '2–3 sentences', purpose: 'The most important fact first. Specific number or event. Company name and ticker in sentence 1.' },
   { section: 'Context', length: '3–4 sentences', purpose: 'Why does this matter? Background for a reader who may not know this company.' },
-  { section: 'The Insider Angle', length: '3–5 sentences', purpose: 'What does Form 4 data show? MANDATORY in every article. Reference the Insider Score band where relevant.' },
+  { section: 'The Insider Angle', length: '3–5 sentences', purpose: 'What does Form 4 data show? Reference the Insider Score band where relevant. NOTE (client, 2026-09-04): no longer mandatory — most Top Stories now report the event the way mainstream media reports it and carry no insider data; the checklist warns rather than blocks.' },
   { section: 'Market Reaction', length: '2–3 sentences', purpose: 'What is the broader financial world saying? Paraphrase — never copy.' },
   { section: 'Data Visualization', length: 'embedded', purpose: 'Chart, table or callout in the BODY, after context and before What to Watch.' },
   { section: 'What to Watch', length: '2–3 sentences', purpose: 'Forward-looking. What would confirm or change this story?' },
@@ -140,6 +140,9 @@ export const MAX_SENTENCES_PER_PARAGRAPH = 4;
  * The manual lists six. `peer-table` is a seventh, added because all six read
  * our own data and therefore render nothing for a subject outside our coverage
  * — which left TSXV articles with no way to satisfy §7's own requirement.
+ * `price-chart` is an eighth, added 2026-09-04 for the same structural reason
+ * from the other direction: a story told the way the wires tell it needs a
+ * chart that is market data and nothing else.
  */
 export const VIZ_TYPES = [
   {
@@ -185,6 +188,14 @@ export const VIZ_TYPES = [
     embed:
       '<div data-viz="peer-table" data-title="Yukon gold, one-year returns" data-source="Company disclosure and market data, DATE"><table>…</table></div>',
     note: 'Rows come from the writer, not a feed — the only option for data we do not hold, and it means every figure must also appear in the article\'s source list. Mark the subject\'s row class="is-subject" and any index row class="is-benchmark".',
+  },
+  {
+    key: 'price-chart',
+    title: 'Share Price Chart (market data only)',
+    whenToUse:
+      'Straight news stories. The client\'s rule from 2026-09-04 is that most Top Stories report an event "the same way it is reported by mainstream media", and every other type here reads our Form 4 record — price-markers is even titled "price vs. insider purchases". This one carries no insider layer at all.',
+    embed: '<div data-viz="price-chart" data-ticker="TICKER" data-range="1y"></div>',
+    note: 'Closing prices for the window with the move, low and high. Green when the window is up, red when it is down.',
   },
   {
     key: 'pull-quote',

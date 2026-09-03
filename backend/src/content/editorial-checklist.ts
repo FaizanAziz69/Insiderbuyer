@@ -363,10 +363,16 @@ export function runEditorialChecklist(draft: EditorialDraft): ChecklistReport {
     'insider-angle',
     `Insider filings cited as "${ATTRIBUTION_PHRASE}" — Form 4 or SEDI`,
     hasPhrase && regimes.length > 0,
-    'error',
+    // Was an error until 2026-09-04. The client's standing instruction now is
+    // that a Top Story reports an event "the same way it is reported by
+    // mainstream media", and that "most" of them will carry no insider data at
+    // all — so an article with no Form 4 angle is a house format, not a defect.
+    // Kept as a warning rather than deleted: when a story IS an insider story,
+    // publishing it without the attribution is still the mistake it always was.
+    'warning',
     '5',
     !hasPhrase
-      ? 'the required attribution phrase is missing — the insider angle is mandatory in every article'
+      ? 'no insider attribution — fine for a straight news story, but if this IS an insider story it needs the phrase'
       : 'the attribution names no filing regime — say Form 4 (US) or SEDI (Canada)',
   );
 

@@ -3,6 +3,7 @@ import { InsiderTimelineViz } from "./InsiderTimelineViz";
 import { IqsScoreCardViz } from "./IqsScoreCardViz";
 import { SectorConvictionViz } from "./SectorConvictionViz";
 import { PriceMarkersViz } from "./PriceMarkersViz";
+import { PriceChartViz } from "./PriceChartViz";
 import { TxCompareViz } from "./TxCompareViz";
 import { PullQuoteViz } from "./PullQuoteViz";
 import { PeerTableViz } from "./PeerTableViz";
@@ -22,6 +23,7 @@ import { PeerTableViz } from "./PeerTableViz";
  *   <div data-viz="iqs-card"         data-ticker="CCJ"></div>
  *   <div data-viz="sector-table"     data-days="30" data-sector="Materials"></div>
  *   <div data-viz="price-markers"    data-ticker="CCJ" data-range="1y"></div>
+ *   <div data-viz="price-chart"      data-ticker="GPRO" data-range="1y"></div>
  *   <div data-viz="tx-compare"       data-ticker="CCJ" data-days="30"></div>
  *   <div data-viz="pull-quote">One striking stat, as text.</div>
  *
@@ -80,6 +82,9 @@ export function EditorialViz({ attrs }: { attrs: VizAttrs }) {
     case "price-markers":
       if (!ticker) return null;
       return <PriceMarkersViz ticker={ticker} range={attrs.range || "1y"} />;
+    case "price-chart":
+      if (!ticker) return null;
+      return <PriceChartViz ticker={ticker} range={attrs.range || "1y"} />;
     case "tx-compare":
       if (!ticker) return null;
       return (
