@@ -170,6 +170,16 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // article. 1672x941 source extended to 1606x1000 with blurred edge rows, not
   // cropped. New filename: the thumbs folder is served with a 30-day cache.
   "editorial-white-gold-corp-wgo-yukon-team-2026-08-27": "white-gold-district-map",
+
+  // 2026-09-03 stock ideas. Klarna, DICK'S and Somnigroup have no likeness in
+  // the library, so each takes the closest thing the neutral investor pool
+  // offers to its actual subject: a founder buying his own stock, a value
+  // buyer stepping into a sold-off name, and a long-horizon holder adding to a
+  // position. Pinned rather than left to the keyword rule so the cover on the
+  // card and the cover on the article page can never drift apart.
+  "stock-idea-klar-2026-09-03": "billionaires-super-stocks",
+  "stock-idea-dks-2026-09-03": "buffett-40pct-stock",
+  "stock-idea-sgi-2026-09-03": "buffett-annual-letter",
 };
 
 function candidatesFor(opts: ThumbInput, ignorePin = false): Thumb[] {
