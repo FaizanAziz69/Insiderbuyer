@@ -217,8 +217,15 @@ function candidatesFor(opts: ThumbInput, ignorePin = false): Thumb[] {
  * the Burry portrait to a generic daily briefing while the actual Burry story
  * two blocks down fell through to a Buffett cover.
  */
-export const PIN_OWNER: Record<string, string> = Object.fromEntries(
-  Object.entries(SLUG_OVERRIDES).map(([slug, file]) => [url(file), slug]),
+export const PIN_OWNER: Record<string, string[]> = Object.entries(SLUG_OVERRIDES).reduce(
+  (acc, [slug, file]) => {
+    // A cover can be pinned to more than one article (ackman-uber-stake is on
+    // both the Uber story and the older Ackman letter). Keep every owner —
+    // collapsing to one silently locked the newer article out of its own pin.
+    (acc[url(file)] ||= []).push(slug);
+    return acc;
+  },
+  {} as Record<string, string[]>,
 );
 
 /**

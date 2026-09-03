@@ -55,8 +55,8 @@ export function HomeThumbRegistry({ children }: { children: React.ReactNode }) {
     // A pinned cover is reserved for the article it was pinned to — another
     // card may not take it just because a keyword matched.
     const takeable = (c: string) => {
-      const owner = PIN_OWNER[c];
-      return !owner || owner === key;
+      const owners = PIN_OWNER[c];
+      return !owners || owners.includes(key);
     };
     const free = cands.find((c) => !used.current.has(c) && takeable(c));
     // Every candidate already on the page: take the best match anyway rather
