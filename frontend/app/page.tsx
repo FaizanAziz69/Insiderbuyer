@@ -18,9 +18,11 @@ import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
 import { TopInsiderBuys } from "@/components/home/TopInsiderBuys";
 import { AiPopularArticlesSection } from "@/components/insights/AiPopularArticlesSection";
 import { AiLatestNewsSection } from "@/components/insights/AiLatestNewsSection";
+import { HomeThumbRegistry } from "@/components/insights/HomeThumbRegistry";
 
 export default function HomePage() {
   return (
+    <HomeThumbRegistry>
     <div className="space-y-10">
       {/* TOP — Benzinga-style Top Stories (left) with the Top Gainers rail +
           buy/sell meter on the right side, same split as the old hero. */}
@@ -94,6 +96,7 @@ export default function HomePage() {
       </LazyMount>
 
     </div>
+    </HomeThumbRegistry>
   );
 }
 

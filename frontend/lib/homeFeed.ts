@@ -83,8 +83,20 @@ export function rotateHero(editorial: BlogPostListItem[], nowMs = Date.now()): B
   if (editorial.length < 2) return editorial;
   const pool = editorial.slice(0, ROTATION_POOL);
   const rest = editorial.slice(ROTATION_POOL);
+  // The pin holds the hero, but it YIELDS to a strictly newer editorial
+  // (2026-09-03, client: "har roz top stories update hoon"). Before this the
+  // pin outranked freshness forever, so the block froze on whatever story was
+  // pinned last and a newly published article could never lead — someone had
+  // to edit this file every day. Now the pin only decides between stories of
+  // the same or older vintage, which is what it was for.
   const pinned = HERO_PIN ? pool.find((i) => i.slug === HERO_PIN) : undefined;
-  if (pinned) return [pinned, ...pool.filter((i) => i.slug !== pinned.slug), ...rest];
+  if (pinned) {
+    const pinnedAt = new Date(pinned.generatedAt).getTime();
+    const newer = pool.filter(
+      (i) => i.slug !== pinned.slug && new Date(i.generatedAt).getTime() > pinnedAt,
+    );
+    if (!newer.length) return [pinned, ...pool.filter((i) => i.slug !== pinned.slug), ...rest];
+  }
   const ageOf = (i: BlogPostListItem) => nowMs - new Date(i.generatedAt).getTime();
   // Hero candidates: the pool, minus anything older than HERO_MAX_AGE_MS. If
   // everything is old (a quiet week), the newest still leads rather than a gap.

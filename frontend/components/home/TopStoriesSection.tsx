@@ -4,11 +4,36 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { API_BASE, BlogListResponse, fetcher } from "@/lib/api";
 import { AiCoverImage } from "@/components/insights/AiCoverImage";
+import { useHomeThumb } from "@/components/insights/HomeThumbRegistry";
 import { bylineFor } from "@/lib/byline";
 import { dealHomeFeed } from "@/lib/homeFeed";
 import { articleLabels } from "@/lib/articleLabel";
 import { maskScoreInList } from "@/lib/sanitizeArticleHtml";
 import { usePremium } from "@/components/premium/PremiumContext";
+
+/** Cover that takes its editorial thumbnail from the page-wide registry, so no
+ *  two cards anywhere on the home page land on the same file. Outside the
+ *  registry (there is no provider) it falls back to AiCoverImage's own pick. */
+function Cover({
+  item,
+  ...rest
+}: {
+  item: { slug: string; imageUrl?: string | null; imageAlt?: string | null; title: string; tags?: string[] | null; ticker?: string | null; sector?: string | null };
+} & Record<string, any>) {
+  const claimed = useHomeThumb(item as any);
+  return (
+    <AiCoverImage
+      primary={item.imageUrl}
+      seed={item.slug}
+      tags={item.tags as any}
+      ticker={item.ticker as any}
+      sector={item.sector as any}
+      alt={item.imageAlt || item.title}
+      {...(claimed !== undefined ? { editorialSrc: claimed } : {})}
+      {...rest}
+    />
+  );
+}
 
 function timeAgo(iso: string): string {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -91,14 +116,9 @@ export function TopStoriesSection() {
                 and gives every lead story the same height whatever the
                 cover's own aspect turns out to be. */}
             <div className="relative w-full flex-shrink-0 overflow-hidden aspect-[16/9]">
-              <AiCoverImage
-                primary={lead.imageUrl}
-                seed={lead.slug}
-                tags={lead.tags}
-                ticker={lead.ticker}
-                sector={lead.sector}
+              <Cover
+                item={lead}
                 overlay="none"
-                alt={lead.imageAlt || lead.title}
                 loading="eager"
                 style={{ width: "100%", height: "100%" }}
                 className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
@@ -127,14 +147,9 @@ export function TopStoriesSection() {
                 style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
               >
                 <div className="relative h-[92px] sm:h-[104px] flex-shrink-0 overflow-hidden">
-                  <AiCoverImage
-                    primary={item.imageUrl}
-                    seed={item.slug}
-                    tags={item.tags}
-                    ticker={item.ticker}
-                    sector={item.sector}
+                  <Cover
+                    item={item}
                     overlay="none"
-                    alt={item.imageAlt || item.title}
                     style={{ width: "100%", height: "100%" }}
                     className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
                   />

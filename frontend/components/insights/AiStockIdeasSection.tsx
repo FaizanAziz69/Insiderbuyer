@@ -16,6 +16,7 @@ import { bylineFor } from "@/lib/byline";
 import { articleLabel, articleLabels } from "@/lib/articleLabel";
 import { maskScoreInList } from "@/lib/sanitizeArticleHtml";
 import { usePremium } from "@/components/premium/PremiumContext";
+import { useHomeThumb } from "./HomeThumbRegistry";
 
 /** Pulls live AI-generated stock-idea cards from /content/blogs?kind=stock-idea
  *  and renders them in the home-page "Stock Ideas" slot using the same
@@ -99,6 +100,10 @@ export function AiStockIdeasSection() {
 }
 
 function BigCard({ item, src, editorialSrc, label }: { item: BlogPostListItem; src?: string; editorialSrc?: string | null; label?: string }) {
+  // Page-unique, topic-matched cover (see HomeThumbRegistry). Falls back to
+  // whatever the caller passed when this renders outside the home page.
+  const claimed = useHomeThumb(item);
+  const cover = claimed !== undefined ? claimed : editorialSrc;
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -116,7 +121,7 @@ function BigCard({ item, src, editorialSrc, label }: { item: BlogPostListItem; s
           tags={item.tags}
           ticker={item.ticker}
           sector={item.sector}
-        editorialSrc={editorialSrc}
+        editorialSrc={cover}
           seed={item.slug}
           overlay="none"
           loading="eager"
@@ -158,6 +163,8 @@ function BigCard({ item, src, editorialSrc, label }: { item: BlogPostListItem; s
 }
 
 function SmallCard({ item, src, editorialSrc, label }: { item: BlogPostListItem; src?: string; editorialSrc?: string | null; label?: string }) {
+  const claimed = useHomeThumb(item);
+  const cover = claimed !== undefined ? claimed : editorialSrc;
   return (
     <Link href={`/insights/${item.slug}`} className="block group h-full">
       <AiCoverImage
@@ -167,7 +174,7 @@ function SmallCard({ item, src, editorialSrc, label }: { item: BlogPostListItem;
         tags={item.tags}
         ticker={item.ticker}
         sector={item.sector}
-        editorialSrc={editorialSrc}
+        editorialSrc={cover}
         className="w-full rounded-lg mb-3 transition-transform duration-500 group-hover:scale-[1.02]"
         style={{ aspectRatio: "16 / 9" }}
       />

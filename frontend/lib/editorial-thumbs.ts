@@ -199,6 +199,31 @@ function candidatesFor(opts: ThumbInput, ignorePin = false): Thumb[] {
   return [...primary, ...GENERIC_POOL.filter((t) => !seen.has(t.file))];
 }
 
+/**
+ * Candidate cover URLs for one article, best match first, for the home-page
+ * registry to claim from (HomeThumbRegistry). Same matching as
+ * pickEditorialThumb — pin, then ticker, then keyword, then the neutral pool —
+ * but it hands back the whole ordered list instead of choosing, because only
+ * the registry knows what the rest of the page has already taken.
+ */
+export function candidatesForClaim(opts: ThumbInput): string[] {
+  const cands = candidatesFor(opts);
+  // The pin is honoured first, then its own non-pinned matches as fallbacks,
+  // so a pinned cover already used elsewhere still lands on a topical image
+  // rather than dropping to the generic pool.
+  const extra = cands.length === 1 && SLUG_OVERRIDES[(opts.seed || "").toLowerCase()]
+    ? candidatesFor(opts, true)
+    : [];
+  // Home cards must ALWAYS land on an editorial thumb (George 2026-09-03: "koi
+  // new ya extra na hoon"), so an article that matched nothing still gets the
+  // library rather than falling through to the curated stock set.
+  const floor = cands.length || extra.length ? [] : [...MATCHABLE, ...GENERIC_POOL];
+  const seen = new Set<string>();
+  return [...cands, ...extra, ...floor]
+    .filter((t) => (seen.has(t.file) ? false : (seen.add(t.file), true)))
+    .map((t) => url(t.file));
+}
+
 /** Best editorial thumbnail for a single article, or null (→ curated). */
 export function pickEditorialThumb(opts: ThumbInput & { index?: number }): string | null {
   const cands = candidatesFor(opts);
