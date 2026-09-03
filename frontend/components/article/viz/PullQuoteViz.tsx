@@ -17,14 +17,14 @@ export function PullQuoteViz({ html, cite }: { html: string; cite?: string | nul
   if (!text) return null;
   return (
     <aside
-      className="my-8 rounded-lg px-5 py-5 sm:px-7 sm:py-6 not-prose"
+      className="viz-pull-quote my-8 rounded-lg px-5 py-5 sm:px-7 sm:py-6 not-prose"
       style={{
         background: "var(--brand-surface)",
         border: "1px solid var(--brand-surface-border)",
       }}
     >
       <blockquote
-        className="text-[17px] sm:text-[20px] font-semibold leading-snug"
+        className="text-[18px] sm:text-[22px] font-semibold leading-snug"
         style={{ color: "var(--gold)", fontFamily: "var(--font-heading), var(--font-sans)" }}
         dangerouslySetInnerHTML={{ __html: text }}
       />

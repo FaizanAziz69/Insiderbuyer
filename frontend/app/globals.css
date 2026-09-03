@@ -492,6 +492,19 @@ table th {
   font-weight: 500;
   font-style: italic;
 }
+/* §7 pull-quote box supplies its own navy/gold shell, so the generic
+   blockquote treatment above (own margin, padding, left rule, italic) stacked
+   inside it and left a tall box with the line floating in the middle. */
+.article-body .viz-pull-quote blockquote {
+  margin: 0;
+  padding: 0;
+  border-left: 0;
+  border-radius: 0;
+  background: transparent;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--gold);
+}
 .article-body img {
   border-radius: 8px;
   margin: 1.4em 0;
