@@ -200,6 +200,18 @@ function candidatesFor(opts: ThumbInput, ignorePin = false): Thumb[] {
 }
 
 /**
+ * The slug that owns each pinned cover, keyed by the URL `candidatesForClaim`
+ * returns. A pin means "this file belongs to that article" — so on the home
+ * page a card that merely keyword-matches must never take it. Without this the
+ * dedupe was first-come-first-served by render order, and Latest News handed
+ * the Burry portrait to a generic daily briefing while the actual Burry story
+ * two blocks down fell through to a Buffett cover.
+ */
+export const PIN_OWNER: Record<string, string> = Object.fromEntries(
+  Object.entries(SLUG_OVERRIDES).map(([slug, file]) => [url(file), slug]),
+);
+
+/**
  * Candidate cover URLs for one article, best match first, for the home-page
  * registry to claim from (HomeThumbRegistry). Same matching as
  * pickEditorialThumb — pin, then ticker, then keyword, then the neutral pool —

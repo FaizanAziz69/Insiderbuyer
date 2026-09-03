@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useRef } from "react";
-import { candidatesForClaim } from "@/lib/editorial-thumbs";
+import { candidatesForClaim, PIN_OWNER } from "@/lib/editorial-thumbs";
 
 /**
  * One thumbnail registry for the WHOLE home page.
@@ -52,7 +52,13 @@ export function HomeThumbRegistry({ children }: { children: React.ReactNode }) {
       // subject's name — "Buffett", "Pelosi", "Uber" — and not just the slug.
       tags: [...(item.tags || []), ...(item.title ? item.title.split(/\s+/) : [])],
     });
-    const free = cands.find((c) => !used.current.has(c));
+    // A pinned cover is reserved for the article it was pinned to — another
+    // card may not take it just because a keyword matched.
+    const takeable = (c: string) => {
+      const owner = PIN_OWNER[c];
+      return !owner || owner === key;
+    };
+    const free = cands.find((c) => !used.current.has(c) && takeable(c));
     // Every candidate already on the page: take the best match anyway rather
     // than render nothing. A repeat is better than an empty card, and this
     // only happens once the library is exhausted.
