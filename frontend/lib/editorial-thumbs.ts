@@ -110,6 +110,13 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-03 Top Stories. Pinned, not left to the keyword/ticker rules:
+  // George's standing rule is that the cover must be the person the story is
+  // about, chosen from the covers already in public/editorial-thumbs — no new
+  // images. Buffett leads the Alphabet story; the Uber story is Ackman's, and
+  // that photo is already the Uber-stake one.
+  "editorial-buffett-ackman-alphabet-split-2026-09-03": "buffett-value-stock",
+  "editorial-ackman-pelosi-uber-insiders-2026-09-03": "ackman-uber-stake",
   // 2026-08-29: Durant / Hugging Face / NVIDIA editorial (client cover).
   "editorial-kevin-durant-hugging-face-nvidia-2026-08-29": "kevin-durant-hugging-face",
   // Stock Ideas (breaking-news picks, 2026-08-28): pinned so the card and the
