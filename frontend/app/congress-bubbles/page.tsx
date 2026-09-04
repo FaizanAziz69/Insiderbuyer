@@ -30,7 +30,7 @@ import { API_BASE } from "@/lib/api";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { effectiveZoom } from "@/lib/zoom";
 import { stepPhysics, radiusForDollars, fitFactor, type PhysBody } from "@/lib/bubbles-physics";
-import { SubscriberOnlyPage } from "@/components/PageSubscribeGate";
+import { PanelOptIn } from "@/components/bubbles/PanelOptIn";
 
 const archivo = Archivo({ subsets: ["latin"], weight: ["600", "800", "900"], variable: "--bm-head" });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--bm-mono" });
@@ -127,7 +127,7 @@ function tone(b: Body): string {
 
 /* ---------------------------------------------------------------- page */
 
-function CongressBubblesMap() {
+export default function CongressBubblesPage() {
   const [period, setPeriod] = useState("30d");
   const [chamber, setChamber] = useState<Chamber>("");
   const [party, setParty] = useState<Party>("");
@@ -782,6 +782,13 @@ function MemberPanel({
           </div>
         </div>
 
+        {/* Free email opt-in (George, 2026-09-04): name, party and chamber
+            are the "limited" view; the bio, totals, flow and tickers need an
+            email. The bio fetch sits inside so guests never trigger it. */}
+        <PanelOptIn
+          source="congress-bubbles-panel"
+          summary={`${m.trades} trade${m.trades === 1 ? "" : "s"} worth ${fmtK(m.volume)} in the last ${days} days. Enter your email to see the buys, the sells, the most-traded tickers and how long the disclosure took.`}
+        >
         {/* Client request 2026-08-28: who this person is — party, committees,
             and the policy areas they are most influential on. Grounded on the
             public legislators roster; cached server-side for 30 days. */}
@@ -850,6 +857,7 @@ function MemberPanel({
             View {m.name}&rsquo;s full profile &rarr;
           </Link>
         </div>
+        </PanelOptIn>
         <div className="bm-p-disclaimer">
           {method ??
             "Periodic Transaction Reports disclose amounts as ranges; every dollar figure here is the range midpoint."}{" "}
@@ -1079,25 +1087,3 @@ const CSS_TEXT = `
   .bm-legend, .bm-stats { display: none; }
 }
 `;
-
-/**
- * Subscriber gate (George, 2026-09-04: "all bubbles pages"). The map lives in
- * CongressBubblesMap above and is only mounted for subscribers, so a guest's
- * browser never issues its data fetches — the page is withheld, not merely
- * covered.
- */
-export default function CongressBubblesPage() {
-  return (
-    <SubscriberOnlyPage
-      title="Congress Bubbles is part of Insider Access"
-      subtitle="Every stock trade disclosed by a member of Congress, sized by reported value and coloured by net buying or selling."
-      bullets={[
-        "House and Senate disclosures, refreshed daily",
-        "Filter by chamber, party and period",
-        "Each member’s committees and most-traded tickers",
-      ]}
-    >
-      <CongressBubblesMap />
-    </SubscriberOnlyPage>
-  );
-}

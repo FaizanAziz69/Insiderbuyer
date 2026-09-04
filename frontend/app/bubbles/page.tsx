@@ -28,7 +28,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { effectiveZoom } from "@/lib/zoom";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { stepPhysics, radiusForDollars, fitFactor } from "@/lib/bubbles-physics";
-import { SubscriberOnlyPage } from "@/components/PageSubscribeGate";
+import { PanelOptIn } from "@/components/bubbles/PanelOptIn";
 
 const archivo = Archivo({ subsets: ["latin"], weight: ["600", "800", "900"], variable: "--bm-head" });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--bm-mono" });
@@ -274,7 +274,7 @@ const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 /* ---------------------------------------------------------------- page */
 
-function BubblesMap() {
+export default function BubblesPage() {
   const { unlocked } = usePremium();
   const [win, setWin] = useState(DEFAULT_WINDOW);
   const [exch, setExch] = useState<ExchangeKey>("us");
@@ -1135,6 +1135,7 @@ function ProfilePanel({
   const ref = c.avg90 ?? c.price;
   const gap = ref != null && c.vwaip > 0 ? (ref - c.vwaip) / c.vwaip : null;
   const above = (gap ?? 0) >= 0;
+  const buyers = new Set(c.buys.map((x) => x.who)).size;
 
   return (
     <aside className={`bm-panel ${bubble ? "bm-open" : ""}`} aria-label="Company profile">
@@ -1162,6 +1163,13 @@ function ProfilePanel({
           )}
         </div>
 
+        {/* Free email opt-in (George, 2026-09-04): the header above is the
+            "limited" experience; everything from the flow bar down needs an
+            email. Signed-in users and subscribers pass straight through. */}
+        <PanelOptIn
+          source="bubbles-panel"
+          summary={`${buyers} insider${buyers === 1 ? "" : "s"} bought ${fmtM(c.total)} of ${c.t} in the last ${winLabel}. Enter your email to see who bought, what they paid, the analyst target and the Insider Score.`}
+        >
         <div className="bm-p-section">Net insider flow · {winLabel}</div>
         <div className="bm-flowbar">
           <div className="bm-buyside" style={{ width: `${buyPct.toFixed(0)}%` }} />
@@ -1200,7 +1208,7 @@ function ProfilePanel({
         <div className="bm-p-grid">
           <div className="bm-p-cell">
             <div className="bm-lbl">Insiders buying</div>
-            <div className="bm-val">{new Set(c.buys.map((x) => x.who)).size}</div>
+            <div className="bm-val">{buyers}</div>
           </div>
           <div className="bm-p-cell">
             <div className="bm-lbl">Last filing</div>
@@ -1265,6 +1273,7 @@ function ProfilePanel({
             View the full {c.t} stock page &rarr;
           </Link>
         </div>
+        </PanelOptIn>
         <div className="bm-p-disclaimer">
           All figures trace to SEC Form 4 filings and licensed market data. Not financial advice.{" "}
           <Link href="/methodology#insider-bubbles">Methodology</Link>
@@ -1539,26 +1548,3 @@ const CSS_TEXT = `
 .bm-p-disclaimer a { color: var(--bm-ink-dim); }
 @media (max-width: 1100px) { .bm-chips-row { display: none; } .bm-exch { display: none; } .bm-switch { display: none; } }
 `;
-
-/**
- * Subscriber gate (George, 2026-09-04: "subscribe gate the bubbles pages — all
- * bubbles pages"; this re-instates the 2026-09-02 gate that was narrowed to the
- * 1D/1W windows only). The map lives in BubblesMap above and is only mounted
- * for subscribers, so a guest's browser never issues its data fetches — the
- * page is withheld, not merely covered.
- */
-export default function BubblesPage() {
-  return (
-    <SubscriberOnlyPage
-      title="Insider Bubbles is part of Insider Access"
-      subtitle="The live map of every open-market insider purchase of $250,000 or more, sized by conviction and coloured against what the insiders paid."
-      bullets={[
-        "Every qualifying buy, updated as filings land",
-        "Sized by net insider flow, coloured vs. the price insiders paid",
-        "Exchange and sector filters, plus same-day and weekly windows",
-      ]}
-    >
-      <BubblesMap />
-    </SubscriberOnlyPage>
-  );
-}
