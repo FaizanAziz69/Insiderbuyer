@@ -84,7 +84,10 @@ export async function generateMetadata({
     const rawImage =
       (editorialThumb && ogCopy(editorialThumb)) ||
       (post.imageUrl ? String(post.imageUrl) : null) ||
-      pickSectorPhoto(post.sector, String(post.slug || slug));
+      // `auto=format` makes Unsplash negotiate WebP, which not every chat
+      // client decodes — an unfurl wants a plain JPEG. This branch only runs
+      // for an article with no editorial cover at all.
+      pickSectorPhoto(post.sector, String(post.slug || slug)).replace("&auto=format", "");
     const image = rawImage.startsWith("/") ? `${SITE}${rawImage}` : rawImage;
     // OG copies are 1200x747; the full-size fallback is 1606x1000, and other
     // sources are unknown — so only declare dimensions we actually know.
