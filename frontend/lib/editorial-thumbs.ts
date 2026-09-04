@@ -38,10 +38,12 @@ const THUMBS: Thumb[] = [
   // 2026-09-04: Markiplier / GoPro cover (client-supplied for the GPRO 13G story).
   { file: "markiplier-gopro-stake", tickers: ["GPRO"], kw: ["markiplier", "gopro"] },
   // 2026-09-04: client-supplied Pelosi + Thiel composite for the Vistra story,
-  // resized from 2624x1628 to the house 1606x1000. No "pelosi" keyword on
-  // purpose — it is a two-person cover for this trade, not a generic congress
-  // portrait, and invest-like-pelosi still covers those.
-  { file: "pelosi-thiel-vistra", tickers: ["VST"], kw: ["vistra", "thiel"] },
+  // resized from 2624x1628 to the house 1606x1000. pinnedOnly: a two-person
+  // cover made for one trade is not a generic portrait, and with it in
+  // MATCHABLE the slug-hash catch-all immediately put it on an unrelated
+  // healthcare daily briefing. invest-like-pelosi still serves congress
+  // stories.
+  { file: "pelosi-thiel-vistra", pinnedOnly: true },
   { file: "apple-500b-investment", tickers: ["AAPL"] },
   { file: "englander-nvidia-etf", tickers: ["NVDA"], kw: ["nvidia", "nvda"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
