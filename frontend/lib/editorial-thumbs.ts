@@ -37,6 +37,11 @@ const THUMBS: Thumb[] = [
   { file: "ackman-uber-stake", tickers: ["UBER"] },
   // 2026-09-04: Markiplier / GoPro cover (client-supplied for the GPRO 13G story).
   { file: "markiplier-gopro-stake", tickers: ["GPRO"], kw: ["markiplier", "gopro"] },
+  // 2026-09-04: client-supplied Pelosi + Thiel composite for the Vistra story,
+  // resized from 2624x1628 to the house 1606x1000. No "pelosi" keyword on
+  // purpose — it is a two-person cover for this trade, not a generic congress
+  // portrait, and invest-like-pelosi still covers those.
+  { file: "pelosi-thiel-vistra", tickers: ["VST"], kw: ["vistra", "thiel"] },
   { file: "apple-500b-investment", tickers: ["AAPL"] },
   { file: "englander-nvidia-etf", tickers: ["NVDA"], kw: ["nvidia", "nvda"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
@@ -112,12 +117,10 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
-  // 2026-09-04: Pelosi / Thiel / Burke all buying Vistra. Client picked the
-  // Pelosi portrait from the existing library — she is the name a reader
-  // recognises first, and the story opens on her filing. Second slug on this
-  // file (the Bloom Energy story has it too), which PIN_OWNER handles: the
-  // newer article renders first on the home page and claims it.
-  "editorial-vst-pelosi-thiel-ceo-buying-2026-09-04": "invest-like-pelosi",
+  // 2026-09-04: Pelosi / Thiel / Burke all buying Vistra. Started on the
+  // library's invest-like-pelosi portrait; the client then supplied a
+  // Pelosi + Thiel composite, which is the two names the story is about.
+  "editorial-vst-pelosi-thiel-ceo-buying-2026-09-04": "pelosi-thiel-vistra",
   // 2026-09-04: the Markiplier / GoPro 13G editorial. Cover is the person the
   // story is about, per the standing rule.
   "editorial-gpro-markiplier-stake-2026-09-04": "markiplier-gopro-stake",
