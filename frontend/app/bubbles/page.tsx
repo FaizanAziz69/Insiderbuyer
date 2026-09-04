@@ -28,7 +28,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { effectiveZoom } from "@/lib/zoom";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { stepPhysics, radiusForDollars, fitFactor } from "@/lib/bubbles-physics";
-import { PanelOptIn } from "@/components/bubbles/PanelOptIn";
+import { PanelSignInGate } from "@/components/bubbles/PanelSignInGate";
 
 const archivo = Archivo({ subsets: ["latin"], weight: ["600", "800", "900"], variable: "--bm-head" });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--bm-mono" });
@@ -1163,12 +1163,11 @@ function ProfilePanel({
           )}
         </div>
 
-        {/* Free email opt-in (George, 2026-09-04): the header above is the
-            "limited" experience; everything from the flow bar down needs an
-            email. Signed-in users and subscribers pass straight through. */}
-        <PanelOptIn
-          source="bubbles-panel"
-          summary={`${buyers} insider${buyers === 1 ? "" : "s"} bought ${fmtM(c.total)} of ${c.t} in the last ${winLabel}. Enter your email to see who bought, what they paid, the analyst target and the Insider Score.`}
+        {/* Sign-in gate (George 2026-09-04, tightened to an account 2026-09-05): the header above is the
+            "limited" experience; everything from the flow bar down needs a
+            signed-in user. Signed-in users and subscribers pass straight through. */}
+        <PanelSignInGate
+          summary={`${buyers} insider${buyers === 1 ? "" : "s"} bought ${fmtM(c.total)} of ${c.t} in the last ${winLabel}. Sign in to see who bought, what they paid, the analyst target and the fundamentals.`}
         >
         <div className="bm-p-section">Net insider flow · {winLabel}</div>
         <div className="bm-flowbar">
@@ -1273,7 +1272,7 @@ function ProfilePanel({
             View the full {c.t} stock page &rarr;
           </Link>
         </div>
-        </PanelOptIn>
+        </PanelSignInGate>
         <div className="bm-p-disclaimer">
           All figures trace to SEC Form 4 filings and licensed market data. Not financial advice.{" "}
           <Link href="/methodology#insider-bubbles">Methodology</Link>

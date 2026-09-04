@@ -30,7 +30,7 @@ import { API_BASE } from "@/lib/api";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { effectiveZoom } from "@/lib/zoom";
 import { stepPhysics, radiusForDollars, fitFactor, type PhysBody } from "@/lib/bubbles-physics";
-import { PanelOptIn } from "@/components/bubbles/PanelOptIn";
+import { PanelSignInGate } from "@/components/bubbles/PanelSignInGate";
 
 const archivo = Archivo({ subsets: ["latin"], weight: ["600", "800", "900"], variable: "--bm-head" });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--bm-mono" });
@@ -782,12 +782,11 @@ function MemberPanel({
           </div>
         </div>
 
-        {/* Free email opt-in (George, 2026-09-04): name, party and chamber
-            are the "limited" view; the bio, totals, flow and tickers need an
-            email. The bio fetch sits inside so guests never trigger it. */}
-        <PanelOptIn
-          source="congress-bubbles-panel"
-          summary={`${m.trades} trade${m.trades === 1 ? "" : "s"} worth ${fmtK(m.volume)} in the last ${days} days. Enter your email to see the buys, the sells, the most-traded tickers and how long the disclosure took.`}
+        {/* Sign-in gate (George 2026-09-04, tightened to an account 2026-09-05): name, party and chamber
+            are the "limited" view; the bio, totals, flow and tickers need a
+            signed-in user. The bio fetch sits inside so guests never trigger it. */}
+        <PanelSignInGate
+          summary={`${m.trades} trade${m.trades === 1 ? "" : "s"} worth ${fmtK(m.volume)} in the last ${days} days. Sign in to see the buys, the sells, the most-traded tickers and how long the disclosure took.`}
         >
         {/* Client request 2026-08-28: who this person is — party, committees,
             and the policy areas they are most influential on. Grounded on the
@@ -857,7 +856,7 @@ function MemberPanel({
             View {m.name}&rsquo;s full profile &rarr;
           </Link>
         </div>
-        </PanelOptIn>
+        </PanelSignInGate>
         <div className="bm-p-disclaimer">
           {method ??
             "Periodic Transaction Reports disclose amounts as ranges; every dollar figure here is the range midpoint."}{" "}

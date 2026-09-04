@@ -97,12 +97,6 @@ export function setCookie(name: string, value: string, days: number): void {
   document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax`;
 }
 
-/** Record an email captured outside the popup pair (e.g. the bubbles click
- *  panel): opts the visitor in for good without touching the popup cookies. */
-export function markOptedIn(): void {
-  setCookie(FUNNEL_COOKIES.optedIn, "true", 3650);
-}
-
 /** Has this visitor already given us an email anywhere in the funnel? */
 export function hasOptedIn(): boolean {
   return (
