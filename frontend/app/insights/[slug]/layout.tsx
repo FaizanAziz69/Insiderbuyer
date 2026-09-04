@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { Metadata } from "next";
 import { maskScoreText } from "@/lib/sanitizeArticleHtml";
 import { seoEntry } from "@/lib/seo-meta";
@@ -6,6 +8,26 @@ import { pickSectorPhoto } from "@/lib/sector-photos";
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:4000";
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuying.com";
+
+/**
+ * The og/ copy of an editorial thumb, or the full-size cover when that copy is
+ * missing.
+ *
+ * The og/ file is what the unfurl actually needs — 1200x747, baseline, under
+ * WhatsApp's ~300 KB drop threshold — and `prebuild` (scripts/thumbs-og.mjs)
+ * writes one for every thumb, so it should always be there. This check is the
+ * second belt: a 404 og:image makes WhatsApp fall back to the site-wide IB
+ * logo (George, 2026-09-04, on the Vistra story), whereas the full-size cover
+ * is at worst a large-but-correct picture. Never the logo again.
+ */
+function ogCopy(thumbUrl: string): string {
+  const og = thumbUrl.replace("/editorial-thumbs/", "/editorial-thumbs/og/");
+  try {
+    return existsSync(join(process.cwd(), "public", og.replace(/^\//, ""))) ? og : thumbUrl;
+  } catch {
+    return og;
+  }
+}
 
 /** Per-article SEO: unique <title>, meta description, canonical, OpenGraph +
  *  Twitter cards — pulled from the article itself at request time. */
@@ -60,13 +82,17 @@ export async function generateMetadata({
     // 1200x747 copy in /editorial-thumbs/og/ (≤200 KB, generated with
     // `npm run thumbs:og`, baseline JPEG — WhatsApp rejects progressive). The page itself keeps the full-size cover.
     const rawImage =
-      (editorialThumb && editorialThumb.replace("/editorial-thumbs/", "/editorial-thumbs/og/")) ||
+      (editorialThumb && ogCopy(editorialThumb)) ||
       (post.imageUrl ? String(post.imageUrl) : null) ||
       pickSectorPhoto(post.sector, String(post.slug || slug));
     const image = rawImage.startsWith("/") ? `${SITE}${rawImage}` : rawImage;
-    // OG copies are 1200x747; other sources are unknown, so only declare
-    // dimensions we actually know.
-    const dims = editorialThumb ? { width: 1200, height: 747 } : {};
+    // OG copies are 1200x747; the full-size fallback is 1606x1000, and other
+    // sources are unknown — so only declare dimensions we actually know.
+    const dims = editorialThumb
+      ? rawImage.includes("/editorial-thumbs/og/")
+        ? { width: 1200, height: 747 }
+        : { width: 1606, height: 1000 }
+      : {};
     const openGraph = {
       title,
       description,
