@@ -75,8 +75,8 @@ export const NAV_GROUPS: NavGroup[] = [
         links: [
           // Delisted 2026-09-01 (George: needs work, remove for now) — see lib/data-articles-flag.ts.
           ...(DATA_ARTICLES_ENABLED ? [{ label: "Data Articles", href: "/data", icon: FileText, badge: "new" as const }] : []),
-          { label: "Insider Bubbles", href: "/bubbles", icon: Orbit, badge: "new" },
-          { label: "Congress Bubbles", href: "/congress-bubbles", icon: Orbit, badge: "new" },
+          { label: "Insider Bubbles", href: "/bubbles", icon: Orbit, badge: "premium" },
+          { label: "Congress Bubbles", href: "/congress-bubbles", icon: Orbit, badge: "premium" },
           { label: "Top Insiders", href: "/investors", icon: Landmark, badge: "new" },
           { label: "Top Insider Scores", href: "/insiders/hot", icon: Flame, badge: "popular" },
           { label: "Top Insider Buys", href: "/insiders/top-buys", icon: Receipt, badge: "new" },
