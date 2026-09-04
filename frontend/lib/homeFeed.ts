@@ -78,8 +78,9 @@ const HERO_MAX_AGE_MS = 5 * 24 * 60 * 60_000;
  *  That is the pin's whole point, so it has to be MOVED when a new lead story
  *  lands; it does not expire on its own.
  *
- *  2026-09-04: repointed to the Markiplier/GoPro story, the new lead. */
-export const HERO_PIN: string | null = "editorial-gpro-markiplier-stake-2026-09-04";
+ *  2026-09-04: repointed to the Markiplier/GoPro story, the new lead, then
+ *  again the same day to the Vistra story (Pelosi / Thiel / Burke). */
+export const HERO_PIN: string | null = "editorial-vst-pelosi-thiel-ceo-buying-2026-09-04";
 
 export function rotateHero(editorial: BlogPostListItem[], nowMs = Date.now()): BlogPostListItem[] {
   if (editorial.length < 2) return editorial;

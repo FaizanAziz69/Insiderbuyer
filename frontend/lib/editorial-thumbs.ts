@@ -112,6 +112,12 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-04: Pelosi / Thiel / Burke all buying Vistra. Client picked the
+  // Pelosi portrait from the existing library — she is the name a reader
+  // recognises first, and the story opens on her filing. Second slug on this
+  // file (the Bloom Energy story has it too), which PIN_OWNER handles: the
+  // newer article renders first on the home page and claims it.
+  "editorial-vst-pelosi-thiel-ceo-buying-2026-09-04": "invest-like-pelosi",
   // 2026-09-04: the Markiplier / GoPro 13G editorial. Cover is the person the
   // story is about, per the standing rule.
   "editorial-gpro-markiplier-stake-2026-09-04": "markiplier-gopro-stake",
