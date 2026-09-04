@@ -10,23 +10,34 @@ const BACKEND = process.env.BACKEND_URL || "http://localhost:4000";
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://insiderbuying.com";
 
 /**
- * The og/ copy of an editorial thumb, or the full-size cover when that copy is
- * missing.
+ * The og/ copy of an editorial thumb, the full-size cover when that copy is
+ * missing, or null when neither file is on disk.
  *
  * The og/ file is what the unfurl actually needs — 1200x747, baseline, under
  * WhatsApp's ~300 KB drop threshold — and `prebuild` (scripts/thumbs-og.mjs)
  * writes one for every thumb, so it should always be there. This check is the
  * second belt: a 404 og:image makes WhatsApp fall back to the site-wide IB
  * logo (George, 2026-09-04, on the Vistra story), whereas the full-size cover
- * is at worst a large-but-correct picture. Never the logo again.
+ * is at worst a large-but-correct picture.
+ *
+ * null matters for the other order-of-operations mistake: publishing an
+ * article whose cover file has not been deployed yet. pickEditorialThumb is
+ * pure code, so it happily names a file the box does not have — returning
+ * null lets the caller fall through to the article's own image or the sector
+ * photo instead of emitting a URL that 404s.
  */
-function ogCopy(thumbUrl: string): string {
+function ogCopy(thumbUrl: string): string | null {
+  const onDisk = (u: string) => {
+    try {
+      return existsSync(join(process.cwd(), "public", u.replace(/^\//, "")));
+    } catch {
+      // No filesystem to check (an edge runtime, say) — trust the generator.
+      return true;
+    }
+  };
   const og = thumbUrl.replace("/editorial-thumbs/", "/editorial-thumbs/og/");
-  try {
-    return existsSync(join(process.cwd(), "public", og.replace(/^\//, ""))) ? og : thumbUrl;
-  } catch {
-    return og;
-  }
+  if (onDisk(og)) return og;
+  return onDisk(thumbUrl) ? thumbUrl : null;
 }
 
 /** Per-article SEO: unique <title>, meta description, canonical, OpenGraph +
@@ -79,8 +90,9 @@ export async function generateMetadata({
     // WhatsApp (and iMessage) silently DROP an og:image above ~300 KB and
     // show a text-only card (George, 2026-08-30 — the 432 KB Durant cover).
     // The house 1606x1000 thumbs are 100–430 KB, so the unfurl uses a
-    // 1200x747 copy in /editorial-thumbs/og/ (≤200 KB, generated with
-    // `npm run thumbs:og`, baseline JPEG — WhatsApp rejects progressive). The page itself keeps the full-size cover.
+    // 1200x747 copy in /editorial-thumbs/og/ (≤200 KB, baseline JPEG —
+    // WhatsApp rejects progressive), written for every thumb by the `prebuild`
+    // hook. The page itself keeps the full-size cover.
     const rawImage =
       (editorialThumb && ogCopy(editorialThumb)) ||
       (post.imageUrl ? String(post.imageUrl) : null) ||
@@ -91,11 +103,14 @@ export async function generateMetadata({
     const image = rawImage.startsWith("/") ? `${SITE}${rawImage}` : rawImage;
     // OG copies are 1200x747; the full-size fallback is 1606x1000, and other
     // sources are unknown — so only declare dimensions we actually know.
-    const dims = editorialThumb
-      ? rawImage.includes("/editorial-thumbs/og/")
-        ? { width: 1200, height: 747 }
-        : { width: 1606, height: 1000 }
-      : {};
+    // Keyed off the URL we actually chose, not off editorialThumb: the thumb
+    // can be named and still fall through to the sector photo when its file is
+    // not on the box, and declaring the wrong size makes a crawler skip it.
+    const dims = rawImage.includes("/editorial-thumbs/og/")
+      ? { width: 1200, height: 747 }
+      : rawImage.includes("/editorial-thumbs/")
+        ? { width: 1606, height: 1000 }
+        : {};
     const openGraph = {
       title,
       description,
