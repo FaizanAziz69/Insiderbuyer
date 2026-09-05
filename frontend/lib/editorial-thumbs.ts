@@ -44,6 +44,11 @@ const THUMBS: Thumb[] = [
   // healthcare daily briefing. invest-like-pelosi still serves congress
   // stories.
   { file: "pelosi-thiel-vistra", pinnedOnly: true },
+  // 2026-09-05: client-supplied Burry composite (red ticker board) for the
+  // Lululemon "trickster" story, resized from 2624x1624 to 1606x1000.
+  // pinnedOnly: burry-portrait-clean already serves generic Burry/Scion
+  // stories; this one was made for a single article.
+  { file: "burry-lululemon-trickster", pinnedOnly: true },
   { file: "apple-500b-investment", tickers: ["AAPL"] },
   { file: "englander-nvidia-etf", tickers: ["NVDA"], kw: ["nvidia", "nvda"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
@@ -119,6 +124,9 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-05: Burry says he will buy more Lululemon under $100. Cover is the
+  // client-supplied Burry composite, the person the story is about.
+  "editorial-lulu-burry-buy-under-100-2026-09-05": "burry-lululemon-trickster",
   // 2026-09-04: Pelosi / Thiel / Burke all buying Vistra. Started on the
   // library's invest-like-pelosi portrait; the client then supplied a
   // Pelosi + Thiel composite, which is the two names the story is about.

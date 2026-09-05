@@ -79,8 +79,10 @@ const HERO_MAX_AGE_MS = 5 * 24 * 60 * 60_000;
  *  lands; it does not expire on its own.
  *
  *  2026-09-04: repointed to the Markiplier/GoPro story, the new lead, then
- *  again the same day to the Vistra story (Pelosi / Thiel / Burke). */
-export const HERO_PIN: string | null = "editorial-vst-pelosi-thiel-ceo-buying-2026-09-04";
+ *  again the same day to the Vistra story (Pelosi / Thiel / Burke).
+ *
+ *  2026-09-05: repointed to the Burry / Lululemon story. */
+export const HERO_PIN: string | null = "editorial-lulu-burry-buy-under-100-2026-09-05";
 
 export function rotateHero(editorial: BlogPostListItem[], nowMs = Date.now()): BlogPostListItem[] {
   if (editorial.length < 2) return editorial;
