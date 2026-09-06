@@ -1568,10 +1568,16 @@ export class MarketStatsService {
       const bulk = await this.baselines.getBaselines(missing).catch(() => null);
       if (bulk) {
         for (const [sym, b] of bulk.entries()) {
+          // Only a COMPLETE pair replaces the per-symbol chart. The two bulk
+          // pulls land on different cron ticks (the feed rate-limits back-to-
+          // back calls), and a half-loaded store must not silently blank YTD
+          // for names the chart used to cover — those stay on the chart path
+          // until both boundary dates are in the table.
+          if (b.monthBase == null || b.yearBase == null) continue;
           this.periodBaseCache.set(sym, {
             key,
-            monthBase: b.monthBase ?? 0,
-            yearBase: b.yearBase ?? 0,
+            monthBase: b.monthBase,
+            yearBase: b.yearBase,
             lastClose: 0,
           });
         }
