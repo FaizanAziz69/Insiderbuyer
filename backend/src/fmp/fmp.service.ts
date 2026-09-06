@@ -149,7 +149,10 @@ export class FmpService {
         const symbol = String(r?.symbol || '').toUpperCase();
         if (!symbol || symbol.length > 16 || symbol.includes('.')) continue;
         const close = this.num(r?.close);
-        if (close != null && close > 0) out.set(symbol, close);
+        // Sub-cent closes in this feed are placeholder rows (ELOX carried a
+        // $0.0001 close for 2025-12-31 and read as a 14,999,900% YTD), not
+        // prices — a listed U.S. operating company does not close at $0.0001.
+        if (close != null && close >= 0.01) out.set(symbol, close);
       }
       return out;
     } catch (e: any) {

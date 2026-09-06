@@ -235,6 +235,18 @@ const HOT_SECTOR_QUOTE_BUDGET_MS = 3_000;
 const HOT_SECTOR_UNIVERSE_BUDGET_MS = 1_500;
 /** A snapshot older than this is served flagged `stale` while a refresh runs. */
 const HOT_SECTOR_SNAPSHOT_FRESH_MS = 45 * 60_000;
+/**
+ * Plausibility bounds on a member's period return. Past these the figure is
+ * almost always a baseline artifact — a reverse split inside the period (a
+ * 1:10 split reads as +900%) or a placeholder close in the bulk feed — not a
+ * price move, and one such row swings an equal-weighted average by thousands
+ * of points (biotech read +30,393% YTD on 2026-09-06 from a single member).
+ * A member outside the bounds stays in the basket with its return withheld,
+ * and counts toward neither breadth nor the averages.
+ */
+const HOT_SECTOR_MAX_MTD_PCT = 200;
+const HOT_SECTOR_MAX_YTD_PCT = 500;
+const HOT_SECTOR_MIN_RETURN_PCT = -95;
 
 export interface LiveQuote {
   price: number;
@@ -1098,7 +1110,15 @@ export class StockListsService implements OnApplicationBootstrap {
         const up = t.toUpperCase();
         if (!capOk(up)) continue; // below the floor: not in the basket
         const q = quoteOf(up);
-        const r = returns[up];
+        const rRaw = returns[up];
+        const plausible = (v: number | null | undefined, max: number): number | null =>
+          v == null || v > max || v < HOT_SECTOR_MIN_RETURN_PCT ? null : v;
+        const r = rRaw
+          ? {
+              mtd: plausible(rRaw.mtd, HOT_SECTOR_MAX_MTD_PCT),
+              ytd: plausible(rRaw.ytd, HOT_SECTOR_MAX_YTD_PCT),
+            }
+          : undefined;
         const price = q?.price && q.price > 0 ? q.price : null;
         if (r && r.mtd != null) {
           companies++;

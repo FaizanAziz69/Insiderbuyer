@@ -166,7 +166,8 @@ export class PeriodBaselineService {
           .catch(() => [] as EodClose[]);
         for (const r of rows) {
           const c = Number(r.close);
-          if (Number.isFinite(c) && c > 0) m.set(r.symbol, c);
+          // Same sub-cent guard as the writer, for rows stored before it existed.
+          if (Number.isFinite(c) && c >= 0.01) m.set(r.symbol, c);
         }
       }
       return m;
