@@ -261,12 +261,6 @@ export default function TopBuysPage() {
                           Form 4
                         </a>
                       )}
-                      <Link
-                        href={`/score-explainer?t=${r.ticker}`}
-                        className="ml-2 text-[12.5px] text-mute hover:underline"
-                      >
-                        How it scored
-                      </Link>
                     </td>
                   </tr>
                 ))}

@@ -30,7 +30,6 @@ const PROFILES: Record<
     ],
     covers: [
       { label: "Insider Score rankings", href: "/insiders/hot" },
-      { label: "How the Insider Score is calculated", href: "/score-explainer" },
       { label: "Live insider trades", href: "/trades" },
     ],
   },

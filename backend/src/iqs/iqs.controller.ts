@@ -82,8 +82,10 @@ export class IqsController {
   }
 
   /** Step-by-step IQ Score calculation trace for one ticker — powers the
-   *  temporary client-facing score-explainer page. */
+   *  temporary client-facing score-explainer page. Admin-only since 2026-09-06:
+   *  the trace exposes the paygated Insider Score and the full formula. */
   @Get('score-explainer/:ticker')
+  @UseGuards(AdminTokenGuard)
   async scoreExplainer(@Param('ticker') ticker: string) {
     return this.iqs.explainScore(ticker);
   }

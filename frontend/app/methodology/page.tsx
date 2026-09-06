@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { pageMetadata } from "@/lib/seo-meta";
 import { DATA_ARTICLES_ENABLED } from "@/lib/data-articles-flag";
 
@@ -198,8 +197,7 @@ const ALL_SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> 
         distinct insiders buy, then ranked against every scored company that day to give the 0–99
         number; share issuance over 5% deducts up to 30 points and confirmed litigation up to 15.
         A company with no qualifying purchases is unscored, not zero. Green badges mark 75 and
-        above, gold 50–74. Every counted and excluded filing is listed on the{" "}
-        <Link href="/score-explainer">score explainer</Link>.
+        above, gold 50–74.
       </p>
     ),
   },
