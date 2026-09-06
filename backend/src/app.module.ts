@@ -16,6 +16,7 @@ import { PortfolioHolding } from './entities/portfolio-holding.entity';
 import { PortfolioAlert } from './entities/portfolio-alert.entity';
 import { B2bLead } from './entities/b2b-lead.entity';
 import { HotSectorsCache } from './entities/hot-sectors-cache.entity';
+import { EodClose } from './entities/eod-close.entity';
 import { EaiCache } from './entities/eai-cache.entity';
 import { InsiderAlertDispatch } from './entities/insider-alert-dispatch.entity';
 import { WatchlistItem } from './entities/watchlist-item.entity';
@@ -128,6 +129,7 @@ import { BubblesModule } from './bubbles/bubbles.module';
           PortfolioAlert,
           B2bLead,
           HotSectorsCache,
+          EodClose,
           EaiCache,
           InsiderAlertDispatch,
           WatchlistItem,

@@ -5,6 +5,7 @@ import { FmpBar, FmpService } from '../fmp/fmp.service';
 import { MarketSnapshotService } from './market-snapshot.service';
 import { FundamentalsCacheService, FundamentalsRow } from './fundamentals-cache.service';
 import { PeCacheService } from './pe-cache.service';
+import { PeriodBaselineService } from './period-baseline.service';
 import { REFERENCE_QUOTES, ReferenceQuote } from './reference-quotes';
 import {
   EXCLUDED_UNIVERSE_INDUSTRIES,
@@ -414,6 +415,7 @@ export class MarketStatsService {
     @Optional() private readonly peCache?: PeCacheService,
     @Optional() private readonly snapshot?: MarketSnapshotService,
     @Optional() private readonly fundamentals?: FundamentalsCacheService,
+    @Optional() private readonly baselines?: PeriodBaselineService,
   ) {
     this.http = axios.create({
       timeout: 10_000,
@@ -1540,14 +1542,41 @@ export class MarketStatsService {
    *  benchmark it is compared against — is marked at the same instant. */
   async getMonthYtdReturns(
     symbols: string[],
-    opts: { baselineBudgetMs?: number } = {},
+    opts: {
+      baselineBudgetMs?: number;
+      /** Symbol ceiling for this call (default MONTH_YTD_MAX_SYMBOLS). A
+       *  scheduled builder with bulk baselines behind it can pass more. */
+      maxSymbols?: number;
+      /** Budget for the live batch quote (default DIV_QUOTE_BUDGET_MS). */
+      quoteBudgetMs?: number;
+    } = {},
   ): Promise<Record<string, { mtd: number | null; ytd: number | null }>> {
     const unique = Array.from(
       new Set(symbols.filter(Boolean).map((s) => s.toUpperCase())),
-    ).slice(0, this.MONTH_YTD_MAX_SYMBOLS);
+    ).slice(0, opts.maxSymbols ?? this.MONTH_YTD_MAX_SYMBOLS);
     const out: Record<string, { mtd: number | null; ytd: number | null }> = {};
     if (!unique.length) return out;
     const key = this.periodKey();
+
+    // 0. Bulk baselines first: one table read covers every U.S. symbol whose
+    //    boundary closes the EOD store holds (PeriodBaselineService), so the
+    //    per-symbol chart fetch below only runs for what the store lacks. A
+    //    store row carries no "last close", so a symbol priced this way needs
+    //    the live quote — there is no stale fallback for it (see step 2).
+    const missing = unique.filter((s) => this.periodBaseCache.get(s)?.key !== key);
+    if (missing.length && this.baselines) {
+      const bulk = await this.baselines.getBaselines(missing).catch(() => null);
+      if (bulk) {
+        for (const [sym, b] of bulk.entries()) {
+          this.periodBaseCache.set(sym, {
+            key,
+            monthBase: b.monthBase ?? 0,
+            yearBase: b.yearBase ?? 0,
+            lastClose: 0,
+          });
+        }
+      }
+    }
 
     // 1. Baselines: cached until the month rolls over, then re-derived. Ordered
     //    as the caller asked, so a truncated fill is a stable prefix.
@@ -1580,7 +1609,7 @@ export class MarketStatsService {
     let quotes = new Map<string, MarketStatRow>();
     if (priced.length) {
       quotes = await this.getQuoteBatch(priced, {
-        deadlineMs: Date.now() + this.DIV_QUOTE_BUDGET_MS,
+        deadlineMs: Date.now() + (opts.quoteBudgetMs ?? this.DIV_QUOTE_BUDGET_MS),
       }).catch(() => new Map<string, MarketStatRow>());
     }
 

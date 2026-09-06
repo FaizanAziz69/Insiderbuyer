@@ -5,6 +5,9 @@ import { Repository } from 'typeorm';
 import { HotSectorsCache } from '../entities/hot-sectors-cache.entity';
 import { IqsService, RankingRow } from '../iqs/iqs.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
+import { FundamentalsCacheService } from '../market-stats/fundamentals-cache.service';
+import { PeriodBaselineService } from '../market-stats/period-baseline.service';
+import { UNIVERSE_SCREENER_QUERY } from '../market-stats/market-universe';
 import { FmpScreenerRow, FmpService } from '../fmp/fmp.service';
 import { ThirteenFService } from './thirteenf.service';
 import { CongressionalService } from '../congressional/congressional.service';
@@ -36,6 +39,17 @@ export interface HotSectorRow {
   insiderBuys: number;
   insiderSells: number;
   netInsider: number;
+  /** Current-month insider dollars in (open-market buys) and out (sells), and
+   *  the net — "how much buying volume is flowing into those stocks". */
+  insiderBuyValue: number;
+  insiderSellValue: number;
+  netInsiderValue: number;
+  /** Median analyst upside/downside (%) across members with a consensus
+   *  target, and how many members carry one. Null when none do. */
+  avgAnalystUpside: number | null;
+  analystCovered: number;
+  /** Members in the basket (every qualifying company, curated + screened). */
+  members: number;
   /** Equal-weighted average member MTD % (null when no data). */
   mtd: number | null;
   /** Equal-weighted average member YTD % (null when no data). */
@@ -46,6 +60,29 @@ export interface HotSectorRow {
   vsSp500Mtd?: number | null;
   /** Composite 0–100 heat score (gainer ratio + insider buying). */
   hotScore: number;
+}
+
+/** One stock inside a Hot Sectors basket — the drill-down table. */
+export interface HotSectorMember {
+  symbol: string;
+  name: string;
+  price: number | null;
+  marketCap: number | null;
+  mtd: number | null;
+  ytd: number | null;
+  /** Sell-side consensus price target (fundamentals cache) and analyst count. */
+  priceTarget: number | null;
+  analystCount: number | null;
+  /** (target ÷ price − 1) × 100; null without both inputs. */
+  analystUpside: number | null;
+  /** Current-month open-market insider flow for this stock. */
+  insiderBuys: number;
+  insiderSells: number;
+  insiderBuyValue: number;
+  insiderSellValue: number;
+  netInsiderValue: number;
+  /** True for a hand-curated theme member (vs. screener-expanded). */
+  curated: boolean;
 }
 
 export interface HotSectorsResponse {
@@ -59,6 +96,13 @@ export interface HotSectorsResponse {
   /** True when the numbers come from the stored snapshot rather than this
    *  request's computation (a cold process cannot rank the baskets). */
   stale?: boolean;
+  /** When the served ranking was computed. */
+  computedAt?: string;
+}
+
+/** What the snapshot table stores: the ranking plus every basket's members. */
+interface HotSectorsSnapshot extends HotSectorsResponse {
+  members: Record<string, HotSectorMember[]>;
 }
 
 /**
@@ -131,12 +175,14 @@ const HOT_NEUTRAL = 0.5;
 // ── Hot Sectors membership ────────────────────────────────────────────────
 /** The benchmark every sector is compared against: the S&P 500 index itself. */
 const SP500_SYMBOL = '^GSPC';
-/** Client spec (Azlan): a company only counts toward a sector's heat above a
- *  $100M market cap — below that a name swings ±10% on nothing and distorts the
- *  gainer ratio that the score is mostly made of. */
-const HOT_SECTOR_MIN_CAP = 100_000_000;
 /**
- * Widening the baskets to "every company above $100M" (client spec).
+ * Membership floor. Was $100M (Azlan, 2026-08); George, 2026-09-06: "every
+ * stock with a market cap over $50M in that sector". Below this a name swings
+ * ±10% on nothing and distorts the gainer ratio, so it stays out of the heat.
+ */
+const HOT_SECTOR_MIN_CAP = 50_000_000;
+/**
+ * Widening the baskets to "every company above $50M" (client spec).
  *
  * A theme is not a taxonomy. FMP's screener publishes a sector and an industry
  * for every listed company, which identifies Gold, Energy, Financials and
@@ -162,32 +208,33 @@ const HOT_SECTOR_EXPANSION: Record<string, { industry?: RegExp; sector?: RegExp 
     industry: /^(Copper|Aluminum|Steel|Uranium|Industrial Materials|Other Precious Metals)$/i,
   },
 };
+/** The screener universe the expansion draws from: the site's standard U.S.
+ *  screen (NASDAQ + NYSE, operating companies only) with the floor lowered to
+ *  this page's $50M. Cached 12h inside FmpService like the shared universe. */
+const HOT_SECTOR_SCREENER_QUERY = {
+  ...UNIVERSE_SCREENER_QUERY,
+  marketCapMoreThan: HOT_SECTOR_MIN_CAP,
+};
 /**
- * Members one basket may hold after expansion, largest market cap first.
- *
- * This is the binding constraint on the whole page, and it is a DATA cost, not
- * an arbitrary limit: the breadth factor needs a month-to-date return for every
- * member, and a month-to-date return needs that member's close on the last
- * trading day of the previous month. That baseline is one chart request per
- * symbol — there is no batch form of it anywhere (see the note on
- * getMonthYtdReturns) — so an unbounded expansion of the Financials basket
- * alone (1,097 qualifying companies) would need 1,097 requests before the page
- * could render. Baselines are cached for the whole month, so 75 per basket is
- * affordable and converges within a few page loads; thousands is not. Covering
- * every qualifying company in every theme needs the baseline sweep moved to a
- * scheduled job with a persistent store.
+ * There is no longer a per-basket member ceiling. The old 75-member cap existed
+ * because a month-to-date return needed one Yahoo chart request per member;
+ * baselines now come from two bulk EOD pulls a month (PeriodBaselineService),
+ * so a Financials basket with 1,200 qualifying companies costs one table read.
+ * This is only a sanity bound against a runaway screener response.
  */
-const HOT_SECTOR_MAX_MEMBERS = 75;
-/** Wall-clock slice one Hot Sectors request may spend fetching missing MTD/YTD
- *  baselines. The rest of its budget goes on the batch quote and the insider
- *  buy/sell join. */
+const HOT_SECTOR_MAX_MEMBERS = 5_000;
+/** Budgets for the SCHEDULED build (cron / boot warm-up), which is the only
+ *  path that computes the full baskets. Generous: nothing waits on it. */
+const HOT_SECTOR_BUILD_BASELINE_BUDGET_MS = 90_000;
+const HOT_SECTOR_BUILD_QUOTE_BUDGET_MS = 120_000;
+const HOT_SECTOR_BUILD_UNIVERSE_BUDGET_MS = 20_000;
+/** Budgets for the REQUEST-path fallback, used only when no snapshot exists
+ *  yet (first boot on an empty database). Bounded by the 9s frontend proxy. */
 const HOT_SECTOR_BASELINE_BUDGET_MS = 2_500;
-/** Budget for the universe snapshot that drives the expansion. Deliberately
- *  smaller than the heatmap's, which is the endpoint that normally warms the
- *  shared 12h snapshot: this page should not be the one paying for a cold fetch
- *  on top of its own two data legs. Losing the race costs coverage for one
- *  request, never the page — the curated baskets stand. */
-const HOT_SECTOR_UNIVERSE_BUDGET_MS = 2_500;
+const HOT_SECTOR_QUOTE_BUDGET_MS = 3_000;
+const HOT_SECTOR_UNIVERSE_BUDGET_MS = 1_500;
+/** A snapshot older than this is served flagged `stale` while a refresh runs. */
+const HOT_SECTOR_SNAPSHOT_FRESH_MS = 45 * 60_000;
 
 export interface LiveQuote {
   price: number;
@@ -311,6 +358,8 @@ export class StockListsService implements OnApplicationBootstrap {
     private readonly congress: CongressionalService,
     private readonly sec: SecClient,
     private readonly fmp: FmpService,
+    private readonly fundamentals: FundamentalsCacheService,
+    private readonly baselines: PeriodBaselineService,
   ) {}
 
   // Trump-family SEC holdings cache (DJT Form 4 data is expensive to fetch).
@@ -777,24 +826,39 @@ export class StockListsService implements OnApplicationBootstrap {
    *  HOT_SECTOR_EXPANSION for why only some themes can be). Cap-ordered, so the
    *  members a budget-bounded build reaches first are the ones that matter most.
    *  Degrades to the curated baskets exactly when the snapshot is unavailable. */
-  private async hotSectorBaskets(): Promise<Array<{ key: string; label: string; tickers: string[] }>> {
-    let universe: Awaited<ReturnType<MarketStatsService['getUniverseRows']>> = [];
+  /**
+   * Every basket's members: the curated theme definition first, then every
+   * screener company above HOT_SECTOR_MIN_CAP whose industry/sector matches the
+   * theme's expansion rule (largest first). Themes without a rule stay curated.
+   * Also returns the screener's company names for the drill-down table.
+   */
+  private async hotSectorBaskets(universeBudgetMs: number): Promise<{
+    baskets: Array<{ key: string; label: string; tickers: string[]; curated: Set<string> }>;
+    names: Map<string, string>;
+  }> {
+    let screen = new Map<string, FmpScreenerRow>();
     try {
-      universe = await this.marketStats.getUniverseRows(HOT_SECTOR_UNIVERSE_BUDGET_MS);
+      screen = await this.fmp.getScreenerSnapshot(HOT_SECTOR_SCREENER_QUERY, {
+        budgetMs: universeBudgetMs,
+      });
     } catch {
-      universe = [];
+      screen = new Map();
     }
-    return HOT_SECTOR_BASKETS.map((b) => {
+    const universe = Array.from(screen.values())
+      .filter((r) => (r.marketCap ?? 0) >= HOT_SECTOR_MIN_CAP)
+      .sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0));
+    const names = new Map<string, string>();
+    for (const r of universe) names.set(r.symbol, r.name);
+
+    const baskets = HOT_SECTOR_BASKETS.map((b) => {
       const tickers = b.tickers.map((t) => t.toUpperCase());
+      const curated = new Set(tickers);
       const rule = HOT_SECTOR_EXPANSION[b.key];
-      if (!rule || !universe.length) return { key: b.key, label: b.label, tickers };
+      if (!rule || !universe.length) return { key: b.key, label: b.label, tickers, curated };
       const have = new Set(tickers);
-      // `universe` is already sorted by market cap descending, so this takes the
-      // largest qualifying companies first and stops at the member ceiling.
       for (const r of universe) {
         if (tickers.length >= HOT_SECTOR_MAX_MEMBERS) break;
         if (have.has(r.symbol)) continue;
-        if ((r.marketCap ?? 0) < HOT_SECTOR_MIN_CAP) continue;
         const hit =
           (rule.industry && r.industry && rule.industry.test(r.industry)) ||
           (rule.sector && r.sector && rule.sector.test(r.sector));
@@ -802,118 +866,170 @@ export class StockListsService implements OnApplicationBootstrap {
         have.add(r.symbol);
         tickers.push(r.symbol);
       }
-      return { key: b.key, label: b.label, tickers };
+      return { key: b.key, label: b.label, tickers, curated };
     });
+    return { baskets, names };
   }
 
-  /** Hot Sectors — rank the thematic baskets by month-to-date 10%+ gainers
-   *  (relative to basket size) and current-month insider buying, with each
-   *  sector's MTD and YTD performance vs. the S&P 500.
-   *
-   *  BENCHMARK BASIS (client asked for this to be verified explicitly):
-   *   • Source: Yahoo v8 daily chart for `^GSPC`, the S&P 500 index itself —
-   *     not SPY, so there is no tracking error or expense drag.
-   *   • Formula: (live index price ÷ last close before the 1st of the month or
-   *     year − 1) × 100. Verified against FMP as an independent source: our YTD
-   *     for AAPL from the 2025-12-31 close is 11.02% and FMP's own `ytd` field
-   *     is 11.029%. Measuring from the first close INSIDE the period instead —
-   *     the classic off-by-one-day error — would report 11.37%.
-   *   • `^GSPC` is a PRICE index (dividends excluded). The sector figures are
-   *     equal-weighted averages of member PRICE returns, so both sides of the
-   *     comparison exclude dividends and are consistent. They differ in
-   *     weighting: the index is cap-weighted, a sector average is equal-weighted
-   *     (every member counts once, which is the point of a breadth measure).
-   *   • The benchmark is now requested in the SAME call as the members, so every
-   *     figure in one response is marked at one instant. Previously the members
-   *     and the index came from two separately-cached calls, so a sector could be
-   *     compared against an index quoted up to an hour apart — the "slightly
-   *     inaccurate" part of the complaint.
-   */
   /** Publish threshold: below this share of members resolved, a computation is
    *  not representative and must not replace a good snapshot. */
   private readonly HOT_SECTORS_MIN_COVERAGE = 0.7;
   private static readonly HOT_SECTORS_KEY = 'current';
+  private hotSectorsRefreshInflight: Promise<void> | null = null;
 
-  /**
-   * Served snapshot. A fresh computation is published only when most basket
-   * members resolved; otherwise the last good snapshot is returned, because a
-   * cold process computes breadth over a prefix of the members and ranks the
-   * baskets wrongly (see HotSectorsCache).
-   */
-  async getHotSectors(): Promise<HotSectorsResponse> {
-    const fresh = await this.computeHotSectors();
+  private async loadHotSectorsSnapshot(): Promise<{
+    snapshot: HotSectorsSnapshot;
+    updatedAt: Date;
+  } | null> {
     const stored = await this.hotSectorsCache
       .findOne({ where: { key: StockListsService.HOT_SECTORS_KEY } })
       .catch(() => null);
+    if (!stored?.payload) return null;
+    const snap = stored.payload as HotSectorsSnapshot;
+    return { snapshot: { ...snap, members: snap.members || {} }, updatedAt: stored.updatedAt };
+  }
 
-    const coverage = fresh.coverage ?? 0;
-    if (coverage >= this.HOT_SECTORS_MIN_COVERAGE) {
-      await this.hotSectorsCache
-        .save({
-          key: StockListsService.HOT_SECTORS_KEY,
-          payload: fresh,
-          coverage: coverage.toFixed(4),
-        })
-        .catch((e) =>
-          this.logger.warn(`Hot sectors snapshot not saved: ${e?.message || e}`),
-        );
-      return fresh;
-    }
+  /** The ranking without the member lists (those ride on their own route). */
+  private stripMembers(snap: HotSectorsSnapshot): HotSectorsResponse {
+    const { members: _members, ...rest } = snap;
+    void _members;
+    return rest;
+  }
 
-    if (stored?.payload) {
-      this.logger.log(
-        `Hot sectors: coverage ${(coverage * 100).toFixed(0)}% — serving the ` +
-          `snapshot from ${stored.updatedAt.toISOString()} instead`,
-      );
-      return { ...(stored.payload as HotSectorsResponse), stale: true };
+  /**
+   * Hot Sectors — the served ranking.
+   *
+   * The full baskets (every qualifying company, ~2–3k symbols) are built by the
+   * scheduled refresh and stored; a request only reads the snapshot. A snapshot
+   * older than HOT_SECTOR_SNAPSHOT_FRESH_MS is still served (flagged `stale`)
+   * while a refresh is kicked off in the background. Only when NO snapshot
+   * exists (first boot on an empty database) does a request compute inline,
+   * under request-safe budgets, and that partial answer is labelled stale.
+   *
+   * BENCHMARK BASIS (client asked for this to be verified explicitly):
+   *  • Source: Yahoo v8 daily chart for `^GSPC`, the S&P 500 index itself —
+   *    not SPY, so there is no tracking error or expense drag.
+   *  • Formula: (live index price ÷ last close before the 1st of the month or
+   *    year − 1) × 100. Verified against FMP as an independent source: our YTD
+   *    for AAPL from the 2025-12-31 close is 11.02% and FMP's own `ytd` field
+   *    is 11.029%. Measuring from the first close INSIDE the period instead —
+   *    the classic off-by-one-day error — would report 11.37%.
+   *  • `^GSPC` is a PRICE index (dividends excluded). The sector figures are
+   *    equal-weighted averages of member PRICE returns, so both sides of the
+   *    comparison exclude dividends and are consistent.
+   *  • The benchmark is requested in the SAME call as the members, so every
+   *    figure in one response is marked at one instant.
+   */
+  async getHotSectors(): Promise<HotSectorsResponse> {
+    const stored = await this.loadHotSectorsSnapshot();
+    if (stored) {
+      const age = Date.now() - stored.updatedAt.getTime();
+      if (age > HOT_SECTOR_SNAPSHOT_FRESH_MS) {
+        void this.refreshHotSectors();
+        return { ...this.stripMembers(stored.snapshot), stale: true };
+      }
+      return this.stripMembers(stored.snapshot);
     }
-    // Nothing stored yet (first boot on a fresh database): the partial answer
-    // is still better than an empty page, and it is labelled as such.
-    return { ...fresh, stale: true };
+    // Nothing stored yet: a bounded inline build is better than an empty page,
+    // and it is labelled as such. The scheduled build replaces it shortly.
+    void this.refreshHotSectors();
+    const fresh = await this.computeHotSectors({
+      baselineBudgetMs: HOT_SECTOR_BASELINE_BUDGET_MS,
+      quoteBudgetMs: HOT_SECTOR_QUOTE_BUDGET_MS,
+      universeBudgetMs: HOT_SECTOR_UNIVERSE_BUDGET_MS,
+    });
+    return { ...this.stripMembers(fresh), stale: true };
+  }
+
+  /** Member stocks of one basket, from the served snapshot. */
+  async getHotSectorMembers(key: string): Promise<{
+    key: string;
+    label: string;
+    asOfDate: string | null;
+    computedAt: string | null;
+    members: HotSectorMember[];
+  } | null> {
+    const basket = HOT_SECTOR_BASKETS.find((b) => b.key === key);
+    if (!basket) return null;
+    const stored = await this.loadHotSectorsSnapshot();
+    return {
+      key: basket.key,
+      label: basket.label,
+      asOfDate: stored?.snapshot.asOfDate ?? null,
+      computedAt: stored?.snapshot.computedAt ?? null,
+      members: stored?.snapshot.members[key] ?? [],
+    };
   }
 
   /**
    * On a brand-new database the snapshot table is empty, so the first minutes
-   * after boot would still rank the baskets on a partial price load. Warm it
-   * twice, off the request path: the first pass fills the baselines even if it
-   * cannot publish, and the second — with those baselines cached — is the one
-   * that usually clears the coverage bar.
+   * after boot would serve an inline partial build. Warm it off the request
+   * path once the process has settled.
    */
   async onApplicationBootstrap(): Promise<void> {
     const warm = async (delayMs: number) => {
       await new Promise((r) => setTimeout(r, delayMs));
       await this.refreshHotSectors().catch(() => undefined);
     };
-    void warm(15_000).then(() => warm(45_000));
+    void warm(20_000);
   }
 
-  /** Warms the in-process baselines and refreshes the stored snapshot, so the
-   *  first request after a restart is served from the table, not from a
-   *  half-resolved computation. */
+  /**
+   * The scheduled full build: make sure the bulk month/year baselines are in
+   * the EOD store, compute every basket over all its members with generous
+   * budgets, and publish when coverage clears the bar. Serialised, so the
+   * request path can fire it freely.
+   */
   @Cron('*/20 * * * *')
   async refreshHotSectors(): Promise<void> {
-    try {
-      const res = await this.getHotSectors();
-      this.logger.log(
-        `Hot sectors refreshed (${res.sectors.length} baskets, coverage ${(
-          (res.coverage ?? 0) * 100
-        ).toFixed(0)}%)`,
-      );
-    } catch (e) {
-      this.logger.warn(`Hot sectors refresh failed: ${(e as Error)?.message || e}`);
-    }
+    if (this.hotSectorsRefreshInflight) return this.hotSectorsRefreshInflight;
+    this.hotSectorsRefreshInflight = (async () => {
+      try {
+        await this.baselines.ensureLoaded().catch((e) =>
+          this.logger.warn(`Hot sectors: baseline load failed: ${e?.message || e}`),
+        );
+        const fresh = await this.computeHotSectors({
+          baselineBudgetMs: HOT_SECTOR_BUILD_BASELINE_BUDGET_MS,
+          quoteBudgetMs: HOT_SECTOR_BUILD_QUOTE_BUDGET_MS,
+          universeBudgetMs: HOT_SECTOR_BUILD_UNIVERSE_BUDGET_MS,
+        });
+        const coverage = fresh.coverage ?? 0;
+        const members = Object.values(fresh.members).reduce((n, m) => n + m.length, 0);
+        if (coverage >= this.HOT_SECTORS_MIN_COVERAGE) {
+          await this.hotSectorsCache.save({
+            key: StockListsService.HOT_SECTORS_KEY,
+            payload: fresh,
+            coverage: coverage.toFixed(4),
+          });
+          this.logger.log(
+            `Hot sectors refreshed (${fresh.sectors.length} baskets, ${members} members, ` +
+              `coverage ${(coverage * 100).toFixed(0)}%)`,
+          );
+        } else {
+          this.logger.warn(
+            `Hot sectors: coverage ${(coverage * 100).toFixed(0)}% over ${members} members — ` +
+              `snapshot kept, this build not published`,
+          );
+        }
+      } catch (e) {
+        this.logger.warn(`Hot sectors refresh failed: ${(e as Error)?.message || e}`);
+      }
+    })().finally(() => {
+      this.hotSectorsRefreshInflight = null;
+    });
+    return this.hotSectorsRefreshInflight;
   }
 
-  private async computeHotSectors(): Promise<HotSectorsResponse> {
-    const baskets = await this.hotSectorBaskets();
-    // ROUND-ROBIN across baskets rather than basket-by-basket. The MTD baseline
-    // fill downstream is a budget-bounded PREFIX of this list, so the order
-    // decides what a warming instance knows about: taken basket-by-basket, the
-    // first sectors would have every member resolved and the last none, and
-    // their gainer ratios — the factor that is 60% of the score — would not be
-    // comparable. Interleaving spreads partial coverage evenly, and because each
-    // basket lists its curated members before its screener-expanded ones, every
-    // curated member is still resolved before any expansion member.
+  private async computeHotSectors(budgets: {
+    baselineBudgetMs: number;
+    quoteBudgetMs: number;
+    universeBudgetMs: number;
+  }): Promise<HotSectorsSnapshot> {
+    const { baskets, names } = await this.hotSectorBaskets(budgets.universeBudgetMs);
+    // ROUND-ROBIN across baskets rather than basket-by-basket: a budget-bounded
+    // baseline fill is a PREFIX of this list, so interleaving spreads partial
+    // coverage evenly, and because each basket lists its curated members before
+    // its screener-expanded ones, every curated member resolves first.
     const allTickers: string[] = [];
     const seen = new Set<string>();
     for (let i = 0; ; i++) {
@@ -928,34 +1044,43 @@ export class StockListsService implements OnApplicationBootstrap {
       }
       if (!any) break;
     }
-    const [returns, buySell] = await Promise.all([
-      // The benchmark rides along with the members: one call, one instant. It is
-      // FIRST in the list, not appended, because the baseline fill is a
-      // budget-bounded prefix of whatever order it is given — with the benchmark
-      // last, a converging cold instance produced sector returns and a null S&P
-      // 500 comparison for its first few requests (measured: ^GSPC resolved only
-      // on the 4th call). The one symbol every row is compared against goes first.
+    const quoteDeadline = Date.now() + budgets.quoteBudgetMs;
+    const [returns, buySell, fundamentals] = await Promise.all([
+      // The benchmark rides along with the members, FIRST in the list: one
+      // call, one instant, and the one symbol every row is compared against is
+      // never the one a truncated fill leaves out.
       this.marketStats.getMonthYtdReturns([SP500_SYMBOL, ...allTickers], {
-        baselineBudgetMs: HOT_SECTOR_BASELINE_BUDGET_MS,
+        baselineBudgetMs: budgets.baselineBudgetMs,
+        quoteBudgetMs: budgets.quoteBudgetMs,
+        maxSymbols: HOT_SECTOR_MAX_MEMBERS * HOT_SECTOR_BASKETS.length,
       }),
       this.iqs.getMonthlyBuySellByTicker(allTickers),
+      this.fundamentals.lookup(allTickers).catch(() => new Map()),
     ]);
     // Cache hit: getMonthYtdReturns has just quoted these symbols for its live
-    // numerator, so this costs nothing and only supplies the market caps.
+    // numerator, so this mostly costs nothing and supplies price / cap / name.
     const quotes = await this.marketStats
-      .getQuoteBatch(allTickers)
+      .getQuoteBatch(allTickers, { deadlineMs: Math.max(quoteDeadline, Date.now() + 2_000) })
       .catch(() => new Map());
     const sp500Ytd = returns[SP500_SYMBOL]?.ytd ?? null;
     const sp500Mtd = returns[SP500_SYMBOL]?.mtd ?? null;
-    // Client spec (Azlan): only companies above a $100M market cap count
-    // toward a sector's heat — sub-$100M names swing ±10% on nothing and were
-    // distorting the gainer ratios. A missing cap keeps the name (curated
-    // baskets are liquid names; only a known micro-cap is excluded).
+    const quoteOf = (sym: string) =>
+      quotes.get(sym) as { price?: number; marketCap?: number | null; name?: string } | undefined;
+    // Only companies above the floor count toward a sector's heat. A missing cap
+    // keeps the name (curated baskets are liquid names; only a known micro-cap
+    // is excluded).
     const capOk = (sym: string): boolean => {
-      const cap = (quotes.get(sym) as { marketCap?: number | null } | undefined)?.marketCap;
+      const cap = quoteOf(sym)?.marketCap;
       return cap == null || cap >= HOT_SECTOR_MIN_CAP;
     };
+    const median = (xs: number[]): number | null => {
+      if (!xs.length) return null;
+      const a = [...xs].sort((x, y) => x - y);
+      const mid = Math.floor(a.length / 2);
+      return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+    };
 
+    const membersByKey: Record<string, HotSectorMember[]> = {};
     const raw = baskets.map((b) => {
       let companies = 0;
       let gainers10 = 0;
@@ -965,10 +1090,16 @@ export class StockListsService implements OnApplicationBootstrap {
       let mtdCount = 0;
       let insiderBuys = 0;
       let insiderSells = 0;
+      let insiderBuyValue = 0;
+      let insiderSellValue = 0;
+      const upsides: number[] = [];
+      const members: HotSectorMember[] = [];
       for (const t of b.tickers) {
         const up = t.toUpperCase();
-        if (!capOk(up)) continue; // sub-$100M caps don't count toward heat
+        if (!capOk(up)) continue; // below the floor: not in the basket
+        const q = quoteOf(up);
         const r = returns[up];
+        const price = q?.price && q.price > 0 ? q.price : null;
         if (r && r.mtd != null) {
           companies++;
           // "up by 10%+" as the client states it — inclusive of exactly +10.00%.
@@ -984,11 +1115,42 @@ export class StockListsService implements OnApplicationBootstrap {
         if (bs) {
           insiderBuys += bs.buys;
           insiderSells += bs.sells;
+          insiderBuyValue += bs.buyValue;
+          insiderSellValue += bs.sellValue;
         }
+        const f = fundamentals.get(up) as
+          | { ptAvgTarget: number | null; ptCount: number | null }
+          | undefined;
+        const target = f?.ptAvgTarget != null && f.ptAvgTarget > 0 ? f.ptAvgTarget : null;
+        const analystUpside =
+          target != null && price != null ? +(((target - price) / price) * 100).toFixed(1) : null;
+        // A consensus target more than 5x away from the price is feed junk (a
+        // stale pre-split figure, typically); it is shown on the row but kept
+        // out of the sector median so one bad row cannot move the basket.
+        if (analystUpside != null && Math.abs(analystUpside) <= 400) upsides.push(analystUpside);
+        members.push({
+          symbol: up,
+          name: q?.name || names.get(up) || up,
+          price,
+          marketCap: q?.marketCap ?? null,
+          mtd: r?.mtd ?? null,
+          ytd: r?.ytd ?? null,
+          priceTarget: target,
+          analystCount: f?.ptCount ?? null,
+          analystUpside,
+          insiderBuys: bs?.buys ?? 0,
+          insiderSells: bs?.sells ?? 0,
+          insiderBuyValue: Math.round(bs?.buyValue ?? 0),
+          insiderSellValue: Math.round(bs?.sellValue ?? 0),
+          netInsiderValue: Math.round((bs?.buyValue ?? 0) - (bs?.sellValue ?? 0)),
+          curated: b.curated.has(up),
+        });
       }
+      membersByKey[b.key] = members;
       const gainerRatio = companies > 0 ? gainers10 / companies : 0;
       const ytd = ytdCount > 0 ? +(ytdSum / ytdCount).toFixed(2) : null;
       const mtd = mtdCount > 0 ? +(mtdSum / mtdCount).toFixed(2) : null;
+      const med = median(upsides);
       return {
         key: b.key,
         label: b.label,
@@ -998,6 +1160,12 @@ export class StockListsService implements OnApplicationBootstrap {
         insiderBuys,
         insiderSells,
         netInsider: insiderBuys - insiderSells,
+        insiderBuyValue: Math.round(insiderBuyValue),
+        insiderSellValue: Math.round(insiderSellValue),
+        netInsiderValue: Math.round(insiderBuyValue - insiderSellValue),
+        avgAnalystUpside: med == null ? null : +med.toFixed(1),
+        analystCovered: upsides.length,
+        members: members.length,
         ytd,
         mtd,
         // Explicit, same-window comparisons (client: the old single "vsSp500"
@@ -1046,14 +1214,20 @@ export class StockListsService implements OnApplicationBootstrap {
         (a, b) =>
           b.hotScore - a.hotScore ||
           b.gainerRatio - a.gainerRatio ||
-          b.netInsider - a.netInsider,
+          b.netInsiderValue - a.netInsiderValue,
       )
       .map((r, i) => ({ rank: i + 1, ...r }));
+
+    // Members sorted by market cap so the drill-down opens on the names a
+    // reader knows; the table re-sorts client-side.
+    for (const key of Object.keys(membersByKey)) {
+      membersByKey[key].sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0));
+    }
 
     const now = new Date();
     // What share of the members actually resolved a month-to-date return. This
     // is the honest measure of whether the ranking means anything: breadth is
-    // 40% of the score and it can only see resolved names.
+    // most of the score and it can only see resolved names.
     const resolved = allTickers.filter((t) => returns[t.toUpperCase()]?.mtd != null).length;
     const coverage = allTickers.length ? resolved / allTickers.length : 0;
     return {
@@ -1063,6 +1237,8 @@ export class StockListsService implements OnApplicationBootstrap {
       sp500Mtd,
       sectors: scored,
       coverage: +coverage.toFixed(4),
+      computedAt: now.toISOString(),
+      members: membersByKey,
     };
   }
 

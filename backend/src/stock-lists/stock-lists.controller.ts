@@ -17,6 +17,15 @@ export class StockListsController {
     return this.svc.getHotSectors();
   }
 
+  /** Member stocks of one Hot Sectors basket (price, MTD, analyst target and
+   *  upside, insider $ in/out this month). */
+  @Get('hot-sectors/:key/members')
+  async hotSectorMembers(@Param('key') key: string) {
+    const res = await this.svc.getHotSectorMembers(key);
+    if (!res) return { error: 'Unknown sector' };
+    return res;
+  }
+
   @Get(':slug')
   async detail(
     @Param('slug') slug: string,

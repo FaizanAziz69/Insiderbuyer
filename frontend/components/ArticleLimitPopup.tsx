@@ -1,25 +1,41 @@
 "use client";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, BookOpen, LineChart } from "lucide-react";
-import { useAuth } from "@/lib/auth";
+import { X } from "lucide-react";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { PaywallCta, UnlockButton } from "@/components/premium/PaywallCta";
 import { LoginModal } from "@/components/LoginModal";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
-/** Free articles a visitor can read before the article locks. */
+/** Free articles a reader can open before the article locks. */
 const FREE_ARTICLES = 3;
 const STORE_KEY = "ib_articles_read";
-
-const PERKS = [
-  { icon: BookOpen, title: "Unlimited articles", body: "Every daily briefing, deep dive, and sector report." },
-  { icon: LineChart, title: "Watchlists", body: "Track the stocks you care about in one place." },
-  { icon: Bell, title: "Daily insider alerts", body: "Know the moment executives buy their own stock." },
-];
+/** The countdown banner, once closed, stays closed for the browser session. */
+const BANNER_DISMISSED_KEY = "ib_articles_banner_dismissed";
 
 /**
- * Benzinga-style HARD article gate: after 3 free articles the whole article
- * (cover image + body) is blurred and unreadable, and a LARGE unlock sheet
- * slides up from the bottom of the screen. No dismiss button — the only way
- * through is a free account. Signed-in users never see it. Free signup only.
+ * Metered article paywall (client spec, 2026-09-06):
+ *
+ *   "Allow freemium users and website visitors to click on and read 3
+ *    articles. Put a temporary banner at the bottom of the article page
+ *    showing that they have 2 more articles or 1 article left. Then put the
+ *    subscribe gate feature as it is."
+ *
+ * So the meter applies to EVERYONE without a live subscription — anonymous
+ * visitors and signed-in free accounts alike (until 2026-09-06 a free account
+ * lifted the gate; it no longer does). Subscribers never see any of it.
+ *
+ *   • Articles 1–3: readable in full, with a slim bottom banner counting down
+ *     ("2 free articles left", "1 free article left", "This is your last free
+ *     article"). The banner can be closed for the session.
+ *   • Article 4+: the whole article (cover + body) is blurred and unreadable,
+ *     and the site's ONE paywall presentation (PaywallCta → /premium) slides up
+ *     from the bottom. No dismiss. A "Log in" link stays for subscribers who
+ *     arrive signed out.
+ *
+ * The count is per browser (localStorage), keyed by article slug, so
+ * re-reading an article never spends a second credit. Storage failures never
+ * block reading.
  */
 export function ArticleGate({
   slug,
@@ -29,7 +45,7 @@ export function ArticleGate({
    * allowance. Used for unlisted drafts: a review link is internal material,
    * not funnel content. Without this, sending a draft to an editor spends one
    * of their three free reads and then walls them out of the very article they
-   * were asked to review — with a signup sheet over a blurred page.
+   * were asked to review.
    */
   bypass = false,
 }: {
@@ -37,13 +53,15 @@ export function ArticleGate({
   children: React.ReactNode;
   bypass?: boolean;
 }) {
-  const { user } = useAuth();
-  const [locked, setLocked] = useState(false);
+  const { unlocked } = usePremium();
+  /** Distinct articles opened so far, this one included. null = not yet read. */
+  const [readCount, setReadCount] = useState<number | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [bannerClosed, setBannerClosed] = useState(false);
 
   useEffect(() => {
-    if (!slug || user || bypass) {
-      setLocked(false);
+    if (!slug || unlocked || bypass) {
+      setReadCount(null);
       return;
     }
     try {
@@ -52,13 +70,93 @@ export function ArticleGate({
         read.push(slug);
         localStorage.setItem(STORE_KEY, JSON.stringify(read.slice(-50)));
       }
-      setLocked(read.length > FREE_ARTICLES);
+      // A re-read of an earlier article counts where it sat, not as a new
+      // credit — so "the third article" is stable no matter the order.
+      setReadCount(read.indexOf(slug) + 1);
     } catch {
-      setLocked(false); // storage unavailable — never block reading
+      setReadCount(null); // storage unavailable — never block reading
     }
-  }, [slug, user, bypass]);
+    try {
+      setBannerClosed(sessionStorage.getItem(BANNER_DISMISSED_KEY) === "1");
+    } catch {
+      /* ignore */
+    }
+  }, [slug, unlocked, bypass]);
 
-  if (bypass || !locked || user) return <>{children}</>;
+  const closeBanner = () => {
+    setBannerClosed(true);
+    try {
+      sessionStorage.setItem(BANNER_DISMISSED_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  };
+
+  if (bypass || unlocked || readCount == null) return <>{children}</>;
+
+  const locked = readCount > FREE_ARTICLES;
+  const remaining = Math.max(0, FREE_ARTICLES - readCount);
+
+  if (!locked) {
+    return (
+      <>
+        {children}
+        {/* Countdown banner — slim, bottom of the viewport, closable */}
+        <AnimatePresence>
+          {!bannerClosed && (
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 260, damping: 30 }}
+              className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3 sm:px-0 sm:pb-4 pointer-events-none"
+              role="status"
+              aria-live="polite"
+            >
+              <div
+                className="pointer-events-auto mx-auto max-w-3xl rounded-xl px-4 py-3 sm:px-5 flex items-center gap-3 sm:gap-4"
+                style={{
+                  background: "var(--bg-2)",
+                  border: "1px solid var(--border-strong)",
+                  boxShadow: "0 14px 40px rgba(0,0,0,0.30)",
+                }}
+              >
+                <span
+                  className="hidden sm:inline-flex h-8 min-w-8 px-2 items-center justify-center rounded-lg text-[14px] font-bold tabular flex-shrink-0"
+                  style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+                >
+                  {remaining}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13.5px] sm:text-[14px] font-bold leading-tight">
+                    {remaining === 0
+                      ? "This is your last free article"
+                      : remaining === 1
+                        ? "You have 1 free article left"
+                        : `You have ${remaining} free articles left`}
+                  </div>
+                  <div className="text-[12px] text-mute leading-snug">
+                    Subscribe for unlimited articles, Insider Scores and daily alerts.
+                  </div>
+                </div>
+                <UnlockButton href={SUBSCRIBE_HREF} compact>
+                  Subscribe
+                </UnlockButton>
+                <button
+                  type="button"
+                  onClick={closeBanner}
+                  aria-label="Close"
+                  className="text-mute hover:text-[var(--text)] transition flex-shrink-0 -mr-1 p-1"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </>
+    );
+  }
 
   return (
     <>
@@ -71,7 +169,7 @@ export function ArticleGate({
         {children}
       </div>
 
-      {/* BIG unlock sheet — slides up from the bottom, no dismiss */}
+      {/* Subscribe sheet — slides up from the bottom, no dismiss */}
       <AnimatePresence>
         {!loginOpen && (
           <motion.div
@@ -81,7 +179,7 @@ export function ArticleGate({
             transition={{ type: "spring", stiffness: 220, damping: 30 }}
             className="fixed inset-x-0 bottom-0 z-40"
             role="dialog"
-            aria-label="Create a free account to continue reading"
+            aria-label="Subscribe to keep reading"
           >
             <div
               className="w-full"
@@ -91,60 +189,23 @@ export function ArticleGate({
                 boxShadow: "0 -24px 70px rgba(0,0,0,0.35)",
               }}
             >
-              <div className="mx-auto max-w-4xl px-5 sm:px-10 py-8 sm:py-10 text-center">
-                {/* Centered header */}
-                <span
-                  className="inline-block text-[10.5px] font-bold uppercase tracking-widest px-2.5 py-1 rounded mb-3"
-                  style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
-                >
-                  InsiderBuying &middot; Free Account
-                </span>
-                <h2 className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight">
-                  Unlock unlimited free articles
-                </h2>
-                <p className="mt-2 text-[14px] sm:text-[15px] text-soft leading-relaxed max-w-lg mx-auto">
-                  Keep reading with a free account —{" "}
-                  <strong>no credit card, no payment.</strong>
+              <div className="mx-auto max-w-4xl px-5 sm:px-10 py-7 sm:py-9">
+                <PaywallCta
+                  size="lg"
+                  eyebrow={`You've read your ${FREE_ARTICLES} free articles`}
+                  title="Keep reading with Insider Access"
+                  subtitle="Unlimited articles, every Insider Score, and daily alerts when executives buy their own stock."
+                />
+                <p className="mt-4 text-center text-[13px] text-mute">
+                  Already a subscriber?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setLoginOpen(true)}
+                    className="font-bold text-accent underline hover:brightness-110"
+                  >
+                    Log in
+                  </button>
                 </p>
-
-                {/* Perks — 3 equal columns, each centered (symmetric) */}
-                <div className="mt-7 grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6">
-                  {PERKS.map((p) => {
-                    const Icon = p.icon;
-                    return (
-                      <div key={p.title} className="flex flex-col items-center text-center gap-2 px-2">
-                        <span
-                          className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ background: "var(--accent-soft)" }}
-                        >
-                          <Icon className="text-accent" style={{ height: 18, width: 18 }} />
-                        </span>
-                        <span className="block text-[13.5px] font-bold leading-tight">{p.title}</span>
-                        <span className="block text-[12px] text-mute leading-snug">{p.body}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* CTA — centered, stacked */}
-                <div className="mt-8 flex flex-col items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setLoginOpen(true)}
-                    className="btn-primary"
-                    style={{ padding: "14px 40px", fontSize: 16, fontWeight: 700 }}
-                  >
-                    Create Your Free Account
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLoginOpen(true)}
-                    className="text-[13.5px] text-mute hover:text-accent transition"
-                  >
-                    Already have an account?{" "}
-                    <span className="font-bold text-accent underline">Log in</span>
-                  </button>
-                </div>
               </div>
             </div>
           </motion.div>

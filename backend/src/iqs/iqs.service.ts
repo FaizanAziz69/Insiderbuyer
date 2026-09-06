@@ -3431,8 +3431,8 @@ export class IqsService {
    *  ranking to tally insider activity across each thematic basket. */
   async getMonthlyBuySellByTicker(
     tickers: string[],
-  ): Promise<Map<string, { buys: number; sells: number }>> {
-    const map = new Map<string, { buys: number; sells: number }>();
+  ): Promise<Map<string, { buys: number; sells: number; buyValue: number; sellValue: number }>> {
+    const map = new Map<string, { buys: number; sells: number; buyValue: number; sellValue: number }>();
     const ups = Array.from(
       new Set(tickers.filter(Boolean).map((t) => t.toUpperCase())),
     );
@@ -3445,16 +3445,25 @@ export class IqsService {
       .select('UPPER(c.ticker)', 'ticker')
       .addSelect('t."transactionCode"', 'code')
       .addSelect('COUNT(*)', 'count')
+      // Dollar flow alongside the count: how much money moved, not just how
+      // many filings (Hot Sectors shows insider $ in / out per basket).
+      .addSelect('COALESCE(SUM(t."totalValue"), 0)', 'value')
       .where('UPPER(c.ticker) IN (:...ups)', { ups })
       .andWhere('t."transactionDate" >= :ms', { ms: monthStart.toISOString() })
       .andWhere(`t."transactionCode" IN ('P','S')`)
       .groupBy('UPPER(c.ticker)')
       .addGroupBy('t."transactionCode"')
-      .getRawMany<{ ticker: string; code: string; count: string }>();
+      .getRawMany<{ ticker: string; code: string; count: string; value: string }>();
     for (const r of rows) {
-      const e = map.get(r.ticker) || { buys: 0, sells: 0 };
-      if (r.code === 'P') e.buys += Number(r.count);
-      else if (r.code === 'S') e.sells += Number(r.count);
+      const e = map.get(r.ticker) || { buys: 0, sells: 0, buyValue: 0, sellValue: 0 };
+      const value = Number(r.value) || 0;
+      if (r.code === 'P') {
+        e.buys += Number(r.count);
+        e.buyValue += value;
+      } else if (r.code === 'S') {
+        e.sells += Number(r.count);
+        e.sellValue += value;
+      }
       map.set(r.ticker, e);
     }
     return map;

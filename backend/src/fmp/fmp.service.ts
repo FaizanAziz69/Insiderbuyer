@@ -120,6 +120,46 @@ export class FmpService {
     }
   }
 
+  /**
+   * Closing price of every symbol on one date — FMP's bulk `batch-eod` feed.
+   * One ~12MB call for the whole market, so it is rate-limited ("updated once
+   * every few hours"; a second call inside the window answers 429). Callers
+   * persist the result (see EodClose) and ask once per date. Restricted to
+   * U.S.-style symbols (no exchange suffix) because that is all our insider
+   * coverage spans; the other ~60k rows are dropped before they reach the DB.
+   * Returns an EMPTY map for a non-trading day (weekend / holiday) as well as
+   * for a failure — `lastError` tells the two apart.
+   */
+  async batchEod(date: string, opts: { timeoutMs?: number } = {}): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (!this.enabled) return out;
+    this.lastError = null;
+    try {
+      const { data } = await this.http.get(`${this.base}/batch-eod`, {
+        params: { date, apikey: this.key },
+        timeout: opts.timeoutMs ?? 90_000,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+      if (!Array.isArray(data)) {
+        this.lastError = `batch-eod: non-array response ${JSON.stringify(data).slice(0, 160)}`;
+        return out;
+      }
+      for (const r of data) {
+        const symbol = String(r?.symbol || '').toUpperCase();
+        if (!symbol || symbol.length > 16 || symbol.includes('.')) continue;
+        const close = this.num(r?.close);
+        if (close != null && close > 0) out.set(symbol, close);
+      }
+      return out;
+    } catch (e: any) {
+      const body = typeof e?.response?.data === 'string' ? e.response.data.slice(0, 160) : '';
+      this.lastError = `batch-eod: ${e?.response?.status || ''} ${e?.message || e} ${body}`;
+      this.log.warn(`FMP ${this.lastError}`);
+      return out;
+    }
+  }
+
   /** ISIN → listed symbols (`search-isin`). Used to map BaFin Directors'
    *  Dealings issuers onto tradeable .DE symbols. */
   async searchIsin(isin: string): Promise<Array<{ symbol: string; name: string; currency: string | null; exchange: string | null; exchangeFullName: string | null }>> {
