@@ -3431,6 +3431,9 @@ export class IqsService {
    *  ranking to tally insider activity across each thematic basket. */
   async getMonthlyBuySellByTicker(
     tickers: string[],
+    /** Window start. Defaults to the first of the current month (Hot Sectors);
+     *  the earnings calendar passes a trailing quarter instead. */
+    opts: { since?: Date } = {},
   ): Promise<Map<string, { buys: number; sells: number; buyValue: number; sellValue: number }>> {
     const map = new Map<string, { buys: number; sells: number; buyValue: number; sellValue: number }>();
     const ups = Array.from(
@@ -3438,7 +3441,7 @@ export class IqsService {
     );
     if (!ups.length) return map;
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthStart = opts.since ?? new Date(now.getFullYear(), now.getMonth(), 1);
     const rows = await this.txRepo
       .createQueryBuilder('t')
       .innerJoin('t.company', 'c')

@@ -20,7 +20,7 @@ import { MarketStatsService } from '../market-stats/market-stats.service';
  *                     the session after it than the session before. Where we
  *                     have no price history, an EPS beat stands in.
  *   aligned quarter = at least one open-market insider BUY (Form 4 code P) in
- *                     the 30 days before that report date — the same 30-day
+ *                     the quarter (90 days) before that report date — the same
  *                     pre-earnings window the page describes.
  *   EAI             = aligned ÷ strong (of the last three strong quarters) ×100.
  *
@@ -62,7 +62,12 @@ const QUARTERS = 3;
 /** Minimum strong quarters before a score is published. */
 const MIN_STRONG = 2;
 /** Pre-earnings insider-buy window, in days. */
-const BUY_WINDOW_DAYS = 30;
+// Was 30. Insiders are locked out of trading in the weeks before a report
+// (blackout), so a 30-day window found buying ahead of 27 of 2,302 strong
+// quarters and published 756 zeros out of 783 scores — the column read as
+// empty (client, 2026-09-06). A quarter spans the open window after the
+// previous report, which is where "buying ahead of earnings" actually happens.
+const BUY_WINDOW_DAYS = 90;
 /** How many reports back to look for those strong quarters (~3 years). */
 const HISTORY_LIMIT = 12;
 /** Ceiling on symbols refreshed per pass, so one run can't drain the FMP quota. */

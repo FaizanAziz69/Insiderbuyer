@@ -1,8 +1,9 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { Calendar } from "lucide-react";
+import { Calendar, TrendingDown, TrendingUp } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
+import { pct, signColor, signedMoney } from "@/lib/signed-format";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
@@ -70,11 +71,27 @@ interface EaiScore {
   quarters: EaiQuarter[];
 }
 
+/** GET /earnings/signals — analyst target / upside and trailing-quarter insider
+ *  $ flows per symbol (client 2026-09-06: the three columns Hot Sectors got,
+ *  on the earnings calendar too). */
+interface EarningsSignal {
+  symbol: string;
+  price: number | null;
+  priceTarget: number | null;
+  analystCount: number | null;
+  analystUpside: number | null;
+  insiderBuys: number;
+  insiderSells: number;
+  insiderBuyValue: number;
+  insiderSellValue: number;
+  netInsiderValue: number;
+}
+
 /** Hover text spelling out exactly what the score counted. */
 function eaiTitle(e: EaiScore): string {
   const head =
     e.eai === 0
-      ? `Earnings Alignment Index 0/100 — we checked the last ${e.strong} strong quarters and found no insider buying in the 30 days before any of them.`
+      ? `Earnings Alignment Index 0/100 — we checked the last ${e.strong} strong quarters and found no insider buying in the quarter before any of them.`
       : `Earnings Alignment Index ${e.eai}/100 — insiders bought ahead of ${e.aligned} of the last ${e.strong} strong quarters.`;
   const detail = e.quarters
     .map((q) => {
@@ -83,8 +100,8 @@ function eaiTitle(e: EaiScore): string {
           ? `stock ${q.reactionPct >= 0 ? "+" : ""}${q.reactionPct}% after the report`
           : `EPS ${q.epsActual ?? "—"} vs ${q.epsEstimated ?? "—"} est`;
       const buying = q.bought
-        ? `${q.buyers} insider${q.buyers === 1 ? "" : "s"} bought in the 30 days before`
-        : "no insider buying in the 30 days before";
+        ? `${q.buyers} insider${q.buyers === 1 ? "" : "s"} bought in the quarter before`
+        : "no insider buying in the quarter before";
       return `${q.date}: ${strength} · ${buying}`;
     })
     .join("\n");
@@ -105,6 +122,13 @@ export default function EarningsPage() {
     { revalidateOnFocus: false },
   );
   const eaiByTicker = eaiData?.rows || {};
+  const { data: signalData } = useSWR<{ rows: Record<string, EarningsSignal> }>(
+    `${API_BASE}/earnings/signals?days=7`,
+    fetcher,
+    { refreshInterval: 10 * 60_000, revalidateOnFocus: false },
+  );
+  const signalOf = (r: EarningsRow): EarningsSignal | undefined =>
+    signalData?.rows?.[(r.symbol || "").toUpperCase()];
   const rows = data?.rows || [];
 
   return (
@@ -124,7 +148,7 @@ export default function EarningsPage() {
           Upcoming Earnings Releases
         </h1>
         <ToolIntro tagline="See who’s reporting — and whether their insiders have been buying.">
-          Earnings calendars show you the date. We show you what insiders were doing in the 30 days before it. Companies where insiders bought ahead of their last three strong quarters are flagged with our Earnings Alignment Index (EAI) — the pre-earnings insider signal most investors have never heard of.
+          Earnings calendars show you the date. We show you what insiders were doing in the quarter before it. Companies where insiders bought ahead of their last three strong quarters are flagged with our Earnings Alignment Index (EAI) — the pre-earnings insider signal most investors have never heard of.
         </ToolIntro>
       </header>
 
@@ -174,17 +198,17 @@ export default function EarningsPage() {
                 render: (r) => {
                   const e = eaiByTicker[(r.symbol || "").toUpperCase()];
                   if (!e) return <span className="text-faint text-[13px]">—</span>;
-                  // The intro promises a FLAG, and a zero is not one. A checked
-                  // company with no pre-earnings buying says so on hover rather
-                  // than filling the column with "0 · 0/3" — on a typical day
-                  // most of the calendar has no alignment at all.
+                  // A scored zero is shown as a zero (client 2026-09-06: the
+                  // column "doesn't have any value" when zeros hide behind a
+                  // dash). Only an UNSCORED company gets the dash above.
                   if (e.eai === 0) {
                     return (
                       <span
-                        className="text-faint text-[13px]"
+                        className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-bold tabular whitespace-nowrap text-mute"
+                        style={{ background: "var(--bg-3)" }}
                         title={eaiTitle(e)}
                       >
-                        —
+                        0<span className="font-semibold opacity-70">· 0/{e.strong}</span>
                       </span>
                     );
                   }
@@ -224,6 +248,79 @@ export default function EarningsPage() {
                     })()}
                   </span>
                 ),
+              },
+              {
+                key: "priceTarget",
+                label: "Analyst Price Target",
+                info: "Sell-side consensus (average) 12-month price target. The sub-line is how many analysts stand behind it.",
+                align: "right",
+                sortValue: (r) => signalOf(r)?.priceTarget ?? null,
+                render: (r) => {
+                  const s = signalOf(r);
+                  if (!s || s.priceTarget == null)
+                    return <span className="text-faint text-[13px]">—</span>;
+                  return (
+                    <>
+                      <span className="tabular text-[13px] font-bold">${s.priceTarget.toFixed(2)}</span>
+                      {s.analystCount != null && s.analystCount > 0 && (
+                        <span className="block text-[11px] text-mute tabular">
+                          {s.analystCount} analyst{s.analystCount === 1 ? "" : "s"}
+                        </span>
+                      )}
+                    </>
+                  );
+                },
+              },
+              {
+                key: "analystUpside",
+                label: "Upside / Downside",
+                info: "Consensus price target vs. the current price: positive means analysts see room to rise, negative means the stock already trades above their target.",
+                align: "right",
+                filterable: true,
+                filterType: "range",
+                sortValue: (r) => signalOf(r)?.analystUpside ?? null,
+                render: (r) => {
+                  const s = signalOf(r);
+                  if (!s || s.analystUpside == null)
+                    return <span className="text-faint text-[13px]">—</span>;
+                  return (
+                    <span
+                      className="tabular text-[13px] font-bold inline-flex items-center gap-1 justify-end"
+                      style={{ color: signColor(s.analystUpside) }}
+                    >
+                      {s.analystUpside >= 0 ? (
+                        <TrendingUp className="h-3.5 w-3.5" />
+                      ) : (
+                        <TrendingDown className="h-3.5 w-3.5" />
+                      )}
+                      {pct(s.analystUpside, true, 1)}
+                    </span>
+                  );
+                },
+              },
+              {
+                key: "netInsiderValue",
+                label: "Net Insider Buying vs Selling ($)",
+                info: "Open-market insider purchases minus sales over the last 90 days — the open trading window after the previous report — in dollars, from the company's Form 4 filings. The sub-line shows the two sides.",
+                align: "right",
+                sortValue: (r) => signalOf(r)?.netInsiderValue ?? null,
+                render: (r) => {
+                  const s = signalOf(r);
+                  if (!s) return <span className="text-faint text-[13px]">—</span>;
+                  if (s.insiderBuys + s.insiderSells === 0)
+                    return <span className="text-faint text-[12px]">No filings in 90d</span>;
+                  return (
+                    <>
+                      <span className="tabular text-[13px] font-bold" style={{ color: signColor(s.netInsiderValue) }}>
+                        {signedMoney(s.netInsiderValue)}
+                      </span>
+                      <span className="block text-[11px] text-mute tabular whitespace-nowrap">
+                        <span style={{ color: "var(--good)" }}>{formatCurrency(s.insiderBuyValue)}</span> bought ·{" "}
+                        <span style={{ color: "var(--bad)" }}>{formatCurrency(s.insiderSellValue)}</span> sold
+                      </span>
+                    </>
+                  );
+                },
               },
               {
                 key: "date",
@@ -286,7 +383,7 @@ export default function EarningsPage() {
           >
             <span className="font-bold" style={{ color: "var(--text-soft)" }}>EAI</span> — Earnings
             Alignment Index: of this company&rsquo;s last three strong quarters (the stock rose after
-            the report), how many did insiders buy ahead of, in the 30 days before it.{" "}
+            the report), how many did insiders buy ahead of, in the quarter before it.{" "}
             <span
               className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-bold"
               style={{ background: "#d4a92a", color: "#141620" }}
