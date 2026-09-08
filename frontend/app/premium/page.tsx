@@ -142,7 +142,7 @@ const PLANS: Array<{
     plan: "annual",
     per: "per year",
     tagline: "Best value — pay for a year, save the rest.",
-    cta: "Get All-In Access",
+    cta: "Get Annual Access",
     featured: true,
     feats: [
       "Everything in Monthly",
@@ -594,11 +594,10 @@ export default function PremiumPage() {
       {/* -------------------------------------------------------- pricing */}
       <section className="biv-section" id="pricing">
         <p className="biv-eyebrow-center biv-accent-text">Pricing</p>
-        <h2 className="biv-h2 biv-center">Become an insider.</h2>
-        {/* Brief, Section 2 Step 3: the line that hands the reader from proof
-            to purchase, immediately above the plans. */}
-        <p className="biv-lead biv-center">Unlock the full potential of tracking company insiders.</p>
-        <p className="biv-fine biv-center biv-proof-line">Join {investors} investors getting faster insider intelligence</p>
+        {/* Brief v4 §2 row 7 / §3.4: the recurring line is the headline here,
+            with the second social-proof line under it. */}
+        <h2 className="biv-h2 biv-center">Unlock the full potential of tracking company insiders.</h2>
+        <p className="biv-lead biv-center biv-proof-line">Join {investors} investors getting faster insider intelligence</p>
         <div className="biv-plans">
           {PLANS.map((p) => {
             const price = priceOf(p.plan);
@@ -762,9 +761,11 @@ const CSS = `
 }
 .biv section { max-width: 1460px; margin: 0 auto; padding: 72px 28px; }
 
+/* Brief v4 §3: copy is FINAL and verbatim — headlines render in the deck's own
+   sentence case, no forced uppercase. */
 .biv h1, .biv .biv-h2 {
   font-family: var(--font-heading), sans-serif; font-weight: 900;
-  text-transform: uppercase; letter-spacing: -0.015em; line-height: 0.98;
+  letter-spacing: -0.02em; line-height: 1.02;
   color: var(--ink); margin: 0;
 }
 .biv-accent { color: var(--brand); }
