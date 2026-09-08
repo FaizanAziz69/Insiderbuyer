@@ -90,7 +90,7 @@ export const SHOWCASE: ShowcaseVisual[] = [
   },
 ];
 
-const src1x = (f: string) => `/sales/showcase/${f}.jpg`;
+const src1x = (f: string) => `/sales/showcase/${f}.webp`;
 const src2x = (f: string) => `/sales/showcase/${f}@2x.webp`;
 const srcMobile = (f: string) => `/sales/showcase/${f}-mobile.webp`;
 
@@ -135,7 +135,7 @@ export function ProductShowcase({ visuals = SHOWCASE }: { visuals?: ShowcaseVisu
                 <source media="(max-width: 640px)" srcSet={srcMobile(v.file)} type="image/webp" />
                 <source srcSet={`${src2x(v.file)} 2x, ${src1x(v.file)} 1x`} type="image/webp" />
                 <img
-                  src={src1x(v.file)}
+                  src={src2x(v.file)}
                   alt={v.alt}
                   loading="lazy"
                   decoding="async"
@@ -179,22 +179,24 @@ export const SHOWCASE_CSS = `
 .sc-row { margin: 0; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr); gap: 44px; align-items: center; }
 .sc-row-flip .sc-frame { order: 2; }
 .sc-row-flip .sc-cap { order: 1; }
+/* Embedded, not a screenshot (client 2026-09-09): the composition is a
+   transparent render, so its browser frames and cards float directly on the
+   page — no picture box, border, backdrop or clipping around it. */
 .sc-frame {
   display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: zoom-in;
-  aspect-ratio: var(--sc-aspect, 1.6); border-radius: 22px; overflow: hidden;
-  box-shadow: 0 40px 100px rgba(0,0,0,0.45), 0 0 0 1px var(--panel-line-c);
-  transition: transform .35s cubic-bezier(.22,1,.36,1), box-shadow .35s;
+  aspect-ratio: var(--sc-aspect, 1.6); overflow: visible;
+  transition: transform .35s cubic-bezier(.22,1,.36,1);
 }
-.sc-frame:hover { transform: translateY(-4px) scale(1.01); box-shadow: 0 50px 120px rgba(0,0,0,0.55), 0 0 0 1px var(--panel-line-c); }
-.sc-frame:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
-.sc-frame picture, .sc-frame img { display: block; width: 100%; height: 100%; object-fit: cover; background: #0E1A2E; }
+.sc-frame:hover { transform: translateY(-4px); }
+.sc-frame:focus-visible { outline: 3px solid var(--brand); outline-offset: 6px; border-radius: 12px; }
+.sc-frame picture, .sc-frame img { display: block; width: 100%; height: 100%; object-fit: contain; background: transparent; }
 .sc-cap h3 { font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: clamp(24px, 2.4vw, 32px); line-height: 1.1; letter-spacing: -0.015em; color: var(--ink); margin: 0 0 12px; }
 .sc-cap p { font-size: 16.5px; line-height: 1.6; color: var(--dim); margin: 0 0 16px; }
 .sc-cap ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
 .sc-cap li { position: relative; padding-left: 22px; font-size: 14.5px; line-height: 1.45; color: var(--ink); }
 .sc-cap li::before { content: ""; position: absolute; left: 0; top: 7px; width: 10px; height: 10px; border-radius: 50%; background: var(--green-hi); box-shadow: 0 0 0 3px rgba(76,195,138,0.18); }
 .sc-lightbox { position: fixed; inset: 0; z-index: 120; background: rgba(4,10,20,0.92); display: grid; place-content: center; padding: 24px; gap: 14px; cursor: zoom-out; }
-.sc-lightbox img { max-width: min(1600px, 96vw); max-height: 84vh; width: auto; height: auto; border-radius: 16px; box-shadow: 0 40px 120px rgba(0,0,0,0.6); cursor: default; }
+.sc-lightbox img { max-width: min(1600px, 96vw); max-height: 84vh; width: auto; height: auto; cursor: default; }
 .sc-lightbox-cap { color: var(--dim); text-align: center; font-size: 14px; margin: 0; max-width: 820px; }
 .sc-close { position: fixed; top: 18px; right: 18px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: rgba(19,33,55,0.9); color: var(--ink); display: grid; place-items: center; cursor: pointer; }
 @media (max-width: 960px) {
@@ -203,6 +205,6 @@ export const SHOWCASE_CSS = `
   .sc-grid { gap: 64px; }
 }
 @media (max-width: 640px) {
-  .sc-frame { aspect-ratio: var(--sc-aspect-m, 0.8); border-radius: 16px; }
+  .sc-frame { aspect-ratio: var(--sc-aspect-m, 0.8); }
 }
 `;

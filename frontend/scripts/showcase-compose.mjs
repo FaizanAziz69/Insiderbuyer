@@ -107,12 +107,13 @@ function smsCard() {
   </svg>`);
 }
 
+const clear = (w, h) => sharp({ create: { width: w, height: h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } });
 async function render(name, accent, layers) {
+  void accent; // kept in the call sites; the page supplies the backdrop now
   const comps = (await Promise.all(layers.map((l) => fitLayer(l, W, H)))).filter(Boolean);
-  const full = sharp(bg(accent)).composite(comps);
-  const png = await full.png().toBuffer();
-  await sharp(png).webp({ quality: 84 }).toFile(path.join(OUT, `${name}@2x.webp`));
-  await sharp(png).resize(1200, 750).jpeg({ quality: 82, progressive: true }).toFile(path.join(OUT, `${name}.jpg`));
+  const png = await clear(W, H).composite(comps).png().toBuffer();
+  await sharp(png).webp({ quality: 86, alphaQuality: 90 }).toFile(path.join(OUT, `${name}@2x.webp`));
+  await sharp(png).resize(1200, 750).webp({ quality: 84, alphaQuality: 90 }).toFile(path.join(OUT, `${name}.webp`));
   return png;
 }
 /** Dedicated PORTRAIT composition for phones (brief §6: "dedicated mobile
@@ -137,8 +138,9 @@ async function fitLayer(l, cw, ch) {
   return { input: buf, left, top };
 }
 async function mobile(name, accent, layers) {
+  void accent;
   const comps = (await Promise.all(layers.map((l) => fitLayer(l, MW, MH)))).filter(Boolean);
-  await sharp(bgM(accent)).composite(comps).webp({ quality: 84 }).toFile(path.join(OUT, `${name}-mobile.webp`));
+  await clear(MW, MH).composite(comps).webp({ quality: 84, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-mobile.webp`));
 }
 
 // 1. Insider Scores — dial card in front, scored rankings behind, track record at the tail.
