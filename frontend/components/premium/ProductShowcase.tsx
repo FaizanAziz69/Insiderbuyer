@@ -90,9 +90,12 @@ export const SHOWCASE: ShowcaseVisual[] = [
   },
 ];
 
-const src1x = (f: string) => `/sales/showcase/${f}.webp`;
-const src2x = (f: string) => `/sales/showcase/${f}@2x.webp`;
-const srcMobile = (f: string) => `/sales/showcase/${f}-mobile.webp`;
+// "-embed" = the transparent renders. New names on purpose: /sales is cached
+// for 30 days, so a replaced file under the old name never reaches returning
+// browsers.
+const src1x = (f: string) => `/sales/showcase/${f}-embed.webp`;
+const src2x = (f: string) => `/sales/showcase/${f}-embed@2x.webp`;
+const srcMobile = (f: string) => `/sales/showcase/${f}-embed-mobile.webp`;
 
 export function ProductShowcase({ visuals = SHOWCASE }: { visuals?: ShowcaseVisual[] }) {
   const [open, setOpen] = useState<number | null>(null);
