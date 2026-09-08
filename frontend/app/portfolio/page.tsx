@@ -1,21 +1,33 @@
 "use client";
 /**
- * /portfolio — "My Portfolio" (Round-2 brief, Section 3).
+ * /portfolio — "My Portfolio".
  *
- * The brief's copy verbatim: 3A (headline, subheadline, free state, the
- * after-adding upgrade line), 3B (the upgrade card), 3C (the four SMS mockups
- * in a phone frame), and the 3D rules — free portfolios hold five stocks, the
- * Insider Score is blurred until the $19/month tier is live, and that tier is
- * its own Stripe subscription which can stack on top of premium.
+ * Client 2026-09-08: no "Create an account" popup here or on any paygated
+ * button. Anyone can enter up to 10 stocks; the Insider Score (the paygated
+ * figure) renders as the standard blurred decoy that links to Insider Access,
+ * every free figure (price, buyers, dollars bought, last buy) shows in full,
+ * and a FAQ under the table explains the score. The $19 "Portfolio
+ * Intelligence" upsell with its SMS mockups is gone — SMS alerts do not ship
+ * yet, and a page must not promise what it cannot deliver.
+ *
+ * Storage: the list lives in the browser (`ib_portfolio`, max 10). A signed-in
+ * visitor's server-side portfolio seeds it the first time and adds/removes are
+ * mirrored to the server best-effort, so nothing an existing user built is
+ * lost. Stats come from the public GET /portfolio/preview, which never sends a
+ * score to a locked viewer.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 import { Lock, Plus, Trash2 } from "lucide-react";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, formatRelative } from "@/lib/api";
 import { getAuthToken, useAuth } from "@/lib/auth";
-import { LoginModal } from "@/components/LoginModal";
 import { StockSearch } from "@/components/nav/StockSearch";
-import { PhoneFrame } from "@/components/portfolio/PhoneFrame";
+import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { PremiumValue } from "@/components/premium/PremiumValue";
+import { PremiumRowWall } from "@/components/premium/PremiumRowWall";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { track } from "@/lib/analytics";
 
 interface Holding {
@@ -29,161 +41,184 @@ interface Holding {
   bought90d: number;
   lastBuy: string | null;
 }
-
-interface PortfolioResponse {
+interface PreviewResponse {
   holdings: Holding[];
   active: boolean;
   limit: number;
 }
 
-/** WHAT YOU GET — the brief's four lines, verbatim. */
-const BENEFITS = [
-  "IQS score for every stock you hold — updated daily",
-  "SMS alert the moment an insider files a Form 4",
-  "Flag when conviction is rising OR fading at a company you own",
-  "Pre-earnings insider activity alerts",
-];
+const LIMIT = 10;
+const LS_KEY = "ib_portfolio";
 
 const money = (n: number) =>
   n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${Math.round(n / 1000)}K`;
 
+function readLocal(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
+    return Array.isArray(v) ? v.map((t) => String(t).toUpperCase()).slice(0, LIMIT) : [];
+  } catch {
+    return [];
+  }
+}
+function writeLocal(tickers: string[]) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(tickers.slice(0, LIMIT)));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+const FAQ: { q: string; a: React.ReactNode }[] = [
+  {
+    q: "What is the Insider Score?",
+    a: "A 0–100 reading of how much conviction sits behind a company's insider buying. It only exists where insiders have made qualifying open-market purchases in the last 90 days — a company with no recent buying has no score rather than a low one.",
+  },
+  {
+    q: "How do we calculate it?",
+    a: "It is a weighted composite of six pillars read from the SEC Form 4 record and market data: the quality of the insider buying itself (size, stake growth, cluster and repeat purchases), the caliber and track record of the buyers, the sector's strength, management tone, price momentum, and dilution. Awards, option exercises, tax withholding and 10b5-1 plan trades are excluded — only open-market purchases count. Scores refresh daily and cap at 99.",
+  },
+  {
+    q: "What does it mean?",
+    a: "55 and above reads Bullish — unusual, high-conviction buying. 40 to 54 is Neutral — buying is present but routine. Below 40 is Low Buying — filings exist but carry little conviction. It is a research signal about insider behaviour, not a price prediction or a recommendation.",
+  },
+  {
+    q: "How many stocks can I add?",
+    a: `Up to ${LIMIT}. The list is saved in this browser; sign in and it is kept on your account as well.`,
+  },
+  {
+    q: "Why is the score blurred?",
+    a: (
+      <>
+        The Insider Score is part of Insider Access. Everything else on the row — price, how many insiders bought in
+        the last 90 days, how much they spent and when — is free.{" "}
+        <Link href={SUBSCRIBE_HREF} className="font-semibold text-accent">See what Insider Access includes →</Link>
+      </>
+    ),
+  },
+];
+
 export default function PortfolioPage() {
   const { user } = useAuth();
-  const [data, setData] = useState<PortfolioResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [loginOpen, setLoginOpen] = useState(false);
+  const { unlocked } = usePremium();
+  const [tickers, setTickers] = useState<string[]>([]);
+  const [hydrated, setHydrated] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [price, setPrice] = useState<string>("$19");
 
-  const authed = !!user;
-
-  const load = useCallback(async () => {
-    if (!authed) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/portfolio`, {
-        headers: { Authorization: `Bearer ${getAuthToken() ?? ""}` },
-      });
-      if (res.ok) setData((await res.json()) as PortfolioResponse);
-    } finally {
-      setLoading(false);
-    }
-  }, [authed]);
-
+  // Hydrate from the browser, then (signed in, empty) seed from the account.
   useEffect(() => {
-    void load();
-  }, [load]);
-
-  // The $19 figure comes from the live Stripe price, never a hardcoded one.
-  useEffect(() => {
-    fetch(`${API_BASE}/billing/plans`)
-      .then((r) => r.json())
-      .then((d) => {
-        const cents = d?.portfolio?.amount;
-        if (typeof cents === "number") {
-          setPrice(cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`);
+    const local = readLocal();
+    setTickers(local);
+    setHydrated(true);
+    if (!user || local.length) return;
+    fetch(`${API_BASE}/portfolio`, { headers: { Authorization: `Bearer ${getAuthToken() ?? ""}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { holdings?: { ticker: string }[] } | null) => {
+        const remote = (d?.holdings || []).map((h) => h.ticker.toUpperCase()).slice(0, LIMIT);
+        if (remote.length) {
+          setTickers(remote);
+          writeLocal(remote);
         }
       })
       .catch(() => undefined);
-  }, []);
+  }, [user]);
 
-  const add = async (ticker: string) => {
-    if (!authed) {
-      setLoginOpen(true);
-      return;
-    }
+  const key = tickers.length ? `${API_BASE}/portfolio/preview?tickers=${encodeURIComponent(tickers.join(","))}` : null;
+  const { data, isLoading } = useSWR<PreviewResponse>(
+    key,
+    (url: string) => {
+      const token = getAuthToken();
+      return fetch(url, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined).then((r) => r.json());
+    },
+    { revalidateOnFocus: false, refreshInterval: 5 * 60_000 },
+  );
+
+  const mirror = useCallback(
+    (method: "POST" | "DELETE", ticker: string) => {
+      if (!user) return;
+      const token = getAuthToken();
+      if (!token) return;
+      const url = method === "POST" ? `${API_BASE}/portfolio` : `${API_BASE}/portfolio/${encodeURIComponent(ticker)}`;
+      fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: method === "POST" ? JSON.stringify({ ticker }) : undefined,
+      }).catch(() => undefined);
+    },
+    [user],
+  );
+
+  const add = (raw: string) => {
+    const ticker = raw.trim().toUpperCase();
     setError(null);
-    const res = await fetch(`${API_BASE}/portfolio`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${getAuthToken() ?? ""}`,
-      },
-      body: JSON.stringify({ ticker }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(
-        (Array.isArray(json?.message) ? json.message[0] : json?.message) ||
-          "Could not add that stock.",
-      );
+    if (!ticker) return;
+    if (tickers.includes(ticker)) {
+      setError(`${ticker} is already in your portfolio.`);
       return;
     }
+    if (tickers.length >= LIMIT) {
+      setError(`Portfolios hold up to ${LIMIT} stocks — remove one to add another.`);
+      return;
+    }
+    const next = [...tickers, ticker];
+    setTickers(next);
+    writeLocal(next);
     setAdding(false);
-    track("web_portfolio_add", { ticker });
-    void load();
+    mirror("POST", ticker);
+    track("web_portfolio_add", { ticker, count: next.length });
+  };
+  const remove = (ticker: string) => {
+    const next = tickers.filter((t) => t !== ticker);
+    setTickers(next);
+    writeLocal(next);
+    mirror("DELETE", ticker);
   };
 
-  const remove = async (ticker: string) => {
-    await fetch(`${API_BASE}/portfolio/${encodeURIComponent(ticker)}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${getAuthToken() ?? ""}` },
-    });
-    void load();
-  };
-
-  const upgrade = async () => {
-    if (!authed) {
-      setLoginOpen(true);
-      return;
-    }
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    track("web_portfolio_checkout_start", { price: 19 });
-    try {
-      const res = await fetch(`${API_BASE}/portfolio/checkout`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getAuthToken() ?? ""}`,
+  // Rows in the order the visitor added them; a ticker the API does not know
+  // still shows, so the reader can see it and remove it.
+  const holdings = useMemo(() => {
+    const byTicker = new Map((data?.holdings || []).map((h) => [h.ticker.toUpperCase(), h]));
+    return tickers.map(
+      (t) =>
+        byTicker.get(t) ?? {
+          ticker: t,
+          name: null,
+          sector: null,
+          price: null,
+          iqs: null,
+          locked: !unlocked,
+          buyers90d: 0,
+          bought90d: 0,
+          lastBuy: null,
         },
-      });
-      const json = (await res.json()) as { url?: string; message?: string };
-      if (!res.ok || !json.url) throw new Error(json.message || "checkout failed");
-      window.location.href = json.url;
-    } catch {
-      setError("Checkout could not open — please try again in a moment.");
-      setBusy(false);
-    }
-  };
-
-  const holdings = data?.holdings ?? [];
-  const count = holdings.length;
-  const active = data?.active ?? false;
+    );
+  }, [tickers, data, unlocked]);
+  const count = tickers.length;
+  const scoresLocked = !unlocked && !(data?.active ?? false);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <header>
         <h1 className="text-[28px] sm:text-[38px] font-bold tracking-tight" style={{ letterSpacing: "-0.6px" }}>
           Your Portfolio. Scored by Insiders.
         </h1>
         <p className="text-soft text-[15px] sm:text-[16px] mt-3 max-w-2xl leading-relaxed">
-          Add the stocks you own. We&apos;ll tell you what the insiders
-          <br className="hidden sm:block" /> at each company are doing — and alert you the moment
-          <br className="hidden sm:block" /> something changes.
+          Add up to {LIMIT} stocks you own. We&apos;ll show you what the insiders at each company have been doing
+          — who bought, how much, and how much conviction sits behind it.
         </p>
       </header>
 
-      {/* ── FREE STATE — no stocks yet ───────────────────────────────── */}
-      {count === 0 && !loading && (
+      {/* ── ADD / EMPTY STATE ────────────────────────────────────── */}
+      {hydrated && count === 0 && (
         <section className="card p-8 text-center">
           <p className="text-[17px] font-semibold">Add your first stock to get started.</p>
+          <p className="text-[13px] text-mute mt-1">No account needed — your list is saved in this browser.</p>
           <div className="mt-5 max-w-sm mx-auto">
-            {adding && authed ? (
-              <StockSearch
-                dark={false}
-                placeholder="Add a ticker or company (e.g. Apple)…"
-                onSelect={(r) => void add(r.symbol)}
-              />
+            {adding ? (
+              <StockSearch dark={false} placeholder="Add a ticker or company (e.g. Apple)…" onSelect={(r) => add(r.symbol)} />
             ) : (
-              <button
-                type="button"
-                onClick={() => (authed ? setAdding(true) : setLoginOpen(true))}
-                className="btn-primary w-full justify-center"
-              >
+              <button type="button" onClick={() => setAdding(true)} className="btn-primary w-full justify-center">
                 <Plus className="h-4 w-4" /> Add a Stock
               </button>
             )}
@@ -196,28 +231,29 @@ export default function PortfolioPage() {
         </section>
       )}
 
-      {/* ── HOLDINGS ─────────────────────────────────────────────────── */}
+      {/* ── HOLDINGS ─────────────────────────────────────────────── */}
       {count > 0 && (
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-[15px] font-semibold">
-              You&apos;ve added {count} {count === 1 ? "stock" : "stocks"} to your portfolio.
+              {count} of {LIMIT} {count === 1 ? "stock" : "stocks"} in your portfolio.
             </p>
             {adding ? (
               <div className="w-full sm:w-72">
-                <StockSearch
-                  dark={false}
-                  placeholder="Add a ticker or company…"
-                  onSelect={(r) => void add(r.symbol)}
-                />
+                <StockSearch dark={false} placeholder="Add a ticker or company…" onSelect={(r) => add(r.symbol)} />
               </div>
             ) : (
-              <button type="button" onClick={() => setAdding(true)} className="btn-secondary">
+              <button
+                type="button"
+                onClick={() => setAdding(true)}
+                className="btn-secondary"
+                disabled={count >= LIMIT}
+                title={count >= LIMIT ? `Portfolios hold up to ${LIMIT} stocks` : undefined}
+              >
                 <Plus className="h-3.5 w-3.5" /> Add a Stock
               </button>
             )}
           </div>
-
           {error && (
             <p className="text-[13px]" style={{ color: "var(--bad)" }} role="alert">
               {error}
@@ -229,11 +265,17 @@ export default function PortfolioPage() {
               <table className="w-full text-[14px]">
                 <thead>
                   <tr className="text-left" style={{ borderBottom: "1px solid var(--border)" }}>
-                    <th className="px-4 py-3 text-[10.5px] uppercase tracking-wider text-mute">Stock</th>
-                    <th className="px-4 py-3 text-[10.5px] uppercase tracking-wider text-mute text-right">Price</th>
-                    <th className="px-4 py-3 text-[10.5px] uppercase tracking-wider text-mute text-right">Insider Score</th>
-                    <th className="px-4 py-3 text-[10.5px] uppercase tracking-wider text-mute text-right">Buyers (90d)</th>
-                    <th className="px-4 py-3 text-[10.5px] uppercase tracking-wider text-mute text-right">Bought (90d)</th>
+                    <Th>Stock</Th>
+                    <Th right>Price</Th>
+                    <Th center>
+                      <span className="inline-flex items-center gap-1.5">
+                        {scoresLocked && <Lock className="h-3 w-3" style={{ color: "var(--premium)" }} />}
+                        Insider Score
+                      </span>
+                    </Th>
+                    <Th right>Buyers (90d)</Th>
+                    <Th right>Bought (90d)</Th>
+                    <Th right>Last buy</Th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -241,40 +283,33 @@ export default function PortfolioPage() {
                   {holdings.map((h) => (
                     <tr key={h.ticker} style={{ borderBottom: "1px solid var(--border)" }}>
                       <td className="px-4 py-3">
-                        <Link href={`/companies/${h.ticker}`} className="font-semibold text-accent">
+                        <Link href={`/companies/${encodeURIComponent(h.ticker)}`} className="font-semibold text-accent">
                           {h.ticker}
                         </Link>
                         {h.name && <div className="text-[12px] text-mute">{h.name}</div>}
                       </td>
-                      <td className="px-4 py-3 text-right tabular">
-                        {h.price != null ? `$${h.price.toFixed(2)}` : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right tabular">{h.price != null ? `$${h.price.toFixed(2)}` : "—"}</td>
+                      <td className="px-4 py-3 text-center">
                         {h.locked ? (
-                          <span
-                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[12px] font-bold select-none"
-                            style={{
-                              background: "var(--bg-3, rgba(120,130,150,0.14))",
-                              color: "var(--text-mute)",
-                              filter: "blur(0.6px)",
-                            }}
-                            aria-label="Insider Score locked"
-                            title="Unlock with Portfolio Intelligence"
-                          >
-                            <Lock className="h-3 w-3" style={{ filter: "none" }} /> 00
-                          </span>
+                          // Decoy only — the API sent no score for a locked viewer.
+                          <PremiumValue label="Insider Score">
+                            <span />
+                          </PremiumValue>
                         ) : (
-                          <span className="font-bold tabular">{h.iqs ?? "—"}</span>
+                          <IqsScoreCell iqs={h.iqs} />
                         )}
                       </td>
                       <td className="px-4 py-3 text-right tabular">{h.buyers90d || "—"}</td>
-                      <td className="px-4 py-3 text-right tabular">
+                      <td className="px-4 py-3 text-right tabular text-good font-semibold">
                         {h.bought90d ? money(h.bought90d) : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right text-[13px] text-mute whitespace-nowrap">
+                        {h.lastBuy ? formatRelative(h.lastBuy) : "—"}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
                           type="button"
-                          onClick={() => void remove(h.ticker)}
+                          onClick={() => remove(h.ticker)}
                           className="text-mute hover:text-accent transition"
                           aria-label={`Remove ${h.ticker}`}
                         >
@@ -285,73 +320,52 @@ export default function PortfolioPage() {
                   ))}
                 </tbody>
               </table>
+              {isLoading && !data && <p className="px-4 py-3 text-[12.5px] text-mute">Loading insider data…</p>}
             </div>
+            {scoresLocked && (
+              <PremiumRowWall
+                label="Portfolio Insider Scores"
+                total={count}
+                bullets={[
+                  "The Insider Score on every stock you hold, updated daily",
+                  "Insider ROI, signals and the full Form 4 record behind each",
+                  "Top Insider Buys, rankings and every other Insider Access signal",
+                ]}
+              />
+            )}
           </div>
-
-          {/* Free state after adding — the brief's exact lines. */}
-          {!active && (
-            <div className="card p-5">
-              <p className="text-[15px] leading-relaxed">
-                Unlock Insider Scores for all of them — and get
-                <br className="hidden sm:block" /> SMS alerts when insiders make a move.
-              </p>
-              <button
-                type="button"
-                onClick={upgrade}
-                disabled={busy}
-                className="btn-primary mt-4"
-              >
-                {busy ? "Opening checkout…" : `Unlock Portfolio Intelligence — ${price}/month`}
-              </button>
-            </div>
-          )}
+          <p className="text-[12px] text-mute">
+            Buyers and dollars are open-market insider purchases (SEC Form 4, code P) in the last 90 days. Awards,
+            option exercises and tax withholding are excluded. Informational only — not investment advice.
+          </p>
         </section>
       )}
 
-      {/* ── 3B UPGRADE CARD + 3C PHONE FRAME ─────────────────────────── */}
-      {!active && (
-        <section className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-6 items-start">
-          <div className="card p-6 sm:p-7">
-            <h2 className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-snug">
-              You&apos;re 1 step away from knowing what insiders
-              <br className="hidden sm:block" /> at your companies are doing.
-            </h2>
-            <p className="text-soft text-[15px] mt-3 leading-relaxed">
-              Insider scores, cluster buy alerts, and real-time
-              <br className="hidden sm:block" /> SMS notifications — for every stock in your portfolio.
-            </p>
-
-            <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-mute mt-6">
-              What you get
-            </p>
-            <ul className="mt-3 space-y-2.5">
-              {BENEFITS.map((b) => (
-                <li key={b} className="flex gap-2.5 text-[14.5px] leading-relaxed">
-                  <span aria-hidden style={{ color: "var(--good)" }}>✓</span>
-                  <span>{b}</span>
-                </li>
-              ))}
-            </ul>
-
-            <p className="text-[17px] font-bold mt-6">{price}/month — cancel anytime</p>
-            <button
-              type="button"
-              onClick={upgrade}
-              disabled={busy}
-              className="btn-primary mt-4 w-full sm:w-auto justify-center"
-            >
-              {busy ? "Opening checkout…" : "Unlock My Portfolio Scores →"}
-            </button>
-            <p className="text-[12px] text-mute mt-3">
-              30-day money-back guarantee. You keep the alerts.
-            </p>
-          </div>
-
-          <PhoneFrame />
-        </section>
-      )}
-
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+      {/* ── FAQ ─────────────────────────────────────────────────── */}
+      <section>
+        <h2 className="text-[22px] font-bold tracking-tight mb-3">About the Insider Score</h2>
+        <div className="card divide-y divide-[var(--border)]">
+          {FAQ.map((f) => (
+            <details key={f.q} className="group p-4">
+              <summary className="cursor-pointer font-semibold text-[15px] list-none flex items-center justify-between">
+                {f.q}
+                <span aria-hidden className="text-mute group-open:rotate-45 transition">+</span>
+              </summary>
+              <p className="text-[14px] text-mute mt-2 leading-relaxed">{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
     </div>
+  );
+}
+
+function Th({ children, right, center }: { children: React.ReactNode; right?: boolean; center?: boolean }) {
+  return (
+    <th
+      className={`px-4 py-3 text-[10.5px] uppercase tracking-wider text-mute ${right ? "text-right" : center ? "text-center" : ""}`}
+    >
+      {children}
+    </th>
   );
 }

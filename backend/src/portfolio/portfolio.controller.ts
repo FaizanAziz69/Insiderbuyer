@@ -8,6 +8,7 @@ import {
   Post,
   UnauthorizedException,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -49,6 +50,20 @@ export class PortfolioController {
   @Get()
   async list(@Headers('authorization') auth?: string) {
     return this.portfolio.list(await this.requireUser(auth));
+  }
+
+  /** Guest portfolio preview — see PortfolioService.preview. Scores unlock
+   *  only for a bearer token belonging to an Insider Access member or an
+   *  active portfolio-tier subscriber. */
+  @Get('preview')
+  async preview(@Query('tickers') tickers?: string, @Headers('authorization') auth?: string) {
+    let unlock = false;
+    const payload = this.auth.verifyToken(bearer(auth));
+    if (payload) {
+      const user = await this.users.findOne({ where: { id: payload.sub } });
+      if (user) unlock = this.billing.isPortfolioActive(user) || (await this.billing.isPremium(user));
+    }
+    return this.portfolio.preview((tickers || '').split(',').filter(Boolean), unlock);
   }
 
   @Get('status')

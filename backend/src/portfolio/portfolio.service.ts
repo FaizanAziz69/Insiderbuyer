@@ -13,7 +13,7 @@ import { SmsService } from './sms.service';
 import { plausibleTxSql } from '../iqs/tx-sanity';
 
 /** The brief: "Free users: allow adding up to 5 stocks." */
-export const FREE_HOLDING_LIMIT = 5;
+export const FREE_HOLDING_LIMIT = 10; // client 2026-09-08: 'up to 10 selections'
 const PAID_HOLDING_LIMIT = 60;
 
 /** Windows the alert rules use, matching the brief's own SMS mockups. */
@@ -34,7 +34,7 @@ export interface HoldingRow {
   buyers90d: number;
   bought90d: number;
   lastBuy: string | null;
-  addedAt: string;
+  addedAt: string | null;
 }
 
 @Injectable()
@@ -65,7 +65,39 @@ export class PortfolioService {
     if (!rows.length) {
       return { holdings: [], active, limit: active ? PAID_HOLDING_LIMIT : FREE_HOLDING_LIMIT };
     }
+    const holdings = await this.holdingRows(
+      rows.map((r) => ({ ticker: r.ticker, addedAt: r.createdAt.toISOString().slice(0, 10) })),
+      active,
+    );
+    return { holdings, active, limit: active ? PAID_HOLDING_LIMIT : FREE_HOLDING_LIMIT };
+  }
 
+  /**
+   * Guest portfolio (client 2026-09-08: no "Create an account" popup — anyone
+   * enters up to 10 tickers, the paygated columns render blurred). The list
+   * lives in the visitor's browser; this returns the same row shape as the
+   * signed-in table for those tickers. `unlock` is decided by the caller from
+   * the bearer token (Insider Access or the portfolio tier); a guest never
+   * receives a score — `iqs` is null and `locked` true, so the real number is
+   * not in the response, not merely hidden.
+   */
+  async preview(tickersRaw: string[], unlock: boolean): Promise<{ holdings: HoldingRow[]; active: boolean; limit: number }> {
+    const tickers = Array.from(
+      new Set(
+        tickersRaw
+          .map((t) => (t || '').trim().toUpperCase().slice(0, 16))
+          .filter((t) => /^[A-Z0-9.\-]{1,16}$/.test(t)),
+      ),
+    ).slice(0, FREE_HOLDING_LIMIT);
+    if (!tickers.length) return { holdings: [], active: unlock, limit: FREE_HOLDING_LIMIT };
+    const holdings = await this.holdingRows(tickers.map((ticker) => ({ ticker, addedAt: null })), unlock);
+    return { holdings, active: unlock, limit: FREE_HOLDING_LIMIT };
+  }
+
+  private async holdingRows(
+    rows: Array<{ ticker: string; addedAt: string | null }>,
+    active: boolean,
+  ): Promise<HoldingRow[]> {
     const tickers = rows.map((r) => r.ticker);
     const stats = await this.holdings.query(
       `
@@ -102,7 +134,7 @@ export class PortfolioService {
       (stats as Record<string, unknown>[]).map((r) => [String(r.ticker).toUpperCase(), r]),
     );
 
-    const holdings: HoldingRow[] = rows.map((r) => {
+    return rows.map((r) => {
       const s = byTicker.get(r.ticker);
       const iqs = s?.iqs != null ? Math.round(Number(s.iqs)) : null;
       return {
@@ -115,10 +147,9 @@ export class PortfolioService {
         buyers90d: s?.buyers != null ? Number(s.buyers) : 0,
         bought90d: s?.bought != null ? Number(s.bought) : 0,
         lastBuy: isoDate(s?.lastBuy),
-        addedAt: r.createdAt.toISOString().slice(0, 10),
+        addedAt: r.addedAt,
       };
     });
-    return { holdings, active, limit: active ? PAID_HOLDING_LIMIT : FREE_HOLDING_LIMIT };
   }
 
   async add(user: User, tickerRaw: string): Promise<{ ok: true; count: number }> {
