@@ -77,7 +77,7 @@ export function HowItWorks() {
 export const HOW_CSS = `
 .biv-steps { list-style: none; margin: 44px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
 .biv-step { position: relative; background: var(--bg2); border: 1px solid var(--line); border-radius: 18px; padding: 26px 24px 28px; display: grid; gap: 14px; }
-.biv-step-art { height: 96px; display: grid; place-items: center; background: rgba(9,17,31,0.55); border-radius: 12px; border: 1px solid var(--line); }
+.biv-step-art { height: 96px; display: grid; place-items: center; background: var(--panel-b); border-radius: 12px; border: 1px solid var(--line); }
 .biv-step-art svg { width: 150px; height: 100px; }
 .biv-step-n { font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: 34px; color: var(--brand); line-height: 1; }
 .biv-step-text { font-size: 17px; line-height: 1.5; color: var(--ink); font-weight: 600; margin: 0; }

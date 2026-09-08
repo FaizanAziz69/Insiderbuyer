@@ -777,6 +777,8 @@ const CSS = `
   /* Hover fill for every CTA: the navbar colour with white text, identical in
      light and dark (client 2026-08-24). */
   --hover-fill: #005882; --hover-ink: #FFFFFF;
+  /* Research module's serif "Harvard" wordmark: cream on the dark page. */
+  --research-serif: #F2E6C9;
   /* Hero glass-panel surfaces (theme-aware so neither panel reads heavy). */
   --panel-a: rgba(19,33,55,0.92); --panel-b: rgba(9,17,31,0.86);
   --panel-line-c: rgba(157,176,199,0.18);
@@ -1033,6 +1035,7 @@ const CSS = `
 
 /* ── Light theme (site data-theme="light") ── */
 :root[data-theme="light"] .biv {
+  --research-serif: #0E1F35;
   --ink: #0E1F35; --dim: #4A5D75; --faint: #7C90A8;
   --bg: #F5F7FA; --bg2: #FFFFFF; --line: rgba(14,31,53,0.12);
   background:

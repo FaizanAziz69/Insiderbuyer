@@ -68,9 +68,12 @@ export const RESEARCH_CSS = `
 .biv-research-wrap { padding-top: 8px !important; }
 .biv-research {
   display: grid; grid-template-columns: 300px 1fr; gap: 40px; align-items: center;
-  background: linear-gradient(135deg, rgba(19,33,55,0.96), rgba(9,17,31,0.92));
+  /* Theme-aware glass surfaces (the hero panels' tokens) — the module was
+     first shipped on a hardcoded navy gradient, which put dark text on a dark
+     card in the site's light theme. */
+  background: linear-gradient(135deg, var(--panel-a), var(--panel-b));
   border: 1px solid var(--panel-line-c); border-radius: 22px; padding: 44px 48px;
-  box-shadow: 0 30px 80px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+  box-shadow: 0 30px 80px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04);
   position: relative; overflow: hidden;
 }
 .biv-research::before {
@@ -80,7 +83,7 @@ export const RESEARCH_CSS = `
 .biv-research-mark { display: grid; gap: 6px; justify-items: start; border-right: 1px solid var(--line); padding-right: 34px; }
 .biv-research-serif {
   font-family: Georgia, "Times New Roman", "Iowan Old Style", serif; font-weight: 700;
-  font-size: clamp(54px, 5.6vw, 80px); letter-spacing: -0.02em; line-height: 0.95; color: #F2E6C9;
+  font-size: clamp(54px, 5.6vw, 80px); letter-spacing: -0.02em; line-height: 0.95; color: var(--research-serif, #F2E6C9);
 }
 .biv-research-sub { font-size: 12.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
 .biv-research-eyebrow { text-align: left !important; margin-bottom: 10px; }
