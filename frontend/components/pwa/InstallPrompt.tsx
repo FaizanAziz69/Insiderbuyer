@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Share, X, Plus } from "lucide-react";
 import { popupsAllowedOn } from "@/lib/funnel";
+import { useBarePage } from "@/lib/use-bare-page";
 
 /**
  * In-app install prompt.
@@ -40,6 +41,9 @@ function isStandalone(): boolean {
 }
 
 export function InstallPrompt() {
+  // Chrome-free B2B pages (press subdomain, /campaigns) are not the consumer
+  // app: the home-screen install prompt does not belong on them.
+  const bare = useBarePage();
   const pathname = usePathname() || "/";
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [ios, setIos] = useState(false);
@@ -141,6 +145,7 @@ export function InstallPrompt() {
     setDeferred(null);
   };
 
+  if (bare) return null;
   if (!visible || modalOpen) return null;
   if (!deferred && !ios) return null;
   if (!popupsAllowedOn(pathname)) return null;

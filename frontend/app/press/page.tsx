@@ -232,7 +232,11 @@ function LogoWall() {
         <div className="b2b3-marquee">
           <div className="b2b3-marquee-track">
             {[...outlets, ...outlets].map((o, i) => (
-              <span key={`${o.name}-${i}`} className={`b2b3-outlet${o.prominent ? " b2b3-outlet-hot" : ""}`}>
+              <span
+                key={`${o.name}-${i}`}
+                className={`b2b3-outlet${o.prominent ? " b2b3-outlet-hot" : ""}${i >= outlets.length ? " b2b3-dup" : ""}`}
+                aria-hidden={i >= outlets.length || undefined}
+              >
                 {o.name}
               </span>
             ))}
@@ -586,7 +590,7 @@ const CSS = `
 .b2b3-logos .b2b3-eyebrow { text-align: center; }
 .b2b3-marquee { overflow: hidden; }
 .b2b3-marquee-track { display: flex; justify-content: center; gap: 44px; flex-wrap: wrap; filter: grayscale(1); }
-.b2b3-marquee-track > :nth-child(n+6) { display: none; }
+.b2b3-dup { display: none; }
 .b2b3-outlet { font-family: var(--b2b-display), sans-serif; font-weight: 800; font-size: 20px; color: #7D8A9C; white-space: nowrap; }
 .b2b3-outlet-hot { color: var(--navy); font-size: 24px; filter: none; }
 .b2b3-strip { padding: 14px 0 6px; }
@@ -607,7 +611,7 @@ const CSS = `
 /* editorial focus */
 .b2b3-focus { background: var(--navy); color: #fff; padding: 76px 0; }
 .b2b3-focus-in { display: grid; grid-template-columns: .9fr 1.1fr; gap: 44px; align-items: start; }
-.b2b3-focus-h2 { font-family: var(--b2b-display), sans-serif; font-size: clamp(26px, 3vw, 38px); font-weight: 800; letter-spacing: -.5px; line-height: 1.12; color: #fff; }
+.b2b3 .b2b3-focus-h2 { font-family: var(--b2b-display), sans-serif; font-size: clamp(26px, 3vw, 38px); font-weight: 800; letter-spacing: -.5px; line-height: 1.12; color: #fff; }
 .b2b3-focus-copy p { font-size: 17px; line-height: 1.7; color: #D5DEEA; margin: 0 0 16px; }
 .b2b3-focus-copy p:last-of-type { color: #fff; font-weight: 700; }
 .b2b3-livechip { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: 8px 14px; font-family: var(--b2b-mono), monospace; font-size: 13px; color: #fff; margin-top: 6px; }
@@ -685,7 +689,7 @@ const CSS = `
   .b2b3-section { padding: 52px 0; }
   .b2b3-collage { height: 260px; }
   .b2b3-marquee-track { flex-wrap: nowrap; justify-content: flex-start; width: max-content; animation: b2b3-marquee 22s linear infinite; }
-  .b2b3-marquee-track > :nth-child(n+6) { display: inline; }
+  .b2b3-dup { display: inline; }
   @keyframes b2b3-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 }
 @media (prefers-reduced-motion: reduce) { .b2b3-marquee-track { animation: none !important; } }
