@@ -180,6 +180,7 @@ export function ProductShowcase({ visuals = SHOWCASE }: { visuals?: ShowcaseVisu
 export const SHOWCASE_CSS = `
 .sc-grid { display: grid; gap: 96px; margin-top: 56px; }
 .sc-row { margin: 0; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr); gap: 44px; align-items: center; }
+.sc-row-flip { grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.55fr); }
 .sc-row-flip .sc-frame { order: 2; }
 .sc-row-flip .sc-cap { order: 1; }
 /* Embedded, not a screenshot (client 2026-09-09): the composition is a
