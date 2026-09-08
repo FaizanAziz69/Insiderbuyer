@@ -1,519 +1,692 @@
 "use client";
 /**
- * press.insiderbuying.com — the B2B site (Round-2 brief, Section 4).
- *
- * A standalone page, deliberately not the consumer app: its own minimal
- * header, its own corporate navy/gold treatment, and one conversion goal —
- * book a discovery call. Rendered at /press so the subdomain can point here
- * (see docs/press-subdomain.md); the brief allows either a static page or a
- * Next.js route with its own layout.
- *
- * Structure follows 4A exactly: Header · Hero · The Opportunity · Services ·
- * How It Works · Editorial Platform · Packages · Book a Call. Copy in 4B and
- * 4C is verbatim.
+ * press.insiderbuying.com — Brief v3 (2026-09-08): BrandPush-style self-serve
+ * press-publishing page. Section order and behaviour follow the brief's
+ * element map (§2) one-for-one:
+ *   1 sticky nav · 2 hero · 3 logo wall · 4 network stats strip · 5 four-step
+ *   process · 6 Editorial Focus · 7 pricing · 8 trust badge · 9 testimonials
+ *   (hidden until three real quotes) · 10 FAQ · 11 enterprise band · 12 footer.
+ * Copy in §4 and §5 is verbatim. Every package figure the brief marks
+ * [verify] renders as a placeholder until lib/press-config marks it verified.
  */
-import { useState } from "react";
-import { API_BASE } from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import useSWR from "swr";
+import {
+  ArrowRight,
+  BadgeCheck,
+  Check,
+  FileText,
+  Lock,
+  Newspaper,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  X,
+  Zap,
+} from "lucide-react";
+import { API_BASE, fetcher } from "@/lib/api";
+import { getCheckoutAttribution, track } from "@/lib/analytics";
+import { getFunnelEntry } from "@/lib/funnel";
+import { SiteBanners, PromoCard } from "@/components/banners/SiteBanners";
+import {
+  AUDIENCE_LINE,
+  CALENDLY_URL,
+  HERO_PLACEMENTS,
+  OUTLETS,
+  PRESS_FAQ,
+  PRESS_PACKAGES,
+  SAMPLE_REPORT_URL,
+  TESTIMONIALS,
+  type PressPackageConfig,
+} from "@/lib/press-config";
 
-/**
- * Scroll to a section.
- *
- * This document resists every normal approach: the global overflow:clip on
- * html/body plus the 1.1 body zoom leave the native hash jump,
- * window.scrollTo(), scrollIntoView() and scrollTo({behavior:"smooth"}) all
- * doing nothing (each measured on the live page). documentElement.scrollTo
- * with behavior:"instant" is the one call that moves it.
- *
- * Deliberately no requestAnimationFrame easing: rAF does not fire while a tab
- * is hidden, so an eased version silently did nothing under test and would
- * hang on tab visibility in the wild. An instant jump is what an anchor does.
- */
-function jumpTo(id: string) {
-  return (e: React.MouseEvent) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    e.preventDefault();
-    const de = document.documentElement;
-    de.scrollTo({ top: de.scrollTop + el.getBoundingClientRect().top, behavior: "instant" });
-    history.replaceState(null, "", `#${id}`);
-  };
+const NAV = [
+  ["how-it-works", "How It Works"],
+  ["pricing", "Pricing"],
+  ["samples", "Samples"],
+  ["faq", "FAQ"],
+] as const;
+
+/** §4.1 — the four benefit bullets, verbatim, with icons. */
+const BENEFITS = [
+  { icon: ShieldCheck, title: "Build Trust", text: "Turn more visitors into buyers" },
+  { icon: TrendingUp, title: "Rank Higher", text: "Strengthen Google and AI visibility" },
+  { icon: Newspaper, title: "Get Featured", text: "Appear on major news sites" },
+  { icon: Zap, title: "Fast Delivery", text: "Order today, get published by Sunday" },
+];
+
+/** §4.3 — verbatim. */
+const STEPS = [
+  { icon: FileText, title: "Write or Submit", text: "Submit your investor press kit or let our team create it." },
+  { icon: Search, title: "Review and Approve", text: "Review the content and request any changes." },
+  { icon: Newspaper, title: "Get Published", text: "We publish your story on leading news sites." },
+  { icon: TrendingUp, title: "Track Your Results", text: "Receive a report with live links and SEO data." },
+];
+
+function scrollToId(id: string) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const de = document.documentElement;
+  de.scrollTo({ top: de.scrollTop + el.getBoundingClientRect().top - 72, behavior: "instant" });
+  history.replaceState(null, "", `#${id}`);
 }
 
-/** 4C — three services, verbatim, with the brief's "From" prices. */
-const SERVICES = [
-  {
-    kicker: "Press Release Distribution",
-    title: "Signal Amplification",
-    body: [
-      "We transform your insider buying activity into professionally",
-      "crafted press releases — distributed to the wire, emailed to our",
-      "full subscriber list, and amplified across social media.",
-      "This is not hype. This is signal amplification.",
-    ],
-    price: "From $4,889",
-  },
-  {
-    kicker: "IR Campaigns",
-    title: "Full-Stack Investor Acquisition",
-    body: [
-      "We build the funnel, write the copy, drive the traffic,",
-      "and deliver qualified retail investors to your company's story.",
-      "We measure everything. You see every dollar working.",
-    ],
-    price: "From $30,000",
-  },
-  {
-    kicker: "Editorial Features",
-    title: "CEO Interview & Sponsored Editorial",
-    body: [
-      "A published interview or editorial piece on InsiderBuying.com,",
-      "distributed to our audience of investors who specifically follow",
-      "what insiders are doing. Your story, in the right room.",
-    ],
-    price: "From $2,500",
-  },
-];
-
-/** 4B — the trust bar, and 4A's "2-3 stat callouts on the audience". */
-const STATS = [
-  { big: "50,000+", label: "Subscribers" },
-  { big: "8,000+", label: "Companies Covered" },
-  { big: "4,000+", label: "Filings Scanned Daily" },
-];
-
-/** 4A — "3-step visual: Campaign built → Distributed to audience →
- *  Performance data delivered". */
-const STEPS = [
-  { n: "01", title: "Campaign built", body: "We shape the story around your filings and your milestones." },
-  { n: "02", title: "Distributed to audience", body: "Wire, subscriber email and social — to investors who follow insider activity." },
-  { n: "03", title: "Performance data delivered", body: "Opens, clicks, readership and reach, reported back to your team." },
-];
-
-/** 4D — "the three press release packages from the existing package deck —
- *  $4,889 / $14,889 / $48,889", named as 4A names them. The deck's inclusions
- *  are not in the brief, so nothing is invented here. */
-const PACKAGES = [
-  { name: "Essentials", price: "$4,889" },
-  { name: "Conviction Campaign", price: "$14,889", featured: true },
-  { name: "Go Viral", price: "$48,889" },
-];
-
-// George's booking link (2026-09-01) — env var still wins if ever set.
-const CALENDLY =
-  process.env.NEXT_PUBLIC_CALENDLY_URL ||
-  "https://calendly.com/george-insiderbuying/30min";
-
 export default function PressPage() {
+  const [sampleOpen, setSampleOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    track("press_view", { entry: getFunnelEntry(), ...getCheckoutAttribution() });
+  }, []);
+
+  const openSample = useCallback((from: string) => {
+    track("press_sample_open", { from });
+    setSampleOpen(true);
+  }, []);
+
+  const checkout = async (pkg: PressPackageConfig) => {
+    if (busy) return;
+    setBusy(pkg.key);
+    setErr(null);
+    const attribution = { entry: getFunnelEntry(), ...getCheckoutAttribution() };
+    track("press_checkout_start", { package: pkg.key, price: pkg.priceUsd, ...attribution });
+    try {
+      const res = await fetch(`${API_BASE}/press/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ package: pkg.key, attribution }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.url) throw new Error(j?.message || "Checkout is unavailable right now.");
+      window.location.href = j.url as string;
+    } catch (e) {
+      setBusy(null);
+      setErr(e instanceof Error ? e.message : "Checkout is unavailable right now.");
+    }
+  };
+
   return (
-    <div className="b2b">
-      <Header />
-      <Hero />
-      <Opportunity />
-      <Services />
-      <HowItWorks />
-      <Editorial />
-      <Packages />
-      <BookACall />
+    <div className="b2b3">
+      <SiteBanners />
+      <Nav />
+      <Hero onSample={() => openSample("hero")} />
+      <LogoWall />
+      <StatsStrip />
+      <Process />
+      <EditorialFocus />
+      <Pricing onCheckout={checkout} onSample={() => openSample("pricing")} busy={busy} err={err} />
+      <PromoCard className="b2b3-wrap" />
+      <BadgeFeature />
+      <Testimonials />
+      <Faq />
+      <Enterprise />
       <Footer />
+      {sampleOpen && <SampleModal onClose={() => setSampleOpen(false)} />}
       <style>{CSS}</style>
     </div>
   );
 }
 
-function Header() {
+/* 1 ─ Sticky nav */
+function Nav() {
   return (
-    <header className="b2b-header">
-      <div className="b2b-wrap b2b-header-in">
-        <div className="b2b-brand">
-          <span className="b2b-logo">
-            INSIDER<span>BUYING</span>
-          </span>
-          <span className="b2b-tagline">For Public Companies &amp; Investor Relations</span>
-        </div>
-        <a href="#book" onClick={jumpTo("book")} className="b2b-btn b2b-btn-gold b2b-btn-sm">
-          Book a Call
+    <header className="b2b3-nav">
+      <div className="b2b3-wrap b2b3-nav-in">
+        <Link href="/press" className="b2b3-logo" aria-label="InsiderBuying.com press publishing">
+          INSIDER<span>BUYING</span>
+          <small>Press</small>
+        </Link>
+        <nav className="b2b3-nav-links" aria-label="Page sections">
+          {NAV.map(([id, label]) => (
+            <a key={id} href={`#${id}`} onClick={(e) => { e.preventDefault(); scrollToId(id); }}>
+              {label}
+            </a>
+          ))}
+        </nav>
+        <a href="#pricing" onClick={(e) => { e.preventDefault(); scrollToId("pricing"); track("press_cta", { where: "nav" }); }} className="b2b3-btn b2b3-btn-green b2b3-btn-sm">
+          Get Started
         </a>
       </div>
     </header>
   );
 }
 
-function Hero() {
+/* 2 ─ Hero */
+function Hero({ onSample }: { onSample: () => void }) {
   return (
-    <section className="b2b-hero">
-      <div className="b2b-wrap">
-        <p className="b2b-eyebrow">For Investor Relations Teams &amp; Public Companies</p>
-        <h1 className="b2b-h1">
-          Reach 50,000+ Investors Who
-          <br />
-          Actually Follow Insider Buying.
-        </h1>
-        <p className="b2b-sub">
-          InsiderBuying.com is the platform serious retail investors,
-          <br className="b2b-br" /> fund managers, and investment advisors use to track insider
-          <br className="b2b-br" /> conviction. When your insiders buy stock, we help make sure
-          <br className="b2b-br" /> the right investors notice.
+    <section className="b2b3-hero">
+      <div className="b2b3-wrap b2b3-hero-in">
+        <div>
+          <h1 className="b2b3-h1">
+            Build Instant Authority,
+            <br />
+            Get discovered on Google &amp; AI
+          </h1>
+          <p className="b2b3-hero-kicker">Reach your target audience</p>
+          <p className="b2b3-hero-sub">
+            Announce your company news to global investors, financial advisors, analysts, and more.
+          </p>
+          <p className="b2b3-hero-body">
+            Get your story published on major news sites to build trust, improve visibility, and attract more investors
+          </p>
+          <ul className="b2b3-benefits">
+            {BENEFITS.map((b) => (
+              <li key={b.title}>
+                <b.icon size={18} aria-hidden />
+                <span><strong>{b.title}:</strong> {b.text}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="b2b3-ctas">
+            <a href="#pricing" onClick={(e) => { e.preventDefault(); scrollToId("pricing"); track("press_cta", { where: "hero" }); }} className="b2b3-btn b2b3-btn-green">
+              Get Started <ArrowRight size={16} />
+            </a>
+            <button type="button" onClick={onSample} className="b2b3-btn b2b3-btn-ghost">
+              View Sample Report
+            </button>
+          </div>
+        </div>
+        <HeroVisual />
+      </div>
+    </section>
+  );
+}
+
+/** Collage of live placement screenshots — real, client-signed-off assets
+ *  only (§3/§8). Until they exist the frames hold labelled placeholders. */
+function HeroVisual() {
+  const frames = HERO_PLACEMENTS.length
+    ? HERO_PLACEMENTS.slice(0, 3)
+    : [{ src: "", alt: "Placement screenshot — pending client sign-off" }, { src: "", alt: "Placement screenshot — pending client sign-off" }, { src: "", alt: "Placement screenshot — pending client sign-off" }];
+  return (
+    <div className="b2b3-collage" aria-label="Live placement screenshots">
+      {frames.map((f, i) => (
+        <figure key={i} className={`b2b3-shot b2b3-shot-${i}`}>
+          <div className="b2b3-shot-bar"><i /><i /><i /></div>
+          {f.src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={f.src} alt={f.alt} loading={i === 0 ? "eager" : "lazy"} />
+          ) : (
+            <div className="b2b3-shot-ph">
+              <Newspaper size={22} aria-hidden />
+              <span>Live placement</span>
+              <small>screenshot pending client sign-off</small>
+            </div>
+          )}
+        </figure>
+      ))}
+    </div>
+  );
+}
+
+/* 3 ─ Logo wall */
+function LogoWall() {
+  const outlets = OUTLETS.filter((o) => o.confirmed);
+  return (
+    <section className="b2b3-logos" aria-label="Where your story can appear">
+      <div className="b2b3-wrap">
+        <p className="b2b3-eyebrow">GET SEEN ON</p>
+        <div className="b2b3-marquee">
+          <div className="b2b3-marquee-track">
+            {[...outlets, ...outlets].map((o, i) => (
+              <span key={`${o.name}-${i}`} className={`b2b3-outlet${o.prominent ? " b2b3-outlet-hot" : ""}`}>
+                {o.name}
+              </span>
+            ))}
+          </div>
+        </div>
+        {OUTLETS.some((o) => !o.confirmed) && (
+          <p className="b2b3-fine b2b3-center">Additional outlets appear here as they are confirmed in our distribution network.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* 4 ─ Network stats strip */
+function StatsStrip() {
+  const outlets = OUTLETS.filter((o) => o.confirmed);
+  return (
+    <section className="b2b3-strip" aria-label="Network authority">
+      <div className="b2b3-wrap b2b3-strip-in">
+        {outlets.map((o) => (
+          <div key={o.name} className="b2b3-chip">
+            <span className="b2b3-chip-name">{o.name}</span>
+            {o.verified ? (
+              <>
+                <span className="b2b3-chip-stat"><b>DA {o.domainAuthority}</b></span>
+                <span className="b2b3-chip-stat">{o.monthlyVisits} monthly visits</span>
+              </>
+            ) : (
+              <span className="b2b3-chip-pending">authority figures pending partner confirmation</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* 5 ─ Four-step process */
+function Process() {
+  return (
+    <section className="b2b3-section" id="how-it-works">
+      <div className="b2b3-wrap">
+        <h2 className="b2b3-h2 b2b3-center">The Fast-Track to Authority and Getting Noticed</h2>
+        <p className="b2b3-lead b2b3-center">
+          Leverage the high Domain Authority of news giants to secure powerful Media Mentions and scale your coverage.
         </p>
-        <div className="b2b-ctas">
-          <a href="#book" onClick={jumpTo("book")} className="b2b-btn b2b-btn-gold">
-            Book a Discovery Call
-          </a>
-          <a href="#packages" onClick={jumpTo("packages")} className="b2b-btn b2b-btn-ghost">
-            See Our Packages →
-          </a>
-        </div>
-        <div className="b2b-trust">
-          {STATS.map((s, i) => (
-            <div key={s.label} className="b2b-trust-item">
-              <b>{s.big}</b> <span>{s.label}</span>
-              {i < STATS.length - 1 && <i aria-hidden>|</i>}
-            </div>
+        <ol className="b2b3-steps">
+          {STEPS.map((s, i) => (
+            <li key={s.title} className="b2b3-step">
+              <div className="b2b3-step-icon"><s.icon size={22} aria-hidden /></div>
+              <span className="b2b3-step-n">{i + 1}</span>
+              <h3>{s.title}</h3>
+              <p>{s.text}</p>
+            </li>
           ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/* 6 ─ Editorial Focus (§5, approved copy v1) */
+function EditorialFocus() {
+  const { data } = useSWR<{ filingsToday: number; filingsLast24h: number }>(`${API_BASE}/press/stats`, fetcher, { revalidateOnFocus: false });
+  const n = data?.filingsToday ?? null;
+  return (
+    <section className="b2b3-focus">
+      <div className="b2b3-wrap b2b3-focus-in">
+        <div>
+          <p className="b2b3-eyebrow b2b3-eyebrow-gold">Our Editorial Focus</p>
+          <h2 className="b2b3-focus-h2">Our Editorial Focus: driven by insider conviction.</h2>
+        </div>
+        <div className="b2b3-focus-copy">
+          <p>
+            InsiderBuying.com covers one thing better than anyone: what the people who run public companies
+            do with their own money. We scan thousands of filings a day, score every open-market buy, and
+            publish the signal — not the noise.
+          </p>
+          <p>
+            That focus built our audience: {AUDIENCE_LINE} investors, advisors, and analysts who don&rsquo;t
+            follow hype. They follow conviction. They open our alerts because a CEO just wrote a personal
+            cheque, and they want to know why.
+          </p>
+          <p>
+            When your story runs with us, it lands in that room. No filler feeds. No bots. Just readers who
+            move when the evidence moves them — because it pays to have good information.
+          </p>
+          {n != null && n > 0 && (
+            <div className="b2b3-livechip" aria-live="polite">
+              <span className="b2b3-livedot" aria-hidden />
+              <b>{n.toLocaleString()}</b> filings scanned today
+            </div>
+          )}
         </div>
       </div>
     </section>
   );
 }
 
-function Opportunity() {
+/* 7 ─ Pricing */
+function Pricing({ onCheckout, onSample, busy, err }: { onCheckout: (p: PressPackageConfig) => void; onSample: () => void; busy: string | null; err: string | null }) {
   return (
-    <section className="b2b-section">
-      <div className="b2b-wrap">
-        <p className="b2b-kicker">The Opportunity</p>
-        <div className="b2b-stats">
-          {STATS.map((s) => (
-            <div key={s.label} className="b2b-stat">
-              <b>{s.big}</b>
-              <span>{s.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Services() {
-  return (
-    <section className="b2b-section b2b-section-alt">
-      <div className="b2b-wrap">
-        <p className="b2b-kicker">Services</p>
-        <div className="b2b-grid3">
-          {SERVICES.map((s) => (
-            <article key={s.title} className="b2b-card">
-              <p className="b2b-card-kicker">{s.kicker}</p>
-              <h3 className="b2b-card-title">{s.title}</h3>
-              <p className="b2b-card-body">{s.body.join(" ")}</p>
-              <p className="b2b-card-price">{s.price}</p>
+    <section className="b2b3-section" id="pricing">
+      <div className="b2b3-wrap">
+        <h2 className="b2b3-h2 b2b3-center">Pricing</h2>
+        <p className="b2b3-lead b2b3-center">Two packages. One payment. Published by Sunday.</p>
+        <div className="b2b3-plans">
+          {PRESS_PACKAGES.map((p) => (
+            <article key={p.key} className={`b2b3-plan${p.highlighted ? " b2b3-plan-hot" : ""}`}>
+              {p.highlighted && <div className="b2b3-plan-flag">Most exposure</div>}
+              <h3>{p.name}</h3>
+              <div className="b2b3-price">
+                <span className="b2b3-price-n">${p.priceUsd.toLocaleString()}</span>
+                <span className="b2b3-price-unit">USD · Pay Once</span>
+              </div>
+              <p className="b2b3-plan-pos">{p.positioning}</p>
+              <button type="button" onClick={() => onCheckout(p)} disabled={busy !== null} className={`b2b3-btn b2b3-btn-block ${p.highlighted ? "b2b3-btn-gold" : "b2b3-btn-green"}`}>
+                {busy === p.key ? "Opening checkout…" : "Get Started"}
+              </button>
+              <p className="b2b3-guarantee">
+                <ShieldCheck size={14} aria-hidden /> <Link href="/press/guarantee">Money Back Guarantee</Link>
+              </p>
+              <ul className="b2b3-features">
+                {p.stats.map((s) => (
+                  <li key={s.label}>
+                    <Check size={16} aria-hidden />
+                    {s.verified ? (
+                      <span><b>{s.value}</b> {s.label}</span>
+                    ) : (
+                      <span className="b2b3-pending" title="Figure pending distribution-partner confirmation">
+                        {s.label} <em>— pending confirmation</em>
+                      </span>
+                    )}
+                  </li>
+                ))}
+                {p.features.map((f) => (
+                  <li key={f}><Check size={16} aria-hidden /><span>{f}</span></li>
+                ))}
+              </ul>
+              <button type="button" onClick={onSample} className="b2b3-btn b2b3-btn-ghost b2b3-btn-block b2b3-btn-sm">
+                View Sample Report
+              </button>
             </article>
           ))}
         </div>
-      </div>
-    </section>
-  );
-}
-
-function HowItWorks() {
-  return (
-    <section className="b2b-section">
-      <div className="b2b-wrap">
-        <p className="b2b-kicker">How It Works</p>
-        <div className="b2b-steps">
-          {STEPS.map((s) => (
-            <div key={s.n} className="b2b-step">
-              <span className="b2b-step-n">{s.n}</span>
-              <h3>{s.title}</h3>
-              <p>{s.body}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Editorial() {
-  return (
-    <section className="b2b-section b2b-section-navy">
-      <div className="b2b-wrap">
-        <p className="b2b-kicker b2b-kicker-light">Editorial Platform</p>
-        <p className="b2b-editorial">
-          Your story published on InsiderBuying.com — read by investors who specifically follow
-          insider activity
+        {err && <p className="b2b3-err b2b3-center" role="alert">{err}</p>}
+        <p className="b2b3-fine b2b3-center">
+          Checkout by Stripe. Every package is a one-time payment. Published pieces are labeled as sponsored or
+          paid distribution per outlet rules and our disclosure policy; paid placement never affects Insider
+          Scores or editorial rankings on InsiderBuying.com.
         </p>
       </div>
     </section>
   );
 }
 
-function Packages() {
+/* 8 ─ Trust badge feature */
+function BadgeFeature() {
+  const outlets = OUTLETS.filter((o) => o.confirmed).map((o) => o.name);
   return (
-    <section className="b2b-section" id="packages">
-      <div className="b2b-wrap">
-        <p className="b2b-kicker">Packages</p>
-        <div className="b2b-grid3">
-          {PACKAGES.map((p) => (
-            <div key={p.name} className={`b2b-pkg${p.featured ? " b2b-pkg-hot" : ""}`}>
-              <h3>{p.name}</h3>
-              <div className="b2b-pkg-price">{p.price}</div>
-              <a href="#book" onClick={jumpTo("book")} className="b2b-btn b2b-btn-ghost b2b-btn-block">
-                Book a Discovery Call
-              </a>
-            </div>
-          ))}
+    <section className="b2b3-section b2b3-section-alt" id="samples">
+      <div className="b2b3-wrap b2b3-badge-in">
+        <div>
+          <p className="b2b3-eyebrow">Trust badge</p>
+          <h2 className="b2b3-h2">Show investors where you&rsquo;ve been seen.</h2>
+          <p className="b2b3-lead">
+            Every package includes an &ldquo;As seen on&rdquo; badge for your investor-relations page, listing
+            the outlets that carried your story with a link to each live placement. Embed code arrives with
+            your results report.
+          </p>
         </div>
-      </div>
-    </section>
-  );
-}
-
-function BookACall() {
-  return (
-    <section className="b2b-section b2b-section-alt" id="book">
-      <div className="b2b-wrap">
-        <p className="b2b-kicker">Book a Call</p>
-        <h2 className="b2b-h2">Book a Discovery Call</h2>
-        {CALENDLY ? (
-          <div className="b2b-calendly">
-            {/* Inline embed, not popup (brief 4D). */}
-            <iframe
-              src={CALENDLY}
-              title="Book a discovery call"
-              width="100%"
-              height="700"
-              frameBorder="0"
-            />
+        <div className="b2b3-badge" role="img" aria-label="As seen on badge preview">
+          <div className="b2b3-badge-top"><BadgeCheck size={18} aria-hidden /> AS SEEN ON</div>
+          <div className="b2b3-badge-outlets">
+            {(outlets.length ? outlets : ["InsiderBuying.com"]).map((n) => (
+              <span key={n}>{n}</span>
+            ))}
           </div>
-        ) : null}
-        <LeadForm />
+          <div className="b2b3-badge-foot">Verified placements · InsiderBuying.com Press</div>
+        </div>
       </div>
     </section>
   );
 }
 
-function LeadForm() {
-  const [form, setForm] = useState({
-    name: "",
-    company: "",
-    ticker: "",
-    email: "",
-    phone: "",
-    message: "",
-  });
-  const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
-  const [error, setError] = useState<string | null>(null);
-
-  const field = (k: keyof typeof form) => ({
-    value: form[k],
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      setForm({ ...form, [k]: e.target.value });
-      setError(null);
-    },
-  });
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (state === "sending") return;
-    if (!form.name.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      setError("Please add your name and a valid work email.");
-      return;
-    }
-    setState("sending");
-    try {
-      const res = await fetch(`${API_BASE}/b2b-leads`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) throw new Error("failed");
-      setState("sent");
-    } catch {
-      setError("That didn't send. Email us directly and we'll pick it up.");
-      setState("idle");
-    }
-  };
-
-  if (state === "sent") {
-    return (
-      <div className="b2b-form b2b-form-done">
-        <p>
-          <b>Thank you — your request is in.</b>
-        </p>
-        <p>We&apos;ll be in touch within one business day to arrange the call.</p>
-      </div>
-    );
-  }
-
+/* 9 ─ Testimonials — real, permissioned quotes only; hidden below three (§7) */
+function Testimonials() {
+  if (TESTIMONIALS.length < 3) return null;
   return (
-    <form className="b2b-form" onSubmit={submit}>
-      <div className="b2b-form-grid">
-        <label>
-          Name
-          <input type="text" autoComplete="name" {...field("name")} required />
-        </label>
-        <label>
-          Company
-          <input type="text" autoComplete="organization" {...field("company")} />
-        </label>
-        <label>
-          Ticker <span>(if listed)</span>
-          <input type="text" {...field("ticker")} />
-        </label>
-        <label>
-          Email
-          <input type="email" autoComplete="email" {...field("email")} required />
-        </label>
-        <label>
-          Phone
-          <input type="tel" autoComplete="tel" {...field("phone")} />
-        </label>
+    <section className="b2b3-section">
+      <div className="b2b3-wrap">
+        <h2 className="b2b3-h2 b2b3-center">What clients say</h2>
+        <div className="b2b3-quotes">
+          {TESTIMONIALS.map((t) => (
+            <figure key={t.name} className="b2b3-quote">
+              <blockquote>&ldquo;{t.quote}&rdquo;</blockquote>
+              <figcaption><b>{t.name}</b> · {t.title}, {t.company}</figcaption>
+            </figure>
+          ))}
+        </div>
       </div>
-      <label className="b2b-form-msg">
-        Message
-        <textarea rows={4} {...field("message")} />
-      </label>
-      {error && (
-        <p className="b2b-form-error" role="alert">
-          {error}
-        </p>
-      )}
-      <button type="submit" className="b2b-btn b2b-btn-gold" disabled={state === "sending"}>
-        {state === "sending" ? "Sending…" : "Book a Discovery Call"}
-      </button>
-    </form>
+    </section>
   );
 }
 
+/* 10 ─ FAQ */
+function Faq() {
+  return (
+    <section className="b2b3-section" id="faq">
+      <div className="b2b3-wrap b2b3-faq-wrap">
+        <h2 className="b2b3-h2 b2b3-center">Questions</h2>
+        <div className="b2b3-faq">
+          {PRESS_FAQ.map((f) => (
+            <details key={f.q}>
+              <summary>{f.q}<span aria-hidden>+</span></summary>
+              <p>{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* 11 ─ Enterprise band */
+function Enterprise() {
+  return (
+    <section className="b2b3-enterprise">
+      <div className="b2b3-wrap b2b3-enterprise-in">
+        <div>
+          <p className="b2b3-eyebrow b2b3-eyebrow-gold">Enterprise</p>
+          <h2 className="b2b3-focus-h2">Running a full investor-acquisition campaign?</h2>
+          <p>Press distribution, funnel and traffic, and sponsored editorial — built and measured by our team. Campaigns from $4,889.</p>
+        </div>
+        <div className="b2b3-enterprise-ctas">
+          <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="b2b3-btn b2b3-btn-gold" onClick={() => track("press_cta", { where: "enterprise-calendly" })}>
+            Book a Discovery Call
+          </a>
+          <Link href="/campaigns" className="b2b3-btn b2b3-btn-ghost-light">See campaign tiers →</Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* 12 ─ Footer */
 function Footer() {
   return (
-    <footer className="b2b-footer">
-      <div className="b2b-wrap b2b-footer-in">
-        <span>
-          InsiderBuying.com — for public companies &amp; investor relations
-        </span>
-        <a href="https://insiderbuying.com" className="b2b-footer-link">
-          insiderbuying.com →
-        </a>
+    <footer className="b2b3-footer">
+      <div className="b2b3-wrap b2b3-footer-in">
+        <p>
+          © {new Date().getFullYear()} InsiderBuying Inc. Published pieces are labeled as sponsored or paid
+          distribution per outlet rules and our disclosure policy. Paid placement never affects Insider Scores
+          or editorial rankings on InsiderBuying.com. InsiderBuying.com is a publisher, not an investment
+          adviser.
+        </p>
+        <nav aria-label="Compliance">
+          <Link href="/press/guarantee">Money Back Guarantee</Link>
+          <Link href="/disclaimer">Disclosure &amp; Disclaimer</Link>
+          <Link href="/terms">Terms</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/campaigns">Campaigns</Link>
+          <Link href="https://insiderbuying.com">InsiderBuying.com</Link>
+        </nav>
       </div>
     </footer>
   );
 }
 
-/* Corporate and minimal on purpose (brief 4D: "Think McKinsey meets financial
-   media — not the data dashboard aesthetic of the main site"), in the same
-   navy/gold brand. Fixed palette: this page does not follow the app theme. */
-const CSS = `
-.b2b { --navy:#0D1F35; --navy-2:#12283f; --gold:#C8A24A; --ink:#0f1b2b; --muted:#5c6b7f;
-  background:#ffffff; color:var(--ink); min-height:100vh;
-  font-family: var(--font-sans), system-ui, sans-serif; }
-.b2b-wrap { width:100%; max-width:1120px; margin:0 auto; padding:0 24px; }
-
-.b2b-header { background:var(--navy); color:#fff; }
-.b2b-header-in { display:flex; align-items:center; justify-content:space-between; gap:20px; height:76px; }
-.b2b-brand { display:flex; align-items:center; gap:18px; min-width:0; }
-.b2b-logo { font-family:var(--font-heading), var(--font-sans), sans-serif; font-weight:900;
-  letter-spacing:0.5px; font-size:19px; line-height:1; }
-.b2b-logo span { color:var(--gold); }
-.b2b-tagline { font-size:12.5px; color:#b9c6d6; border-left:1px solid rgba(255,255,255,0.22);
-  padding-left:18px; white-space:nowrap; }
-
-.b2b-btn { display:inline-flex; align-items:center; justify-content:center; height:52px; padding:0 26px;
-  border-radius:4px; font-size:15px; font-weight:700; text-decoration:none; border:1px solid transparent;
-  cursor:pointer; transition:filter .15s ease, background .15s ease, color .15s ease; }
-.b2b-btn-sm { height:40px; padding:0 18px; font-size:13.5px; }
-.b2b-btn-gold { background:var(--gold); color:#10203A; }
-.b2b-btn-gold:hover { filter:brightness(1.06); }
-.b2b-btn-ghost { background:transparent; color:var(--navy); border-color:rgba(13,31,53,0.28); }
-.b2b-btn-ghost:hover { background:rgba(13,31,53,0.05); }
-.b2b-btn-block { width:100%; }
-.b2b-btn:disabled { opacity:.7; cursor:default; }
-
-.b2b-hero { background:var(--navy); color:#fff; padding:74px 0 66px; }
-.b2b-eyebrow { font-size:12px; letter-spacing:1.6px; text-transform:uppercase; color:var(--gold);
-  font-weight:700; margin:0 0 18px; }
-.b2b-h1 { font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:clamp(32px,4.6vw,54px);
-  line-height:1.1; font-weight:800; letter-spacing:-0.8px; margin:0 0 22px; color:#ffffff; }
-.b2b-sub { font-size:16.5px; line-height:1.72; color:#c9d6e4; max-width:640px; margin:0 0 32px; }
-.b2b-ctas { display:flex; flex-wrap:wrap; gap:14px; }
-.b2b-hero .b2b-btn-ghost { color:#fff; border-color:rgba(255,255,255,0.34); }
-.b2b-hero .b2b-btn-ghost:hover { background:rgba(255,255,255,0.1); }
-.b2b-trust { display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:40px;
-  padding-top:26px; border-top:1px solid rgba(255,255,255,0.16); font-size:14px; color:#c9d6e4; }
-.b2b-trust-item { display:inline-flex; align-items:center; gap:8px; }
-.b2b-trust-item b { color:#fff; font-size:16px; }
-.b2b-trust-item i { color:rgba(255,255,255,0.3); font-style:normal; margin-left:6px; }
-
-.b2b-section { padding:66px 0; }
-.b2b-section-alt { background:#f6f7f9; }
-.b2b-section-navy { background:var(--navy-2); color:#fff; }
-.b2b-kicker { font-size:11.5px; letter-spacing:1.7px; text-transform:uppercase; font-weight:700;
-  color:var(--muted); margin:0 0 26px; }
-.b2b-kicker-light { color:var(--gold); }
-.b2b-h2 { font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:clamp(24px,3vw,34px);
-  font-weight:800; letter-spacing:-0.5px; margin:0 0 26px; color:var(--ink); }
-
-.b2b-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; }
-.b2b-stat { border-left:3px solid var(--gold); padding:6px 0 6px 20px; }
-.b2b-stat b { display:block; color:var(--ink); font-family:var(--font-heading), var(--font-sans), sans-serif;
-  font-size:clamp(28px,3.4vw,40px); line-height:1.05; }
-.b2b-stat span { display:block; font-size:13.5px; color:var(--muted); margin-top:8px;
-  letter-spacing:0.4px; text-transform:uppercase; }
-
-.b2b-grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
-.b2b-card { background:#fff; border:1px solid rgba(13,31,53,0.12); border-radius:6px; padding:26px 24px;
-  display:flex; flex-direction:column; }
-.b2b-card-kicker { font-size:11px; letter-spacing:1.3px; text-transform:uppercase; color:var(--gold);
-  font-weight:700; margin:0 0 12px; }
-.b2b-card-title { font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:20px;
-  font-weight:800; letter-spacing:-0.3px; margin:0 0 14px; color:var(--ink); }
-.b2b-card-body { font-size:14.5px; line-height:1.7; color:#3d4b5c; margin:0 0 22px; }
-.b2b-card-price { margin:auto 0 0; font-weight:800; font-size:15.5px; color:var(--navy); }
-
-.b2b-steps { display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
-.b2b-step { border-top:2px solid var(--navy); padding-top:18px; }
-.b2b-step-n { font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:13px;
-  font-weight:800; color:var(--gold); letter-spacing:1px; }
-.b2b-step h3 { font-size:18px; font-weight:800; margin:10px 0 8px; letter-spacing:-0.2px; color:var(--ink); }
-.b2b-step p { font-size:14px; line-height:1.65; color:#3d4b5c; margin:0; }
-
-.b2b-editorial { color:#ffffff; font-family:var(--font-heading), var(--font-sans), sans-serif;
-  font-size:clamp(20px,2.6vw,30px); line-height:1.35; font-weight:700; letter-spacing:-0.4px;
-  max-width:860px; margin:0; }
-
-.b2b-pkg { border:1px solid rgba(13,31,53,0.14); border-radius:6px; padding:28px 24px; background:#fff; }
-.b2b-pkg-hot { border-color:var(--gold); box-shadow:0 16px 40px rgba(13,31,53,0.08); }
-.b2b-pkg h3 { font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:19px;
-  font-weight:800; margin:0 0 10px; color:var(--ink); }
-.b2b-pkg-price { color:var(--ink); font-family:var(--font-heading), var(--font-sans), sans-serif; font-size:34px;
-  font-weight:800; letter-spacing:-1px; margin:0 0 22px; }
-
-.b2b-calendly { border:1px solid rgba(13,31,53,0.14); border-radius:6px; overflow:hidden;
-  background:#fff; margin-bottom:28px; }
-.b2b-calendly iframe { display:block; border:0; }
-
-.b2b-form { background:#fff; border:1px solid rgba(13,31,53,0.14); border-radius:6px; padding:26px 24px; }
-.b2b-form-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
-.b2b-form label { display:flex; flex-direction:column; gap:7px; font-size:12.5px; font-weight:700;
-  letter-spacing:0.4px; text-transform:uppercase; color:var(--muted); }
-.b2b-form label span { text-transform:none; letter-spacing:0; font-weight:500; }
-.b2b-form input, .b2b-form textarea { border:1px solid rgba(13,31,53,0.2); border-radius:4px;
-  padding:12px 13px; font-size:15px; font-family:inherit; color:var(--ink); background:#fff;
-  text-transform:none; letter-spacing:0; font-weight:400; }
-.b2b-form input:focus, .b2b-form textarea:focus { outline:none; border-color:var(--gold);
-  box-shadow:0 0 0 3px rgba(200,162,74,0.18); }
-.b2b-form-msg { margin-top:16px; }
-.b2b-form-error { color:#b91c1c; font-size:13px; margin:14px 0 0; }
-.b2b-form button { margin-top:18px; }
-.b2b-form-done p { margin:0 0 6px; font-size:15.5px; }
-
-.b2b-footer { background:var(--navy); color:#b9c6d6; padding:26px 0; font-size:13px; }
-.b2b-footer-in { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
-.b2b-footer-link { color:var(--gold); text-decoration:none; font-weight:700; }
-
-@media (max-width: 900px) {
-  .b2b-stats, .b2b-grid3, .b2b-steps { grid-template-columns:1fr; }
-  .b2b-form-grid { grid-template-columns:1fr; }
-  .b2b-tagline { display:none; }
-  .b2b-br { display:none; }
+/* Sample report modal (§7) */
+function SampleModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+  }, [onClose]);
+  return (
+    <div className="b2b3-modal" role="dialog" aria-modal="true" aria-label="Sample report" onClick={onClose}>
+      <div className="b2b3-modal-in" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="b2b3-modal-x" onClick={onClose} aria-label="Close"><X size={18} /></button>
+        <p className="b2b3-eyebrow">Sample report</p>
+        {SAMPLE_REPORT_URL ? (
+          <iframe src={SAMPLE_REPORT_URL} title="Sample results report" className="b2b3-modal-frame" />
+        ) : (
+          <div className="b2b3-modal-empty">
+            <FileText size={28} aria-hidden />
+            <h3>Sample report coming shortly</h3>
+            <p>A real results report from a past campaign — live links and SEO data, client-approved — is being prepared for this page. Every order receives the same report format when the campaign completes.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
+
+/* ─ Design system (§3): Archivo display / Nunito Sans body / IBM Plex Mono data;
+   navy #0A1E3C, green #0E9F6E, gold #C9A227 on a light page; 14–16px radii. */
+const CSS = `
+.b2b3 { --navy:#0A1E3C; --green:#0E9F6E; --gold:#C9A227; --ink:#0A1E3C; --body:#2B3A4F; --muted:#5C6B7F; --line:#E3E8F0; --bg:#F7F9FC; --card:#FFFFFF;
+  background: var(--bg); color: var(--ink); font-family: var(--b2b-body), system-ui, sans-serif; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+.b2b3 *, .b2b3 *::before, .b2b3 *::after { box-sizing: border-box; }
+.b2b3-wrap { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+.b2b3 h1, .b2b3 h2, .b2b3 h3 { font-family: var(--b2b-display), sans-serif; margin: 0; color: var(--ink); }
+.b2b3-h1 { font-size: clamp(34px, 4.6vw, 58px); font-weight: 800; line-height: 1.04; letter-spacing: -1px; }
+.b2b3-h2 { font-size: clamp(26px, 3.2vw, 40px); font-weight: 800; letter-spacing: -0.6px; line-height: 1.1; }
+.b2b3-lead { font-size: 17px; line-height: 1.6; color: var(--body); margin: 12px 0 0; max-width: 760px; }
+.b2b3-center { text-align: center; margin-left: auto; margin-right: auto; }
+.b2b3-eyebrow { font-family: var(--b2b-mono), monospace; font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 0 0 8px; }
+.b2b3-eyebrow-gold { color: var(--gold); }
+.b2b3-fine { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin: 16px 0 0; }
+.b2b3-err { color: #B42318; font-weight: 700; margin-top: 12px; }
+.b2b3-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 800; font-size: 15px; padding: 13px 22px; border-radius: 12px; border: 1px solid transparent; text-decoration: none; cursor: pointer; transition: transform .15s, filter .15s; font-family: inherit; }
+.b2b3-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.b2b3-btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.b2b3-btn:disabled { opacity: .6; cursor: default; transform: none; }
+.b2b3-btn-green { background: var(--green); color: #fff; }
+.b2b3-btn-gold { background: var(--gold); color: var(--navy); }
+.b2b3-btn-ghost { background: transparent; color: var(--navy); border-color: rgba(10,30,60,.25); }
+.b2b3-btn-ghost-light { background: transparent; color: #fff; border-color: rgba(255,255,255,.35); }
+.b2b3-btn-sm { padding: 9px 16px; font-size: 14px; }
+.b2b3-btn-block { width: 100%; }
+/* nav */
+.b2b3-nav { position: sticky; top: 0; z-index: 50; background: rgba(247,249,252,.92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.b2b3-nav-in { height: 68px; display: flex; align-items: center; gap: 24px; }
+.b2b3-logo { font-family: var(--b2b-display), sans-serif; font-weight: 900; font-size: 19px; letter-spacing: -.5px; color: var(--navy); text-decoration: none; display: inline-flex; align-items: baseline; gap: 6px; }
+.b2b3-logo span { color: var(--gold); } .b2b3-logo small { font-family: var(--b2b-mono), monospace; font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); }
+.b2b3-nav-links { display: flex; gap: 22px; margin-left: auto; }
+.b2b3-nav-links a { color: var(--body); text-decoration: none; font-weight: 700; font-size: 14.5px; } .b2b3-nav-links a:hover { color: var(--green); }
+/* hero */
+.b2b3-hero { padding: 64px 0 56px; background: radial-gradient(900px 400px at 85% 0%, rgba(14,159,110,.10), transparent 60%), var(--bg); }
+.b2b3-hero-in { display: grid; grid-template-columns: 1.05fr .95fr; gap: 44px; align-items: center; }
+.b2b3-hero-kicker { font-family: var(--b2b-mono), monospace; font-size: 13px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--green); font-weight: 600; margin: 22px 0 6px; }
+.b2b3-hero-sub { font-size: 20px; line-height: 1.45; color: var(--ink); font-weight: 700; margin: 0 0 10px; }
+.b2b3-hero-body { font-size: 16.5px; line-height: 1.6; color: var(--body); margin: 0 0 20px; max-width: 560px; }
+.b2b3-benefits { list-style: none; margin: 0 0 26px; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; }
+.b2b3-benefits li { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; line-height: 1.45; color: var(--body); }
+.b2b3-benefits svg { color: var(--green); flex-shrink: 0; margin-top: 2px; }
+.b2b3-benefits strong { color: var(--ink); }
+.b2b3-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+.b2b3-collage { position: relative; height: 420px; }
+.b2b3-shot { position: absolute; margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 24px 60px rgba(10,30,60,.14); overflow: hidden; width: 66%; }
+.b2b3-shot-0 { left: 0; top: 0; z-index: 3; } .b2b3-shot-1 { right: 0; top: 70px; z-index: 2; } .b2b3-shot-2 { left: 14%; bottom: 0; z-index: 1; }
+.b2b3-shot-bar { height: 28px; background: #EEF2F7; display: flex; gap: 6px; align-items: center; padding: 0 12px; }
+.b2b3-shot-bar i { width: 9px; height: 9px; border-radius: 50%; background: #CBD5E1; }
+.b2b3-shot img { display: block; width: 100%; height: auto; }
+.b2b3-shot-ph { height: 150px; display: grid; place-content: center; justify-items: center; gap: 4px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.b2b3-shot-ph small { font-weight: 400; font-size: 11.5px; }
+/* logos + strip */
+.b2b3-logos { padding: 26px 0 10px; border-top: 1px solid var(--line); }
+.b2b3-logos .b2b3-eyebrow { text-align: center; }
+.b2b3-marquee { overflow: hidden; }
+.b2b3-marquee-track { display: flex; justify-content: center; gap: 44px; flex-wrap: wrap; filter: grayscale(1); }
+.b2b3-marquee-track > :nth-child(n+6) { display: none; }
+.b2b3-outlet { font-family: var(--b2b-display), sans-serif; font-weight: 800; font-size: 20px; color: #7D8A9C; white-space: nowrap; }
+.b2b3-outlet-hot { color: var(--navy); font-size: 24px; filter: none; }
+.b2b3-strip { padding: 14px 0 6px; }
+.b2b3-strip-in { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.b2b3-chip { display: inline-flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 13px; }
+.b2b3-chip-name { font-weight: 800; color: var(--ink); }
+.b2b3-chip-stat { font-family: var(--b2b-mono), monospace; color: var(--body); } .b2b3-chip-stat b { color: var(--green); }
+.b2b3-chip-pending { font-size: 12px; color: var(--muted); }
+/* sections */
+.b2b3-section { padding: 72px 0; }
+.b2b3-section-alt { background: #fff; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.b2b3-steps { list-style: none; margin: 40px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.b2b3-step { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 26px 22px; }
+.b2b3-step-icon { width: 44px; height: 44px; border-radius: 12px; background: rgba(14,159,110,.1); color: var(--green); display: grid; place-items: center; }
+.b2b3-step-n { position: absolute; top: 18px; right: 18px; font-family: var(--b2b-mono), monospace; font-size: 13px; color: var(--muted); font-weight: 600; }
+.b2b3-step h3 { font-size: 18px; font-weight: 800; margin: 16px 0 6px; }
+.b2b3-step p { font-size: 14.5px; line-height: 1.55; color: var(--body); margin: 0; }
+/* editorial focus */
+.b2b3-focus { background: var(--navy); color: #fff; padding: 76px 0; }
+.b2b3-focus-in { display: grid; grid-template-columns: .9fr 1.1fr; gap: 44px; align-items: start; }
+.b2b3-focus-h2 { font-family: var(--b2b-display), sans-serif; font-size: clamp(26px, 3vw, 38px); font-weight: 800; letter-spacing: -.5px; line-height: 1.12; color: #fff; }
+.b2b3-focus-copy p { font-size: 17px; line-height: 1.7; color: #D5DEEA; margin: 0 0 16px; }
+.b2b3-focus-copy p:last-of-type { color: #fff; font-weight: 700; }
+.b2b3-livechip { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: 8px 14px; font-family: var(--b2b-mono), monospace; font-size: 13px; color: #fff; margin-top: 6px; }
+.b2b3-livechip b { color: var(--gold); }
+.b2b3-livedot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(14,159,110,.25); }
+.b2b3-enterprise { background: var(--navy); color: #fff; padding: 56px 0; }
+.b2b3-enterprise-in { display: grid; grid-template-columns: 1.3fr .7fr; gap: 32px; align-items: center; }
+.b2b3-enterprise p { color: #D5DEEA; font-size: 16px; line-height: 1.6; margin: 10px 0 0; }
+.b2b3-enterprise-ctas { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+/* pricing */
+.b2b3-plans { display: grid; grid-template-columns: repeat(2, minmax(0, 440px)); justify-content: center; gap: 24px; margin-top: 40px; }
+.b2b3-plan { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 30px 28px; display: flex; flex-direction: column; gap: 14px; }
+.b2b3-plan h3 { font-size: 22px; font-weight: 800; }
+.b2b3-plan-hot { background: var(--navy); color: #fff; border-color: var(--navy); box-shadow: 0 30px 70px rgba(10,30,60,.25); }
+.b2b3-plan-hot h3, .b2b3-plan-hot .b2b3-price-n { color: #fff; } .b2b3-plan-hot .b2b3-plan-pos { color: var(--gold); }
+.b2b3-plan-hot .b2b3-features li, .b2b3-plan-hot .b2b3-price-unit, .b2b3-plan-hot .b2b3-guarantee, .b2b3-plan-hot .b2b3-guarantee a { color: #D5DEEA; }
+.b2b3-plan-hot .b2b3-features svg { color: var(--gold); }
+.b2b3-plan-hot .b2b3-btn-ghost { color: #fff; border-color: rgba(255,255,255,.35); }
+.b2b3-plan-flag { position: absolute; top: -12px; left: 28px; background: var(--gold); color: var(--navy); font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; padding: 5px 10px; border-radius: 999px; }
+.b2b3-price { display: flex; align-items: baseline; gap: 10px; }
+.b2b3-price-n { font-family: var(--b2b-display), sans-serif; font-size: 44px; font-weight: 900; letter-spacing: -1px; color: var(--ink); }
+.b2b3-price-unit { font-family: var(--b2b-mono), monospace; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+.b2b3-plan-pos { font-weight: 800; color: var(--green); margin: 0; font-size: 15px; }
+.b2b3-guarantee { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin: -4px 0 0; }
+.b2b3-guarantee a { color: inherit; text-decoration: underline; font-weight: 700; }
+.b2b3-features { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; gap: 10px; }
+.b2b3-features li { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; line-height: 1.45; color: var(--body); }
+.b2b3-features svg { color: var(--green); flex-shrink: 0; margin-top: 2px; }
+.b2b3-features b { font-family: var(--b2b-mono), monospace; }
+.b2b3-pending em { font-style: normal; color: var(--muted); font-size: 12.5px; }
+/* badge */
+.b2b3-badge-in { display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: center; }
+.b2b3-badge { background: var(--navy); color: #fff; border-radius: 16px; padding: 22px 24px; box-shadow: 0 24px 60px rgba(10,30,60,.18); max-width: 420px; margin-left: auto; }
+.b2b3-badge-top { display: flex; align-items: center; gap: 8px; font-family: var(--b2b-mono), monospace; letter-spacing: 2px; font-size: 13px; color: var(--gold); font-weight: 600; }
+.b2b3-badge-outlets { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 14px 0; }
+.b2b3-badge-outlets span { font-family: var(--b2b-display), sans-serif; font-weight: 800; font-size: 17px; }
+.b2b3-badge-foot { font-size: 11.5px; color: #9FB0C6; }
+/* quotes */
+.b2b3-quotes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 32px; }
+.b2b3-quote { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+.b2b3-quote blockquote { margin: 0 0 12px; font-size: 15.5px; line-height: 1.6; color: var(--body); }
+.b2b3-quote figcaption { font-size: 13px; color: var(--muted); }
+/* faq */
+.b2b3-faq-wrap { max-width: 820px; }
+.b2b3-faq { margin-top: 28px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+.b2b3-faq details { border-bottom: 1px solid var(--line); padding: 16px 20px; }
+.b2b3-faq details:last-child { border-bottom: 0; }
+.b2b3-faq summary { cursor: pointer; font-weight: 800; font-size: 16px; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+.b2b3-faq summary::-webkit-details-marker { display: none; }
+.b2b3-faq summary span { color: var(--muted); transition: transform .2s; } .b2b3-faq details[open] summary span { transform: rotate(45deg); }
+.b2b3-faq p { margin: 10px 0 0; font-size: 15px; line-height: 1.65; color: var(--body); }
+/* footer */
+.b2b3-footer { padding: 34px 0 48px; border-top: 1px solid var(--line); }
+.b2b3-footer-in { display: grid; gap: 14px; }
+.b2b3-footer p { font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 0; }
+.b2b3-footer nav { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.b2b3-footer nav a { font-size: 13px; font-weight: 700; color: var(--navy); text-decoration: none; }
+/* modal */
+.b2b3-modal { position: fixed; inset: 0; z-index: 100; background: rgba(10,30,60,.6); display: grid; place-items: center; padding: 20px; }
+.b2b3-modal-in { position: relative; width: min(960px, 100%); max-height: 90vh; background: #fff; border-radius: 16px; padding: 22px 24px; overflow: auto; }
+.b2b3-modal-x { position: absolute; top: 12px; right: 12px; border: 0; background: #EEF2F7; border-radius: 50%; width: 36px; height: 36px; display: grid; place-items: center; cursor: pointer; }
+.b2b3-modal-frame { width: 100%; height: 75vh; border: 1px solid var(--line); border-radius: 12px; }
+.b2b3-modal-empty { text-align: center; padding: 48px 20px; color: var(--body); }
+.b2b3-modal-empty svg { color: var(--green); } .b2b3-modal-empty h3 { font-size: 20px; margin: 10px 0 8px; } .b2b3-modal-empty p { max-width: 520px; margin: 0 auto; line-height: 1.6; }
+/* responsive (375px) */
+@media (max-width: 960px) {
+  .b2b3-hero-in, .b2b3-focus-in, .b2b3-badge-in, .b2b3-enterprise-in { grid-template-columns: 1fr; }
+  .b2b3-steps { grid-template-columns: 1fr 1fr; } .b2b3-plans { grid-template-columns: 1fr; } .b2b3-quotes { grid-template-columns: 1fr; }
+  .b2b3-collage { height: 320px; } .b2b3-badge { margin-left: 0; }
+}
+@media (max-width: 640px) {
+  .b2b3-nav-links { display: none; }
+  .b2b3-benefits { grid-template-columns: 1fr; }
+  .b2b3-steps { grid-template-columns: 1fr; }
+  .b2b3-section { padding: 52px 0; }
+  .b2b3-collage { height: 260px; }
+  .b2b3-marquee-track { flex-wrap: nowrap; justify-content: flex-start; width: max-content; animation: b2b3-marquee 22s linear infinite; }
+  .b2b3-marquee-track > :nth-child(n+6) { display: inline; }
+  @keyframes b2b3-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+}
+@media (prefers-reduced-motion: reduce) { .b2b3-marquee-track { animation: none !important; } }
 `;

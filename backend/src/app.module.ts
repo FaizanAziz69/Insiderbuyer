@@ -60,6 +60,10 @@ import { PortfolioModule } from './portfolio/portfolio.module';
 import { B2bModule } from './b2b/b2b.module';
 import { ReportLead } from './entities/report-lead.entity';
 import { EmailFlowsModule } from './email-flows/email-flows.module';
+import { PressModule } from './press/press.module';
+import { BannersModule } from './banners/banners.module';
+import { PressOrder } from './entities/press-order.entity';
+import { SiteBanner } from './entities/site-banner.entity';
 import { GovContractsModule } from './gov-contracts/gov-contracts.module';
 import { InvestorsModule } from './investors/investors.module';
 import { Iqs2Module } from './iqs2/iqs2.module';
@@ -108,6 +112,8 @@ import { BubblesModule } from './bubbles/bubbles.module';
           ProcessedFiling,
           CongressionalTransaction,
           Subscriber,
+          PressOrder,
+          SiteBanner,
           BlogPost,
           EarningsEvent,
           User,
@@ -188,6 +194,8 @@ import { BubblesModule } from './bubbles/bubbles.module';
     B2bModule,
     AuthModule,
     EmailFlowsModule,
+    PressModule,
+    BannersModule,
     GovContractsModule,
     InvestorsModule,
     Iqs2Module,

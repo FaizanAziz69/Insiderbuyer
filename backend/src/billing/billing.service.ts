@@ -60,6 +60,20 @@ const ONE_TIME_CATALOG = {
     lookupKey: 'ib_top_picks_report',
     unitAmount: 300, // $3.00 one-time
     productName: 'Stocks You Can Buy Cheaper Than the Insiders Did — Report',
+    description: 'One-time PDF report: stocks trading below the average price insiders paid.',
+  },
+  // Brief v3 §6 — press.insiderbuying.com self-serve packages, Pay Once.
+  'press-authority': {
+    lookupKey: 'ib_press_authority',
+    unitAmount: 470_000, // $4,700 one-time
+    productName: 'Press Publishing — Authority package',
+    description: 'Press release publication across the InsiderBuying.com distribution network, featured on InsiderBuying.com and emailed to subscribers. Pay once.',
+  },
+  'press-ultimate': {
+    lookupKey: 'ib_press_ultimate',
+    unitAmount: 970_000, // $9,700 one-time
+    productName: 'Press Publishing — Ultimate package',
+    description: 'Maximum-exposure press release publication across the network, featured on InsiderBuying.com, emailed to subscribers and amplified on social. Pay once.',
   },
 } as const;
 
@@ -453,8 +467,7 @@ export class BillingService {
     if (!priceId) {
       const prod = await stripe.products.create({
         name: cfg.productName,
-        description:
-          'One-time PDF report: stocks trading below the average price insiders paid.',
+        description: cfg.description,
       });
       const price = await stripe.prices.create({
         product: prod.id,
@@ -477,6 +490,7 @@ export class BillingService {
     product: OneTimeProduct,
     email: string | null,
     returnPath: string,
+    opts: { cancelPath?: string; metadata?: Record<string, string> } = {},
   ): Promise<{ url: string }> {
     const price = await this.ensureOneTimePrice(product);
     const stripe = this.client();
@@ -489,9 +503,9 @@ export class BillingService {
       ...(process.env.STRIPE_DYNAMIC_PAYMENT_METHODS === 'true'
         ? {}
         : { payment_method_types: ['card' as const] }),
-      metadata: { product, ...(email ? { email } : {}) },
+      metadata: { product, ...(email ? { email } : {}), ...(opts.metadata || {}) },
       success_url: `${FRONTEND_URL}${returnPath}?purchase=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${FRONTEND_URL}/top-picks-report?purchase=cancelled`,
+      cancel_url: `${FRONTEND_URL}${opts.cancelPath || '/top-picks-report?purchase=cancelled'}`,
     });
     if (!session.url) throw new BadRequestException('Stripe returned no checkout URL.');
     return { url: session.url };
@@ -502,7 +516,13 @@ export class BillingService {
    *  on this account yet), so delivery cannot silently fail. */
   async verifyOneTimeSession(
     sessionId: string,
-  ): Promise<{ paid: boolean; email: string | null; product: string | null }> {
+  ): Promise<{
+    paid: boolean;
+    email: string | null;
+    product: string | null;
+    amountTotal: number | null;
+    metadata: Record<string, string>;
+  }> {
     const stripe = this.client();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const paid =
@@ -516,6 +536,8 @@ export class BillingService {
       paid,
       email: email ? email.trim().toLowerCase() : null,
       product: (session.metadata?.product as string | undefined) || null,
+      amountTotal: typeof session.amount_total === 'number' ? session.amount_total : null,
+      metadata: (session.metadata as Record<string, string>) || {},
     };
   }
 

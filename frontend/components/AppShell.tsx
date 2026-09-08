@@ -27,6 +27,7 @@ const BARE_ROUTES = [
   "/thank-you-report",
   // Round-2 brief, Section 4: the B2B site is a separate experience.
   "/press",
+  "/campaigns",
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

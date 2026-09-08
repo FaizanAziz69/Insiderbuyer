@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Archivo, IBM_Plex_Mono, Nunito_Sans } from "next/font/google";
+
+/** Brief v3 §3 design system: Archivo display / Nunito Sans body / IBM Plex
+ *  Mono for data. Loaded only on the B2B routes, exposed as CSS variables. */
+const archivo = Archivo({ subsets: ["latin"], weight: ["600", "700", "800", "900"], variable: "--b2b-display", display: "swap" });
+const nunito = Nunito_Sans({ subsets: ["latin"], weight: ["400", "600", "700", "800"], variable: "--b2b-body", display: "swap" });
+const plex = IBM_Plex_Mono({ subsets: ["latin"], weight: ["500", "600"], variable: "--b2b-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "InsiderBuying.com for Public Companies & Investor Relations",
+  title: "Build Instant Authority — Press Publishing for Public Companies | InsiderBuying.com",
   description:
-    "Reach 50,000+ investors who actually follow insider buying. Press release distribution, IR campaigns and sponsored editorial from InsiderBuying.com.",
+    "Announce your company news to global investors, financial advisors and analysts. Get your story published on major news sites and on InsiderBuying.com — order today, published by Sunday.",
 };
 
-/** Brief 4D: "GA4 separate data stream for this subdomain so B2B traffic is
- *  tracked independently from consumer traffic." Set NEXT_PUBLIC_GA_ID_B2B to
- *  the B2B stream's measurement id; until then this page reports nothing of
- *  its own rather than polluting the consumer property. */
 const GA_B2B = process.env.NEXT_PUBLIC_GA_ID_B2B || "";
 
 export default function PressLayout({ children }: { children: React.ReactNode }) {
@@ -28,7 +31,9 @@ gtag('config', '${GA_B2B}');`}
         </>
       )}
       {/* Marks the route as chrome-free — see AppShell and globals.css. */}
-      <div data-bare-page>{children}</div>
+      <div data-bare-page className={`${archivo.variable} ${nunito.variable} ${plex.variable}`}>
+        {children}
+      </div>
     </>
   );
 }

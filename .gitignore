@@ -38,3 +38,4 @@ coverage/
 .eslintcache
 .vercel
 .env*
+backend/uploads/

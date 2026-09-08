@@ -1,6 +1,8 @@
 "use client";
 import { InvestorsAdmin } from "@/components/admin/InvestorsAdmin";
 import { DataArticlesAdmin } from "@/components/admin/DataArticlesAdmin";
+import { PressOrdersAdmin } from "@/components/admin/PressOrdersAdmin";
+import { BannersAdmin } from "@/components/admin/BannersAdmin";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
@@ -102,7 +104,7 @@ const PRIORITY_STYLE: Record<number, { label: string; color: string }> = {
 
 export default function EditorialDeskPage() {
   const [token, setToken] = useState("");
-  const [tab, setTab] = useState<"briefing" | "checklist" | "playbook" | "investors" | "data">("briefing");
+  const [tab, setTab] = useState<"briefing" | "checklist" | "playbook" | "investors" | "data" | "orders" | "banners">("briefing");
 
   useEffect(() => {
     try {
@@ -149,6 +151,8 @@ export default function EditorialDeskPage() {
             ["checklist", "Pre-publish check"],
             ["playbook", "The playbook"],
             ["investors", "Investors roster"],
+            ["orders", "Press orders"],
+            ["banners", "Banners"],
             ["data", "Data articles"],
           ] as const
         ).map(([key, label]) => (
@@ -177,6 +181,8 @@ export default function EditorialDeskPage() {
       {tab === "playbook" && <PlaybookTab />}
       {tab === "investors" && <InvestorsAdmin token={token} />}
       {tab === "data" && <DataArticlesAdmin token={token} />}
+      {tab === "orders" && <PressOrdersAdmin token={token} />}
+      {tab === "banners" && <BannersAdmin token={token} />}
     </main>
   );
 }
