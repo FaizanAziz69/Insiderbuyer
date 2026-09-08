@@ -108,16 +108,37 @@ function smsCard() {
 }
 
 async function render(name, accent, layers) {
-  const comps = [];
-  for (const l of layers) comps.push({ input: l.buf, top: l.top, left: l.left });
+  const comps = (await Promise.all(layers.map((l) => fitLayer(l, W, H)))).filter(Boolean);
   const full = sharp(bg(accent)).composite(comps);
   const png = await full.png().toBuffer();
   await sharp(png).webp({ quality: 84 }).toFile(path.join(OUT, `${name}@2x.webp`));
   await sharp(png).resize(1200, 750).jpeg({ quality: 82, progressive: true }).toFile(path.join(OUT, `${name}.jpg`));
   return png;
 }
-async function mobile(name, png, { left, top, width, height }) {
-  await sharp(png).extract({ left, top, width, height }).resize(960, 1200).webp({ quality: 84 }).toFile(path.join(OUT, `${name}-mobile.webp`));
+/** Dedicated PORTRAIT composition for phones (brief §6: "dedicated mobile
+ *  crops rather than shrunken desktop renders") — same layers, re-laid on a
+ *  960x1200 canvas so the focal card fills the width. */
+const MW = 960, MH = 1200;
+const bgM = (accent = "green") => Buffer.from(bg(accent).toString().replace(`width="${W}" height="${H}"`, `width="${MW}" height="${MH}"`));
+/** sharp refuses negative offsets and layers that overhang the canvas, so a
+ *  layer placed partly off-canvas is cropped to the canvas first. */
+async function fitLayer(l, cw, ch) {
+  const meta = await sharp(l.buf).metadata();
+  let { left, top } = l;
+  let x0 = 0, y0 = 0, w = meta.width, h = meta.height;
+  if (left < 0) { x0 = -left; w += left; left = 0; }
+  if (top < 0) { y0 = -top; h += top; top = 0; }
+  if (left + w > cw) w = cw - left;
+  if (top + h > ch) h = ch - top;
+  if (w <= 0 || h <= 0) return null;
+  const buf = x0 || y0 || w !== meta.width || h !== meta.height
+    ? await sharp(l.buf).extract({ left: x0, top: y0, width: w, height: h }).png().toBuffer()
+    : l.buf;
+  return { input: buf, left, top };
+}
+async function mobile(name, accent, layers) {
+  const comps = (await Promise.all(layers.map((l) => fitLayer(l, MW, MH)))).filter(Boolean);
+  await sharp(bgM(accent)).composite(comps).webp({ quality: 84 }).toFile(path.join(OUT, `${name}-mobile.webp`));
 }
 
 // 1. Insider Scores — dial card in front, scored rankings behind, track record at the tail.
@@ -130,7 +151,15 @@ async function mobile(name, png, { left, top, width, height }) {
     { buf: tail.buf, left: 1580, top: 560 },
     { buf: dial, left: 120, top: 440 },
   ]);
-  await mobile("insider-scores", png, { left: 60, top: 300, width: 960, height: 1200 });
+  void png;
+  {
+    const list = await frame("scores-list.jpg", 1100, { pad: 70 });
+    const dialM = scoreCard();
+    await mobile("insider-scores", "green", [
+      { buf: list.buf, left: 120, top: 40 },
+      { buf: dialM, left: 60, top: 470 },
+    ]);
+  }
 }
 // 2. Top Insider Buys — the graded feed with an SMS alert overlapping the frame.
 {
@@ -140,7 +169,15 @@ async function mobile(name, png, { left, top, width, height }) {
     { buf: feed.buf, left: 120, top: 330 },
     { buf: sms, left: 1420, top: 90 },
   ]);
-  await mobile("top-insider-buys", png, { left: 1200, top: 60, width: 960, height: 1200 });
+  void png;
+  {
+    const feedM = await frame("top-buys.png", 1400, { pad: 70 });
+    const smsM = smsCard();
+    await mobile("top-insider-buys", "green", [
+      { buf: feedM.buf, left: -230, top: 420 },
+      { buf: smsM, left: 40, top: 60 },
+    ]);
+  }
 }
 // 3. Top Analysts / Insiders — analyst leaderboard beside insider track records.
 {
@@ -152,7 +189,15 @@ async function mobile(name, png, { left, top, width, height }) {
     { buf: ranked.buf, left: 260, top: 700 },
     { buf: ins.buf, left: 1540, top: 520 },
   ]);
-  await mobile("top-analysts-insiders", png, { left: 1300, top: 250, width: 960, height: 1200 });
+  void png;
+  {
+    const anM = await frame("analysts.png", 1300, { pad: 70, trimBottom: 48 });
+    const insM = await frame("track-record.png", 700, { chrome: false, radius: 30 });
+    await mobile("top-analysts-insiders", "gold", [
+      { buf: anM.buf, left: -200, top: 30 },
+      { buf: insM.buf, left: 100, top: 400 },
+    ]);
+  }
 }
 // 4. Stock Visualizer Suite — bubbles layered with congress bubbles.
 {
@@ -162,6 +207,14 @@ async function mobile(name, png, { left, top, width, height }) {
     { buf: bub.buf, left: 60, top: 40 },
     { buf: con.buf, left: 1290, top: 880 },
   ]);
-  await mobile("stock-visualizer", png, { left: 700, top: 200, width: 960, height: 1200 });
+  void png;
+  {
+    const bubM = await frame("bubbles.png", 1500, { pad: 70, trimBottom: 75 });
+    const conM = await frame("congress.png", 760, { pad: 70, trimBottom: 80 });
+    await mobile("stock-visualizer", "green", [
+      { buf: bubM.buf, left: -380, top: 40 },
+      { buf: conM.buf, left: 130, top: 700 },
+    ]);
+  }
 }
 console.log("done", fs.readdirSync(OUT));

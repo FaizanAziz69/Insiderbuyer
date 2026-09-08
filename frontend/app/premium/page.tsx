@@ -1115,6 +1115,7 @@ const BENEFITS_CSS = `
 .biv-fine-link:hover { color: var(--brand); }
 .biv-compliance { padding-top: 0 !important; padding-bottom: 40px !important; }
 .biv-compliance footer { margin-top: 0; }
+
 .biv-proof-line { margin-top: 10px !important; font-size: 13.5px !important; color: var(--dim) !important; }
 @media (max-width: 860px) { .biv-benefits { grid-template-columns: 1fr; } }
 `;
