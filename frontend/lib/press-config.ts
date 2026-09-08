@@ -27,6 +27,9 @@ export interface PressPackageConfig {
   positioning: string;
   highlighted: boolean;
   stats: PackageStat[];
+  /** What WE deliver on our own properties — every line here is inventory we
+   *  control, so it needs no partner confirmation. */
+  deliverables: string[];
   /** Feature checklist lines that are ours and already true. */
   features: string[];
 }
@@ -43,6 +46,14 @@ export const PRESS_PACKAGES: PressPackageConfig[] = [
       { label: "Monthly Reach", value: "152.3m", verified: false },
       { label: "Max DA", value: "94", verified: false },
       { label: "Day Delivery", value: "5", verified: false },
+    ],
+    deliverables: [
+      "Editorial-format article on InsiderBuying.com, edited by our desk",
+      "Homepage Top Stories placement",
+      "Listed on your ticker's company page and in the News & Analysis feed",
+      "Syndication to partner news sites — the outlet list is shared before you approve",
+      "Results report with live links and SEO data",
+      "Published by the Sunday after you approve the copy",
     ],
     features: [
       "“As seen on” Badge",
@@ -61,6 +72,15 @@ export const PRESS_PACKAGES: PressPackageConfig[] = [
       { label: "Monthly Reach", value: "172.6m", verified: false },
       { label: "Max DA", value: "94", verified: false },
       { label: "Day Delivery", value: "7", verified: false },
+    ],
+    deliverables: [
+      "Editorial-format article on InsiderBuying.com, edited by our desk",
+      "Homepage Top Stories placement — priority slot",
+      "Listed on your ticker's company page and in the News & Analysis feed",
+      "Syndication to partner news sites — the outlet list is shared before you approve",
+      "Follow-up mention in the weekly insider-buying email",
+      "Results report with live links and SEO data",
+      "Published by the Sunday after you approve the copy",
     ],
     features: [
       "“As seen on” Badge",
@@ -93,14 +113,34 @@ export const OUTLETS: OutletConfig[] = [
   { name: "Barchart", confirmed: false, domainAuthority: null, monthlyVisits: null, verified: false },
 ];
 
-/** Client-approved sample report PDF (§7). null until George supplies it. */
-export const SAMPLE_REPORT_URL: string | null = null;
+/** Our own properties — where every package is guaranteed to run. They fill
+ *  the GET SEEN ON wall until partner outlets are contracted (§4.2 rule: a
+ *  logo appears only where we can genuinely place). */
+export const OWNED_CHANNELS: { name: string; note: string }[] = [
+  { name: "InsiderBuying.com", note: "Homepage Top Stories" },
+  { name: "Insider Alerts", note: "investor email list" },
+  { name: "News & Analysis", note: "editorial feed" },
+  { name: "Company pages", note: "your ticker's page" },
+  { name: "Social channels", note: "amplification" },
+];
+
+/** §7 sample report. Until a client-approved campaign PDF exists, the modal
+ *  opens our own report page rendered from a REAL published editorial story
+ *  (live links, real SEO data) — the same format every order receives. */
+export const SAMPLE_REPORT_URL: string | null = "/press/sample-report";
+export const SAMPLE_REPORT_SLUG = "editorial-lulu-burry-buy-under-100-2026-09-05";
 
 /** Real, permissioned client quotes only (§7). Section hides below three. */
 export const TESTIMONIALS: { quote: string; name: string; title: string; company: string }[] = [];
 
-/** Placement screenshots for the hero collage — client-signed-off only (§8). */
-export const HERO_PLACEMENTS: { src: string; alt: string }[] = [];
+/** Hero collage (§2 row 2). Client campaign screenshots need sign-off (§8);
+ *  until then the collage shows REAL placements on our own properties —
+ *  captured from the live site 2026-09-09. Swap in client placements here. */
+export const HERO_PLACEMENTS: { src: string; alt: string; caption: string }[] = [
+  { src: "/press/placements/home-top-story.webp", alt: "InsiderBuying.com homepage with the day's Top Story", caption: "Homepage · Top Stories" },
+  { src: "/press/placements/article-burry-lulu.webp", alt: "A published editorial article page on InsiderBuying.com", caption: "Editorial article page" },
+  { src: "/press/placements/news-feed.webp", alt: "The News & Analysis feed on InsiderBuying.com", caption: "News & Analysis feed" },
+];
 
 /** §5 approved copy — the audience figure is George's; see the subscribe-page
  *  canonical-stats item if it ever changes. */

@@ -6,6 +6,8 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { PressOrder, PressOrderStatus, PressPackage, PRESS_ORDER_STATUSES } from '../entities/press-order.entity';
 import { InsiderTransaction } from '../entities/insider-transaction.entity';
+import { Company } from '../entities/company.entity';
+import { InsiderAlertDispatch } from '../entities/insider-alert-dispatch.entity';
 import { BillingService } from '../billing/billing.service';
 
 /** Brief v3 §6 — the two packages. Prices are the brief's; everything else
@@ -28,6 +30,17 @@ export interface UploadedKit {
   buffer: Buffer;
 }
 
+export interface PressStats {
+  filingsToday: number;
+  filingsLast24h: number;
+  /** Open-market insider transactions in our database. */
+  filingsOnFile: number;
+  /** Public companies with a record in our companies table. */
+  companiesTracked: number;
+  /** Insider-alert emails dispatched to date. */
+  alertsSent: number;
+}
+
 @Injectable()
 export class PressService {
   private readonly logger = new Logger(PressService.name);
@@ -35,6 +48,8 @@ export class PressService {
   constructor(
     @InjectRepository(PressOrder) private readonly orders: Repository<PressOrder>,
     @InjectRepository(InsiderTransaction) private readonly tx: Repository<InsiderTransaction>,
+    @InjectRepository(Company) private readonly companies: Repository<Company>,
+    @InjectRepository(InsiderAlertDispatch) private readonly alerts: Repository<InsiderAlertDispatch>,
     private readonly billing: BillingService,
   ) {}
 
@@ -135,15 +150,24 @@ export class PressService {
     return this.orders.save(order);
   }
 
-  /** The Editorial Focus band's live chip: filings scanned today (UTC). */
-  async stats(): Promise<{ filingsToday: number; filingsLast24h: number }> {
+  /** The Editorial Focus band's live chip plus the network-stats strip: only
+   *  figures we can evidence from our own tables (Brief v3 §6 — never a claim
+   *  we can't back). Cached 10 minutes; the counts are heavy. */
+  private statsCache: { at: number; value: PressStats } | null = null;
+  async stats(): Promise<PressStats> {
+    if (this.statsCache && Date.now() - this.statsCache.at < 10 * 60_000) return this.statsCache.value;
     const startOfDay = new Date();
     startOfDay.setUTCHours(0, 0, 0, 0);
-    const [filingsToday, filingsLast24h] = await Promise.all([
+    const [filingsToday, filingsLast24h, filingsOnFile, companiesTracked, alertsSent] = await Promise.all([
       this.tx.count({ where: { createdAt: MoreThan(startOfDay) } }),
       this.tx.count({ where: { createdAt: MoreThan(new Date(Date.now() - 24 * 3_600_000)) } }),
+      this.tx.count(),
+      this.companies.count(),
+      this.alerts.count(),
     ]);
-    return { filingsToday, filingsLast24h };
+    const value = { filingsToday, filingsLast24h, filingsOnFile, companiesTracked, alertsSent };
+    this.statsCache = { at: Date.now(), value };
+    return value;
   }
 
   /** Public view of an order for the intake / confirmation page — no file paths. */

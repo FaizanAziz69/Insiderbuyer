@@ -35,6 +35,7 @@ import {
   CALENDLY_URL,
   HERO_PLACEMENTS,
   OUTLETS,
+  OWNED_CHANNELS,
   PRESS_FAQ,
   PRESS_PACKAGES,
   SAMPLE_REPORT_URL,
@@ -195,27 +196,19 @@ function Hero({ onSample }: { onSample: () => void }) {
   );
 }
 
-/** Collage of live placement screenshots — real, client-signed-off assets
- *  only (§3/§8). Until they exist the frames hold labelled placeholders. */
+/** Collage of live placements (§2 row 2). Real screenshots only — today our
+ *  own properties (press-config HERO_PLACEMENTS); client campaign shots slot
+ *  in there once signed off (§8). */
 function HeroVisual() {
-  const frames = HERO_PLACEMENTS.length
-    ? HERO_PLACEMENTS.slice(0, 3)
-    : [{ src: "", alt: "Placement screenshot — pending client sign-off" }, { src: "", alt: "Placement screenshot — pending client sign-off" }, { src: "", alt: "Placement screenshot — pending client sign-off" }];
+  const frames = HERO_PLACEMENTS.slice(0, 3);
+  if (!frames.length) return null;
   return (
-    <div className="b2b3-collage" aria-label="Live placement screenshots">
+    <div className="b2b3-collage" aria-label="Live placements on InsiderBuying.com">
       {frames.map((f, i) => (
-        <figure key={i} className={`b2b3-shot b2b3-shot-${i}`}>
-          <div className="b2b3-shot-bar"><i /><i /><i /></div>
-          {f.src ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={f.src} alt={f.alt} loading={i === 0 ? "eager" : "lazy"} />
-          ) : (
-            <div className="b2b3-shot-ph">
-              <Newspaper size={22} aria-hidden />
-              <span>Live placement</span>
-              <small>screenshot pending client sign-off</small>
-            </div>
-          )}
+        <figure key={f.src} className={`b2b3-shot b2b3-shot-${i}`}>
+          <div className="b2b3-shot-bar"><i /><i /><i /><span>{f.caption}</span></div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={f.src} alt={f.alt} loading={i === 0 ? "eager" : "lazy"} decoding="async" width={1000} height={700} />
         </figure>
       ))}
     </div>
@@ -224,49 +217,58 @@ function HeroVisual() {
 
 /* 3 ─ Logo wall */
 function LogoWall() {
-  const outlets = OUTLETS.filter((o) => o.confirmed);
+  const partners = OUTLETS.filter((o) => o.confirmed && !o.prominent);
+  // §4.2: only outlets we can genuinely place on. Our own properties always
+  // qualify; contracted partners join them as they are confirmed.
+  const items: { name: string; note?: string; hot?: boolean }[] = [
+    ...OWNED_CHANNELS.map((c, i) => ({ name: c.name, note: c.note, hot: i === 0 })),
+    ...partners.map((o) => ({ name: o.name })),
+  ];
   return (
-    <section className="b2b3-logos" aria-label="Where your story can appear">
+    <section className="b2b3-logos" aria-label="Where your story runs">
       <div className="b2b3-wrap">
         <p className="b2b3-eyebrow">GET SEEN ON</p>
         <div className="b2b3-marquee">
           <div className="b2b3-marquee-track">
-            {[...outlets, ...outlets].map((o, i) => (
+            {[...items, ...items].map((o, i) => (
               <span
                 key={`${o.name}-${i}`}
-                className={`b2b3-outlet${o.prominent ? " b2b3-outlet-hot" : ""}${i >= outlets.length ? " b2b3-dup" : ""}`}
-                aria-hidden={i >= outlets.length || undefined}
+                className={`b2b3-outlet${o.hot ? " b2b3-outlet-hot" : ""}${i >= items.length ? " b2b3-dup" : ""}`}
+                aria-hidden={i >= items.length || undefined}
               >
                 {o.name}
+                {o.note && <small>{o.note}</small>}
               </span>
             ))}
           </div>
         </div>
-        {OUTLETS.some((o) => !o.confirmed) && (
-          <p className="b2b3-fine b2b3-center">Additional outlets appear here as they are confirmed in our distribution network.</p>
-        )}
+        <p className="b2b3-fine b2b3-center">
+          Our own properties, where every package is guaranteed to run. Partner news outlets are listed here as
+          each distribution contract is signed.
+        </p>
       </div>
     </section>
   );
 }
 
-/* 4 ─ Network stats strip */
+/* 4 ─ Network stats strip — figures we can evidence from our own database
+   (Brief v3 §6: never a claim we can't back). Partner DA / visits chips join
+   them per outlet once verified in press-config. */
 function StatsStrip() {
-  const outlets = OUTLETS.filter((o) => o.confirmed);
+  const { data } = useSWR<PressStats>(`${API_BASE}/press/stats`, fetcher, { revalidateOnFocus: false });
+  const n = (v: number | undefined) => (v === undefined ? "—" : v.toLocaleString("en-US"));
+  const partners = OUTLETS.filter((o) => o.confirmed && o.verified);
   return (
-    <section className="b2b3-strip" aria-label="Network authority">
+    <section className="b2b3-strip" aria-label="Audience and coverage figures">
       <div className="b2b3-wrap b2b3-strip-in">
-        {outlets.map((o) => (
+        <div className="b2b3-chip"><span className="b2b3-chip-name">InsiderBuying.com</span><span className="b2b3-chip-stat"><b>{n(data?.filingsOnFile)}</b> insider filings on file</span></div>
+        <div className="b2b3-chip"><span className="b2b3-chip-stat"><b>{n(data?.companiesTracked)}</b> public companies tracked</span></div>
+        <div className="b2b3-chip"><span className="b2b3-chip-stat"><b>{n(data?.filingsToday)}</b> filings scanned today</span></div>
+        {partners.map((o) => (
           <div key={o.name} className="b2b3-chip">
             <span className="b2b3-chip-name">{o.name}</span>
-            {o.verified ? (
-              <>
-                <span className="b2b3-chip-stat"><b>DA {o.domainAuthority}</b></span>
-                <span className="b2b3-chip-stat">{o.monthlyVisits} monthly visits</span>
-              </>
-            ) : (
-              <span className="b2b3-chip-pending">authority figures pending partner confirmation</span>
-            )}
+            <span className="b2b3-chip-stat"><b>DA {o.domainAuthority}</b></span>
+            <span className="b2b3-chip-stat">{o.monthlyVisits} monthly visits</span>
           </div>
         ))}
       </div>
@@ -299,8 +301,10 @@ function Process() {
 }
 
 /* 6 ─ Editorial Focus (§5, approved copy v1) */
+interface PressStats { filingsToday: number; filingsLast24h: number; filingsOnFile: number; companiesTracked: number; alertsSent: number }
+
 function EditorialFocus() {
-  const { data } = useSWR<{ filingsToday: number; filingsLast24h: number }>(`${API_BASE}/press/stats`, fetcher, { revalidateOnFocus: false });
+  const { data } = useSWR<PressStats>(`${API_BASE}/press/stats`, fetcher, { revalidateOnFocus: false });
   const n = data?.filingsToday ?? null;
   return (
     <section className="b2b3-focus">
@@ -360,17 +364,12 @@ function Pricing({ onCheckout, onSample, busy, err }: { onCheckout: (p: PressPac
                 <ShieldCheck size={14} aria-hidden /> <Link href="/press/guarantee">Money Back Guarantee</Link>
               </p>
               <ul className="b2b3-features">
-                {p.stats.map((s) => (
-                  <li key={s.label}>
-                    <Check size={16} aria-hidden />
-                    {s.verified ? (
-                      <span><b>{s.value}</b> {s.label}</span>
-                    ) : (
-                      <span className="b2b3-pending" title="Figure pending distribution-partner confirmation">
-                        {s.label} <em>— pending confirmation</em>
-                      </span>
-                    )}
-                  </li>
+                {/* Partner-network figures print only once verified (§6). */}
+                {p.stats.filter((s) => s.verified).map((s) => (
+                  <li key={s.label}><Check size={16} aria-hidden /><span><b>{s.value}</b> {s.label}</span></li>
+                ))}
+                {p.deliverables.map((f) => (
+                  <li key={f}><Check size={16} aria-hidden /><span>{f}</span></li>
                 ))}
                 {p.features.map((f) => (
                   <li key={f}><Check size={16} aria-hidden /><span>{f}</span></li>
@@ -520,7 +519,7 @@ function SampleModal({ onClose }: { onClose: () => void }) {
         <button type="button" className="b2b3-modal-x" onClick={onClose} aria-label="Close"><X size={18} /></button>
         <p className="b2b3-eyebrow">Sample report</p>
         {SAMPLE_REPORT_URL ? (
-          <iframe src={SAMPLE_REPORT_URL} title="Sample results report" className="b2b3-modal-frame" />
+          <iframe src={SAMPLE_REPORT_URL} title="Sample results report" className="b2b3-modal-frame" loading="lazy" />
         ) : (
           <div className="b2b3-modal-empty">
             <FileText size={28} aria-hidden />
@@ -582,6 +581,8 @@ const CSS = `
 .b2b3-shot-0 { left: 0; top: 0; z-index: 3; } .b2b3-shot-1 { right: 0; top: 70px; z-index: 2; } .b2b3-shot-2 { left: 14%; bottom: 0; z-index: 1; }
 .b2b3-shot-bar { height: 28px; background: #EEF2F7; display: flex; gap: 6px; align-items: center; padding: 0 12px; }
 .b2b3-shot-bar i { width: 9px; height: 9px; border-radius: 50%; background: #CBD5E1; }
+.b2b3-shot-bar span { margin-left: auto; font-family: var(--b2b-mono), monospace; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+.b2b3-outlet small { display: block; font-size: 10.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted); margin-top: 2px; }
 .b2b3-shot img { display: block; width: 100%; height: auto; }
 .b2b3-shot-ph { height: 150px; display: grid; place-content: center; justify-items: center; gap: 4px; color: var(--muted); font-size: 13px; font-weight: 700; }
 .b2b3-shot-ph small { font-weight: 400; font-size: 11.5px; }
