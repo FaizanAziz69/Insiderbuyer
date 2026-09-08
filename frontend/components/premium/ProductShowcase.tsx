@@ -41,7 +41,7 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "insider-scores",
     alt: "Insider Score panel in front of a ranked list of scored insiders with roles and win rates",
     aspect: 16 / 10,
-    mobileAspect: 0.8688,
+    mobileAspect: 0.6015,
   },
   {
     id: "top-insider-buys",
@@ -56,7 +56,7 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "top-insider-buys",
     alt: "Top Insider Buys feed with graded rows and an alert notification overlapping the frame",
     aspect: 16 / 10,
-    mobileAspect: 1.1497,
+    mobileAspect: 1.4307,
   },
   {
     id: "top-analysts-insiders",
@@ -71,7 +71,7 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "top-analysts-insiders",
     alt: "Analyst leaderboard beside insider track-record cards",
     aspect: 16 / 10,
-    mobileAspect: 0.8594,
+    mobileAspect: 0.5872,
   },
   {
     id: "stock-visualizer",
@@ -86,16 +86,19 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "stock-visualizer",
     alt: "Insider Bubbles map with one bubble expanded into its detail panel, layered with the Congress Bubbles map",
     aspect: 16 / 10,
-    mobileAspect: 1.1823,
+    mobileAspect: 1.2167,
   },
 ];
 
-// "-embed" = the transparent renders. New names on purpose: /sales is cached
+// REV = the transparent renders' revision. New names on every re-render: /sales is cached
 // for 30 days, so a replaced file under the old name never reaches returning
 // browsers.
-const src1x = (f: string) => `/sales/showcase/${f}-e3.webp`;
-const src2x = (f: string) => `/sales/showcase/${f}-e3@2x.webp`;
-const srcMobile = (f: string) => `/sales/showcase/${f}-e3-mobile.webp`;
+const REV = "e4";
+const src1x = (f: string) => `/sales/showcase/${f}-${REV}.webp`;
+const src2x = (f: string) => `/sales/showcase/${f}-${REV}@2x.webp`;
+const srcMobile = (f: string) => `/sales/showcase/${f}-${REV}-mobile.webp`;
+/** Exported so the hero (§2 row 1) can show visual 4 from the same files. */
+export const showcaseSrc = { x1: src1x, x2: src2x, mobile: srcMobile };
 
 export function ProductShowcase({ visuals = SHOWCASE }: { visuals?: ShowcaseVisual[] }) {
   const [open, setOpen] = useState<number | null>(null);
