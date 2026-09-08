@@ -44,6 +44,9 @@ function alertTags(t: TradeRow): string[] {
   if (t.type === "SELL") return [];
   const sym = (t.ticker || "").trim().toUpperCase();
   if (!sym || sym === "N/A" || sym === "NONE") return [];
+  // A purchase with no dollar value (a $0 line, a missing price) is not an
+  // alert — the engine never mails one, and "CFO bought $0" is not a signal.
+  if (!(Number(t.totalValue) > 0)) return [];
   const tags: string[] = [];
   if (["CEO", "CFO", "COO"].includes(t.role)) tags.push("EXEC BUY");
   if (Number(t.totalValue) >= BIG_BUY) tags.push("BIG BUY");
