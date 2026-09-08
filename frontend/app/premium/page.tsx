@@ -463,9 +463,13 @@ export default function PremiumPage() {
             >
               {annualLabel}
             </button>
+            <a href="#features" className="biv-btn biv-btn-ghost">
+              Explore the platform
+            </a>
           </div>
           <p className="biv-fine">
-            {priceOf("monthly") ? `or ${priceOf("monthly")}/month · ` : ""}Cancel anytime · 30-day money-back guarantee
+            Start free. No credit card required.
+            {priceOf("monthly") ? ` · or ${priceOf("monthly")}/month` : ""} · Cancel anytime · 30-day money-back guarantee
           </p>
           <p className="biv-hero-proof">
             <span className="biv-stars" role="img" aria-label="Rated five stars">
@@ -473,7 +477,7 @@ export default function PremiumPage() {
                 <svg key={i} viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.4l-5.9 3.3 1.3-6.6L2.5 9.5l6.6-.8z" /></svg>
               ))}
             </span>
-            <span>Join {investors} investors getting faster insider intelligence</span>
+            <span>Trusted by real investors · Join {investors} investors getting faster insider intelligence</span>
           </p>
         </div>
         <div className="biv-hero-art">
@@ -776,7 +780,7 @@ const CSS = `
 .biv-hero { display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); gap: 48px; align-items: center; padding-top: 72px !important; }
 /* §3.1: a sentence, not a slogan — sentence case, big, with the trust clause in brand colour. */
 .biv h1.biv-hero-h1 { text-transform: none; font-size: clamp(38px, 4.3vw, 66px); line-height: 1.02; letter-spacing: -0.025em; max-width: 12ch; }
-.biv-hero .biv-ctas { margin-top: 30px; }
+.biv-hero .biv-ctas { margin-top: 30px; align-items: center; }
 .biv-hero .biv-fine { margin-top: 12px; }
 .biv-hero-proof { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 28px 0 0; font-size: 15px; font-weight: 600; color: var(--dim); }
 .biv-hero-proof .biv-stars { margin: 0; gap: 3px; }
