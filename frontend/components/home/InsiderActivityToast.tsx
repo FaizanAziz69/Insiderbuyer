@@ -12,7 +12,6 @@ import {
   formatNumber,
 } from "@/lib/api";
 import { InsiderAvatar } from "@/components/InsiderAvatar";
-import { OptInModal } from "@/components/OptInModal";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
@@ -244,7 +243,6 @@ export function InsiderActivityToast({
   }, [pathname, dismissed]);
 
   const router = useRouter();
-  const [optInOpen, setOptInOpen] = useState(false);
   // Subscribers see the real names — no blur, no unlock CTA. The blur is a
   // tease for logged-out/free visitors only.
   const { unlocked } = usePremium();
@@ -624,7 +622,7 @@ export function InsiderActivityToast({
                       onClick={() =>
                         unlocked
                           ? router.push(`/companies/${encodeURIComponent(a.ticker)}`)
-                          : setOptInOpen(true)
+                          : router.push(SUBSCRIBE_HREF)
                       }
                       className="mt-3.5 w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 text-[13px] font-bold uppercase tracking-wider transition hover:brightness-110"
                       style={{ background: s.solid, color: "#052015", boxShadow: `0 6px 20px ${s.glow}` }}
@@ -656,23 +654,9 @@ export function InsiderActivityToast({
       </AnimatePresence>
         </motion.div>
       </motion.div>
-      <OptInModal
-        open={optInOpen}
-        onClose={() => setOptInOpen(false)}
-        source="insider-activity-toast"
-        headerLabel="Unlock Insider Information"
-        promo={{
-          eyebrow: "Unlock Insider Information",
-          title: "See who's buying — before the crowd",
-          body: "Reveal the insider's name and the company on every live buy, plus our full Insider Score. Get daily alerts the moment insiders and members of Congress file.",
-          cta: "Unlock Access",
-          note: "Enter your email (add a phone for SMS alerts) to unlock and continue.",
-        }}
-        onSubscribed={() => {
-          setOptInOpen(false);
-          router.push(SUBSCRIBE_HREF);
-        }}
-      />
+      {/* Client 2026-09-08: the email/SMS "Unlock Insider Information" modal is
+          gone — it promised daily alerts, SMS and an unlock it never delivered.
+          The CTA now goes straight to the subscribe page. */}
     </>
   );
 }

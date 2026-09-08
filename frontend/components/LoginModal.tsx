@@ -129,7 +129,7 @@ export function LoginModal({ open, onClose }: { open: boolean; onClose: () => vo
                   </h2>
                   <p className="text-soft text-sm mb-6 max-w-sm mx-auto">
                     {isSignup
-                      ? "Sign up to save watchlists, follow insider buying, and get personalized alerts."
+                      ? "Sign up to save your watchlist and portfolio across devices."
                       : "Sign in to access your watchlist and alerts."}
                   </p>
                 </div>

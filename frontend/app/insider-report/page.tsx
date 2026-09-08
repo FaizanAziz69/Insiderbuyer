@@ -518,22 +518,8 @@ export default function InsiderReportLanding() {
                       <div className="gate-label" style={{ marginTop: 22 }}>
                         Where should we send the insider report?
                       </div>
-                      <div className="toggle" role="tablist">
-                        <button
-                          type="button"
-                          className={channel === "email" ? "on" : ""}
-                          onClick={() => setMode("email")}
-                        >
-                          Email
-                        </button>
-                        <button
-                          type="button"
-                          className={channel === "sms" ? "on" : ""}
-                          onClick={() => setMode("sms")}
-                        >
-                          SMS
-                        </button>
-                      </div>
+                      {/* Client 2026-09-08: email only — there is no SMS provider,
+                          so the page no longer offers a channel it cannot deliver. */}
                       <div className="gate-row">
                         <input
                           ref={contactRef}
@@ -555,9 +541,8 @@ export default function InsiderReportLanding() {
                       </div>
                       {error && <p className="err">{error}</p>}
                       <p className="consent">
-                        By requesting the report you agree to receive it by email or SMS, plus
-                        occasional insider alerts. Unsubscribe anytime. Msg &amp; data rates may
-                        apply.
+                        By requesting the report you agree to receive it by email, plus
+                        occasional insider alerts. Unsubscribe anytime.
                       </p>
                     </div>
                   ) : (
@@ -954,7 +939,7 @@ export default function InsiderReportLanding() {
               Check your stock&apos;s Insider Score →
             </a>
             <p className="fineprint" style={{ marginTop: 14 }}>
-              Free report by email or SMS · No card required
+              Free report by email · No card required
             </p>
           </div>
         </div>

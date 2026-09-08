@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Subscriber } from '../entities/subscriber.entity';
 import { EmailFlowsService } from '../email-flows/email-flows.service';
+import { FulfilmentService } from './fulfilment.service';
 
 @Controller('subscribers')
 export class SubscribersController {
@@ -10,6 +11,7 @@ export class SubscribersController {
     @InjectRepository(Subscriber)
     private readonly repo: Repository<Subscriber>,
     private readonly emailFlows: EmailFlowsService,
+    private readonly fulfilment: FulfilmentService,
   ) {}
 
   /**
@@ -55,6 +57,8 @@ export class SubscribersController {
         tags.push(source);
         existing.source = tags.join(',').slice(0, 255);
         await this.repo.save(existing);
+        // A known subscriber asking for something NEW still gets it now.
+        this.fulfilment.fulfil(email, source);
       }
       return { ok: true, deduped: true, id: existing.id, source: existing.source };
     }
@@ -65,7 +69,9 @@ export class SubscribersController {
         source,
       }),
     );
-    // New list member → start the Welcome Flow (fire-and-forget).
+    // What they signed up for goes out first (instantly); the Welcome Flow
+    // starts 30 minutes later (see content/welcome.ts w1).
+    this.fulfilment.fulfil(email, source);
     this.emailFlows.startFlow('welcome', email).catch(() => undefined);
     return { ok: true, id: saved.id };
   }

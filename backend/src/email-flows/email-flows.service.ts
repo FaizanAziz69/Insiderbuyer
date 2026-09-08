@@ -187,6 +187,14 @@ export class EmailFlowsService {
     );
   }
 
+  /** Send a single, flow-independent email in the house template (the
+   *  fulfilment emails: what a popup promised, delivered before any sequence
+   *  starts). Same renderer and sender as the flows. */
+  async sendOneOff(email: string, step: FlowEmail, firstName: string | null = null): Promise<void> {
+    if (!this.enabled) return;
+    await this.sendStep({ email, firstName } as EmailFlowState, step);
+  }
+
   private async sendStep(state: EmailFlowState, step: FlowEmail): Promise<void> {
     const firstName = state.firstName || 'friend';
     const v = step.subjects[this.pickVariant(state.email, step.id, step.subjects.length)];
@@ -214,13 +222,48 @@ export class EmailFlowsService {
    *  paygated (locked rows with an unlock CTA). Sent to every subscriber. */
   async sendWeeklyNewsletter(): Promise<{ sent: number; failed: number }> {
     if (!this.enabled) return { sent: 0, failed: 0 };
+    const built = await this.buildWeeklyBody();
+    if (!built) return { sent: 0, failed: 0 };
+    const step: FlowEmail = {
+      id: `newsletter`,
+      offsetMinutes: 0,
+      brand: 'INSIDER BUYING',
+      signoffTitle: 'CEO and Publisher, Insider Buying',
+      subjects: [
+        { subject: 'This week’s top insider buys and analyst stocks', preview: 'The top 10 of each — with the highest scores' },
+      ],
+      body: [built, 'See you on the inside,', '__SIGNOFF__'],
+    };
+
+    const rows = await this.subscribers
+      .createQueryBuilder('s')
+      .select('DISTINCT LOWER(s.email)', 'email')
+      .getRawMany<{ email: string }>();
+    let sent = 0;
+    let failed = 0;
+    for (const r of rows) {
+      try {
+        await this.sendStep({ email: r.email, firstName: null } as EmailFlowState, step);
+        sent++;
+      } catch {
+        failed++;
+      }
+    }
+    this.logger.log(`weekly newsletter: sent=${sent} failed=${failed}`);
+    return { sent, failed };
+  }
+
+  /** The newsletter body — top insider buys + top analyst stocks, ranks 6–10
+   *  locked. Shared with the popup fulfilment email ("this week's top insider
+   *  buys, scored and ranked"), so both say exactly the same thing. */
+  async buildWeeklyBody(): Promise<string | null> {
     const [rank, top] = await Promise.all([
       this.iqs.getRankings({ limit: 10, offset: 0 }),
       this.iqs.getTopStocks(10).catch(() => []),
     ]);
     const insiderRows = (rank.rows || []).slice(0, 10);
     const analystRows = (top || []).slice(0, 10);
-    if (!insiderRows.length) return { sent: 0, failed: 0 };
+    if (!insiderRows.length) return null;
 
     const row = (cells: string[], locked = false) =>
       `<tr style="border-top:1px solid #e5e5e5;${locked ? 'filter:blur(0.5px);opacity:0.85;' : ''}">${cells
@@ -281,34 +324,7 @@ export class EmailFlowsService {
       insiderTable +
       analystTable +
       `<p style="margin:22px 0 6px;"><a href="{{URL}}" style="color:#e02b2b;font-weight:700;text-decoration:underline;">Unlock the full lists — go Premium →</a></p>`;
-
-    const step: FlowEmail = {
-      id: `newsletter`,
-      offsetMinutes: 0,
-      brand: 'INSIDER BUYING',
-      signoffTitle: 'CEO and Publisher, Insider Buying',
-      subjects: [
-        { subject: 'This week’s top insider buys and analyst stocks', preview: 'The top 10 of each — with the highest scores' },
-      ],
-      body: [bodyHtml, 'See you on the inside,', '__SIGNOFF__'],
-    };
-
-    const rows = await this.subscribers
-      .createQueryBuilder('s')
-      .select('DISTINCT LOWER(s.email)', 'email')
-      .getRawMany<{ email: string }>();
-    let sent = 0;
-    let failed = 0;
-    for (const r of rows) {
-      try {
-        await this.sendStep({ email: r.email, firstName: null } as EmailFlowState, step);
-        sent++;
-      } catch {
-        failed++;
-      }
-    }
-    this.logger.log(`weekly newsletter: sent=${sent} failed=${failed}`);
-    return { sent, failed };
+    return bodyHtml;
   }
 
   /** Manual test-send of any step to any address (doesn't touch state). */

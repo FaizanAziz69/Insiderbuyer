@@ -47,14 +47,14 @@ export const SHOWCASE: ShowcaseVisual[] = [
     id: "top-insider-buys",
     title: "The best buys, graded, as they file.",
     caption:
-      "Top Insider Buys grades every open-market purchase A+ to F the moment the Form 4 lands, and the alert reaches you before the market reads it.",
+      "Top Insider Buys grades every open-market purchase A+ to F the moment the Form 4 lands, and the email alert reaches you before the market reads it.",
     bullets: [
       "A+ to F grade on size, stake growth, buyer record and timing",
       "Cluster, CEO and first-buy signals flagged on each row",
-      "Real-time alerts by email and SMS",
+      "Real-time email alerts, within hours of the filing",
     ],
     file: "top-insider-buys",
-    alt: "Top Insider Buys feed with graded rows and an SMS alert notification overlapping the frame",
+    alt: "Top Insider Buys feed with graded rows and an alert notification overlapping the frame",
     aspect: 16 / 10,
     mobileAspect: 4 / 5,
   },

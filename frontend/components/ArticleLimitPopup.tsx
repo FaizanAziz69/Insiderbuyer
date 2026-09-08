@@ -136,7 +136,7 @@ export function ArticleGate({
                         : `You have ${remaining} free articles left`}
                   </div>
                   <div className="text-[12px] text-mute leading-snug">
-                    Subscribe for unlimited articles, Insider Scores and daily alerts.
+                    Subscribe for unlimited articles, Insider Scores and insider alerts.
                   </div>
                 </div>
                 <UnlockButton href={SUBSCRIBE_HREF} compact>
@@ -194,7 +194,7 @@ export function ArticleGate({
                   size="lg"
                   eyebrow={`You've read your ${FREE_ARTICLES} free articles`}
                   title="Keep reading with Insider Access"
-                  subtitle="Unlimited articles, every Insider Score, and daily alerts when executives buy their own stock."
+                  subtitle="Unlimited articles, every Insider Score, and alerts when executives buy their own stock."
                 />
                 <p className="mt-4 text-center text-[13px] text-mute">
                   Already a subscriber?{" "}

@@ -284,8 +284,28 @@ export class InsiderAlertsService implements OnModuleInit {
    * `tickers` narrows to a watchlist; without it the public exec/$1M rules
    * decide what qualifies.
    */
-  private async collect(channel = BROADCAST, tickers?: Set<string>): Promise<AlertItem[]> {
-    const since = new Date(Date.now() - LOOKBACK_HOURS * 3_600_000);
+  /**
+   * The latest qualifying buys regardless of dispatch state — for the
+   * fulfilment email a new /alerts subscriber gets instantly ("here is what
+   * you just signed up for"). Same rules as the digest, wider window.
+   */
+  async latestQualifying(hours = 24 * 7, limit = 5): Promise<AlertItem[]> {
+    const items = await this.collect(BROADCAST, undefined, { hours, ignoreDispatch: true });
+    return items.slice(0, limit);
+  }
+
+  /** The digest's alert cards as an HTML table body — embeddable in another
+   *  email (fulfilment) without the digest's masthead. */
+  renderCards(items: AlertItem[]): string {
+    return `<table style="width:100%;border-collapse:collapse;">${items.map((i) => this.cardHtml(i)).join('')}</table>`;
+  }
+
+  private async collect(
+    channel = BROADCAST,
+    tickers?: Set<string>,
+    opts: { hours?: number; ignoreDispatch?: boolean } = {},
+  ): Promise<AlertItem[]> {
+    const since = new Date(Date.now() - (opts.hours ?? LOOKBACK_HOURS) * 3_600_000);
     const rows = await this.txRepo.find({
       where: { createdAt: MoreThan(since), transactionCode: 'P' },
       relations: { company: true },
@@ -295,12 +315,14 @@ export class InsiderAlertsService implements OnModuleInit {
     if (!rows.length) return [];
 
     const alreadySent = new Set(
-      (
-        await this.dispatch.find({
-          where: { transactionId: In(rows.map((r) => r.id)), channel },
-          select: { transactionId: true },
-        })
-      ).map((d) => d.transactionId),
+      opts.ignoreDispatch
+        ? []
+        : (
+            await this.dispatch.find({
+              where: { transactionId: In(rows.map((r) => r.id)), channel },
+              select: { transactionId: true },
+            })
+          ).map((d) => d.transactionId),
     );
 
     // One rankings read gives every score we need for this batch.
@@ -422,10 +444,9 @@ export class InsiderAlertsService implements OnModuleInit {
     );
   }
 
-  private renderDigest(items: AlertItem[], mode: 'broadcast' | 'watchlist' = 'broadcast'): string {
+  private cardHtml(i: AlertItem): string {
     const site = process.env.SITE_URL || 'https://insiderbuying.com';
-    const watch = mode === 'watchlist';
-    const card = (i: AlertItem) => `
+    return `
       <tr><td style="padding:14px 0;border-top:1px solid #e5e5e5;">
         <div style="font-size:15px;font-weight:800;color:#111;">
           ${i.ticker ? `<a href="${site}/companies/${encodeURIComponent(i.ticker)}" style="color:#e02b2b;text-decoration:none;">${i.ticker}</a> · ` : ''}${this.esc(i.companyName)}
@@ -440,6 +461,12 @@ export class InsiderAlertsService implements OnModuleInit {
         <div style="font-size:13px;color:#555;margin-top:6px;line-height:1.5;">${this.esc(i.meaning)}</div>
         ${i.filingUrl ? `<div style="font-size:12px;margin-top:6px;"><a href="${i.filingUrl}" style="color:#666;">View the Form 4 on EDGAR →</a></div>` : ''}
       </td></tr>`;
+  }
+
+  private renderDigest(items: AlertItem[], mode: 'broadcast' | 'watchlist' = 'broadcast'): string {
+    const site = process.env.SITE_URL || 'https://insiderbuying.com';
+    const watch = mode === 'watchlist';
+    const card = (i: AlertItem) => this.cardHtml(i);
     return `
       <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#111;">
         <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#888;">${watch ? 'Watchlist Alert' : 'IQS Alerts'}</div>

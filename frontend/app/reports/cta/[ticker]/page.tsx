@@ -24,7 +24,6 @@ export default function CtaOptInPage({
     : `Before you consider ${safeTicker}, you'll want to hear this.`;
 
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [state, setState] = useState<"idle" | "submitting" | "done" | "error">(
     "idle",
   );
@@ -51,7 +50,6 @@ export default function CtaOptInPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
-          phone: phone || undefined,
           source: `cta-${safeTicker}`,
         }),
       });
@@ -133,9 +131,8 @@ export default function CtaOptInPage({
                   on{!isGeneric && ` — and ${safeTicker} may or may not be on the list`}.
                 </p>
                 <p>
-                  This is a report that normally sells for $29.97 on our site, but
-                  we&rsquo;re making it available free today. Enter your email below to
-                  see which companies made the cut.
+                  Enter your email below and the report lands in your inbox within a few
+                  minutes — free, no card needed.
                 </p>
               </div>
 
@@ -174,18 +171,6 @@ export default function CtaOptInPage({
                     </p>
                   )}
                 </div>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="🇺🇸 Your Phone Number (Optional)"
-                  className="w-full px-4 py-3 rounded-md text-[14px]"
-                  style={{
-                    background: "var(--bg-1)",
-                    border: "1px solid var(--border-strong)",
-                    color: "var(--text)",
-                  }}
-                />
                 <button
                   type="submit"
                   disabled={state === "submitting"}

@@ -7,7 +7,10 @@ const D = 24 * H; // minutes per day
 export const WELCOME_FLOW: FlowEmail[] = [
   {
     id: 'w1',
-    offsetMinutes: 5,
+    // 30 minutes, not 5 (client 2026-09-08): the fulfilment email — what the
+    // visitor actually signed up for — goes out instantly, and the sequence
+    // starts after it, not on top of it.
+    offsetMinutes: 30,
     brand: 'INSIDER BUYING',
     signoffTitle: SIGNOFF_BUYING,
     subjects: [

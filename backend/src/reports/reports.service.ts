@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import axios from 'axios';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ReportLead } from '../entities/report-lead.entity';
@@ -72,17 +73,48 @@ export class ReportsService {
   }
 
   /**
-   * Delivery stub. No email/SMS provider is configured yet (no API keys), so
-   * leads stay 'pending' in report_leads and the report renders on demand at
-   * /report-requests/:id/preview. When a provider lands, implement this to
-   * render renderInsiderReportHtml(await buildReportData(...)) into the send
-   * call and flip status to 'sent'/'failed'.
+   * Deliver the report (client 2026-09-08: "they are getting immediately what
+   * they signed up for"). Email goes out through Resend as the full rendered
+   * report; there is no SMS provider, so an SMS lead is marked failed and the
+   * landing page no longer offers that channel.
    */
   private async deliver(lead: ReportLead): Promise<void> {
-    this.logger.log(
-      `Report lead stored (${lead.channel}: ${lead.contact} → ${lead.ticker}); ` +
-        'delivery deferred — no email/SMS provider configured.',
+    if (lead.channel !== 'email') {
+      lead.status = 'failed';
+      await this.leads.save(lead).catch(() => undefined);
+      this.logger.warn(`Report lead ${lead.id}: SMS requested but no SMS provider is configured.`);
+      return;
+    }
+    try {
+      await this.sendReportEmail(lead.contact, lead.ticker);
+      lead.status = 'sent';
+    } catch (e: any) {
+      lead.status = 'failed';
+      this.logger.warn(`Report email failed (${lead.contact} → ${lead.ticker}): ${e?.message || e}`);
+    }
+    await this.leads.save(lead).catch(() => undefined);
+  }
+
+  /** Render and email the standard insider report for a ticker. Shared with
+   *  the /reports/cta funnel (FulfilmentService). Throws when Resend is not
+   *  configured so callers can record the failure. */
+  async sendReportEmail(to: string, tickerRaw: string): Promise<void> {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) throw new Error('RESEND_API_KEY not configured');
+    const ticker = (tickerRaw || '').trim().toUpperCase();
+    const html = await this.renderForTicker(ticker);
+    await axios.post(
+      'https://api.resend.com/emails',
+      {
+        from: process.env.EMAIL_FROM || 'InsiderBuying.com <info@insiderbuying.com>',
+        to: [to],
+        reply_to: process.env.EMAIL_REPLY_TO || 'info@insiderbuying.com',
+        subject: `Your insider report: ${ticker}`,
+        html,
+      },
+      { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 20_000 },
     );
+    this.logger.log(`report email sent → ${to} (${ticker})`);
   }
 
   /** Render the standard report for a stored lead (also the future email body). */

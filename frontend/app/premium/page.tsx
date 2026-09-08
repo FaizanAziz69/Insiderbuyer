@@ -157,7 +157,7 @@ const BENEFITS = [
   { title: "Insider Scores", text: "A 0–100 score on every company with qualifying open-market buys, with the pillars behind it." },
   { title: "Top Insider Buys", text: "Every purchase graded A+ to F as the Form 4 lands — size, stake growth, buyer record, timing." },
   { title: "Top Analysts & Insiders", text: "People ranked by measured results: analyst success rates and insider track-record accuracy." },
-  { title: "Real-time alerts", text: "Summarized email and SMS alerts on the buys that matter, minutes after they file." },
+  { title: "Real-time alerts", text: "Summarized email alerts on the CEO, CFO and $1M+ buys that matter, within hours of the filing." },
   { title: "Congress & contracts", text: "House and Senate trades and government contract awards, side by side with the insiders." },
   { title: "Bubbles & heat maps", text: "The whole tape in one picture — insider bubbles, congress bubbles and sector flow." },
 ];
