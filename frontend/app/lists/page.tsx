@@ -5,12 +5,35 @@ import { motion } from "framer-motion";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { API_BASE, IdeaRow, IdeasResponse, fetcher, formatCurrency } from "@/lib/api";
 import { TierBadge } from "@/components/TierBadge";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { PremiumValue } from "@/components/premium/PremiumValue";
+import { FREE_ROWS, PremiumRowWall } from "@/components/premium/PremiumRowWall";
 
-function IdeaItem({ r, rank }: { r: IdeaRow; rank: number }) {
+/**
+ * Paygate (client 2026-09-08: "this page is leaking premium data"). Same
+ * freemium shape as every other leaderboard: FREE_ROWS rows per list plus one
+ * faded teaser, then the shared wall; and the Insider Score — the number AND
+ * the Bullish/Neutral/Bearish tier derived from it — renders only inside
+ * <PremiumValue>, so a visitor sees a blurred decoy, never the real value.
+ */
+function IdeaItem({
+  r,
+  rank,
+  unlocked,
+  teaser = false,
+}: {
+  r: IdeaRow;
+  rank: number;
+  unlocked: boolean;
+  teaser?: boolean;
+}) {
   return (
     <Link
       href={r.ticker ? `/companies/${encodeURIComponent(r.ticker)}` : "#"}
       className="flex items-center gap-4 px-5 py-3.5 hover:bg-[var(--accent-soft)] transition group"
+      style={{ opacity: teaser ? 0.28 : 1, pointerEvents: teaser ? "none" : undefined }}
+      aria-hidden={teaser || undefined}
+      tabIndex={teaser ? -1 : undefined}
     >
       <span className="font-mono text-[11px] text-faint w-6 tabular">
         {String(rank).padStart(2, "0")}
@@ -22,7 +45,7 @@ function IdeaItem({ r, rank }: { r: IdeaRow; rank: number }) {
           ) : (
             <span className="text-faint">—</span>
           )}
-          <TierBadge iqs={r.iqs} size="sm" />
+          {unlocked && <TierBadge iqs={r.iqs} size="sm" />}
           {r.sector && (
             <span className="hidden md:inline text-[11px] text-mute truncate max-w-[200px]">
               {r.sector}
@@ -31,9 +54,18 @@ function IdeaItem({ r, rank }: { r: IdeaRow; rank: number }) {
         </div>
         <div className="text-[13px] text-soft truncate mt-0.5">{r.name}</div>
       </div>
-      <div className="text-right hidden sm:block">
+      <div className="text-right">
         <div className="text-[11px] label-mini">Insider Score</div>
-        <div className="text-sm font-bold tabular">{r.iqs.toFixed(1)}</div>
+        <div className="text-sm font-bold tabular">
+          <PremiumValue label="Insider Score">
+            <span className="inline-flex items-center gap-1.5">
+              {r.iqs.toFixed(1)}
+              <span className="sm:hidden">
+                <TierBadge iqs={r.iqs} size="sm" />
+              </span>
+            </span>
+          </PremiumValue>
+        </div>
       </div>
       <div className="text-right hidden md:block">
         <div className="text-[11px] label-mini">Bought</div>
@@ -47,6 +79,7 @@ function IdeaItem({ r, rank }: { r: IdeaRow; rank: number }) {
 }
 
 export default function ListsPage() {
+  const { unlocked } = usePremium();
   const { data, isLoading } = useSWR<IdeasResponse>(
     `${API_BASE}/ideas`,
     fetcher,
@@ -100,12 +133,28 @@ export default function ListsPage() {
                 </div>
               ) : (
                 <ul className="divide-y divide-[var(--border)]">
-                  {list.rows.map((r, i) => (
+                  {(unlocked ? list.rows : list.rows.slice(0, FREE_ROWS + 1)).map((r, i) => (
                     <li key={r.companyId}>
-                      <IdeaItem r={r} rank={i + 1} />
+                      <IdeaItem
+                        r={r}
+                        rank={i + 1}
+                        unlocked={unlocked}
+                        teaser={!unlocked && i === FREE_ROWS}
+                      />
                     </li>
                   ))}
                 </ul>
+              )}
+              {list.rows.length > FREE_ROWS && (
+                <PremiumRowWall
+                  label="Insider Alerts"
+                  total={list.rows.length}
+                  bullets={[
+                    "Every alert in each list, not just the preview",
+                    "The Insider Score and tier on every name",
+                    "Cluster buys, executive purchases and mega-cap moves as they land",
+                  ]}
+                />
               )}
             </motion.section>
           ))}
