@@ -41,7 +41,7 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "insider-scores",
     alt: "Insider Score panel in front of a ranked list of scored insiders with roles and win rates",
     aspect: 16 / 10,
-    mobileAspect: 4 / 5,
+    mobileAspect: 0.8688,
   },
   {
     id: "top-insider-buys",
@@ -56,7 +56,7 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "top-insider-buys",
     alt: "Top Insider Buys feed with graded rows and an alert notification overlapping the frame",
     aspect: 16 / 10,
-    mobileAspect: 4 / 5,
+    mobileAspect: 1.1497,
   },
   {
     id: "top-analysts-insiders",
@@ -71,7 +71,7 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "top-analysts-insiders",
     alt: "Analyst leaderboard beside insider track-record cards",
     aspect: 16 / 10,
-    mobileAspect: 4 / 5,
+    mobileAspect: 0.8594,
   },
   {
     id: "stock-visualizer",
@@ -86,7 +86,7 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "stock-visualizer",
     alt: "Insider Bubbles map with one bubble expanded into its detail panel, layered with the Congress Bubbles map",
     aspect: 16 / 10,
-    mobileAspect: 4 / 5,
+    mobileAspect: 1.1823,
   },
 ];
 

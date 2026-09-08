@@ -159,12 +159,17 @@ async function mobile(name, accent, layers) {
   const comps = (await Promise.all(layers.map((l) => fitLayer(l, MW, MH)))).filter(Boolean);
   const raw = await clear(MW, MH).composite(comps).png().toBuffer();
   const trimmed = await sharp(raw).trim().png().toBuffer();
-  await sharp(trimmed)
-    .resize(MW - 40, MH - 40, { fit: 'inside' })
-    .resize(MW, MH, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+  // Content-height output: the page box takes its aspect from the real file, so no
+  // dead space above or below the composition on phones.
+  const fitted = await sharp(trimmed).resize(MW - 40, null, { fit: 'inside' }).png().toBuffer();
+  const info = await sharp(fitted)
+    .extend({ top: 20, bottom: 20, left: 20, right: 20, background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .webp({ quality: 84, alphaQuality: 90 })
     .toFile(path.join(OUT, `${name}-e3-mobile.webp`));
+  MOBILE_DIMS[name] = { w: info.width, h: info.height, aspect: +(info.width / info.height).toFixed(4) };
 }
+const MOBILE_DIMS = {};
+process.on('beforeExit', () => { if (Object.keys(MOBILE_DIMS).length) console.log('MOBILE_DIMS ' + JSON.stringify(MOBILE_DIMS)); });
 
 // 1. Insider Scores — dial card in front, scored rankings behind, track record at the tail.
 {
@@ -196,11 +201,11 @@ async function mobile(name, accent, layers) {
   ]);
   void png;
   {
-    const feedM = await frame("top-buys.png", 860, { pad: 50, padBottom: 18, padTop: 6 });
+    const feedM = await frame("top-buys-m.png", 860, { pad: 50, padBottom: 18, padTop: 6 });
     const smsM = smsCard();
     await mobile("top-insider-buys", "green", [
-      { buf: feedM.buf, left: 0, top: 330 },
-      { buf: smsM, left: 100, top: 60 },
+      { buf: feedM.buf, left: 0, top: 300 },
+      { buf: smsM, left: 100, top: 40 },
     ]);
   }
 }
@@ -216,7 +221,7 @@ async function mobile(name, accent, layers) {
   ]);
   void png;
   {
-    const anM = await frame("analysts.png", 860, { pad: 50, trimBottom: 40, padBottom: 18, padTop: 6 });
+    const anM = await frame("analysts-m.png", 860, { pad: 50, trimBottom: 40, padBottom: 18, padTop: 6 });
     const insM = await frame("track-record.png", 680, { radius: 30, trimBottom: 40, padBottom: 30 });
     await mobile("top-analysts-insiders", "gold", [
       { buf: anM.buf, left: 0, top: 30 },
