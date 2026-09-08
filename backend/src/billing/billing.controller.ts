@@ -60,11 +60,11 @@ export class BillingController {
   /** Start a subscription checkout; returns the Stripe-hosted page URL. */
   @Post('checkout')
   async checkout(
-    @Body() body: { plan?: string },
+    @Body() body: { plan?: string; attribution?: Record<string, unknown> },
     @Headers('authorization') authHeader?: string,
   ) {
     const user = await this.requireUser(authHeader);
-    return this.billing.createCheckout(user, body?.plan);
+    return this.billing.createCheckout(user, body?.plan, body?.attribution);
   }
 
   /** Activate premium right after the success redirect (webhook backup). */

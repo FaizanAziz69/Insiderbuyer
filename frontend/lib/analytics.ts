@@ -70,6 +70,31 @@ function buildAttribution(): Record<string, string> {
   return out;
 }
 
+/**
+ * Brief v4 §6 "UTM passthrough": the campaign fields a checkout should carry
+ * into Stripe metadata — first-touch (persisted) values first, then whatever
+ * is on the current URL. Only utm_* keys and landing paths; PII-stripped like
+ * every other attribution property. Safe to call server-side (returns {}).
+ */
+export function getCheckoutAttribution(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const out: Record<string, string> = {};
+  const keep = (k: string, v: string) => {
+    if (/^(initial_)?utm_(source|medium|campaign|content|term)$/.test(k) || /^(initial_)?landing_path$/.test(k)) {
+      if (v && !looksLikePII(k, v)) out[k] = v.slice(0, 200);
+    }
+  };
+  try {
+    const initial = JSON.parse(localStorage.getItem(ATTR_LS_KEY) || "null") as Record<string, string> | null;
+    if (initial) for (const [k, v] of Object.entries(initial)) keep(k, String(v));
+  } catch {
+    /* storage unavailable */
+  }
+  for (const [k, v] of new URLSearchParams(window.location.search).entries()) keep(k, v);
+  out.landing_path = window.location.pathname;
+  return out;
+}
+
 /* ── §2 initialization ──────────────────────────────────────────────────── */
 let started = false;
 

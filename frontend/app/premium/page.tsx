@@ -36,6 +36,8 @@ import { ResearchModule, RESEARCH_CSS } from "@/components/premium/ResearchModul
 import { HowItWorks, HOW_CSS } from "@/components/premium/HowItWorks";
 import { ProductShowcase, SHOWCASE_CSS } from "@/components/premium/ProductShowcase";
 import { investorsLine } from "@/lib/site-stats";
+import { getCheckoutAttribution } from "@/lib/analytics";
+import { ComplianceFooter } from "@/components/ComplianceFooter";
 
 /* ------------------------------------------------------------------ data */
 
@@ -398,7 +400,10 @@ export default function PremiumPage() {
       return;
     }
     setBusy(plan);
-    track("web_checkout_start", { plan, entry: getFunnelEntry() });
+    // §6: every checkout event carries the funnel entry AND the UTM set, and
+    // the same set rides into the Stripe session metadata via the API body.
+    const attribution = { entry: getFunnelEntry(), ...getCheckoutAttribution() };
+    track("web_checkout_start", { plan, ...attribution });
     setErr(null);
     try {
       const res = await fetch(`${API_BASE}/billing/checkout`, {
@@ -407,7 +412,7 @@ export default function PremiumPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${getAuthToken() ?? ""}`,
         },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, attribution }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.url) {
@@ -688,8 +693,11 @@ export default function PremiumPage() {
           </div>
         )}
         <p className="biv-fine biv-center" style={{ marginTop: 18 }}>
-          Secure payment through Stripe. Cancel anytime from your account —
-          access runs to the end of the paid period.
+          Secure payment through Stripe. Cancel anytime from your account — access runs to the end of
+          the paid period. 30-day money-back guarantee on your first payment.{" "}
+          <Link href="/terms" className="biv-fine-link">Terms</Link> ·{" "}
+          <Link href="/privacy" className="biv-fine-link">Privacy</Link> ·{" "}
+          <Link href="/disclaimer" className="biv-fine-link">Disclaimer</Link>
         </p>
       </section>
 
@@ -753,6 +761,20 @@ export default function PremiumPage() {
                 ? `Get Annual Access — ${priceOf("annual")}/year`
                 : "Get Annual Access"}
         </button>
+      </section>
+
+      {/* §2 row 8 / §6: the standard compliance footer, on the sales page too. */}
+      <section className="biv-section biv-compliance">
+        <ComplianceFooter
+          extra={
+            <>
+              Subscriptions are billed by Stripe and can be cancelled anytime; see the{" "}
+              <Link href="/terms" className="font-semibold text-accent">Terms</Link>,{" "}
+              <Link href="/privacy" className="font-semibold text-accent">Privacy Policy</Link> and{" "}
+              <Link href="/disclaimer" className="font-semibold text-accent">Disclaimer</Link>.{" "}
+            </>
+          }
+        />
       </section>
 
       <style>{CSS + RESEARCH_CSS + HOW_CSS + SHOWCASE_CSS + BENEFITS_CSS}</style>
@@ -1089,6 +1111,10 @@ const BENEFITS_CSS = `
 .biv-benefit h3 { font-size: 17px; font-weight: 800; margin: 0 0 8px; color: var(--ink); }
 .biv-benefit p { font-size: 14px; line-height: 1.55; color: var(--dim); margin: 0; }
 .biv-mid-cta { text-align: center; padding-top: 0 !important; }
+.biv-fine-link { color: var(--dim); text-decoration: underline; }
+.biv-fine-link:hover { color: var(--brand); }
+.biv-compliance { padding-top: 0 !important; padding-bottom: 40px !important; }
+.biv-compliance footer { margin-top: 0; }
 .biv-proof-line { margin-top: 10px !important; font-size: 13.5px !important; color: var(--dim) !important; }
 @media (max-width: 860px) { .biv-benefits { grid-template-columns: 1fr; } }
 `;

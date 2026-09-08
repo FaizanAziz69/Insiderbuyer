@@ -283,7 +283,30 @@ export class BillingService {
 
   // ── Checkout / portal ──────────────────────────────────────────────────
 
-  async createCheckout(user: User, planRaw?: string): Promise<{ url: string }> {
+  /**
+   * Brief v4 §6 "UTM passthrough": whitelisted campaign fields from the page
+   * land in the Checkout Session AND subscription metadata, so a paid
+   * conversion can be read back per campaign in Stripe. Keys and values are
+   * bounded (Stripe: 50 keys, 40-char keys, 500-char values).
+   */
+  private attributionMetadata(raw?: Record<string, unknown>): Record<string, string> {
+    const out: Record<string, string> = {};
+    if (!raw || typeof raw !== 'object') return out;
+    const ok = /^(entry|(initial_)?utm_(source|medium|campaign|content|term)|(initial_)?landing_path)$/;
+    for (const [k, v] of Object.entries(raw)) {
+      if (!ok.test(k) || typeof v !== 'string' || !v) continue;
+      out[k.slice(0, 40)] = v.slice(0, 200);
+      if (Object.keys(out).length >= 20) break;
+    }
+    return out;
+  }
+
+  async createCheckout(
+    user: User,
+    planRaw?: string,
+    attribution?: Record<string, unknown>,
+  ): Promise<{ url: string }> {
+    const attr = this.attributionMetadata(attribution);
     const plan: Plan = planRaw === 'annual' ? 'annual' : 'monthly';
     const prices = await this.ensureCatalog();
     const customerId = await this.ensureCustomer(user);
@@ -311,7 +334,8 @@ export class BillingService {
         : { payment_method_types: ['card' as const] }),
       allow_promotion_codes: true,
       client_reference_id: user.id,
-      subscription_data: { metadata: { userId: user.id, plan } },
+      metadata: { userId: user.id, plan, ...attr },
+      subscription_data: { metadata: { userId: user.id, plan, ...attr } },
       success_url: `${FRONTEND_URL}/premium?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${FRONTEND_URL}/premium?checkout=cancelled`,
     });
