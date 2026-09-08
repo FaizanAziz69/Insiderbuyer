@@ -59,8 +59,8 @@ const STEPS = [
 export function HowItWorks() {
   return (
     <section className="biv-section" id="how-it-works" aria-labelledby="how-h">
-      {/* §3.3 — the deck's own title is the headline. */}
-      <h2 id="how-h" className="biv-h2 biv-center">How it works</h2>
+      <p className="biv-eyebrow-center biv-accent-text">How it works</p>
+      <h2 id="how-h" className="biv-h2 biv-center">From filing to alert.</h2>
       <ol className="biv-steps">
         {STEPS.map((s) => (
           <li key={s.n} className="biv-step">

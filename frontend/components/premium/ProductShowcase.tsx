@@ -41,7 +41,7 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "insider-scores",
     alt: "Insider Score panel in front of a ranked list of scored insiders with roles and win rates",
     aspect: 16 / 10,
-    mobileAspect: 0.6015,
+    mobileAspect: 0.8688,
   },
   {
     id: "top-insider-buys",
@@ -56,7 +56,7 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "top-insider-buys",
     alt: "Top Insider Buys feed with graded rows and an alert notification overlapping the frame",
     aspect: 16 / 10,
-    mobileAspect: 1.4307,
+    mobileAspect: 1.1497,
   },
   {
     id: "top-analysts-insiders",
@@ -71,7 +71,7 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "top-analysts-insiders",
     alt: "Analyst leaderboard beside insider track-record cards",
     aspect: 16 / 10,
-    mobileAspect: 0.5872,
+    mobileAspect: 0.8594,
   },
   {
     id: "stock-visualizer",
@@ -86,19 +86,16 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "stock-visualizer",
     alt: "Insider Bubbles map with one bubble expanded into its detail panel, layered with the Congress Bubbles map",
     aspect: 16 / 10,
-    mobileAspect: 1.2167,
+    mobileAspect: 1.1823,
   },
 ];
 
-// REV = the transparent renders' revision. New names on every re-render: /sales is cached
+// "-embed" = the transparent renders. New names on purpose: /sales is cached
 // for 30 days, so a replaced file under the old name never reaches returning
 // browsers.
-const REV = "e4";
-const src1x = (f: string) => `/sales/showcase/${f}-${REV}.webp`;
-const src2x = (f: string) => `/sales/showcase/${f}-${REV}@2x.webp`;
-const srcMobile = (f: string) => `/sales/showcase/${f}-${REV}-mobile.webp`;
-/** Exported so the hero (§2 row 1) can show visual 4 from the same files. */
-export const showcaseSrc = { x1: src1x, x2: src2x, mobile: srcMobile };
+const src1x = (f: string) => `/sales/showcase/${f}-e3.webp`;
+const src2x = (f: string) => `/sales/showcase/${f}-e3@2x.webp`;
+const srcMobile = (f: string) => `/sales/showcase/${f}-e3-mobile.webp`;
 
 export function ProductShowcase({ visuals = SHOWCASE }: { visuals?: ShowcaseVisual[] }) {
   const [open, setOpen] = useState<number | null>(null);
@@ -121,8 +118,9 @@ export function ProductShowcase({ visuals = SHOWCASE }: { visuals?: ShowcaseVisu
   }, [open, close]);
 
   return (
-    <section className="biv-section" id="showcase" aria-label="Product showcase">
-      {/* §4: no invented header — "the image is the section, the text supports it". */}
+    <section className="biv-section" id="showcase" aria-labelledby="showcase-h">
+      <p className="biv-eyebrow-center biv-accent-text">The product</p>
+      <h2 id="showcase-h" className="biv-h2 biv-center">Built to be read in seconds.</h2>
       <div className="sc-grid">
         {visuals.map((v, i) => (
           <figure key={v.id} className={`sc-row ${i % 2 ? "sc-row-flip" : ""}`}>
@@ -180,7 +178,7 @@ export function ProductShowcase({ visuals = SHOWCASE }: { visuals?: ShowcaseVisu
 }
 
 export const SHOWCASE_CSS = `
-.sc-grid { display: grid; gap: 96px; margin-top: 0; }
+.sc-grid { display: grid; gap: 96px; margin-top: 56px; }
 .sc-row { margin: 0; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr); gap: 44px; align-items: center; }
 .sc-row-flip { grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.55fr); }
 .sc-row-flip .sc-frame { order: 2; }

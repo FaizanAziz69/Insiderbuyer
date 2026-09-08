@@ -34,7 +34,7 @@ import { track } from "@/lib/analytics";
 import { InsiderCard, INSIDER_CARD_CSS } from "@/components/premium/InsiderCard";
 import { ResearchModule, RESEARCH_CSS } from "@/components/premium/ResearchModule";
 import { HowItWorks, HOW_CSS } from "@/components/premium/HowItWorks";
-import { ProductShowcase, SHOWCASE_CSS, SHOWCASE, showcaseSrc } from "@/components/premium/ProductShowcase";
+import { ProductShowcase, SHOWCASE_CSS } from "@/components/premium/ProductShowcase";
 import { investorsLine } from "@/lib/site-stats";
 import { getCheckoutAttribution } from "@/lib/analytics";
 import { ComplianceFooter } from "@/components/ComplianceFooter";
@@ -96,9 +96,6 @@ const ROW_B: MarqueeItem[] = [
 /** The three columns. Prices are NOT hardcoded — `plan` names the Stripe
  *  plan and the live amount is fetched from /billing/plans, so the figure on
  *  the card is always the figure Stripe will charge. */
-// §2 row 1: the hero visual is showcase visual 4 (Stock Visualizer Suite).
-const HERO_VISUAL = SHOWCASE.find((v) => v.id === "stock-visualizer") ?? SHOWCASE[SHOWCASE.length - 1];
-
 const PLANS: Array<{
   name: string;
   plan: "free" | "monthly" | "annual";
@@ -142,7 +139,7 @@ const PLANS: Array<{
     plan: "annual",
     per: "per year",
     tagline: "Best value — pay for a year, save the rest.",
-    cta: "Get Annual Access",
+    cta: "Get All-In Access",
     featured: true,
     feats: [
       "Everything in Monthly",
@@ -375,14 +372,6 @@ export default function PremiumPage() {
     { revalidateOnFocus: false },
   );
   const investors = investorsLine(subCount?.roundedDown);
-  // §6: one primary CTA, repeated at the hero, after the showcase and pre-footer.
-  const annualLabel = premium
-    ? "You're subscribed"
-    : busy === "annual"
-      ? "Opening checkout…"
-      : priceOf("annual")
-        ? `Get Annual Access — ${priceOf("annual")}/year`
-        : "Get Annual Access";
 
   // Step 3 of the funnel: log the sales-page view with its entry point, so
   // /join → /premium → purchase can be read as one conversion path.
@@ -443,62 +432,122 @@ export default function PremiumPage() {
     <div className="biv">
       <CheckoutOutcome onSuccess={() => setThanksOpen(true)} />
       {/* ---------------------------------------------------------- hero */}
-      {/* Brief v4 §2 row 1: the §3.1 headline verbatim, the subscription CTA
-          with its live Stripe price, the §3.4 social-proof line, and the Stock
-          Visualizer Suite composition (§4.4) as the hero visual — "the most
-          impressive visual leads". The old membership slogan is gone (§3.1
-          REMOVE). The five stars George asked for on 2026-08-29 now sit on the
-          social-proof line instead of in their own strip. */}
       <section className="biv-hero">
         <div className="biv-hero-copy">
-          <h1 className="biv-hero-h1">
-            Start receiving insider intelligence <span className="biv-accent">you can trust.</span>
+          <h1>
+            <span>Stock analysis.</span>
+            <span>Insider rankings.</span>
+            <span>Premium alerts.</span>
+            <span className="biv-accent">One platform.</span>
           </h1>
+          <p className="biv-sub">
+            Insider Buying <b>&ldquo;All-In Access&rdquo;</b> is the only
+            membership that brings you closer to insiders.
+          </p>
           <div className="biv-ctas">
-            <button
-              type="button"
-              onClick={() => checkout("annual")}
-              disabled={busy !== null}
-              className="biv-btn biv-btn-solid biv-btn-big biv-btn-loud"
-            >
-              {annualLabel}
-            </button>
+            <a href="#pricing" className="biv-btn biv-btn-solid">
+              Get All-In Access
+            </a>
             <a href="#features" className="biv-btn biv-btn-ghost">
               Explore the platform
             </a>
           </div>
-          <p className="biv-fine">
-            Start free. No credit card required.
-            {priceOf("monthly") ? ` · or ${priceOf("monthly")}/month` : ""} · Cancel anytime · 30-day money-back guarantee
-          </p>
-          <p className="biv-hero-proof">
-            <span className="biv-stars" role="img" aria-label="Rated five stars">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <svg key={i} viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.4l-5.9 3.3 1.3-6.6L2.5 9.5l6.6-.8z" /></svg>
-              ))}
-            </span>
-            <span>Trusted by real investors · Join {investors} investors getting faster insider intelligence</span>
-          </p>
+          <p className="biv-fine">Start free. No credit card required.</p>
         </div>
-        <div className="biv-hero-art">
-          {/* §4.4: the Stock Visualizer Suite composition, in perspective. Above
-              the fold, so it is NOT lazy — fetchPriority high, fixed box. */}
-          <picture className="biv-hero-visual">
-            <source media="(max-width: 640px)" srcSet={showcaseSrc.mobile(HERO_VISUAL.file)} type="image/webp" />
-            <source srcSet={`${showcaseSrc.x2(HERO_VISUAL.file)} 2x, ${showcaseSrc.x1(HERO_VISUAL.file)} 1x`} type="image/webp" />
-            <img
-              src={showcaseSrc.x2(HERO_VISUAL.file)}
-              alt={HERO_VISUAL.alt}
-              width={1200}
-              height={750}
-              fetchPriority="high"
-              decoding="async"
-            />
-          </picture>
+        <div className="biv-hero-art" aria-hidden="true">
+          {/* Both panels are designed UI, not screenshots: they stay crisp at
+              any size, weigh nothing, and follow the site theme. */}
+          <div className="biv-panel biv-panel-perf">
+            <div className="biv-panel-head">
+              <span className="biv-eyebrow-sm">Insider Purchases Strategy</span>
+              <span className="biv-tagpill">Backtested</span>
+            </div>
+            <div className="biv-bigstat">
+              +2,924.4%
+              <em>all time vs market</em>
+            </div>
+            <div className="biv-panel-stats">
+              <div><b>+31.00%</b><span>CAGR</span></div>
+              <div><b>+72.48%</b><span>1-year</span></div>
+              <div><b>2014</b><span>since</span></div>
+              <div><b>142K+</b><span>buys tracked</span></div>
+            </div>
+            <svg className="biv-chart" viewBox="0 0 100 42" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="bivFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#4CC38A" stopOpacity="0.42" />
+                  <stop offset="100%" stopColor="#4CC38A" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M0 39 L8 38.4 L16 37.8 L24 36.6 L32 35 L40 32.4 L48 29.6 L56 26.4 L64 21.6 L72 18.4 L80 12.6 L88 8.4 L94 6.6 L100 2 L100 42 L0 42 Z"
+                fill="url(#bivFill)"
+              />
+              <path
+                d="M0 39 L8 38.4 L16 37.8 L24 36.6 L32 35 L40 32.4 L48 29.6 L56 26.4 L64 21.6 L72 18.4 L80 12.6 L88 8.4 L94 6.6 L100 2"
+                fill="none" stroke="#4CC38A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+              <path
+                d="M0 39.6 L25 39 L50 38.2 L75 37.2 L100 35.8"
+                fill="none" stroke="currentColor" strokeWidth="1.1" strokeDasharray="3 3"
+                opacity="0.4" vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+          </div>
+
+          <div className="biv-panel biv-panel-tape">
+            <div className="biv-panel-head">
+              <span className="biv-eyebrow-sm biv-livelabel">
+                <span className="biv-dot" /> Live tape
+              </span>
+              <span className="biv-tagpill">39 alerts</span>
+            </div>
+            <div className="biv-taperow">
+              <b className="biv-chip">IMPP</b>
+              <div className="biv-tapewho">
+                <b>CEO buy</b>
+                <span>Harry Vafias · Imperial Petroleum</span>
+              </div>
+              <span className="biv-amt">$450K</span>
+            </div>
+            <div className="biv-taperow">
+              <b className="biv-chip">GWRS</b>
+              <div className="biv-tapewho">
+                <b>Director buy</b>
+                <span>Jonathan Levine · Global Water</span>
+              </div>
+              <span className="biv-amt">$5.77M</span>
+            </div>
+            <div className="biv-taperow">
+              <b className="biv-chip">AAT</b>
+              <div className="biv-tapewho">
+                <b>Big buy</b>
+                <span>Ernest Rady · American Assets</span>
+              </div>
+              <span className="biv-amt">$1.14M</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Brief v4 §2 rows 2–4: research module → how it works → showcase. */}
+      {/* ------------------------------------------------------ trust bar */}
+      {/* George 2026-08-29: the bank/firm logo strip is gone — a plain line
+          and five stars instead. */}
+      <section className="biv-trust">
+        <div className="biv-stars" role="img" aria-label="Rated five stars">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <svg key={i} viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2.6l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.4l-5.9 3.3 1.3-6.6L2.5 9.5l6.6-.8z" />
+            </svg>
+          ))}
+        </div>
+        <p className="biv-eyebrow-center biv-trust-line">Trusted by real investors</p>
+      </section>
+
+      {/* Brief v4 §2: everything above this line (hero + five stars) is
+          frozen — "keep the copy and layout that is above the fold". The
+          revision starts here: research module → how it works → showcase. */}
       <ResearchModule />
       <HowItWorks />
       <ProductShowcase />
@@ -569,39 +618,14 @@ export default function PremiumPage() {
         </p>
       </section>
 
-      {/* -------------------------------------- §3.2 header + benefits grid */}
-      <section className="biv-section" id="features">
-        <p className="biv-eyebrow-center biv-accent-text">Why insiders</p>
-        <h2 className="biv-h2 biv-center">When it comes to investing, insider data matters</h2>
-        <div className="biv-benefits">
-          {BENEFITS.map((b) => (
-            <div key={b.title} className="biv-benefit">
-              <h3>{b.title}</h3>
-              <p>{b.text}</p>
-            </div>
-          ))}
-        </div>
-        <div className="biv-numbers">
-          {NUMBERS.map((n) => (
-            <div key={n.big} className="biv-num">
-              <div className="biv-num-big">{n.big}</div>
-              <div className="biv-num-cap">{n.caption}</div>
-            </div>
-          ))}
-        </div>
-        <p className="biv-fine biv-center">
-          Backtest figures are historical, gross of costs, and do not predict
-          future results.
-        </p>
-      </section>
-
       {/* -------------------------------------------------------- pricing */}
       <section className="biv-section" id="pricing">
         <p className="biv-eyebrow-center biv-accent-text">Pricing</p>
-        {/* Brief v4 §2 row 7 / §3.4: the recurring line is the headline here,
-            with the second social-proof line under it. */}
-        <h2 className="biv-h2 biv-center">Unlock the full potential of tracking company insiders.</h2>
-        <p className="biv-lead biv-center biv-proof-line">Join {investors} investors getting faster insider intelligence</p>
+        <h2 className="biv-h2 biv-center">Become an insider.</h2>
+        {/* Brief, Section 2 Step 3: the line that hands the reader from proof
+            to purchase, immediately above the plans. */}
+        <p className="biv-lead biv-center">Unlock the full potential of tracking company insiders.</p>
+        <p className="biv-fine biv-center biv-proof-line">Join {investors} investors getting faster insider intelligence</p>
         <div className="biv-plans">
           {PLANS.map((p) => {
             const price = priceOf(p.plan);
@@ -674,6 +698,32 @@ export default function PremiumPage() {
           <Link href="/terms" className="biv-fine-link">Terms</Link> ·{" "}
           <Link href="/privacy" className="biv-fine-link">Privacy</Link> ·{" "}
           <Link href="/disclaimer" className="biv-fine-link">Disclaimer</Link>
+        </p>
+      </section>
+
+      {/* -------------------------------------- §3.2 header + benefits grid */}
+      <section className="biv-section" id="features">
+        <p className="biv-eyebrow-center biv-accent-text">Why insiders</p>
+        <h2 className="biv-h2 biv-center">When it comes to investing, insider data matters</h2>
+        <div className="biv-benefits">
+          {BENEFITS.map((b) => (
+            <div key={b.title} className="biv-benefit">
+              <h3>{b.title}</h3>
+              <p>{b.text}</p>
+            </div>
+          ))}
+        </div>
+        <div className="biv-numbers">
+          {NUMBERS.map((n) => (
+            <div key={n.big} className="biv-num">
+              <div className="biv-num-big">{n.big}</div>
+              <div className="biv-num-cap">{n.caption}</div>
+            </div>
+          ))}
+        </div>
+        <p className="biv-fine biv-center">
+          Backtest figures are historical, gross of costs, and do not predict
+          future results.
         </p>
       </section>
 
@@ -765,11 +815,9 @@ const CSS = `
 }
 .biv section { max-width: 1460px; margin: 0 auto; padding: 72px 28px; }
 
-/* Brief v4 §3: copy is FINAL and verbatim — headlines render in the deck's own
-   sentence case, no forced uppercase. */
 .biv h1, .biv .biv-h2 {
   font-family: var(--font-heading), sans-serif; font-weight: 900;
-  letter-spacing: -0.02em; line-height: 1.02;
+  text-transform: uppercase; letter-spacing: -0.015em; line-height: 0.98;
   color: var(--ink); margin: 0;
 }
 .biv-accent { color: var(--brand); }
@@ -777,14 +825,9 @@ const CSS = `
 .biv-dim { color: var(--faint); }
 
 /* hero */
-.biv-hero { display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); gap: 48px; align-items: center; padding-top: 72px !important; }
-/* §3.1: a sentence, not a slogan — sentence case, big, with the trust clause in brand colour. */
-.biv h1.biv-hero-h1 { text-transform: none; font-size: clamp(38px, 4.3vw, 66px); line-height: 1.02; letter-spacing: -0.025em; max-width: 12ch; }
-.biv-hero .biv-ctas { margin-top: 30px; align-items: center; }
-.biv-hero .biv-fine { margin-top: 12px; }
-.biv-hero-proof { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 28px 0 0; font-size: 15px; font-weight: 600; color: var(--dim); }
-.biv-hero-proof .biv-stars { margin: 0; gap: 3px; }
-.biv-hero-proof .biv-stars svg { width: 18px; height: 18px; }
+.biv-hero { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; padding-top: 84px !important; }
+.biv-hero h1 { font-size: clamp(34px, 3.9vw, 56px); display: grid; }
+.biv-hero h1 span { white-space: nowrap; }
 .biv-sub { font-size: 18px; line-height: 1.6; color: var(--dim); margin: 22px 0 26px; max-width: 460px; }
 .biv-sub b { color: var(--ink); }
 .biv-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -828,24 +871,98 @@ const CSS = `
 .biv-note-error { border-color: #E0574B; color: #F0938A; }
 .biv-fine { font-size: 12.5px; color: var(--faint); margin-top: 14px; }
 
-/* §2 row 1 / §4.4: the Stock Visualizer Suite composition as the hero visual,
-   layered in perspective (the brief's "in perspective"); it settles flat on
-   hover. The render is transparent, so its frames float on the page. */
-.biv-hero-art { position: relative; perspective: 1800px; }
-.biv-hero-visual { display: block; transform: rotateY(-10deg) rotateX(3deg) scale(1.06); transform-origin: 38% 50%; transition: transform .7s cubic-bezier(.22,1,.36,1); will-change: transform; }
-.biv-hero-art:hover .biv-hero-visual { transform: none; }
-.biv-hero-visual img { display: block; width: 100%; height: auto; }
-@media (prefers-reduced-motion: reduce) { .biv-hero-visual { transform: none; } }
+/* Two matched glass panels — a performance card and the live tape — layered
+   for depth. Both are real markup (crisp at any size, no image weight) and
+   both carry live figures. */
+.biv-hero-art { position: relative; min-height: 480px; }
+.biv-panel {
+  position: absolute; border-radius: 18px; padding: 20px 22px;
+  background: linear-gradient(155deg, var(--panel-a), var(--panel-b));
+  border: 1px solid var(--panel-line-c);
+  box-shadow: 0 26px 70px rgba(3,10,22,0.42), 0 0 0 1px rgba(255,255,255,0.02) inset;
+  backdrop-filter: blur(12px);
+  animation: biv-hover 8s ease-in-out infinite;
+}
+.biv-panel-perf { top: 0; right: 0; width: 90%; z-index: 1; }
+.biv-panel-tape { bottom: 0; left: 0; width: 64%; z-index: 2; animation-delay: 2.2s; }
+@keyframes biv-hover {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@media (prefers-reduced-motion: reduce) { .biv-panel { animation: none; } }
+
+.biv-panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .biv-eyebrow-sm {
   font-family: var(--font-display), sans-serif; font-weight: 600; font-size: 11px;
   letter-spacing: 2px; text-transform: uppercase; color: var(--dim);
 }
+.biv-livelabel { display: inline-flex; align-items: center; gap: 7px; color: #E8B54D; }
+.biv-tagpill {
+  margin-left: auto; font-family: var(--font-display), sans-serif; font-size: 10px;
+  font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint);
+  border: 1px solid var(--panel-line-c); border-radius: 999px; padding: 3px 9px;
+}
+.biv-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #E8B54D;
+  box-shadow: 0 0 10px rgba(232,181,77,0.85); animation: biv-pulse 2s ease-in-out infinite;
+}
+@keyframes biv-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.biv-bigstat {
+  font-family: var(--font-heading), sans-serif; font-weight: 900;
+  font-size: clamp(30px, 3.1vw, 42px); letter-spacing: -0.02em; color: var(--green-hi);
+  display: flex; align-items: baseline; gap: 10px;
+}
+.biv-bigstat em {
+  font-family: var(--font-sans), sans-serif; font-style: normal; font-weight: 500;
+  font-size: 12.5px; letter-spacing: 0; color: var(--dim);
+}
+.biv-chart { width: 100%; height: 148px; margin: 6px 0 0; color: var(--faint); display: block; }
+/* Stats sit ABOVE the chart: the tape panel overlaps this card's lower edge,
+   so nothing readable may live down there. */
+.biv-panel-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  border-top: 1px solid var(--panel-line-c); padding-top: 13px; margin-top: 14px;
+}
+.biv-panel-stats b {
+  display: block; font-family: var(--font-display), monospace; font-size: 15px;
+  font-weight: 700; color: var(--ink);
+}
+.biv-panel-stats span {
+  font-size: 10.5px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--faint);
+}
+
+.biv-taperow {
+  display: flex; align-items: center; gap: 11px; padding: 9px 0;
+  border-top: 1px solid var(--panel-line-c);
+}
+.biv-taperow:first-of-type { border-top: 0; }
+.biv-chip {
+  font-family: var(--font-display), monospace; font-weight: 700; font-size: 13.5px;
+  letter-spacing: 0.8px; color: var(--green-hi); background: rgba(76,195,138,0.14);
+  border: 1px solid rgba(76,195,138,0.34); border-radius: 8px; padding: 4px 9px;
+  flex: 0 0 auto;
+}
+.biv-tapewho { min-width: 0; }
+.biv-tapewho b { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.biv-tapewho span {
+  display: block; font-size: 11px; color: var(--faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.biv-amt {
+  margin-left: auto; font-family: var(--font-heading), sans-serif;
+  font-weight: 900; font-size: 17px; color: var(--ink); flex: 0 0 auto;
+}
+
+/* trust */
+.biv-trust { padding-top: 8px !important; padding-bottom: 40px !important; text-align: center; }
 .biv-eyebrow-center {
   font-family: var(--font-display), sans-serif; font-weight: 600; font-size: 13px;
   letter-spacing: 2.5px; text-transform: uppercase; color: var(--dim); text-align: center; margin: 0 0 22px;
 }
 .biv-stars { display: flex; justify-content: center; gap: 6px; margin: 0 0 14px; }
 .biv-stars svg { width: 26px; height: 26px; fill: #C9A227; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.18)); }
+.biv-trust-line { margin: 0; }
 
 /* features */
 .biv-h2 { font-size: clamp(32px, 4.2vw, 54px); }
@@ -953,6 +1070,11 @@ const CSS = `
   --panel-a: rgba(255,255,255,0.97); --panel-b: rgba(246,249,252,0.92);
   --panel-line-c: rgba(14,31,53,0.12);
 }
+:root[data-theme="light"] .biv-panel {
+  box-shadow: 0 26px 60px rgba(14,31,53,0.16), 0 0 0 1px rgba(14,31,53,0.02) inset;
+}
+:root[data-theme="light"] .biv-bigstat { color: var(--green); }
+:root[data-theme="light"] .biv-chip { color: #2c7a51; }
 :root[data-theme="light"] .biv-mstat { color: var(--green); }
 :root[data-theme="light"] .biv-plus { background: rgba(62,155,95,0.12); color: var(--green); }
 :root[data-theme="light"] .biv-tool { background: #FFFFFF; }
@@ -964,13 +1086,18 @@ const CSS = `
 @media (max-width: 960px) {
   .biv section { padding: 52px 18px; }
   .biv-hero { grid-template-columns: 1fr; padding-top: 48px !important; }
-  .biv h1.biv-hero-h1 { font-size: clamp(32px, 8.4vw, 46px); max-width: none; }
-  .biv-hero-visual { transform: none; }
+  .biv-hero h1 { font-size: clamp(30px, 8.6vw, 44px); }
+  .biv-hero h1 span { white-space: normal; }
+  .biv-hero-art { min-height: 300px; }
   .biv-plans, .biv-numbers { grid-template-columns: 1fr; }
   .biv-plan-hot { order: -1; }
 }
 @media (max-width: 640px) {
   .biv section { padding: 44px 14px; }
+  .biv-hero-art { min-height: 0; display: grid; gap: 14px; }
+  .biv-panel { position: static; width: 100%; animation: none; }
+  .biv-panel-tape .biv-taperow:nth-of-type(3) { display: none; }
+  .biv-chart { height: 104px; }
   .biv-btn { padding: 12px 18px; font-size: 14px; }
   .biv-mcard { width: 205px; min-height: 255px; }
   .biv-mstat { font-size: 34px; }
