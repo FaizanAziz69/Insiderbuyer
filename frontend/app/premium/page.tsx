@@ -32,7 +32,10 @@ import { AlreadySubscribedModal } from "@/components/premium/AlreadySubscribedMo
 import { getFunnelEntry, setFunnelEntry } from "@/lib/funnel";
 import { track } from "@/lib/analytics";
 import { InsiderCard, INSIDER_CARD_CSS } from "@/components/premium/InsiderCard";
-import { MockupGallery, MOCKUP_CSS, type Mockup } from "@/components/premium/MockupLightbox";
+import { ResearchModule, RESEARCH_CSS } from "@/components/premium/ResearchModule";
+import { HowItWorks, HOW_CSS } from "@/components/premium/HowItWorks";
+import { ProductShowcase, SHOWCASE_CSS } from "@/components/premium/ProductShowcase";
+import { investorsLine } from "@/lib/site-stats";
 
 /* ------------------------------------------------------------------ data */
 
@@ -44,47 +47,6 @@ import { MockupGallery, MOCKUP_CSS, type Mockup } from "@/components/premium/Moc
  *  / `<name>-dark@2x.jpg` — the design team's final compositions replace the
  *  files at these paths and nothing else changes. Captions link to the real
  *  feature (§2.4: nothing here may claim what the product does not do). */
-const MOCKUPS: Mockup[] = [
-  {
-    id: "screener",
-    title: "IQS Screener",
-    blurb: "Filter 9,000+ stocks by Insider Score, open-market buying, sector and size — every column traces to a filing.",
-    src: "/sales/mockups/screener.jpg",
-    alt: "The Insider Buying stock screener with Insider Score, insider buying and sector filters applied",
-    frame: "browser",
-    href: "/screener",
-    url: "insiderbuying.com/screener",
-  },
-  {
-    id: "insider-report",
-    title: "Insider Report",
-    blurb: "One page per stock: every Form 4 buy and sell, the insiders behind them, and how the price has moved since.",
-    src: "/sales/mockups/insider-report.jpg",
-    alt: "An insider report page showing a company's Form 4 transactions and Insider Score",
-    frame: "browser",
-    href: "/companies/AMR",
-    url: "insiderbuying.com/companies/AMR",
-  },
-  {
-    id: "alerts",
-    title: "SMS Insider Alerts",
-    blurb: "CEO/CFO purchases and $1M+ open-market buys, texted to your phone as they clear SEC processing.",
-    src: "/sales/mockups/alert-phone.jpg",
-    alt: "Three IQS insider-buy alerts arriving as text messages on a phone",
-    frame: "phone",
-    href: "/alerts",
-  },
-  {
-    id: "bubbles",
-    title: "Insider Bubbles Map",
-    blurb: "The whole tape in one view — bubble size is net insider buying, colour is price versus what insiders paid.",
-    src: "/sales/mockups/bubbles.jpg",
-    alt: "The Insider Bubbles map with stocks sized by net insider buying",
-    frame: "browser",
-    href: "/bubbles",
-    url: "insiderbuying.com/bubbles",
-  },
-];
 
 /** §6.1 insider performance cards (Developer Project Brief, Workstream D),
  *  alternating with platform stats in the two marquee rows.
@@ -185,6 +147,17 @@ const PLANS: Array<{
       "Priority support",
     ],
   },
+];
+
+/** §2 row 6 — the benefits grid under the new section header. Feature
+ *  language only; no outcome promises (§6 compliance). */
+const BENEFITS = [
+  { title: "Insider Scores", text: "A 0–100 score on every company with qualifying open-market buys, with the pillars behind it." },
+  { title: "Top Insider Buys", text: "Every purchase graded A+ to F as the Form 4 lands — size, stake growth, buyer record, timing." },
+  { title: "Top Analysts & Insiders", text: "People ranked by measured results: analyst success rates and insider track-record accuracy." },
+  { title: "Real-time alerts", text: "Summarized email and SMS alerts on the buys that matter, minutes after they file." },
+  { title: "Congress & contracts", text: "House and Senate trades and government contract awards, side by side with the insiders." },
+  { title: "Bubbles & heat maps", text: "The whole tape in one picture — insider bubbles, congress bubbles and sector flow." },
 ];
 
 const NUMBERS = [
@@ -388,6 +361,16 @@ export default function PremiumPage() {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
+  // Brief v4 §3.4 / §7: the social-proof line is wired to the real subscriber
+  // count (rounded down to the hundred) behind a config floor — see
+  // lib/site-stats.ts for why the floor exists.
+  const { data: subCount } = useSWR<{ exact: number; roundedDown: number }>(
+    `${API_BASE}/subscribers/count`,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  const investors = investorsLine(subCount?.roundedDown);
+
   // Step 3 of the funnel: log the sales-page view with its entry point, so
   // /join → /premium → purchase can be read as one conversion path.
   useEffect(() => {
@@ -557,20 +540,29 @@ export default function PremiumPage() {
         <p className="biv-eyebrow-center biv-trust-line">Trusted by real investors</p>
       </section>
 
-      {/* ------------------------------------------------------- features */}
-      <section className="biv-section" id="features">
-        <h2 className="biv-h2">
-          Everything you need
-          <br />
-          to get to the truth.
-        </h2>
-        <p className="biv-lead">
-          Insiders tell the story. A peer-reviewed Harvard study found that
-          corporate insiders consistently beat the S&amp;P&nbsp;500 &amp; SPY.
-        </p>
-        {/* Brief §6.2: the product mockups are the visually dominant element
-            of the page — full-column device frames, lazy-loaded, lightbox. */}
-        <MockupGallery mockups={MOCKUPS} theme={theme} />
+      {/* Brief v4 §2: everything above this line (hero + five stars) is
+          frozen — "keep the copy and layout that is above the fold". The
+          revision starts here: research module → how it works → showcase. */}
+      <ResearchModule />
+      <HowItWorks />
+      <ProductShowcase />
+      {/* §6: the primary CTA repeats after the showcase. */}
+      <section className="biv-section biv-mid-cta">
+        <button
+          type="button"
+          onClick={() => checkout("annual")}
+          disabled={busy !== null}
+          className="biv-btn biv-btn-solid biv-btn-big"
+        >
+          {premium
+            ? "You're subscribed"
+            : busy === "annual"
+              ? "Opening checkout…"
+              : priceOf("annual")
+                ? `Get Annual Access — ${priceOf("annual")}/year`
+                : "Get Annual Access"}
+        </button>
+        <p className="biv-fine biv-center">Join {investors} investors getting faster insider intelligence</p>
       </section>
 
       {/* -------------------------------------------------------- marquee */}
@@ -627,7 +619,8 @@ export default function PremiumPage() {
         <h2 className="biv-h2 biv-center">Become an insider.</h2>
         {/* Brief, Section 2 Step 3: the line that hands the reader from proof
             to purchase, immediately above the plans. */}
-        <p className="biv-lead biv-center">You&apos;ve seen why it works. Here&apos;s how to get it.</p>
+        <p className="biv-lead biv-center">Unlock the full potential of tracking company insiders.</p>
+        <p className="biv-fine biv-center biv-proof-line">Join {investors} investors getting faster insider intelligence</p>
         <div className="biv-plans">
           {PLANS.map((p) => {
             const price = priceOf(p.plan);
@@ -700,9 +693,18 @@ export default function PremiumPage() {
         </p>
       </section>
 
-      {/* -------------------------------------------------------- numbers */}
-      <section className="biv-section">
-        <h2 className="biv-h2 biv-center">The numbers tell the story.</h2>
+      {/* -------------------------------------- §3.2 header + benefits grid */}
+      <section className="biv-section" id="features">
+        <p className="biv-eyebrow-center biv-accent-text">Why insiders</p>
+        <h2 className="biv-h2 biv-center">When it comes to investing, insider data matters</h2>
+        <div className="biv-benefits">
+          {BENEFITS.map((b) => (
+            <div key={b.title} className="biv-benefit">
+              <h3>{b.title}</h3>
+              <p>{b.text}</p>
+            </div>
+          ))}
+        </div>
         <div className="biv-numbers">
           {NUMBERS.map((n) => (
             <div key={n.big} className="biv-num">
@@ -715,18 +717,6 @@ export default function PremiumPage() {
           Backtest figures are historical, gross of costs, and do not predict
           future results.
         </p>
-      </section>
-
-      {/* ---------------------------------------------------------- tools */}
-      <section className="biv-section">
-        <h2 className="biv-h2 biv-center">Powerful stock tools.</h2>
-        <div className="biv-tools">
-          {TOOLS.map((t) => (
-            <Link key={t.label} href={t.href} className="biv-tool">
-              {t.label}
-            </Link>
-          ))}
-        </div>
       </section>
 
       {/* ------------------------------------------------------------ faq */}
@@ -747,7 +737,8 @@ export default function PremiumPage() {
 
       {/* ------------------------------------------------------ final cta */}
       <section className="biv-final">
-        <h2 className="biv-h2">What are you waiting for?</h2>
+        <p className="biv-eyebrow-center biv-accent-text">Join {investors} investors getting faster insider intelligence</p>
+        <h2 className="biv-h2">Unlock the full potential of tracking company insiders.</h2>
         <button
           type="button"
           onClick={() => checkout("annual")}
@@ -764,7 +755,7 @@ export default function PremiumPage() {
         </button>
       </section>
 
-      <style>{CSS}</style>
+      <style>{CSS + RESEARCH_CSS + HOW_CSS + SHOWCASE_CSS + BENEFITS_CSS}</style>
 
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
       <AlreadySubscribedModal open={thanksOpen} onClose={() => setThanksOpen(false)} />
@@ -1087,4 +1078,14 @@ const CSS = `
   .biv-mstat { font-size: 34px; }
   .biv-faq summary { font-size: 15.5px; }
 }
-` + INSIDER_CARD_CSS + MOCKUP_CSS;
+` + INSIDER_CARD_CSS;
+
+const BENEFITS_CSS = `
+.biv-benefits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 44px; }
+.biv-benefit { background: var(--bg2); border: 1px solid var(--line); border-radius: 16px; padding: 24px 22px; }
+.biv-benefit h3 { font-size: 17px; font-weight: 800; margin: 0 0 8px; color: var(--ink); }
+.biv-benefit p { font-size: 14px; line-height: 1.55; color: var(--dim); margin: 0; }
+.biv-mid-cta { text-align: center; padding-top: 0 !important; }
+.biv-proof-line { margin-top: 10px !important; font-size: 13.5px !important; color: var(--dim) !important; }
+@media (max-width: 860px) { .biv-benefits { grid-template-columns: 1fr; } }
+`;

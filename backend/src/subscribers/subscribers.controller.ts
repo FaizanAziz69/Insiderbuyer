@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Subscriber } from '../entities/subscriber.entity';
@@ -11,6 +11,24 @@ export class SubscribersController {
     private readonly repo: Repository<Subscriber>,
     private readonly emailFlows: EmailFlowsService,
   ) {}
+
+  /**
+   * Social-proof count for the subscribe page (Brief v4 §3.4: "wire it to the
+   * real subscriber count rounded down to the nearest hundred"). Public, no
+   * PII: one integer. `floor` is the config floor the page prints until the
+   * real list is larger — the client decides the canonical figure.
+   */
+  private countCache: { at: number; value: number } | null = null;
+  @Get('count')
+  async count() {
+    const now = Date.now();
+    if (!this.countCache || now - this.countCache.at > 10 * 60_000) {
+      const n = await this.repo.count();
+      this.countCache = { at: now, value: n };
+    }
+    const exact = this.countCache.value;
+    return { exact, roundedDown: Math.floor(exact / 100) * 100 };
+  }
 
   @Post()
   async create(
