@@ -111,9 +111,18 @@ const clear = (w, h) => sharp({ create: { width: w, height: h, channels: 4, back
 async function render(name, accent, layers) {
   void accent; // kept in the call sites; the page supplies the backdrop now
   const comps = (await Promise.all(layers.map((l) => fitLayer(l, W, H)))).filter(Boolean);
-  const png = await clear(W, H).composite(comps).png().toBuffer();
-  await sharp(png).webp({ quality: 86, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-embed@2x.webp`));
-  await sharp(png).resize(1200, 750).webp({ quality: 84, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-embed.webp`));
+  // Trim the transparent margins so the content fills its slot, then re-fit to
+  // the fixed 16:10 canvas (the page reserves that aspect — no layout shift).
+  const raw = await clear(W, H).composite(comps).png().toBuffer();
+  const trimmed = await sharp(raw).trim().png().toBuffer();
+  const png = await sharp(trimmed)
+    .resize(W - 80, H - 80, { fit: 'inside', withoutEnlargement: false })
+    .extend({ top: 40, bottom: 40, left: 40, right: 40, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .resize(W, H, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  await sharp(png).webp({ quality: 86, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-e2@2x.webp`));
+  await sharp(png).resize(1200, 750).webp({ quality: 84, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-e2.webp`));
   return png;
 }
 /** Dedicated PORTRAIT composition for phones (brief §6: "dedicated mobile
@@ -140,7 +149,13 @@ async function fitLayer(l, cw, ch) {
 async function mobile(name, accent, layers) {
   void accent;
   const comps = (await Promise.all(layers.map((l) => fitLayer(l, MW, MH)))).filter(Boolean);
-  await clear(MW, MH).composite(comps).webp({ quality: 84, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-embed-mobile.webp`));
+  const raw = await clear(MW, MH).composite(comps).png().toBuffer();
+  const trimmed = await sharp(raw).trim().png().toBuffer();
+  await sharp(trimmed)
+    .resize(MW - 40, MH - 40, { fit: 'inside' })
+    .resize(MW, MH, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .webp({ quality: 84, alphaQuality: 90 })
+    .toFile(path.join(OUT, `${name}-e2-mobile.webp`));
 }
 
 // 1. Insider Scores — dial card in front, scored rankings behind, track record at the tail.
