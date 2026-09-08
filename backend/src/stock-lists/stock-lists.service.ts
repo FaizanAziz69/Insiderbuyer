@@ -58,8 +58,47 @@ export interface HotSectorRow {
   vsSp500: number | null;
   /** Sector avg MTD minus S&P 500 MTD — same-window comparison. */
   vsSp500Mtd?: number | null;
-  /** Composite 0–100 heat score (gainer ratio + insider buying). */
+  /** Composite 0–100 heat score (gainer ratio + insider buying). Kept as a
+   *  secondary detail — it no longer drives the ranking (client 2026-09-08). */
   hotScore: number;
+  // ── Trading-volume flow (client 2026-09-08: the ranking) ──────────────
+  /** Members with a live session volume behind the flow numbers. */
+  volumePriced: number;
+  /** Session dollar volume across the basket: Σ price × volume. */
+  dollarVolume: number;
+  /** The same members' trailing-average dollar volume: Σ price × avgVolume
+   *  (3-month average daily volume). */
+  baselineDollarVolume: number;
+  /** dollarVolume ÷ baselineDollarVolume − 1, in percent. Null before the
+   *  session has volume. */
+  volumeVsAvgPct: number | null;
+  /** Dollar volume in members trading UP on the session / DOWN on it. */
+  upDollarVolume: number;
+  downDollarVolume: number;
+  /** up − down: net dollar volume flowing into (＋) or out of (−) the sector. */
+  netVolumeFlow: number;
+  /** netVolumeFlow ÷ dollarVolume, −100..100. The tile colour. */
+  netFlowPct: number | null;
+  /** 0–1 colour intensity: |netFlowPct| scaled up when volume runs above its
+   *  trailing average (unusual volume with a direction is the signal). */
+  flowIntensity: number;
+  /** Equal-weighted average member session change, percent. */
+  dayChange: number | null;
+  /** Session gainers, top 10 by % — the paygated Top Performers panel. */
+  topPerformers: HotSectorTopPerformer[];
+}
+
+/** One row of a sector's Top Performers panel. */
+export interface HotSectorTopPerformer {
+  rank: number;
+  symbol: string;
+  name: string;
+  price: number | null;
+  changePct: number;
+  volume: number;
+  dollarVolume: number;
+  /** Session volume vs 3-month average, percent (null without a baseline). */
+  volumeVsAvgPct: number | null;
 }
 
 /** One stock inside a Hot Sectors basket — the drill-down table. */
@@ -83,6 +122,11 @@ export interface HotSectorMember {
   netInsiderValue: number;
   /** True for a hand-curated theme member (vs. screener-expanded). */
   curated: boolean;
+  /** Session change %, session volume and dollar volume, volume vs average. */
+  dayChangePct: number | null;
+  volume: number | null;
+  dollarVolume: number | null;
+  volumeVsAvgPct: number | null;
 }
 
 export interface HotSectorsResponse {
@@ -198,15 +242,23 @@ const HOT_SECTOR_MIN_CAP = 50_000_000;
  * `sector` as the coarse fallback.
  */
 const HOT_SECTOR_EXPANSION: Record<string, { industry?: RegExp; sector?: RegExp }> = {
-  gold: { industry: /^(Gold|Other Precious Metals)$/i },
-  energy: { sector: /^Energy$/i },
+  // The 11 GICS sectors, matched on FMP's sector taxonomy (FMP names differ
+  // from GICS for four of them: Consumer Cyclical / Consumer Defensive /
+  // Financial Services / Basic Materials / Technology / Healthcare).
+  'information-technology': { sector: /^Technology$/i },
   financials: { sector: /^Financial Services$/i },
-  'biotech-pharma': {
-    industry: /^(Biotechnology|Drug Manufacturers.*|Medical - Pharmaceuticals)$/i,
-  },
-  'rare-earths': {
-    industry: /^(Copper|Aluminum|Steel|Uranium|Industrial Materials|Other Precious Metals)$/i,
-  },
+  'health-care': { sector: /^Healthcare$/i },
+  'consumer-discretionary': { sector: /^Consumer Cyclical$/i },
+  'communication-services': { sector: /^Communication Services$/i },
+  industrials: { sector: /^Industrials$/i },
+  'consumer-staples': { sector: /^Consumer Defensive$/i },
+  energy: { sector: /^Energy$/i },
+  utilities: { sector: /^Utilities$/i },
+  materials: { sector: /^Basic Materials$/i },
+  'real-estate': { sector: /^Real Estate$/i },
+  // Biotech is an industry inside Healthcare — every biotech over $50M.
+  biotech: { industry: /^Biotechnology$/i },
+  // crypto: NO rule — balance-sheet holders only, hand-curated (see persona-data).
 };
 /** The screener universe the expansion draws from: the site's standard U.S.
  *  screen (NASDAQ + NYSE, operating companies only) with the floor lowered to
@@ -223,6 +275,10 @@ const HOT_SECTOR_SCREENER_QUERY = {
  * This is only a sanity bound against a runaway screener response.
  */
 const HOT_SECTOR_MAX_MEMBERS = 5_000;
+/** Top Performers panel depth, and the session dollar volume a gainer needs to
+ *  count as one (filters out $50M names that jump on a few thousand shares). */
+const HOT_SECTOR_TOP_PERFORMERS = 10;
+const HOT_SECTOR_PERFORMER_MIN_DOLLAR_VOLUME = 250_000;
 /** Budgets for the SCHEDULED build (cron / boot warm-up), which is the only
  *  path that computes the full baskets. Generous: nothing waits on it. */
 const HOT_SECTOR_BUILD_BASELINE_BUDGET_MS = 90_000;
@@ -610,7 +666,7 @@ export class StockListsService implements OnApplicationBootstrap {
       slug: 'hot-sectors',
       title: 'Hot Sectors',
       description:
-        'Thematic sectors ranked by this month’s 10%+ gainers and insider buying, with each sector’s YTD return vs. the S&P 500.',
+        'The 11 GICS sectors plus Biotech and Crypto, ranked by net trading-volume flow — dollar volume moving in or out versus each sector’s trailing average — with insider $ flow and top performers.',
       kind: 'sector',
       count: HOT_SECTOR_BASKETS.length,
     });
@@ -1077,7 +1133,16 @@ export class StockListsService implements OnApplicationBootstrap {
     const sp500Ytd = returns[SP500_SYMBOL]?.ytd ?? null;
     const sp500Mtd = returns[SP500_SYMBOL]?.mtd ?? null;
     const quoteOf = (sym: string) =>
-      quotes.get(sym) as { price?: number; marketCap?: number | null; name?: string } | undefined;
+      quotes.get(sym) as
+        | {
+            price?: number;
+            marketCap?: number | null;
+            name?: string;
+            changePct?: number | null;
+            volume?: number | null;
+            avgVolume?: number | null;
+          }
+        | undefined;
     // Only companies above the floor count toward a sector's heat. A missing cap
     // keeps the name (curated baskets are liquid names; only a known micro-cap
     // is excluded).
@@ -1106,6 +1171,14 @@ export class StockListsService implements OnApplicationBootstrap {
       let insiderSellValue = 0;
       const upsides: number[] = [];
       const members: HotSectorMember[] = [];
+      // Volume flow accumulators (session).
+      let volumePriced = 0;
+      let dollarVolume = 0;
+      let baselineDollarVolume = 0;
+      let upDollarVolume = 0;
+      let downDollarVolume = 0;
+      let daySum = 0;
+      let dayCount = 0;
       for (const t of b.tickers) {
         const up = t.toUpperCase();
         if (!capOk(up)) continue; // below the floor: not in the basket
@@ -1148,6 +1221,26 @@ export class StockListsService implements OnApplicationBootstrap {
         // stale pre-split figure, typically); it is shown on the row but kept
         // out of the sector median so one bad row cannot move the basket.
         if (analystUpside != null && Math.abs(analystUpside) <= 400) upsides.push(analystUpside);
+        // Session volume flow. Direction comes from the session change: a
+        // stock's dollar volume counts as inflow when it is trading up and
+        // outflow when it is trading down (the classic money-flow proxy).
+        const vol = q?.volume != null && q.volume > 0 ? q.volume : null;
+        const avgVol = q?.avgVolume != null && q.avgVolume > 0 ? q.avgVolume : null;
+        const dayChangePct =
+          typeof q?.changePct === 'number' && Number.isFinite(q.changePct) ? q.changePct : null;
+        const dv = price != null && vol != null ? price * vol : null;
+        const bdv = price != null && avgVol != null ? price * avgVol : null;
+        if (dv != null) {
+          volumePriced++;
+          dollarVolume += dv;
+          if (bdv != null) baselineDollarVolume += bdv;
+          if (dayChangePct != null && dayChangePct > 0) upDollarVolume += dv;
+          else if (dayChangePct != null && dayChangePct < 0) downDollarVolume += dv;
+        }
+        if (dayChangePct != null && Math.abs(dayChangePct) <= HOT_SECTOR_MAX_MTD_PCT) {
+          daySum += dayChangePct;
+          dayCount++;
+        }
         members.push({
           symbol: up,
           name: q?.name || names.get(up) || up,
@@ -1164,9 +1257,52 @@ export class StockListsService implements OnApplicationBootstrap {
           insiderSellValue: Math.round(bs?.sellValue ?? 0),
           netInsiderValue: Math.round((bs?.buyValue ?? 0) - (bs?.sellValue ?? 0)),
           curated: b.curated.has(up),
+          dayChangePct,
+          volume: vol,
+          dollarVolume: dv == null ? null : Math.round(dv),
+          volumeVsAvgPct:
+            dv != null && bdv != null && bdv > 0 ? +((dv / bdv - 1) * 100).toFixed(1) : null,
         });
       }
       membersByKey[b.key] = members;
+      const netVolumeFlow = upDollarVolume - downDollarVolume;
+      const netFlowPct = dollarVolume > 0 ? +((netVolumeFlow / dollarVolume) * 100).toFixed(1) : null;
+      const volumeVsAvgPct =
+        dollarVolume > 0 && baselineDollarVolume > 0
+          ? +((dollarVolume / baselineDollarVolume - 1) * 100).toFixed(1)
+          : null;
+      // Colour intensity: the flow skew, amplified when the sector trades on
+      // more than its usual volume (×1 at average volume, ×2 at double) and
+      // damped when it trades on less. Skew alone at normal volume caps at ~0.6
+      // so only unusual volume WITH direction saturates the tile.
+      const volRatio =
+        dollarVolume > 0 && baselineDollarVolume > 0 ? dollarVolume / baselineDollarVolume : 1;
+      const flowIntensity =
+        netFlowPct == null
+          ? 0
+          : Math.max(0, Math.min(1, (Math.abs(netFlowPct) / 100) * 0.6 * Math.min(2, Math.max(0.25, volRatio)) * 1.67));
+      // Top Performers: the session's biggest gainers with real volume behind
+      // them (a $50M name up 40% on 3,000 shares is not a performer).
+      const topPerformers: HotSectorTopPerformer[] = members
+        .filter(
+          (m) =>
+            m.dayChangePct != null &&
+            m.dayChangePct > 0 &&
+            m.dayChangePct <= HOT_SECTOR_MAX_MTD_PCT &&
+            (m.dollarVolume ?? 0) >= HOT_SECTOR_PERFORMER_MIN_DOLLAR_VOLUME,
+        )
+        .sort((a, c) => (c.dayChangePct ?? 0) - (a.dayChangePct ?? 0))
+        .slice(0, HOT_SECTOR_TOP_PERFORMERS)
+        .map((m, i) => ({
+          rank: i + 1,
+          symbol: m.symbol,
+          name: m.name,
+          price: m.price,
+          changePct: +(m.dayChangePct ?? 0).toFixed(2),
+          volume: m.volume ?? 0,
+          dollarVolume: m.dollarVolume ?? 0,
+          volumeVsAvgPct: m.volumeVsAvgPct,
+        }));
       const gainerRatio = companies > 0 ? gainers10 / companies : 0;
       const ytd = ytdCount > 0 ? +(ytdSum / ytdCount).toFixed(2) : null;
       const mtd = mtdCount > 0 ? +(mtdSum / mtdCount).toFixed(2) : null;
@@ -1194,6 +1330,17 @@ export class StockListsService implements OnApplicationBootstrap {
           ytd != null && sp500Ytd != null ? +(ytd - sp500Ytd).toFixed(2) : null,
         vsSp500Mtd:
           mtd != null && sp500Mtd != null ? +(mtd - sp500Mtd).toFixed(2) : null,
+        volumePriced,
+        dollarVolume: Math.round(dollarVolume),
+        baselineDollarVolume: Math.round(baselineDollarVolume),
+        volumeVsAvgPct,
+        upDollarVolume: Math.round(upDollarVolume),
+        downDollarVolume: Math.round(downDollarVolume),
+        netVolumeFlow: Math.round(netVolumeFlow),
+        netFlowPct,
+        flowIntensity: +flowIntensity.toFixed(3),
+        dayChange: dayCount > 0 ? +(daySum / dayCount).toFixed(2) : null,
+        topPerformers,
       };
     });
 
@@ -1230,10 +1377,14 @@ export class StockListsService implements OnApplicationBootstrap {
           hotScore: Math.round((weighted / weightSum) * 100),
         };
       })
+      // RANK = net trading-volume flow (client 2026-09-08). The heat score is
+      // still computed and shipped as a detail column, but "the current
+      // ranking isn't producing signal — the Heat Score leans heavily on
+      // breadth of 10%+ movers, which mostly surfaces small-cap bounce".
       .sort(
         (a, b) =>
-          b.hotScore - a.hotScore ||
-          b.gainerRatio - a.gainerRatio ||
+          b.netVolumeFlow - a.netVolumeFlow ||
+          b.dollarVolume - a.dollarVolume ||
           b.netInsiderValue - a.netInsiderValue,
       )
       .map((r, i) => ({ rank: i + 1, ...r }));

@@ -597,10 +597,15 @@ export const STOCK_LIST_META: Record<
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Hot Sectors — thematic baskets ranked by month-to-date 10%+ gainers and
-// insider buying. Each basket is a hand-categorized set of liquid, U.S.-listed
-// pure-plays for the theme (not GICS sectors). Tickers that don't resolve to a
-// live quote are simply skipped in the computation.
+// Hot Sectors — sector baskets ranked by net trading-volume flow (George,
+// 2026-09-08: "Cover every standard sector recognized by Bloomberg and
+// mainstream markets — the 11 GICS sectors ... Keep Biotech, and Crypto").
+// Each basket is a SEED of liquid U.S.-listed names; StockListsService expands
+// the GICS baskets and Biotech with every screener company over $50M whose FMP
+// sector / industry matches (HOT_SECTOR_EXPANSION). Crypto is NOT expanded: the
+// client wants companies that hold crypto on their balance sheet, and no
+// classification identifies that, so it stays hand-curated. Tickers that don't
+// resolve to a live quote are simply skipped in the computation.
 // ─────────────────────────────────────────────────────────────────────────
 export interface HotSectorBasket {
   key: string;
@@ -610,58 +615,12 @@ export interface HotSectorBasket {
 
 export const HOT_SECTOR_BASKETS: HotSectorBasket[] = [
   {
-    key: 'quantum',
-    label: 'Quantum',
+    key: 'information-technology',
+    label: 'Information Technology',
     tickers: [
-      'IONQ', 'RGTI', 'QBTS', 'QUBT', 'ARQQ', 'LAES', 'QSI', 'QMCO', 'IBM',
-      'GOOGL', 'MSFT', 'NVDA', 'HON', 'FORM', 'MKSI', 'COHR',
-    ],
-  },
-  {
-    key: 'ai',
-    label: 'AI',
-    tickers: [
-      'NVDA', 'AMD', 'PLTR', 'SMCI', 'AVGO', 'MRVL', 'MU', 'ARM', 'ANET',
-      'VRT', 'SOUN', 'BBAI', 'AI', 'TEM', 'DELL', 'MSFT', 'GOOGL', 'META',
-      'ORCL', 'NOW', 'SNOW', 'DDOG', 'PSTG', 'CRDO', 'ALAB', 'NBIS', 'APP',
-      'IOT', 'AISP', 'INOD',
-    ],
-  },
-  {
-    key: 'gold',
-    label: 'Gold',
-    tickers: [
-      'NEM', 'GOLD', 'AEM', 'KGC', 'AU', 'WPM', 'FNV', 'RGLD', 'GFI', 'HMY',
-      'AGI', 'BTG', 'EGO', 'OR', 'SSRM', 'CDE', 'IAG', 'NGD', 'SAND', 'EQX',
-      'DRD', 'HL', 'PAAS', 'AG', 'MAG', 'EXK', 'FSM', 'SA',
-    ],
-  },
-  {
-    key: 'rare-earths',
-    label: 'Rare Earths & Critical Metals',
-    tickers: [
-      'MP', 'TMC', 'UUUU', 'NB', 'CRML', 'REE', 'MTAL', 'USAR', 'ALB', 'SQM',
-      'LAC', 'PLL', 'CCJ', 'UEC', 'DNN', 'NXE', 'LEU', 'SMR', 'FCX', 'SCCO',
-      'TECK', 'IVN', 'ERO', 'HBM', 'SGML', 'AREC',
-    ],
-  },
-  {
-    key: 'biotech-pharma',
-    label: 'Biotech & Pharmaceuticals',
-    tickers: [
-      'LLY', 'PFE', 'MRK', 'ABBV', 'BMY', 'AMGN', 'GILD', 'VRTX', 'REGN',
-      'MRNA', 'BIIB', 'VKTX', 'CRSP', 'NTLA', 'NVO', 'AZN', 'NVS', 'JNJ',
-      'SNY', 'GSK', 'ALNY', 'BNTX', 'SRPT', 'RARE', 'BEAM', 'RXRX', 'TEM',
-      'HIMS', 'EXAS', 'NBIX',
-    ],
-  },
-  {
-    key: 'energy',
-    label: 'Energy',
-    tickers: [
-      'XOM', 'CVX', 'COP', 'EOG', 'SLB', 'PSX', 'MPC', 'VLO', 'OXY', 'WMB',
-      'KMI', 'HAL', 'DVN', 'HES', 'FANG', 'LNG', 'OKE', 'BKR', 'CTRA', 'APA',
-      'EQT', 'AR', 'TRGP', 'ET', 'EPD', 'FSLR', 'ENPH', 'NEE', 'VST', 'CEG',
+      'NVDA', 'MSFT', 'AAPL', 'AVGO', 'ORCL', 'AMD', 'CRM', 'ADBE', 'CSCO',
+      'PLTR', 'NOW', 'INTU', 'QCOM', 'TXN', 'MU', 'AMAT', 'LRCX', 'KLAC',
+      'ANET', 'PANW', 'CRWD', 'SNPS', 'CDNS', 'MRVL', 'SMCI', 'DELL', 'ARM',
     ],
   },
   {
@@ -674,12 +633,107 @@ export const HOT_SECTOR_BASKETS: HotSectorBasket[] = [
     ],
   },
   {
+    key: 'health-care',
+    label: 'Health Care',
+    tickers: [
+      'LLY', 'JNJ', 'ABBV', 'MRK', 'PFE', 'UNH', 'ABT', 'TMO', 'AMGN', 'ISRG',
+      'DHR', 'BSX', 'SYK', 'MDT', 'GILD', 'VRTX', 'REGN', 'CVS', 'CI', 'ELV',
+      'HCA', 'BMY', 'ZTS', 'MCK', 'BDX', 'HUM', 'IDXX', 'DXCM', 'HIMS',
+    ],
+  },
+  {
+    key: 'consumer-discretionary',
+    label: 'Consumer Discretionary',
+    tickers: [
+      'AMZN', 'TSLA', 'HD', 'MCD', 'BKNG', 'TJX', 'LOW', 'NKE', 'SBUX', 'CMG',
+      'ORLY', 'ABNB', 'MAR', 'HLT', 'GM', 'F', 'AZO', 'ROST', 'DHI', 'LEN',
+      'YUM', 'LULU', 'RCL', 'CCL', 'EBAY', 'DASH', 'RIVN', 'CVNA', 'GME',
+    ],
+  },
+  {
+    key: 'communication-services',
+    label: 'Communication Services',
+    tickers: [
+      'GOOGL', 'META', 'NFLX', 'DIS', 'CMCSA', 'T', 'VZ', 'TMUS', 'CHTR',
+      'SPOT', 'EA', 'TTWO', 'WBD', 'RBLX', 'PINS', 'SNAP', 'LYV', 'OMC',
+      'RDDT', 'ROKU', 'FOXA', 'PARA', 'NYT',
+    ],
+  },
+  {
+    key: 'industrials',
+    label: 'Industrials',
+    tickers: [
+      'GE', 'CAT', 'RTX', 'UBER', 'HON', 'UNP', 'ETN', 'BA', 'DE', 'LMT',
+      'ADP', 'UPS', 'PH', 'GD', 'NOC', 'WM', 'TT', 'CTAS', 'ITW', 'EMR',
+      'CSX', 'FDX', 'PCAR', 'CMI', 'NSC', 'URI', 'PWR', 'VRT', 'AXON', 'RKLB',
+    ],
+  },
+  {
+    key: 'consumer-staples',
+    label: 'Consumer Staples',
+    tickers: [
+      'WMT', 'COST', 'PG', 'KO', 'PEP', 'PM', 'MO', 'MDLZ', 'CL', 'TGT',
+      'KMB', 'KR', 'GIS', 'KHC', 'STZ', 'HSY', 'KDP', 'MNST', 'SYY', 'ADM',
+      'DG', 'DLTR', 'EL', 'CELH', 'KVUE', 'CHD', 'TSN',
+    ],
+  },
+  {
+    key: 'energy',
+    label: 'Energy',
+    tickers: [
+      'XOM', 'CVX', 'COP', 'EOG', 'SLB', 'PSX', 'MPC', 'VLO', 'OXY', 'WMB',
+      'KMI', 'HAL', 'DVN', 'HES', 'FANG', 'LNG', 'OKE', 'BKR', 'CTRA', 'APA',
+      'EQT', 'AR', 'TRGP', 'ET', 'EPD', 'FSLR', 'ENPH',
+    ],
+  },
+  {
+    key: 'utilities',
+    label: 'Utilities',
+    tickers: [
+      'NEE', 'SO', 'DUK', 'CEG', 'VST', 'AEP', 'SRE', 'D', 'EXC', 'XEL',
+      'PEG', 'ED', 'PCG', 'EIX', 'WEC', 'ETR', 'AWK', 'NRG', 'OKLO', 'SMR',
+      'DTE', 'PPL', 'FE', 'AES',
+    ],
+  },
+  {
+    key: 'materials',
+    label: 'Materials',
+    tickers: [
+      'LIN', 'SHW', 'APD', 'ECL', 'FCX', 'NEM', 'NUE', 'CTVA', 'DOW', 'DD',
+      'PPG', 'VMC', 'MLM', 'STLD', 'ALB', 'CF', 'MOS', 'IP', 'BALL', 'AVY',
+      'GOLD', 'AEM', 'SCCO', 'MP', 'CLF', 'X', 'UUUU',
+    ],
+  },
+  {
+    key: 'real-estate',
+    label: 'Real Estate',
+    tickers: [
+      'PLD', 'AMT', 'EQIX', 'WELL', 'SPG', 'PSA', 'O', 'DLR', 'CCI', 'CBRE',
+      'VICI', 'EXR', 'AVB', 'CSGP', 'IRM', 'VTR', 'SBAC', 'EQR', 'WY', 'INVH',
+      'ARE', 'MAA', 'ESS', 'KIM', 'HST', 'Z', 'OPEN',
+    ],
+  },
+  {
+    key: 'biotech',
+    label: 'Biotech',
+    tickers: [
+      'AMGN', 'GILD', 'VRTX', 'REGN', 'MRNA', 'BIIB', 'ALNY', 'VKTX', 'CRSP',
+      'NTLA', 'BNTX', 'SRPT', 'RARE', 'BEAM', 'RXRX', 'INSM', 'ARGX', 'NBIX',
+      'EXEL', 'UTHR', 'IONS', 'BMRN', 'HALO', 'MDGL', 'SMMT', 'ROIV', 'NUVL',
+    ],
+  },
+  {
+    // Companies that HOLD crypto on their balance sheet (client spec) — bitcoin
+    // treasuries, miners that keep the coins they mine, and the ETH / SOL
+    // treasury companies. Exchanges, brokers and stablecoin issuers that only
+    // custody customer coins are deliberately out.
     key: 'crypto',
     label: 'Crypto',
     tickers: [
-      'COIN', 'MSTR', 'MARA', 'RIOT', 'CLSK', 'HUT', 'BITF', 'CIFR', 'WULF',
-      'BTBT', 'HOOD', 'IREN', 'CORZ', 'BTDR', 'GLXY', 'CRCL', 'SBET', 'DFDV',
-      'BMNR', 'HIVE', 'CAN', 'SDIG',
+      'MSTR', 'MARA', 'RIOT', 'CLSK', 'HUT', 'BITF', 'CIFR', 'BTBT', 'IREN',
+      'BTDR', 'HIVE', 'CAN', 'TSLA', 'COIN', 'XYZ', 'GME', 'SMLR', 'DJT',
+      'KULR', 'NAKA', 'SBET', 'BMNR', 'DFDV', 'UPXI', 'BTCS', 'EXOD', 'GLXY',
+      'ABTC', 'ETHZ', 'WULF', 'CORZ', 'SQNS',
     ],
   },
 ];
