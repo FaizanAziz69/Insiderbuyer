@@ -279,6 +279,12 @@ const HOT_SECTOR_MAX_MEMBERS = 5_000;
  *  count as one (filters out $50M names that jump on a few thousand shares). */
 const HOT_SECTOR_TOP_PERFORMERS = 10;
 const HOT_SECTOR_PERFORMER_MIN_DOLLAR_VOLUME = 250_000;
+/** Plausibility cap on a SESSION change. Past ±100% the figure is a feed
+ *  artifact, not a move: 2026-09-08 AvalonBay (AVB) came through at +162.96%
+ *  because the quote sweep carried a stale $70 previous close against a $184
+ *  price, and it topped Real Estate's performers. A real >100% session gain in
+ *  a $50M+ name with volume exists but is rare enough to forgo. */
+const HOT_SECTOR_MAX_DAY_PCT = 100;
 /** Budgets for the SCHEDULED build (cron / boot warm-up), which is the only
  *  path that computes the full baskets. Generous: nothing waits on it. */
 const HOT_SECTOR_BUILD_BASELINE_BUDGET_MS = 90_000;
@@ -1227,7 +1233,11 @@ export class StockListsService implements OnApplicationBootstrap {
         const vol = q?.volume != null && q.volume > 0 ? q.volume : null;
         const avgVol = q?.avgVolume != null && q.avgVolume > 0 ? q.avgVolume : null;
         const dayChangePct =
-          typeof q?.changePct === 'number' && Number.isFinite(q.changePct) ? q.changePct : null;
+          typeof q?.changePct === 'number' &&
+          Number.isFinite(q.changePct) &&
+          Math.abs(q.changePct) <= HOT_SECTOR_MAX_DAY_PCT
+            ? q.changePct
+            : null;
         const dv = price != null && vol != null ? price * vol : null;
         const bdv = price != null && avgVol != null ? price * avgVol : null;
         if (dv != null) {
@@ -1237,7 +1247,7 @@ export class StockListsService implements OnApplicationBootstrap {
           if (dayChangePct != null && dayChangePct > 0) upDollarVolume += dv;
           else if (dayChangePct != null && dayChangePct < 0) downDollarVolume += dv;
         }
-        if (dayChangePct != null && Math.abs(dayChangePct) <= HOT_SECTOR_MAX_MTD_PCT) {
+        if (dayChangePct != null) {
           daySum += dayChangePct;
           dayCount++;
         }
@@ -1288,7 +1298,6 @@ export class StockListsService implements OnApplicationBootstrap {
           (m) =>
             m.dayChangePct != null &&
             m.dayChangePct > 0 &&
-            m.dayChangePct <= HOT_SECTOR_MAX_MTD_PCT &&
             (m.dollarVolume ?? 0) >= HOT_SECTOR_PERFORMER_MIN_DOLLAR_VOLUME,
         )
         .sort((a, c) => (c.dayChangePct ?? 0) - (a.dayChangePct ?? 0))
