@@ -8,6 +8,9 @@ import { AdSlot } from "@/components/AdSlot";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
 import { rankColumn } from "@/components/tableColumns";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { MaskedCell } from "@/components/premium/MaskedCell";
+import { PremiumRowWall } from "@/components/premium/PremiumRowWall";
 
 interface HotSectorRow {
   rank: number;
@@ -88,7 +91,32 @@ function signedMoney(v: number | null | undefined): string {
   return `${v > 0 ? "+" : "−"}${formatCurrency(Math.abs(v))}`;
 }
 
+/**
+ * Client 2026-09-08: "paygate the sectors. Keep the data on everything, just
+ * blur out the sector names." Every metric column stays visible; the Sector
+ * column shows blurred DECOY names for visitors and the member drill-down is
+ * closed (the stock list would name the sector). Same strict rule as every
+ * other paygate: the real label is never in the DOM while locked.
+ */
+const DECOY_SECTORS = [
+  "Space & Defense",
+  "Semiconductors",
+  "Cybersecurity",
+  "Robotics & Automation",
+  "Fintech Platforms",
+  "Water Infrastructure",
+  "Autonomous Vehicles",
+  "Consumer Wellness",
+  "Specialty Chemicals",
+  "Digital Media",
+  "Grid Storage",
+  "Precision Medicine",
+];
+const decoySector = (i: number) => DECOY_SECTORS[((i % DECOY_SECTORS.length) + DECOY_SECTORS.length) % DECOY_SECTORS.length];
+
 export default function HotSectorsPage() {
+  const { unlocked } = usePremium();
+  const locked = !unlocked;
   const { data, isLoading } = useSWR<HotSectorsResponse>(
     `${API_BASE}/stock-lists/hot-sectors`,
     fetcher,
@@ -98,7 +126,10 @@ export default function HotSectorsPage() {
   const sp = data?.sp500Ytd ?? null;
 
   // Drill-down: which basket's member stocks are open under the ranking.
-  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [openKeyState, setOpenKey] = useState<string | null>(null);
+  // A lapsed entitlement closes the drill-down too — the member list would
+  // otherwise keep naming a sector whose label is masked above it.
+  const openKey = locked ? null : openKeyState;
   const { data: membersRes, isLoading: membersLoading } = useSWR<MembersResponse>(
     openKey ? `${API_BASE}/stock-lists/hot-sectors/${encodeURIComponent(openKey)}/members` : null,
     fetcher,
@@ -117,8 +148,26 @@ export default function HotSectorsPage() {
     {
       key: "label",
       label: "Sector",
+      pro: true,
+      // Sorting a masked column would reveal the alphabetical order of the
+      // hidden names, so the header is inert while locked.
+      sortable: !locked,
       sortValue: (s) => s.label,
-      render: (s) => {
+      render: (s, i) => {
+        if (locked) {
+          return (
+            <div>
+              <MaskedCell label="sector names" lock>
+                <span className="text-[15px] font-bold" style={{ color: "var(--text)" }}>
+                  {decoySector((s.rank ?? i + 1) - 1)}
+                </span>
+              </MaskedCell>
+              <span className="block text-[11px] text-mute">
+                {(s.members ?? s.companies).toLocaleString()} stocks over $50M
+              </span>
+            </div>
+          );
+        }
         const open = s.key === openKey;
         return (
           <button
@@ -435,12 +484,15 @@ export default function HotSectorsPage() {
               </strong>
             </>
           )}
-          . Click a sector to see its stocks with analyst price targets and insider flows.
+          .{" "}
+          {locked
+            ? "Sector names and each sector's stock list are part of Insider Access; every metric below is open."
+            : "Click a sector to see its stocks with analyst price targets and insider flows."}
         </p>
       </header>
 
-      {/* Free page (client 2026-08-21): the row wall was removed so every
-          sector shows for all visitors. */}
+      {/* 2026-08-21: every sector ROW shows for all visitors (no row cap).
+          2026-09-08: the sector NAMES are the paygate — see DECOY_SECTORS. */}
       <div className="card overflow-hidden">
         {isLoading ? (
           <div className="text-center text-mute py-12">Loading sectors…</div>
@@ -451,6 +503,17 @@ export default function HotSectorsPage() {
             initialSort={{ key: "hotScore", dir: "desc" }}
             empty="No sector data available."
             columns={columns}
+          />
+        )}
+        {!isLoading && sectors.length > 0 && (
+          <PremiumRowWall
+            label="Hot Sectors"
+            total={sectors.length}
+            bullets={[
+              "See which sectors are heating up — every name unmasked",
+              "Drill into each sector's stocks with analyst targets and insider flows",
+              "Insider Scores, Top Insider Buys and every other Insider Access signal",
+            ]}
           />
         )}
       </div>
@@ -516,8 +579,11 @@ export default function HotSectorsPage() {
       >
         <span className="font-bold text-[var(--text)]">How the ranking works:</span>{" "}
         Each sector holds <strong>every NASDAQ- and NYSE-listed operating company over $50M
-        market cap</strong> in its industry, plus the theme&rsquo;s defining names (AI, Quantum and
-        Crypto are business narratives rather than industry codes, so those baskets are curated).
+        market cap</strong> in its industry, plus the theme&rsquo;s defining names
+        {locked
+          ? " (a few thematic baskets are business narratives rather than industry codes, so they are curated)"
+          : " (AI, Quantum and Crypto are business narratives rather than industry codes, so those baskets are curated)"}
+        .
         The <strong>Heat Score</strong> (0–100) is a weighted blend of three things measured on
         absolute scales, not against whichever peer happens to lead: <strong>breadth</strong>{" "}
         (60%) — the share of members up more than 10% month-to-date; <strong>momentum</strong>{" "}
@@ -530,7 +596,7 @@ export default function HotSectorsPage() {
         price and consensus target across the covered members. MTD and YTD are equal-weighted
         averages of member stocks; YTD is also shown against the S&amp;P 500 in percentage points
         (pp). <strong>Insider figures cover SEC Form 4 and German BaFin filings only</strong> — a
-        basket weighted toward Canadian-listed names (gold and rare-earth miners especially, which
+        basket weighted toward Canadian-listed names ({locked ? "miners" : "gold and rare-earth miners"} especially, which
         file with SEDI) will show less buying than its insiders actually did, so read that column
         alongside breadth and momentum rather than on its own. Rankings refresh every 20 minutes.
         Informational only — not investment advice.

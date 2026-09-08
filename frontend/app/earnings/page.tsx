@@ -9,6 +9,7 @@ import { DataTable } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
 import { ToolIntro } from "@/components/ToolIntro";
+import { PremiumValue } from "@/components/premium/PremiumValue";
 
 interface EarningsRow {
   date: string;
@@ -108,6 +109,44 @@ function eaiTitle(e: EaiScore): string {
   return `${head}\n\n${detail}`;
 }
 
+/** The EAI value pill — a scored zero renders as 0, 3-for-3 gets the gold
+ *  treatment. The real number only ever renders inside <PremiumValue>. */
+function EaiPill({ e }: { e: EaiScore }) {
+  // A scored zero is shown as a zero (client 2026-09-06: the
+  // column "doesn't have any value" when zeros hide behind a
+  // dash). Only an UNSCORED company gets the dash above.
+  if (e.eai === 0) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-bold tabular whitespace-nowrap text-mute"
+        style={{ background: "var(--bg-3)" }}
+        title={eaiTitle(e)}
+      >
+        0<span className="font-semibold opacity-70">· 0/{e.strong}</span>
+      </span>
+    );
+  }
+  // 3-for-3 is the strongest form of the flag; anything lower
+  // is still shown, just without the gold treatment.
+  const flagged = e.eai === 100;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-bold tabular whitespace-nowrap"
+      style={{
+        background: flagged ? "#d4a92a" : "var(--bg-3)",
+        color: flagged ? "#141620" : "var(--text-soft)",
+      }}
+      title={eaiTitle(e)}
+    >
+      {flagged && <span aria-hidden>★</span>}
+      {e.eai}
+      <span className="font-semibold opacity-70">
+        · {e.aligned}/{e.strong}
+      </span>
+    </span>
+  );
+}
+
 export default function EarningsPage() {
   const { data, isLoading } = useSWR<{ rows: EarningsRow[] }>(
     `${API_BASE}/earnings/calendar?days=7`,
@@ -163,7 +202,12 @@ export default function EarningsPage() {
           <DataTable<EarningsRow>
             rows={rows}
             rowKey={(r) => `${r.date}-${r.symbol}`}
-            initialSort={{ key: "marketCap", dir: "desc" }}
+            // Client 2026-09-08: "paygate it the same way we do insider
+            // scores, descending order" — the EAI is the paid value on this
+            // page, so the calendar opens ranked by it, highest first, and
+            // the cell is a <PremiumValue> (blurred decoy, never the real
+            // score) for visitors. Unscored names ("—") sort to the bottom.
+            initialSort={{ key: "eai", dir: "desc" }}
             columns={[
               rankColumn<EarningsRow>(),
               {
@@ -193,43 +237,16 @@ export default function EarningsPage() {
               {
                 key: "eai",
                 label: "EAI",
+                pro: true,
                 align: "center",
                 sortValue: (r) => eaiByTicker[(r.symbol || "").toUpperCase()]?.eai ?? -1,
                 render: (r) => {
                   const e = eaiByTicker[(r.symbol || "").toUpperCase()];
                   if (!e) return <span className="text-faint text-[13px]">—</span>;
-                  // A scored zero is shown as a zero (client 2026-09-06: the
-                  // column "doesn't have any value" when zeros hide behind a
-                  // dash). Only an UNSCORED company gets the dash above.
-                  if (e.eai === 0) {
-                    return (
-                      <span
-                        className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-bold tabular whitespace-nowrap text-mute"
-                        style={{ background: "var(--bg-3)" }}
-                        title={eaiTitle(e)}
-                      >
-                        0<span className="font-semibold opacity-70">· 0/{e.strong}</span>
-                      </span>
-                    );
-                  }
-                  // 3-for-3 is the strongest form of the flag; anything lower
-                  // is still shown, just without the gold treatment.
-                  const flagged = e.eai === 100;
                   return (
-                    <span
-                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-bold tabular whitespace-nowrap"
-                      style={{
-                        background: flagged ? "#d4a92a" : "var(--bg-3)",
-                        color: flagged ? "#141620" : "var(--text-soft)",
-                      }}
-                      title={eaiTitle(e)}
-                    >
-                      {flagged && <span aria-hidden>★</span>}
-                      {e.eai}
-                      <span className="font-semibold opacity-70">
-                        · {e.aligned}/{e.strong}
-                      </span>
-                    </span>
+                    <PremiumValue label="EAI">
+                      <EaiPill e={e} />
+                    </PremiumValue>
                   );
                 },
               },

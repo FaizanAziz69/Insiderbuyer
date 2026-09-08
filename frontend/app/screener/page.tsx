@@ -9,6 +9,9 @@ import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { ToolIntro } from "@/components/ToolIntro";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { PremiumValue } from "@/components/premium/PremiumValue";
+import { PRODUCT_NAME } from "@/components/premium/PaywallCta";
 
 interface ScreenerRow {
   symbol: string;
@@ -77,7 +80,17 @@ const SORTS: { value: string; label: string }[] = [
 
 const PAGE = 50;
 
+/**
+ * Client 2026-09-08 ("Paygate the premium data on this page"): the Insider
+ * Score is the premium data here. Locked visitors get the same treatment as
+ * every scored table — <PremiumValue> blurs a decoy, never the real number —
+ * and the "Min Insider Score" filter is locked too, because filtering on 70+
+ * would reveal which stocks score high without ever printing a score. The
+ * list still sorts by score, highest first, exactly like the rankings pages.
+ */
 export default function ScreenerPage() {
+  const { unlocked } = usePremium();
+  const locked = !unlocked;
   const [setup, setSetup] = useState("");
   const [sector, setSector] = useState("");
   const [exchange, setExchange] = useState("");
@@ -95,7 +108,8 @@ export default function ScreenerPage() {
   if (exchange) params.set("exchange", exchange);
   if (minMarketCap) params.set("minMarketCap", minMarketCap);
   if (maxMarketCap) params.set("maxMarketCap", maxMarketCap);
-  if (minIqs) params.set("minIqs", minIqs);
+  // A lapsed entitlement must not keep filtering on the paid score.
+  if (minIqs && !locked) params.set("minIqs", minIqs);
   if (q.trim()) params.set("q", q.trim());
   params.set("sort", sort);
   params.set("dir", dir);
@@ -163,11 +177,23 @@ export default function ScreenerPage() {
             </select>
           </Field>
           <Field label="Min Insider Score">
-            <select value={minIqs} onChange={(e) => reset(setMinIqs)(e.target.value)} className="input-base">
-              {SCORES.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
+            {locked ? (
+              <Link
+                href={SUBSCRIBE_HREF}
+                className="input-base flex items-center gap-2 hover:border-[var(--premium)]"
+                title={`Filter by Insider Score — included with ${PRODUCT_NAME}`}
+                aria-label="Unlock the Insider Score filter"
+              >
+                <Lock className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "var(--premium)" }} />
+                <span className="text-[13px] text-mute truncate">Unlock to filter by score</span>
+              </Link>
+            ) : (
+              <select value={minIqs} onChange={(e) => reset(setMinIqs)(e.target.value)} className="input-base">
+                {SCORES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            )}
           </Field>
           <Field label="Exchange">
             <select value={exchange} onChange={(e) => reset(setExchange)(e.target.value)} className="input-base">
@@ -223,7 +249,12 @@ export default function ScreenerPage() {
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
                 <Th>Company</Th>
-                <Th>Insider Score</Th>
+                <Th>
+                  <span className="inline-flex items-center gap-1.5">
+                    {locked && <Lock className="h-3 w-3" style={{ color: "var(--premium)" }} />}
+                    Insider Score
+                  </span>
+                </Th>
                 <Th align="right">Buyers</Th>
                 <Th align="right">Insider $ bought</Th>
                 <Th align="right">Market cap</Th>
@@ -250,7 +281,15 @@ export default function ScreenerPage() {
                       </Link>
                     </span>
                   </td>
-                  <td className="px-3 py-2.5"><IqsScoreCell iqs={r.iqs} /></td>
+                  <td className="px-3 py-2.5 text-center">
+                    {typeof r.iqs === "number" ? (
+                      <PremiumValue label="Insider Score">
+                        <IqsScoreCell iqs={r.iqs} />
+                      </PremiumValue>
+                    ) : (
+                      <IqsScoreCell iqs={r.iqs} />
+                    )}
+                  </td>
                   <td className="px-3 py-2.5 text-right tabular font-bold">
                     {r.buyers || "—"}
                     {r.hasCeoBuyer && (

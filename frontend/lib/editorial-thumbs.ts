@@ -173,6 +173,11 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // englander-nvidia-etf. Third slug sharing this file, which is fine: it
   // carries no baked-in headline text, so it is not pinnedOnly.
   "editorial-anthropic-lambda-cloud-deal-2026-09-01": "jensen-huang-2026",
+  // 2026-09-08: the viral "Jensen Huang's stock calls" nuclear list (Oklo /
+  // Bloom / Energy Fuels). Client: "use thumbnail of jensen we have already".
+  // Fourth slug on this file; without the pin the story has no NVDA ticker
+  // and would hash-pick an unrelated portrait.
+  "editorial-jensen-huang-nuclear-stock-list-oklo-bloom-2026-09-08": "jensen-huang-2026",
   // 2026-08-27: the neutral trading-floor collage. Every other thumb in the
   // library is a portrait of a named investor, and this story is about Moderna
   // — pinning any of them would put an unrelated person's face on it. Without

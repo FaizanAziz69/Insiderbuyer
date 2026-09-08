@@ -7,6 +7,7 @@ import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { PremiumRowWall } from "@/components/premium/PremiumRowWall";
+import { MaskedCell } from "@/components/premium/MaskedCell";
 import { PRODUCT_NAME } from "@/components/premium/PaywallCta";
 import { AdSlot } from "@/components/AdSlot";
 import { CompanyLogo } from "@/components/CompanyLogo";
@@ -96,42 +97,6 @@ const DECOYS: Array<[string, string, string, string]> = [
   ["GRNF", "Greenfield Materials", "T. Balogun", "Director"],
 ];
 const decoyFor = (i: number) => DECOYS[i % DECOYS.length];
-
-/** Blurred decoy that sells the unlock; the real value is never rendered. */
-function MaskedCell({
-  children,
-  label,
-  lock = false,
-}: {
-  children: React.ReactNode;
-  label: string;
-  lock?: boolean;
-}) {
-  return (
-    <Link
-      href={SUBSCRIBE_HREF}
-      aria-label={`Unlock ${label}`}
-      title={`Unlock ${label} — included with ${PRODUCT_NAME}`}
-      className="relative block"
-    >
-      <span
-        aria-hidden
-        className="block select-none pointer-events-none"
-        style={{ filter: "blur(5px)" }}
-      >
-        {children}
-      </span>
-      <span className="sr-only">
-        {label} — included with {PRODUCT_NAME}
-      </span>
-      {lock && (
-        <span className="absolute inset-0 flex items-center justify-center">
-          <Lock className="h-3.5 w-3.5" style={{ color: "var(--premium)" }} />
-        </span>
-      )}
-    </Link>
-  );
-}
 
 export default function TopBuysPage() {
   const [period, setPeriod] = useState("7d");
