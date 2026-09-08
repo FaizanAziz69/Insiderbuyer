@@ -152,10 +152,26 @@ export function StandardStockListTable({
   initialSort,
   initialFilters,
   countdownRank,
+  countdownFrom,
 }: {
   rows: StandardRow[];
   pageSize?: number;
-  gate?: { label: string; freeRows?: number; bullets?: string[] };
+  gate?: {
+    label: string;
+    freeRows?: number;
+    bullets?: string[];
+    teaser?: boolean;
+    freeFilter?: (row: StandardRow) => boolean;
+    /** Show the REAL Insider Score on the free rows instead of the blurred
+     *  decoy. Used by the sector lists (client 2026-09-08: "show only 5
+     *  stocks, show their insider scores, bottom 5 ranked by insider score")
+     *  — the visitor sees the weakest five in full and pays for the rest. */
+    revealScores?: boolean;
+  };
+  /** Countdown base for the "#" column when `countdownRank` is set; defaults
+   *  to the row count. The sector lists pass the number of SCORED rows so the
+   *  bottom-five preview reads #12 → #8, not #48 → #44 over unranked names. */
+  countdownFrom?: number;
   /** Presentation-only knobs. None of them can change the column set or its
    *  order — that lives in STOCK_LIST_COLUMN_ORDER and nowhere else.
    *  `initialSort` falls back to Market Cap when the requested column was
@@ -213,7 +229,7 @@ export function StandardStockListTable({
   // STOCK_LIST_COLUMN_ORDER's, applied once, below.
   const byKey: Record<StockListColumnKey, Column<StandardRow>> = {
     rank: rankColumn<StandardRow>(
-      countdownRank ? { countdownFrom: rows.length } : undefined,
+      countdownRank ? { countdownFrom: countdownFrom ?? rows.length } : undefined,
     ),
     ticker: {
       key: "ticker",
@@ -339,9 +355,13 @@ export function StandardStockListTable({
       sortValue: (r) => r.iqs ?? null,
       render: (r) =>
         r.iqs != null ? (
-          <PremiumValue label="Insider Score">
+          gate?.revealScores ? (
             <IqsScoreCell iqs={r.iqs} />
-          </PremiumValue>
+          ) : (
+            <PremiumValue label="Insider Score">
+              <IqsScoreCell iqs={r.iqs} />
+            </PremiumValue>
+          )
         ) : (
           <NoInsiderValue row={r} />
         ),

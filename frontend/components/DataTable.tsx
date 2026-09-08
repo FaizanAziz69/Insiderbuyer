@@ -156,7 +156,17 @@ interface Props<T> {
   /** Turns the table into a freemium leaderboard: only `freeRows` rows show,
    *  the next one fades as a teaser, pagination is suppressed and the shared
    *  unlock wall renders underneath. */
-  gate?: { label: string; freeRows?: number; bullets?: string[] };
+  gate?: {
+    label: string;
+    freeRows?: number;
+    bullets?: string[];
+    /** Render the faded teaser row after the free ones (default true). */
+    teaser?: boolean;
+    /** Only rows passing this are eligible for the free window — e.g. "rows
+     *  that carry an Insider Score" — so the preview is never padded with
+     *  rows that have nothing to show. The wall still counts every row. */
+    freeFilter?: (row: T) => boolean;
+  };
 }
 
 const alignClass: Record<Align, string> = {
@@ -363,11 +373,13 @@ export function DataTable<T>({
   // Free users see the top `gateFree` of the UNFILTERED ranking plus one faded
   // teaser. Filters then narrow that window — they can never widen it, so
   // cycling filters cannot be used to page through the locked rows.
-  const freeWindow = useMemo(
-    () => (locked ? sortedAll.slice(0, gateFree + 1) : []),
-    [locked, sortedAll, gateFree],
-  );
-  const teaserRow = locked ? freeWindow[gateFree] : undefined;
+  const showTeaser = gate?.teaser !== false;
+  const freeWindow = useMemo(() => {
+    if (!locked) return [];
+    const eligible = gate?.freeFilter ? sortedAll.filter(gate.freeFilter) : sortedAll;
+    return eligible.slice(0, gateFree + (showTeaser ? 1 : 0));
+  }, [locked, sortedAll, gateFree, gate, showTeaser]);
+  const teaserRow = locked && showTeaser ? freeWindow[gateFree] : undefined;
   const pageRows = locked
     ? sortRows(
         matchesFilters ? freeWindow.filter((r, i) => matchesFilters(r, i)) : freeWindow,

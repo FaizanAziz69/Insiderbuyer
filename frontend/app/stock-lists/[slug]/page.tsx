@@ -3,6 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { use, useState } from "react";
 import { ArrowLeft, ChevronRight, Sparkles } from "lucide-react";
+import { usePremium } from "@/components/premium/PremiumContext";
 import { StandardStockListTable, StandardRow } from "@/components/StandardStockListTable";
 import { API_BASE, fetcher, formatDate } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
@@ -96,6 +97,18 @@ export default function StockListDetailPage({
   const showBought = rows.some((r) => (r.totalPurchaseValue ?? 0) > 0);
   // Blue Sky counts down #50 → #1 by implied upside instead of ranking by cap.
   const isBlueSky = slug === "blue-sky";
+  // Sector lists (Gold, Silver, Oil, Biotech, Tech, Metals & Mining), client
+  // 2026-09-08: visitors get "only 5 stocks, show their insider scores, and
+  // only the bottom 5 ranked by insider score". So while locked the table
+  // opens ranked by Insider Score ascending (unscored names sort last), the
+  // free window is the five lowest-scored names with their REAL scores shown,
+  // no teaser row, the "#" column counts down from the number of scored
+  // names (#12 → #8 = the bottom five of twelve), and the wall sells the rest.
+  // Subscribers see the list exactly as before.
+  const { unlocked } = usePremium();
+  const isSectorList = data?.kind === "sector";
+  const sectorLocked = isSectorList && !unlocked;
+  const scoredCount = rows.filter((r) => (r as any).iqs != null).length;
 
   // Last-updated stamp: newest live quote is intraday, so just stamp "today".
   const updatedLabel = formatDate(new Date().toISOString());
@@ -195,13 +208,14 @@ export default function StockListDetailPage({
              still come from DataTable. */
           <StandardStockListTable
             rows={toStandardRows(rows)}
-            countdownRank={isBlueSky || data?.kind === "premium"}
+            countdownRank={isBlueSky || data?.kind === "premium" || sectorLocked}
+            countdownFrom={sectorLocked ? scoredCount : undefined}
             initialSort={
               isBlueSky
                 ? { key: "upside", dir: "asc" }
                 : // Paygated ranked lists count down so #1 sits behind the
                   // wall (client 2026-08-21) — the API serves them best-first.
-                  data?.kind === "premium"
+                  data?.kind === "premium" || sectorLocked
                   ? { key: "iqs", dir: "asc" }
                   : // Holdings-backed persona lists open ranked by portfolio
                     // weight, highest first (client 2026-08-19).
@@ -230,7 +244,20 @@ export default function StockListDetailPage({
                         "Every new Form 4 the moment it lands",
                       ],
                     }
-                  : undefined
+                  : isSectorList
+                    ? {
+                        label: data?.title || "this list",
+                        freeRows: 5,
+                        teaser: false,
+                        revealScores: true,
+                        freeFilter: (r: StandardRow) => r.iqs != null,
+                        bullets: [
+                          `Every ${(data?.title || "sector").replace(/ Stocks$/, "").toLowerCase()} stock in the list, ranked to #1`,
+                          "The highest Insider Scores, not just the weakest five",
+                          "ROI vs insider cost, signals and every new Form 4",
+                        ],
+                      }
+                    : undefined
             }
           />
         )}
