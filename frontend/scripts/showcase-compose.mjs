@@ -34,26 +34,34 @@ const bg = (accent = "green") => Buffer.from(`<svg xmlns="http://www.w3.org/2000
 
 /** Rounded frame with a browser chrome bar and a soft shadow, around a capture
  *  resized to `w` wide. Returns a sharp buffer (PNG, transparent margins). */
-async function frame(file, w, { chrome = true, radius = 28, pad = 90, trimBottom = 0 } = {}) {
+async function frame(file, w, { radius = 28, pad = 90, trimBottom = 0, padBottom = 0, padTop = 0 } = {}) {
+  // No browser chrome (client 2026-09-09: "dont want these in all four
+  // sections") — each capture becomes a clean rounded card. `trimBottom`
+  // removes a partially captured last row; `padBottom`/`padTop` add white so
+  // the card ends on whitespace instead of a cut line.
   let img = sharp(path.join(CAPS, file));
   let meta = await img.metadata();
   if (trimBottom) {
     img = img.extract({ left: 0, top: 0, width: meta.width, height: meta.height - trimBottom });
     meta = { ...meta, height: meta.height - trimBottom };
   }
+  if (padBottom || padTop) {
+    // Materialise: sharp runs resize before extend inside one pipeline, so the
+    // padding must be baked into a buffer before the resize below.
+    img = sharp(
+      await sharp(await img.png().toBuffer())
+        .extend({ top: padTop, bottom: padBottom, left: 0, right: 0, background: '#ffffff' })
+        .png()
+        .toBuffer(),
+    );
+    meta = { ...meta, height: meta.height + padBottom + padTop };
+  }
   const h = Math.round((meta.height / meta.width) * w);
-  const bar = chrome ? 56 : 0;
   const content = await img.resize(w, h).png().toBuffer();
-  const total = h + bar;
+  const total = h;
   const mask = Buffer.from(`<svg width="${w}" height="${total}"><rect width="${w}" height="${total}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`);
-  const chromeSvg = Buffer.from(`<svg width="${w}" height="${total}">
-    <rect width="${w}" height="${total}" rx="${radius}" fill="${NAVY2}"/>
-    ${chrome ? `<circle cx="34" cy="28" r="9" fill="#FF5F57"/><circle cx="62" cy="28" r="9" fill="#FEBC2E"/><circle cx="90" cy="28" r="9" fill="#28C840"/>
-    <rect x="${Math.round(w * 0.3)}" y="14" width="${Math.round(w * 0.4)}" height="28" rx="14" fill="#1a2a44"/>
-    <text x="${w / 2}" y="34" font-family="Helvetica, Arial, sans-serif" font-size="17" fill="#9DB0C7" text-anchor="middle">insiderbuying.com</text>` : ""}
-  </svg>`);
-  const framed = await sharp(chromeSvg)
-    .composite([{ input: content, top: bar, left: 0 }])
+  const framed = await sharp({ create: { width: w, height: total, channels: 4, background: '#ffffff' } })
+    .composite([{ input: content, top: 0, left: 0 }])
     .png()
     .toBuffer();
   const rounded = await sharp(framed).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
@@ -121,8 +129,8 @@ async function render(name, accent, layers) {
     .resize(W, H, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
     .toBuffer();
-  await sharp(png).webp({ quality: 86, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-e2@2x.webp`));
-  await sharp(png).resize(1200, 750).webp({ quality: 84, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-e2.webp`));
+  await sharp(png).webp({ quality: 86, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-e3@2x.webp`));
+  await sharp(png).resize(1200, 750).webp({ quality: 84, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-e3.webp`));
   return png;
 }
 /** Dedicated PORTRAIT composition for phones (brief §6: "dedicated mobile
@@ -155,13 +163,13 @@ async function mobile(name, accent, layers) {
     .resize(MW - 40, MH - 40, { fit: 'inside' })
     .resize(MW, MH, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .webp({ quality: 84, alphaQuality: 90 })
-    .toFile(path.join(OUT, `${name}-e2-mobile.webp`));
+    .toFile(path.join(OUT, `${name}-e3-mobile.webp`));
 }
 
 // 1. Insider Scores — dial card in front, scored rankings behind, track record at the tail.
 {
-  const back = await frame("scores-list.jpg", 1560, { pad: 90 });
-  const tail = await frame("track-record.png", 760, { chrome: false, radius: 30 });
+  const back = await frame("scores-list.jpg", 1560, { pad: 90, trimBottom: 20, padBottom: 24 });
+  const tail = await frame("track-record.png", 760, { radius: 30, trimBottom: 40, padBottom: 30 });
   const dial = scoreCard();
   const png = await render("insider-scores", "green", [
     { buf: back.buf, left: 640, top: 40 },
@@ -170,17 +178,17 @@ async function mobile(name, accent, layers) {
   ]);
   void png;
   {
-    const list = await frame("scores-list.jpg", 1100, { pad: 70 });
+    const list = await frame("scores-list.jpg", 860, { pad: 50, trimBottom: 20, padBottom: 24 });
     const dialM = scoreCard();
     await mobile("insider-scores", "green", [
-      { buf: list.buf, left: 120, top: 40 },
-      { buf: dialM, left: 60, top: 470 },
+      { buf: list.buf, left: 0, top: 20 },
+      { buf: dialM, left: 100, top: 470 },
     ]);
   }
 }
 // 2. Top Insider Buys — the graded feed with an SMS alert overlapping the frame.
 {
-  const feed = await frame("top-buys.png", 2080, { pad: 90 });
+  const feed = await frame("top-buys.png", 2080, { pad: 90, padBottom: 18, padTop: 6 });
   const sms = smsCard();
   const png = await render("top-insider-buys", "green", [
     { buf: feed.buf, left: 120, top: 330 },
@@ -188,19 +196,19 @@ async function mobile(name, accent, layers) {
   ]);
   void png;
   {
-    const feedM = await frame("top-buys.png", 1400, { pad: 70 });
+    const feedM = await frame("top-buys.png", 860, { pad: 50, padBottom: 18, padTop: 6 });
     const smsM = smsCard();
     await mobile("top-insider-buys", "green", [
-      { buf: feedM.buf, left: -230, top: 420 },
-      { buf: smsM, left: 40, top: 60 },
+      { buf: feedM.buf, left: 0, top: 330 },
+      { buf: smsM, left: 100, top: 60 },
     ]);
   }
 }
 // 3. Top Analysts / Insiders — analyst leaderboard beside insider track records.
 {
-  const an = await frame("analysts.png", 1720, { pad: 90, trimBottom: 48 });
-  const ins = await frame("track-record.png", 760, { chrome: false, radius: 30 });
-  const ranked = await frame("ranked-insiders.png", 1150, { pad: 90, trimBottom: 150 });
+  const an = await frame("analysts.png", 1720, { pad: 90, trimBottom: 40, padBottom: 18, padTop: 6 });
+  const ins = await frame("track-record.png", 760, { radius: 30, trimBottom: 40, padBottom: 30 });
+  const ranked = await frame("ranked-insiders.png", 1150, { pad: 90, trimBottom: 165, padBottom: 20 });
   const png = await render("top-analysts-insiders", "gold", [
     { buf: an.buf, left: 40, top: 60 },
     { buf: ranked.buf, left: 260, top: 700 },
@@ -208,11 +216,11 @@ async function mobile(name, accent, layers) {
   ]);
   void png;
   {
-    const anM = await frame("analysts.png", 1300, { pad: 70, trimBottom: 48 });
-    const insM = await frame("track-record.png", 700, { chrome: false, radius: 30 });
+    const anM = await frame("analysts.png", 860, { pad: 50, trimBottom: 40, padBottom: 18, padTop: 6 });
+    const insM = await frame("track-record.png", 680, { radius: 30, trimBottom: 40, padBottom: 30 });
     await mobile("top-analysts-insiders", "gold", [
-      { buf: anM.buf, left: -200, top: 30 },
-      { buf: insM.buf, left: 100, top: 400 },
+      { buf: anM.buf, left: 0, top: 30 },
+      { buf: insM.buf, left: 90, top: 380 },
     ]);
   }
 }
@@ -226,11 +234,11 @@ async function mobile(name, accent, layers) {
   ]);
   void png;
   {
-    const bubM = await frame("bubbles.png", 1500, { pad: 70, trimBottom: 75 });
-    const conM = await frame("congress.png", 760, { pad: 70, trimBottom: 80 });
+    const bubM = await frame("bubbles.png", 860, { pad: 50, trimBottom: 75 });
+    const conM = await frame("congress.png", 600, { pad: 50, trimBottom: 80 });
     await mobile("stock-visualizer", "green", [
-      { buf: bubM.buf, left: -380, top: 40 },
-      { buf: conM.buf, left: 130, top: 700 },
+      { buf: bubM.buf, left: 0, top: 60 },
+      { buf: conM.buf, left: 240, top: 560 },
     ]);
   }
 }
