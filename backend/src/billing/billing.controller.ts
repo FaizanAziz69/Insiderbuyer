@@ -1,18 +1,22 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Headers,
   HttpCode,
+  NotFoundException,
   Post,
   RawBodyRequest,
   Req,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuthService } from '../auth/auth.service';
+import { AdminTokenGuard } from '../common/admin-token.guard';
 import { User } from '../entities/user.entity';
 import { BillingService } from './billing.service';
 
@@ -48,6 +52,53 @@ export class BillingController {
     const user = await this.users.findOne({ where: { id: payload.sub } });
     if (!user) return { configured: this.billing.configured, premium: false };
     return this.billing.status(user);
+  }
+
+  /** Comp an account by email: grant (premium/portfolio true, the default) or
+   *  revoke (explicit false) paid access with no Stripe subscription behind it.
+   *  A premiumStatus of 'active' with a null period end is honoured
+   *  indefinitely by isPremium(), and status() only re-syncs from Stripe when
+   *  a period end has lapsed or no status is set — so a comp sticks until a
+   *  real subscription event overwrites it. */
+  @UseGuards(AdminTokenGuard)
+  @Post('admin/grant')
+  async adminGrant(
+    @Body()
+    body: {
+      email?: string;
+      premium?: boolean;
+      portfolio?: boolean;
+      plan?: 'monthly' | 'annual';
+    },
+  ) {
+    const email = (body?.email || '').trim().toLowerCase();
+    if (!email) throw new BadRequestException('email is required.');
+    const user = await this.users.findOne({ where: { email } });
+    if (!user) throw new NotFoundException(`No account exists for ${email}.`);
+
+    if (body.premium === false) {
+      user.premiumStatus = null;
+      user.premiumPlan = null;
+      user.premiumCurrentPeriodEnd = null;
+    } else {
+      user.premiumStatus = 'active';
+      user.premiumPlan = body.plan === 'monthly' ? 'monthly' : 'annual';
+      user.premiumCurrentPeriodEnd = null;
+    }
+    if (body.portfolio === false) {
+      user.portfolioStatus = null;
+      user.portfolioCurrentPeriodEnd = null;
+    } else {
+      user.portfolioStatus = 'active';
+      user.portfolioCurrentPeriodEnd = null;
+    }
+    await this.users.save(user);
+    return {
+      email: user.email,
+      premium: this.billing.isPremium(user),
+      premiumPlan: user.premiumPlan,
+      portfolioStatus: user.portfolioStatus,
+    };
   }
 
   /** Live plan prices for the sales page (public). Read from Stripe so the
