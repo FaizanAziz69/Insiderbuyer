@@ -1,6 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Link previews (WhatsApp, iMessage, Telegram, X, Slack…) read <head> only.
+  // Next 15 streams metadata into the body on dynamically rendered pages
+  // unless the UA is in this list, so the og:image never reached WhatsApp
+  // (2026-09-10, the Thiel story unfurled without a picture). Broad on
+  // purpose; nginx bypasses the HTML cache for the same UAs so a browser's
+  // cached copy is never handed to a bot.
+  htmlLimitedBots:
+    /WhatsApp|facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Slackbot|Discordbot|TelegramBot|SkypeUriPreview|Applebot|iMessage|Googlebot|bingbot|DuckDuckBot|redditbot|Pinterest|Embedly|vkShare|Snapchat|Viber|Line\//i,
   // NOTE: /api/backend/* is proxied by app/api/backend/[...path]/route.ts, not
   // by a rewrite. rewrites() runs at build time, which baked BACKEND_URL into
   // the deployment and made env-var changes take effect only after a rebuild.
