@@ -106,7 +106,14 @@ export function InsiderCard({
   company,
   photo,
   size = "marquee",
-}: InsiderCardProps) {
+  variant = "full",
+}: InsiderCardProps & {
+  /** "photo": portrait + name only — no role line, no performance stat, no
+   *  method tooltip, and no profile fetch (Faizan, 2026-09-10: the subscribe
+   *  marquee should be pictures, not data). "full" is the original card. */
+  variant?: "full" | "photo";
+}) {
+  const photoOnly = variant === "photo";
   const [photoBroken, setPhotoBroken] = useState(false);
   // No hand-placed photo → ask the portrait service (Wikipedia, verified
   // against the filer's companies) so a card never has to show initials
@@ -118,7 +125,7 @@ export function InsiderCard({
   );
   const photoSrc = photo || portrait?.portrait?.url || null;
   const { data, error } = useSWR<ProfileStats>(
-    `${API_BASE}/insiders/profile?name=${encodeURIComponent(filerName)}`,
+    photoOnly ? null : `${API_BASE}/insiders/profile?name=${encodeURIComponent(filerName)}`,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 30 * 60_000 },
   );
@@ -143,9 +150,9 @@ export function InsiderCard({
   return (
     <Link
       href={`/insiders/${encodeURIComponent(filerName)}`}
-      className={`ibc ibc-${size} ibc-${statTone}`}
-      title={METHOD_NOTE}
-      aria-label={`${name}, ${title}, ${company}. Return on disclosed buys: ${statText}.`}
+      className={`ibc ibc-${size} ibc-${photoOnly ? "flat ibc-photo" : statTone}`}
+      title={photoOnly ? undefined : METHOD_NOTE}
+      aria-label={photoOnly ? `${name}, ${title}, ${company}` : `${name}, ${title}, ${company}. Return on disclosed buys: ${statText}.`}
     >
       <div className="ibc-frame">
         {showPhoto ? (
@@ -163,9 +170,12 @@ export function InsiderCard({
       </div>
       <div className="ibc-body">
         <b className="ibc-name">{name}</b>
-        <span className="ibc-role">
-          {title} · {company}
-        </span>
+        {!photoOnly && (
+          <span className="ibc-role">
+            {title} · {company}
+          </span>
+        )}
+        {!photoOnly && (
         <div className="ibc-stat" aria-live="polite">
           <span className="ibc-stat-label">
             Return on disclosed buys · {perf?.window === "all" ? "all time" : `last ${TRAILING_MONTHS} mo`}
@@ -179,6 +189,7 @@ export function InsiderCard({
             </span>
           )}
         </div>
+        )}
       </div>
       <span className="ibc-mark" aria-hidden="true">
         IB

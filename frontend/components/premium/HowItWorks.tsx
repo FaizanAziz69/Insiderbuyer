@@ -59,8 +59,9 @@ const STEPS = [
 export function HowItWorks() {
   return (
     <section className="biv-section" id="how-it-works" aria-labelledby="how-h">
-      <p className="biv-eyebrow-center biv-accent-text">How it works</p>
-      <h2 id="how-h" className="biv-h2 biv-center">From filing to alert.</h2>
+      {/* George (call, 2026-09-10): the heading is "How it works", same size as
+          every other section heading; the "From filing to alert" line goes. */}
+      <h2 id="how-h" className="biv-h2 biv-center">How it works.</h2>
       <ol className="biv-steps">
         {STEPS.map((s) => (
           <li key={s.n} className="biv-step">
@@ -75,11 +76,19 @@ export function HowItWorks() {
 }
 
 export const HOW_CSS = `
-.biv-steps { list-style: none; margin: 44px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
-.biv-step { position: relative; background: var(--bg2); border: 1px solid var(--line); border-radius: 18px; padding: 26px 24px 28px; display: grid; gap: 14px; }
-.biv-step-art { height: 96px; display: grid; place-items: center; background: var(--panel-b); border-radius: 12px; border: 1px solid var(--line); }
-.biv-step-art svg { width: 150px; height: 100px; }
-.biv-step-n { font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: 34px; color: var(--brand); line-height: 1; }
-.biv-step-text { font-size: 17px; line-height: 1.5; color: var(--ink); font-weight: 600; margin: 0; }
-@media (max-width: 860px) { .biv-steps { grid-template-columns: 1fr; } }
+/* Vertical timeline (George, call 2026-09-10: "make it more vertical"):
+   one step per row, number + art on the left, copy on the right, a hairline
+   connecting the steps. */
+.biv-steps { list-style: none; margin: 44px auto 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 18px; max-width: 820px; position: relative; }
+.biv-steps::before { content: ""; position: absolute; left: 47px; top: 40px; bottom: 40px; width: 2px; background: linear-gradient(var(--line), var(--brand), var(--line)); opacity: 0.6; }
+.biv-step { position: relative; background: var(--bg2); border: 1px solid var(--line); border-radius: 18px; padding: 22px 26px; display: grid; grid-template-columns: 48px 150px 1fr; gap: 22px; align-items: center; }
+.biv-step-art { height: 96px; display: grid; place-items: center; background: var(--panel-b); border-radius: 12px; border: 1px solid var(--line); order: 2; }
+.biv-step-art svg { width: 140px; height: 92px; }
+.biv-step-n { order: 1; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: #0B1F3B; font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: 22px; line-height: 1; position: relative; z-index: 1; }
+.biv-step-text { order: 3; font-size: 18px; line-height: 1.5; color: var(--ink); font-weight: 600; margin: 0; }
+@media (max-width: 640px) {
+  .biv-steps::before { display: none; }
+  .biv-step { grid-template-columns: 48px 1fr; }
+  .biv-step-art { display: none; }
+}
 `;

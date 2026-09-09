@@ -32,33 +32,26 @@ const SECOND_STUDY: { finding: string; citation: string } | null = {
 export function ResearchModule() {
   return (
     <section className="biv-section biv-research-wrap" aria-labelledby="research-h">
-      <div className="biv-research">
-        <div className="biv-research-mark" aria-hidden="true">
+      {/* Brief v4 §3.2 — the section header George asked for above the study
+          (call, 2026-09-10). */}
+      <h2 id="research-h" className="biv-h2 biv-center">When it comes to investing, insider data matters.</h2>
+      {/* George (call, 2026-09-10): "too much text — before we had one line,
+          which was good"; the Harvard attribution sits UNDER the line as the
+          source. One line, still accurate to the paper (the old "consistently
+          beat the S&P 500" paraphrase is not something the study says). */}
+      <div className="biv-research biv-research-one">
+        <p className="biv-research-finding">
+          Harvard Business School research found that insiders&rsquo; opportunistic trades beat the market by{" "}
+          <span className="biv-accent">82 basis points a month</span>.
+        </p>
+        <div className="biv-research-mark biv-research-mark-under" aria-hidden="true">
           <span className="biv-research-serif">Harvard</span>
           <span className="biv-research-sub">Business School research</span>
         </div>
-        <div className="biv-research-body">
-          <p className="biv-eyebrow-center biv-accent-text biv-research-eyebrow">Peer-reviewed evidence</p>
-          <h2 id="research-h" className="biv-research-finding">
-            Opportunistic insider trades earned abnormal returns of{" "}
-            <span className="biv-accent">82 basis points a month</span>. Routine trades earned none.
-          </h2>
-          <p className="biv-research-cite">
-            Lauren Cohen, Christopher Malloy and Lukasz Pomorski, “Decoding Inside Information,”{" "}
-            <em>The Journal of Finance</em> 67(3), 2012, pp. 1009–1043. Value-weighted portfolio of
-            opportunistic insider trades, 1989–2007.
-          </p>
-          {SECOND_STUDY && (
-            <div className="biv-research-second">
-              <p className="biv-research-second-finding">{SECOND_STUDY.finding}</p>
-              <p className="biv-research-cite">{SECOND_STUDY.citation}</p>
-            </div>
-          )}
-          <p className="biv-fine">
-            Academic findings describe historical averages across thousands of filings. They are not a
-            forecast, and Insider Buying is not affiliated with or endorsed by Harvard University.
-          </p>
-        </div>
+        <p className="biv-research-cite">
+          Cohen, Malloy and Pomorski, “Decoding Inside Information,” <em>The Journal of Finance</em> 67(3), 2012.
+          Historical averages, not a forecast. Insider Buying is not affiliated with or endorsed by Harvard University.
+        </p>
       </div>
     </section>
   );
@@ -66,6 +59,11 @@ export function ResearchModule() {
 
 export const RESEARCH_CSS = `
 .biv-research-wrap { padding-top: 8px !important; }
+.biv-research.biv-research-one { display: grid; grid-template-columns: 1fr; gap: 18px; justify-items: center; text-align: center; max-width: 980px; margin: 36px auto 0; }
+.biv-research-one .biv-research-finding { font-size: clamp(22px, 2.4vw, 32px); max-width: 860px; }
+.biv-research-mark-under { border-right: 0 !important; padding-right: 0 !important; justify-items: center !important; gap: 2px !important; }
+.biv-research-one .biv-research-serif { font-size: clamp(40px, 4vw, 56px); }
+.biv-research-one .biv-research-cite { margin-top: 4px; text-align: center; max-width: 760px; }
 .biv-research {
   display: grid; grid-template-columns: 300px 1fr; gap: 40px; align-items: center;
   /* Theme-aware glass surfaces (the hero panels' tokens) — the module was
