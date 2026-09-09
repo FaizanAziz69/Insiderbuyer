@@ -126,6 +126,15 @@ const themeScript = `
   })();
 `;
 
+/**
+ * Marfeel audience SDK (account 11690) — supplied verbatim by George on
+ * 2026-09-09 ("copy and paste the following Javascript code in the <head>").
+ * Inlined in <head> exactly as issued; the SDK then loads its own module and
+ * nomodule bundles from sdk.mrf.io. Kept as a raw string so the snippet stays
+ * byte-identical to what Marfeel generated.
+ */
+const marfeelScript = String.raw`!function(){"use strict";function e(e){var t=!(arguments.length>1&&void 0!==arguments[1])||arguments[1],c=document.createElement("script");c.src=e,t?c.type="module":(c.async=!0,c.type="text/javascript",c.setAttribute("nomodule",""));var n=document.getElementsByTagName("script")[0];n.parentNode.insertBefore(c,n)}!function(t,c){!function(t,c,n){var a,o,r;n.accountId=c,null!==(a=t.marfeel)&&void 0!==a||(t.marfeel={}),null!==(o=(r=t.marfeel).cmd)&&void 0!==o||(r.cmd=[]),t.marfeel.config=n;var i="https://sdk.mrf.io/statics";e("".concat(i,"/marfeel-sdk.js?id=").concat(c),!0),e("".concat(i,"/marfeel-sdk.es5.js?id=").concat(c),!1)}(t,c,arguments.length>2&&void 0!==arguments[2]?arguments[2]:{})}(window,11690,{} /* Config */)}();`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
@@ -135,6 +144,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script type="text/javascript" dangerouslySetInnerHTML={{ __html: marfeelScript }} />
         <AppleSplash />
       </head>
       <body className="antialiased">
