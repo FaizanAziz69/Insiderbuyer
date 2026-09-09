@@ -137,9 +137,9 @@ export const TESTIMONIALS: { quote: string; name: string; title: string; company
  *  until then the collage shows REAL placements on our own properties —
  *  captured from the live site 2026-09-09. Swap in client placements here. */
 export const HERO_PLACEMENTS: { src: string; alt: string; caption: string }[] = [
-  { src: "/press/placements/home-top-story.webp", alt: "InsiderBuying.com homepage with the day's Top Story", caption: "Homepage · Top Stories" },
-  { src: "/press/placements/article-burry-lulu.webp", alt: "A published editorial article page on InsiderBuying.com", caption: "Editorial article page" },
-  { src: "/press/placements/news-feed.webp", alt: "The News & Analysis feed on InsiderBuying.com", caption: "News & Analysis feed" },
+  { src: "/press/placements/home-top-story-v2.webp", alt: "InsiderBuying.com homepage with the day's Top Story", caption: "Homepage · Top Stories" },
+  { src: "/press/placements/article-burry-lulu-v2.webp", alt: "A published editorial article page on InsiderBuying.com", caption: "Editorial article page" },
+  { src: "/press/placements/news-feed-v2.webp", alt: "The News & Analysis feed on InsiderBuying.com", caption: "News & Analysis feed" },
 ];
 
 /** §5 approved copy — the audience figure is George's; see the subscribe-page

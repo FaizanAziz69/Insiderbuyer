@@ -207,17 +207,19 @@ function Hero({ onSample }: { onSample: () => void }) {
   );
 }
 
-/** Collage of live placements (§2 row 2). Real screenshots only — today our
- *  own properties (press-config HERO_PLACEMENTS); client campaign shots slot
- *  in there once signed off (§8). */
+/** Collage of live placements (§2 row 2). Real captures of our own
+ *  properties (press-config HERO_PLACEMENTS), presented as layered product
+ *  cards — no browser chrome, no caption bar (Faizan 2026-09-09: "screenshot
+ *  na lagay"). The caption survives as the accessible name only. Client
+ *  campaign shots slot in once signed off (§8). */
 function HeroVisual() {
   const frames = HERO_PLACEMENTS.slice(0, 3);
   if (!frames.length) return null;
   return (
     <div className="b2b3-collage" aria-label="Live placements on InsiderBuying.com">
+      <div className="b2b3-collage-glow" aria-hidden />
       {frames.map((f, i) => (
-        <figure key={f.src} className={`b2b3-shot b2b3-shot-${i}`}>
-          <div className="b2b3-shot-bar"><i /><i /><i /><span>{f.caption}</span></div>
+        <figure key={f.src} className={`b2b3-shot b2b3-shot-${i}`} aria-label={f.caption}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={f.src} alt={f.alt} loading={i === 0 ? "eager" : "lazy"} decoding="async" width={1000} height={700} />
         </figure>
@@ -587,16 +589,15 @@ const CSS = `
 .b2b3-benefits svg { color: var(--green); flex-shrink: 0; margin-top: 2px; }
 .b2b3-benefits strong { color: var(--ink); }
 .b2b3-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
-.b2b3-collage { position: relative; height: 420px; }
-.b2b3-shot { position: absolute; margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 24px 60px rgba(10,30,60,.14); overflow: hidden; width: 66%; }
-.b2b3-shot-0 { left: 0; top: 0; z-index: 3; } .b2b3-shot-1 { right: 0; top: 70px; z-index: 2; } .b2b3-shot-2 { left: 14%; bottom: 0; z-index: 1; }
-.b2b3-shot-bar { height: 28px; background: #EEF2F7; display: flex; gap: 6px; align-items: center; padding: 0 12px; }
-.b2b3-shot-bar i { width: 9px; height: 9px; border-radius: 50%; background: #CBD5E1; }
-.b2b3-shot-bar span { margin-left: auto; font-family: var(--b2b-mono), monospace; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+.b2b3-collage { position: relative; height: 440px; perspective: 1600px; }
+.b2b3-collage-glow { position: absolute; inset: 6% 0 2% 0; border-radius: 40px; background: radial-gradient(60% 60% at 60% 40%, rgba(14,159,110,.16), transparent 70%), radial-gradient(50% 50% at 20% 80%, rgba(11,31,59,.10), transparent 70%); filter: blur(6px); pointer-events: none; }
+.b2b3-shot { position: absolute; margin: 0; background: #fff; border-radius: 16px; overflow: hidden; width: 64%; box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 0 0 1px rgba(11,31,59,.08), 0 30px 70px -20px rgba(10,30,60,.35), 0 12px 28px -12px rgba(10,30,60,.18); transform: rotateY(-7deg) rotateX(2deg); transform-origin: 50% 50%; transition: transform .45s ease, box-shadow .45s ease; will-change: transform; }
+.b2b3-shot-0 { left: 0; top: 0; z-index: 3; } .b2b3-shot-1 { right: 0; top: 84px; z-index: 2; } .b2b3-shot-2 { left: 14%; bottom: 0; z-index: 1; }
+.b2b3-collage:hover .b2b3-shot { transform: none; }
+.b2b3-shot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(115deg, rgba(255,255,255,.22), transparent 38%); pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .b2b3-shot { transform: none; transition: none; } }
 .b2b3-outlet small { display: block; font-size: 10.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted); margin-top: 2px; }
 .b2b3-shot img { display: block; width: 100%; height: auto; }
-.b2b3-shot-ph { height: 150px; display: grid; place-content: center; justify-items: center; gap: 4px; color: var(--muted); font-size: 13px; font-weight: 700; }
-.b2b3-shot-ph small { font-weight: 400; font-size: 11.5px; }
 /* logos + strip */
 .b2b3-logos { padding: 26px 0 10px; border-top: 1px solid var(--line); }
 .b2b3-logos .b2b3-eyebrow { text-align: center; }
@@ -692,7 +693,7 @@ const CSS = `
 @media (max-width: 960px) {
   .b2b3-hero-in, .b2b3-focus-in, .b2b3-badge-in, .b2b3-enterprise-in { grid-template-columns: 1fr; }
   .b2b3-steps { grid-template-columns: 1fr 1fr; } .b2b3-plans { grid-template-columns: 1fr; } .b2b3-quotes { grid-template-columns: 1fr; }
-  .b2b3-collage { height: 320px; } .b2b3-badge { margin-left: 0; }
+  .b2b3-collage { height: 320px; perspective: none; } .b2b3-shot { transform: none; } .b2b3-badge { margin-left: 0; }
 }
 @media (max-width: 640px) {
   .b2b3-nav-links { display: none; }
