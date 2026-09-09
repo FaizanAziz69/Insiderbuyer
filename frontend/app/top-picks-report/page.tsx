@@ -31,6 +31,16 @@ export default function TopPicksReportPage() {
     track("web_report_view", { entry: getFunnelEntry(), cancelled: wasCancelled });
   }, []);
 
+  // Back-button return from Stripe restores the page from bfcache with `busy`
+  // still true — reset it so the buy button works again.
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setBusy(false);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   const buy = async () => {
     if (busy) return;
     setBusy(true);

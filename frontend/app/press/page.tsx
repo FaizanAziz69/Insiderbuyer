@@ -83,6 +83,17 @@ export default function PressPage() {
     track("press_view", { entry: getFunnelEntry(), ...getCheckoutAttribution() });
   }, []);
 
+  // Returning from Stripe via the Back button restores this page from the
+  // back/forward cache with `busy` still set, which would leave every
+  // "Get Started" button disabled on "Opening checkout…".
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setBusy(null);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   const openSample = useCallback((from: string) => {
     track("press_sample_open", { from });
     setSampleOpen(true);
