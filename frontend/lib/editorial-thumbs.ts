@@ -43,6 +43,9 @@ const THUMBS: Thumb[] = [
   // MATCHABLE the slug-hash catch-all immediately put it on an unrelated
   // healthcare daily briefing. invest-like-pelosi still serves congress
   // stories.
+  // 2026-09-10: Thiel Macro 13F — 72% of the book in energy and power.
+  // Client-supplied Thiel composite; pinned only (person the story is about).
+  { file: "thiel-energy-power-2026", pinnedOnly: true },
   { file: "pelosi-thiel-vistra", pinnedOnly: true },
   // 2026-09-05: client-supplied Burry composite (red ticker board) for the
   // Lululemon "trickster" story, resized from 2624x1624 to 1606x1000.
@@ -124,6 +127,8 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-10: Peter Thiel's Q2 13F — 72% energy and power. Client-supplied cover.
+  "editorial-peter-thiel-72-percent-energy-power-2026-09-10": "thiel-energy-power-2026",
   // 2026-09-05: Burry says he will buy more Lululemon under $100. Cover is the
   // client-supplied Burry composite, the person the story is about.
   "editorial-lulu-burry-buy-under-100-2026-09-05": "burry-lululemon-trickster",
