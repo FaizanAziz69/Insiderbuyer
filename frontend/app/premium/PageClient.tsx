@@ -452,10 +452,10 @@ export default function PremiumPage() {
             <span>Premium alerts.</span>
             <span className="biv-accent">One platform.</span>
           </h1>
-          <p className="biv-sub">
-            Insider Buying <b>&ldquo;All-In Access&rdquo;</b> is the only
-            membership that brings you closer to insiders.
-          </p>
+          {/* Brief v4 §3.1 (George, call 2026-09-10, cursor on this line:
+              "remove Insider Buying All-In Access… replace with Start
+              receiving insider intelligence you can trust"). */}
+          <p className="biv-sub">Start receiving insider intelligence you can trust.</p>
           <div className="biv-ctas">
             <a href="#pricing" className="biv-btn biv-btn-solid">
               Get All-In Access
