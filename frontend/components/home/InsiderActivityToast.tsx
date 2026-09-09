@@ -234,6 +234,11 @@ export function InsiderActivityToast({
     if (dismissed) return; // closed for the session — never re-appear or ding
     setExpanded(false);
     setVisible(false);
+    // Never on the subscribe page (Faizan, 2026-09-10): a "LIVE Insider
+    // Bought" bubble with its own unlock CTA competing with the pricing cards
+    // is noise exactly where the visitor is deciding. Guarded here, before the
+    // timer, so the chime never fires there either.
+    if (pathname?.startsWith("/premium")) return;
     const t = setTimeout(() => {
       setVisible(true);
       chime();
@@ -376,6 +381,7 @@ export function InsiderActivityToast({
   }, [count, idx]);
 
   if (dismissed || !visible) return null;
+  if (pathname?.startsWith("/premium")) return null;
   if (count === 0) return null;
   const a = activities[idx];
   if (!a) return null;
