@@ -625,7 +625,12 @@ export default function PremiumPage() {
         <h2 className="biv-h2 biv-center">Become an insider.</h2>
         <p className="biv-fine biv-center biv-proof-line">Join {investors} investors getting faster insider intelligence</p>
         <div className="biv-plans">
-          {PLANS.map((p) => {
+          {/* Featured (Annual) card sits in the CENTER column (Faizan, 2026-09-10). */}
+          {[
+            ...PLANS.filter((p) => p.plan === "free"),
+            ...PLANS.filter((p) => p.featured),
+            ...PLANS.filter((p) => p.plan !== "free" && !p.featured),
+          ].map((p) => {
             const price = priceOf(p.plan);
             const paid = p.plan !== "free";
             // Brief, Step 3: the annual CTA names the plan and its price, and
