@@ -129,9 +129,15 @@ export function AlreadySubscribedModal({
             Insider Access · Active
           </div>
 
-          <p className="mt-3 text-[14px] leading-relaxed" style={{ color: "var(--text-soft)" }}>
-            You&rsquo;re already subscribed — everything is unlocked for you,
-            with real-time alerts and all special reports included. ✨
+          {/* George (call, 2026-09-10): alerts take up to 48 hours to reach a
+              new member, so no "real-time" promise here — the popup's own
+              line instead. */}
+          <p className="mt-3 text-[15px] font-semibold leading-relaxed" style={{ color: "var(--text)" }}>
+            If a CEO buys their own stock, would you want to know?
+          </p>
+          <p className="mt-2 text-[14px] leading-relaxed" style={{ color: "var(--text-soft)" }}>
+            You&rsquo;re in. Everything on Insider Buying is unlocked for you, and your first
+            insider alerts arrive within 48 hours.
           </p>
 
           <Link

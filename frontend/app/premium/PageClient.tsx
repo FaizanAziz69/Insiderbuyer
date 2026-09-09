@@ -93,6 +93,11 @@ const ROW_B: MarqueeItem[] = [
   { kind: "stat", big: "39", caption: "live alerts in the last 30 days", label: "Past 30 days" },
 ];
 
+const MARQUEE_PEOPLE = [...ROW_A, ...ROW_B].filter(
+  (c): c is Extract<MarqueeItem, { kind: "insider" }> => c.kind === "insider",
+);
+
+
 /** The three columns. Prices are NOT hardcoded — `plan` names the Stripe
  *  plan and the live amount is fetched from /billing/plans, so the figure on
  *  the card is always the figure Stripe will charge. */
@@ -131,6 +136,8 @@ const PLANS: Array<{
       "Full Insider Scores & Insider ROI",
       "Top Analysts + upside ratings",
       "Congress trades & gov contracts",
+      "Ranked lists counted down to #1",
+      "Weekly insider intelligence brief",
       "Real-time insider alerts",
     ],
   },
@@ -141,12 +148,17 @@ const PLANS: Array<{
     tagline: "Best value — pay for a year, save the rest.",
     cta: "Get All-In Access",
     featured: true,
+    // George (call, 2026-09-10): the same subscription — nothing may appear
+    // on Annual that is not on Monthly, or people get confused. Only the
+    // billing differs.
     feats: [
-      "Everything in Monthly",
-      "Founding-member price, locked in",
+      "Everything in Free",
+      "Full Insider Scores & Insider ROI",
+      "Top Analysts + upside ratings",
+      "Congress trades & gov contracts",
       "Ranked lists counted down to #1",
       "Weekly insider intelligence brief",
-      "Priority support",
+      "Real-time insider alerts",
     ],
   },
 ];
@@ -157,7 +169,7 @@ const BENEFITS = [
   { title: "Insider Scores", text: "A 0–100 score on every company with qualifying open-market buys, with the pillars behind it." },
   { title: "Top Insider Buys", text: "Every purchase graded A+ to F as the Form 4 lands — size, stake growth, buyer record, timing." },
   { title: "Top Analysts & Insiders", text: "People ranked by measured results: analyst success rates and insider track-record accuracy." },
-  { title: "Real-time alerts", text: "Summarized email alerts on the CEO, CFO and $1M+ buys that matter, within hours of the filing." },
+  { title: "Insider alerts", text: "Summarized email alerts on the CEO, CFO and $1M+ buys that matter, sent as each filing is processed." },
   { title: "Congress & contracts", text: "House and Senate trades and government contract awards, side by side with the insiders." },
   { title: "Bubbles & heat maps", text: "The whole tape in one picture — insider bubbles, congress bubbles and sector flow." },
 ];
@@ -453,6 +465,16 @@ export default function PremiumPage() {
             </a>
           </div>
           <p className="biv-fine">Start free. No credit card required.</p>
+          {/* George (call, 2026-09-10): the five stars sit under the hero copy,
+              not in their own strip below the fold. */}
+          <div className="biv-stars" role="img" aria-label="Rated five stars">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <svg key={i} viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2.6l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.4l-5.9 3.3 1.3-6.6L2.5 9.5l6.6-.8z" />
+              </svg>
+            ))}
+          </div>
+          <p className="biv-eyebrow-center biv-trust-line">Trusted by real investors</p>
         </div>
         <div className="biv-hero-art" aria-hidden="true">
           {/* Both panels are designed UI, not screenshots: they stay crisp at
@@ -507,7 +529,7 @@ export default function PremiumPage() {
               <b className="biv-chip">IMPP</b>
               <div className="biv-tapewho">
                 <b>CEO buy</b>
-                <span>Harry Vafias · Imperial Petroleum</span>
+                <span className="biv-grade biv-grade-a">Trade Grade A+</span>
               </div>
               <span className="biv-amt">$450K</span>
             </div>
@@ -515,7 +537,7 @@ export default function PremiumPage() {
               <b className="biv-chip">GWRS</b>
               <div className="biv-tapewho">
                 <b>Director buy</b>
-                <span>Jonathan Levine · Global Water</span>
+                <span className="biv-grade biv-grade-a">Trade Grade A-</span>
               </div>
               <span className="biv-amt">$5.77M</span>
             </div>
@@ -523,26 +545,12 @@ export default function PremiumPage() {
               <b className="biv-chip">AAT</b>
               <div className="biv-tapewho">
                 <b>Big buy</b>
-                <span>Ernest Rady · American Assets</span>
+                <span className="biv-grade biv-grade-b">Trade Grade B+</span>
               </div>
               <span className="biv-amt">$1.14M</span>
             </div>
           </div>
         </div>
-      </section>
-
-      {/* ------------------------------------------------------ trust bar */}
-      {/* George 2026-08-29: the bank/firm logo strip is gone — a plain line
-          and five stars instead. */}
-      <section className="biv-trust">
-        <div className="biv-stars" role="img" aria-label="Rated five stars">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <svg key={i} viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 2.6l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.4l-5.9 3.3 1.3-6.6L2.5 9.5l6.6-.8z" />
-            </svg>
-          ))}
-        </div>
-        <p className="biv-eyebrow-center biv-trust-line">Trusted by real investors</p>
       </section>
 
       {/* Brief v4 §2: everything above this line (hero + five stars) is
@@ -582,11 +590,16 @@ export default function PremiumPage() {
           From household-name executives and funds to the quiet filers nobody
           is watching — if it hits a filing, it&rsquo;s on the tape.
         </p>
-        {[ROW_A, ROW_B].map((row, ri) => (
+        {/* Both rows carry every portrait (row two reversed) — with the stat
+            tiles gone a two-person row repeated too visibly. */}
+        {[MARQUEE_PEOPLE, [...MARQUEE_PEOPLE].reverse()].map((row, ri) => (
           <div className={`biv-marquee ${ri === 1 ? "biv-marquee-rev" : ""}`} key={ri}>
             <div className="biv-marquee-track">
-              {[...row, ...row].map((c, i) =>
-                c.kind === "insider" ? (
+              {/* Pictures only (Faizan, 2026-09-10): the stat tiles are filtered
+                  out and each card is portrait + name — no figures, no tooltip. */}
+              {[...row, ...row]
+                .filter((c): c is Extract<MarqueeItem, { kind: "insider" }> => c.kind === "insider")
+                .map((c, i) => (
                   <InsiderCard
                     key={i}
                     filerName={c.filerName}
@@ -594,27 +607,15 @@ export default function PremiumPage() {
                     title={c.title}
                     company={c.company}
                     photo={c.photo}
+                    variant="photo"
                   />
-                ) : (
-                  <div className="biv-mcard biv-mcard-stat" key={i}>
-                    <span className="biv-mtag">{c.label}</span>
-                    <svg className="biv-mspark" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
-                      <path d="M0 34 L13 29 L25 31 L39 22 L53 25 L67 13 L81 17 L100 4" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <circle cx="100" cy="4" r="4" fill="currentColor" />
-                    </svg>
-                    <div className="biv-mstat">{c.big}</div>
-                    <div className="biv-mcap">{c.caption}</div>
-                  </div>
-                ),
-              )}
+                ))}
             </div>
           </div>
         ))}
         <p className="biv-fine biv-center" style={{ marginTop: 18 }}>
-          Card figures are historical returns on each insider&rsquo;s disclosed
-          open-market purchases (SEC Form 4) versus the live price — not
-          projections. Method and every trade: the insider&rsquo;s profile page.
           Photos: Wikimedia Commons (CC BY 4.0 / CC BY-SA 4.0) and company leadership pages.
+          Each card links to the insider&rsquo;s profile, where every disclosed trade is listed.
         </p>
       </section>
 
@@ -622,9 +623,6 @@ export default function PremiumPage() {
       <section className="biv-section" id="pricing">
         <p className="biv-eyebrow-center biv-accent-text">Pricing</p>
         <h2 className="biv-h2 biv-center">Become an insider.</h2>
-        {/* Brief, Section 2 Step 3: the line that hands the reader from proof
-            to purchase, immediately above the plans. */}
-        <p className="biv-lead biv-center">Unlock the full potential of tracking company insiders.</p>
         <p className="biv-fine biv-center biv-proof-line">Join {investors} investors getting faster insider intelligence</p>
         <div className="biv-plans">
           {PLANS.map((p) => {
@@ -704,7 +702,7 @@ export default function PremiumPage() {
       {/* -------------------------------------- §3.2 header + benefits grid */}
       <section className="biv-section" id="features">
         <p className="biv-eyebrow-center biv-accent-text">Why insiders</p>
-        <h2 className="biv-h2 biv-center">When it comes to investing, insider data matters</h2>
+        <h2 className="biv-h2 biv-center">What&rsquo;s included.</h2>
         <div className="biv-benefits">
           {BENEFITS.map((b) => (
             <div key={b.title} className="biv-benefit">
@@ -745,8 +743,8 @@ export default function PremiumPage() {
 
       {/* ------------------------------------------------------ final cta */}
       <section className="biv-final">
-        <p className="biv-eyebrow-center biv-accent-text">Join {investors} investors getting faster insider intelligence</p>
-        <h2 className="biv-h2">Unlock the full potential of tracking company insiders.</h2>
+        <p className="biv-eyebrow-center biv-accent-text">Join {investors} professional investors</p>
+        <h2 className="biv-h2">Get faster insider intelligence.</h2>
         <button
           type="button"
           onClick={() => checkout("annual")}
@@ -826,6 +824,8 @@ const CSS = `
 
 /* hero */
 .biv-hero { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; padding-top: 84px !important; }
+/* George (call, 2026-09-10): "move this entire section over a little bit, not a lot". */
+.biv-hero-copy { padding-left: 28px; }
 .biv-hero h1 { font-size: clamp(34px, 3.9vw, 56px); display: grid; }
 .biv-hero h1 span { white-space: nowrap; }
 .biv-sub { font-size: 18px; line-height: 1.6; color: var(--dim); margin: 22px 0 26px; max-width: 460px; }
@@ -955,7 +955,11 @@ const CSS = `
 }
 
 /* trust */
-.biv-trust { padding-top: 8px !important; padding-bottom: 40px !important; text-align: center; }
+.biv-hero-copy .biv-stars { justify-content: flex-start; margin: 26px 0 8px; }
+.biv-hero-copy .biv-trust-line { text-align: left; }
+.biv-grade { display: inline-block; font-family: var(--font-mono), monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--panel-line-c); }
+.biv-grade-a { color: var(--green-hi); background: rgba(76,195,138,0.12); }
+.biv-grade-b { color: #C9A227; background: rgba(201,162,39,0.14); }
 .biv-eyebrow-center {
   font-family: var(--font-display), sans-serif; font-weight: 600; font-size: 13px;
   letter-spacing: 2.5px; text-transform: uppercase; color: var(--dim); text-align: center; margin: 0 0 22px;
@@ -1086,6 +1090,7 @@ const CSS = `
 @media (max-width: 960px) {
   .biv section { padding: 52px 18px; }
   .biv-hero { grid-template-columns: 1fr; padding-top: 48px !important; }
+  .biv-hero-copy { padding-left: 0; }
   .biv-hero h1 { font-size: clamp(30px, 8.6vw, 44px); }
   .biv-hero h1 span { white-space: normal; }
   .biv-hero-art { min-height: 300px; }
