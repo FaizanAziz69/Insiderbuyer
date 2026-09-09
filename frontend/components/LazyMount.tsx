@@ -9,8 +9,18 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  *
  * Reserves `minHeight` before mounting so the scrollbar/layout doesn't jump
  * when the real content appears. Falls back to eager render where
- * IntersectionObserver is unavailable (old browsers, SSR).
+ * IntersectionObserver is unavailable (old browsers).
+ *
+ * SSR (2026-09-09): the FIRST document render is eager — on the server and
+ * during hydration — so the deferred sections are in the HTML a crawler gets
+ * (the homepage kept ~80% of its content inside one LazyMount, and it used to
+ * render as an empty box server-side). Their data is prefetched by the server
+ * shell anyway, so eager mounting costs no extra API calls on that first load.
+ * Laziness still applies to every client-side navigation after that: the
+ * module flag flips once the first mount's effects have run.
  */
+let firstDocumentRender = true;
+
 export function LazyMount({
   children,
   rootMargin = "500px",
@@ -21,9 +31,10 @@ export function LazyMount({
   minHeight?: number;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState(firstDocumentRender);
 
   useEffect(() => {
+    firstDocumentRender = false;
     if (show) return;
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") {

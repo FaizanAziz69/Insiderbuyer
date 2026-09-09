@@ -1,0 +1,493 @@
+{
+  "": [
+    "/api/backend/content/blogs?kind=stock-idea&limit=6",
+    "/api/backend/content/blogs?limit=20",
+    "/api/backend/earnings/calendar?days=7",
+    "/api/backend/iqs2/top-buys?period=7d&grade=A&limit=5",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/heatmap",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/top-gainers?limit=10",
+    "/api/backend/market-stats/top-losers?limit=8",
+    "/api/backend/metrics/buy-sell",
+    "/api/backend/rankings?limit=8",
+    "/api/backend/trades?side=buy&limit=40",
+    "/api/backend/trades?side=sell&limit=100"
+  ],
+  "advertorials/[slug]": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "alerts": [
+    "/api/backend/insider-alerts/status",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?limit=500",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "analyst-ratings": [
+    "/api/backend/analysts/top?limit=100",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "analyst-stocks": [
+    "/api/backend/analysts/consensus-stocks?limit=50",
+    "/api/backend/analysts/top-stocks?limit=50",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "article": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "articles/market-movers": [
+    "/api/backend/content/blogs?limit=20",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/profile?symbol=CRMT",
+    "/api/backend/market-stats/profile?symbol=CYCN",
+    "/api/backend/market-stats/profile?symbol=DSACW",
+    "/api/backend/market-stats/profile?symbol=GCDT",
+    "/api/backend/market-stats/profile?symbol=GFAIW",
+    "/api/backend/market-stats/profile?symbol=INDP",
+    "/api/backend/market-stats/profile?symbol=IRD",
+    "/api/backend/market-stats/profile?symbol=IRHOR",
+    "/api/backend/market-stats/profile?symbol=NUR",
+    "/api/backend/market-stats/profile?symbol=QUMSR",
+    "/api/backend/market-stats/profile?symbol=SCLXW",
+    "/api/backend/market-stats/profile?symbol=VFSWW",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/top-gainers?limit=10",
+    "/api/backend/market-stats/top-losers?limit=5",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "authors/[slug]": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "bubbles": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "business": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "chart/[ticker]": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/history?symbol={ticker}&range=1d",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/stats?symbol={ticker}",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "charts/rotation": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "charts/volume": [
+    "/api/backend/charts/volume?days=30",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "companies": [
+    "/api/backend/market-stats/analyst-ratings?symbols=AMRZ%2CZAL.DE%2CAMR%2CLIEN%2CDEZ.DE%2CAMRC%2CWOLF.F%2CINBX%2CWIX%2CAFCG%2CBRVE%2CMKZR%2CHKHC%2CJUSH%2CJMKE%2CNRDE%2CTISI%2COPFI%2CEDAP%2CLFT%2CAAT%2CAMV0.DE%2CAMH%2CBLSM%2CMTDR%2CSRTS%2CRGCO%2CBMRA%2CDKS%2CPRTS%2CAVBC%2CBIVI%2CAPTV%2CEMYB%2CPCZ.DE%2CCLPR%2CGBFH%2CDFH%2CCC%2CRVSB%2CBWFG%2CEQPT%2CBAER%2CKMPR%2CGROV%2CSNBH%2CFUSB%2CMED%2CNGL%2CYQ%2CELAN%2CLILA%2CENHA%2CBRLT%2CKWY%2COKYO%2CCDNL%2CAIJTY%2CCIA%2CFGBI%2COPAL%2CMLCI%2CSMRT%2CCE%2CANGX%2CLUCK%2CEMBC%2CENOV%2CRCG%2CBSX%2CPAM%2CGRNT%2CSWZ%2CTSM%2CPLSE%2CODYS%2CMATW%2CPAL%2CACT.DE%2CSDHC%2CSHMD%2CAIAI%2CSUNS%2CLQAG.DE%2CBABA%2CAWRE%2CTSCO%2CABCL%2CGLIBK%2CAXIA3%2CLEGO%2CHGBL%2CNPB%2CGAIA%2CAIIR%2CCUEN%2CCCB%2CVST%2CUZU.DE%2CBVB.DE%2CMOBI%2CPTIX%2CORN%2CSAP.DE%2CREZI%2CLDI%2C1INN.DE%2CACCS%2CFTCI%2CABR%2CPFE%2CDKL%2CSITE%2CUTI%2CUMH%2CBOTJ%2CEXOZ%2CATTO%2CSMID%2CCMTG%2CAUGO%2CBCML%2COBDC%2CNVRI",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/quotes?symbols=AMRZ%2CZAL.DE%2CAMR%2CLIEN%2CDEZ.DE%2CAMRC%2CWOLF.F%2CINBX%2CWIX%2CAFCG%2CBRVE%2CMKZR%2CHKHC%2CJUSH%2CJMKE%2CNRDE%2CTISI%2COPFI%2CEDAP%2CLFT%2CAAT%2CAMV0.DE%2CAMH%2CBLSM%2CMTDR%2CSRTS%2CRGCO%2CBMRA%2CDKS%2CPRTS%2CAVBC%2CBIVI%2CAPTV%2CEMYB%2CPCZ.DE%2CCLPR%2CGBFH%2CDFH%2CCC%2CRVSB%2CBWFG%2CEQPT%2CBAER%2CKMPR%2CGROV%2CSNBH%2CFUSB%2CMED%2CNGL%2CYQ%2CELAN%2CLILA%2CENHA%2CBRLT%2CKWY%2COKYO%2CCDNL%2CAIJTY%2CCIA%2CFGBI%2COPAL%2CMLCI%2CSMRT%2CCE%2CANGX%2CLUCK%2CEMBC%2CENOV%2CRCG%2CBSX%2CPAM%2CGRNT%2CSWZ%2CTSM%2CPLSE%2CODYS%2CMATW%2CPAL%2CACT.DE%2CSDHC%2CSHMD%2CAIAI%2CSUNS%2CLQAG.DE%2CBABA%2CAWRE%2CTSCO%2CABCL%2CGLIBK%2CAXIA3%2CLEGO%2CHGBL%2CNPB%2CGAIA%2CAIIR%2CCUEN%2CCCB%2CVST%2CUZU.DE%2CBVB.DE%2CMOBI%2CPTIX%2CORN%2CSAP.DE%2CREZI%2CLDI%2C1INN.DE%2CACCS%2CFTCI%2CABR%2CPFE%2CDKL%2CSITE%2CUTI%2CUMH%2CBOTJ%2CEXOZ%2CATTO%2CSMID%2CCMTG%2CAUGO%2CBCML%2COBDC%2CNVRI",
+    "/api/backend/rankings?limit=500",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "companies/[ticker]": [
+    "/api/backend/companies/{ticker}",
+    "/api/backend/company-civic/contracts?name=NVIDIA%20CORP",
+    "/api/backend/company-civic/lobbying?name=NVIDIA%20CORP",
+    "/api/backend/company-civic/patents?name=NVIDIA%20CORP",
+    "/api/backend/company-civic/revenue-segments?ticker={ticker}",
+    "/api/backend/company-civic/whale-activity?ticker={ticker}&name=NVIDIA%20CORP",
+    "/api/backend/congressional-trades?ticker={ticker}&limit=8",
+    "/api/backend/content/blogs?limit=20",
+    "/api/backend/content/bull-bear/{ticker}?name=NVIDIA+CORP&sector=Technology&score=0",
+    "/api/backend/content/by-ticker/{ticker}?limit=6",
+    "/api/backend/content/news/{ticker}?name=NVIDIA%20CORP",
+    "/api/backend/iqs2/grades/{ticker}",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/etf-holders?symbol={ticker}",
+    "/api/backend/market-stats/history?symbol={ticker}&range=1d",
+    "/api/backend/market-stats/performance?symbols={ticker}",
+    "/api/backend/market-stats/profile?symbol={ticker}",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/statements?symbol={ticker}",
+    "/api/backend/market-stats/stats?symbol={ticker}",
+    "/api/backend/scores/{ticker}",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "companies/[ticker]/institutions": [
+    "/api/backend/companies/{ticker}",
+    "/api/backend/company-civic/institutions?ticker={ticker}&name=NVIDIA%20CORP",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "compare": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "congress-bubbles": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "congressional-trades": [
+    "/api/backend/congressional-trades?days=90&limit=200",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/quotes?symbols=VSAT%2CBNS%2CAMGN%2CAEP%2CFITB%2CVRTX%2CMSFT%2CAVGO%2CGOOGL%2CQCOM%2CMRSH%2CLOW%2CGOOGL%2CHD%2CPG%2CMDT%2CVLTO%2CMSFT%2CHONA%2CCL%2CGS%2CGS%2CGS%2CNVDA%2CAAPL%2CGS%2CKMB%2CNVDA%2CBIIB%2CAAPL%2CBUD%2CWFC%2CGS%2CGS%2CNOW%2CCARR%2CVLTO%2CADBE%2CICLR%2CIBP%2CT%2CIBP%2CSCHO%2CHUBS%2CUPST%2CTTD%2CCRM%2CAAPL%2CNKE%2CBA%2CNVDA%2CNVDA%2CLRCX%2CWAT%2CHRL%2CBA%2CAAPL%2CGPS%2CTKNO%2CALL%2CGS%2CAMGN%2CGS%2CALL%2CTIC%2CTKNO%2CTKNO%2CTIC%2CGOOGL%2CMSFT%2CPG%2CACN%2CACN%2CSOLS%2CMBGL%2CGS%2CSOLS%2CACN%2CGOOGL%2CMBGL%2CACN%2CGOOGL%2CMSFT%2CPG%2CGS%2CCOIN%2CTKNO%2CCARR%2CLII%2CCHTR%2CVLTO%2CGS%2CTKNO%2CTT%2CAPP%2CPEP%2CBLK%2CFSLR%2CCTSH%2CCRH%2COTIS%2CDIS%2CQ%2CDASH%2CITW%2CTMUS%2CTTWO%2CT%2CPWR%2CTSCO%2CMO%2CAFL%2CACN%2CGS%2CMCK%2CLOW%2CTSLA%2CAPO%2CGS%2CGS%2CNKE%2CCRM%2CMETA%2CEME%2CGOOGL%2CEQIX%2CTMUS%2CTKNO%2CMRK%2CEQIX%2CTKNO%2CAMRZ%2CTMO%2CTKNO%2CTKNO%2CSDZNY%2CCCI%2CGS%2CALC%2CCMCSA%2CKVUE%2CDEO%2CMDLZ%2CEL%2CVSNT%2CPG%2CGS%2CTKNO%2CSOLS%2COGN%2CJPM%2CJPM%2CGS%2CGS%2CMODG%2CTKNO%2CGS%2CGS%2CTKNO%2CMSB%2CCBOE%2CJNJ%2CPYPL%2CCSCO%2CAWK%2CV%2CADP%2CMSFT%2CMCD%2CADI%2CABT%2CLHX%2CPG%2CO%2CITW%2CUNH%2CEMR%2CWMT%2CAAPL%2CMDT%2CICE%2CPEP%2CBLK%2CHD%2CNEE%2CCOST%2CAPD%2CTKNO%2CCRNX%2CTKNO%2CGDX%2CREGL%2CTKNO%2CVPL%2CIEUR%2CGS%2CSPTI%2CBE%2CSPYG%2CXAR",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "dividends": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/dividends",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/quotes?symbols=SKHY%2CLX%2CELME%2COXSQ%2CXRXDW%2CIEP%2CAD%2CUWMC%2CSSTK%2CDHT%2CRWAY%2CIVR%2CPSEC%2CABR%2CTCPC%2CORC%2CPLTK%2CARR%2CDTW%2CREFI%2CSAR%2CFSK%2CPMT%2CCION%2CRWT%2CMFA%2CSUNS%2CIRS%2CDX%2CSCM%2CJACK%2CAOMR%2CCIM%2CNMFC%2CNAT%2CSEVN%2COAK-PB%2CCCAP%2CLFTO%2CHRZN%2CARI%2CGSBD%2CBCSF%2CTPVG%2CWHF%2CMNR%2CMITT%2CTRIN%2COAK-PA%2CPSBD%2CQFIN%2CBOBS%2CBRSP%2CPFLT%2CECO%2CBXMT%2CAGNC%2CCHMI%2CWU%2CMFIC%2CACRE%2CFBRT%2CLIEN%2CIIPR%2CSTRD%2CNLY%2CPNNT%2CGHI%2CCGBD%2CSATA%2CCURI%2COTF%2CFTW%2CTRMD%2CBXSL%2CCSWC%2CTRTX%2CHAFN%2CNCDL%2CADAM%2CSTRC%2CKBDC%2CSTWD%2CJKS%2CMSDL%2CCHCT%2CALIT%2CSOJC%2CSPOK%2CBBDC%2CEFC%2CSLRC%2CFRO%2CBGS%2CPAGS%2CNREF%2CRPT%2COBDC%2CCSHR%2CFDUS%2CUAN%2CLILAP%2CBHR%2CBWLP%2CDMLP%2CHTGC%2CBPYPO%2CKRP%2CCDR-PC%2CBDN%2CJBS%2CXELLL%2COCSL%2CGBDC%2CSTRK%2CTBB%2CRITM%2CMCHB%2CMRP%2CWHR%2CARCC%2CVTS%2CFLNG%2CSTRF%2CAB%2CCODI%2CLADR%2CBRBI%2CTXO%2CYB%2CTSLX%2CRMR%2CGOOD%2CCAPL%2CWB%2CNXRT%2CGLAD%2CHSHP%2CMPT%2CARLP%2CFINV%2CMNRO%2CPBR-A%2CNXDT%2COXM%2CWLKP%2CGRNT%2CAHRT%2CTIMB%2CATHM%2CGLOP-PA%2CAESI%2CUPBD%2CAPAM%2CVIV%2CPHI%2CGNL%2CBRSL%2CBWMX%2CBSM%2CSEAL-PB%2CRNP%2CAMBP%2CTLK%2CDKL%2CPBR%2CCAG%2CPRGO%2CFLO%2CCIG%2CNOAH%2CGLPI%2CTXNM%2CINSW%2CZIM%2CSPME%2CSHIP%2CVALE%2CUSAC%2CASC%2COLP%2CWES%2CHESM%2CICR-PA%2CDEC%2CTRTN-PC%2CSPH%2CPZZA%2CDEA%2CCHSCL%2CTFSL%2CNHPAP%2CUHT%2CVICI%2CUVV%2CJOYY%2CSBGI%2CBFS%2CMPLX%2CETD%2CWHK%2CMNSO%2CCTO%2CNHPBP%2CSFL%2CBRT%2CRGP%2CFITB-PA%2CACCO%2CCMSA%2CALX%2CCTA-PB%2CBBDO%2CVINP%2CBMA%2CDEI%2CNAVI%2CCTA-PA%2CFITB-PM%2CGNK%2CGTN%2CMTN%2COMF%2CPK%2CAMSF%2CCOLD%2CHIW%2CBBD%2CUPS%2CWD%2CECCC%2CGIS%2CCALM%2CET%2CPAA%2CAPLE%2COWL%2CSBSW%2CLPG%2CAAT%2CVRTS%2CEPR%2CPINE%2CPFE%2CSOMN%2CTUYA%2CSGU%2CNEWT%2CJBGS%2CNL",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "earnings": [
+    "/api/backend/eai",
+    "/api/backend/earnings/calendar?days=7",
+    "/api/backend/earnings/signals?days=7",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "economy": [
+    "/api/backend/indices",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/top-gainers?limit=6",
+    "/api/backend/market-stats/top-losers?limit=6",
+    "/api/backend/news?limit=100&category=Economy",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fenforcement20260813a.htm&category=Economy&seed=Federal+Reserve-https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fenforcement20260813a.htm&title=Federal+Reserve+Board+issues+enforcement+action+with+former+employee+of+Regions+Bank",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fenforcement20260820a.htm&category=Economy&seed=Federal+Reserve-https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fenforcement20260820a.htm&title=Federal+Reserve+Board+issues+enforcement+actions+with+former+employee+of+Regions+Bank+and+former+employee+of+United+Comm",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fenforcement20260820b.htm&category=Economy&seed=Federal+Reserve-https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fenforcement20260820b.htm&title=Federal+Reserve+Board+issues+enforcement+action+with+SouthPoint+Bancshares%2C+Inc.+and+announces+termination+of+enforcemen",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fenforcement20260827a.htm&category=Economy&seed=Federal+Reserve-https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fenforcement20260827a.htm&title=Federal+Reserve+Board+issues+enforcement+action+with+former+employee+of+Banco+Popular+de+Puerto+Rico",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fenforcement20260904a.htm&category=Economy&seed=Federal+Reserve-https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fenforcement20260904a.htm&title=Federal+Reserve+Board+announces+termination+of+enforcement+actions+with+United+Texas+Bank%2C+Quontic+Bank+Acquisition+Corp",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fmonetary20260819a.htm&category=Economy&seed=Federal+Reserve-https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fmonetary20260819a.htm&title=Minutes+of+the+Federal+Open+Market+Committee%2C+July+28%E2%80%9329%2C+2026",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fmonetary20260825a.htm&category=Economy&seed=Federal+Reserve-https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Fmonetary20260825a.htm&title=Minutes+of+the+Board%27s+discount+rate+meetings+on+July+20+and+July+29%2C+2026",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Forders20260820a.htm&category=Economy&seed=Federal+Reserve-https%3A%2F%2Fwww.federalreserve.gov%2Fnewsevents%2Fpressreleases%2Forders20260820a.htm&title=Federal+Reserve+Board+announces+approval+of+application+by+National+Westminster+Bank+Plc",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "editorial": [
+    "/api/backend/content/blogs?kind=editorial&limit=24",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "editorial-desk": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "featured/material-matters": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "funds": [
+    "/api/backend/indices",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/top-gainers?limit=6",
+    "/api/backend/market-stats/top-losers?limit=6",
+    "/api/backend/news?limit=100&category=Funds",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.sec.gov%2Fnewsroom%2Fpress-releases%2F2026-73-sec-charges-private-fund-adviser-adit-ventures-management-its-ceo-affiliated-general-partners&category=Funds&seed=SEC-506dc3f1-f71f-40fb-80aa-e5efcbae1f07&title=SEC+Charges+Private+Fund+Adviser+Adit+Ventures+Management%2C+Its+CEO+and+Affiliated+General+Partners+in+Alleged+Fraud",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.sec.gov%2Fnewsroom%2Fpress-releases%2F2026-75-sec-charges-boiler-room-operator-three-entities-defrauding-retail-investors-74-million-pre-ipo&category=Funds&seed=SEC-543d0d43-3c8a-40d1-823b-2333c50bc407&title=SEC+Charges+Boiler+Room+Operator+and+Three+Entities+with+Defrauding+Retail+Investors+in+%2474+Million+Pre-IPO+Investment+S",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.sec.gov%2Fnewsroom%2Fpress-releases%2F2026-78-sec-38-entities-feigned-legitimacy-us-advisers-through-false-filings-lure-retail-investors&category=Funds&seed=SEC-9659dd0c-acc8-4f5d-adc3-2c2f245209cd&title=SEC%3A+38+Entities+Feigned+Legitimacy+as+U.S.+Advisers+Through+False+Filings+to+Lure+Retail+Investors",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.sec.gov%2Fnewsroom%2Fpress-releases%2F2026-82-sec-charges-san-francisco-bay-area-private-fund-executives-multimillion-dollar-ponzi-scheme&category=Funds&seed=SEC-d5092649-bd5b-4cff-bc37-a0f18d33a1f1&title=SEC+Charges+San+Francisco+Bay+Area+Private+Fund+Executives+with+Multimillion+Dollar+Ponzi-Like+Scheme",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.sec.gov%2Fnewsroom%2Fpress-releases%2F2026-84-sec-investor-advisory-committee-host-sept-10-meeting&category=Funds&seed=SEC-7b964f5e-d7e8-41ff-9d1a-c1bf94e8ca11&title=SEC+Investor+Advisory+Committee+to+Host+Sept.+10+Meeting",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.sec.gov%2Fnewsroom%2Fpress-releases%2F2026-85-sec-proposes-rescission-political-contribution-rule-investment-advisers&category=Funds&seed=SEC-06cec215-1a77-4ef5-826d-4a0a23404513&title=SEC+Proposes+Rescission+of+Political+Contribution+Rule+for+Investment+Advisers",
+    "/api/backend/news/image?u=https%3A%2F%2Fwww.sec.gov%2Fnewsroom%2Fspeeches-statements%2Fuyeda-statement-pay-play-090326&category=Funds&seed=SEC-533515ca-1d44-4323-acb4-28b0147b78e8&title=Statement+on+Proposed+Rescission+of+Rule+206%284%29-5+under+the+Investment+Advisers+Act",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "government-contracts": [
+    "/api/backend/gov-contracts",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "heatmaps/market": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/heatmap",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "heatmaps/sector": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/rankings?limit=500&live=1",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "insider-report": [],
+  "insiders": [
+    "/api/backend/insiders?limit=50",
+    "/api/backend/insiders/countries",
+    "/api/backend/insiders/track-record?limit=8",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "insiders/[name]": [
+    "/api/backend/insiders/profile?name={name}",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "insiders/buy-sell": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/quotes?symbols=NET,SNDK,INBX,GME,IRD,DOCU,AMR,OSBC,BULL,SUJA,ATEX,CYTK,GWRE,TWIN,ICHR,DYN,RXT,PDYN,CTNM,FIVN,JFR,ANTX,NRIM,BIOF,ASO,SCOR,PAR,DLPN,DLHC,JCTC,CBRS,BLLN,AIG,LDI,OKLO,UMC,OSPN,ASTH,EVCM,ACN,LPLA,CWT,PTLO,RSG,NVDA,ILMN,NMIH,ESTC,UBER,SMCI,BNTX,CAI,UTHR,KRYS,TSN,ATRA,CRVL,RSKD,ECAT,MRNA,WDC,CRM,EQH,CTRN,ONEW,CRC,KMT,SRPT,INOD,CATX,DHT,RGEN,XYZ,URBN,RMNI,VCYT,ALG,LITE,WTS,KYMR,CRCT,SENEA,EQIX,SCSC,WM,EVC,DRS,MAZE,ENOV,LIVN,STUB,DLTR,LASR,MDCX,IEHC,LMND,EAT,AXIA3,CCAP,PCT,CFFI,ECF,CRT,ZIM,TONX,NWFL,HAPN,CMTG,GRNT,UIS,NTST",
+    "/api/backend/metrics/buy-sell",
+    "/api/backend/trades?month=1&side=all&limit=400",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "insiders/hot": [
+    "/api/backend/backtest/insider-strategy",
+    "/api/backend/market-stats/analyst-ratings?symbols=AMRZ%2CAMR%2CLIEN%2CAMRC%2CINBX%2CWIX%2CAFCG%2CBRVE%2CMKZR%2CHKHC%2CJUSH%2CJMKE%2CNRDE%2CTISI%2COPFI%2CEDAP%2CLFT%2CAAT%2CAMH%2CBLSM%2CMTDR%2CSRTS%2CRGCO%2CBMRA%2CDKS%2CPRTS%2CAVBC%2CBIVI%2CAPTV%2CEMYB%2CCLPR%2CGBFH%2CDFH%2CCC%2CRVSB%2CBWFG%2CEQPT%2CBAER%2CKMPR%2CGROV%2CSNBH%2CFUSB%2CMED%2CNGL%2CYQ%2CELAN%2CLILA%2CENHA%2CBRLT%2CKWY%2COKYO%2CCDNL%2CAIJTY%2CCIA%2CFGBI%2COPAL%2CMLCI%2CSMRT%2CCE%2CANGX%2CLUCK%2CEMBC%2CENOV%2CRCG%2CBSX%2CPAM%2CGRNT%2CSWZ%2CTSM%2CPLSE%2CODYS%2CMATW%2CPAL%2CSDHC%2CSHMD%2CAIAI%2CSUNS%2CBABA%2CAWRE%2CTSCO%2CABCL%2CGLIBK%2CAXIA3%2CLEGO%2CHGBL%2CNPB%2CGAIA%2CAIIR%2CCUEN%2CCCB%2CVST%2CMOBI%2CPTIX%2CORN%2CREZI%2CLDI%2CACCS%2CFTCI%2CABR%2CPFE%2CDKL%2CSITE%2CUTI%2CUMH%2CBOTJ%2CEXOZ%2CATTO",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/rankings?limit=300&live=1",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "insiders/top-buys": [
+    "/api/backend/iqs2/top-buys?period=7d&limit=200",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "insights": [
+    "/api/backend/content/blogs?limit=40",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "investors": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "investors/[slug]": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "ipos": [
+    "/api/backend/ipo/recent?sort=date&dir=desc",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "learn/insider-buying": [
+    "/api/backend/backtest/insider-strategy",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "lists": [
+    "/api/backend/ideas",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "market-data/top-gainers": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/spark?symbols=CYCN,DSACW,SCLXW,IRHOR,VFSWW,IRD,QUMSR,INDP,XHLD,SIG,KOYNW,NOEMW,ODD,VHUB,PLSE,ARBE,NCEW,BETRW,SVCCW,RIBB,SLSN,RIBBU,PLUT,ACCL,BZAIW,ORIO,INNV,SWMR,TTRX,MIACW,BCHT,SUNB,ETS,NAMMW,NAUT,LVO,XLAB,EXOZ,AFJKU",
+    "/api/backend/market-stats/top-gainers?limit=1000",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "market-data/top-losers": [
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/spark?symbols=CRMT,GFAIW,NUR,GCDT,TTAN,SPWRW,BIDWR,PBMWW,BCTXZ,BGLWW,TMCWW,DUKRW,ALFUW,RETO,TBBK,JSPRW,MSAIW,NNOX,VWAV,TYRA,CSHRW,VWAVW,FJET,HDRNW,SSM,KTWOR,RUMBW,BRZE,OCGN,SSACW,RVSNW,MOBBW,GRMLW,SCAGW,PIIIW,SKYAW,PDYNW,SATLW,EVMN,EVOXW,SQFTW,CHPGR,MWYN,GRAN,CASY,SVAQW,WW,BBOT,WYHG,COCHW,PFSA,BNCWZ,NCPL,FEED,OXBRW,UCAR,UZX,HVIIU,PTORW,LHSW",
+    "/api/backend/market-stats/top-losers?limit=1000",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "markets": [
+    "/api/backend/indices",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/top-gainers?limit=6",
+    "/api/backend/market-stats/top-losers?limit=6",
+    "/api/backend/news?limit=100&category=Market",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMi2AFBVV95cUxPSlBZOUJ1RHF2UUJSQXVvNmJVWFBGN0pyaEQwc25PMUxVVWhuWWRCbjRQeU11b3EtZGlvRmpUcTVJODBRMzVSRHo4ZGtsY0phMlBEMnp2Qzh5T1JpRTBnMHM4NDlkaGNiYlRGNEt2ZTFXVi0yNUFSQ1UxQS1GbVdGOHB0ODJody1aR2Rjam5qbF9SWTFScERSRktrRktscG1XWE1kb3NFUHAzZFpBT2M4cFFCekkwSmRJME1ic184U0ZYZDhFQ0czYzlVRWF3VVlYQVNkRHRLcGfSAd4BQVVfeXFMTjc2cjFyYzBKV3ZUekN4cVkzejR6QVVGLXMyTW56SXZYUTNaWllqYlllX1l5aWoyVjgzQXppbGprTm1sWlhLUi1DSGp1X3c0cFFIU05TWkRyeUpkSDhxdjlyOW9nNVQwNndsN2pYRlVncHRLNmt0cW5UQlFDNmN3U25EZG1xUjY2N1NhMGNLaUh5alUtSmhSQmR3cXg0Ui0xbVRiWnQ1M0pBanJBRWJCbmNrSnJtR0o4ZjdvRzVsZ3QzSFNKSmlMRzh0Q1p6WDh3RVBtNjhXWTl2QWRvUHlB%3Foc%3D5&category=Market&seed=Earnings+Desk-CBMi2AFBVV95cUxPSlBZOUJ1RHF2UUJSQXVvNmJVWFBGN0pyaEQwc25PMUxVVWhuWWRCbjRQeU11b3EtZGlvRmpUcTVJODBRMzVSRHo4ZGtsY0phMlBEMnp2Qzh5T1JpRTBnMHM4NDlkaGNiYlRGNEt2ZTFXVi0yNUFSQ1UxQS1GbVdGOHB0ODJody1aR2Rjam5qbF9SWTFScERSRktrRktscG1XWE1kb3&title=Is+Earnings+Beat+Altering+The+Investment+Case+For+Texas+Instruments+Stock+%28TXN%29%3F+-+simplywall.st",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMi5AFBVV95cUxQcUV5RThENzBjZTV5MnM2UGk3cGN1MHVRRHJGTUF0M0dMamV1ZWJPY1VBRFlHVHZ3d1hzYTZwUUlJV1BBN2JOOVRHVW5DYkZZZVNTRktyRURYakdNSTlYMjI3UjVfa1JPbDluLThWc3I0RXZyN2dvTmM1bWx2SmlrZC1UNDM4UUxJd2FmTDdibUNzY1JpOW95b3A3ei1DNWoySHpDdTZLeWRmS3BvMjdMRmlfdld1bTY0bmFQRlhMUDJObFNxYjctN1NrODRpdkhURHJzVUNlZnhDUFR4UV9iSFM5clQ%3Foc%3D5&category=Market&seed=Markets+Wire-CBMi5AFBVV95cUxQcUV5RThENzBjZTV5MnM2UGk3cGN1MHVRRHJGTUF0M0dMamV1ZWJPY1VBRFlHVHZ3d1hzYTZwUUlJV1BBN2JOOVRHVW5DYkZZZVNTRktyRURYakdNSTlYMjI3UjVfa1JPbDluLThWc3I0RXZyN2dvTmM1bWx2SmlrZC1UNDM4UUxJd2FmTDdibUNzY1JpOW95b3A3ei1DNWoySHpDdTZ&title=Stock+Market+Today%3A+Oil+Hits+%24100+for+First+Time+Since+July+as+Middle+East+Conflict+Pressures+Dow+and+Nasdaq+-+Eurasia+B",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMic0FVX3lxTE1Ya0JSSWpyckpNMEpyNkN6RjhNVXEwWlhaZnFnc2VDMG5Tb3hKMkdMaEx1cEdIQ01EamZwNVdCdVFlLU9XdmF6R0NUbWZqQnFwdW1pT1Zac1l5SzdHMVZEOW1hcXBLYlN4S2phWDlWY2J6WE0%3Foc%3D5&category=Market&seed=Markets+Wire-CBMic0FVX3lxTE1Ya0JSSWpyckpNMEpyNkN6RjhNVXEwWlhaZnFnc2VDMG5Tb3hKMkdMaEx1cEdIQ01EamZwNVdCdVFlLU9XdmF6R0NUbWZqQnFwdW1pT1Zac1l5SzdHMVZEOW1hcXBLYlN4S2phWDlWY2J6WE0&title=3+Great+ETFs+That+Hold+SpaceX+-+Morningstar",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMie0FVX3lxTE1MOTRCMjlEWnpERzdsUzVtd2VlbS1XRWZReWdOQ0lEZ3ZNX3NLTEJPRUJlcEpVcWlSQjB1QzBBc2VNcVQtX29BM3hUS21JM3FoXzg4SkozVEpGSDc4dm56U2VqWW5mV0tyMnAzZlVZS21fZEl4MDQ0WnN1UQ%3Foc%3D5&category=Market&seed=Earnings+Desk-CBMie0FVX3lxTE1MOTRCMjlEWnpERzdsUzVtd2VlbS1XRWZReWdOQ0lEZ3ZNX3NLTEJPRUJlcEpVcWlSQjB1QzBBc2VNcVQtX29BM3hUS21JM3FoXzg4SkozVEpGSDc4dm56U2VqWW5mV0tyMnAzZlVZS21fZEl4MDQ0WnN1UQ&title=Signet+Jewelers+Stock+Surges+On+Earnings%2C+Guidance.+But+Note+This+Long-Term+Trend.+-+Investor%27s+Business+Daily",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMigAFBVV95cUxNZzJIenZGTm1uTEVidVZ6SlpBZDhJam9EY0dvMmVlZ3pHN3duSTVlNUtIekl1dld3X0FtWmdJclRWYUs5YzhSTXJIYktYemZVNTdicmtITUx2Wk1nYV9XYmloaktYbGU2TjRFdXZON21xcWQ0Yk8zYVBGYlU5WXlPNw%3Foc%3D5&category=Market&seed=Earnings+Desk-CBMigAFBVV95cUxNZzJIenZGTm1uTEVidVZ6SlpBZDhJam9EY0dvMmVlZ3pHN3duSTVlNUtIekl1dld3X0FtWmdJclRWYUs5YzhSTXJIYktYemZVNTdicmtITUx2Wk1nYV9XYmloaktYbGU2TjRFdXZON21xcWQ0Yk8zYVBGYlU5WXlPNw&title=Why+ServiceTitan+Stock+Is+Diving+30%25+After+Earnings+Beat+-+Barron%27s",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMigAFBVV95cUxPREdMejVNbV94VVkwYlMwX082NXRoZE1BaGZ3M19CenpFLVZWQk9VQnU0WksyYXI0b1hoZHdxdEZsWVRfcHhRT2gtNGxOa29YMm5CYzd6S3hoQjhNSVpJU3FSbU1lODkyanZBMVhPWjh3TVV0UGJ3NWttOGt6NEVGWA%3Foc%3D5&category=Market&seed=Earnings+Desk-CBMigAFBVV95cUxPREdMejVNbV94VVkwYlMwX082NXRoZE1BaGZ3M19CenpFLVZWQk9VQnU0WksyYXI0b1hoZHdxdEZsWVRfcHhRT2gtNGxOa29YMm5CYzd6S3hoQjhNSVpJU3FSbU1lODkyanZBMVhPWjh3TVV0UGJ3NWttOGt6NEVGWA&title=Jersey+Mike%E2%80%99s+First+Public+Earnings+Report+Is+as+Ho-Hum+as+Its+IPO.+The+Stock+Rises+Anyway.+-+Barron%27s",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMigwJBVV95cUxPQThBY0dMcGIwcDBDSUhmbm5tMDhOWHlyUHdCX095N3ZMa192MlA3c0Rpb3F4M3R3Y19XYlJrLVdUb0Eya1dPWkdkNFRXa0w1RGJtR2JsZXpjSmoxZm5DM0VVNHhZellJempVT3dRVTZkSEc5OTEtOUd4YmthQ2M1UlBuUHdIMVRzZTRLVmM1STVIWXItZk9CN3YtZmJTT3ZXQXFPRzQtcjFVc2laMTBFWkFKY1IyRWNMX0d2YUFuVm1YYmQybkxYclYwSml2NkpmRlplSkFrT1I0MzVYclI1YVJiWGZjaU0zcUZuc0lqeHgwQ0Y4Tng5N2VJTnozRjQtaDBn%3Foc%3D5&category=Market&seed=Index+Watch-CBMigwJBVV95cUxPQThBY0dMcGIwcDBDSUhmbm5tMDhOWHlyUHdCX095N3ZMa192MlA3c0Rpb3F4M3R3Y19XYlJrLVdUb0Eya1dPWkdkNFRXa0w1RGJtR2JsZXpjSmoxZm5DM0VVNHhZellJempVT3dRVTZkSEc5OTEtOUd4YmthQ2M1UlBuUHdIMVRzZTRLVmM1STVIWXItZk9CN3YtZmJTT3ZXQXFPRzQt&title=How+Are+Dow%2C+S%26P+500%2C+Nasdaq+Futures+Reacting+To+Oil+Prices+Nearing+%24100+A+Barrel%3F+-+Stocktwits",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMikwFBVV95cUxQWWpmSWdUR2tQYUthYXk1UmtyWlpfMFBlSEhuVHU5TWlVTWtBS2t5b3RyQkplSzNJUkpGYWFaVXNEZENsNkV5MUUxdGZyNEV0WVdCUF8xYVF2SHlrMFlXbnVOQjByMjlBV2FpNk4yZEhFTkVlWTNMRkYtY3MxX1U0Y1R5dW50QmFOMlBMemJVYnd5WHc%3Foc%3D5&category=Market&seed=Earnings+Desk-CBMikwFBVV95cUxQWWpmSWdUR2tQYUthYXk1UmtyWlpfMFBlSEhuVHU5TWlVTWtBS2t5b3RyQkplSzNJUkpGYWFaVXNEZENsNkV5MUUxdGZyNEV0WVdCUF8xYVF2SHlrMFlXbnVOQjByMjlBV2FpNk4yZEhFTkVlWTNMRkYtY3MxX1U0Y1R5dW50QmFOMlBMemJVYnd5WHc&title=Signet+Jewelers+Stock+Jumps+20%25+-+investopedia.com",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMilgFBVV95cUxQTVEyNUt1ZkEwMVBIRmhqajdyN0dkQTVNVmhDMGNUTGxaVUpZVDF6cGxjQ2tzb3dLeXBfZC1fdTN6OVBSMzR4ODdoem9pTmI5YkpIdzJEYTJpRU9BUFU3M3Y0aGxNYkR1Yklla29qN1VIcDBXelVaamtKWDBObnNJVmp5cUxyYmdEdmJRLXpVOS1mRGZTSEE%3Foc%3D5&category=Market&seed=Markets+Wire-CBMilgFBVV95cUxQTVEyNUt1ZkEwMVBIRmhqajdyN0dkQTVNVmhDMGNUTGxaVUpZVDF6cGxjQ2tzb3dLeXBfZC1fdTN6OVBSMzR4ODdoem9pTmI5YkpIdzJEYTJpRU9BUFU3M3Y0aGxNYkR1Yklla29qN1VIcDBXelVaamtKWDBObnNJVmp5cUxyYmdEdmJRLXpVOS1mRGZTSEE&title=4+Proven+Ways+To+Grow+Lasting+Money+in+the+Stock+Market+-+Yahoo+Finance",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMilwFBVV95cUxQSnY0N1BsRFlhb3drdXdneUVWZC1nTVRiV25BRTYzaFdUVW1qd1ItRXNCek9rNTlheFd3Rl9Oemp1ejNuWW9INkJEeG1uaVl5VEZ4bk1TcGF5NnVneFlPNXFGazFfa1BhMXdqeGdNUEhtQ0JiNkRXejN4ZGVkVWJLajlGS2NQMnp2cEJLUWE2eEZOaW85cDhn%3Foc%3D5&category=Market&seed=Earnings+Desk-CBMilwFBVV95cUxQSnY0N1BsRFlhb3drdXdneUVWZC1nTVRiV25BRTYzaFdUVW1qd1ItRXNCek9rNTlheFd3Rl9Oemp1ejNuWW9INkJEeG1uaVl5VEZ4bk1TcGF5NnVneFlPNXFGazFfa1BhMXdqeGdNUEhtQ0JiNkRXejN4ZGVkVWJLajlGS2NQMnp2cEJLUWE2eEZOaW85cDhn&title=ODDITY+shares+surge+on+Q2+beat+and+raised+FY26+guidance+-+Yahoo+Finance",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMimgFBVV95cUxPb2hOR3VudnRxWWxxMVhtdnl1MFFYQ0pJSDRmaVh5a1JPeWFKUk1lQm1yQVhTS2VvX2hLWjA3V0ZXYVc1UUM4NzAyZDVYNTN4c2VQNmVIUHVBSEF4MUttY1FaZ0dxWldlaGFLbVFnNmdIY2hwNkZSRXdnY0lINkNHRk9DTTdoWmF6dTFRRmdJa0Q1c1NXQThiQ2Z3%3Foc%3D5&category=Market&seed=Index+Watch-CBMimgFBVV95cUxPb2hOR3VudnRxWWxxMVhtdnl1MFFYQ0pJSDRmaVh5a1JPeWFKUk1lQm1yQVhTS2VvX2hLWjA3V0ZXYVc1UUM4NzAyZDVYNTN4c2VQNmVIUHVBSEF4MUttY1FaZ0dxWldlaGFLbVFnNmdIY2hwNkZSRXdnY0lINkNHRk9DTTdoWmF6dTFRRmdJa0Q1c1NXQThiQ2Z3&title=Dow+Jones+Forecast%3A+DJIA+tumbles+as+Oil+hits+%24100+-+FOREX.com",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMinwFBVV95cUxNVWhCNkhrRWl3a1RaYTZmekUtdllhU0I0N0RXNThiZ0FRZU9MdDhqWlRKY1dta1FGS3pqY1VMOW1LaHN4Vkc4anRKdEZaS19GSUQ0TkVQcW0taExSRlR6SFNBVkVXQ3VkMlVKbWFoTEsxbE4wS19ZNFpYVVZHc2Mycm5oOGJMWUpXXzFDWjJONndXR3NYNl9kMkQwT2Itclk%3Foc%3D5&category=Market&seed=Markets+Wire-CBMinwFBVV95cUxNVWhCNkhrRWl3a1RaYTZmekUtdllhU0I0N0RXNThiZ0FRZU9MdDhqWlRKY1dta1FGS3pqY1VMOW1LaHN4Vkc4anRKdEZaS19GSUQ0TkVQcW0taExSRlR6SFNBVkVXQ3VkMlVKbWFoTEsxbE4wS19ZNFpYVVZHc2Mycm5oOGJMWUpXXzFDWjJONndXR3NYNl9kMkQwT2Itclk&title=U.S.+Stock+Market+Moves+%7C+SK+Hynix+%28SKHY.US%29+Early+Gains+Expand+to+5%25%2C+Hit+All-Time+High+Since+Listing+-+Moomoo",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMinwFBVV95cUxQLThYM2VKejRrbndnaTJuYUFpNVBmMlFqa0xyQmhDRWVJSENSRlJ3dmRBMlZoS0lXNEY2VUEyRHFrQzNCV3dWYVlzNTlOMnRLeTZiNkNPTHJyR3FiYkV4OVJYamRqb2Q3bDBtMkdIOGxXTTRMRm0zZnRfUkRlTmNKMXFfSE5UVFV1dkdZOGRTREctd3ZsLXdnTFNPRk1SbVE%3Foc%3D5&category=Market&seed=Tech+Markets-CBMinwFBVV95cUxQLThYM2VKejRrbndnaTJuYUFpNVBmMlFqa0xyQmhDRWVJSENSRlJ3dmRBMlZoS0lXNEY2VUEyRHFrQzNCV3dWYVlzNTlOMnRLeTZiNkNPTHJyR3FiYkV4OVJYamRqb2Q3bDBtMkdIOGxXTTRMRm0zZnRfUkRlTmNKMXFfSE5UVFV1dkdZOGRTREctd3ZsLXdnTFNPRk1SbVE&title=He%E2%80%99s+Letting+AI+Agents+Invest+His+Money.+They+Even+Have+Names.+-+WSJ",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMiowFBVV95cUxPWjk0VlhIbWNQODNTdmpJcWxpSWF4b1JWX2UyUW9lc0FkOHA4UkZJcVVyV3FwX21BRS1yZ1FGVUF6c3NFYUV1NHFVNzd3cTdhZGRQWGs2MWY1ZUJqR1lMRGhtdTBQaDRXU0Q5YUViSERuS05tNVFLN2NIeWJhQXFDdUkyU2lWN1VhZWhUT2xfQV94V3lHZzRCLU42SHdtTGNtdE5N%3Foc%3D5&category=Market&seed=Earnings+Desk-CBMiowFBVV95cUxPWjk0VlhIbWNQODNTdmpJcWxpSWF4b1JWX2UyUW9lc0FkOHA4UkZJcVVyV3FwX21BRS1yZ1FGVUF6c3NFYUV1NHFVNzd3cTdhZGRQWGs2MWY1ZUJqR1lMRGhtdTBQaDRXU0Q5YUViSERuS05tNVFLN2NIeWJhQXFDdUkyU2lWN1VhZWhUT2xfQV94V3lHZzRCLU42SHdtTGNtdE5N&title=PDD+Holdings+Stock+%28PDD%29+Opinions+on+Recent+Earnings+Performance+-+Quiver+Quantitative",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMipwFBVV95cUxQU1FDWlZxem5yejRWekJjdmdOVW4tU2RQYWpQX2FDWmlHZ3lBOVlYNjdEb01mcUFvM2FhaV9fMG5kUno1VzRjY0F6WkhKbmgxTzUwZXdabXprUjdGbTBuVE5jR2s4QVJqdkt6cS1QTVcwMW82d29FYjBvMFoxdjVrdkxwS0wyY0toNWNYaUpqUkJ6ZkM0bFZHdDk4RU1qWm9Ga0VUQ1J3WQ%3Foc%3D5&category=Market&seed=Markets+Wire-CBMipwFBVV95cUxQU1FDWlZxem5yejRWekJjdmdOVW4tU2RQYWpQX2FDWmlHZ3lBOVlYNjdEb01mcUFvM2FhaV9fMG5kUno1VzRjY0F6WkhKbmgxTzUwZXdabXprUjdGbTBuVE5jR2s4QVJqdkt6cS1QTVcwMW82d29FYjBvMFoxdjVrdkxwS0wyY0toNWNYaUpqUkJ6ZkM0bFZHdDk4RU1qWm9Ga0VUQ1J&title=Stocks+fall+on+Wall+Street+as+oil+prices+jump+above+%24100+a+barrel+after+US+and+Iran+war+escalates+-+apnews.com",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMiqgFBVV95cUxQM3VNZWJWcjJ5Wjd6OWlQdm5WZGtyUHBDazZUdmFTSkZ6WmFaVk5iX0t0TW9jR2JrWjUwR0hsVVZPaWJBRDVGQ1BoWGYwSWZwTzR2RHVUakFfWE5lZTJHRnAzSjVTVUIxdFAyRXVUTlB0aU9hSm1oREktNjhMX0xJTWpkT1M4WFpJVVZDRnBoMFhISDFKR0dSTzFRR2Z6ekJQT0xXWFN1eXZBZw%3Foc%3D5&category=Market&seed=Earnings+Desk-CBMiqgFBVV95cUxQM3VNZWJWcjJ5Wjd6OWlQdm5WZGtyUHBDazZUdmFTSkZ6WmFaVk5iX0t0TW9jR2JrWjUwR0hsVVZPaWJBRDVGQ1BoWGYwSWZwTzR2RHVUakFfWE5lZTJHRnAzSjVTVUIxdFAyRXVUTlB0aU9hSm1oREktNjhMX0xJTWpkT1M4WFpJVVZDRnBoMFhISDFKR0dSTzFRR2Z6ekJQT0xXWF&title=Chime+Wins+Price-Target+Hikes+On+Stride+Deal+And+Raised+Guidance%2C+But+Shares+Slash+Early+Gains+-+Investor%27s+Business+Dai",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMiswFBVV95cUxQYVNfMy1WakVoR2R1a0NsN1RFSThZcWhJcE9SWkhhS1VVUzRBUWF3b0Y3SEotOEN5bG03cWhXYVRYeXMyUDYwNGl0REFoeDhHZ3Uxc1IxS1RWWEpzR1hSUlUyNXdnX1FZR0dFcGpqeGt2cFUwVEM5a1VJcUFPR3lYZkMzeDcwNHMxZ2FBRi1RLW5pWVpnWlQxZG9oVFNwb2lMTlNOM0JabVF1ald6NnkzMnFIMA%3Foc%3D5&category=Market&seed=Earnings+Desk-CBMiswFBVV95cUxQYVNfMy1WakVoR2R1a0NsN1RFSThZcWhJcE9SWkhhS1VVUzRBUWF3b0Y3SEotOEN5bG03cWhXYVRYeXMyUDYwNGl0REFoeDhHZ3Uxc1IxS1RWWEpzR1hSUlUyNXdnX1FZR0dFcGpqeGt2cFUwVEM5a1VJcUFPR3lYZkMzeDcwNHMxZ2FBRi1RLW5pWVpnWlQxZG9oVFNwb2lMTlNOM0&title=Lennar+stock+may+move+5.2%25+on+Sept.+16+earnings+report+-+Investing.com",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMitgFBVV95cUxQNU1VV2Qxc3NDWTg4WjhmVzNqSTdJWFlQbEhIU0lZS19oeXVLX2lSR0djYmMzd1g0RDFZTmdnMDdsNjNpRVlwR0EwMW5QSlZ6NW9IWmZWeGltNUtpeWxMeXN1c1RUUzBvLWMzV2kxYTJsbWlxSXhCQlU0QjhoT25rMU9OR2VJVGZybzlITjVPZThpbENDdXFVYld6XzFGQTVDZGduc1haaXBTMDJZMFQ2R0NZdTduUQ%3Foc%3D5&category=Market&seed=Earnings+Desk-CBMitgFBVV95cUxQNU1VV2Qxc3NDWTg4WjhmVzNqSTdJWFlQbEhIU0lZS19oeXVLX2lSR0djYmMzd1g0RDFZTmdnMDdsNjNpRVlwR0EwMW5QSlZ6NW9IWmZWeGltNUtpeWxMeXN1c1RUUzBvLWMzV2kxYTJsbWlxSXhCQlU0QjhoT25rMU9OR2VJVGZybzlITjVPZThpbENDdXFVYld6XzFGQTVDZGduc1&title=Why+Broadcom+Providing+2028+Guidance+Is+a+Big+Deal+for+AVGO+Stock+Bulls+-+barchart.com",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMiuAFBVV95cUxQS1BtRGFQZFJTS1RSU0t1MHlVY3BtNHRPcUdqOHVRa3VOZm1nTU0zLXNLN091SmpzNm53RkVKdDJFQlRrM0drRXhMX2NyQzJEQVZ4N21ERjNwZ3V6RHppV2R6MEV4QWxDTjRuR3dsa0F3QW9KenpvX3hUWmwxRWFOYnZzNUxQa0ZubEJlME5xbVIwalJEdi04bjFQdDBTVkFpdWhIODNxekUyNFJhTDVRQklHdWpJVkZF%3Foc%3D5&category=Market&seed=Earnings+Desk-CBMiuAFBVV95cUxQS1BtRGFQZFJTS1RSU0t1MHlVY3BtNHRPcUdqOHVRa3VOZm1nTU0zLXNLN091SmpzNm53RkVKdDJFQlRrM0drRXhMX2NyQzJEQVZ4N21ERjNwZ3V6RHppV2R6MEV4QWxDTjRuR3dsa0F3QW9KenpvX3hUWmwxRWFOYnZzNUxQa0ZubEJlME5xbVIwalJEdi04bjFQdDBTVkFpdWhIOD&title=Should+Investors+Buy+Argan+Stock+After+Impressive+Q2+Earnings%3F+-+TradingView",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMiugFBVV95cUxNcjdGSHNoWEh1ZjhCbWFXNmVpcnhtZzVzUXpFZ21QbEEyLU1zaDR2ODZsMm02OWczVXNiU2RQcVQ5TkhwWjJHb3ZvTWJ1NnVVVW9RS0VHV3FPUElxQmpQOTE1OENQNFFUOWhrY3BPUEw3cUQzT3JKQ2h2OTlIUW96VUc4bTUyVmY5U0I1RmpfYUhlUFpwRHVFWEJTa1c3LVNCazNValREMXAwS0o3TjBLVW5tTGczQk1iZ3c%3Foc%3D5&category=Market&seed=Markets+Wire-CBMiugFBVV95cUxNcjdGSHNoWEh1ZjhCbWFXNmVpcnhtZzVzUXpFZ21QbEEyLU1zaDR2ODZsMm02OWczVXNiU2RQcVQ5TkhwWjJHb3ZvTWJ1NnVVVW9RS0VHV3FPUElxQmpQOTE1OENQNFFUOWhrY3BPUEw3cUQzT3JKQ2h2OTlIUW96VUc4bTUyVmY5U0I1RmpfYUhlUFpwRHVFWEJTa1c3LVNCazNValR&title=Stocks+fall+on+Wall+Street+as+oil+prices+jump+above+%24100+a+barrel+after+US+and+Iran+war+escalates+-+WDEF",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMiugFBVV95cUxNQUx3MFViM3FvQjBtdnNDbVJBbU5mNVBaNlc1eHc4c0ZYM1Q5RzhzSlAtcTR1czZzeFB0bmJqMnRnT0diMW5ScnZEalY4b0lPYzFxZHJ4dVV0X1BQVXg5NTdaUXZVY2ZwV09OcGtLeHdJQTVia2g4Zy1sc2hCVlM5TS0yc0pPdlRJSE05YUZtTFlHTXIta2NqOEg1TTFyYjVyOGRTV3R6dXlFVzNrRW5DeHZ5c2hreGl1Mnc%3Foc%3D5&category=Market&seed=Earnings+Desk-CBMiugFBVV95cUxNQUx3MFViM3FvQjBtdnNDbVJBbU5mNVBaNlc1eHc4c0ZYM1Q5RzhzSlAtcTR1czZzeFB0bmJqMnRnT0diMW5ScnZEalY4b0lPYzFxZHJ4dVV0X1BQVXg5NTdaUXZVY2ZwV09OcGtLeHdJQTVia2g4Zy1sc2hCVlM5TS0yc0pPdlRJSE05YUZtTFlHTXIta2NqOEg1TTFyYjVyOGRTV3&title=Grab+Holdings+Stock+%28GRAB%29+Opinions+on+Recent+Earnings+and+Institutional+Interest+-+Quiver+Quantitative",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMiW0FVX3lxTE1pUm03TmhYWDJoaWN3ckZjT0lPSm1QMF9HSUZmb19KZmc0V01LM0EwNEJJbTQ4dC1FalpBT3RMeDVmV2wtaFo5RnlRbndNdTE4anZMN0FSOFlMbUE%3Foc%3D5&category=Market&seed=Index+Watch-CBMiW0FVX3lxTE1pUm03TmhYWDJoaWN3ckZjT0lPSm1QMF9HSUZmb19KZmc0V01LM0EwNEJJbTQ4dC1FalpBT3RMeDVmV2wtaFo5RnlRbndNdTE4anZMN0FSOFlMbUE&title=Dow+Jones+Ekes+Out+Gain%2C+S%26P+500%2C+Nasdaq+End+Lower%2C+Asia+Mixed%3B+Weak+Start+On+D-Street+Today%3F+Daylen+Lile+%289fqfAT9NQS%29+-",
+    "/api/backend/news/image?u=https%3A%2F%2Fnews.google.com%2Frss%2Farticles%2FCBMiygFBVV95cUxOM29HOXRLMUxrZjlKWEt5RE9hckdERklHWkpDMXhwUTc2UGZ2QU1BMm1saHFSVFFRcmR4cVYtWjZERXV6U04ybFRzcUswS19SVlNXa3pnMTg2RkRBVkZBUERxMlpZV2k5M05URjBnZmFvMzd4akpjbGhtNWx3TU5KT1VNYW13NUhNbkxfdzVKc3RnWXM4VDRreFRjOGpkUFlFMjFLemo0UkxFY1hjVVc3V2lGTTRkc2RyV240TG03a2k2OE9CZkdQem1n%3Foc%3D5&category=Market&seed=Index+Watch-CBMiygFBVV95cUxOM29HOXRLMUxrZjlKWEt5RE9hckdERklHWkpDMXhwUTc2UGZ2QU1BMm1saHFSVFFRcmR4cVYtWjZERXV6U04ybFRzcUswS19SVlNXa3pnMTg2RkRBVkZBUERxMlpZV2k5M05URjBnZmFvMzd4akpjbGhtNWx3TU5KT1VNYW13NUhNbkxfdzVKc3RnWXM4VDRreFRjOGpkUFlFMjFLemo0&title=S%26P+500+Slides+0.5%25+at+Midday+as+Dow+Leads+the+Decline+-+247wallst.com",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "movers": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/rankings?limit=200&live=1",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "news": [
+    "/api/backend/congressional-trades?limit=40",
+    "/api/backend/content/blogs?kind=stock-idea&limit=6",
+    "/api/backend/content/blogs?limit=20",
+    "/api/backend/content/blogs?limit=25",
+    "/api/backend/earnings/calendar?days=7",
+    "/api/backend/indices",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?limit=80",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "politicians/[name]": [
+    "/api/backend/congressional-trades/profile?name={name}",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "portfolio": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "portfolio-activated": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "premium": [
+    "/api/backend/billing/plans",
+    "/api/backend/insiders/profile?name=CASCADE%20INVESTMENT%2C%20L.L.C.",
+    "/api/backend/insiders/profile?name=Foran%20Joseph%20Wm",
+    "/api/backend/insiders/profile?name=FROST%20PHILLIP%20MD%20ET%20AL",
+    "/api/backend/insiders/profile?name=WARREN%20KELCY%20L",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/subscribers/count",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "press": [
+    "/api/backend/press/stats"
+  ],
+  "press/order": [],
+  "press/sample-report": [
+    "/api/backend/content/blogs/editorial-lulu-burry-buy-under-100-2026-09-05"
+  ],
+  "reports": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "reports/cta/[ticker]": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "reports/monthly/[month]": [
+    "/api/backend/content/blogs?limit=20",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/metrics/buy-sell",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "revenue-breakdown": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "score-explainer": [
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "screener": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/screener?sort=iqs&dir=desc&limit=50&offset=0",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "sectors": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/rankings?limit=500&live=1",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "settings": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "short-interest": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/quotes?symbols=VG%2CSYM%2CFOXA%2CNBIS%2CASTS%2CCRWV%2CSMCI%2CMRNA%2CJBS%2CLYV%2CKMB%2CCBRS%2CTROW%2CARES%2CSOFI%2CLVS%2CARM%2CCVNA%2CGFS%2CFSLR%2CWDAY%2CRDDT%2CSCCO%2CCRCL%2CHPQ%2CCOIN%2CTRI%2CSN%2CON%2CILMN%2CRMD%2CKHC%2CUI%2CTPL%2CTPR%2CROKU%2CIOT%2CLITE%2CGH%2CMDLN%2CMSTR%2CHSY%2CSNDK%2CCNP%2CMCHP%2CFOX%2CCTSH%2CINCY%2CDRI%2CRF%2CRKLB%2CTEAM%2CXEL%2CSYF%2CNKE%2CCCEP%2CBE%2CAWK%2CGPN%2CALAB%2CWEC%2CUAL%2CWDC%2CPAYX%2CCPRT%2CQSR%2CCOHR%2CEXPE%2CROP%2CZS%2CPHM%2CFE%2CRCL%2CHUBB%2CVMC%2CUSFD%2CINSM%2CBRO%2CROIV%2CPPL%2CSNOW%2CKDP%2CNTAP%2CRKT%2CCPNG%2CVTR%2CCHD%2CBAM%2CXPO%2CDLTR%2CAEE%2CHPE%2CADBE%2CTER%2CDXCM%2CAXON%2CBSP%2CMPWR%2CHAL%2CETR%2CAFRM%2CUNP%2CFWONA%2CCDE%2CRJF%2CRVMD%2CPFG%2CALNY%2CFCNCA%2CBG%2CULTA%2CDELL%2CIR%2CZTS%2CDHI%2CSW%2CWSM%2CO%2CKR%2COTIS%2CMTB%2CEIX%2COKE%2CJBHT%2CPYPL%2CGEHC%2CXYL%2CHCA%2CODFL%2COKTA%2CMLM%2CAEP%2CSLB%2CACN%2CHOOD%2CPRU%2CNXPI%2CMTD%2CSTX%2CBIDU%2CFWONK%2CCPAY%2CDASH%2CADSK%2CVEEV%2CFANG%2CBDX%2CBIIB%2CAPP%2CVLO%2CNRG%2CATI%2CINTU%2CAPO%2CMRVL%2CEXPD%2CBNTX%2CAMP%2CP%2CCRM%2CPSA%2CROK%2CINFY%2CWAT%2CCRDO%2CSBUX%2CEXE%2CYUM%2CMDB%2CRGLD%2CEBAY%2CTMUS%2CEXC%2CWTW%2CES%2CTWLO%2CWST%2CTTWO%2CEQT%2CJBL%2CPDD%2CQCOM%2CUPS%2CCTAS%2CEL%2CCASY%2CDAL%2CNU%2CCMG%2CSTLD%2CROST%2CED%2CVRT%2CSE%2CTEL%2CFTI%2CDG%2CADM%2CVST%2CNSC%2CCIEN%2CTW%2CIRM%2CEC%2CDOV%2CENB%2CVIK%2CKVUE%2CPLTR%2CDDOG%2CCAH%2CHUM%2CEXR%2CTRV%2CLPLA%2CADP%2CSPOT%2CABNB%2CEOG%2CCRS%2CFAST%2CITW%2CTEVA%2CCNC%2CNTRA%2CTGT%2CORLY%2CSYY%2CDGX%2CCLS%2CTECK%2CFIX%2CIQV%2CGEV%2CCEG%2CVLTO%2CVRSK%2CSPCX%2CBX%2CXYZ%2CFFIV%2CCCL%2CFERG%2CFLEX%2CSO%2CCVE%2CAFL%2CNOW%2CBKNG%2CEQNR",
+    "/api/backend/market-stats/short-interest",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "short-squeeze": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/quotes?symbols=SYM%2CFOXA%2CMRNA%2CLYV%2CKMB%2CVG%2CTROW%2CJBS%2CENB%2CSCCO%2CSLF%2CTPL%2CWEC%2CRMD%2CCBRS%2CNBIS%2CFOX%2CPBA%2CASTS%2CCCEP%2CCM%2CARES%2CFTS%2CCVNA%2CBSP%2CHSY%2CXEL%2CSAN%2CMDLN%2CCRWV%2CUNP%2CTRI%2CILMN%2CKHC%2CROKU%2CQSR%2CAEE%2CSMCI%2CHPQ%2CCNP%2CBAM%2CETR%2CTRP%2CTPR%2CDRI%2CWDAY%2CIOT%2CGH%2CVTR%2CFWONA%2CCNQ%2CBMO%2CARM%2CFSLR%2CRJF%2CO%2CSPGI%2CBHP%2CLVS%2CUI%2CPAYX%2CVMC%2CSU%2CSOFI%2CINCY%2CRF%2CSYF%2CROP%2CXPO%2COKE%2CPRU%2CSN%2CCPRT%2CROIV%2CCHD%2CTEVA%2CSUNB%2CRDDT%2CUAL%2CFE%2CKDP%2CPFG%2CWSM%2CBIDU%2CCOIN%2CON%2CFCNCA%2CAEP%2CCVE%2CRACE%2CAWK%2CPHM%2CRCL%2CBRO%2CRVMD%2CJBHT%2CITW%2CSO%2CEPD%2CCP%2CAER%2CCNI%2CCTSH%2CNKE%2CGPN%2CHUBB%2CUSFD%2CPPL%2CNSC%2CTECK%2CTRGP%2CD%2CSTRF%2CCRCL%2CBG%2CMTB%2CFWONK%2CINFY%2CBN%2CGFS%2CMCHP%2CNTAP%2CAFRM%2CIR%2CBDX%2CAPO%2CSBUX%2CUPS%2CFERG%2CAFL%2CALC%2CWELL%2CL%2CFNV%2CONC%2CNTES%2CIX%2CSNOW%2CKR%2COTIS%2CEIX%2CSLB%2CCPAY%2CAMP%2CWTW%2CPDD%2CEQNR%2CBAP%2CSTRD%2CWDS%2CEXPE%2CINSM%2CAXON%2CSW%2CXYL%2CHCA%2CODFL%2CMTD%2CBIIB%2CPSA%2CEBAY%2CES%2CEOG%2CWMB%2CUMC%2CWPM%2CPHG%2CMSTR%2CRKT%2CCPNG%2CDLTR%2CHPE%2CDHI%2CMLM%2CDASH%2CFANG%2CROK%2CWAT%2CDAL%2CSTLD%2CROST%2CED%2CEXR%2CADP%2CPANW%2CCINF%2CTXN%2CKMI%2CMPLX%2CDE%2CCQP%2CAEM%2CNGG%2CBBDO%2CLITE%2CRKLB%2CTEAM%2CCOHR%2CZS%2CADBE%2CULTA%2CEXC%2CCTAS%2CDOV%2CBX%2CMO%2CAMGN%2CRSG%2CTJX%2CHDB%2CBCS%2CWDC%2CDXCM%2CGEHC%2CADSK%2CVEEV%2CBNTX%2CRGLD%2CCASY%2CFTI%2CORLY%2CFLEX%2CELV%2CRPRX%2CCL%2CMAR%2CAJG%2CPLD%2CCTA-PB%2CALAB%2CDELL%2CACN%2CVLO%2CEXPD%2CYUM%2CTMUS%2CEL%2CVRT%2CTEL%2CIRM%2CTGT%2CSYY%2CVLTO%2CDUK%2CACGL%2CNTRS%2CEMR%2CERIC%2CARGX%2CBABA",
+    "/api/backend/market-stats/short-interest",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "stock-lists": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/stock-lists",
+    "/api/backend/trades?side=buy&limit=1",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "stock-lists/[slug]": [
+    "/api/backend/market-stats/analyst-ratings?symbols=AUGO%2CIAUX%2CAHNRF%2CURG%2CCMCL%2CNEM%2CGOLD%2CAEM%2CKGC%2CFNV%2CWPM%2CRGLD%2CAU%2CGFI%2CHMY%2CEGO%2CBTG%2CAGI%2COR%2CSSRM%2CCDE%2CIAG%2CNGD%2CSAND%2CEQX%2CDRD%2CNG%2CGORO%2CUSAU%2CAUY%2CPAAS%2CSA%2CGAU%2CTHM%2CVGZ%2CAUMN",
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/market-stats/spark?symbols=AUGO%2CIAUX%2CAHNRF%2CURG%2CCMCL%2CNEM%2CGOLD%2CAEM%2CKGC%2CFNV%2CWPM%2CRGLD%2CAU%2CGFI%2CHMY%2CEGO%2CBTG%2CAGI%2COR%2CSSRM%2CCDE%2CIAG%2CNGD%2CSAND%2CEQX%2CDRD%2CNG%2CGORO%2CUSAU%2CAUY%2CPAAS%2CSA%2CGAU%2CTHM%2CVGZ%2CAUMN",
+    "/api/backend/stock-lists/{slug}",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "stock-lists/hot-sectors": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/stock-lists/hot-sectors",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "thank-you-report": [],
+  "top-picks-report": [],
+  "topics/[slug]": [],
+  "trades": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?limit=1000&side=all",
+    "/api/backend/trades?side=buy&limit=40"
+  ],
+  "watchlist": [
+    "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
+    "/api/backend/trades?side=buy&limit=40"
+  ]
+}

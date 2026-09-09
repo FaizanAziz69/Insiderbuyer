@@ -1,0 +1,620 @@
+"use client";
+import { useState, use, useMemo } from "react";
+import useSWR from "swr";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  ArrowDownRight,
+  Building2,
+  UserRound,
+  TrendingUp,
+  Trophy,
+} from "lucide-react";
+import {
+  API_BASE,
+  fetcher,
+  formatCurrency,
+  formatNumber,
+  formatDate,
+} from "@/lib/api";
+import { CompanyLogo } from "@/components/CompanyLogo";
+import { DataTable, Column } from "@/components/DataTable";
+import { VolumeByYear, SectorDonut } from "@/components/charts/ProfileCharts";
+
+interface TradeRow {
+  ticker: string | null;
+  company: string;
+  sector: string | null;
+  side: "BUY" | "SELL";
+  role: string;
+  shares: number;
+  pricePerShare: number;
+  totalValue: number;
+  livePrice: number | null;
+  returnPct: number | null;
+  transactionDate: string;
+  filingUrl: string | null;
+}
+interface TickerAgg {
+  ticker: string;
+  name: string;
+  sector: string | null;
+  buys: number;
+  sells: number;
+  buyValue: number;
+  sellValue: number;
+  totalValue: number;
+  trades: number;
+}
+interface Profile {
+  name: string;
+  roles: string[];
+  primaryCompany: { ticker: string | null; name: string } | null;
+  stats: {
+    totalTrades: number;
+    buyCount: number;
+    sellCount: number;
+    totalBought: number;
+    totalSold: number;
+    distinctCompanies: number;
+    firstTraded: string;
+    lastTraded: string;
+    winRate: number | null;
+    scoredBuys: number;
+    avgBuyReturnPct: number | null;
+  };
+  bestTrade: TradeRow | null;
+  topTickers: TickerAgg[];
+  topSectors: { sector: string; count: number }[];
+  trades: TradeRow[];
+}
+
+export default function InsiderProfilePage({
+  params,
+}: {
+  params: Promise<{ name: string }>;
+}) {
+  const { name } = use(params);
+  const decoded = decodeURIComponent(name);
+  const { data, isLoading } = useSWR<{ profile: Profile | null }>(
+    `${API_BASE}/insiders/profile?name=${encodeURIComponent(decoded)}`,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  const p = data?.profile || null;
+
+  // Buy/sell $ per year from the full trade list (for the volume chart).
+  const volumeByYear = useMemo(() => {
+    const by = new Map<number, { year: number; buyValue: number; sellValue: number }>();
+    for (const t of p?.trades || []) {
+      const y = new Date(t.transactionDate).getUTCFullYear();
+      if (!Number.isFinite(y)) continue;
+      const e = by.get(y) || { year: y, buyValue: 0, sellValue: 0 };
+      if (t.side === "BUY") e.buyValue += Number(t.totalValue) || 0;
+      else e.sellValue += Number(t.totalValue) || 0;
+      by.set(y, e);
+    }
+    return Array.from(by.values()).sort((a, b) => a.year - b.year);
+  }, [p]);
+
+  if (isLoading) {
+    return (
+      <div className="w-full space-y-6">
+        <div className="shimmer rounded-lg h-40" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="shimmer rounded-lg h-24" />
+          ))}
+        </div>
+        <div className="shimmer rounded-lg h-96" />
+      </div>
+    );
+  }
+
+  if (!p) {
+    return (
+      <div className="w-full">
+        <Link href="/insiders" className="text-accent text-sm inline-flex items-center gap-1 mb-6">
+          <ArrowLeft className="h-4 w-4" /> Back to insiders
+        </Link>
+        <div className="card p-12 text-center text-mute">
+          No insider trades found for &ldquo;{decoded}&rdquo;.
+        </div>
+      </div>
+    );
+  }
+
+  const s = p.stats;
+  const netBias =
+    s.totalBought + s.totalSold > 0
+      ? s.totalBought / (s.totalBought + s.totalSold)
+      : 0.5;
+
+  const tickerCols: Column<TickerAgg>[] = [
+    {
+      key: "ticker",
+      label: "Company",
+      render: (r) => (
+        <Link href={`/companies/${r.ticker}`} className="flex items-center gap-2.5 group">
+          <CompanyLogo ticker={r.ticker} name={r.name} size={26} />
+          <span>
+            <span className="font-mono font-bold group-hover:text-accent transition">{r.ticker}</span>
+            <span className="block text-[11px] text-mute truncate max-w-[160px]">{r.name}</span>
+          </span>
+        </Link>
+      ),
+    },
+    { key: "trades", label: "Trades", align: "center", sortValue: (r) => r.trades, render: (r) => r.trades },
+    {
+      key: "activity",
+      label: "Buys / Sells",
+      align: "center",
+      render: (r) => (
+        <span className="font-mono text-[12px]">
+          <span style={{ color: "#10B981" }}>{r.buys}B</span>
+          {" / "}
+          <span style={{ color: "#EF4444" }}>{r.sells}S</span>
+        </span>
+      ),
+    },
+    {
+      key: "totalValue",
+      label: "Total Value",
+      align: "right",
+      sortValue: (r) => r.totalValue,
+      render: (r) => formatCurrency(r.totalValue),
+    },
+  ];
+
+  const tradeCols: Column<TradeRow>[] = [
+    { key: "date", label: "Date", sortValue: (r) => new Date(r.transactionDate).getTime(), render: (r) => formatDate(r.transactionDate) },
+    {
+      key: "ticker",
+      label: "Company",
+      render: (r) =>
+        r.ticker ? (
+          <Link href={`/companies/${r.ticker}`} className="flex items-center gap-2 group">
+            <CompanyLogo ticker={r.ticker} name={r.company} size={22} />
+            <span className="font-mono font-semibold group-hover:text-accent transition">{r.ticker}</span>
+          </Link>
+        ) : (
+          <span className="text-mute">{r.company}</span>
+        ),
+    },
+    {
+      key: "side",
+      label: "Type",
+      align: "center",
+      render: (r) => (
+        <span
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-bold uppercase"
+          style={{
+            background: r.side === "BUY" ? "rgba(16,185,129,0.14)" : "rgba(239,68,68,0.14)",
+            color: r.side === "BUY" ? "#10B981" : "#EF4444",
+          }}
+        >
+          {r.side === "BUY" ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+          {r.side}
+        </span>
+      ),
+    },
+    { key: "shares", label: "Shares", align: "right", sortValue: (r) => r.shares, render: (r) => formatNumber(r.shares) },
+    { key: "price", label: "Price", align: "right", render: (r) => (r.pricePerShare > 0 ? `$${r.pricePerShare.toFixed(2)}` : "—") },
+    { key: "value", label: "Value", align: "right", sortValue: (r) => r.totalValue, render: (r) => formatCurrency(r.totalValue) },
+    {
+      key: "return",
+      label: "Return*",
+      align: "right",
+      sortValue: (r) => r.returnPct ?? -999,
+      render: (r) =>
+        r.returnPct == null ? (
+          <span className="text-faint">—</span>
+        ) : (
+          <span style={{ color: r.returnPct >= 0 ? "#10B981" : "#EF4444" }} className="font-semibold tabular">
+            {r.returnPct >= 0 ? "+" : ""}
+            {r.returnPct.toFixed(1)}%
+          </span>
+        ),
+    },
+  ];
+  // Acceptance rule: never ship an all-empty column — RETURN* only exists
+  // for buys, so sell-only insiders lose the column instead of dashes.
+  const tradeColsVisible = tradeCols.filter(
+    (c) => c.key !== "return" || p.trades.some((t) => t.returnPct != null),
+  );
+
+  return (
+    <div className="w-full space-y-6">
+      <Link href="/insiders" className="text-accent text-[13px] inline-flex items-center gap-1">
+        <ArrowLeft className="h-4 w-4" /> All insiders
+      </Link>
+
+      {/* Header */}
+      <header className="card p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <InsiderPortrait p={p} />
+          <div className="min-w-0">
+            <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight leading-tight">{p.name}</h1>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-mute">
+              {p.roles.map((r) => (
+                <span key={r} className="rounded px-2 py-0.5 font-semibold" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+                  {r}
+                </span>
+              ))}
+              {p.primaryCompany?.ticker && (
+                <span className="inline-flex items-center gap-1">
+                  <Building2 className="h-3.5 w-3.5" />
+                  Primarily{" "}
+                  <Link href={`/companies/${p.primaryCompany.ticker}`} className="font-mono font-semibold text-accent">
+                    {p.primaryCompany.ticker}
+                  </Link>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Buy/sell bias bar */}
+        <div className="mt-5">
+          <div className="flex justify-between text-[11px] font-semibold mb-1">
+            <span style={{ color: "#10B981" }}>{Math.round(netBias * 100)}% buying</span>
+            <span style={{ color: "#EF4444" }}>{Math.round((1 - netBias) * 100)}% selling</span>
+          </div>
+          <div className="h-2 rounded-full overflow-hidden flex" style={{ background: "rgba(239,68,68,0.25)" }}>
+            <div style={{ width: `${netBias * 100}%`, background: "#10B981" }} />
+          </div>
+        </div>
+      </header>
+
+      <PortraitCredit p={p} />
+
+      {/* Who is this insider — AI, grounded in our filing record */}
+      <InsiderBioCard p={p} />
+
+      {/* Stat tiles */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Stat label="Total Trades" value={String(s.totalTrades)} sub={`${s.buyCount} buys · ${s.sellCount} sells`} />
+        <Stat label="Total Bought" value={formatCurrency(s.totalBought)} accent="#10B981" />
+        <Stat label="Total Sold" value={formatCurrency(s.totalSold)} accent="#EF4444" />
+        <Stat label="Companies" value={String(s.distinctCompanies)} />
+        <Stat
+          label="Buy Win Rate"
+          value={s.winRate != null ? `${s.winRate}%` : "—"}
+          sub={s.winRate != null ? `${s.scoredBuys} buys priced` : "insufficient data"}
+        />
+        <Stat
+          label="Avg Buy Return*"
+          value={s.avgBuyReturnPct != null ? `${s.avgBuyReturnPct >= 0 ? "+" : ""}${s.avgBuyReturnPct}%` : "—"}
+          accent={s.avgBuyReturnPct != null ? (s.avgBuyReturnPct >= 0 ? "#10B981" : "#EF4444") : undefined}
+        />
+      </div>
+
+      {/* Best trade + last active */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {p.bestTrade && p.bestTrade.returnPct != null && (
+          <div className="card p-4 lg:col-span-2 flex items-center gap-4">
+            <Trophy className="h-8 w-8 flex-shrink-0" style={{ color: "var(--accent)" }} />
+            <div className="min-w-0">
+              <div className="text-[11px] uppercase tracking-wider text-mute font-bold">Best buy (vs current price)</div>
+              <div className="text-[15px] font-semibold mt-0.5">
+                <span className="font-mono">{p.bestTrade.ticker}</span> — bought{" "}
+                {formatCurrency(p.bestTrade.totalValue)} at ${p.bestTrade.pricePerShare.toFixed(2)},{" "}
+                <span style={{ color: "#10B981" }} className="font-bold">
+                  +{p.bestTrade.returnPct.toFixed(1)}%
+                </span>{" "}
+                since ({formatDate(p.bestTrade.transactionDate)})
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="card p-4 flex items-center gap-3">
+          <TrendingUp className="h-7 w-7 flex-shrink-0 text-accent" />
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-mute font-bold">Active</div>
+            <div className="text-[14px] font-semibold mt-0.5">
+              {formatDate(s.firstTraded)} → {formatDate(s.lastTraded)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Trade volume by year + sector donut (hover any bar/slice for values) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-5">
+        <section>
+          <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Trade Volume by Year</h2>
+          <div className="card p-4">
+            <VolumeByYear data={volumeByYear} />
+            <div className="flex items-center gap-4 mt-2 text-[11px] text-mute">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: "#10B981" }} /> Buy</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: "#EF4444" }} /> Sell</span>
+            </div>
+          </div>
+        </section>
+        <section>
+          <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Top Traded Sectors</h2>
+          <div className="card p-4 h-full flex items-center justify-center">
+            <div className="w-full max-w-[380px]">
+              <SectorDonut data={p.topSectors.map((x) => ({ sector: x.sector, trades: x.count }))} />
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* Most-traded stocks — full width (sector split lives in the donut above) */}
+      <section>
+        <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Most-Traded Stocks</h2>
+        <div className="card overflow-hidden">
+          <DataTable<TickerAgg> rows={p.topTickers} rowKey={(r) => r.ticker} columns={tickerCols} />
+        </div>
+      </section>
+
+      {/* Full trade history */}
+      <section>
+        <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Trade History</h2>
+        <div className="card overflow-hidden">
+          <DataTable<TradeRow>
+            rows={p.trades}
+            rowKey={(r, i) => `${r.ticker}-${r.transactionDate}-${i}`}
+            columns={tradeColsVisible}
+          />
+        </div>
+        <p className="text-[11px] text-faint mt-2">
+          *Return = current share price vs the insider&rsquo;s purchase price (buys only). Not the
+          insider&rsquo;s realized return. Informational only — not investment advice.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+interface InsiderBio {
+  label: string;
+  description: string;
+  /** true when the quick facts below are public-record biography rather than
+   *  "we don't know this filer". */
+  recognised: boolean;
+  entityType: string | null;
+  basedIn: string | null;
+  age: number | null;
+  netWorth: string | null;
+  billionaire: boolean | null;
+  manages: string | null;
+  founded: number | null;
+  majorPositions: string[];
+  kind: string;
+}
+
+/** "About" card: who this filer actually is, in plain English (client
+ *  2026-08-24 — fund or individual, where they are based, age, net worth or
+ *  assets managed, and the companies they hold). The biography half only
+ *  appears for filers the profile could establish from public reporting; for
+ *  the many private filers we simply describe the filing record. Renders
+ *  nothing until the model returns, so the page never shows an empty box. */
+function InsiderBioCard({ p }: { p: Profile }) {
+  const companies = p.topTickers
+    .slice(0, 6)
+    .map((t) => `${t.ticker}|${t.name}`)
+    .join(",");
+  const qs = new URLSearchParams({
+    name: p.name,
+    roles: p.roles.join(","),
+    companies,
+    first: p.stats.firstTraded ?? "",
+    last: p.stats.lastTraded ?? "",
+    buys: String(p.stats.buyCount),
+    sells: String(p.stats.sellCount),
+    bought: String(Math.round(p.stats.totalBought)),
+    sold: String(Math.round(p.stats.totalSold)),
+  });
+  const { data, isLoading } = useSWR<{ bio: InsiderBio | null }>(
+    `${API_BASE}/content/insider-bio?${qs.toString()}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 },
+  );
+
+  if (isLoading) {
+    return (
+      <section className="card p-5">
+        <div className="shimmer h-4 w-40 rounded mb-3" />
+        <div className="shimmer h-3.5 w-full rounded mb-2" />
+        <div className="shimmer h-3.5 w-4/5 rounded" />
+      </section>
+    );
+  }
+  const bio = data?.bio;
+  if (!bio) return null;
+
+  const isEntity = bio.kind === "entity";
+  // Only the facts we actually have — an empty row is worse than a shorter grid.
+  const facts: { label: string; value: string }[] = [
+    { label: "Type", value: bio.entityType || (isEntity ? "Organisation" : "Individual") },
+    ...(bio.basedIn ? [{ label: "Based in", value: bio.basedIn }] : []),
+    ...(bio.age != null ? [{ label: "Age", value: `${bio.age}` }] : []),
+    ...(bio.netWorth
+      ? [{ label: "Net worth", value: bio.netWorth + (bio.billionaire ? " · billionaire" : "") }]
+      : bio.billionaire
+        ? [{ label: "Net worth", value: "Reported billionaire" }]
+        : []),
+    ...(bio.manages ? [{ label: "Manages", value: bio.manages }] : []),
+    ...(bio.founded != null ? [{ label: "Founded", value: `${bio.founded}` }] : []),
+  ];
+
+  return (
+    <section className="card p-5">
+      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+        <span className="text-accent">
+          {isEntity ? <Building2 className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
+        </span>
+        <h2 className="text-[15px] font-bold">About {p.name}</h2>
+        <span
+          className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded"
+          style={{ background: "var(--bg-3)", color: "var(--text-mute)" }}
+        >
+          {isEntity ? "Organisation" : "Individual"}
+        </span>
+        {bio.billionaire && (
+          <span
+            className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded"
+            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+          >
+            Billionaire
+          </span>
+        )}
+      </div>
+      {bio.label && (
+        <p className="text-[12.5px] font-semibold mb-2" style={{ color: "var(--text-mute)" }}>
+          {bio.label}
+        </p>
+      )}
+      <p className="text-[14px] leading-relaxed" style={{ color: "var(--text-soft)" }}>
+        {bio.description}
+      </p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
+        {facts.map((f) => (
+          <div
+            key={f.label}
+            className="rounded-lg px-3 py-2"
+            style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+          >
+            <div className="text-[10px] uppercase tracking-wider font-bold text-mute">{f.label}</div>
+            <div className="text-[13.5px] font-semibold mt-0.5" style={{ color: "var(--text)" }}>
+              {f.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {bio.majorPositions.length > 0 && (
+        <div className="mt-4">
+          <div className="text-[10px] uppercase tracking-wider font-bold text-mute mb-1.5">
+            Major positions
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {bio.majorPositions.map((pos) => {
+              // "Company Name (TICKER)" → link the ticker to its stock page.
+              const m = pos.match(/\(([A-Z][A-Z0-9.\-]{0,9})\)\s*$/);
+              const chip = (
+                <span
+                  className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[12px] font-semibold"
+                  style={{ background: "var(--bg-3)", color: "var(--text-soft)" }}
+                >
+                  {pos}
+                </span>
+              );
+              return m ? (
+                <Link key={pos} href={`/companies/${m[1]}`} className="hover:opacity-80">
+                  {chip}
+                </Link>
+              ) : (
+                <span key={pos}>{chip}</span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <p className="text-[10.5px] mt-3" style={{ color: "var(--text-faint)" }}>
+        {bio.recognised
+          ? "Roles, companies and filing figures come from this filer’s SEC Form 4 record. Location, age, net worth and assets managed are AI-summarised from public reporting and are approximate."
+          : "AI-written from this filer’s SEC Form 4 record. No public biography was available for this filer, so only the filing record is described."}
+      </p>
+    </section>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  accent?: string;
+}) {
+  return (
+    <div className="card p-3.5">
+      <div className="text-[10.5px] uppercase tracking-wider text-mute font-bold">{label}</div>
+      <div className="text-[20px] font-bold tracking-tight mt-1 tabular" style={accent ? { color: accent } : undefined}>
+        {value}
+      </div>
+      {sub && <div className="text-[10.5px] text-faint mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+interface Portrait {
+  url: string;
+  source: string;
+  license: string | null;
+  credit: string | null;
+  subject: string;
+}
+
+/** Portrait lookup shared by the header image and its credit line. The
+ *  backend resolves it from Wikipedia (verified against the filer's
+ *  companies) or a hand-sourced press photo; null for the many private filers. */
+function usePortrait(p: Profile) {
+  const companies = p.topTickers
+    .slice(0, 6)
+    .map((t) => `${t.ticker}|${t.name}`)
+    .join(",");
+  const qs = new URLSearchParams({ name: p.name, companies });
+  return useSWR<{ portrait: Portrait | null }>(
+    `${API_BASE}/content/insider-portrait?${qs.toString()}`,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 },
+  );
+}
+
+/** Header avatar: the insider's photo when we have one (client 2026-08-28),
+ *  initials otherwise — never a broken image. */
+function InsiderPortrait({ p }: { p: Profile }) {
+  const { data } = usePortrait(p);
+  const [broken, setBroken] = useState(false);
+  const url = data?.portrait?.url;
+  if (url && !broken) {
+    return (
+      <img
+        src={url}
+        alt={p.name}
+        width={88}
+        height={88}
+        onError={() => setBroken(true)}
+        className="rounded-full flex-shrink-0 object-cover"
+        style={{ width: 88, height: 88, border: "2px solid var(--accent)", background: "var(--bg-2)" }}
+      />
+    );
+  }
+  return (
+    <div
+      className="flex items-center justify-center rounded-full flex-shrink-0 text-[22px] font-bold"
+      style={{ width: 64, height: 64, background: "var(--accent-soft)", color: "var(--accent)" }}
+    >
+      {initials(p.name)}
+    </div>
+  );
+}
+
+/** Attribution for the header photo — required by the CC licences the
+ *  Wikipedia images carry, and fair to the companies whose press photos we use. */
+function PortraitCredit({ p }: { p: Profile }) {
+  const { data } = usePortrait(p);
+  const pt = data?.portrait;
+  if (!pt) return null;
+  const parts = [`Photo: ${pt.source}`, pt.credit, pt.license].filter(Boolean);
+  return (
+    <p className="text-[11px] -mt-4" style={{ color: "var(--text-mute)" }}>
+      {parts.join(" · ")}
+    </p>
+  );
+}
+
+function initials(name: string): string {
+  const parts = name.replace(/[^A-Za-z ]/g, "").trim().split(/\s+/);
+  if (!parts.length) return "?";
+  return (parts[0][0] + (parts[parts.length - 1][0] || "")).toUpperCase();
+}

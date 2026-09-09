@@ -1,16 +1,22 @@
-"use client";
-import { TrendingUp } from "lucide-react";
-import { FilteredNewsPage } from "@/components/news/FilteredNewsPage";
+import PageClient from "./PageClient";
+import { SwrFallback } from "@/components/SwrFallback";
+import { ssrFallback } from "@/lib/ssr/prefetch";
 
-export default function MarketsPage() {
+/**
+ * Server shell for this route (2026-09-09, site-wide SSR pass).
+ *
+ * The page itself is unchanged — it now lives in PageClient.tsx. This wrapper
+ * runs on the server, prefetches the SWR keys the client tree requests on
+ * first render (lib/ssr/manifest.json, recorded per route) and seeds them
+ * through <SwrFallback>, so the content is in the HTML a crawler receives
+ * instead of arriving only after hydration. Data the server cannot fetch is
+ * skipped and loads on the client exactly as before.
+ */
+export default async function Page() {
+  const fallback = await ssrFallback('markets');
   return (
-    <FilteredNewsPage
-      title="Markets"
-      subtitle="Equity-market headlines — exchanges, trading, market structure, and enforcement actions that move stocks."
-      iconLabel="Markets"
-      icon={<TrendingUp className="h-4 w-4" />}
-      defaultCategory="Market"
-      allowCategorySwitch={false}
-    />
+    <SwrFallback fallback={fallback}>
+      <PageClient />
+    </SwrFallback>
   );
 }

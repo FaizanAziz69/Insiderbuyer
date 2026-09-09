@@ -1,59 +1,22 @@
-"use client";
-import { use } from "react";
-import useSWR from "swr";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { API_BASE, fetcher } from "@/lib/api";
-import { CompanyLogo } from "@/components/CompanyLogo";
-import { PriceChart } from "@/components/PriceChart";
+import PageClient from "./PageClient";
+import { SwrFallback } from "@/components/SwrFallback";
+import { ssrFallback } from "@/lib/ssr/prefetch";
 
-/** Standalone full-page price chart (stockanalysis.com/chart/SPY style):
- *  the profile header's "Full Chart" button lands here. */
-export default function FullChartPage({
-  params,
-}: {
-  params: Promise<{ ticker: string }>;
-}) {
-  const { ticker } = use(params);
-  const sym = decodeURIComponent(ticker).toUpperCase();
-
-  const { data } = useSWR<{
-    stats: { symbol: string; name: string | null; exchange?: string | null } | null;
-  }>(`${API_BASE}/market-stats/stats?symbol=${encodeURIComponent(sym)}`, fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 5 * 60_000,
-  });
-  const name = data?.stats?.name || null;
-
+/**
+ * Server shell for this route (2026-09-09, site-wide SSR pass).
+ *
+ * The page itself is unchanged — it now lives in PageClient.tsx. This wrapper
+ * runs on the server, prefetches the SWR keys the client tree requests on
+ * first render (lib/ssr/manifest.json, recorded per route) and seeds them
+ * through <SwrFallback>, so the content is in the HTML a crawler receives
+ * instead of arriving only after hydration. Data the server cannot fetch is
+ * skipped and loads on the client exactly as before.
+ */
+export default async function Page(props: { params: Promise<{ ticker: string }> }) {
+  const fallback = await ssrFallback('chart/[ticker]', await props.params);
   return (
-    <div className="w-full">
-      <Link
-        href={`/companies/${encodeURIComponent(sym)}`}
-        className="inline-flex items-center gap-1.5 text-xs text-mute hover:text-accent transition mb-5"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        Back to {sym} profile
-      </Link>
-
-      <div className="flex items-center gap-3 mb-4">
-        <CompanyLogo ticker={sym} name={name || sym} size={36} />
-        <div>
-          <h1 className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-tight">
-            {sym} Chart
-          </h1>
-          {name && (
-            <div className="text-mute text-[13px] font-medium">{name}</div>
-          )}
-        </div>
-      </div>
-
-      <PriceChart ticker={sym} height={480} />
-
-      <p className="text-[12px] text-mute mt-4">
-        Interactive price history for {name || sym}. Hover for exact prices;
-        switch timeframes above the chart. Data refreshes throughout the
-        trading day.
-      </p>
-    </div>
+    <SwrFallback fallback={fallback}>
+      <PageClient params={props.params} />
+    </SwrFallback>
   );
 }

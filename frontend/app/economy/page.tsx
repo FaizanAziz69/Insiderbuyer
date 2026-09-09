@@ -1,16 +1,22 @@
-"use client";
-import { LineChart } from "lucide-react";
-import { FilteredNewsPage } from "@/components/news/FilteredNewsPage";
+import PageClient from "./PageClient";
+import { SwrFallback } from "@/components/SwrFallback";
+import { ssrFallback } from "@/lib/ssr/prefetch";
 
-export default function EconomyPage() {
+/**
+ * Server shell for this route (2026-09-09, site-wide SSR pass).
+ *
+ * The page itself is unchanged — it now lives in PageClient.tsx. This wrapper
+ * runs on the server, prefetches the SWR keys the client tree requests on
+ * first render (lib/ssr/manifest.json, recorded per route) and seeds them
+ * through <SwrFallback>, so the content is in the HTML a crawler receives
+ * instead of arriving only after hydration. Data the server cannot fetch is
+ * skipped and loads on the client exactly as before.
+ */
+export default async function Page() {
+  const fallback = await ssrFallback('economy');
   return (
-    <FilteredNewsPage
-      title="Economy"
-      subtitle="Macro coverage from the Federal Reserve, U.S. Treasury, Bank of Canada, and Statistics Canada. Rates, monetary policy, employment, and economic indicators."
-      iconLabel="Economy"
-      icon={<LineChart className="h-4 w-4" />}
-      defaultCategory="Economy"
-      allowCategorySwitch={false}
-    />
+    <SwrFallback fallback={fallback}>
+      <PageClient />
+    </SwrFallback>
   );
 }

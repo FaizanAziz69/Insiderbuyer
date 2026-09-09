@@ -1,14 +1,22 @@
-"use client";
-import { TrendingDown } from "lucide-react";
-import { MarketDataTable } from "@/components/market-data/MarketDataTable";
+import PageClient from "./PageClient";
+import { SwrFallback } from "@/components/SwrFallback";
+import { ssrFallback } from "@/lib/ssr/prefetch";
 
-export default function TopLosersPage() {
+/**
+ * Server shell for this route (2026-09-09, site-wide SSR pass).
+ *
+ * The page itself is unchanged — it now lives in PageClient.tsx. This wrapper
+ * runs on the server, prefetches the SWR keys the client tree requests on
+ * first render (lib/ssr/manifest.json, recorded per route) and seeds them
+ * through <SwrFallback>, so the content is in the HTML a crawler receives
+ * instead of arriving only after hydration. Data the server cannot fetch is
+ * skipped and loads on the client exactly as before.
+ */
+export default async function Page() {
+  const fallback = await ssrFallback('market-data/top-losers');
   return (
-    <MarketDataTable
-      endpoint="top-losers"
-      title="Today's Top Losers"
-      blurb="Every U.S. stock down 10% or more today. When insiders step in on sharp declines, that's often the strongest contrarian signal in the Insider Score scoring system."
-      Icon={TrendingDown}
-    />
+    <SwrFallback fallback={fallback}>
+      <PageClient />
+    </SwrFallback>
   );
 }
