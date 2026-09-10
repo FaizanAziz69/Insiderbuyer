@@ -44,27 +44,13 @@ export function ResearchModule() {
           Harvard Business School research found that insiders&rsquo; opportunistic trades beat the market by{" "}
           <span className="biv-accent">82 basis points a month</span>.
         </p>
-        {/* The action plan (§2) asks for the Harvard Business School Research
-            "logo" here as the official source badge. Naming the school as the
-            source is fair; reproducing its mark is not — the shield and
-            wordmark are registered trademarks and Harvard's policy bars uses
-            that imply endorsement, which is exactly how a logo used as an
-            "official badge" on a paid sales page reads. This page's own fine
-            print says the opposite ("not affiliated with or endorsed by
-            Harvard University"), so a logo would contradict it. The oversized
-            cream serif "Harvard" that used to sit here was itself a wordmark
-            imitation; this is a plain citation badge instead — same job, no
-            mark. Drop in a real asset here if HBS ever licenses one. */}
-        <div className="biv-research-badge">
-          <span className="biv-research-badge-label">Source</span>
-          <span className="biv-research-badge-name">Harvard Business School research</span>
-          <span className="biv-research-badge-meta">
-            Cohen, Malloy &amp; Pomorski &middot; <em>The Journal of Finance</em>, 2012
-          </span>
+        <div className="biv-research-mark biv-research-mark-under" aria-hidden="true">
+          <span className="biv-research-serif">Harvard</span>
+          <span className="biv-research-sub">Business School research</span>
         </div>
         <p className="biv-research-cite">
-          “Decoding Inside Information,” <em>The Journal of Finance</em> 67(3). Historical averages, not a
-          forecast. Insider Buying is not affiliated with or endorsed by Harvard University.
+          Cohen, Malloy and Pomorski, “Decoding Inside Information,” <em>The Journal of Finance</em> 67(3), 2012.
+          Historical averages, not a forecast. Insider Buying is not affiliated with or endorsed by Harvard University.
         </p>
       </div>
     </section>
@@ -75,20 +61,8 @@ export const RESEARCH_CSS = `
 .biv-research-wrap { padding-top: 8px !important; }
 .biv-research.biv-research-one { display: grid; grid-template-columns: 1fr; gap: 18px; justify-items: center; text-align: center; max-width: 980px; margin: 36px auto 0; }
 .biv-research-one .biv-research-finding { font-size: clamp(22px, 2.4vw, 32px); max-width: 860px; }
-.biv-research-badge {
-  display: grid; justify-items: center; gap: 4px; text-align: center;
-  border: 1px solid var(--panel-line-c); border-radius: 14px;
-  padding: 14px 22px; background: rgba(255,255,255,0.03);
-}
-.biv-research-badge-label {
-  font-size: 10px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint);
-}
-.biv-research-badge-name {
-  font-family: Georgia, "Times New Roman", "Iowan Old Style", serif; font-weight: 700;
-  font-size: clamp(19px, 1.9vw, 24px); letter-spacing: -0.01em; line-height: 1.15; color: var(--ink);
-}
-.biv-research-badge-meta { font-size: 12.5px; color: var(--dim); }
-:root[data-theme="light"] .biv-research-badge { background: rgba(14,31,53,0.03); }
+.biv-research-mark-under { border-right: 0 !important; padding-right: 0 !important; justify-items: center !important; gap: 2px !important; }
+.biv-research-one .biv-research-serif { font-size: clamp(40px, 4vw, 56px); }
 .biv-research-one .biv-research-cite { margin-top: 4px; text-align: center; max-width: 760px; }
 .biv-research {
   display: grid; grid-template-columns: 300px 1fr; gap: 40px; align-items: center;
