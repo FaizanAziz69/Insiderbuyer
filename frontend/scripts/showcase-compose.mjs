@@ -195,7 +195,7 @@ process.on('beforeExit', () => { if (Object.keys(MOBILE_DIMS).length) console.lo
   const png = await render("insider-scores", "green", [
     { buf: back.buf, left: 560, top: 0 },
     { buf: tail.buf, left: 1560, top: 345 },
-    { buf: dial, left: 0, top: 700 },
+    { buf: dial, left: 0, top: THEME === "dark" ? 800 : 700 },
   ]);
   void png;
   {
@@ -234,9 +234,9 @@ process.on('beforeExit', () => { if (Object.keys(MOBILE_DIMS).length) console.lo
   // complaint this pass exists to fix.
   const ranked = await frame("ranked-insiders.png", 1150, { pad: 70, trimBottom: 30, padBottom: 20 });
   const png = await render("top-analysts-insiders", "gold", [
-    { buf: an.buf, left: 0, top: 40 },
-    { buf: ranked.buf, left: 60, top: 545 },
-    { buf: ins.buf, left: 1520, top: 250 },
+    { buf: an.buf, left: 0, top: THEME === "dark" ? 0 : 40 },
+    { buf: ranked.buf, left: 60, top: THEME === "dark" ? 748 : 545 },
+    { buf: ins.buf, left: 1520, top: THEME === "dark" ? 300 : 250 },
   ]);
   void png;
   {
