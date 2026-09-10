@@ -388,7 +388,6 @@
     "/api/backend/insiders/profile?name=WARREN%20KELCY%20L",
     "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
     "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
-    "/api/backend/subscribers/count",
     "/api/backend/trades?side=buy&limit=40"
   ],
   "press": [
