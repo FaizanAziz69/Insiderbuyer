@@ -52,9 +52,9 @@ export const SHOWCASE: ShowcaseVisual[] = [
       "Email alerts sent as each filing is processed",
     ],
     file: "top-insider-buys",
-    alt: "Top Insider Buys feed with graded rows and an alert notification overlapping the frame",
+    alt: "Top Insider Buys feed with each open-market purchase graded A+ to F",
     aspect: 16 / 10,
-    mobileAspect: 1.1497,
+    mobileAspect: 1.147,
   },
   {
     id: "top-analysts-insiders",
@@ -69,24 +69,41 @@ export const SHOWCASE: ShowcaseVisual[] = [
     file: "top-analysts-insiders",
     alt: "Analyst leaderboard beside insider track-record cards",
     aspect: 16 / 10,
-    mobileAspect: 0.8594,
+    mobileAspect: 0.8458,
   },
 ];
 
-// "-embed" = the transparent renders. New names on purpose: /sales is cached
-// for 30 days, so a replaced file under the old name never reaches returning
-// browsers.
-const src1x = (f: string) => `/sales/showcase/${f}-e3.webp`;
-const src2x = (f: string) => `/sales/showcase/${f}-e3@2x.webp`;
-const srcMobile = (f: string) => `/sales/showcase/${f}-e3-mobile.webp`;
+// New names on purpose: /sales is cached for 30 days, so a replaced file under
+// the old name never reaches returning browsers. Bumped e3 -> e4 on 2026-09-10
+// when the visuals were recomposed from fresh captures (push-notification mock
+// removed, narrower captures so the type is legible). Keep bumping this suffix
+// — and the matching one in scripts/showcase-compose.mjs — on every recompose.
+//
+// Each visual exists as a light and a dark composition; `-dark` is the set
+// composed from dark-theme captures (Faizan, 2026-09-10 — a white screenshot
+// on the dark page reads as broken). Recompose BOTH when either changes:
+//   node scripts/showcase-compose.mjs <caps>       # light
+//   node scripts/showcase-compose.mjs <caps-dark> dark
+const src1x = (f: string, t: string) => `/sales/showcase/${f}-e4${t}.webp`;
+const src2x = (f: string, t: string) => `/sales/showcase/${f}-e4${t}@2x.webp`;
+const srcMobile = (f: string, t: string) => `/sales/showcase/${f}-e4${t}-mobile.webp`;
 
-export function ProductShowcase({ visuals = SHOWCASE }: { visuals?: ShowcaseVisual[] }) {
+export function ProductShowcase({
+  visuals = SHOWCASE,
+  theme = "dark",
+}: {
+  visuals?: ShowcaseVisual[];
+  /** Which composition set to serve. Defaults to dark: the page's .biv scope is
+   *  dark-first, so that is what renders before a light theme is declared. */
+  theme?: "light" | "dark";
+}) {
+  const t = theme === "dark" ? "-dark" : "";
   // No lightbox and no hover lift: George (call, 2026-09-10) — "when I hover
   // over this photo it makes me click on it, I don't want that."
   return (
     <section className="biv-section" id="showcase" aria-labelledby="showcase-h">
       <p className="biv-eyebrow-center biv-accent-text">The product</p>
-      <h2 id="showcase-h" className="biv-h2 biv-center">Built to be read in seconds.</h2>
+      <h2 id="showcase-h" className="biv-h2 biv-center">Get faster insider intelligence.</h2>
       <div className="sc-grid">
         {visuals.map((v, i) => (
           <figure key={v.id} className={`sc-row ${i % 2 ? "sc-row-flip" : ""}`}>
@@ -95,10 +112,10 @@ export function ProductShowcase({ visuals = SHOWCASE }: { visuals?: ShowcaseVisu
               style={{ ["--sc-aspect" as string]: v.aspect, ["--sc-aspect-m" as string]: v.mobileAspect }}
             >
               <picture>
-                <source media="(max-width: 640px)" srcSet={srcMobile(v.file)} type="image/webp" />
-                <source srcSet={`${src2x(v.file)} 2x, ${src1x(v.file)} 1x`} type="image/webp" />
+                <source media="(max-width: 640px)" srcSet={srcMobile(v.file, t)} type="image/webp" />
+                <source srcSet={`${src2x(v.file, t)} 2x, ${src1x(v.file, t)} 1x`} type="image/webp" />
                 <img
-                  src={src2x(v.file)}
+                  src={src2x(v.file, t)}
                   alt={v.alt}
                   loading="lazy"
                   decoding="async"

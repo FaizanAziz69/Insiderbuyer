@@ -13,6 +13,13 @@ import fs from "node:fs";
 
 const CAPS = process.argv[2];
 if (!CAPS) throw new Error("captures dir required");
+// Second arg picks the theme. The layout is identical in both; only the
+// captures and the generated dial card change, so the page can swap whole
+// sets by suffix (Faizan, 2026-09-10: white screenshots on the dark page).
+//   node scripts/showcase-compose.mjs <caps-dir>            -> <name>-e4*.webp
+//   node scripts/showcase-compose.mjs <caps-dark-dir> dark  -> <name>-e4-dark*.webp
+const THEME = (process.argv[3] || "light") === "dark" ? "dark" : "light";
+const SUF = THEME === "dark" ? "-dark" : "";
 const OUT = path.resolve("public/sales/showcase");
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -41,6 +48,14 @@ async function frame(file, w, { radius = 28, pad = 90, trimBottom = 0, padBottom
   // the card ends on whitespace instead of a cut line.
   let img = sharp(path.join(CAPS, file));
   let meta = await img.metadata();
+  // Pad and card fill are SAMPLED from the capture's own top-left pixel rather
+  // than hardcoded white: the dark captures would otherwise get a white border
+  // and white filler rows around them.
+  const { data: px } = await sharp(path.join(CAPS, file))
+    .extract({ left: 2, top: 2, width: 1, height: 1 })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const fill = `rgb(${px[0]},${px[1]},${px[2]})`;
   if (trimBottom) {
     img = img.extract({ left: 0, top: 0, width: meta.width, height: meta.height - trimBottom });
     meta = { ...meta, height: meta.height - trimBottom };
@@ -50,7 +65,7 @@ async function frame(file, w, { radius = 28, pad = 90, trimBottom = 0, padBottom
     // padding must be baked into a buffer before the resize below.
     img = sharp(
       await sharp(await img.png().toBuffer())
-        .extend({ top: padTop, bottom: padBottom, left: 0, right: 0, background: '#ffffff' })
+        .extend({ top: padTop, bottom: padBottom, left: 0, right: 0, background: fill })
         .png()
         .toBuffer(),
     );
@@ -60,7 +75,7 @@ async function frame(file, w, { radius = 28, pad = 90, trimBottom = 0, padBottom
   const content = await img.resize(w, h).png().toBuffer();
   const total = h;
   const mask = Buffer.from(`<svg width="${w}" height="${total}"><rect width="${w}" height="${total}" rx="${radius}" ry="${radius}" fill="#fff"/></svg>`);
-  const framed = await sharp({ create: { width: w, height: total, channels: 4, background: '#ffffff' } })
+  const framed = await sharp({ create: { width: w, height: total, channels: 4, background: fill } })
     .composite([{ input: content, top: 0, left: 0 }])
     .png()
     .toBuffer();
@@ -75,7 +90,12 @@ async function frame(file, w, { radius = 28, pad = 90, trimBottom = 0, padBottom
   return { buf: out, w: w + pad * 2, h: total + pad * 2 };
 }
 
-/** Insider Score dial card (real figure: DKS 93.7 on 2026-09-08). */
+/** Insider Score dial card (real figure: DKS 93.7 on 2026-09-08). Generated
+ *  rather than captured, so its palette has to follow THEME by hand — a light
+ *  card on the dark composition was the most obvious mismatch of the set. */
+const CARD = THEME === "dark"
+  ? { bg: "#131F33", ink: "#F5F7FA", dim: "#9DB0C7", accent: "#20d0ff", track: "#1E2A3D" }
+  : { bg: "#F5F7FA", ink: "#0A1220", dim: "#5D7189", accent: "#005882", track: "#E4E9F0" };
 function scoreCard() {
   const w = 620, h = 560, r = 150, cx = w / 2, cy = 250;
   const pct = 0.937, circ = 2 * Math.PI * r;
@@ -83,37 +103,26 @@ function scoreCard() {
     <defs><filter id="s" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="40" stdDeviation="34" flood-color="#000" flood-opacity="0.6"/></filter>
     <linearGradient id="arc" x1="0" x2="1"><stop offset="0" stop-color="#4CC38A"/><stop offset="1" stop-color="#20d0ff"/></linearGradient></defs>
     <g transform="translate(60,40)" filter="url(#s)">
-      <rect width="${w}" height="${h}" rx="34" fill="#F5F7FA"/>
-      <text x="40" y="58" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#5D7189" letter-spacing="3">INSIDER SCORE</text>
-      <text x="${w - 40}" y="58" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#005882" text-anchor="end">DKS · Dick's Sporting Goods</text>
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#E4E9F0" stroke-width="26"/>
+      <rect width="${w}" height="${h}" rx="34" fill="${CARD.bg}"/>
+      <text x="40" y="58" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="${CARD.dim}" letter-spacing="3">INSIDER SCORE</text>
+      <text x="${w - 40}" y="58" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="${CARD.accent}" text-anchor="end">DKS · Dick's Sporting Goods</text>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${CARD.track}" stroke-width="26"/>
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#arc)" stroke-width="26" stroke-linecap="round" stroke-dasharray="${(circ * pct).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 ${cx} ${cy})"/>
-      <text x="${cx}" y="${cy + 28}" font-family="Helvetica, Arial, sans-serif" font-size="112" font-weight="800" fill="#0A1220" text-anchor="middle" letter-spacing="-4">94</text>
-      <text x="${cx}" y="${cy + 66}" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#5D7189" text-anchor="middle" letter-spacing="2">OUT OF 100</text>
+      <text x="${cx}" y="${cy + 28}" font-family="Helvetica, Arial, sans-serif" font-size="112" font-weight="800" fill="${CARD.ink}" text-anchor="middle" letter-spacing="-4">94</text>
+      <text x="${cx}" y="${cy + 66}" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="${CARD.dim}" text-anchor="middle" letter-spacing="2">OUT OF 100</text>
       <rect x="${cx - 78}" y="${cy + r + 40}" width="156" height="46" rx="23" fill="#3E9B5F"/>
       <text x="${cx}" y="${cy + r + 71}" font-family="Helvetica, Arial, sans-serif" font-size="21" font-weight="800" fill="#fff" text-anchor="middle" letter-spacing="2">▲ BULLISH</text>
-      <text x="40" y="${h - 32}" font-family="Helvetica, Arial, sans-serif" font-size="18" fill="#5D7189">$3.72M bought · 0 sold · open-market Form 4, last 90 days</text>
+      <text x="40" y="${h - 32}" font-family="Helvetica, Arial, sans-serif" font-size="18" fill="${CARD.dim}">$3.72M bought · 0 sold · open-market Form 4, last 90 days</text>
     </g>
   </svg>`);
 }
 
-/** SMS notification card overlapping the buys feed (real filing: ATRA, Sep 4). */
-function smsCard() {
-  const w = 700, h = 200;
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w + 120}" height="${h + 140}">
-    <defs><filter id="s" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="36" stdDeviation="30" flood-color="#000" flood-opacity="0.6"/></filter></defs>
-    <g transform="translate(60,40)" filter="url(#s)">
-      <rect width="${w}" height="${h}" rx="40" fill="#1C1C1E" fill-opacity="0.96"/>
-      <rect x="28" y="34" width="66" height="66" rx="16" fill="#3E9B5F"/>
-      <text x="61" y="79" font-family="Helvetica, Arial, sans-serif" font-size="30" font-weight="800" fill="#fff" text-anchor="middle">IB</text>
-      <text x="118" y="60" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#fff">INSIDER BUYING</text>
-      <text x="${w - 30}" y="60" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="#8E8E93" text-anchor="end">now</text>
-      <text x="118" y="100" font-family="Helvetica, Arial, sans-serif" font-size="25" font-weight="700" fill="#fff">Grade A insider buy · ATRA</text>
-      <text x="118" y="140" font-family="Helvetica, Arial, sans-serif" font-size="22" fill="#D1D1D6">Director bought $999.99K — 104,166 sh @ $9.60</text>
-      <text x="118" y="172" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="#8E8E93">First buy · Stake doubler · Form 4 filed Sep 4</text>
-    </g>
-  </svg>`);
-}
+// The phone-style push notification card ("Grade A insider buy · ATRA") that
+// used to overlap the buys feed is GONE — George (call, 2026-09-10) on the
+// text-message mock: "we don't do that, don't put anything we don't do", and
+// Faizan confirmed the same for this notification on 2026-09-10. The product
+// sends EMAIL alerts, so a mock of a push notification advertised something
+// that does not exist. Do not reintroduce it.
 
 const clear = (w, h) => sharp({ create: { width: w, height: h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } });
 async function render(name, accent, layers) {
@@ -129,8 +138,8 @@ async function render(name, accent, layers) {
     .resize(W, H, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
     .toBuffer();
-  await sharp(png).webp({ quality: 86, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-e3@2x.webp`));
-  await sharp(png).resize(1200, 750).webp({ quality: 84, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-e3.webp`));
+  await sharp(png).webp({ quality: 86, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-e4${SUF}@2x.webp`));
+  await sharp(png).resize(1200, 750).webp({ quality: 84, alphaQuality: 90 }).toFile(path.join(OUT, `${name}-e4${SUF}.webp`));
   return png;
 }
 /** Dedicated PORTRAIT composition for phones (brief §6: "dedicated mobile
@@ -165,25 +174,32 @@ async function mobile(name, accent, layers) {
   const info = await sharp(fitted)
     .extend({ top: 20, bottom: 20, left: 20, right: 20, background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .webp({ quality: 84, alphaQuality: 90 })
-    .toFile(path.join(OUT, `${name}-e3-mobile.webp`));
+    .toFile(path.join(OUT, `${name}-e4${SUF}-mobile.webp`));
   MOBILE_DIMS[name] = { w: info.width, h: info.height, aspect: +(info.width / info.height).toFixed(4) };
 }
 const MOBILE_DIMS = {};
 process.on('beforeExit', () => { if (Object.keys(MOBILE_DIMS).length) console.log('MOBILE_DIMS ' + JSON.stringify(MOBILE_DIMS)); });
 
 // 1. Insider Scores — dial card in front, scored rankings behind, track record at the tail.
+//
+// LAYOUT RULE for every visual below (Faizan, 2026-09-10: "size image ka same
+// lakin andar jo ha bahra takay nazar aaye"): the layers' combined bounding box
+// must come out close to 16:10, because render() trims the transparent margin
+// and then fits that box into the canvas — a box that is much taller or wider
+// than 16:10 gets scaled down to fit, which is what made the type unreadable.
+// Corners are filled by overlapping cards rather than left empty.
 {
-  const back = await frame("scores-list.jpg", 1560, { pad: 90, trimBottom: 20, padBottom: 24 });
-  const tail = await frame("track-record.png", 760, { radius: 30, trimBottom: 40, padBottom: 30 });
+  const back = await frame("scores-list.png", 1700, { pad: 70, padBottom: 24 });
+  const tail = await frame("track-record.png", 700, { radius: 30, pad: 70 });
   const dial = scoreCard();
   const png = await render("insider-scores", "green", [
-    { buf: back.buf, left: 640, top: 40 },
-    { buf: tail.buf, left: 1580, top: 560 },
-    { buf: dial, left: 120, top: 440 },
+    { buf: back.buf, left: 560, top: 0 },
+    { buf: tail.buf, left: 1560, top: 345 },
+    { buf: dial, left: 0, top: 700 },
   ]);
   void png;
   {
-    const list = await frame("scores-list.jpg", 860, { pad: 50, trimBottom: 20, padBottom: 24 });
+    const list = await frame("scores-list.png", 860, { pad: 50, padBottom: 24 });
     const dialM = scoreCard();
     await mobile("insider-scores", "green", [
       { buf: list.buf, left: 0, top: 20 },
@@ -191,60 +207,52 @@ process.on('beforeExit', () => { if (Object.keys(MOBILE_DIMS).length) console.lo
     ]);
   }
 }
-// 2. Top Insider Buys — the graded feed with an SMS alert overlapping the frame.
+// 2. Top Insider Buys — the graded feed, alone in the frame now that the push
+// notification mock is gone. It is the only layer, so it is placed at the
+// origin and left to fill the canvas: the trim step crops the transparent
+// margin and the re-fit scales the feed up to the slot, which is what makes
+// the rows legible.
 {
   const feed = await frame("top-buys.png", 2080, { pad: 90, padBottom: 18, padTop: 6 });
-  const sms = smsCard();
   const png = await render("top-insider-buys", "green", [
-    { buf: feed.buf, left: 120, top: 330 },
-    { buf: sms, left: 1420, top: 90 },
+    { buf: feed.buf, left: 0, top: 0 },
   ]);
   void png;
   {
     const feedM = await frame("top-buys-m.png", 860, { pad: 50, padBottom: 18, padTop: 6 });
-    const smsM = smsCard();
     await mobile("top-insider-buys", "green", [
-      { buf: feedM.buf, left: 0, top: 300 },
-      { buf: smsM, left: 100, top: 40 },
+      { buf: feedM.buf, left: 0, top: 0 },
     ]);
   }
 }
 // 3. Top Analysts / Insiders — analyst leaderboard beside insider track records.
 {
-  const an = await frame("analysts.png", 1720, { pad: 90, trimBottom: 40, padBottom: 18, padTop: 6 });
-  const ins = await frame("track-record.png", 760, { radius: 30, trimBottom: 40, padBottom: 30 });
-  const ranked = await frame("ranked-insiders.png", 1150, { pad: 90, trimBottom: 165, padBottom: 20 });
+  const an = await frame("analysts.png", 1800, { pad: 70, padBottom: 18, padTop: 6 });
+  const ins = await frame("track-record.png", 700, { radius: 30, pad: 70 });
+  // Wider than the other secondary cards on purpose: at 1000 its rows rendered
+  // visibly smaller than the analyst table behind it, which is the exact
+  // complaint this pass exists to fix.
+  const ranked = await frame("ranked-insiders.png", 1150, { pad: 70, trimBottom: 30, padBottom: 20 });
   const png = await render("top-analysts-insiders", "gold", [
-    { buf: an.buf, left: 40, top: 60 },
-    { buf: ranked.buf, left: 260, top: 700 },
-    { buf: ins.buf, left: 1540, top: 520 },
+    { buf: an.buf, left: 0, top: 40 },
+    { buf: ranked.buf, left: 60, top: 545 },
+    { buf: ins.buf, left: 1520, top: 250 },
   ]);
   void png;
   {
-    const anM = await frame("analysts-m.png", 860, { pad: 50, trimBottom: 40, padBottom: 18, padTop: 6 });
-    const insM = await frame("track-record.png", 680, { radius: 30, trimBottom: 40, padBottom: 30 });
+    const anM = await frame("analysts-m.png", 860, { pad: 50, padBottom: 18, padTop: 6 });
+    const insM = await frame("track-record.png", 680, { radius: 30, pad: 50 });
     await mobile("top-analysts-insiders", "gold", [
       { buf: anM.buf, left: 0, top: 30 },
       { buf: insM.buf, left: 90, top: 380 },
     ]);
   }
 }
-// 4. Stock Visualizer Suite — bubbles layered with congress bubbles.
-{
-  const bub = await frame("bubbles.png", 1900, { pad: 90, trimBottom: 75 });
-  const con = await frame("congress.png", 1050, { pad: 90, trimBottom: 80 });
-  const png = await render("stock-visualizer", "green", [
-    { buf: bub.buf, left: 60, top: 40 },
-    { buf: con.buf, left: 1290, top: 880 },
-  ]);
-  void png;
-  {
-    const bubM = await frame("bubbles.png", 860, { pad: 50, trimBottom: 75 });
-    const conM = await frame("congress.png", 600, { pad: 50, trimBottom: 80 });
-    await mobile("stock-visualizer", "green", [
-      { buf: bubM.buf, left: 0, top: 60 },
-      { buf: conM.buf, left: 240, top: 560 },
-    ]);
-  }
-}
+// The fourth visual (Stock Visualizer Suite — bubbles over congress bubbles)
+// is gone: George had the stock-visualizer item removed from the section on
+// 2026-09-10, so SHOWCASE in components/premium/ProductShowcase.tsx carries
+// three entries and the layout is documented to "tolerate two or four". The
+// stock-visualizer files were deleted from public/sales/showcase in the same
+// pass, since nothing rendered them. Re-add a block here if it comes back —
+// it needs bubbles.png and congress.png captures, which no longer exist.
 console.log("done", fs.readdirSync(OUT));
