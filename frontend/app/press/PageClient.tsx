@@ -596,7 +596,7 @@ const CSS = `
 .b2b3-collage:hover .b2b3-shot { transform: none; }
 .b2b3-shot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(115deg, rgba(255,255,255,.22), transparent 38%); pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .b2b3-shot { transform: none; transition: none; } }
-.b2b3-outlet small { display: block; font-size: 10.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted); margin-top: 2px; }
+.b2b3-outlet small { display: block; font-size: 10.5px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--navy); margin-top: 2px; }
 .b2b3-shot img { display: block; width: 100%; height: auto; }
 /* logos + strip */
 .b2b3-logos { padding: 26px 0 10px; border-top: 1px solid var(--line); }
@@ -604,8 +604,12 @@ const CSS = `
 .b2b3-marquee { overflow: hidden; }
 .b2b3-marquee-track { display: flex; justify-content: center; gap: 44px; flex-wrap: wrap; filter: grayscale(1); }
 .b2b3-dup { display: none; }
-.b2b3-outlet { font-family: var(--b2b-display), sans-serif; font-weight: 800; font-size: 20px; color: #7D8A9C; white-space: nowrap; }
-.b2b3-outlet-hot { color: var(--navy); font-size: 24px; filter: none; }
+/* Every entry on the GET SEEN ON wall carries the SAME colour as the
+   InsiderBuying.com entry (Faizan, 2026-09-10) — they used to fade to grey,
+   which read as "unconfirmed partners" when in fact all of these are our
+   own properties. The size step is what marks the anchor now. */
+.b2b3-outlet { font-family: var(--b2b-display), sans-serif; font-weight: 800; font-size: 20px; color: var(--navy); white-space: nowrap; }
+.b2b3-outlet-hot { font-size: 24px; filter: none; }
 .b2b3-strip { padding: 14px 0 6px; }
 .b2b3-strip-in { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .b2b3-chip { display: inline-flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 13px; }
