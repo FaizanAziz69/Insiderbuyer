@@ -36,7 +36,6 @@ import { ResearchModule, RESEARCH_CSS } from "@/components/premium/ResearchModul
 import { HowItWorks, HOW_CSS } from "@/components/premium/HowItWorks";
 import { ProductShowcase, SHOWCASE_CSS } from "@/components/premium/ProductShowcase";
 import { SubscribeQA, SUBSCRIBE_QA_CSS } from "@/components/premium/SubscribeQA";
-import { investorsLine } from "@/lib/site-stats";
 import { getCheckoutAttribution } from "@/lib/analytics";
 import { ComplianceFooter } from "@/components/ComplianceFooter";
 
@@ -397,13 +396,6 @@ export default function PremiumPage() {
   // Brief v4 §3.4 / §7: the social-proof line is wired to the real subscriber
   // count (rounded down to the hundred) behind a config floor — see
   // lib/site-stats.ts for why the floor exists.
-  const { data: subCount } = useSWR<{ exact: number; roundedDown: number }>(
-    `${API_BASE}/subscribers/count`,
-    fetcher,
-    { revalidateOnFocus: false },
-  );
-  const investors = investorsLine(subCount?.roundedDown);
-
   // Step 3 of the funnel: log the sales-page view with its entry point, so
   // /join → /premium → purchase can be read as one conversion path.
   useEffect(() => {
@@ -787,7 +779,6 @@ export default function PremiumPage() {
 
       {/* ------------------------------------------------------ final cta */}
       <section className="biv-final">
-        <p className="biv-eyebrow-center biv-accent-text">Join {investors} professional investors</p>
         <h2 className="biv-h2">Get faster insider intelligence.</h2>
         <button
           type="button"
