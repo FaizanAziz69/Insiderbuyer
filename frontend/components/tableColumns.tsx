@@ -12,9 +12,13 @@ export function rankColumn<T>(opts?: { countdownFrom?: number }): Column<T> {
     label: "#",
     sortable: false,
     className: "w-12",
-    render: (_r, i) => (
+    // `total` is the post-filter row count handed over by DataTable; countdown
+    // tables have to use it or the ranks keep counting from the unfiltered
+    // total and never renumber when a filter is applied. `countdownFrom` stays
+    // as the fallback for tables rendered outside DataTable.
+    render: (_r, i, total) => (
       <span className="tabular text-[15px] font-bold" style={{ color: "var(--text)" }}>
-        {opts?.countdownFrom ? `#${opts.countdownFrom - i}` : i + 1}
+        {opts?.countdownFrom ? `#${(total ?? opts.countdownFrom) - i}` : i + 1}
       </span>
     ),
   };

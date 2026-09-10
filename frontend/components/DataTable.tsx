@@ -46,8 +46,10 @@ export interface Column<T> {
   filterLabel?: (row: T) => string;
   /** Value used for sorting AND filtering. */
   sortValue?: (row: T) => number | string | null | undefined;
-  /** Cell renderer. */
-  render: (row: T, index: number) => React.ReactNode;
+  /** Cell renderer. `total` is the row count AFTER the active filters, which
+   *  a countdown rank column needs — the page cannot know it, because the
+   *  Filters panel lives in here. */
+  render: (row: T, index: number, total?: number) => React.ReactNode;
   /** Optional fixed width utility class (e.g. "w-12"). */
   className?: string;
   /** Paygated column — shows a small "PRO" pill in the header. */
@@ -626,7 +628,7 @@ export function DataTable<T>({
             ) : (
               pageRows.map((row, i) => (
                 <tr
-                  key={rowKey(row, safePage * PAGE_SIZE + i)}
+                  key={rowKey(row, safePage * perPage + i)}
                   className={rowClassName}
                   style={
                     locked && teaserRow !== undefined && row === teaserRow
@@ -640,7 +642,7 @@ export function DataTable<T>({
                       className={`${alignClass[c.align ?? "left"]} ${c.className ?? ""}`}
                       style={boundaryStyle(c.key)}
                     >
-                      {c.render(row, safePage * PAGE_SIZE + i)}
+                      {c.render(row, safePage * perPage + i, sorted.length)}
                     </td>
                   ))}
                 </tr>
