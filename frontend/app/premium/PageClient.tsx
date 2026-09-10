@@ -555,6 +555,13 @@ export default function PremiumPage() {
               <span className="biv-amt">$450K</span>
             </div>
             <div className="biv-taperow">
+              <b className="biv-chip">A+</b>
+              <div className="biv-tapewho">
+                <b>CFO buy</b>
+              </div>
+              <span className="biv-amt">$820K</span>
+            </div>
+            <div className="biv-taperow">
               <b className="biv-chip">A-</b>
               <div className="biv-tapewho">
                 <b>Director buy</b>
@@ -594,7 +601,6 @@ export default function PremiumPage() {
                 ? `Get Annual Access — ${priceOf("annual")}/year`
                 : "Get Annual Access"}
         </button>
-        <p className="biv-fine biv-center">Join {investors} investors getting faster insider intelligence</p>
       </section>
 
       {/* -------------------------------------------------------- marquee */}
@@ -644,7 +650,6 @@ export default function PremiumPage() {
       <section className="biv-section" id="pricing">
         <p className="biv-eyebrow-center biv-accent-text">Pricing</p>
         <h2 className="biv-h2 biv-center">Become an insider.</h2>
-        <p className="biv-fine biv-center biv-proof-line">Join {investors} investors getting faster insider intelligence</p>
         <div className="biv-plans">
           {/* Featured (Annual) card sits in the CENTER column (Faizan, 2026-09-10). */}
           {[
@@ -667,7 +672,7 @@ export default function PremiumPage() {
                   : p.cta;
             return (
               <div key={p.name} className={`biv-plan ${p.featured ? "biv-plan-hot" : ""}`}>
-                {p.featured && <div className="biv-plan-badge">Best value</div>}
+                {p.featured && <div className="biv-plan-badge">Discounted price locked in</div>}
                 <h3>{p.name}</h3>
                 <div className="biv-price">
                   {/* Dash until the live Stripe amount lands — better than
@@ -1058,10 +1063,14 @@ const CSS = `
   padding: 26px; position: relative;
 }
 .biv-plan-hot { border-color: rgba(76,195,138,0.55); box-shadow: 0 0 0 1px rgba(76,195,138,0.35), 0 24px 60px rgba(0,0,0,0.35); }
+/* The label is a sentence now ("Discounted price locked in", action plan §5)
+   rather than the two words it was, so it has to stay on one line — wrapped,
+   an absolutely positioned pill overlaps the card's own heading. */
 .biv-plan-badge {
   position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
   background: var(--brand); color: var(--brand-ink); font-size: 11.5px; font-weight: 800;
-  letter-spacing: 1px; text-transform: uppercase; border-radius: 999px; padding: 5px 14px;
+  letter-spacing: 0.6px; text-transform: uppercase; border-radius: 999px; padding: 5px 14px;
+  white-space: nowrap;
 }
 .biv-plan h3 { margin: 0; font-size: 18px; font-weight: 700; color: var(--dim); }
 .biv-price { font-family: var(--font-heading), sans-serif; font-weight: 900; font-size: 44px; margin-top: 10px; }
@@ -1146,7 +1155,7 @@ const CSS = `
   .biv section { padding: 44px 14px; }
   .biv-hero-art { min-height: 0; display: grid; gap: 14px; }
   .biv-panel { position: static; width: 100%; animation: none; }
-  .biv-panel-tape .biv-taperow:nth-of-type(3) { display: none; }
+  .biv-panel-tape .biv-taperow:nth-of-type(n+3) { display: none; }
   .biv-chart { height: 104px; }
   .biv-btn { padding: 12px 18px; font-size: 14px; }
   .biv-mcard { width: 205px; min-height: 255px; }

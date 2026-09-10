@@ -9,6 +9,14 @@
  * than shrunken desktop renders"). Below-the-fold images lazy-load with a
  * fixed aspect box, so nothing shifts as they arrive; click opens a lightbox.
  * The layout tolerates two or four visuals (§4 "must tolerate two or four").
+ *
+ * TWO entries now. The action plan (insiderbuying_website_changes.pdf §4,
+ * "Remove Unneeded Sections") names two copy blocks to delete — "See the whole
+ * tape at once" and "Best Buy is graded as they file" — and two headings to
+ * keep, which are the two below. The stock-visualizer item went with the first
+ * of those on 2026-09-10; top-insider-buys goes with the second. Its composed
+ * assets are still in /public/sales/showcase if the block is ever approved and
+ * comes back, and the feature itself still has a card in the benefits grid.
  */
 export interface ShowcaseVisual {
   id: string;
@@ -40,21 +48,6 @@ export const SHOWCASE: ShowcaseVisual[] = [
     alt: "Insider Score panel in front of a ranked list of scored insiders with roles and win rates",
     aspect: 16 / 10,
     mobileAspect: 0.8688,
-  },
-  {
-    id: "top-insider-buys",
-    title: "The best buys, graded, as they file.",
-    caption:
-      "Top Insider Buys grades every open-market purchase A+ to F the moment the Form 4 lands, and the email alert reaches you before the market reads it.",
-    bullets: [
-      "A+ to F grade on size, stake growth, buyer record and timing",
-      "Cluster, CEO and first-buy signals flagged on each row",
-      "Email alerts sent as each filing is processed",
-    ],
-    file: "top-insider-buys",
-    alt: "Top Insider Buys feed with each open-market purchase graded A+ to F",
-    aspect: 16 / 10,
-    mobileAspect: 1.147,
   },
   {
     id: "top-analysts-insiders",
