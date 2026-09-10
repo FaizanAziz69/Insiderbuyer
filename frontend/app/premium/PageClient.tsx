@@ -35,6 +35,7 @@ import { InsiderCard, INSIDER_CARD_CSS } from "@/components/premium/InsiderCard"
 import { ResearchModule, RESEARCH_CSS } from "@/components/premium/ResearchModule";
 import { HowItWorks, HOW_CSS } from "@/components/premium/HowItWorks";
 import { ProductShowcase, SHOWCASE_CSS } from "@/components/premium/ProductShowcase";
+import { SubscribeQA, SUBSCRIBE_QA_CSS } from "@/components/premium/SubscribeQA";
 import { investorsLine } from "@/lib/site-stats";
 import { getCheckoutAttribution } from "@/lib/analytics";
 import { ComplianceFooter } from "@/components/ComplianceFooter";
@@ -165,13 +166,31 @@ const PLANS: Array<{
 
 /** §2 row 6 — the benefits grid under the new section header. Feature
  *  language only; no outcome promises (§6 compliance). */
+// `shot` is a real capture of that feature on the live site, in
+// /public/sales/benefits (built by hand from prod with a premium account, so
+// the Insider Score / ROI columns show real numbers rather than the blurred
+// decoys a guest sees). Each is 760px wide and displayed in a ~360px box, so
+// it is effectively a 2x asset; the box crops with object-fit: cover.
+//
+// Every shot exists twice: `<shot>.webp` captured in the site's light theme
+// and `<shot>-dark.webp` in its dark theme, picked by useSiteTheme() at render.
+// Faizan, 2026-09-10: white screenshots on the dark page looked broken, and it
+// is the same rule the product visuals follow ("dark mode mein dark ss honi
+// chaiye"). Recapture BOTH when you replace one, or the page goes odd in the
+// theme you skipped.
+/** Bump whenever a file in /public/sales/benefits is re-cropped. /sales is
+ *  cached for 30 days, so without this a replaced screenshot under the same
+ *  name keeps showing the old crop to anyone who has already loaded the page
+ *  (it cost real time twice while these were being tuned). */
+const BENEFIT_SHOT_V = 4;
+
 const BENEFITS = [
-  { title: "Insider Scores", text: "A 0–100 score on every company with qualifying open-market buys, with the pillars behind it." },
-  { title: "Top Insider Buys", text: "Every purchase graded A+ to F as the Form 4 lands — size, stake growth, buyer record, timing." },
-  { title: "Top Analysts & Insiders", text: "People ranked by measured results: analyst success rates and insider track-record accuracy." },
-  { title: "Insider alerts", text: "Summarized email alerts on the CEO, CFO and $1M+ buys that matter, sent as each filing is processed." },
-  { title: "Congress & contracts", text: "House and Senate trades and government contract awards, side by side with the insiders." },
-  { title: "Bubbles & heat maps", text: "The whole tape in one picture — insider bubbles, congress bubbles and sector flow." },
+  { title: "Insider Scores", shot: "scores", text: "A 0–100 score on every company with qualifying open-market buys, with the pillars behind it." },
+  { title: "Top Insider Buys", shot: "top-buys", text: "Every purchase graded A+ to F as the Form 4 lands — size, stake growth, buyer record, timing." },
+  { title: "Top Analysts & Insiders", shot: "analysts", text: "People ranked by measured results: analyst success rates and insider track-record accuracy." },
+  { title: "Insider alerts", shot: "alerts", text: "Summarized email alerts on the CEO, CFO and $1M+ buys that matter, sent as each filing is processed." },
+  { title: "Congress & contracts", shot: "congress", text: "House and Senate trades and government contract awards, side by side with the insiders." },
+  { title: "Bubbles & heat maps", shot: "bubbles", text: "The whole tape in one picture — insider bubbles, congress bubbles and sector flow." },
 ];
 
 const NUMBERS = [
@@ -525,27 +544,27 @@ export default function PremiumPage() {
               </span>
               <span className="biv-tagpill">39 alerts</span>
             </div>
+            {/* Faizan, 2026-09-10: the grade goes where the ticker used to be,
+                and the separate "Trade Grade X" line comes out — so each row is
+                grade · what kind of buy · amount, with nothing repeated. */}
             <div className="biv-taperow">
-              <b className="biv-chip">IMPP</b>
+              <b className="biv-chip">A+</b>
               <div className="biv-tapewho">
                 <b>CEO buy</b>
-                <span className="biv-grade biv-grade-a">Trade Grade A+</span>
               </div>
               <span className="biv-amt">$450K</span>
             </div>
             <div className="biv-taperow">
-              <b className="biv-chip">GWRS</b>
+              <b className="biv-chip">A-</b>
               <div className="biv-tapewho">
                 <b>Director buy</b>
-                <span className="biv-grade biv-grade-a">Trade Grade A-</span>
               </div>
               <span className="biv-amt">$5.77M</span>
             </div>
             <div className="biv-taperow">
-              <b className="biv-chip">AAT</b>
+              <b className="biv-chip biv-chip-b">B+</b>
               <div className="biv-tapewho">
                 <b>Big buy</b>
-                <span className="biv-grade biv-grade-b">Trade Grade B+</span>
               </div>
               <span className="biv-amt">$1.14M</span>
             </div>
@@ -558,7 +577,7 @@ export default function PremiumPage() {
           revision starts here: research module → how it works → showcase. */}
       <ResearchModule />
       <HowItWorks />
-      <ProductShowcase />
+      <ProductShowcase theme={theme} />
       {/* §6: the primary CTA repeats after the showcase. */}
       <section className="biv-section biv-mid-cta">
         <button
@@ -584,7 +603,9 @@ export default function PremiumPage() {
         <h2 className="biv-h2 biv-center">
           Tracking names you know&hellip;
           <br />
-          <span className="biv-dim">&hellip;and don&rsquo;t.</span>
+          {/* Both halves of the headline sit in the same ink (Faizan,
+              2026-09-10) — the second line used to be greyed out. */}
+          <span>&hellip;and don&rsquo;t.</span>
         </h2>
         <p className="biv-lead biv-center">
           From household-name executives and funds to the quiet filers nobody
@@ -711,6 +732,19 @@ export default function PremiumPage() {
         <div className="biv-benefits">
           {BENEFITS.map((b) => (
             <div key={b.title} className="biv-benefit">
+              {/* Decorative: the heading and copy carry the meaning, so an
+                  empty alt keeps screen readers from reading the same thing
+                  twice. */}
+              <div className="biv-benefit-shot">
+                <img
+                  src={`/sales/benefits/${b.shot}${theme === "dark" ? "-dark" : ""}.webp?v=${BENEFIT_SHOT_V}`}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  width={760}
+                  height={428}
+                />
+              </div>
               <h3>{b.title}</h3>
               <p>{b.text}</p>
             </div>
@@ -780,10 +814,15 @@ export default function PremiumPage() {
         />
       </section>
 
-      <style>{CSS + RESEARCH_CSS + HOW_CSS + SHOWCASE_CSS + BENEFITS_CSS}</style>
+      <style>{CSS + RESEARCH_CSS + HOW_CSS + SHOWCASE_CSS + BENEFITS_CSS + SUBSCRIBE_QA_CSS}</style>
 
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
       <AlreadySubscribedModal open={thanksOpen} onClose={() => setThanksOpen(false)} />
+
+      {/* George (call, 2026-09-10): preset questions and answers about the
+       *  membership, on this page. Prices are handed in from the live Stripe
+       *  amounts so an answer can never quote a figure the cards don't. */}
+      <SubscribeQA monthlyPrice={priceOf("monthly")} annualPrice={priceOf("annual")} />
     </div>
   );
 }
@@ -825,7 +864,6 @@ const CSS = `
 }
 .biv-accent { color: var(--brand); }
 .biv-accent-text { color: var(--brand) !important; }
-.biv-dim { color: var(--faint); }
 
 /* hero */
 .biv-hero { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; padding-top: 84px !important; }
@@ -942,12 +980,16 @@ const CSS = `
   border-top: 1px solid var(--panel-line-c);
 }
 .biv-taperow:first-of-type { border-top: 0; }
+/* Holds a Trade Grade now, not a ticker: fixed width so A+ / A- / B+ line up
+   in a column instead of jittering with the glyph widths. */
 .biv-chip {
-  font-family: var(--font-display), monospace; font-weight: 700; font-size: 13.5px;
-  letter-spacing: 0.8px; color: var(--green-hi); background: rgba(76,195,138,0.14);
-  border: 1px solid rgba(76,195,138,0.34); border-radius: 8px; padding: 4px 9px;
-  flex: 0 0 auto;
+  font-family: var(--font-display), monospace; font-weight: 700; font-size: 14px;
+  letter-spacing: 0.5px; color: var(--green-hi); background: rgba(76,195,138,0.14);
+  border: 1px solid rgba(76,195,138,0.34); border-radius: 8px; padding: 4px 0;
+  flex: 0 0 auto; width: 44px; text-align: center;
 }
+/* B grades carry the same amber the grade pills used. */
+.biv-chip-b { color: #C9A227; background: rgba(201,162,39,0.14); border-color: rgba(201,162,39,0.34); }
 .biv-tapewho { min-width: 0; }
 .biv-tapewho b { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink); }
 .biv-tapewho span {
@@ -962,9 +1004,6 @@ const CSS = `
 /* trust */
 .biv-hero-copy .biv-stars { justify-content: flex-start; margin: 26px 0 8px; }
 .biv-hero-copy .biv-trust-line { text-align: left; }
-.biv-grade { display: inline-block; font-family: var(--font-mono), monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--panel-line-c); }
-.biv-grade-a { color: var(--green-hi); background: rgba(76,195,138,0.12); }
-.biv-grade-b { color: #C9A227; background: rgba(201,162,39,0.14); }
 .biv-eyebrow-center {
   font-family: var(--font-display), sans-serif; font-weight: 600; font-size: 13px;
   letter-spacing: 2.5px; text-transform: uppercase; color: var(--dim); text-align: center; margin: 0 0 22px;
@@ -1084,6 +1123,7 @@ const CSS = `
 }
 :root[data-theme="light"] .biv-bigstat { color: var(--green); }
 :root[data-theme="light"] .biv-chip { color: #2c7a51; }
+:root[data-theme="light"] .biv-chip-b { color: #8a6d12; }
 :root[data-theme="light"] .biv-mstat { color: var(--green); }
 :root[data-theme="light"] .biv-plus { background: rgba(62,155,95,0.12); color: var(--green); }
 :root[data-theme="light"] .biv-tool { background: #FFFFFF; }
@@ -1117,9 +1157,22 @@ const CSS = `
 
 const BENEFITS_CSS = `
 .biv-benefits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 44px; }
-.biv-benefit { background: var(--bg2); border: 1px solid var(--line); border-radius: 16px; padding: 24px 22px; }
-.biv-benefit h3 { font-size: 17px; font-weight: 800; margin: 0 0 8px; color: var(--ink); }
-.biv-benefit p { font-size: 14px; line-height: 1.55; color: var(--dim); margin: 0; }
+/* Padding moved off the card and onto the text, so the screenshot can sit
+   flush to the card's edges under the rounded top corners. */
+.biv-benefit { background: var(--bg2); border: 1px solid var(--line); border-radius: 16px; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+/* 12/5 rather than 16/9 on purpose. With object-fit: cover a source WIDER than
+   the box loses columns off the side, and these crops are wide table strips
+   (2.1–2.5): at 16/9 the Success Rate and the $ values — the whole point of
+   those two cards — were the pixels being thrown away. */
+.biv-benefit-shot {
+  aspect-ratio: 12 / 5; background: var(--bg);
+  border-bottom: 1px solid var(--line); overflow: hidden;
+}
+/* cover + top-left: these are wide table crops, so the useful rows are at the
+   top and the last column is the least costly thing to lose. */
+.biv-benefit-shot img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: left top; }
+.biv-benefit h3 { font-size: 17px; font-weight: 800; margin: 20px 22px 8px; color: var(--ink); }
+.biv-benefit p { font-size: 14px; line-height: 1.55; color: var(--dim); margin: 0 22px 22px; }
 .biv-mid-cta { text-align: center; padding-top: 0 !important; }
 .biv-fine-link { color: var(--dim); text-decoration: underline; }
 .biv-fine-link:hover { color: var(--brand); }
