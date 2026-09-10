@@ -41,7 +41,7 @@ const bg = (accent = "green") => Buffer.from(`<svg xmlns="http://www.w3.org/2000
 
 /** Rounded frame with a browser chrome bar and a soft shadow, around a capture
  *  resized to `w` wide. Returns a sharp buffer (PNG, transparent margins). */
-async function frame(file, w, { radius = 28, pad = 90, trimBottom = 0, padBottom = 0, padTop = 0 } = {}) {
+async function frame(file, w, { radius = 28, pad = 90, trimBottom = 0, padBottom = 0, padTop = 0, keepH = 1 } = {}) {
   // No browser chrome (client 2026-09-09: "dont want these in all four
   // sections") — each capture becomes a clean rounded card. `trimBottom`
   // removes a partially captured last row; `padBottom`/`padTop` add white so
@@ -56,6 +56,11 @@ async function frame(file, w, { radius = 28, pad = 90, trimBottom = 0, padBottom
     .raw()
     .toBuffer({ resolveWithObject: true });
   const fill = `rgb(${px[0]},${px[1]},${px[2]})`;
+  if (keepH < 1) {
+    const kh = Math.round(meta.height * keepH);
+    img = img.extract({ left: 0, top: 0, width: meta.width, height: kh });
+    meta = { ...meta, height: kh };
+  }
   if (trimBottom) {
     img = img.extract({ left: 0, top: 0, width: meta.width, height: meta.height - trimBottom });
     meta = { ...meta, height: meta.height - trimBottom };
@@ -189,13 +194,13 @@ process.on('beforeExit', () => { if (Object.keys(MOBILE_DIMS).length) console.lo
 // than 16:10 gets scaled down to fit, which is what made the type unreadable.
 // Corners are filled by overlapping cards rather than left empty.
 {
-  const back = await frame("scores-list.png", 1700, { pad: 70, padBottom: 24 });
-  const tail = await frame("track-record.png", 700, { radius: 30, pad: 70 });
+  const back = await frame("scores-list.png", 1820, { pad: 70, padBottom: 24, keepH: 0.75 });
+  const tail = await frame("track-record.png", 1080, { radius: 30, pad: 70, keepH: 0.45 });
   const dial = scoreCard();
   const png = await render("insider-scores", "green", [
-    { buf: back.buf, left: 560, top: 0 },
-    { buf: tail.buf, left: 1560, top: 345 },
-    { buf: dial, left: 0, top: THEME === "dark" ? 800 : 700 },
+    { buf: back.buf, left: 0, top: 0 },
+    { buf: tail.buf, left: 1180, top: THEME === "dark" ? 780 : 655 },
+    { buf: dial, left: 0, top: 800 },
   ]);
   void png;
   {
@@ -227,16 +232,19 @@ process.on('beforeExit', () => { if (Object.keys(MOBILE_DIMS).length) console.lo
 }
 // 3. Top Analysts / Insiders — analyst leaderboard beside insider track records.
 {
-  const an = await frame("analysts.png", 1800, { pad: 70, padBottom: 18, padTop: 6 });
-  const ins = await frame("track-record.png", 700, { radius: 30, pad: 70 });
-  // Wider than the other secondary cards on purpose: at 1000 its rows rendered
-  // visibly smaller than the analyst table behind it, which is the exact
-  // complaint this pass exists to fix.
-  const ranked = await frame("ranked-insiders.png", 1150, { pad: 70, trimBottom: 30, padBottom: 20 });
+  // Two cards, not three: the Track-Record card already carries visual 1, and
+  // three wide cards cannot share one 16:10 frame without covering each other.
+  // Both are near full canvas width and deliberately SHORT — measured against
+  // the live site the old layout rendered these at 0.63x and 0.87x, which is
+  // what George meant by "I don't like any of these screen shots, you can't
+  // see this, it's too small". Fewer rows is what buys the size back.
+  const an = await frame("analysts.png", 2100, { pad: 70, padBottom: 18, padTop: 6, keepH: 0.42 });
+  const ranked = await frame("ranked-insiders.png", 2100, { pad: 70, keepH: 0.42, padBottom: 20 });
+  // Bottom-aligned per theme, because the dark captures are shorter: the
+  // bounding box has to land near 16:10 or render() scales the whole thing down.
   const png = await render("top-analysts-insiders", "gold", [
-    { buf: an.buf, left: 0, top: THEME === "dark" ? 0 : 40 },
-    { buf: ranked.buf, left: 60, top: THEME === "dark" ? 748 : 545 },
-    { buf: ins.buf, left: 1520, top: THEME === "dark" ? 300 : 250 },
+    { buf: an.buf, left: 0, top: 0 },
+    { buf: ranked.buf, left: 160, top: THEME === "dark" ? 857 : 690 },
   ]);
   void png;
   {

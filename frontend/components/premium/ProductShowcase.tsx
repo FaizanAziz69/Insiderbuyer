@@ -60,7 +60,7 @@ export const SHOWCASE: ShowcaseVisual[] = [
       "Filter by CEO, CFO, politician or fund",
     ],
     file: "top-analysts-insiders",
-    alt: "Analyst leaderboard beside insider track-record cards",
+    alt: "Analyst leaderboard above the insiders ranked by buying volume",
     aspect: 16 / 10,
     mobileAspect: 0.8458,
   },
