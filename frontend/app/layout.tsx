@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Condensed, Figtree, Libre_Franklin } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
+import { ThemeSync } from "@/components/ThemeSync";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { FunnelPopups } from "@/components/funnel/FunnelPopups";
@@ -148,6 +149,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AppleSplash />
       </head>
       <body className="antialiased">
+        {/* Restores data-theme on <html> after hydration takes it off, so a
+            reader who picked dark keeps dark on every page, not just the ones
+            whose surface is dark anyway. */}
+        <ThemeSync />
         <GoogleAnalytics />
         <RegisterServiceWorker />
         <PostHogProvider />

@@ -8,8 +8,21 @@ export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const current = (document.documentElement.getAttribute("data-theme") as "light" | "dark") || "dark";
+    // The saved choice, not the attribute: hydration can strip data-theme off
+    // <html> (see ThemeSync), and reading the stripped DOM made the icon show
+    // a moon over a light page and flip the wrong way on the first click.
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem("ib-theme");
+    } catch {
+      saved = null;
+    }
+    const current: "light" | "dark" =
+      saved === "dark" || saved === "light"
+        ? saved
+        : (document.documentElement.getAttribute("data-theme") as "light" | "dark") || "light";
     setTheme(current);
+    document.documentElement.setAttribute("data-theme", current);
     setMounted(true);
   }, []);
 
