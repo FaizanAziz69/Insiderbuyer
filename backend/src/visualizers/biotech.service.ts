@@ -10,6 +10,7 @@ import {
   VizPayloadCache,
 } from '../entities/visualizer.entity';
 import { FmpService } from '../fmp/fmp.service';
+import { UNIVERSE_SCREENER_QUERY } from '../market-stats/market-universe';
 import { InsiderSnapshotService } from './insider-snapshot.service';
 
 /**
@@ -146,14 +147,15 @@ export class BiotechService {
   /** §5.4 roster + fundamentals from FMP, which we already pay for. */
   async refreshRoster(): Promise<{ roster: number }> {
     if (!this.fmp?.enabled) return { roster: 0 };
-    const screen = await this.fmp.getScreenerSnapshot({
-      industry: 'Biotechnology',
-      marketCapMoreThan: MIN_MARKET_CAP,
-      isActivelyTrading: true,
-      exchange: 'NASDAQ,NYSE',
-      limit: 600,
+    // Reuse the site-wide universe query rather than a bespoke one: it is
+    // already cached for twelve hours and shared with every other page, and
+    // FMP's `industry` filter needs its exact label, which the shared snapshot
+    // lets us match in code instead of guessing at.
+    const screen = await this.fmp.getScreenerSnapshot(UNIVERSE_SCREENER_QUERY, {
+      budgetMs: 120_000,
     });
     const rows = [...screen.values()]
+      .filter((r) => /biotech/i.test(r.industry ?? ''))
       .filter((r) => (r.marketCap ?? 0) >= MIN_MARKET_CAP)
       .sort((a, b) => (b.marketCap ?? 0) - (a.marketCap ?? 0))
       .slice(0, ROSTER_MAX);

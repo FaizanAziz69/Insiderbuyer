@@ -10,6 +10,7 @@ import {
   VizPayloadCache,
 } from '../entities/visualizer.entity';
 import { CONTRACTORS } from '../gov-contracts/gov-contracts-map';
+import { KNOWN_PRIVATE, SUBSIDIARY_TICKER } from './gov-entity-map';
 import { FmpService } from '../fmp/fmp.service';
 import { InsiderSnapshotService } from './insider-snapshot.service';
 
@@ -69,6 +70,8 @@ export interface ContractsBubbleDto {
   price: number | null;
   iqs: number | null;
   insidersBuying: boolean;
+  /** true = reviewed and confirmed unlisted; false = simply not matched. */
+  confirmedPrivate: boolean;
 }
 
 export interface CachedPayload {
@@ -86,6 +89,9 @@ const num = (v: unknown): number | null => {
 };
 
 /** Corporate-suffix noise that stops the same company matching itself. */
+/** Longest fragment first, so a specific parent beats a general one. */
+const SUBSIDIARY_KEYS = Object.keys(SUBSIDIARY_TICKER).sort((a, b) => b.length - a.length);
+
 const SUFFIX_RX =
   /\b(inc|incorporated|corp|corporation|company|co|llc|l\.l\.c|lp|l\.p|llp|plc|ltd|limited|holdings?|group|the|and|&|usa|us|america|american|international|intl|technologies|technology|systems|services|solutions|enterprises|industries)\b/g;
 
@@ -277,20 +283,52 @@ export class GovVizService {
         continue;
       }
       const key = matchKey(display);
+      const upper = normalizeName(display);
       let ticker: string | null = null;
       let exchange: string | null = null;
       let confidence = 0;
       let via = 'none';
+      let knownPrivate = false;
 
-      for (const [ck, c] of curated) {
-        if (ck && (key === ck || key.startsWith(`${ck} `) || key.includes(ck)) && ck.length >= 4) {
-          ticker = c.ticker;
-          confidence = 0.95;
-          via = 'curated';
+      // §6.3 review pass first: the contracting entity is usually a subsidiary
+      // whose parent no name match can reach. Longest key wins so
+      // "NATIONAL TECHNOLOGY & ENGINEERING SOLUTIONS OF SANDIA" beats nothing
+      // and "LOCKHEED MARTIN" never loses to a shorter fragment.
+      for (const frag of SUBSIDIARY_KEYS) {
+        if (upper.includes(frag)) {
+          const t = SUBSIDIARY_TICKER[frag];
+          if (t) {
+            ticker = t;
+            confidence = 0.99;
+            via = 'subsidiary';
+          } else {
+            knownPrivate = true;
+            via = 'private';
+          }
           break;
         }
       }
-      if (!ticker) {
+      if (!ticker && !knownPrivate) {
+        for (const frag of KNOWN_PRIVATE) {
+          if (upper.includes(frag)) {
+            knownPrivate = true;
+            via = 'private';
+            break;
+          }
+        }
+      }
+
+      if (!ticker && !knownPrivate) {
+        for (const [ck, c] of curated) {
+          if (ck && (key === ck || key.startsWith(`${ck} `) || key.includes(ck)) && ck.length >= 4) {
+            ticker = c.ticker;
+            confidence = 0.95;
+            via = 'curated';
+            break;
+          }
+        }
+      }
+      if (!ticker && !knownPrivate) {
         const hit = byMatchKey.get(key);
         if (hit) {
           ticker = hit.ticker;
@@ -313,8 +351,9 @@ export class GovVizService {
       row.ticker = ticker;
       row.exchange = exchange ?? row.exchange ?? null;
       row.uei = ueis.get(id) ?? row.uei ?? null;
-      // Unresolved means "we could not prove it is listed", which §6.1 renders
-      // as a dashed bubble with a reduced panel — not a claim that it is private.
+      // Three states, not two: listed, confirmed private, and "not matched".
+      // §6.1 renders the last two the same way but the panel says which,
+      // because they are different claims.
       row.isPublic = !!ticker;
       row.resolvedBy = via === 'none' ? 'auto' : via;
       row.confidence = String(confidence);
@@ -400,6 +439,7 @@ export class GovVizService {
         price: num(q?.price),
         iqs: ticker ? iqsByTicker.get(ticker) ?? null : null,
         insidersBuying: ticker ? buying.has(ticker) : false,
+        confirmedPrivate: r?.resolvedBy === 'private',
       });
     }
     bubbles.sort((a, b) => b.totalUsd - a.totalUsd);

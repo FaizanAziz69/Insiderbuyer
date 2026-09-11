@@ -138,6 +138,8 @@ export interface ContractsBubble {
   iqs: number | null;
   /** §6.2 the shared "insiders buying" toggle's predicate, precomputed. */
   insidersBuying?: boolean;
+  /** Reviewed and confirmed unlisted, as opposed to merely unmatched. */
+  confirmedPrivate?: boolean;
 }
 
 /** §4.3 MiningProject. */

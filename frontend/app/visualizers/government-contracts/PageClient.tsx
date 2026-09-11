@@ -229,7 +229,7 @@ export default function GovernmentContractsClient() {
           }`}
           rows={[
             { color: "rgb(45,150,205)", label: "Listed company" },
-            { color: "rgb(120,134,158)", label: "Not matched to a ticker" },
+            { color: "rgb(120,134,158)", label: "Private or not yet matched" },
           ]}
           note={
             asOf
@@ -265,7 +265,9 @@ export default function GovernmentContractsClient() {
                     {selectedBubble.exchange ? ` · ${selectedBubble.exchange}` : ""}
                   </Badge>
                 ) : (
-                  <Badge kind="private">NOT MATCHED TO A TICKER</Badge>
+                  <Badge kind="private">
+                    {selectedBubble.confirmedPrivate ? "PRIVATE / NOT LISTED" : "NOT MATCHED TO A TICKER"}
+                  </Badge>
                 )}
                 <Badge kind="source">
                   {selectedBubble.region === "ca" ? "OPEN.CANADA.CA" : "USASPENDING.GOV"}
@@ -363,10 +365,9 @@ export default function GovernmentContractsClient() {
               ) : (
                 <Section title="Insider Intelligence">
                   <p className="viz-about">
-                    We have not matched this awardee to a listed ticker, so there is no Form 4
-                    record to attach. Large private and state-owned contractors — shipbuilders,
-                    university labs, non-profit operators — appear here for scale, with a reduced
-                    panel.
+                    {selectedBubble.confirmedPrivate
+                      ? "This awardee is private, state-owned or a non-profit operator — a shipbuilder, a national-lab consortium, a university. There are no Form 4 filings to read, so it appears on the map for scale with a reduced panel."
+                      : "We have not matched this awardee to a listed parent yet, so there is no Form 4 record attached. Government systems record the entity that signed the contract, which is often a subsidiary; the mapping is reviewed by hand and this one has not been resolved."}
                   </p>
                 </Section>
               )}
