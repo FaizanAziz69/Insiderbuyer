@@ -183,8 +183,10 @@ export class BiotechService {
     for (const p of pending) {
       try {
         const profile = await this.fmp.getCompanyProfile(p.ticker);
-        const address: string | null = profile?.address ?? null;
-        if (!address) {
+        const city = (profile?.city as string) ?? null;
+        const state = (profile?.state as string) ?? null;
+        const country = (profile?.country as string) ?? null;
+        if (!city && !state) {
           // Nothing to geocode; mark the attempt so the queue drains.
           p.hqCity = null;
           p.lat = 0;
@@ -192,17 +194,18 @@ export class BiotechService {
           await this.profiles.save(p);
           continue;
         }
-        // The street number defeats city-level geocoding, so query the tail.
-        const parts = address.split(',').map((s) => s.trim()).filter(Boolean);
-        const city = parts.slice(-3).join(', ');
+        // City, state, country — the street number defeats a city-level
+        // geocode, and a state on its own lands every company in the state's
+        // centroid, which is what put Boston's cluster in the wrong place.
+        const q = [city, state, country].filter(Boolean).join(', ');
         const { data } = await this.geo.get(NOMINATIM, {
-          params: { q: city, format: 'json', limit: 1 },
+          params: { q, format: 'json', limit: 1 },
         });
         const hit = Array.isArray(data) ? data[0] : null;
         if (hit) {
           p.lat = Number(hit.lat);
           p.lng = Number(hit.lon);
-          p.hqCity = parts.slice(-3, -1).join(', ') || city;
+          p.hqCity = [city, state].filter(Boolean).join(', ') || q;
           done++;
         } else {
           p.lat = 0;
@@ -216,6 +219,24 @@ export class BiotechService {
       }
     }
     return { geocoded: done };
+  }
+
+  /** Clear a derived field so its refresh step runs again from scratch. Used
+   *  when the derivation itself was wrong, not when the data went stale. */
+  async reset(what: 'geo' | 'financials'): Promise<{ cleared: number }> {
+    const res =
+      what === 'geo'
+        ? await this.profiles
+            .createQueryBuilder()
+            .update()
+            .set({ lat: null, lng: null, hqCity: null })
+            .execute()
+        : await this.profiles
+            .createQueryBuilder()
+            .update()
+            .set({ cash: null, quarterlyBurn: null, financialsAsOf: null })
+            .execute();
+    return { cleared: res.affected ?? 0 };
   }
 
   /** §5.2 active trials from ClinicalTrials.gov for the roster. */
@@ -331,25 +352,29 @@ export class BiotechService {
   async refreshFinancials(limit = 25): Promise<{ updated: number }> {
     if (!this.fmp?.enabled) return { updated: 0 };
     const roster = await this.profiles.find({ take: 400 });
-    const pending = roster.filter((p) => p.cash == null).slice(0, limit);
+    const pending = roster
+      .filter((p) => p.cash == null && p.financialsAsOf == null)
+      .slice(0, limit);
     let n = 0;
     for (const p of pending) {
       try {
-        const rows = await this.fmp.getQuarterlyIncomeRows(p.ticker, 4);
+        // Read the raw statements rather than getQuarterlyIncomeRows: that
+        // helper renames netIncome and, worse, drops any quarter with no
+        // revenue — which is most of this sector.
         const statements = await this.fmp.getStatements(p.ticker, 'quarter', 2);
         const bs = statements?.balance?.[0] as Record<string, unknown> | undefined;
+        const inc = statements?.income?.[0] as Record<string, unknown> | undefined;
         const cash =
-          num(bs?.cashAndCashEquivalents) ??
-          num(bs?.cashAndShortTermInvestments) ??
-          null;
+          num(bs?.cashAndShortTermInvestments) ?? num(bs?.cashAndCashEquivalents) ?? null;
         // Operating burn stands in as the trailing quarter's net loss; a
-        // biotech with no revenue has essentially no other cash use.
-        const lastQuarter = rows?.[0]?.values ?? {};
-        const netIncome = num(lastQuarter.netIncome);
+        // biotech with little revenue has essentially no other cash use.
+        const netIncome = num(inc?.netIncome);
         const burn = netIncome != null && netIncome < 0 ? Math.abs(netIncome) : null;
         p.cash = cash == null ? null : String(cash);
         p.quarterlyBurn = burn == null ? null : String(burn);
-        p.financialsAsOf = (rows?.[0]?.date ?? new Date().toISOString().slice(0, 10)).slice(0, 10);
+        // Stamped even when both are missing, so the queue drains instead of
+        // retrying the same empty symbols every night.
+        p.financialsAsOf = String(inc?.date ?? bs?.date ?? new Date().toISOString()).slice(0, 10);
         await this.profiles.save(p);
         n++;
       } catch (e) {

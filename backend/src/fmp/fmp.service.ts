@@ -213,6 +213,11 @@ export class FmpService {
           description: p.description || null,
           address:
             [p.address, p.city, p.state, p.zip, p.country].filter(Boolean).join(', ') || null,
+          // The parts as well as the joined line: geocoding a headquarters
+          // needs city and state, and splitting the joined string guesses
+          // wrong whenever one of the five fields is missing.
+          city: p.city || null,
+          state: p.state || null,
           country: p.country || null,
           ceo: p.ceo || null,
           image: p.image || null,

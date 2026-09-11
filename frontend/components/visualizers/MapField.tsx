@@ -159,7 +159,9 @@ export function MapField<T>({
           count: members.length,
           value,
           label: members.length === 1 ? members[0].label : `${members.length}`,
-          color: members[0].color,
+          // A cluster is a count, not a company: giving it the first member's
+          // colour implied the whole group shared that member's runway.
+          color: members.length === 1 ? members[0].color : 'rgb(78,142,190)',
           members,
         });
       }
