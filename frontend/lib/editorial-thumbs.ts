@@ -161,7 +161,18 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // images. Buffett leads the Alphabet story; the Uber story is Ackman's, and
   // that photo is already the Uber-stake one.
   "editorial-buffett-ackman-alphabet-split-2026-09-03": "buffett-value-stock",
-  "editorial-ackman-pelosi-uber-insiders-2026-09-03": "ackman-uber-stake",
+  // 2026-09-11: moved to Ackman's own portrait. The Uber-signage cover it used
+  // to hold is now on the story about Uber's OWN insiders buying (the CEO's
+  // $10M purchase) — a cover with a company's branding belongs on the article
+  // about that company, and this story is about Ackman's stake in it.
+  "editorial-ackman-pelosi-uber-insiders-2026-09-03": "bill-ackman-letter",
+  // 2026-09-11: the three Stock Ideas. Covers matched to the subject: Gates is
+  // the buyer behind Cascade; the Uber signage goes on the Uber filing story;
+  // the three-executives-over-a-trading-floor frame carries the GameStop
+  // director cluster (no GameStop image exists in the library).
+  "stock-idea-rsg-2026-09-11": "gates-four-seasons-msft",
+  "stock-idea-uber-2026-09-11": "ackman-uber-stake",
+  "stock-idea-gme-2026-09-11": "vimeo-insider-buys",
   // 2026-08-29: Durant / Hugging Face / NVIDIA editorial (client cover).
   "editorial-kevin-durant-hugging-face-nvidia-2026-08-29": "kevin-durant-hugging-face",
   // Stock Ideas (breaking-news picks, 2026-08-28): pinned so the card and the
