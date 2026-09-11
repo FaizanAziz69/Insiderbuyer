@@ -77,6 +77,8 @@ export const NAV_GROUPS: NavGroup[] = [
           ...(DATA_ARTICLES_ENABLED ? [{ label: "Data Articles", href: "/data", icon: FileText, badge: "new" as const }] : []),
           { label: "Insider Bubbles", href: "/bubbles", icon: Orbit },
           { label: "Congress Bubbles", href: "/congress-bubbles", icon: Orbit },
+          { label: "Prediction Markets", href: "/visualizers/prediction-markets", icon: Orbit, badge: "new" },
+          { label: "All Visualizers", href: "/visualizers", icon: Orbit },
           { label: "Top Insiders", href: "/investors", icon: Landmark, badge: "new" },
           { label: "Top Insider Scores", href: "/insiders/hot", icon: Flame, badge: "popular" },
           { label: "Top Insider Buys", href: "/insiders/top-buys", icon: Receipt, badge: "new" },

@@ -78,6 +78,18 @@ import { MarketProfileSnapshot } from './entities/market-profile.entity';
 import { FundamentalsCache } from './entities/fundamentals-cache.entity';
 import { BubblesCache, BubblesTickerMeta } from './entities/bubbles-cache.entity';
 import { BubblesModule } from './bubbles/bubbles.module';
+import { VisualizersModule } from './visualizers/visualizers.module';
+import {
+  VizBiotechCatalyst,
+  VizBiotechProfile,
+  VizBiotechTrial,
+  VizContractAward,
+  VizCuratedMarket,
+  VizEntity,
+  VizGovRecipient,
+  VizMarketContract,
+  VizMiningProject,
+} from './entities/visualizer.entity';
 
 @Module({
   imports: [
@@ -142,6 +154,15 @@ import { BubblesModule } from './bubbles/bubbles.module';
           ScreenerUniverseCache,
           AppSetting,
           StoryPitch,
+          VizEntity,
+          VizCuratedMarket,
+          VizMarketContract,
+          VizGovRecipient,
+          VizContractAward,
+          VizMiningProject,
+          VizBiotechCatalyst,
+          VizBiotechTrial,
+          VizBiotechProfile,
         ],
         // Schema sync issues a catalog query per entity on every boot. Fine
         // locally; on serverless it repeats forever. Set DB_SYNC=true for a
@@ -172,6 +193,7 @@ import { BubblesModule } from './bubbles/bubbles.module';
     IndicesModule,
     MarketStatsModule,
     BubblesModule,
+    VisualizersModule,
     BacktestModule,
     AnalystsModule,
     EarningsModule,
