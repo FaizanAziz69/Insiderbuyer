@@ -156,33 +156,39 @@ export function BubbleField<T extends { id: string }>({
           ctx.stroke();
         }
 
-        // Labels. Only when the bubble can actually hold them.
-        if (n.r >= 26) {
+        // Labels. The headline value comes first and is the only thing most
+        // bubbles carry — the brief's own spec is "dollar amount displayed
+        // inside larger bubbles", and a field of wrapped questions read as
+        // noise. The name lives in the hover tooltip and the panel.
+        if (n.r >= 15) {
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          const size = Math.max(8.5, Math.min(13, n.r * 0.19));
-          ctx.font = `600 ${size}px ${mono}`;
-          ctx.fillStyle = "rgba(255,255,255,0.98)";
-          // One soft drop shadow keeps the label legible over the lighter rim
-          // of a pale bubble without darkening the bubble itself.
           ctx.shadowColor = "rgba(8,18,32,0.55)";
           ctx.shadowBlur = 3;
-          const vl = n.r >= 40 ? valueLabel?.(n) ?? null : null;
-          // A bubble big enough for three lines should use them: two lines
-          // plus a percentage turned a dozen distinct markets into "What price
-          // will…" repeated across the board.
-          const lines = wrap(ctx, n.label, n.r * 1.66, vl ? (n.r >= 50 ? 3 : 2) : 3);
-          const lh = size * 1.16;
-          const total = lines.length * lh + (vl ? lh * 0.98 : 0);
-          let y = n.y - total / 2 + lh / 2;
-          for (const line of lines) {
-            ctx.fillText(line, n.x, y);
-            y += lh;
-          }
+          const vl = valueLabel?.(n) ?? null;
+          const vSize = Math.max(9, Math.min(22, n.r * 0.42));
+          // Only the biggest bubbles have room for a name under the figure.
+          const showName = n.r >= 62 && !!n.label;
           if (vl) {
-            ctx.font = `700 ${Math.max(10, size * 1.05)}px ${mono}`;
-            ctx.fillStyle = "rgba(255,255,255,0.86)";
-            ctx.fillText(vl, n.x, y + lh * 0.06);
+            ctx.font = `700 ${vSize}px ${mono}`;
+            ctx.fillStyle = "rgba(255,255,255,0.98)";
+            ctx.fillText(vl, n.x, showName ? n.y - vSize * 0.42 : n.y);
+          }
+          if (showName) {
+            const nSize = Math.max(8.5, Math.min(12, n.r * 0.155));
+            ctx.font = `600 ${nSize}px ${mono}`;
+            ctx.fillStyle = "rgba(255,255,255,0.8)";
+            const lines = wrap(ctx, n.label, n.r * 1.6, 2);
+            let y = n.y + vSize * 0.55;
+            for (const line of lines) {
+              ctx.fillText(line, n.x, y);
+              y += nSize * 1.15;
+            }
+          }
+          if (!vl && !showName && n.label) {
+            ctx.font = `600 ${Math.max(9, Math.min(13, n.r * 0.3))}px ${mono}`;
+            ctx.fillStyle = "rgba(255,255,255,0.95)";
+            ctx.fillText(n.label, n.x, n.y);
           }
           ctx.shadowBlur = 0;
         }

@@ -399,7 +399,9 @@ export class BiotechService {
   /** Compose the map payload. Cheap: everything it reads is already stored. */
   async build(): Promise<{ companies: number }> {
     const roster = await this.profiles.find();
-    const withHq = roster.filter((p) => p.lat != null && p.lng != null && p.lat !== 0);
+    // The field replaced the map, so a company no longer needs coordinates to
+    // appear; the headquarters is still shown on its panel where we have it.
+    const withHq = roster;
     const tickers = withHq.map((p) => p.ticker);
     const buying = await this.insider.buyingSet(tickers);
     const allTrials = await this.trials.find();

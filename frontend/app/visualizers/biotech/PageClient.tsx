@@ -3,18 +3,18 @@
 /**
  * Product 2 — Biotech Bubble Visualizer (Developer Brief v2 §5), Phase 4.
  *
- * The same map engine as Goldminer, biotech vertical: companies anchored to
- * headquarters, sized by market cap, and — the killer feature per §5.2 — the
- * catalyst calendar first in the panel, with days-until countdowns. Catalyst
- * mode pulses any company with an FDA decision or a major readout inside
- * ninety days (§5.3).
+ * Free-floating field rather than the map the brief's §5.1 sketches: a
+ * headquarters tells a reader almost nothing about a biotech, and geography put
+ * two thirds of the sector in one unreadable pixel over Boston. The field gives
+ * every company its own space and lets size and colour carry what actually
+ * matters — market cap and how many quarters of cash are left.
  *
- * Boston and South San Francisco put dozens of companies on one pixel, so
- * co-located companies are jittered apart deterministically — the same ticker
- * lands in the same place on every load.
+ * The killer feature per §5.2 is unchanged: the catalyst calendar comes first
+ * in the panel with days-until countdowns, and catalyst mode pulses any company
+ * with an FDA decision or a major readout inside ninety days (§5.3).
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
@@ -23,7 +23,8 @@ import { track } from "@/lib/analytics";
 import { countdownLabel, fmtDate, fmtNum, fmtUsd } from "@/lib/visualizers/format";
 import type { BiotechProfile } from "@/lib/visualizers/types";
 import { SuiteShell } from "@/components/visualizers/SuiteShell";
-import { MapField, type MapPoint } from "@/components/visualizers/MapField";
+import { BubbleField } from "@/components/visualizers/BubbleField";
+import { BubbleEngine, type EngineNode } from "@/lib/visualizers/engine";
 import { Chip, Legend, Toggle } from "@/components/visualizers/controls";
 import {
   Badge,
@@ -66,15 +67,6 @@ function runwayColor(q: number | null): string {
   return "rgb(60,175,135)";
 }
 
-/** Deterministic scatter for companies sharing a headquarters city. */
-function jitter(ticker: string): { dx: number; dy: number } {
-  let h = 0;
-  for (let i = 0; i < ticker.length; i++) h = (h * 31 + ticker.charCodeAt(i)) >>> 0;
-  const a = (h % 360) * (Math.PI / 180);
-  const r = 0.12 + ((h >> 9) % 100) / 400;
-  return { dx: Math.cos(a) * r, dy: Math.sin(a) * r };
-}
-
 export default function BiotechClient() {
   const router = useRouter();
   const params = useSearchParams();
@@ -84,6 +76,7 @@ export default function BiotechClient() {
   const [phase, setPhase] = useState("");
   const [insidersOnly, setInsidersOnly] = useState(false);
   const [catalystMode, setCatalystMode] = useState(true);
+  const [motion, setMotion] = useState(true);
   const [selected, setSelected] = useState<string | null>(params.get("m"));
 
   const { data, isLoading } = useSWR<Payload>(`${API_BASE}/visualizers/biotech`, fetcher, {
@@ -92,41 +85,61 @@ export default function BiotechClient() {
 
   const companies = data?.companies ?? [];
 
-  const points: MapPoint<BiotechProfile>[] = useMemo(
+  const engine = useMemo(
     () =>
-      companies
-        .filter((c) => c.lat != null && c.lng != null)
-        .map((c) => {
-          const j = jitter(c.ticker);
-          const band = CAP_BANDS.find(
-            (b) => (c.marketCap ?? 0) >= b.min && (c.marketCap ?? 0) < b.max,
-          );
-          const dim =
-            (caps.size > 0 && (!band || !caps.has(band.key))) ||
-            (catalystDays > 0 &&
-              (c.nextCatalystDays == null || c.nextCatalystDays > catalystDays)) ||
-            (!!phase && !c.trials.some((t) => (t.phase ?? "").includes(phase))) ||
-            (insidersOnly && !c.insidersBuying);
-          return {
-            id: c.ticker,
-            lat: (c.lat as number) + j.dy,
-            lng: (c.lng as number) + j.dx,
-            value: c.marketCap ?? 0,
-            label: c.ticker,
-            color: runwayColor(c.runwayQuarters),
-            dim,
-            pulse:
-              catalystMode && c.nextCatalystDays != null && c.nextCatalystDays <= 90 && !dim,
-            data: c,
-          };
-        }),
-    [companies, caps, catalystDays, phase, insidersOnly, catalystMode],
+      new BubbleEngine<BiotechProfile & { id: string }>({
+        valueOf: (c) => c.marketCap ?? 0,
+        labelOf: (c) => c.ticker,
+        colorOf: (c) => runwayColor(c.runwayQuarters),
+        base: 14,
+        k: 96,
+        min: 18,
+        max: 116,
+        // Market caps run from $150M to $130B, so the sqrt of the raw ratio
+        // is what makes Vertex look like Vertex.
+        scale: "linear",
+      }),
+    [],
   );
+
+  const rows = useMemo(
+    () => companies.map((c) => ({ ...c, id: c.ticker })),
+    [companies],
+  );
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    engine.setData(rows);
+    setVersion((v) => v + 1);
+  }, [engine, rows]);
+
+  useEffect(() => {
+    const active = caps.size > 0 || catalystDays > 0 || !!phase || insidersOnly;
+    engine.setPredicate(
+      active
+        ? (c) => {
+            const band = CAP_BANDS.find(
+              (b) => (c.marketCap ?? 0) >= b.min && (c.marketCap ?? 0) < b.max,
+            );
+            if (caps.size > 0 && (!band || !caps.has(band.key))) return false;
+            if (
+              catalystDays > 0 &&
+              (c.nextCatalystDays == null || c.nextCatalystDays > catalystDays)
+            ) {
+              return false;
+            }
+            if (phase && !c.trials.some((t) => (t.phase ?? "").includes(phase))) return false;
+            if (insidersOnly && !c.insidersBuying) return false;
+            return true;
+          }
+        : null,
+    );
+  }, [engine, caps, catalystDays, phase, insidersOnly]);
 
   const selectedCompany = selected ? companies.find((c) => c.ticker === selected) ?? null : null;
 
   const select = useCallback(
-    (p: MapPoint<BiotechProfile> | null) => {
+    (p: EngineNode<BiotechProfile & { id: string }> | null) => {
       setSelected(p?.id ?? null);
       const qs = new URLSearchParams(Array.from(params.entries()));
       if (p) qs.set("m", p.id);
@@ -137,7 +150,7 @@ export default function BiotechClient() {
     [params, router],
   );
 
-  const tooltip = useCallback((p: MapPoint<BiotechProfile>) => {
+  const tooltip = useCallback((p: EngineNode<BiotechProfile & { id: string }>) => {
     const c = p.data;
     return (
       `<div class="viz-tip-head">${escapeHtml(c.name)} (${escapeHtml(c.ticker)})</div>` +
@@ -148,11 +161,6 @@ export default function BiotechClient() {
     );
   }, []);
 
-  const sizeFor = useCallback(
-    (v: number, max: number) => Math.max(8, Math.min(46, 8 + Math.sqrt(v / max) * 36)),
-    [],
-  );
-
   const withCatalysts = companies.filter((c) => c.catalysts.length > 0).length;
 
   return (
@@ -162,8 +170,8 @@ export default function BiotechClient() {
       title="Biotech Catalysts"
       subtitle={
         <>
-          Companies on the map by headquarters, sized by market cap and coloured by how many
-          quarters of cash they have left. A pulsing ring means a catalyst inside ninety days.
+          One bubble is one biotech, sized by market cap and coloured by how many quarters of cash
+          it has left. A pulsing ring means an FDA decision or a data readout inside ninety days.
         </>
       }
       controls={
@@ -224,17 +232,27 @@ export default function BiotechClient() {
           <Toggle on={insidersOnly} onClick={() => setInsidersOnly(!insidersOnly)}>
             Insiders buying
           </Toggle>
+          <Toggle on={motion} onClick={() => setMotion(!motion)}>
+            Motion
+          </Toggle>
         </>
       }
     >
       <div className="viz-arena">
-        <MapField
-          points={points}
+        <BubbleField
+          engine={engine}
+          version={version}
           selectedId={selected}
           onSelect={select}
           tooltip={tooltip}
-          sizeFor={sizeFor}
-          ariaLabel="World map of biotech companies"
+          valueLabel={(n) => fmtUsd(n.data.marketCap)}
+          motion={motion}
+          pulse={(n) =>
+            catalystMode &&
+            n.data.nextCatalystDays != null &&
+            n.data.nextCatalystDays <= 90
+          }
+          ariaLabel="Biotech companies by market cap"
         />
 
         <Legend
@@ -245,7 +263,7 @@ export default function BiotechClient() {
             { color: "rgb(60,175,135)", label: "Over 8 quarters" },
             { color: "rgb(120,150,180)", label: "Profitable or not derivable" },
           ]}
-          note="Size = market cap. Pulse = catalyst inside 90 days."
+          note="Size and the figure inside are market cap. A pulsing ring means a catalyst inside 90 days."
         />
 
         {isLoading && (

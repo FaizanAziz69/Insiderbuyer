@@ -59,13 +59,14 @@ export default function PredictionMarketsClient() {
         valueOf: (m) => m.volumeTotal,
         labelOf: (m) => m.shortLabel,
         colorOf: (m) => leanColor(m.yesPrice),
-        base: 22,
-        k: 72,
-        min: 26,
-        max: 108,
-        // Volumes run from $50K to $65M; a linear ratio would park nine
-        // bubbles in ten on the floor and read as noise.
-        scale: "log",
+        base: 12,
+        k: 104,
+        min: 16,
+        max: 122,
+        // Straight sqrt(value / max), as the brief specifies: a $33M market
+        // should look several times the size of a $1M one, and the log curve
+        // that made every bubble legible also made them all the same.
+        scale: "linear",
       }),
     [],
   );
@@ -266,8 +267,10 @@ export default function PredictionMarketsClient() {
     );
   }, []);
 
+  // §7.1: the dollar amount goes inside the bubble. The odds are the colour,
+  // the name is the tooltip, and the panel has everything.
   const valueLabel = useCallback(
-    (n: EngineNode<MarketContract>) => fmtProb(n.data.yesPrice),
+    (n: EngineNode<MarketContract>) => fmtUsd(n.data.volumeTotal),
     [],
   );
 
@@ -335,7 +338,7 @@ export default function PredictionMarketsClient() {
             { color: "rgb(27,180,113)", label: "YES leading — 50% or above" },
             { color: "rgb(232,75,86)", label: "NO leading — below 50%" },
           ]}
-          note="Size = total dollars traded. A flashing ring is a price move."
+          note="Size and the figure inside are total dollars traded. A flashing ring is a price move. Hover for the question."
         />
 
         {!loading && visible.length === 0 && (
