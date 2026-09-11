@@ -221,18 +221,19 @@ function TopGainersPanel() {
 /** Full-width horizontal market heat map. */
 function MarketHeatmapPanel() {
   const HEIGHT = 380;
+  // Only the biggest TILES companies are ever drawn here (see below), so ask
+  // for exactly those. The unlimited endpoint returns the whole ~4k-row
+  // universe — 1.7 MB of JSON, 335 KB gzipped — and it was being downloaded
+  // on every first load of the homepage to paint 250 tiles.
+  const TILES = 250;
   const { data } = useSWR<{ rows: HeatQuote[] }>(
-    `${API_BASE}/market-stats/heatmap`,
+    `${API_BASE}/market-stats/heatmap?limit=${TILES}`,
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
-  // The endpoint now returns the whole $100M+ universe — thousands of rows.
-  // A 380px-tall treemap cannot draw that many tiles legibly: everything below
-  // the mega caps collapses into unlabelled dots. Take the largest companies
-  // only (the API sorts by market cap), which leaves the big tiles exactly the
-  // size they already were and simply removes the specks. The full map at
+  // A 380px-tall treemap cannot draw more than this legibly: everything below
+  // the mega caps collapses into unlabelled dots. The full map at
   // /heatmaps/market still gets everything, and has search to reach the rest.
-  const TILES = 250;
   const rows = (data?.rows ?? []).slice(0, TILES).map(heatToRanking);
 
   return (

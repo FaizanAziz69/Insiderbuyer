@@ -184,6 +184,7 @@ function HeroCard({
         sector={item.sector}
         overlay="none"
         loading={eager ? "eager" : "lazy"}
+        size="hero"
         style={{ width: "100%", height: "100%" }}
         className="transition-transform duration-500 group-hover:scale-105"
       />

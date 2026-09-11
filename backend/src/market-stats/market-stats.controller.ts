@@ -202,8 +202,16 @@ export class MarketStatsController {
   }
 
   @Get('heatmap')
-  async heatmap() {
-    const rows = await this.svc.getMarketHeatmap();
+  async heatmap(@Query('limit') limit?: string) {
+    const all = await this.svc.getMarketHeatmap();
+    // The full universe is ~4k rows / 1.7 MB of JSON (335 KB gzipped), and the
+    // homepage panel draws only its largest 250 tiles — it was downloading the
+    // whole market on every first page load, which is a big part of why the
+    // site felt "slow and delayed when clicking" (client, 2026-09-11). Rows
+    // arrive sorted by market cap, so a limit is just the head of the list.
+    // No limit = the full map, which /heatmaps/market still needs.
+    const n = Number(limit);
+    const rows = Number.isFinite(n) && n > 0 ? all.slice(0, Math.floor(n)) : all;
     // Full-precision floats ("changePct": -0.98224807) nearly double a ~4k-row
     // payload for digits no tile can render. Rounding cuts the raw JSON ~40%,
     // which is the difference between a blank-then-pop treemap and an instant

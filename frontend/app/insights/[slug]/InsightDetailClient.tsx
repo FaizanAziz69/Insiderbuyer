@@ -234,6 +234,7 @@ export default function InsightDetailClient({
                 overlay="none"
                 loading="eager"
                 fit="natural"
+                size="hero"
                 alt={post.imageAlt || post.title}
                 style={{ width: "100%" }}
                 className="w-full"
@@ -401,6 +402,7 @@ export default function InsightDetailClient({
                   sector={it.sector}
                   overlay="none"
                   className="flex-shrink-0 rounded-md transition-transform duration-500 group-hover:scale-110"
+                  size="thumb"
                   style={{ width: 80, height: 64 }}
                 />
                 <div className="min-w-0 flex-1">

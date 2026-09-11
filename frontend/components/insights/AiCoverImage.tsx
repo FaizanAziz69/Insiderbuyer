@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrandLogoOverlay } from "./BrandLogoOverlay";
 import { pickSectorPhoto } from "@/lib/sector-photos";
 import { pickEditorialThumb } from "@/lib/editorial-thumbs";
+import { coverSources, type CoverSize } from "@/lib/cover-sources";
 
 interface Props {
   /** Pollinations AI URL stored on the post — used as a fallback only.
@@ -51,6 +52,10 @@ interface Props {
    *  hero). "natural" drops the absolute fill entirely and renders the image
    *  at its intrinsic aspect ratio (article hero — no cropping, no bars). */
   fit?: "cover" | "contain" | "natural";
+  /** How wide this cover actually renders, so the browser downloads that size
+   *  instead of the full 1606px JPEG / 1200px Unsplash render. "card" is
+   *  right for every grid and list; only a full-bleed hero needs "hero". */
+  size?: CoverSize;
 }
 
 /** Sector → concrete photographic search terms. Every entry blends a
@@ -183,6 +188,7 @@ export function AiCoverImage({
   spreadIndex = 0,
   editorialSrc,
   fit = "cover",
+  size = "card",
 }: Props) {
   const key = seed || ticker || "default";
   // Primary = the reliable curated Unsplash photo (always loads full). An
@@ -241,6 +247,10 @@ export function AiCoverImage({
   } else {
     src = placeholderSvg(ticker || key);
   }
+  // Ask for the width this slot actually paints. Editorial covers resolve to
+  // their pre-generated webp variants, Unsplash re-renders on demand, and
+  // anything else (own image, data URI) passes through unchanged.
+  const resolved = coverSources(src, size);
   return (
     <div
       className={className}
@@ -265,7 +275,9 @@ export function AiCoverImage({
       <img
         key={`${stage}-${src}`}
         ref={imgRef}
-        src={src}
+        src={resolved.src}
+        srcSet={resolved.srcSet}
+        sizes={resolved.sizes}
         alt={alt}
         loading={loading}
         decoding="async"

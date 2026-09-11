@@ -5,7 +5,7 @@
     "/api/backend/earnings/calendar?days=7",
     "/api/backend/iqs2/top-buys?period=7d&grade=A&limit=5",
     "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
-    "/api/backend/market-stats/heatmap",
+    "/api/backend/market-stats/heatmap?limit=250",
     "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
     "/api/backend/market-stats/top-gainers?limit=10",
     "/api/backend/market-stats/top-losers?limit=8",
