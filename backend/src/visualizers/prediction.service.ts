@@ -38,6 +38,8 @@ const MAX_MARKETS = 150;
 /** §7.2 minimum-volume threshold — below this a market is too thin to show. */
 const MIN_VOLUME_24H = 5_000;
 const MIN_VOLUME_TOTAL = 50_000;
+/** 24h volume must be at least this share of lifetime volume — see isTradeable. */
+const LIVE_SHARE_MIN = 0.005;
 /** At most two markets from one event, so a 128-outcome event cannot flood. */
 const MAX_PER_EVENT = 2;
 /**
@@ -281,7 +283,9 @@ export class PredictionService implements OnModuleInit {
     const stale = await this.curated
       .createQueryBuilder()
       .delete()
-      .where('curated_by = :b', { b: 'auto' })
+      // TypeORM keeps camelCase column names here, so the raw predicate must
+      // quote it — `curated_by` does not exist and the delete throws.
+      .where('"curatedBy" = :b', { b: 'auto' })
       .andWhere('id NOT IN (:...ids)', { ids: [...keep.keys()] })
       .execute();
 
@@ -297,6 +301,11 @@ export class PredictionService implements OnModuleInit {
     if (m.acceptingOrders === false) return false;
     if ((m.volume24hr ?? 0) < MIN_VOLUME_24H) return false;
     if ((m.volumeNum ?? 0) < MIN_VOLUME_TOTAL) return false;
+    // Parked novelty markets ("Will Jesus Christ return before 2027") carry
+    // enormous lifetime volume and almost no trading, which makes them the
+    // biggest bubble on a board about live money. Require the last day to be a
+    // real fraction of the lifetime before a market earns a slot.
+    if ((m.volume24hr ?? 0) < (m.volumeNum ?? 0) * LIVE_SHARE_MIN) return false;
     const prices = parseJsonArray(m.outcomePrices).map(Number);
     if (prices.length < 2) return false;
     // A market pinned at 0/1 has already resolved in all but name.

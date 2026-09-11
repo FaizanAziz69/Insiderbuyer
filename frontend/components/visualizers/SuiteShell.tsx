@@ -53,8 +53,18 @@ export function SuiteShell({
   children: ReactNode;
 }) {
   const [invZoom, setInvZoom] = useState(1);
+  const [shellH, setShellH] = useState<number | null>(null);
   useEffect(() => {
-    const apply = () => setInvZoom(1 / effectiveZoom());
+    // The arena is an instrument, not an article: it fills the viewport under
+    // the site's sticky header so the field never runs off the fold and the
+    // page itself does not scroll.
+    const apply = () => {
+      const z = effectiveZoom();
+      setInvZoom(1 / z);
+      const hd = document.querySelector<HTMLElement>("[data-app-sticky]");
+      const top = hd?.getBoundingClientRect().height ?? 0;
+      setShellH(Math.max(520, (window.innerHeight - top) * z));
+    };
     apply();
     window.addEventListener("resize", apply);
     return () => window.removeEventListener("resize", apply);
@@ -63,7 +73,9 @@ export function SuiteShell({
   return (
     <div
       className={`viz-root ${archivo.variable} ${plex.variable} ${nunito.variable}`}
-      style={{ zoom: invZoom, minHeight: "calc(100vh - 64px)" } as React.CSSProperties}
+      style={
+        { zoom: invZoom, height: shellH ?? "calc(100vh - 150px)" } as React.CSSProperties
+      }
     >
       <style>{SUITE_CSS}</style>
 

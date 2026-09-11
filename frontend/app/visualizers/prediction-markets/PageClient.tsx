@@ -59,10 +59,13 @@ export default function PredictionMarketsClient() {
         valueOf: (m) => m.volumeTotal,
         labelOf: (m) => m.shortLabel,
         colorOf: (m) => leanColor(m.yesPrice),
-        base: 16,
-        k: 62,
-        min: 20,
-        max: 104,
+        base: 22,
+        k: 72,
+        min: 26,
+        max: 108,
+        // Volumes run from $50K to $65M; a linear ratio would park nine
+        // bubbles in ten on the floor and read as noise.
+        scale: "log",
       }),
     [],
   );

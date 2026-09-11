@@ -22,16 +22,23 @@ export const SUITE_CSS = `
   --viz-bad: var(--bad);
   --viz-gold: var(--gold);
   --viz-surface: var(--bg-elevated);
-  --viz-arena: radial-gradient(1200px 620px at 18% -10%, var(--mesh-1), transparent 65%),
-               radial-gradient(900px 540px at 92% 8%, var(--mesh-3), transparent 60%),
-               linear-gradient(180deg, var(--bg-1), var(--bg-2) 60%, var(--bg-1));
+  --viz-grid: rgba(0, 88, 130, 0.07);
+  --viz-arena: radial-gradient(1100px 600px at 16% -8%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 62%),
+               radial-gradient(900px 520px at 94% 6%, color-mix(in srgb, var(--accent-2) 8%, transparent), transparent 58%),
+               linear-gradient(180deg, var(--bg-3), var(--bg-1) 55%, var(--bg-3));
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  overflow: hidden;
   background: var(--viz-arena);
   color: var(--viz-ink);
   font-family: var(--viz-sans), system-ui, sans-serif;
+}
+
+:root[data-theme="dark"] .viz-root,
+html[data-theme="dark"] .viz-root { --viz-grid: rgba(255, 255, 255, 0.05); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .viz-root { --viz-grid: rgba(255, 255, 255, 0.05); }
 }
 
 /* ------------------------------------------------------------- chrome */
@@ -209,8 +216,8 @@ export const SUITE_CSS = `
   overflow: hidden;
   /* The grid is the "instrument" cue — it must never draw attention. */
   background-image:
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    linear-gradient(var(--viz-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--viz-grid) 1px, transparent 1px);
   background-size: 64px 64px, 64px 64px;
 }
 .viz-arena canvas { display: block; touch-action: manipulation; }

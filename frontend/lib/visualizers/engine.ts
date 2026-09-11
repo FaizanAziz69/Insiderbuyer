@@ -40,6 +40,16 @@ export interface EngineOptions<T> {
   k?: number;
   min?: number;
   max?: number;
+  /**
+   * How `value` maps onto the 0-1 the radius curve consumes.
+   *   'linear' — the brief's plain sqrt(value / max), right when values sit
+   *              inside one order of magnitude (contract dollars, market caps).
+   *   'log'    — sqrt of the log-compressed value, for fields that span three
+   *              or four orders (prediction volumes run $50K to $65M, where a
+   *              plain ratio leaves nine bubbles in ten at the floor).
+   * Both are monotonic in value, so bigger still means bigger either way.
+   */
+  scale?: 'linear' | 'log';
   /** Keep the summed bubble area a sane share of the arena. */
   fit?: boolean;
 }
@@ -70,6 +80,7 @@ export class BubbleEngine<T extends { id: string }> {
       min: 20,
       max: 96,
       fit: true,
+      scale: 'linear',
       ...opts,
     } as typeof this.o;
   }
@@ -189,8 +200,14 @@ export class BubbleEngine<T extends { id: string }> {
   private rescale(): void {
     const active = this.nodes.filter((n) => !n.dim);
     this.maxValue = Math.max(1, ...active.map((n) => n.value));
+    const minValue = Math.max(1, Math.min(...active.map((n) => n.value || 1)));
+    const logSpan = Math.log(this.maxValue) - Math.log(minValue) || 1;
     for (const n of this.nodes) {
-      const raw = this.o.base + Math.sqrt(n.value / this.maxValue) * this.o.k;
+      const unit =
+        this.o.scale === 'log'
+          ? Math.max(0, Math.min(1, (Math.log(Math.max(1, n.value)) - Math.log(minValue)) / logSpan))
+          : n.value / this.maxValue;
+      const raw = this.o.base + Math.sqrt(unit) * this.o.k;
       n.baseR = Math.min(Math.max(raw, this.o.min), this.o.max);
     }
     let f = 1;
