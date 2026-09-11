@@ -71,6 +71,35 @@ export const VOICE_PRINCIPLES = [
   { principle: 'Honest about the limits', practice: 'If the insider data shows nothing, say so. The absence is often the story.' },
   { principle: 'One distinct angle', practice: 'Not "here is what happened" but "here is what the insider data reveals about it".' },
   { principle: 'Short paragraphs, always', practice: 'Maximum 4 sentences. Most 2–3.' },
+  // Client, 2026-09-12, after reading a story that read as analysis rather
+  // than reporting: "Be more direct and use simple language. Don't give any
+  // opinionated commentary. Focus on the story and verifying the story with
+  // structured data."
+  { principle: 'Direct and plain', practice: 'Short sentences, ordinary words. Say what happened before saying anything about it.' },
+  { principle: 'Report, do not opine', practice: 'No verdicts on what a filing means, proves, or takes. If it is not in a filing or a dataset we hold, it does not belong in the body.' },
+  { principle: 'Verify with structured data', practice: 'Name the record behind every figure — Form 4, congressional disclosure, our own tables — with dates and amounts as filed.' },
+] as const;
+
+/**
+ * Section 4 — phrasings that turn reporting into commentary. The client's
+ * standing note (2026-09-12) is that an article should carry the story and the
+ * data behind it, not a view about them. Warnings, not errors: a false
+ * positive here is likely ("what it means for you" is a legitimate section
+ * heading), so a human decides.
+ */
+export const OPINION_PHRASES = [
+  'takes more conviction',
+  'the signal is',
+  'what it does not settle',
+  'worth noting',
+  'the real question',
+  'makes you wonder',
+  'we think',
+  'in our view',
+  'arguably',
+  'tells you',
+  'is the shape that',
+  'hardest to explain',
 ] as const;
 
 /** Section 5 — words the manual bans from body copy ("editorial empty

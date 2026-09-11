@@ -32,6 +32,7 @@ import {
   MAX_SENTENCES_PER_PARAGRAPH,
   META_DESCRIPTION_MAX,
   META_TITLE_MAX,
+  OPINION_PHRASES,
   PROMOTIONAL_PHRASES,
   SLUG_PATTERN,
   VIZ_KEYS,
@@ -468,6 +469,19 @@ export function runEditorialChecklist(draft: EditorialDraft): ChecklistReport {
   );
 
   // ── Sections 4 & 5 — voice ──────────────────────────────────────────────
+  // Client, 2026-09-12: "Don't give any opinionated commentary. Focus on the
+  // story and verifying the story with structured data." A verdict about what
+  // a filing means is the thing to cut; the filing itself stays.
+  const opinions = hits(text, OPINION_PHRASES);
+  add(
+    'no-commentary',
+    'Reports the story and its data, with no commentary on what it means',
+    opinions.length === 0,
+    'warning',
+    '4',
+    `found: ${opinions.join(', ')} — state what the filing says, not what it proves`,
+  );
+
   const emptyCalories = hits(text, BANNED_BODY_WORDS);
   add(
     'banned-body-words',
