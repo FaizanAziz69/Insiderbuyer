@@ -364,12 +364,24 @@ export class BiotechService {
         const statements = await this.fmp.getStatements(p.ticker, 'quarter', 2);
         const bs = statements?.balance?.[0] as Record<string, unknown> | undefined;
         const inc = statements?.income?.[0] as Record<string, unknown> | undefined;
+        const cf = statements?.cashflow?.[0] as Record<string, unknown> | undefined;
         const cash =
           num(bs?.cashAndShortTermInvestments) ?? num(bs?.cashAndCashEquivalents) ?? null;
-        // Operating burn stands in as the trailing quarter's net loss; a
-        // biotech with little revenue has essentially no other cash use.
+        // Burn is cash out of operations, not accounting loss. Net income
+        // reads a milestone payment or a warrant revaluation as if the
+        // company had stopped spending — Revolution Medicines showed "not
+        // burning" on a quarter it burned nine figures. Net loss stays as the
+        // fallback for the rare filer with no cash-flow statement.
+        const operating = num(cf?.netCashProvidedByOperatingActivities);
         const netIncome = num(inc?.netIncome);
-        const burn = netIncome != null && netIncome < 0 ? Math.abs(netIncome) : null;
+        const burn =
+          operating != null && operating < 0
+            ? Math.abs(operating)
+            : operating != null && operating >= 0
+              ? null
+              : netIncome != null && netIncome < 0
+                ? Math.abs(netIncome)
+                : null;
         p.cash = cash == null ? null : String(cash);
         p.quarterlyBurn = burn == null ? null : String(burn);
         // Stamped even when both are missing, so the queue drains instead of
