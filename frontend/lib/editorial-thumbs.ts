@@ -133,7 +133,12 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // keyword match from another card.
   "topic-congress-trading-summer-2026-09-11": "invest-like-pelosi",
   "topic-insider-buy-sell-ratio-2026-09-11": "insiders-most-money",
-  "topic-alibaba-insider-buying-2026-09-11": "ryan-cohen-alibaba-2",
+  // NOT ryan-cohen-alibaba-2 despite the filename: that file is an unrelated
+  // portrait on a quantum-chip background with no Alibaba in it (checked
+  // 2026-09-11). This one carries the Alibaba signage, which is the
+  // company the story is about. The face on it is Ryan Cohen, who is not
+  // in the story — swap if the client wants the subjects instead.
+  "topic-alibaba-insider-buying-2026-09-11": "ryan-cohen-alibaba",
   // 2026-09-11: SpaceX directors funding MDMA therapy. The library's Musk /
   // Capitol composite is the closest thing we have to "Musk world meets
   // Washington", which is what this story is.
