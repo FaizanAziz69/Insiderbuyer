@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BrandLogoOverlay } from "./BrandLogoOverlay";
 import { pickSectorPhoto } from "@/lib/sector-photos";
 import { pickEditorialThumb } from "@/lib/editorial-thumbs";
@@ -251,6 +251,27 @@ export function AiCoverImage({
   // their pre-generated webp variants, Unsplash re-renders on demand, and
   // anything else (own image, data URI) passes through unchanged.
   const resolved = coverSources(src, size);
+  // `size` can only ever be a CLASS of slot, and the classes are wide: the
+  // same "card" renders 654px in a section lead and 191px in the list beside
+  // it, which had those little thumbs pulling a 1440px file (measured on the
+  // live homepage 2026-09-11 — 11 of 15 covers). So once the element exists,
+  // replace the hint with its real width. Lazy images have not started
+  // fetching yet at this point, so they simply pick the right candidate; an
+  // eager one keeps whatever it already has, because a browser never
+  // re-fetches to go SMALLER.
+  const [measured, setMeasured] = useState<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    const el = imgRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const apply = () => {
+      const w = Math.round(el.getBoundingClientRect().width);
+      if (w > 0) setMeasured(`${w}px`);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   return (
     <div
       className={className}
@@ -277,7 +298,7 @@ export function AiCoverImage({
         ref={imgRef}
         src={resolved.src}
         srcSet={resolved.srcSet}
-        sizes={resolved.sizes}
+        sizes={resolved.srcSet ? measured || resolved.sizes : undefined}
         alt={alt}
         loading={loading}
         decoding="async"
