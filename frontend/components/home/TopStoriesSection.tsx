@@ -59,7 +59,7 @@ export function TopStoriesSection() {
   // show, so the same headlines rendered twice on one page. `dealHomeFeed`
   // still prefers editorial here — it just claims whatever it borrows.
   const { data, isLoading } = useSWR<BlogListResponse>(
-    `${API_BASE}/content/blogs?limit=20`,
+    `${API_BASE}/content/blogs?limit=30`,
     fetcher,
     { revalidateOnFocus: false, refreshInterval: 10 * 60_000 },
   );

@@ -127,6 +127,13 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-11: the three Popular Articles topic roundups. Covers picked per
+  // topic from the library (client rule: library only, cover must match the
+  // subject) and pinned so the home-page registry cannot hand them to a
+  // keyword match from another card.
+  "topic-congress-trading-summer-2026-09-11": "invest-like-pelosi",
+  "topic-insider-buy-sell-ratio-2026-09-11": "insiders-most-money",
+  "topic-alibaba-insider-buying-2026-09-11": "ryan-cohen-alibaba-2",
   // 2026-09-11: SpaceX directors funding MDMA therapy. The library's Musk /
   // Capitol composite is the closest thing we have to "Musk world meets
   // Washington", which is what this story is.

@@ -1,7 +1,7 @@
 {
   "": [
     "/api/backend/content/blogs?kind=stock-idea&limit=6",
-    "/api/backend/content/blogs?limit=20",
+    "/api/backend/content/blogs?limit=30",
     "/api/backend/earnings/calendar?days=7",
     "/api/backend/iqs2/top-buys?period=7d&grade=A&limit=5",
     "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
@@ -45,7 +45,7 @@
     "/api/backend/trades?side=buy&limit=40"
   ],
   "articles/market-movers": [
-    "/api/backend/content/blogs?limit=20",
+    "/api/backend/content/blogs?limit=30",
     "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
     "/api/backend/market-stats/profile?symbol=CRMT",
     "/api/backend/market-stats/profile?symbol=CYCN",
@@ -113,7 +113,7 @@
     "/api/backend/company-civic/revenue-segments?ticker={ticker}",
     "/api/backend/company-civic/whale-activity?ticker={ticker}&name=NVIDIA%20CORP",
     "/api/backend/congressional-trades?ticker={ticker}&limit=8",
-    "/api/backend/content/blogs?limit=20",
+    "/api/backend/content/blogs?limit=30",
     "/api/backend/content/bull-bear/{ticker}?name=NVIDIA+CORP&sector=Technology&score=0",
     "/api/backend/content/by-ticker/{ticker}?limit=6",
     "/api/backend/content/news/{ticker}?name=NVIDIA%20CORP",
@@ -355,7 +355,7 @@
   "news": [
     "/api/backend/congressional-trades?limit=40",
     "/api/backend/content/blogs?kind=stock-idea&limit=6",
-    "/api/backend/content/blogs?limit=20",
+    "/api/backend/content/blogs?limit=30",
     "/api/backend/content/blogs?limit=25",
     "/api/backend/earnings/calendar?days=7",
     "/api/backend/indices",
@@ -409,7 +409,7 @@
     "/api/backend/trades?side=buy&limit=40"
   ],
   "reports/monthly/[month]": [
-    "/api/backend/content/blogs?limit=20",
+    "/api/backend/content/blogs?limit=30",
     "/api/backend/market-stats/analyst-ratings?symbols=INBX,GME,AMR,SUJA,PDYN,NRIM,SCOR,DLPN,DLHC,JCTC,RSG,UBER",
     "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
     "/api/backend/metrics/buy-sell",

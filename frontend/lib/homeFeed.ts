@@ -35,15 +35,26 @@ const CAPACITY = 5;
 
 /** Editorial Playbook v2 §8 — the story types it names as evergreen, mapped to
  *  the kinds this feed actually carries. These fill slots 4–5 ahead of dated
- *  formats when editorial output is thin. */
+ *  formats when editorial output is thin. `topic-roundup` is deliberately NOT
+ *  here: it belongs to Popular Articles (see POPULAR_KINDS). */
 const EVERGREEN_KINDS = new Set<BlogPostListItem["kind"]>([
   "top-iqs",
   "sector-roundup",
-  "topic-roundup",
   "weekly-report",
   "guide-format",
   "cluster-buy",
 ]);
+
+/** Kinds written FOR the Popular Articles block — the standing-interest topic
+ *  pieces (congressional trading, the buy/sell ratio, a company everyone is
+ *  already reading about) rather than the day's news.
+ *
+ *  These are claimed before any other block deals, which is the point: the
+ *  client's rule (2026-09-11) is that a new topic piece appears in Popular
+ *  Articles and NOWHERE else — Top Stories' five must not move because one was
+ *  published. Claiming first is the only way to guarantee that, since Top
+ *  Stories' last-resort top-up would otherwise be free to take anything. */
+const POPULAR_KINDS = new Set<BlogPostListItem["kind"]>(["topic-roundup"]);
 
 /** Editorial articles eligible for the hero rotation: the newest this many. */
 const ROTATION_POOL = 7;
@@ -168,6 +179,13 @@ export function dealHomeFeed(
   // roundups, case studies, weekly summaries, congressional trades — over
   // whatever happens to be newest in the general feed. A daily-summary in
   // slot 4 dates badly; a sector roundup does not.
+  // Claimed FIRST, before Top Stories or Latest News can reach them, so a new
+  // topic piece can never displace a Top Story or turn up in two blocks.
+  const popularPicks = take(
+    dealable.filter((i) => POPULAR_KINDS.has(i.kind)),
+    CAPACITY,
+  );
+
   const topStories = take(rotateHero(organic.filter((i) => i.kind === "editorial")), CAPACITY);
   topStories.push(
     ...take(
@@ -181,7 +199,12 @@ export function dealHomeFeed(
 
   // Order matters: these run top-down so the freshest articles sit highest.
   const latestNews = take(dealable, CAPACITY);
-  const popularArticles = take(dealable, CAPACITY);
+  // Popular Articles = its own topic pieces first (claimed above, before any
+  // other block could reach them), then whatever the day's feed has left.
+  const popularArticles = [
+    ...popularPicks,
+    ...take(dealable, CAPACITY - popularPicks.length),
+  ];
 
   return {
     "top-stories": topStories,

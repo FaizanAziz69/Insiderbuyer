@@ -24,8 +24,14 @@ import { useHomeThumb } from "./HomeThumbRegistry";
  *  `dealHomeFeed`, which replaced a `pool.slice(6)` offset that silently fell
  *  back to offset 0 on a short feed and re-showed the rows above it. */
 export function AiPopularArticlesSection() {
+  // limit=30, not 20: the four home blocks deal from this one feed and stock
+  // ideas are never dealt, so a 20-article window left only 2 for this block
+  // once Top Stories and Latest News had taken five each (measured
+  // 2026-09-11: 20 articles, 8 of them stock ideas). Every block must request
+  // the SAME key — SWR dedupes it into one request and the deal depends on an
+  // identical ordering.
   const { data, isLoading } = useSWR<BlogListResponse>(
-    `${API_BASE}/content/blogs?limit=20`,
+    `${API_BASE}/content/blogs?limit=30`,
     fetcher,
     { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );

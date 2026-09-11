@@ -40,7 +40,7 @@ const POPULAR_WEIGHT: Partial<Record<BlogKind, number>> = {
  *  drops the current article. */
 export function RightRailArticles({ excludeLink, tag }: Props) {
   const { data } = useSWR<BlogListResponse>(
-    `${API_BASE}/content/blogs?limit=20`,
+    `${API_BASE}/content/blogs?limit=30`,
     fetcher,
     { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );

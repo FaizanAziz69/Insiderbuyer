@@ -25,7 +25,7 @@ import { useHomeThumb } from "./HomeThumbRegistry";
  *  hardcoded `slice(1)` offset could not guarantee that — see lib/homeFeed.ts). */
 export function AiLatestNewsSection() {
   const { data, isLoading } = useSWR<BlogListResponse>(
-    `${API_BASE}/content/blogs?limit=20`,
+    `${API_BASE}/content/blogs?limit=30`,
     fetcher,
     { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
