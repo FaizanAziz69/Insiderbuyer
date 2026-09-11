@@ -13,6 +13,8 @@ import {
   VizPayloadCache,
 } from '../entities/visualizer.entity';
 import { Company } from '../entities/company.entity';
+import { PressOrder } from '../entities/press-order.entity';
+import { IrClientService } from './ir-client.service';
 import { FmpModule } from '../fmp/fmp.module';
 import { GovVizService } from './gov-contracts-viz.service';
 import { MiningService } from './mining.service';
@@ -43,6 +45,7 @@ import { VisualizersController } from './visualizers.controller';
       VizBiotechProfile,
       VizPayloadCache,
       Company,
+      PressOrder,
     ]),
   ],
   controllers: [VisualizersController],
@@ -53,6 +56,7 @@ import { VisualizersController } from './visualizers.controller';
     GovVizService,
     MiningService,
     BiotechService,
+    IrClientService,
   ],
   exports: [
     PredictionService,
@@ -61,6 +65,7 @@ import { VisualizersController } from './visualizers.controller';
     GovVizService,
     MiningService,
     BiotechService,
+    IrClientService,
   ],
 })
 export class VisualizersModule {}

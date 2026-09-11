@@ -317,8 +317,9 @@ export default function GovernmentContractsClient() {
                     }
                   />
                 </div>
-                {selectedBubble.marketCap != null && (
-                  <div style={{ marginTop: 10 }} className="viz-grid">
+                {(selectedBubble.marketCap != null ||
+                  selectedBubble.govRevenueSharePct != null) && (
+                  <div style={{ marginTop: 10 }} className="viz-grid" data-cols="3">
                     <Cell label="Market cap" value={fmtUsd(selectedBubble.marketCap)} />
                     <Cell
                       label="Awards ÷ market cap"
@@ -328,6 +329,21 @@ export default function GovernmentContractsClient() {
                           : "—"
                       }
                     />
+                    {/* §6.2 government-revenue concentration. */}
+                    <Cell
+                      label="Gov. share of revenue"
+                      value={
+                        selectedBubble.govRevenueSharePct != null
+                          ? `${selectedBubble.govRevenueSharePct.toFixed(0)}%`
+                          : "—"
+                      }
+                    />
+                  </div>
+                )}
+                {selectedBubble.govRevenueSharePct != null && (
+                  <div className="viz-src">
+                    Government share is this window&rsquo;s awards over trailing-twelve-month
+                    revenue — an approximation of dependence, not a reported segment figure.
                   </div>
                 )}
               </Section>

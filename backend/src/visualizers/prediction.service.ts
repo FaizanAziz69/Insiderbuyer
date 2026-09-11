@@ -7,6 +7,12 @@ import {
   VizCuratedMarket,
   VizMarketContract,
 } from '../entities/visualizer.entity';
+import {
+  KalshiClient,
+  kalshiCategory,
+  kalshiDollarVolume,
+  type KalshiMarket,
+} from './kalshi.source';
 import { RealtimeService } from './realtime.service';
 
 /**
@@ -174,6 +180,7 @@ export class PredictionService implements OnModuleInit {
   private polling = false;
   private readonly tradeCache = new Map<string, { at: number; rows: LiveState['trades'] }>();
   private readonly historyCache = new Map<string, { at: number; rows: { t: number; p: number }[] }>();
+  private readonly kalshi: KalshiClient;
 
   constructor(
     @InjectRepository(VizCuratedMarket)
@@ -182,6 +189,7 @@ export class PredictionService implements OnModuleInit {
     private readonly markets: Repository<VizMarketContract>,
     private readonly realtime: RealtimeService,
   ) {
+    this.kalshi = new KalshiClient();
     this.http = axios.create({
       timeout: 20_000,
       headers: { Accept: 'application/json', 'User-Agent': 'InsiderBuying-Visualizers/1.0' },
@@ -235,7 +243,13 @@ export class PredictionService implements OnModuleInit {
       events = events.concat(data);
     }
 
-    const ranked: { m: GammaMarket; category: Category; label: string; v24: number }[] = [];
+    const ranked: {
+      m: GammaMarket & { conditionId?: string };
+      category: Category;
+      label: string;
+      v24: number;
+      source?: string;
+    }[] = [];
     for (const ev of events) {
       const category = this.categorise(ev);
       const eligible = (ev.markets ?? [])
@@ -251,6 +265,41 @@ export class PredictionService implements OnModuleInit {
         });
       }
     }
+    // Kalshi, the second venue (§12 Q5). Same shape, same ranking, same caps,
+    // so the two sources compete for slots on the merits rather than one
+    // getting a reserved quota.
+    try {
+      const kevents = await this.kalshi.events(4);
+      for (const ev of kevents) {
+        const category = kalshiCategory(ev.category);
+        const eligible = (ev.markets ?? [])
+          .filter((m) => this.kalshiTradeable(m))
+          .sort(
+            (a, b) =>
+              kalshiDollarVolume(b, Number(b.volume_24h_fp ?? 0)) -
+              kalshiDollarVolume(a, Number(a.volume_24h_fp ?? 0)),
+          )
+          .slice(0, MAX_PER_EVENT);
+        for (const m of eligible) {
+          ranked.push({
+            m: {
+              id: m.ticker,
+              question: m.title ?? ev.title ?? m.ticker,
+              groupItemTitle: m.yes_sub_title ?? m.subtitle,
+              conditionId: ev.series_ticker ?? ev.event_ticker.split('-')[0],
+            } as GammaMarket & { conditionId: string },
+            category,
+            label: this.kalshiLabel(ev, m),
+            v24: kalshiDollarVolume(m, Number(m.volume_24h_fp ?? 0)),
+            source: 'kalshi',
+          });
+        }
+      }
+    } catch (e) {
+      // A venue being down must not stop the other one from being curated.
+      this.logger.warn(`kalshi catalog: ${(e as Error).message}`);
+    }
+
     ranked.sort((a, b) => b.v24 - a.v24);
 
     let added = 0;
@@ -258,14 +307,15 @@ export class PredictionService implements OnModuleInit {
     for (const [, row] of keep) used[row.category] = (used[row.category] ?? 0) + 1;
     for (const r of ranked) {
       if (keep.size >= MAX_MARKETS) break;
-      const id = `polymarket:${r.m.id}`;
+      const source = r.source ?? 'polymarket';
+      const id = `${source}:${r.m.id}`;
       if (keep.has(id)) continue;
       const cap = CATEGORY_CAPS[r.category] ?? MAX_MARKETS;
       if ((used[r.category] ?? 0) >= cap) continue;
       used[r.category] = (used[r.category] ?? 0) + 1;
       const row = this.curated.create({
         id,
-        source: 'polymarket',
+        source,
         sourceId: r.m.id,
         shortLabel: r.label,
         category: r.category,
@@ -311,6 +361,31 @@ export class PredictionService implements OnModuleInit {
     // A market pinned at 0/1 has already resolved in all but name.
     const yes = prices[0];
     return yes > 0.005 && yes < 0.995;
+  }
+
+  /** Kalshi's own tradeability gate: real volume, a live price, not resolved. */
+  private kalshiTradeable(m: KalshiMarket): boolean {
+    if ((m.status ?? '') !== 'active') return false;
+    const contracts24 = Number(m.volume_24h_fp ?? 0);
+    const contracts = Number(m.volume_fp ?? 0);
+    if (!(contracts24 > 0) || !(contracts > 0)) return false;
+    const dollars24 = kalshiDollarVolume(m, contracts24);
+    const dollarsTotal = kalshiDollarVolume(m, contracts);
+    if (dollars24 < MIN_VOLUME_24H / 5) return false;
+    if (dollarsTotal < MIN_VOLUME_TOTAL / 5) return false;
+    const price = Number(m.last_price_dollars ?? 0);
+    return price > 0.005 && price < 0.995;
+  }
+
+  private kalshiLabel(
+    ev: { title?: string; markets?: unknown[] },
+    m: KalshiMarket,
+  ): string {
+    const outcome = m.yes_sub_title ?? m.subtitle ?? '';
+    if ((ev.markets?.length ?? 0) > 1 && outcome) {
+      return `${this.stem(ev.title ?? '')}: ${this.trim(outcome, 20)}`;
+    }
+    return this.trim(m.title ?? ev.title ?? m.ticker, 42);
   }
 
   private categorise(ev: GammaEvent): Category {
@@ -367,7 +442,7 @@ export class PredictionService implements OnModuleInit {
       const curated = await this.curated.find({ where: { active: true } });
       if (curated.length === 0) return { polled: 0, changed: 0 };
       const byId = new Map(curated.map((c) => [c.sourceId, c]));
-      const ids = [...byId.keys()];
+      const ids = curated.filter((c) => c.source === 'polymarket').map((c) => c.sourceId);
       const fetched: GammaMarket[] = [];
       for (let i = 0; i < ids.length; i += 50) {
         const slice = ids.slice(i, i + 50);
@@ -378,6 +453,38 @@ export class PredictionService implements OnModuleInit {
         qs.append('limit', String(slice.length));
         const { data } = await this.http.get<GammaMarket[]>(`${GAMMA}/markets?${qs}`);
         if (Array.isArray(data)) fetched.push(...data);
+      }
+
+      // Kalshi rows refresh through their own endpoint and are mapped onto the
+      // same Gamma-shaped record, so everything below this line is source-blind.
+      const kalshiTickers = curated.filter((c) => c.source === 'kalshi').map((c) => c.sourceId);
+      if (kalshiTickers.length) {
+        try {
+          const kms = await this.kalshi.markets(kalshiTickers);
+          for (const km of kms) {
+            const contracts = Number(km.volume_fp ?? 0);
+            const contracts24 = Number(km.volume_24h_fp ?? 0);
+            const last = Number(km.last_price_dollars ?? 0);
+            const prev = Number(km.previous_price_dollars ?? 0);
+            fetched.push({
+              id: km.ticker,
+              question: km.title ?? km.ticker,
+              slug: km.ticker,
+              endDate: km.close_time,
+              outcomePrices: JSON.stringify([String(last), String(1 - last)]),
+              volumeNum: kalshiDollarVolume(km, contracts),
+              volume24hr: kalshiDollarVolume(km, contracts24),
+              liquidityNum: Number(km.open_interest_fp ?? 0),
+              bestBid: Number(km.yes_bid_dollars ?? 0) || undefined,
+              bestAsk: Number(km.yes_ask_dollars ?? 0) || undefined,
+              lastTradePrice: last,
+              oneDayPriceChange: prev > 0 ? last - prev : undefined,
+              closed: (km.status ?? '') !== 'active',
+            } as GammaMarket);
+          }
+        } catch (e) {
+          this.logger.warn(`kalshi poll: ${(e as Error).message}`);
+        }
       }
 
       const now = Date.now();
@@ -560,7 +667,17 @@ export class PredictionService implements OnModuleInit {
     const cached = this.historyCache.get(`${id}:${interval}`);
     let base: { t: number; p: number }[] = [];
     if (cached && Date.now() - cached.at < 60_000) base = cached.rows;
-    else {
+    else if (s.source === 'kalshi') {
+      try {
+        // The series ticker is the segment before the first dash of a market
+        // ticker (KXFED-27APR-T4.25 → KXFED); the candlestick route needs both.
+        const series = s.sourceId.split('-')[0];
+        base = await this.kalshi.history(series, s.sourceId, interval === '1d' ? 2 : 30);
+        this.historyCache.set(`${id}:${interval}`, { at: Date.now(), rows: base });
+      } catch (e) {
+        this.logger.warn(`kalshi history ${id}: ${(e as Error).message}`);
+      }
+    } else {
       try {
         const row = await this.markets.findOne({ where: { id } });
         const token = row?.yesTokenId ?? (await this.resolveToken(id));
@@ -608,6 +725,18 @@ export class PredictionService implements OnModuleInit {
     if (cached && Date.now() - cached.at < 5_000) return cached.rows;
     const s = this.live.get(id);
     if (!s) return [];
+    if (s.source === 'kalshi') {
+      try {
+        const rows = await this.kalshi.trades(s.sourceId, TRADES_CAP);
+        this.tradeCache.set(id, { at: Date.now(), rows });
+        s.trades = rows.slice(0, TRADES_CAP);
+        s.dirty = true;
+        return rows;
+      } catch (e) {
+        this.logger.warn(`kalshi trades ${id}: ${(e as Error).message}`);
+        return s.trades;
+      }
+    }
     let condition = (await this.markets.findOne({ where: { id } }))?.conditionId ?? null;
     if (!condition) {
       await this.resolveToken(id);
@@ -650,8 +779,11 @@ export class PredictionService implements OnModuleInit {
   }
 
   status(): Record<string, unknown> {
+    const bySource: Record<string, number> = {};
+    for (const m of this.live.values()) bySource[m.source] = (bySource[m.source] ?? 0) + 1;
     return {
       markets: this.live.size,
+      bySource,
       open: [...this.live.values()].filter((s) => s.status === 'open').length,
       lastPollAgoMs: this.lastPoll ? Date.now() - this.lastPoll : null,
       lastCatalogAgoMs: this.lastCatalog ? Date.now() - this.lastCatalog : null,

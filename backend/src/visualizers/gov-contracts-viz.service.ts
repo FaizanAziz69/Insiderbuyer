@@ -415,6 +415,20 @@ export class GovVizService {
       if (snap.iqsScore != null) iqsByTicker.set(t, snap.iqsScore);
     }
 
+    // §6.2 government-revenue concentration, "where derivable": window dollars
+    // over trailing-twelve-month revenue. Bounded to the largest recipients
+    // because each one costs an income-statement call.
+    const bigResolved = [...current.entries()]
+      .filter(([id]) => resolved.get(id)?.ticker)
+      .sort((a, b) => b[1].amount - a[1].amount)
+      .slice(0, 80);
+    const govShare = new Map<string, number>();
+    for (const [id, v] of bigResolved) {
+      const t = resolved.get(id)!.ticker!;
+      const share = await this.govRevenueShare(t, v.amount);
+      if (share != null) govShare.set(id, share);
+    }
+
     const bubbles: ContractsBubbleDto[] = [];
     for (const [id, v] of current) {
       const r = resolved.get(id);
@@ -434,7 +448,7 @@ export class GovVizService {
           priorAmount > 0 ? ((v.amount - priorAmount) / priorAmount) * 100 : null,
         topAgency: null,
         awardCount: 0,
-        govRevenueSharePct: null,
+        govRevenueSharePct: govShare.get(id) ?? null,
         marketCap: num(q?.marketCap),
         price: num(q?.price),
         iqs: ticker ? iqsByTicker.get(ticker) ?? null : null,

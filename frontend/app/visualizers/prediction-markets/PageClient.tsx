@@ -281,8 +281,8 @@ export default function PredictionMarketsClient() {
       title="Prediction Market Bubbles"
       subtitle={
         <>
-          Every bubble is one event contract on Polymarket, sized by total dollars traded and
-          coloured by which way the money leans. Prices move live.
+          Every bubble is one event contract on Polymarket or Kalshi, sized by total dollars
+          traded and coloured by which way the money leans. Prices move live.
         </>
       }
       controls={
@@ -358,7 +358,7 @@ export default function PredictionMarketsClient() {
           badges={
             selectedMarket && (
               <>
-                <Badge kind="source">POLYMARKET</Badge>
+                <Badge kind="source">{selectedMarket.source.toUpperCase()}</Badge>
                 <Badge>{selectedMarket.category}</Badge>
                 {selectedMarket.endDate && (
                   <Badge kind={endDays != null && endDays <= 7 ? "good" : undefined}>
@@ -428,8 +428,9 @@ export default function PredictionMarketsClient() {
                   />
                 </div>
                 <div className="viz-src">
-                  Polymarket publishes resting book liquidity rather than open interest; that is
-                  the figure shown.
+                  {selectedMarket.source === "kalshi"
+                    ? "Kalshi publishes contract counts, not dollars: volumes here are contracts traded valued at the last price, and the liquidity figure is open interest in contracts."
+                    : "Polymarket publishes resting book liquidity rather than open interest; that is the figure shown."}
                 </div>
               </Section>
 
@@ -487,7 +488,7 @@ export default function PredictionMarketsClient() {
                 Informational only; not betting or investment advice. InsiderBuying aggregates and
                 displays publicly available market prices. We do not take bets, route orders, or
                 facilitate wagering, and we do not link to trading venues. Prices and volumes are
-                sourced from Polymarket and are as of{" "}
+                sourced from the venue named on each panel and are as of{" "}
                 {asOf ? new Date(asOf).toLocaleTimeString("en-US") : "—"}.
               </Disclaimer>
             </>

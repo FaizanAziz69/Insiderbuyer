@@ -49,12 +49,13 @@ const CAP_BANDS: { key: string; label: string; min: number; max: number }[] = [
   { key: "large", label: "$10B+", min: 1e10, max: Infinity },
 ];
 
-const CATALYST_WINDOWS = [
-  { key: 0, label: "Any date" },
-  { key: 30, label: "Within 30d" },
-  { key: 90, label: "Within 90d" },
-  { key: 180, label: "Within 180d" },
-];
+/** The scrubber's readout: 0 means "show everything", not "today". */
+function scrubLabel(days: number): string {
+  if (days === 0) return "Any date";
+  if (days <= 45) return `Next ${days} days`;
+  const months = Math.round(days / 30);
+  return `Next ${months} month${months === 1 ? "" : "s"}`;
+}
 
 /** Runway is the number that decides whether a catalyst even gets funded, so
  *  it drives the colour: red under a year, amber to two, green beyond. */
@@ -182,18 +183,29 @@ export default function BiotechClient() {
             </Chip>
           ))}
           <span style={{ width: 8 }} />
-          <select
-            className="viz-select"
-            value={String(catalystDays)}
-            onChange={(e) => setCatalystDays(Number(e.target.value))}
-            aria-label="Catalyst window"
+          {/* §5.3 the twelve-month timeline scrubber: drag forward and the map
+              lights up as each company's catalyst comes inside the window. */}
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 9,
+              fontSize: 12,
+              color: "var(--viz-soft)",
+            }}
           >
-            {CATALYST_WINDOWS.map((w) => (
-              <option key={w.key} value={w.key}>
-                {w.label}
-              </option>
-            ))}
-          </select>
+            <span style={{ whiteSpace: "nowrap" }}>{scrubLabel(catalystDays)}</span>
+            <input
+              type="range"
+              min={0}
+              max={365}
+              step={15}
+              value={catalystDays}
+              onChange={(e) => setCatalystDays(Number(e.target.value))}
+              aria-label="Catalyst timeline"
+              style={{ width: 150, accentColor: "var(--viz-accent)" }}
+            />
+          </label>
           <select
             className="viz-select"
             value={phase}

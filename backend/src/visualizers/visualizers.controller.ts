@@ -23,6 +23,7 @@ import {
 import { InsiderSnapshotService } from './insider-snapshot.service';
 import { MiningService } from './mining.service';
 import { BiotechService } from './biotech.service';
+import { IrClientService } from './ir-client.service';
 import { PredictionService } from './prediction.service';
 import { RealtimeService } from './realtime.service';
 
@@ -42,6 +43,7 @@ export class VisualizersController {
     private readonly gov: GovVizService,
     private readonly mining: MiningService,
     private readonly biotech: BiotechService,
+    private readonly irClients: IrClientService,
   ) {}
 
   /** §3.4 the shared Insider Intelligence block, for any vertical's panel. */
@@ -216,6 +218,24 @@ export class VisualizersController {
   @UseGuards(AdminTokenGuard)
   importCatalysts(@Body() body: { rows?: Record<string, unknown>[] }) {
     return this.biotech.importCatalysts(Array.isArray(body?.rows) ? body.rows : []);
+  }
+
+  /* ------------------------------------------- §8 editorial firewall */
+
+  @Get('admin/clients')
+  @UseGuards(AdminTokenGuard)
+  listClients() {
+    return this.irClients.list();
+  }
+
+  /** A client relationship that never went through the press checkout. */
+  @Post('admin/clients/:ticker')
+  @UseGuards(AdminTokenGuard)
+  setClient(
+    @Param('ticker') ticker: string,
+    @Body() body: { isClient?: boolean; name?: string },
+  ) {
+    return this.irClients.setClient(ticker, body?.isClient !== false, body?.name);
   }
 
   /* --------------------------------------------------------- curation */

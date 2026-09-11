@@ -263,10 +263,11 @@ const ALL_SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> 
     body: (
       <>
         <p>
-          Each bubble is one event contract on Polymarket. Size is <b>total dollar volume</b>{" "}
-          traded on that contract over its life; colour is the YES price — green at or above 50%,
-          red below, with intensity rising as the price moves away from a coin flip. A ring
-          flashes green or red when the price moves.
+          Each bubble is one event contract on <b>Polymarket or Kalshi</b>. Size is total dollar
+          volume traded on that contract over its life; colour is the YES price — green at or
+          above 50%, red below, with intensity rising as the price moves away from a coin flip. A
+          ring flashes green or red when the price moves. Each panel names the venue its figures
+          came from.
         </p>
         <p className="mt-2">
           We do not show every market. An editor-curated allowlist runs to roughly 150 contracts,
@@ -278,8 +279,11 @@ const ALL_SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> 
         <p className="mt-2">
           A YES price behaves like a probability because a YES share settles at $1 if the event
           happens and $0 if it does not — but it is a market price, set by whoever is willing to
-          trade, not a forecast we endorse. Polymarket publishes resting book liquidity rather
-          than open interest, so that is the figure the panel shows, labelled as such.
+          trade, not a forecast we endorse. The two venues publish different things and the
+          panels say which: Polymarket reports dollar volume and resting book liquidity;{" "}
+          <b>Kalshi reports contract counts</b>, so its dollar figures here are contracts traded
+          valued at the last price — an approximation — and its liquidity figure is open interest
+          in contracts.
         </p>
         <p className="mt-2">
           <b>Display only.</b> We aggregate and display publicly available market prices as

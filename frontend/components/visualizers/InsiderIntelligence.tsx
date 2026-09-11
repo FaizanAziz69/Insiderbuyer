@@ -21,7 +21,7 @@ import { API_BASE, fetcher } from "@/lib/api";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { fmtUsd, fmtDate } from "@/lib/visualizers/format";
-import { Cell, Row, Section } from "./DetailPanel";
+import { Badge, Cell, Row, Section } from "./DetailPanel";
 
 interface Snapshot {
   ticker: string;
@@ -32,6 +32,7 @@ interface Snapshot {
   netBuys90d: number | null;
   netSells90d: number | null;
   iqsScore: number | null;
+  isClient: boolean;
   notable: { who: string; role: string | null; date: string; value: number; side: "buy" | "sell" }[];
   covered: boolean;
 }
@@ -63,6 +64,18 @@ export function InsiderIntelligence({ ticker }: { ticker: string | null }) {
 
   return (
     <Section title="Insider Intelligence">
+      {/* §8 editorial firewall: a paid client is disclosed on its own panel,
+          before any of our numbers about it. */}
+      {data?.isClient && (
+        <div style={{ marginBottom: 11 }}>
+          <Badge kind="client">PAID CLIENT DISCLOSURE</Badge>
+          <p className="viz-about" style={{ marginTop: 7 }}>
+            {ticker} has paid InsiderBuying for a commercial service. That does not change any
+            figure on this panel — the filings and scores are computed the same way for every
+            company — but you should know it.
+          </p>
+        </div>
+      )}
       <div className="viz-grid" data-cols="3">
         <Cell
           label="Insider own."

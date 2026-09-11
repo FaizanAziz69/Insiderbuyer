@@ -26,6 +26,7 @@ import { API_BASE, fetcher } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { fmtNum, fmtUsd } from "@/lib/visualizers/format";
 import type { MiningProject } from "@/lib/visualizers/types";
+import { parseNlQuery } from "@/lib/visualizers/nl-query";
 import { SuiteShell } from "@/components/visualizers/SuiteShell";
 import { MapField, type MapPoint } from "@/components/visualizers/MapField";
 import { Chip, Legend, Toggle } from "@/components/visualizers/controls";
@@ -69,6 +70,8 @@ export default function GoldminerClient() {
   const [insidersOnly, setInsidersOnly] = useState(false);
   const [publicOnly, setPublicOnly] = useState(false);
   const [selected, setSelected] = useState<string | null>(params.get("m"));
+  const [nl, setNl] = useState("");
+  const [nlNote, setNlNote] = useState<string | null>(null);
 
   const { data, isLoading } = useSWR<Payload>(`${API_BASE}/visualizers/mining`, fetcher, {
     revalidateOnFocus: false,
@@ -81,6 +84,37 @@ export default function GoldminerClient() {
     for (const p of projects) c.set(p.country, (c.get(p.country) ?? 0) + 1);
     return [...c.entries()].sort((a, b) => b[1] - a[1]);
   }, [projects]);
+
+  /** §4.6 the query bar: one sentence in, the four filters set. */
+  const runQuery = useCallback(
+    (text: string) => {
+      const f = parseNlQuery(text, {
+        countries: countries.map(([c]) => c),
+        regions: [...new Set(projects.map((p) => p.region).filter(Boolean) as string[])],
+      });
+      if (f.unparsed.length) {
+        setNlNote(
+          `Could not turn that into a filter. Try a stage, a country, an ounce threshold, or "with insider buying".`,
+        );
+        return;
+      }
+      setStages(new Set(f.stages));
+      setMinOz(f.minOz ?? 0);
+      setCountry(f.country ?? "");
+      setInsidersOnly(f.insidersBuying);
+      setPublicOnly(f.publicOnly);
+      const parts = [
+        f.stages.length ? f.stages.join(" / ") : null,
+        f.minOz ? `over ${(f.minOz / 1e6).toFixed(f.minOz % 1e6 ? 1 : 0)}M oz` : null,
+        f.country,
+        f.insidersBuying ? "insiders buying" : null,
+        f.publicOnly ? "listed only" : null,
+      ].filter(Boolean);
+      setNlNote(parts.length ? `Filtered to ${parts.join(", ")}.` : null);
+      track("web_filter_use", { vertical: "mining", filter: "nl_query" });
+    },
+    [countries, projects],
+  );
 
   const points: MapPoint<MiningProject>[] = useMemo(
     () =>
@@ -153,6 +187,17 @@ export default function GoldminerClient() {
       }
       controls={
         <>
+          <input
+            className="viz-search"
+            style={{ minWidth: 260 }}
+            placeholder='Ask: "PEA projects in Canada over 2M oz with insider buying"'
+            value={nl}
+            onChange={(e) => setNl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") runQuery(nl);
+            }}
+            aria-label="Natural-language project query"
+          />
           {STAGES.map((s) => (
             <Chip
               key={s}
@@ -205,6 +250,26 @@ export default function GoldminerClient() {
       }
     >
       <div className="viz-arena">
+        {nlNote && (
+          <div
+            style={{
+              position: "absolute",
+              top: 12,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 4,
+              padding: "7px 13px",
+              borderRadius: 999,
+              border: "1px solid var(--viz-line)",
+              background: "color-mix(in srgb, var(--bg-1) 84%, transparent)",
+              backdropFilter: "blur(8px)",
+              fontSize: 12,
+              color: "var(--viz-soft)",
+            }}
+          >
+            {nlNote}
+          </div>
+        )}
         <MapField
           points={points}
           selectedId={selected}

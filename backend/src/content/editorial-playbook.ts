@@ -78,6 +78,9 @@ export const VOICE_PRINCIPLES = [
   { principle: 'Direct and plain', practice: 'Short sentences, ordinary words. Say what happened before saying anything about it.' },
   { principle: 'Report, do not opine', practice: 'No verdicts on what a filing means, proves, or takes. If it is not in a filing or a dataset we hold, it does not belong in the body.' },
   { principle: 'Verify with structured data', practice: 'Name the record behind every figure — Form 4, congressional disclosure, our own tables — with dates and amounts as filed.' },
+  // Client, 2026-09-12, on the Uber story: "we dont say 'on 10 September' —
+  // when mentioning dates, it is September 10th, 2026. Month, day, year."
+  { principle: 'Dates in house style', practice: 'Month, ordinal day, year: "September 10th, 2026". Never day-first, never a bare "September 10" with the year dropped — headline, summary, table cell and body copy alike.' },
 ] as const;
 
 /**

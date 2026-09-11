@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
+import { IrClientService } from './ir-client.service';
 
 /**
  * §3.4 "Insider Intelligence" — the one panel section every listed company in
@@ -25,6 +26,8 @@ export interface InsiderSnapshotDto {
   netBuys90d: number | null;
   netSells90d: number | null;
   iqsScore: number | null;
+  /** §8 editorial firewall — true when this company has paid us. */
+  isClient: boolean;
   notable: {
     who: string;
     role: string | null;
@@ -50,6 +53,7 @@ export class InsiderSnapshotService {
   constructor(
     @InjectRepository(Company) private readonly companies: Repository<Company>,
     private readonly ds: DataSource,
+    private readonly irClients: IrClientService,
   ) {}
 
   async get(tickerRaw: string): Promise<InsiderSnapshotDto> {
@@ -67,12 +71,15 @@ export class InsiderSnapshotService {
       netBuys90d: null,
       netSells90d: null,
       iqsScore: null,
+      isClient: false,
       notable: [],
       covered: false,
     };
     if (!ticker) return empty;
 
     try {
+      const isClient = await this.irClients.isClient(ticker);
+      empty.isClient = isClient;
       const company = await this.companies.findOne({ where: { ticker } });
       if (!company) {
         this.cache.set(ticker, { at: Date.now(), dto: empty });
@@ -120,6 +127,7 @@ export class InsiderSnapshotService {
         netBuys90d: num(flow?.buys) ?? 0,
         netSells90d: num(flow?.sells) ?? 0,
         iqsScore: num(scoreRow?.iqs),
+        isClient,
         notable: (notableRows ?? []).map((r: Record<string, unknown>) => ({
           who: String(r.who ?? ''),
           role: (r.role as string) ?? null,

@@ -126,6 +126,7 @@ STANDARD STRUCTURE — EVERY article, no exceptions:
 7. Disclosure → end the body with EXACTLY this paragraph, verbatim: <p><em>Not investment advice. Summarized from public SEC Form 4 and congressional disclosure data.</em></p>
 
 FORMATTING:
+- DATES — house style, no exceptions (client, 2026-09-12): month, ordinal day, year. "September 10th, 2026". Never "10 September", never "September 10" with the year left off, never "Sept 10" or "9/10/26". This holds in headlines, summaries, tables and body copy alike.
 - Bold a ticker the first time it appears: <strong>NVDA</strong>.
 - Cite our Insider Score feed when quoting a score ("per our Insider Score feed") and reference Form 4 / SEC filings for transactions.
 - Use real HTML tables for tabular data: <table><thead><tr><th>…</th></tr></thead><tbody><tr><td>…</td></tr></tbody></table>.
