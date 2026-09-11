@@ -35,6 +35,9 @@ const THUMBS: Thumb[] = [
   { file: "ryan-cohen-alibaba", tickers: ["BABA"] },
   { file: "ryan-cohen-alibaba-2", tickers: ["BABA"] },
   { file: "ackman-uber-stake", tickers: ["UBER"] },
+  // 2026-09-12: client-supplied Khosrowshahi + Uber cover for the CEO-buy
+  // top story. pinnedOnly: it is one man's portrait made for one story.
+  { file: "uber-ceo-khosrowshahi", tickers: ["UBER"], kw: ["khosrowshahi"], pinnedOnly: true },
   // 2026-09-04: Markiplier / GoPro cover (client-supplied for the GPRO 13G story).
   { file: "markiplier-gopro-stake", tickers: ["GPRO"], kw: ["markiplier", "gopro"] },
   // 2026-09-04: client-supplied Pelosi + Thiel composite for the Vistra story,
@@ -165,13 +168,13 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // to hold is now on the story about Uber's OWN insiders buying (the CEO's
   // $10M purchase) — a cover with a company's branding belongs on the article
   // about that company, and this story is about Ackman's stake in it.
-  "editorial-ackman-pelosi-uber-insiders-2026-09-03": "bill-ackman-letter",
+  "editorial-ackman-pelosi-uber-insiders-2026-09-03": "ackman-uber-stake",
   // 2026-09-11: the three Stock Ideas. Covers matched to the subject: Gates is
   // the buyer behind Cascade; the Uber signage goes on the Uber filing story;
   // the three-executives-over-a-trading-floor frame carries the GameStop
   // director cluster (no GameStop image exists in the library).
   "stock-idea-rsg-2026-09-11": "gates-four-seasons-msft",
-  "stock-idea-uber-2026-09-11": "ackman-uber-stake",
+  "editorial-uber-ceo-10m-buy-2026-09-12": "uber-ceo-khosrowshahi",
   "stock-idea-gme-2026-09-11": "vimeo-insider-buys",
   // 2026-08-29: Durant / Hugging Face / NVIDIA editorial (client cover).
   "editorial-kevin-durant-hugging-face-nvidia-2026-08-29": "kevin-durant-hugging-face",

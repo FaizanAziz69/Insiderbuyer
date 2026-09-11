@@ -97,7 +97,9 @@ const HERO_MAX_AGE_MS = 5 * 24 * 60 * 60_000;
  *  2026-09-08: repointed to the Jensen Huang nuclear stock-list story.
  *
  *  2026-09-11: repointed to the SpaceX-directors / MDMA story. */
-export const HERO_PIN: string | null = "editorial-spacex-directors-mdma-funding-2026-09-11";
+/*  2026-09-12: repointed to the Uber CEO purchase — it broke on X while the
+ *  desk was still writing it, and the client asked for it to lead. */
+export const HERO_PIN: string | null = "editorial-uber-ceo-10m-buy-2026-09-12";
 
 export function rotateHero(editorial: BlogPostListItem[], nowMs = Date.now()): BlogPostListItem[] {
   if (editorial.length < 2) return editorial;
