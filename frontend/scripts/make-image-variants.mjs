@@ -4,14 +4,15 @@
  *
  * The client-supplied covers in public/editorial-thumbs are full-bleed JPEGs
  * (1606x1000, ~400 KB each) and every card on the site was loading them at
- * full size into a 236-380 px slot — measured 2026-09-11: the homepage pulled
+ * full size into a 236-1003 px slot — measured 2026-09-11: the homepage pulled
  * 112 images / 5.7 MB, which is what made clicking feel "slow and delayed"
  * (George, 2026-09-11) on any normal connection: the navigation's RSC fetch
  * queues behind megabytes of pictures.
  *
- * This writes two webp variants per cover:
- *   public/editorial-thumbs/w480/<name>.webp   card / thumb slots
- *   public/editorial-thumbs/w960/<name>.webp   retina cards + wide heroes
+ * This writes three webp variants per cover:
+ *   public/editorial-thumbs/w480/<name>.webp    card / thumb slots
+ *   public/editorial-thumbs/w960/<name>.webp    phones at 2x, desktop at 1x
+ *   public/editorial-thumbs/w1440/<name>.webp   retina desktop leads
  *
  * The full-size JPEG stays as-is — it is still the og:image (social unfurls
  * want the big one) and the last srcset candidate.
@@ -28,7 +29,7 @@ import sharp from "sharp";
 
 const ROOT = path.join(process.cwd(), "public", "editorial-thumbs");
 const MANIFEST = path.join(process.cwd(), "lib", "thumb-variants.json");
-const WIDTHS = [480, 960];
+const WIDTHS = [480, 960, 1440];
 
 const files = (await readdir(ROOT)).filter((f) => /\.(jpe?g|png)$/i.test(f));
 const done = [];
@@ -57,7 +58,7 @@ await writeFile(MANIFEST, `${JSON.stringify(done, null, 2)}\n`);
 
 const mb = (n) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 console.log(
-  `${done.length} covers → w480 + w960 webp\n` +
+  `${done.length} covers → ${WIDTHS.map((w) => `w${w}`).join(" + ")} webp\n` +
     `originals ${mb(before)}  →  w480 set ${mb(after)} ` +
     `(${Math.round((1 - after / before) * 100)}% smaller)\n` +
     `manifest: lib/thumb-variants.json`,

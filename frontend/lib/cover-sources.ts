@@ -23,13 +23,18 @@ import VARIANTS from "./thumb-variants.json";
 /** How wide the image actually renders, so the browser downloads that size. */
 export type CoverSize = "thumb" | "card" | "hero";
 
-/** CSS width hints. `sizes` must describe the SLOT, not the image. */
+/* CSS width hints — `sizes` must describe the SLOT, not the image.
+ * Measured against the live homepage on a 1792px viewport (2026-09-11): the
+ * Top Stories lead paints at 1003px, section leads at 951px and grid cards at
+ * 654px. UNDER-stating a slot costs quality — the browser then picks a
+ * candidate it has to upscale — so these round UP to the widest slot in each
+ * class. Over-stating only costs bytes on the biggest screens. */
 const SIZES: Record<CoverSize, string> = {
   // Rail/list thumbnails: a small fixed box on desktop, a third of a phone.
-  thumb: "(max-width: 768px) 33vw, 160px",
-  // Grid cards: full width on a phone, roughly a third of the grid on desktop.
-  card: "(max-width: 768px) 100vw, 420px",
-  // Full-bleed heroes.
+  thumb: "(max-width: 768px) 33vw, 200px",
+  // Grid cards: full width on a phone, up to ~700px in a desktop grid.
+  card: "(max-width: 1024px) 100vw, 700px",
+  // Section leads and full-bleed heroes.
   hero: "(max-width: 1024px) 100vw, 1100px",
 };
 
@@ -49,17 +54,14 @@ export function coverSources(src: string, size: CoverSize = "card"): CoverSource
   if (editorial) {
     const base = editorial[1];
     if (!THUMB_SET.has(base)) return { src };
-    const w480 = `/editorial-thumbs/w480/${base}.webp`;
-    const w960 = `/editorial-thumbs/w960/${base}.webp`;
+    const at = (w: number) => `/editorial-thumbs/w${w}/${base}.webp`;
     return {
-      // Default for browsers without srcset support — never the 400 KB one.
-      src: size === "thumb" ? w480 : w960,
-      // The original stays in the candidate list for the hero, where a
-      // 2x desktop viewport can genuinely use more than 960px.
-      srcSet:
-        size === "hero"
-          ? `${w480} 480w, ${w960} 960w, ${src} 1606w`
-          : `${w480} 480w, ${w960} 960w`,
+      // Default for browsers without srcset support — never the 294 KB one.
+      src: size === "thumb" ? at(480) : at(960),
+      // The original is the widest candidate everywhere, so a retina desktop
+      // lead can still reach full quality exactly as it did before this
+      // change; every smaller slot stops at a webp a fraction of its size.
+      srcSet: `${at(480)} 480w, ${at(960)} 960w, ${at(1440)} 1440w, ${src} 1606w`,
       sizes: SIZES[size],
     };
   }
@@ -81,7 +83,7 @@ export function coverSources(src: string, size: CoverSize = "card"): CoverSource
     const large = at(960);
     return {
       src: size === "thumb" ? small : large,
-      srcSet: `${small} 480w, ${large} 960w${size === "hero" ? `, ${at(1600)} 1600w` : ""}`,
+      srcSet: `${small} 480w, ${large} 960w, ${at(1440)} 1440w`,
       sizes: SIZES[size],
     };
   }

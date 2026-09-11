@@ -120,6 +120,8 @@ export function TopStoriesSection() {
                 item={lead}
                 overlay="none"
                 loading="eager"
+                // The lead paints ~1000px wide on a desktop homepage.
+                size="hero"
                 style={{ width: "100%", height: "100%" }}
                 className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
               />
