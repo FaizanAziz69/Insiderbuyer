@@ -231,7 +231,7 @@ export default function BiotechClient() {
             { color: "rgb(215,85,95)", label: "Under 4 quarters" },
             { color: "rgb(220,170,70)", label: "4 to 8 quarters" },
             { color: "rgb(60,175,135)", label: "Over 8 quarters" },
-            { color: "rgb(120,150,180)", label: "Not derivable" },
+            { color: "rgb(120,150,180)", label: "Profitable or not derivable" },
           ]}
           note="Size = market cap. Pulse = catalyst inside 90 days."
         />
@@ -346,14 +346,18 @@ export default function BiotechClient() {
                     value={
                       selectedCompany.runwayQuarters != null
                         ? `${selectedCompany.runwayQuarters.toFixed(1)}Q`
-                        : "—"
+                        : selectedCompany.cash != null
+                          ? "Not burning"
+                          : "—"
                     }
                     color={runwayColor(selectedCompany.runwayQuarters)}
                   />
                 </div>
                 <div className="viz-src">
                   Runway is cash divided by the trailing quarter&rsquo;s net loss — a rough guide,
-                  not guidance. Financials as of {selectedCompany.financialsAsOf ?? "—"}.
+                  not guidance. A company that posted a profit last quarter has no burn to divide
+                  by and shows &ldquo;not burning&rdquo;. Financials as of{" "}
+                  {selectedCompany.financialsAsOf ?? "—"}.
                 </div>
               </Section>
 
