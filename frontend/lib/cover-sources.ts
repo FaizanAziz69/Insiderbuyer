@@ -22,6 +22,20 @@
  */
 import VARIANTS from "./thumb-variants.json";
 
+/**
+ * CDN host for the cover files (CloudFront in front of this box's nginx,
+ * 2026-09-12). The images themselves are unchanged and still live at
+ * /editorial-thumbs on the origin — this only changes WHERE the browser
+ * fetches them from, so a reader in Karachi or Toronto gets them from a
+ * nearby edge instead of one machine in Virginia. Measured before this: a
+ * 33 KB cover cost 0.75-1.2s TTFB from a far client while nginx itself
+ * served it in 5 ms, i.e. almost all of it was round trips.
+ *
+ * Set to "" to send everything back to the origin — that is the rollback,
+ * and it needs no other change anywhere.
+ */
+const CDN = "https://img.insiderbuying.com";
+
 /** How wide the image actually renders, so the browser downloads that size. */
 export type CoverSize = "thumb" | "card" | "hero";
 
@@ -58,7 +72,7 @@ export function coverSources(src: string, size: CoverSize = "card"): CoverSource
     const base = editorial[1];
     const full = THUMB_WIDTHS[base];
     if (!full) return { src };
-    const at = (w: number | "max") => `/editorial-thumbs/w${w}/${base}.webp`;
+    const at = (w: number | "max") => `${CDN}/editorial-thumbs/w${w}/${base}.webp`;
     // Candidates stop at the cover's own width — a descriptor wider than the
     // pixels behind it would make the browser pick a file it can't use.
     const candidates = [480, 960, 1440]
