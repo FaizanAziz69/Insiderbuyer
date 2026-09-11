@@ -932,6 +932,55 @@ export class ContentService {
     }
     if (!missing.length) return out;
 
+    // Every visitor's movers table prewarms this on mount, and one cold batch
+    // costs a news feed per ticker (up to 30 outbound fetches) plus a model
+    // call — ~11s measured 2026-09-11. Ten people landing on the homepage at
+    // the same second used to run ten identical copies of that, which is what
+    // turns a traffic spike into a slow site. Share one in-flight generation
+    // per symbol set instead; everyone else awaits it and reads the cache.
+    const key = missing
+      .map((m) => m.symbol)
+      .sort()
+      .join(',');
+    // When generation itself is down (expired model credits, an upstream
+    // outage) every request would otherwise pay the full news-fetch bill
+    // before failing. Remember that for a minute and answer from cache.
+    if (Date.now() < this.explainerBackoffUntil) return out;
+
+    let run = this.explainerInflight.get(key);
+    if (!run) {
+      run = this.generateExplainers(missing)
+        .catch((err) => {
+          this.explainerBackoffUntil = Date.now() + this.EXPLAINER_BACKOFF;
+          throw err;
+        })
+        .finally(() => {
+          this.explainerInflight.delete(key);
+        });
+      this.explainerInflight.set(key, run);
+    }
+    try {
+      Object.assign(out, await run);
+    } catch {
+      // Best effort: the caller still gets whatever was already cached.
+    }
+    return out;
+  }
+
+  /** Set when a generation fails; skips the work until it passes. */
+  private explainerBackoffUntil = 0;
+  private readonly EXPLAINER_BACKOFF = 60_000;
+
+  /** One in-flight explainer generation per symbol set. */
+  private explainerInflight = new Map<
+    string,
+    Promise<Record<string, { title: string; explainer: string }>>
+  >();
+
+  private async generateExplainers(
+    missing: Array<{ symbol: string; name: string; changePct: number }>,
+  ): Promise<Record<string, { title: string; explainer: string }>> {
+    const out: Record<string, { title: string; explainer: string }> = {};
     // Per-ticker headlines in parallel (bounded), then ONE batched model call.
     const settled = await Promise.allSettled(
       missing.map((m) => this.tickerHeadlines(m.symbol, m.name)),
