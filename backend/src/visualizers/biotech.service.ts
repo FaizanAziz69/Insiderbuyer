@@ -276,6 +276,57 @@ export class BiotechService {
     return { companies: stale.length, trials: total };
   }
 
+  /**
+   * §5.2 lists "expected data readouts" alongside PDUFA dates as catalysts,
+   * and ClinicalTrials.gov publishes a primary completion date for every
+   * registered study — a dated, sourced, genuinely forward-looking event.
+   *
+   * Those become Readout catalysts, always flagged as estimates, because a
+   * primary completion date is the sponsor's own projection and moves. PDUFA
+   * and AdCom dates stay curated: they come from FDA correspondence, there is
+   * no feed for them, and guessing one would be worse than showing none.
+   */
+  async deriveReadouts(): Promise<{ derived: number }> {
+    const horizon = new Date(Date.now() + 550 * 86_400_000).toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await this.trials.find();
+    const out: VizBiotechCatalyst[] = [];
+    for (const t of rows) {
+      if (!t.completionDate) continue;
+      if (t.completionDate < today || t.completionDate > horizon) continue;
+      const phase = t.phase ?? '';
+      // Phase 1 completions rarely move a stock; 2 and 3 are the events.
+      if (!/2|3/.test(phase)) continue;
+      out.push(
+        this.catalysts.create({
+          id: `ctgov-${t.id}`,
+          ticker: t.ticker,
+          eventDate: t.completionDate,
+          isEstimate: true,
+          type: 'Readout',
+          description: `Primary completion of ${phase}${
+            t.indication ? ` trial in ${t.indication}` : ' trial'
+          } (${t.id})`,
+          drug: null,
+          indication: t.indication,
+          sourceName: 'ClinicalTrials.gov',
+          sourceUrl: `https://clinicaltrials.gov/study/${t.id}`,
+          sourceDate: today,
+        }),
+      );
+    }
+    // Remove stale derived rows whose trial moved or finished, then re-add.
+    await this.catalysts
+      .createQueryBuilder()
+      .delete()
+      .where('id LIKE :p', { p: 'ctgov-%' })
+      .execute();
+    for (let i = 0; i < out.length; i += 200) {
+      await this.catalysts.save(out.slice(i, i + 200));
+    }
+    return { derived: out.length };
+  }
+
   /** Cash and burn for the §5.2 runway figure. */
   async refreshFinancials(limit = 25): Promise<{ updated: number }> {
     if (!this.fmp?.enabled) return { updated: 0 };
@@ -394,8 +445,9 @@ export class BiotechService {
       const geo = await this.geocodeMissing(40);
       const trials = await this.refreshTrials(40);
       const fin = await this.refreshFinancials(40);
+      const readouts = await this.deriveReadouts();
       const built = await this.build();
-      return { ...roster, ...geo, ...trials, ...fin, ...built };
+      return { ...roster, ...geo, ...trials, ...fin, ...readouts, ...built };
     } finally {
       this.refreshing = false;
     }

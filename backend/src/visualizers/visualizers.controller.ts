@@ -205,6 +205,7 @@ export class VisualizersController {
     if (step === 'geocode') return this.biotech.geocodeMissing(60);
     if (step === 'trials') return this.biotech.refreshTrials(60);
     if (step === 'financials') return this.biotech.refreshFinancials(60);
+    if (step === 'readouts') return this.biotech.deriveReadouts();
     if (step === 'build') return this.biotech.build();
     return this.biotech.refreshAll();
   }

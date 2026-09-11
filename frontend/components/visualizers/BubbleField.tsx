@@ -160,7 +160,7 @@ export function BubbleField<T extends { id: string }>({
         if (n.r >= 26) {
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          const size = Math.max(9, Math.min(13, n.r * 0.2));
+          const size = Math.max(8.5, Math.min(13, n.r * 0.19));
           ctx.font = `600 ${size}px ${mono}`;
           ctx.fillStyle = "rgba(255,255,255,0.98)";
           // One soft drop shadow keeps the label legible over the lighter rim
@@ -168,7 +168,10 @@ export function BubbleField<T extends { id: string }>({
           ctx.shadowColor = "rgba(8,18,32,0.55)";
           ctx.shadowBlur = 3;
           const vl = n.r >= 40 ? valueLabel?.(n) ?? null : null;
-          const lines = wrap(ctx, n.label, n.r * 1.62, vl ? 2 : 3);
+          // A bubble big enough for three lines should use them: two lines
+          // plus a percentage turned a dozen distinct markets into "What price
+          // will…" repeated across the board.
+          const lines = wrap(ctx, n.label, n.r * 1.66, vl ? (n.r >= 50 ? 3 : 2) : 3);
           const lh = size * 1.16;
           const total = lines.length * lh + (vl ? lh * 0.98 : 0);
           let y = n.y - total / 2 + lh / 2;

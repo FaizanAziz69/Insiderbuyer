@@ -276,10 +276,13 @@ html[data-theme="dark"] .viz-root {
 .viz-swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 
 .viz-empty {
-  position: absolute; inset: 0; display: grid; place-items: center;
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
   text-align: center; padding: 30px; color: var(--viz-mute); font-size: 13.5px;
+  pointer-events: none;
 }
-.viz-empty b { display: block; color: var(--viz-ink); font-size: 15px; margin-bottom: 6px; font-family: var(--viz-head), system-ui, sans-serif; }
+.viz-empty > * { max-width: 560px; pointer-events: auto; }
+.viz-empty b { display: block; color: var(--viz-ink); font-size: 16px; font-family: var(--viz-head), system-ui, sans-serif; }
 
 .viz-zoom {
   position: absolute; right: 16px; bottom: 16px; z-index: 4;
