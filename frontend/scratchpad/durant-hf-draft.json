@@ -1,0 +1,28 @@
+{
+  "slug": "editorial-kevin-durant-hugging-face-nvidia-2026-08-29",
+  "kind": "editorial",
+  "title": "Kevin Durant's $250K Hugging Face Bet Nears $60M as NVIDIA Buys In",
+  "category": "BREAKING",
+  "eyebrow": "BREAKING",
+  "ticker": "NVDA",
+  "featuredTickers": [
+    "NVDA"
+  ],
+  "tags": [
+    "nvidia",
+    "nvda",
+    "hugging-face",
+    "kevin-durant",
+    "35v",
+    "venture-capital",
+    "acquisition",
+    "artificial-intelligence"
+  ],
+  "summary": "NVIDIA has reportedly agreed to buy Hugging Face for $12.9 billion; early backer Kevin Durant's $250,000 stake is now reported near $60 million.",
+  "body": "<h3>Key points</h3>\n<ul>\n<li><strong>NVIDIA (NVDA) has reportedly agreed to acquire Hugging Face for $12.9 billion</strong>, The Information reported on <strong>August 26</strong>. Nothing is signed and both companies declined to comment. If it closes, it would be NVIDIA's largest deal ever.</li>\n<li><strong>Kevin Durant</strong> put <strong>$100,000</strong> into Hugging Face's 2018 seed round and <strong>$150,000</strong> into the $15 million Series A a year later through <strong>Thirty Five Ventures (35V)</strong>. After dilution, that $250,000 is reported to be worth <strong>roughly $60 million</strong> at the deal price \u2014 about a 240-fold return.</li>\n<li>On our Form 4 record, the only NVIDIA insider activity this month is <strong>two director equity awards and a 500,000-share gift</strong>. <strong>Not one open-market purchase.</strong></li>\n</ul>\n\n<p>Strip the athlete out and the Hugging Face headline is what this site tracks every day: a small cheque, written early, by someone with a view the market did not have. Durant's cheque was private. An insider's open-market purchase is the public version of the same act.</p>\n\n<h3>The deal: a model hub for the company that sells the chips</h3>\n\n<p>Hugging Face is the repository where most open-source AI models are published and fine-tuned. The Information reported the <strong>$12.9 billion</strong> price; CNBC and TechCrunch matched it. The company's last priced round, in August 2023, valued it at <strong>$4.5 billion</strong>, with NVIDIA already an investor.</p>\n\n<p>Annualised revenue is reported at about <strong>$150 million</strong>, so the deal values Hugging Face at roughly <strong>86 times sales</strong>. The logic is strategic: owning the platform where models are distributed puts NVIDIA one layer above the silicon. It also invites the regulatory scrutiny that follows a dominant supplier buying its customers' marketplace.</p>\n\n<h3>The Durant maths</h3>\n\n<p>Durant and partner Rich Kleiman run 35V, a portfolio of more than 100 companies including Coinbase and Robinhood. Hugging Face was one of the earliest cheques.</p>\n\n<p>The reported $60 million assumes the deal closes at $12.9 billion and already accounts for dilution. Two caveats apply: the deal is reported, not signed, and one position at 240x says little about the other hundred. Even so, the stake would exceed a full season of Durant's <strong>two-year, $90 million</strong> Houston Rockets contract.</p>\n\n<h3>What NVIDIA's own insiders have filed</h3>\n\n<p>Across the NVIDIA Form 4 filings on our record this month, reviewed by InsiderBuying.com, there has not been one open-market purchase by an officer or director:</p>\n\n<ul>\n<li><strong>August 10</strong> \u2014 director <strong>Suzanne Nora Johnson</strong> received two equity awards totalling <strong>2,410 shares</strong>. Awards are compensation.</li>\n<li><strong>August 5</strong> \u2014 director <strong>Tench Coxe</strong> filed a <strong>gift of 500,000 shares</strong>, worth roughly <strong>$106 million</strong> at the current price. A gift is neither a sale nor a purchase.</li>\n</ul>\n\n<div data-viz=\"insider-timeline\" data-ticker=\"NVDA\" data-months=\"12\"></div>\n\n<p>This is why NVIDIA carries no Insider Score on our platform: the score exists only where there are qualifying open-market buys to measure. At a <strong>$5.1 trillion</strong> market capitalisation, that absence is structural, not bearish.</p>\n\n<h3>How to read it</h3>\n\n<p>Durant's return came from seeing a company before anyone could buy it. The public-market equivalent is an officer or director spending their own cash on their own stock, disclosed on Form 4 within two business days. That filing is the small early cheque, made visible. Our <a href=\"/premium\">Premium</a> alerts flag those filings the day they land.</p>\n\n<p>Audit it yourself: <a href=\"/companies/NVDA\">NVIDIA's filing history</a>, today's open-market buying on <a href=\"/insiders/hot\">Top Insider Scores</a>, and the <a href=\"/screener\">IQS Screener</a>.</p>\n\n<p><em>Not investment advice. Insider transactions are summarized from public SEC Form 4 filings on our own record; acquisition terms, valuation and investment figures are attributed to the public reporting cited above and remain unconfirmed by either company.</em></p>",
+  "imageUrl": null,
+  "imageAlt": null,
+  "inputSnapshot": {
+    "source": "manual-editorial"
+  }
+}

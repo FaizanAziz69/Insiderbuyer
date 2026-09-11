@@ -12,7 +12,7 @@
  */
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Archivo, IBM_Plex_Mono, Nunito_Sans } from "next/font/google";
 import { effectiveZoom } from "@/lib/zoom";
 import { SUITE_CSS } from "./suite.css";
@@ -52,6 +52,7 @@ export function SuiteShell({
   controls?: ReactNode;
   children: ReactNode;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
   const [invZoom, setInvZoom] = useState(1);
   const [shellH, setShellH] = useState<number | null>(null);
   useEffect(() => {
@@ -61,8 +62,10 @@ export function SuiteShell({
     const apply = () => {
       const z = effectiveZoom();
       setInvZoom(1 / z);
-      const hd = document.querySelector<HTMLElement>("[data-app-sticky]");
-      const top = hd?.getBoundingClientRect().height ?? 0;
+      // Measure where the shell actually starts rather than trusting a
+      // header selector: this page sits under a ticker strip AND the nav, and
+      // guessing left the arena taller than the fold.
+      const top = ref.current?.getBoundingClientRect().top ?? 0;
       setShellH(Math.max(520, (window.innerHeight - top) * z));
     };
     apply();
@@ -72,6 +75,7 @@ export function SuiteShell({
 
   return (
     <div
+      ref={ref}
       className={`viz-root ${archivo.variable} ${plex.variable} ${nunito.variable}`}
       style={
         { zoom: invZoom, height: shellH ?? "calc(100vh - 150px)" } as React.CSSProperties

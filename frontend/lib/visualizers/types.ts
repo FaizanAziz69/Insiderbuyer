@@ -136,6 +136,8 @@ export interface ContractsBubble {
   marketCap: number | null;
   price: number | null;
   iqs: number | null;
+  /** §6.2 the shared "insiders buying" toggle's predicate, precomputed. */
+  insidersBuying?: boolean;
 }
 
 /** §4.3 MiningProject. */
@@ -172,6 +174,8 @@ export interface MiningProject {
   /** §4.3 fair-value snapshot against the peer-stage median. */
   evPerOz: number | null;
   peerMedianEvPerOz: number | null;
+  /** §4.5 the signature "insiders buying" toggle, precomputed server-side. */
+  insidersBuying?: boolean;
   sourceName: string;
   sourceUrl: string | null;
   sourceDate: string;
@@ -222,4 +226,5 @@ export interface BiotechProfile {
   /** Days to the nearest catalyst — drives the §5.3 pulse. */
   nextCatalystDays: number | null;
   iqs: number | null;
+  insidersBuying?: boolean;
 }

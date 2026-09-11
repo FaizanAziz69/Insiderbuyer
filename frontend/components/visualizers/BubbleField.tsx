@@ -117,9 +117,11 @@ export function BubbleField<T extends { id: string }>({
           n.y,
           n.r,
         );
-        g.addColorStop(0, withAlpha(n.color, 0.95));
-        g.addColorStop(0.55, withAlpha(n.color, 0.55));
-        g.addColorStop(1, withAlpha(n.color, 0.2));
+        // Opacity has to carry white label text on a light background too,
+        // so the core stays near-solid and only the rim falls away.
+        g.addColorStop(0, withAlpha(n.color, 1));
+        g.addColorStop(0.55, withAlpha(n.color, 0.82));
+        g.addColorStop(1, withAlpha(n.color, 0.46));
         ctx.beginPath();
         ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
         ctx.fillStyle = g;
@@ -160,7 +162,11 @@ export function BubbleField<T extends { id: string }>({
           ctx.textBaseline = "middle";
           const size = Math.max(9, Math.min(13, n.r * 0.2));
           ctx.font = `600 ${size}px ${mono}`;
-          ctx.fillStyle = "rgba(255,255,255,0.97)";
+          ctx.fillStyle = "rgba(255,255,255,0.98)";
+          // One soft drop shadow keeps the label legible over the lighter rim
+          // of a pale bubble without darkening the bubble itself.
+          ctx.shadowColor = "rgba(8,18,32,0.55)";
+          ctx.shadowBlur = 3;
           const vl = n.r >= 40 ? valueLabel?.(n) ?? null : null;
           const lines = wrap(ctx, n.label, n.r * 1.62, vl ? 2 : 3);
           const lh = size * 1.16;
@@ -175,6 +181,7 @@ export function BubbleField<T extends { id: string }>({
             ctx.fillStyle = "rgba(255,255,255,0.86)";
             ctx.fillText(vl, n.x, y + lh * 0.06);
           }
+          ctx.shadowBlur = 0;
         }
         ctx.restore();
       }

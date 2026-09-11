@@ -10,8 +10,13 @@ import {
   VizGovRecipient,
   VizMarketContract,
   VizMiningProject,
+  VizPayloadCache,
 } from '../entities/visualizer.entity';
 import { Company } from '../entities/company.entity';
+import { FmpModule } from '../fmp/fmp.module';
+import { GovVizService } from './gov-contracts-viz.service';
+import { MiningService } from './mining.service';
+import { BiotechService } from './biotech.service';
 import { InsiderSnapshotService } from './insider-snapshot.service';
 import { PredictionService } from './prediction.service';
 import { RealtimeService } from './realtime.service';
@@ -25,6 +30,7 @@ import { VisualizersController } from './visualizers.controller';
  */
 @Module({
   imports: [
+    FmpModule,
     TypeOrmModule.forFeature([
       VizEntity,
       VizCuratedMarket,
@@ -35,11 +41,26 @@ import { VisualizersController } from './visualizers.controller';
       VizBiotechCatalyst,
       VizBiotechTrial,
       VizBiotechProfile,
+      VizPayloadCache,
       Company,
     ]),
   ],
   controllers: [VisualizersController],
-  providers: [RealtimeService, PredictionService, InsiderSnapshotService],
-  exports: [PredictionService, RealtimeService, InsiderSnapshotService],
+  providers: [
+    RealtimeService,
+    PredictionService,
+    InsiderSnapshotService,
+    GovVizService,
+    MiningService,
+    BiotechService,
+  ],
+  exports: [
+    PredictionService,
+    RealtimeService,
+    InsiderSnapshotService,
+    GovVizService,
+    MiningService,
+    BiotechService,
+  ],
 })
 export class VisualizersModule {}

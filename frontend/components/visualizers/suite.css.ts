@@ -23,6 +23,8 @@ export const SUITE_CSS = `
   --viz-gold: var(--gold);
   --viz-surface: var(--bg-elevated);
   --viz-grid: rgba(0, 88, 130, 0.07);
+  --viz-land: rgba(20, 70, 105, 0.13);
+  --viz-land-line: rgba(20, 80, 120, 0.34);
   --viz-arena: radial-gradient(1100px 600px at 16% -8%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 62%),
                radial-gradient(900px 520px at 94% 6%, color-mix(in srgb, var(--accent-2) 8%, transparent), transparent 58%),
                linear-gradient(180deg, var(--bg-3), var(--bg-1) 55%, var(--bg-3));
@@ -36,9 +38,17 @@ export const SUITE_CSS = `
 }
 
 :root[data-theme="dark"] .viz-root,
-html[data-theme="dark"] .viz-root { --viz-grid: rgba(255, 255, 255, 0.05); }
+html[data-theme="dark"] .viz-root {
+  --viz-grid: rgba(255, 255, 255, 0.05);
+  --viz-land: rgba(120, 165, 210, 0.13);
+  --viz-land-line: rgba(140, 190, 235, 0.32);
+}
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .viz-root { --viz-grid: rgba(255, 255, 255, 0.05); }
+  :root:not([data-theme="light"]) .viz-root {
+    --viz-grid: rgba(255, 255, 255, 0.05);
+    --viz-land: rgba(120, 165, 210, 0.13);
+    --viz-land-line: rgba(140, 190, 235, 0.32);
+  }
 }
 
 /* ------------------------------------------------------------- chrome */
@@ -270,6 +280,19 @@ html[data-theme="dark"] .viz-root { --viz-grid: rgba(255, 255, 255, 0.05); }
   text-align: center; padding: 30px; color: var(--viz-mute); font-size: 13.5px;
 }
 .viz-empty b { display: block; color: var(--viz-ink); font-size: 15px; margin-bottom: 6px; font-family: var(--viz-head), system-ui, sans-serif; }
+
+.viz-zoom {
+  position: absolute; right: 16px; bottom: 16px; z-index: 4;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.viz-zoom button {
+  width: 30px; height: 30px; border-radius: 8px;
+  border: 1px solid var(--viz-line);
+  background: color-mix(in srgb, var(--bg-1) 78%, transparent);
+  backdrop-filter: blur(8px);
+  color: var(--viz-soft); font-size: 15px; line-height: 1; cursor: pointer;
+}
+.viz-zoom button:hover { color: var(--viz-ink); border-color: var(--border-strong); }
 
 /* --------------------------------------------------------------- panel */
 

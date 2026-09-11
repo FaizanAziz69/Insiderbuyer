@@ -13,7 +13,16 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AdminTokenGuard } from '../common/admin-token.guard';
+import { STAGES as STAGES_LIST } from './mining.service';
+import {
+  GovVizService,
+  type CachedPayload,
+  type Region,
+  type Window,
+} from './gov-contracts-viz.service';
 import { InsiderSnapshotService } from './insider-snapshot.service';
+import { MiningService } from './mining.service';
+import { BiotechService } from './biotech.service';
 import { PredictionService } from './prediction.service';
 import { RealtimeService } from './realtime.service';
 
@@ -30,6 +39,9 @@ export class VisualizersController {
     private readonly prediction: PredictionService,
     private readonly realtime: RealtimeService,
     private readonly insider: InsiderSnapshotService,
+    private readonly gov: GovVizService,
+    private readonly mining: MiningService,
+    private readonly biotech: BiotechService,
   ) {}
 
   /** §3.4 the shared Insider Intelligence block, for any vertical's panel. */
@@ -89,6 +101,118 @@ export class VisualizersController {
   @Header('Cache-Control', 'public, max-age=5')
   market(@Param('id') id: string) {
     return this.prediction.one(id) ?? { error: 'not found' };
+  }
+
+  /* ------------------------------------------------- government contracts */
+
+  @Get('contracts')
+  @Header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600')
+  contracts(
+    @Query('region') region?: string,
+    @Query('window') window?: string,
+  ): Promise<CachedPayload | { empty: true }> {
+    const r: Region = region === 'ca' || region === 'global' ? region : 'us';
+    const w: Window = window === '90d' ? '90d' : '1y';
+    return this.gov.read(r, w);
+  }
+
+  @Get('contracts/status')
+  contractsStatus() {
+    return this.gov.status();
+  }
+
+  @Get('contracts/:id/awards')
+  @Header('Cache-Control', 'public, max-age=1800')
+  contractAwards(@Param('id') id: string, @Query('window') window?: string) {
+    return this.gov.awards(decodeURIComponent(id), window === '90d' ? '90d' : '1y');
+  }
+
+  @Post('admin/contracts/refresh')
+  @UseGuards(AdminTokenGuard)
+  refreshContracts(@Query('region') region?: string, @Query('window') window?: string) {
+    if (region === 'us' || region === 'ca') {
+      return this.gov.build(region, window === '90d' ? '90d' : '1y');
+    }
+    return this.gov.refreshAll();
+  }
+
+  @Get('admin/contracts/recipients')
+  @UseGuards(AdminTokenGuard)
+  listRecipients(@Query('limit') limit?: string) {
+    return this.gov.listRecipients(Math.min(Number(limit) || 300, 2000));
+  }
+
+  /** §6.3 the manual override pass — never re-guessed by an automated run. */
+  @Post('admin/contracts/recipients/:id')
+  @UseGuards(AdminTokenGuard)
+  setRecipient(
+    @Param('id') id: string,
+    @Body() body: { ticker?: string | null; exchange?: string | null; isPublic?: boolean },
+  ) {
+    return this.gov.setRecipient(decodeURIComponent(id), body ?? {});
+  }
+
+  /* ------------------------------------------------------- goldminer */
+
+  @Get('mining')
+  @Header('Cache-Control', 'public, max-age=900, stale-while-revalidate=3600')
+  miningProjects() {
+    return this.mining.list();
+  }
+
+  @Get('mining/status')
+  async miningStatus() {
+    return { projects: await this.mining.count(), stages: STAGES_LIST };
+  }
+
+  /** §9.6 seed tooling. Accepts a JSON array or a CSV body; rejects any row
+   *  that cannot carry its own source, rather than importing a blank. */
+  @Post('admin/mining/import')
+  @UseGuards(AdminTokenGuard)
+  async importMining(
+    @Body() body: { rows?: Record<string, unknown>[]; csv?: string; replace?: boolean },
+  ) {
+    const rows = body?.csv ? this.mining.parseCsv(body.csv) : (body?.rows ?? []);
+    return this.mining.importRows(rows, { replace: !!body?.replace });
+  }
+
+  /** Dry run: the same validator, no write. */
+  @Post('admin/mining/validate')
+  @UseGuards(AdminTokenGuard)
+  validateMining(@Body() body: { rows?: Record<string, unknown>[]; csv?: string }) {
+    const rows = body?.csv ? this.mining.parseCsv(body.csv) : (body?.rows ?? []);
+    const { ok, issues } = this.mining.validate(rows);
+    return { valid: ok.length, rejected: rows.length - ok.length, issues };
+  }
+
+  /* --------------------------------------------------------- biotech */
+
+  @Get('biotech')
+  @Header('Cache-Control', 'public, max-age=900, stale-while-revalidate=3600')
+  biotechMap() {
+    return this.biotech.read();
+  }
+
+  @Get('biotech/status')
+  biotechStatus() {
+    return this.biotech.status();
+  }
+
+  @Post('admin/biotech/refresh')
+  @UseGuards(AdminTokenGuard)
+  refreshBiotech(@Query('step') step?: string) {
+    if (step === 'roster') return this.biotech.refreshRoster();
+    if (step === 'geocode') return this.biotech.geocodeMissing(60);
+    if (step === 'trials') return this.biotech.refreshTrials(60);
+    if (step === 'financials') return this.biotech.refreshFinancials(60);
+    if (step === 'build') return this.biotech.build();
+    return this.biotech.refreshAll();
+  }
+
+  @Post('admin/biotech/catalysts')
+  @UseGuards(AdminTokenGuard)
+  importCatalysts(@Body() body: { rows?: Record<string, unknown>[] }) {
+    return this.biotech.importCatalysts(Array.isArray(body?.rows) ? body.rows : []);
   }
 
   /* --------------------------------------------------------- curation */

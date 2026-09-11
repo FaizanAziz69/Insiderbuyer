@@ -373,6 +373,9 @@ export class PredictionService implements OnModuleInit {
         const slice = ids.slice(i, i + 50);
         const qs = new URLSearchParams();
         for (const id of slice) qs.append('id', id);
+        // Gamma pages at 20 by default even when the query names 50 ids, which
+        // silently capped the board at 60 markets. The limit must be explicit.
+        qs.append('limit', String(slice.length));
         const { data } = await this.http.get<GammaMarket[]>(`${GAMMA}/markets?${qs}`);
         if (Array.isArray(data)) fetched.push(...data);
       }

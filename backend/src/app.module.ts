@@ -89,6 +89,7 @@ import {
   VizGovRecipient,
   VizMarketContract,
   VizMiningProject,
+  VizPayloadCache,
 } from './entities/visualizer.entity';
 
 @Module({
@@ -163,6 +164,7 @@ import {
           VizBiotechCatalyst,
           VizBiotechTrial,
           VizBiotechProfile,
+          VizPayloadCache,
         ],
         // Schema sync issues a catalog query per entity on every boot. Fine
         // locally; on serverless it repeats forever. Set DB_SYNC=true for a

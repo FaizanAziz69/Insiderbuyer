@@ -1,12 +1,126 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import PageClient from "./PageClient";
 
-export default function Page() {
-  // useSearchParams (the ?m= deep link) needs a Suspense boundary in the App
-  // Router; the fallback is the arena's own background so there is no flash.
+/**
+ * §9.8 SEO: a canvas is invisible to a crawler, so the page ships a real,
+ * server-rendered section under the arena — the §7.5 "biggest movers" list,
+ * which is useful to a reader in its own right and is the same endpoint that
+ * feeds the newsletter.
+ */
+
+const BACKEND = process.env.BACKEND_URL || "http://localhost:4000";
+
+interface Mover {
+  id: string;
+  question: string;
+  shortLabel: string;
+  category: string;
+  yesPrice: number | null;
+  oneDayChange: number | null;
+  volumeTotal: number;
+}
+
+async function movers(): Promise<{ up: Mover[]; down: Mover[] } | null> {
+  try {
+    const res = await fetch(`${BACKEND}/api/visualizers/markets/movers?limit=8`, {
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as { up: Mover[]; down: Mover[] };
+  } catch {
+    return null;
+  }
+}
+
+const pct = (v: number | null) => (v == null ? "—" : `${Math.round(v * 100)}%`);
+
+export default async function Page() {
+  const data = await movers();
+  const rows = [...(data?.up ?? []), ...(data?.down ?? [])]
+    .sort((a, b) => Math.abs(b.oneDayChange ?? 0) - Math.abs(a.oneDayChange ?? 0))
+    .slice(0, 12);
+
   return (
-    <Suspense fallback={<div style={{ minHeight: "70vh", background: "var(--bg-1)" }} />}>
-      <PageClient />
-    </Suspense>
+    <>
+      <Suspense fallback={<div style={{ minHeight: "70vh", background: "var(--bg-1)" }} />}>
+        <PageClient />
+      </Suspense>
+
+      {rows.length > 0 && (
+        <section style={{ maxWidth: 1080, margin: "0 auto", padding: "34px 20px 52px" }}>
+          <h2
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 22,
+              fontWeight: 800,
+              letterSpacing: "-0.01em",
+              margin: "0 0 6px",
+            }}
+          >
+            Biggest moves in the last 24 hours
+          </h2>
+          <p style={{ color: "var(--text-mute)", fontSize: 14, margin: "0 0 18px" }}>
+            The curated board, ranked by how far the market&rsquo;s odds moved in a day.
+          </p>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
+              <thead>
+                <tr style={{ textAlign: "left", color: "var(--text-mute)", fontSize: 11.5 }}>
+                  <th style={{ padding: "8px 10px" }}>Market</th>
+                  <th style={{ padding: "8px 10px" }}>Category</th>
+                  <th style={{ padding: "8px 10px", textAlign: "right" }}>YES</th>
+                  <th style={{ padding: "8px 10px", textAlign: "right" }}>24h move</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((m) => (
+                  <tr key={m.id} style={{ borderTop: "1px solid var(--border)" }}>
+                    <td style={{ padding: "10px" }}>
+                      <Link
+                        href={`/visualizers/prediction-markets?m=${encodeURIComponent(m.id)}`}
+                        style={{ color: "inherit", textDecoration: "none" }}
+                      >
+                        {m.question}
+                      </Link>
+                    </td>
+                    <td style={{ padding: "10px", color: "var(--text-mute)" }}>{m.category}</td>
+                    <td
+                      style={{
+                        padding: "10px",
+                        textAlign: "right",
+                        fontFamily: "var(--font-mono)",
+                      }}
+                    >
+                      {pct(m.yesPrice)}
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px",
+                        textAlign: "right",
+                        fontFamily: "var(--font-mono)",
+                        color:
+                          (m.oneDayChange ?? 0) >= 0 ? "var(--good)" : "var(--bad)",
+                      }}
+                    >
+                      {(m.oneDayChange ?? 0) >= 0 ? "+" : ""}
+                      {Math.round((m.oneDayChange ?? 0) * 100)} pts
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ color: "var(--text-faint)", fontSize: 11.5, marginTop: 14, lineHeight: 1.6 }}>
+            Informational only; not betting or investment advice. Prices are from Polymarket and
+            reflect what buyers and sellers are paying, not a forecast by InsiderBuying.{" "}
+            <Link href="/methodology#prediction-markets" style={{ color: "var(--accent)" }}>
+              Methodology
+            </Link>
+            .
+          </p>
+        </section>
+      )}
+    </>
   );
 }

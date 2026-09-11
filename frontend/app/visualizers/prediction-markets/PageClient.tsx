@@ -108,6 +108,11 @@ export default function PredictionMarketsClient() {
       // recovery — slower, correct, and it costs one cached request.
       fallback = setInterval(() => void loadSnapshot(), 20_000);
     };
+    // Start polling straight away and stop it once the stream says hello. A
+    // proxy that buffers an event stream leaves the connection open and
+    // delivers nothing — no error fires, so waiting for onerror would leave
+    // the board frozen with no way back.
+    startFallback();
 
     try {
       es = new EventSource(`${API_BASE}/visualizers/markets/stream`);

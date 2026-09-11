@@ -1,0 +1,156 @@
+[
+ {
+  "slug": "stock-idea-aapl-2026-08-28",
+  "title": "Apple (AAPL) Gains 1.6% as Megacaps Split From Chips",
+  "kind": "stock-idea",
+  "ticker": "AAPL",
+  "sector": "Technology",
+  "topic": null,
+  "summary": "Apple rose 1.6% while NVIDIA and chips fell, a rotation within megacap tech, though no insider is buying, per our Form 4 record.",
+  "eyebrow": "STOCK IDEA",
+  "category": "MARKET MOVER",
+  "imageUrl": null,
+  "imageAlt": "Apple over a market-data and manufacturing backdrop",
+  "draft": false,
+  "sponsored": false,
+  "tags": [
+   "AAPL",
+   "apple",
+   "technology",
+   "insider-buying"
+  ],
+  "featuredTickers": [
+   "AAPL"
+  ],
+  "generatedAt": "2026-08-28T22:50:47.408659+00:00",
+  "body": "<h3>Key points</h3>\n<ul>\n<li>Apple (AAPL) rose 1.6% on the day even as NVIDIA and the chip complex sold off.</li>\n<li>The split points to rotation within megacap technology rather than a broad tech retreat.</li>\n<li>Our Form 4 record shows no open-market purchases by Apple insiders.</li>\n</ul>\n<p>Apple (AAPL) gained 1.6% on the day to about $319.70, holding near its highs while NVIDIA and the semiconductor group fell. On a session when the most-crowded AI names came under pressure, the largest company in the market moved the other way, a sign that money rotated within megacap technology rather than leaving it.</p>\n<p>Bloomberg and other outlets have pointed to Apple's expanded roughly $500 billion United States investment plan as part of the steadier fundamental story investors are leaning on. That backdrop tends to make the stock a relative haven when higher-beta technology wobbles.</p>\n<div data-viz=\"insider-timeline\" data-ticker=\"AAPL\"></div>\n<p>Reviewed by InsiderBuying.com, Apple's Form 4 filings show no open-market purchase by an officer or director in the recent window, and the timeline above makes that plain. For a company where executives already hold large equity stakes, the absence of buying is normal rather than bearish, so the insider tape here is neutral, neither confirming nor contradicting the price strength.</p>\n<p>The read-through is about positioning. When capital rotates from chips into Apple on a down day for the group, it usually reflects a preference for cash flow and buybacks over momentum, and that is a pattern worth watching across the megacap names rather than in Apple alone.</p>\n<p>What to watch: any first open-market purchase by an Apple insider, which would be an unusual and notable signal given how rarely they buy. Track real-time insider activity on the <a href=\"/companies/AAPL\">Apple company page</a>, or compare conviction across megacaps with our <a href=\"/premium\">Insider Score</a> tools.</p>",
+  "imagePrompt": null,
+  "iqsAtGeneration": null,
+  "inputSnapshot": null,
+  "updatedAt": "2026-08-28T22:50:47.408659+00:00"
+ },
+ {
+  "slug": "stock-idea-intc-2026-08-28",
+  "title": "Intel's (INTC) CEO Just Bought $10 Million of Stock",
+  "kind": "stock-idea",
+  "ticker": "INTC",
+  "sector": "Semiconductors",
+  "topic": null,
+  "summary": "Intel CEO Lip-Bu Tan made a roughly $10 million open-market purchase, the highest-conviction insider signal there is.",
+  "eyebrow": "STOCK IDEA",
+  "category": "INSIDER ALERT",
+  "imageUrl": null,
+  "imageAlt": "Intel and a semiconductor wafer over market data",
+  "draft": false,
+  "sponsored": false,
+  "tags": [
+   "INTC",
+   "intel",
+   "semiconductor",
+   "semis",
+   "insider-buying"
+  ],
+  "featuredTickers": [
+   "INTC"
+  ],
+  "generatedAt": "2026-08-28T22:49:47.408659+00:00",
+  "body": "<h3>Key points</h3>\n<ul>\n<li>Intel (INTC) CEO Lip-Bu Tan made a roughly $10 million open-market purchase on August 11.</li>\n<li>A chief executive buying eight figures of his own stock is the highest-conviction insider signal there is.</li>\n<li>Shares still fell 2.9% on the day, tracking the broader chip pullback.</li>\n</ul>\n<p>Intel (INTC) chief executive Lip-Bu Tan disclosed an open-market purchase of about $9,999,985 in company stock on August 11, one of the larger chief-executive buys on our tape this month. A CEO putting roughly $10 million of personal capital into the stock he runs is the signal insider analysts weight most heavily.</p>\n<p>The stock has not rewarded the move yet. INTC fell 2.9% on the day to about $89.47, tracking a broad semiconductor pullback. CNBC noted chip stocks weakened across the session.</p>\n<div data-viz=\"price-markers\" data-ticker=\"INTC\"></div>\n<p>Reviewed by InsiderBuying.com, the Form 4 confirms the transaction was an open-market purchase, not an option exercise or a grant, which is what separates a conviction buy from routine compensation. The price-marker chart above places the purchase against Intel's trading range so the timing is easy to judge.</p>\n<p>Context matters for how much weight to give the buy. Tan took the top job during a difficult turnaround, and a purchase of this size aligns his personal balance sheet with the recovery he is selling to the market. That is exactly the alignment the Insider Score is built to detect, whatever the stock does next.</p>\n<p>What to watch: whether other Intel officers or directors follow the CEO with purchases of their own, which would turn one signal into a cluster. Track real-time insider activity on the <a href=\"/companies/INTC\">Intel company page</a>, and see how the buy scores with our <a href=\"/premium\">Insider Score</a>.</p>",
+  "imagePrompt": null,
+  "iqsAtGeneration": null,
+  "inputSnapshot": null,
+  "updatedAt": "2026-08-28T22:49:47.408659+00:00"
+ },
+ {
+  "slug": "stock-idea-iren-2026-08-28",
+  "title": "IREN (IREN) Drops 12.5% in Bitcoin-Miner Selloff",
+  "kind": "stock-idea",
+  "ticker": "IREN",
+  "sector": "Technology",
+  "topic": null,
+  "summary": "IREN fell 12.5% on the day with Bitcoin, and no insider has stepped in to buy the drop, per our Form 4 record.",
+  "eyebrow": "STOCK IDEA",
+  "category": "MARKET MOVER",
+  "imageUrl": null,
+  "imageAlt": "IREN over a Bitcoin and data-center backdrop",
+  "draft": false,
+  "sponsored": false,
+  "tags": [
+   "IREN",
+   "bitcoin",
+   "crypto",
+   "insider-buying"
+  ],
+  "featuredTickers": [
+   "IREN"
+  ],
+  "generatedAt": "2026-08-28T22:48:47.408659+00:00",
+  "body": "<h3>Key points</h3>\n<ul>\n<li>IREN (IREN) fell 12.5% on the day, the steepest drop among the most-active names.</li>\n<li>The decline tracked a broad pullback in Bitcoin and crypto-linked equities.</li>\n<li>Our Form 4 record shows no open-market insider purchases at IREN during the slide.</li>\n</ul>\n<p>IREN (IREN), the Bitcoin-mining and data-center operator, fell 12.5% on the day to about $35.45, the sharpest decliner on Friday's most-active list. The move came as Bitcoin itself slipped and the ProShares Bitcoin ETF (BITO) traded lower alongside the miners.</p>\n<p>Reuters and other outlets tied the crypto weakness to rising Treasury yields after hawkish Federal Reserve commentary. Miners, which carry leverage to the coin price, tend to amplify those moves in both directions.</p>\n<div data-viz=\"insider-timeline\" data-ticker=\"IREN\"></div>\n<p>Reviewed by InsiderBuying.com, IREN's filings show no open-market purchase by an officer or director during the decline, and the timeline above states that absence plainly rather than drawing a blank. For a high-volatility name, an insider stepping in on a 12.5% down day would be a notable vote of confidence; none has, so far.</p>\n<p>The pattern is worth keeping in view. Miners often see insider buying cluster near cycle lows rather than during momentum runs, so the filings can lead the equity. So far the tape at IREN is quiet in both directions, which leaves the coin price, not management, as the driver of the next move.</p>\n<p>What to watch: a first open-market purchase from IREN management, or a stabilization in Bitcoin, either of which could change the tape. Track real-time insider activity on the <a href=\"/companies/IREN\">IREN company page</a>, or screen crypto-linked names with our <a href=\"/premium\">Insider Score</a>.</p>",
+  "imagePrompt": null,
+  "iqsAtGeneration": null,
+  "inputSnapshot": null,
+  "updatedAt": "2026-08-28T22:48:47.408659+00:00"
+ },
+ {
+  "slug": "stock-idea-nem-2026-08-28",
+  "title": "Newmont (NEM) Dips as Gold's Second-Half Rally Builds",
+  "kind": "stock-idea",
+  "ticker": "NEM",
+  "sector": "Basic Materials",
+  "topic": null,
+  "summary": "Newmont slipped 3.3% even as strategists called for a stronger second-half gold rally, widening the gap between metal and miners.",
+  "eyebrow": "STOCK IDEA",
+  "category": "SECTOR SPOTLIGHT",
+  "imageUrl": null,
+  "imageAlt": "Newmont and a gold-mining district map",
+  "draft": false,
+  "sponsored": false,
+  "tags": [
+   "NEM",
+   "newmont",
+   "gold",
+   "materials",
+   "metals-and-mining",
+   "insider-buying"
+  ],
+  "featuredTickers": [
+   "NEM"
+  ],
+  "generatedAt": "2026-08-28T22:47:47.408659+00:00",
+  "body": "<h3>Key points</h3>\n<ul>\n<li>Newmont (NEM) slipped 3.3% on the day even as strategists called for a stronger second-half gold rally.</li>\n<li>Gold miners have lagged the metal's move, leaving a gap between bullion and the equities.</li>\n<li>Our Form 4 record shows no recent open-market purchases by Newmont insiders.</li>\n</ul>\n<p>Newmont (NEM), the world's largest gold producer, fell 3.3% on the day to about $127.98, even as several strategists argued the second-half gold rally is just getting started. The pullback widened the familiar gap between the metal and the miners that dig it out of the ground.</p>\n<p>Barron's and other outlets have framed gold's strength as a hedge against sticky inflation and rate uncertainty. When bullion runs and the miners lag, the equities can carry more operating leverage to any catch-up.</p>\n<div data-viz=\"sector-table\" data-days=\"30\"></div>\n<p>Reviewed by InsiderBuying.com, Newmont's Form 4 filings show no recent open-market purchase by an officer or director, so the conviction case here rests on the macro backdrop, not the insider tape. The sector table above shows where insider buying is actually concentrated across the market right now.</p>\n<p>The split between metal and miners is the setup to watch. Producers like Newmont convert a higher gold price into cash flow with operating leverage, so a sustained rally tends to reach the equities eventually. Whether insiders start buying ahead of that catch-up is the signal our record is built to surface.</p>\n<p>What to watch: an open-market purchase at a major miner would mark the moment management agrees with the bullish macro call. Track real-time insider activity on the <a href=\"/companies/NEM\">Newmont company page</a>, or compare sectors with our <a href=\"/premium\">Insider Score</a> tools.</p>",
+  "imagePrompt": null,
+  "iqsAtGeneration": null,
+  "inputSnapshot": null,
+  "updatedAt": "2026-08-28T22:47:47.408659+00:00"
+ },
+ {
+  "slug": "stock-idea-nvda-2026-08-28",
+  "title": "NVIDIA (NVDA) Slides 4.6% as AI-Chip Leaders Cool",
+  "kind": "stock-idea",
+  "ticker": "NVDA",
+  "sector": "Semiconductors",
+  "topic": null,
+  "summary": "NVIDIA fell 4.6% on the day and led chips lower, yet our Form 4 record shows no insider buying the dip.",
+  "eyebrow": "STOCK IDEA",
+  "category": "MARKET MOVER",
+  "imageUrl": null,
+  "imageAlt": "NVIDIA logo over a semiconductor and market-data backdrop",
+  "draft": false,
+  "sponsored": false,
+  "tags": [
+   "NVDA",
+   "nvidia",
+   "semiconductor",
+   "ai",
+   "insider-buying"
+  ],
+  "featuredTickers": [
+   "NVDA"
+  ],
+  "generatedAt": "2026-08-28T22:46:47.408659+00:00",
+  "body": "<h3>Key points</h3>\n<ul>\n<li>NVIDIA (NVDA) fell 4.6% on the day, the largest decliner among Friday's most-active names.</li>\n<li>Our Form 4 record shows no open-market purchases by NVIDIA insiders during the pullback.</li>\n<li>The transaction timeline below shows exactly what insiders have, and have not, filed.</li>\n</ul>\n<p>NVIDIA (NVDA) closed near $217.55 on Friday, down 4.6% on the day and leading the semiconductor complex lower as traders trimmed exposure to the year's most-crowded trade. The stock is still the largest company on the tape, so a single-session move of this size pulls the broad indexes with it.</p>\n<p>CNBC and other outlets tied the slide to profit-taking across AI-infrastructure names rather than any company-specific news. Chip peers weakened in sympathy through the session.</p>\n<div data-viz=\"insider-timeline\" data-ticker=\"NVDA\"></div>\n<p>For a stock this widely held, the insider tape is where conviction shows up. Reviewed by InsiderBuying.com, NVIDIA's Form 4 filings carry no open-market purchase by an officer or director during the decline, and the timeline above makes that absence explicit rather than hiding it. When insiders neither buy the dip nor sell into strength, the read is simply that management is standing pat.</p>\n<p>The absence is itself information. Through the sector's prior wobbles this year, our record shows insider conviction concentrated in smaller, less-covered names rather than the megacap leaders, where officers already hold large equity stakes and rarely add on weakness. A dip in NVIDIA is a market event; it is not, on this evidence, an insider one.</p>\n<p>What to watch: a first open-market purchase by a named NVIDIA officer would be the cleanest sign that insiders see value at these levels. Track real-time insider activity on the <a href=\"/companies/NVDA\">NVIDIA company page</a>, or compare conviction across names with our <a href=\"/premium\">Insider Score</a> tools.</p>",
+  "imagePrompt": null,
+  "iqsAtGeneration": null,
+  "inputSnapshot": null,
+  "updatedAt": "2026-08-28T22:46:47.408659+00:00"
+ }
+]

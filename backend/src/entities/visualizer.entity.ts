@@ -487,3 +487,20 @@ export class VizBiotechProfile {
   @UpdateDateColumn()
   updatedAt!: Date;
 }
+
+/**
+ * Pre-composed payloads for the map/field reads (same pattern as
+ * `bubbles_cache`): the cron pays the fan-out cost, the endpoint is a single
+ * primary-key read. Keyed `<vertical>:<params>`, e.g. `contracts:us:1y`.
+ */
+@Entity('viz_payload_cache')
+export class VizPayloadCache {
+  @PrimaryColumn({ type: 'varchar', length: 64 })
+  key!: string;
+
+  @Column({ type: 'jsonb' })
+  payload!: unknown;
+
+  @UpdateDateColumn()
+  updatedAt!: Date;
+}

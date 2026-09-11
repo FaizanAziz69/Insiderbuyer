@@ -213,6 +213,134 @@ const ALL_SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> 
       </p>
     ),
   },
+  {
+    id: "goldminer",
+    title: "Goldminer AI — asset value and the peer comparison",
+    body: (
+      <>
+        <p>
+          A bubble&rsquo;s size is the project&rsquo;s <b>asset value</b>, taken from the best
+          available evidence in this order, and the panel always prints which one it used:
+        </p>
+        <ol className="list-decimal pl-5 space-y-1 mt-2">
+          <li>
+            <b>After-tax NPV</b> from the most advanced economic study (PEA, then PFS, then FS) at
+            that study&rsquo;s own base-case gold price. We never restate an operator&rsquo;s NPV
+            at a different gold price.
+          </li>
+          <li>
+            <b>In-situ metal value</b> where no study exists: measured and indicated ounces plus
+            one third of inferred ounces, multiplied by spot gold, multiplied by a stage discount
+            (1.5% exploration, 2.5% resource, 4% PEA, 6% PFS, 8% FS, 10% construction, 12%
+            production). Inferred ounces are down-weighted because they are the least certain
+            category, and the stage ladder is the market&rsquo;s own shorthand for how far an
+            ounce is from being mined.
+          </li>
+          <li>
+            <b>Producers with neither</b>: four times one year&rsquo;s production valued at spot.
+            This is the crudest tier and the panel says so.
+          </li>
+        </ol>
+        <p className="mt-2">
+          The fair-value snapshot divides asset value by total ounces and compares that dollars-per-ounce
+          figure with the <b>median for projects at the same stage on this map</b>. It is a
+          peer comparison of published figures — it is not a valuation, a price target or advice,
+          and a project can sit far from the median for entirely good reasons (jurisdiction,
+          metallurgy, permitting, ownership).
+        </p>
+        <p className="mt-2">
+          Every project row carries the source document and an as-of date, shown at the foot of
+          its panel. Resource and economic figures are the operator&rsquo;s own disclosures under
+          NI 43-101 or S-K 1300 and are not independently verified by us. Projects we cannot match
+          to a listed ticker render as dashed bubbles with a reduced panel.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "prediction-markets",
+    title: "Prediction Market Bubbles",
+    body: (
+      <>
+        <p>
+          Each bubble is one event contract on Polymarket. Size is <b>total dollar volume</b>{" "}
+          traded on that contract over its life; colour is the YES price — green at or above 50%,
+          red below, with intensity rising as the price moves away from a coin flip. A ring
+          flashes green or red when the price moves.
+        </p>
+        <p className="mt-2">
+          We do not show every market. An editor-curated allowlist runs to roughly 150 contracts,
+          chosen by trading volume with per-category ceilings so politics, the Fed and crypto are
+          not crowded out by single sporting fixtures. A market must also have traded at least
+          half a percent of its lifetime volume in the last 24 hours, which is what separates a
+          live market from a parked novelty one carrying a large historic total.
+        </p>
+        <p className="mt-2">
+          A YES price behaves like a probability because a YES share settles at $1 if the event
+          happens and $0 if it does not — but it is a market price, set by whoever is willing to
+          trade, not a forecast we endorse. Polymarket publishes resting book liquidity rather
+          than open interest, so that is the figure the panel shows, labelled as such.
+        </p>
+        <p className="mt-2">
+          <b>Display only.</b> We aggregate and display publicly available market prices as
+          information. We do not take bets, route orders or facilitate wagering, and we do not
+          link out to trading venues.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "government-contracts",
+    title: "Government Contracts visualizer",
+    body: (
+      <>
+        <p>
+          Bubble size is the dollars <b>obligated inside the selected window</b> — 90 days or 12
+          months — not the lifetime value of a contract. US figures come from USAspending.gov
+          (definitive contracts, purchase orders, delivery orders and BPA calls) in US dollars;
+          Canadian figures come from the Government of Canada&rsquo;s proactive disclosure of
+          contracts, in Canadian dollars and shown unconverted. The Global view merges the two
+          without converting currency, and says so.
+        </p>
+        <p className="mt-2">
+          Matching an awardee to a ticker is the hard part and it is our own work: government
+          systems carry legal entities and registration numbers, and one company routinely files
+          under several. We roll awards up by normalised legal name, then resolve to a ticker
+          through a curated contractor list, a conservative match against our company universe,
+          and manual overrides that no automated pass may overwrite. An awardee we have not
+          matched renders dashed — that means &ldquo;not proven listed&rdquo;, not
+          &ldquo;private&rdquo;.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "biotech-catalysts",
+    title: "Biotech catalyst map",
+    body: (
+      <>
+        <p>
+          Companies are placed at their headquarters, sized by market cap and coloured by cash
+          runway. Companies sharing a city are scattered by a fixed offset derived from the
+          ticker, so the same company lands in the same place every time; the dot is the city,
+          not the street.
+        </p>
+        <p className="mt-2">
+          <b>Runway</b> is cash and equivalents divided by the trailing quarter&rsquo;s net loss.
+          For a company with little or no revenue that is a fair approximation of burn; for one
+          with product sales it is rough, and it is never company guidance. Trials come from
+          ClinicalTrials.gov (recruiting, active and enrolling studies).
+        </p>
+        <p className="mt-2">
+          There is no official machine-readable feed of FDA decision dates, so the catalyst
+          calendar is curated from company disclosures and FDA notices, and every entry carries a
+          source and an as-of date. A company with no catalyst listed has not been curated yet —
+          it does not mean nothing is coming. Dates marked &ldquo;est.&rdquo; are company guidance
+          for a quarter or half, not a fixed day.
+        </p>
+      </>
+    ),
+  },
 ];
 
 const SECTIONS = ALL_SECTIONS.filter((s) => DATA_ARTICLES_ENABLED || s.id !== "data-articles");
