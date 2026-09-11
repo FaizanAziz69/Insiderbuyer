@@ -35,6 +35,41 @@ async function movers(): Promise<{ up: Mover[]; down: Mover[] } | null> {
 
 const pct = (v: number | null) => (v == null ? "—" : `${Math.round(v * 100)}%`);
 
+/**
+ * §9.8: a shared deep link must unfurl as the market it points at. The OG card
+ * is drawn from the same normalised record the page reads, so the preview and
+ * the page can never disagree.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ m?: string }>;
+}) {
+  const { m } = await searchParams;
+  const image = `https://insiderbuying.com/api/og/market${m ? `?id=${encodeURIComponent(m)}` : ""}`;
+  let title = "Prediction Market Bubbles — Live Odds, Visualized | Insider Buying";
+  if (m) {
+    try {
+      const res = await fetch(`${BACKEND}/api/visualizers/markets/${encodeURIComponent(m)}`, {
+        next: { revalidate: 300 },
+      });
+      if (res.ok) {
+        const market = (await res.json()) as { question?: string; yesPrice?: number | null };
+        if (market?.question) {
+          title = `${market.question} — ${pct(market.yesPrice ?? null)} YES | Insider Buying`;
+        }
+      }
+    } catch {
+      /* the default title is correct enough */
+    }
+  }
+  return {
+    title,
+    openGraph: { title, images: [{ url: image, width: 1200, height: 630 }] },
+    twitter: { card: "summary_large_image", title, images: [image] },
+  };
+}
+
 export default async function Page() {
   const data = await movers();
   const rows = [...(data?.up ?? []), ...(data?.down ?? [])]

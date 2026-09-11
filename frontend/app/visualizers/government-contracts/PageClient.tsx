@@ -103,7 +103,7 @@ export default function GovernmentContractsClient() {
 
   const selectedBubble = selected ? bubbles.find((b) => b.id === selected) ?? null : null;
 
-  const { data: awards } = useSWR<ContractAward[]>(
+  const { data: awards, isLoading: awardsLoading } = useSWR<ContractAward[]>(
     selected
       ? `${API_BASE}/visualizers/contracts/${encodeURIComponent(selected)}/awards?window=${window_}`
       : null,
@@ -352,10 +352,15 @@ export default function GovernmentContractsClient() {
                       </div>
                     ))}
                   </div>
+                ) : awardsLoading ? (
+                  // The first open of a recipient is a live call to the source
+                  // and can take a few seconds; saying so beats an empty box
+                  // that looks like "no awards".
+                  <p className="viz-about">Reading award detail from the source…</p>
                 ) : (
                   <p className="viz-about">
-                    Award-level detail loads from the source on first open. If it stays empty, the
-                    recipient's awards sit under a different legal name in the filing system.
+                    No award-level detail came back for this recipient. Its awards most likely sit
+                    under a different legal name in the filing system.
                   </p>
                 )}
               </Section>
