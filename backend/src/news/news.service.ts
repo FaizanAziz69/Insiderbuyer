@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 
@@ -203,12 +203,14 @@ const FUND_KEYWORDS = /(fund|ETF|mutual|investment\s+compan|advis|portfolio)/i;
 const MARKET_KEYWORDS = /(market|stock|equit|trade|exchange|S&P|nasdaq|dow|nyse)/i;
 
 @Injectable()
-export class NewsService {
+export class NewsService implements OnModuleInit {
   private readonly logger = new Logger(NewsService.name);
   private readonly http: AxiosInstance;
   private readonly xml: XMLParser;
   private cache: { ts: number; items: NewsItem[] } | null = null;
   private readonly CACHE_MS = 5 * 60 * 1000;
+  /** The one refresh everybody shares — see getLatest(). */
+  private refreshing: Promise<NewsItem[]> | null = null;
 
   constructor() {
     const userAgent = process.env.SEC_USER_AGENT || 'Insider Buying contact@iqs.local';
@@ -222,10 +224,44 @@ export class NewsService {
     this.xml = new XMLParser({ ignoreAttributes: false, trimValues: true });
   }
 
+  /** Warm the feed on boot so the first visitor after a deploy never pays for
+   *  it — a cold pull of every RSS source measured 8.0s on 2026-09-11. */
+  onModuleInit() {
+    void this.getLatest().catch((e) => this.logger.warn(`News warm-up failed: ${e?.message || e}`));
+  }
+
+  /**
+   * Latest news, cached 5 minutes.
+   *
+   * Two things make this safe under load, both added 2026-09-11 after the
+   * client reported the site felt "slow and delayed when clicking":
+   *  • ONE refresh at a time. Every concurrent caller used to run its own fan-
+   *    out across every feed, so ten visitors arriving on a cold cache meant
+   *    ten copies of an 8-second pull.
+   *  • Stale while revalidating. Once there is anything cached, an expired
+   *    entry is served instantly and the refresh happens behind it, so no
+   *    visitor ever waits for the feeds again — only the very first one after
+   *    a restart can, and onModuleInit takes even that.
+   */
   async getLatest(): Promise<NewsItem[]> {
     if (this.cache && Date.now() - this.cache.ts < this.CACHE_MS) {
       return this.cache.items;
     }
+    if (!this.refreshing) {
+      this.refreshing = this.refresh().finally(() => {
+        this.refreshing = null;
+      });
+    }
+    const run = this.refreshing;
+    if (this.cache) {
+      // Serve what we have; the refresh above keeps running behind this.
+      void run.catch(() => undefined);
+      return this.cache.items;
+    }
+    return run;
+  }
+
+  private async refresh(): Promise<NewsItem[]> {
     const results = await Promise.allSettled(FEEDS.map((f) => this.fetchFeed(f)));
     const items: NewsItem[] = [];
     for (const r of results) {
