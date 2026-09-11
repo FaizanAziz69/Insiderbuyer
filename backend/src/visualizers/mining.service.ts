@@ -1,7 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Cron } from '@nestjs/schedule';
 import { VizMiningProject } from '../entities/visualizer.entity';
+import { IndicesService } from '../indices/indices.service';
 import { InsiderSnapshotService } from './insider-snapshot.service';
 
 /**
@@ -93,10 +95,9 @@ export interface ImportIssue {
 }
 
 @Injectable()
-export class MiningService {
+export class MiningService implements OnModuleInit {
   private readonly logger = new Logger(MiningService.name);
-  /** Spot gold, refreshed from our own market data; the fallback is only used
-   *  when the quote is unavailable and is labelled in the provenance string. */
+  /** Spot gold, refreshed hourly from our own market data. */
   private spot = 2400;
   private spotAt = 0;
 
@@ -104,7 +105,33 @@ export class MiningService {
     @InjectRepository(VizMiningProject)
     private readonly repo: Repository<VizMiningProject>,
     private readonly insider: InsiderSnapshotService,
+    private readonly indices: IndicesService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    setTimeout(() => void this.refreshSpot(), 8_000).unref?.();
+  }
+
+  /**
+   * §4.2's in-situ tier multiplies ounces by SPOT, so a hardcoded price would
+   * quietly misprice the whole map. The site already tracks the gold future
+   * for its ticker strip; the same quote drives the sizing, and the "Sized by"
+   * string prints whatever price was used.
+   */
+  @Cron('25 * * * *')
+  async refreshSpot(): Promise<{ spot: number }> {
+    try {
+      const quotes = await this.indices.getQuotes();
+      const gold = quotes.find((q) => q.symbol === 'GC=F' || /gold/i.test(q.shortName ?? ''));
+      if (gold?.value && gold.value > 500) {
+        this.setSpot(gold.value);
+        this.logger.log(`spot gold ${gold.value}`);
+      }
+    } catch (e) {
+      this.logger.warn(`spot refresh: ${(e as Error).message}`);
+    }
+    return { spot: this.spot };
+  }
 
   setSpot(price: number): void {
     if (price > 0) {
