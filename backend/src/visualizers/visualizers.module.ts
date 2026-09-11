@@ -16,7 +16,7 @@ import { Company } from '../entities/company.entity';
 import { PressOrder } from '../entities/press-order.entity';
 import { IrClientService } from './ir-client.service';
 import { FmpModule } from '../fmp/fmp.module';
-import { IndicesModule } from '../indices/indices.module';
+import { MarketStatsModule } from '../market-stats/market-stats.module';
 import { GovVizService } from './gov-contracts-viz.service';
 import { MiningService } from './mining.service';
 import { BiotechService } from './biotech.service';
@@ -34,7 +34,7 @@ import { VisualizersController } from './visualizers.controller';
 @Module({
   imports: [
     FmpModule,
-    IndicesModule,
+    MarketStatsModule,
     TypeOrmModule.forFeature([
       VizEntity,
       VizCuratedMarket,

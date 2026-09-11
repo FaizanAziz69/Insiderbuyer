@@ -49,6 +49,14 @@ const LIVE_SHARE_MIN = 0.005;
 /** At most two markets from one event, so a 128-outcome event cannot flood. */
 const MAX_PER_EVENT = 2;
 /**
+ * Slots held for Kalshi. Ranking both venues on one dollar scale sounds fair
+ * and produces a board with no Kalshi on it at all: Polymarket reports dollars
+ * while Kalshi reports contracts, and Kalshi is the smaller venue besides, so
+ * its best market loses to Polymarket's hundredth. George asked for both
+ * venues, so the second one gets a floor.
+ */
+const KALSHI_SLOTS = 35;
+/**
  * Per-category ceilings. §7.2 makes curation quality the differentiator, and
  * raw 24h volume alone hands roughly a third of the field to single tennis and
  * esports matches — true, but not what a finance audience opened the page for.
@@ -301,11 +309,15 @@ export class PredictionService implements OnModuleInit {
     }
 
     ranked.sort((a, b) => b.v24 - a.v24);
+    // Kalshi's floor is taken first, then the merged ranking fills the rest.
+    const kalshiFirst = ranked.filter((r) => r.source === 'kalshi').slice(0, KALSHI_SLOTS);
+    const rest = ranked.filter((r) => !kalshiFirst.includes(r));
+    const ordered = [...kalshiFirst, ...rest];
 
     let added = 0;
     const used: Record<string, number> = {};
     for (const [, row] of keep) used[row.category] = (used[row.category] ?? 0) + 1;
-    for (const r of ranked) {
+    for (const r of ordered) {
       if (keep.size >= MAX_MARKETS) break;
       const source = r.source ?? 'polymarket';
       const id = `${source}:${r.m.id}`;

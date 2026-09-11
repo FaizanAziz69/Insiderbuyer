@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { VizMiningProject } from '../entities/visualizer.entity';
-import { IndicesService } from '../indices/indices.service';
+import { MarketStatsService } from '../market-stats/market-stats.service';
 import { InsiderSnapshotService } from './insider-snapshot.service';
 
 /**
@@ -105,7 +105,7 @@ export class MiningService implements OnModuleInit {
     @InjectRepository(VizMiningProject)
     private readonly repo: Repository<VizMiningProject>,
     private readonly insider: InsiderSnapshotService,
-    private readonly indices: IndicesService,
+    private readonly market: MarketStatsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -121,11 +121,15 @@ export class MiningService implements OnModuleInit {
   @Cron('25 * * * *')
   async refreshSpot(): Promise<{ spot: number }> {
     try {
-      const quotes = await this.indices.getQuotes();
-      const gold = quotes.find((q) => q.symbol === 'GC=F' || /gold/i.test(q.shortName ?? ''));
-      if (gold?.value && gold.value > 500) {
-        this.setSpot(gold.value);
-        this.logger.log(`spot gold ${gold.value}`);
+      // The same quote the site's ticker strip uses. The indices service has a
+      // hardcoded fallback that silently answers ~$2,346 when its own source
+      // is down, which would misprice the whole map without erroring.
+      const quotes = await this.market.getQuoteBatch(['GC=F']);
+      const gold = quotes.get('GC=F');
+      const price = Number(gold?.price ?? 0);
+      if (price > 500) {
+        this.setSpot(price);
+        this.logger.log(`spot gold ${price}`);
       }
     } catch (e) {
       this.logger.warn(`spot refresh: ${(e as Error).message}`);
