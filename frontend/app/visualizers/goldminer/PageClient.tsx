@@ -362,7 +362,7 @@ export default function GoldminerClient() {
               <Section title="Resource">
                 <div className="viz-grid" data-cols="3">
                   <Cell
-                    label="M&I ounces"
+                    label="P&amp;P / M&amp;I oz"
                     value={
                       selectedProject.ozMeasuredIndicated
                         ? `${(selectedProject.ozMeasuredIndicated / 1e6).toFixed(2)}M`
@@ -499,6 +499,10 @@ export default function GoldminerClient() {
                 </Section>
               )}
 
+              <div className="viz-src">
+                Ounce figures are the operator&rsquo;s own reported category — proven and probable
+                reserves where a reserve is declared, which is the most conservative measure.
+              </div>
               <SourceLine
                 name={selectedProject.sourceName}
                 url={selectedProject.sourceUrl}

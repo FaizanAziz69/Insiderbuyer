@@ -249,8 +249,10 @@ const ALL_SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> 
           metallurgy, permitting, ownership).
         </p>
         <p className="mt-2">
-          Every project row carries the source document and an as-of date, shown at the foot of
-          its panel. Resource and economic figures are the operator&rsquo;s own disclosures under
+          The launch dataset is built from the operators&rsquo; own reserve statements, so its
+          ounce figures are <b>proven and probable reserves</b> — the most conservative category,
+          and a subset of measured and indicated resources. Every project row carries the source
+          document and an as-of date, shown at the foot of its panel. Resource and economic figures are the operator&rsquo;s own disclosures under
           NI 43-101 or S-K 1300 and are not independently verified by us. Projects we cannot match
           to a listed ticker render as dashed bubbles with a reduced panel.
         </p>
