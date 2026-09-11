@@ -301,6 +301,10 @@ export function AiCoverImage({
         sizes={resolved.srcSet ? measured || resolved.sizes : undefined}
         alt={alt}
         loading={loading}
+        // An eager cover is the page's lead image — the thing the reader is
+        // waiting for. Without this it competes at default priority with every
+        // script the page is also fetching.
+        fetchPriority={loading === "eager" ? "high" : undefined}
         decoding="async"
         onLoad={() => setLoaded(true)}
         onError={() => {
