@@ -26,11 +26,27 @@ const BACKEND = process.env.BACKEND_URL || "http://localhost:4000";
 /** Budget per key for what gets inlined into the HTML as hydration props.
  *  Bigger list responses are SHRUNK (their largest array sliced) rather than
  *  dropped — a crawler gets the first rows, and the hook revalidates on mount
- *  so the browser still receives the full list moments later. */
-const MAX_BYTES = 150_000;
+ *  so the browser still receives the full list moments later.
+ *
+ *  2026-09-11: cut 150 KB → 25 KB. At 150 KB the seeded JSON dominated every
+ *  RSC payload (/insiders/hot 252 KB raw, /alerts 195 KB), and that payload is
+ *  downloaded before a click can change the URL. A crawler needs the first
+ *  rows, not five hundred of them. */
+const MAX_BYTES = 25_000;
 const DEFAULT_REVALIDATE = 120;
 /** Never prefetch: canvas-only data (no text value) and megabyte payloads. */
-const SKIP = [/\/market-stats\/heatmap/, /\/market-stats\/spark\?/];
+const SKIP = [
+  /\/market-stats\/heatmap/,
+  /\/market-stats\/spark\?/,
+  // 2026-09-11: the big list keys. Seeding these inlined 200–290 KB of JSON
+  // into the flight payload of every route that lists trades, which a
+  // client-side navigation has to download BEFORE the URL changes — /alerts
+  // measured 4,024 ms on a cold click against 130 ms on a warm one, and its
+  // payload carried 298 seeded rows. The hooks revalidate on mount, so the
+  // rows still arrive; they just no longer sit in the critical path.
+  /\/trades\?[^"]*limit=(?:2\d\d|[3-9]\d\d|\d{4,})/,
+  /\/rankings\?[^"]*limit=(?:2\d\d|[3-9]\d\d|\d{4,})/,
+];
 
 /** Slice the dominant array of a list response until it fits the budget.
  *  Works on a bare array or on the largest array-valued field of an object

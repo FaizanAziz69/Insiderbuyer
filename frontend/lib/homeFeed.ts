@@ -83,8 +83,10 @@ const HERO_MAX_AGE_MS = 5 * 24 * 60 * 60_000;
  *
  *  2026-09-05: repointed to the Burry / Lululemon story.
  *
- *  2026-09-08: repointed to the Jensen Huang nuclear stock-list story. */
-export const HERO_PIN: string | null = "editorial-peter-thiel-72-percent-energy-power-2026-09-10";
+ *  2026-09-08: repointed to the Jensen Huang nuclear stock-list story.
+ *
+ *  2026-09-11: repointed to the SpaceX-directors / MDMA story. */
+export const HERO_PIN: string | null = "editorial-spacex-directors-mdma-funding-2026-09-11";
 
 export function rotateHero(editorial: BlogPostListItem[], nowMs = Date.now()): BlogPostListItem[] {
   if (editorial.length < 2) return editorial;

@@ -127,6 +127,10 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-11: SpaceX directors funding MDMA therapy. The library's Musk /
+  // Capitol composite is the closest thing we have to "Musk world meets
+  // Washington", which is what this story is.
+  "editorial-spacex-directors-mdma-funding-2026-09-11": "musk-congress-wealth",
   // 2026-09-10: Peter Thiel's Q2 13F — 72% energy and power. Client-supplied cover.
   "editorial-peter-thiel-72-percent-energy-power-2026-09-10": "thiel-energy-power-2026",
   // 2026-09-05: Burry says he will buy more Lululemon under $100. Cover is the
