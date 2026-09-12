@@ -29,21 +29,43 @@ export function GoogleAnalytics() {
     if (isB2bSurface()) return;
     if (document.getElementById("ga-consumer")) return;
 
-    const tag = document.createElement("script");
-    tag.id = "ga-consumer";
-    tag.async = true;
-    tag.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
-    document.head.appendChild(tag);
+    // gtag.js is a 300ms+ request on a cold load from South Asia and nothing
+    // on the page waits for it, so it goes on after the page does. GA4's own
+    // history-based page_view still fires once the tag lands.
+    let timer = 0;
+    const inject = () => {
+      if (document.getElementById("ga-consumer")) return;
+      install();
+    };
+    const schedule = () => {
+      timer = window.setTimeout(inject, 800);
+    };
+    if (document.readyState === "complete") schedule();
+    else window.addEventListener("load", schedule, { once: true });
 
-    const init = document.createElement("script");
-    init.id = "ga-consumer-init";
-    init.text =
-      `window.dataLayer = window.dataLayer || [];\n` +
-      `function gtag(){dataLayer.push(arguments);}\n` +
-      `gtag('js', new Date());\n` +
-      `gtag('config', '${GA_ID}');`;
-    document.head.appendChild(init);
+    return () => {
+      window.removeEventListener("load", schedule);
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   return null;
+}
+
+/** The tag exactly as Google issues it, injected once the page is done. */
+function install() {
+  const tag = document.createElement("script");
+  tag.id = "ga-consumer";
+  tag.async = true;
+  tag.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
+  document.head.appendChild(tag);
+
+  const init = document.createElement("script");
+  init.id = "ga-consumer-init";
+  init.text =
+    `window.dataLayer = window.dataLayer || [];\n` +
+    `function gtag(){dataLayer.push(arguments);}\n` +
+    `gtag('js', new Date());\n` +
+    `gtag('config', '${GA_ID}');`;
+  document.head.appendChild(init);
 }

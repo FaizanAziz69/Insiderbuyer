@@ -1,6 +1,32 @@
+/**
+ * Static assets come from CloudFront, not from the origin box.
+ *
+ * Measured 2026-09-12 from Pakistan, the same chunk at the same minute: TTFB
+ * 0.27-0.39s from the edge against 0.86-1.02s from the origin, because
+ * connect + TLS to Virginia costs ~600ms before a byte moves. The homepage
+ * pulls 19 files / 339 KB of JS and CSS, so that tax was being paid 19 times
+ * on a first visit.
+ *
+ * No new infrastructure: distribution E26GMBXEUIC7CO (img.insiderbuying.com)
+ * already has this nginx as its origin, so /_next/static/* is simply another
+ * path on it. The one thing it needed is a CORS response-headers policy —
+ * the font URLs inside the CSS are root-relative, so once the CSS is served
+ * from the CDN the fonts are a cross-origin fetch and the origin sends no
+ * Access-Control-Allow-Origin.
+ *
+ * next/image is not used anywhere in this app, which matters: the managed
+ * CachingOptimized policy on that distribution strips query strings, and
+ * /_next/image is the one asset path that needs them. /_next/static/* files
+ * are hash-named and query-free.
+ *
+ * Roll back by setting this to "" and redeploying.
+ */
+const ASSET_CDN = "https://img.insiderbuying.com";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  assetPrefix: ASSET_CDN || undefined,
   // Link previews (WhatsApp, iMessage, Telegram, X, Slack…) read <head> only.
   // Next 15 streams metadata into the body on dynamically rendered pages
   // unless the UA is in this list, so the og:image never reached WhatsApp
