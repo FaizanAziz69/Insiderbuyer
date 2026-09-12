@@ -46,9 +46,14 @@ export const collisionRadius = (b: PhysBody, expandRadius = 46) =>
 export function stepPhysics(bodies: PhysBody[], dt: number, time: number, o: PhysicsOptions): void {
   const drag = o.dragTarget ?? null;
   const expandRadius = o.expandRadius ?? 46;
+  // Easing normalised to a 60Hz frame, so a 120Hz display does not run the
+  // grow-in twice as fast as a 60Hz one.
+  const k = (rate: number) => 1 - Math.pow(1 - rate, Math.max(dt, 1) / 16.67);
+  const kR = k(0.08);
+  const kE = k(0.12);
   for (const b of bodies) {
-    b.r += (b.targetR - b.r) * 0.08;
-    b.expandT += ((b.expanded ? 1 : 0) - b.expandT) * 0.12;
+    b.r += (b.targetR - b.r) * kR;
+    b.expandT += ((b.expanded ? 1 : 0) - b.expandT) * kE;
     if (b === drag) continue;
     if (!o.reduceMotion) {
       b.vy -= 0.0016 * dt;

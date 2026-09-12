@@ -59,11 +59,25 @@ export function BubbleField<T extends { id: string }>({
   const tipRef = useRef<HTMLDivElement>(null);
   const hoverRef = useRef<string | null>(null);
   const selectedRef = useRef<string | null>(selectedId ?? null);
-  const motionRef = useRef(motion);
   const [reduce, setReduce] = useState(false);
 
+  // Every prop the loop reads goes through a ref. The render loop used to list
+  // these in its effect deps, so a data poll or a click — which changes
+  // `version` and rebuilds `onSelect` — tore down the rAF loop and the
+  // ResizeObserver and started them again. That is what the visible hitch was.
   selectedRef.current = selectedId ?? null;
-  motionRef.current = motion;
+  const tooltipRef = useRef(tooltip);
+  const onSelectRef = useRef(onSelect);
+  const valueLabelRef = useRef(valueLabel);
+  const dashedRef = useRef(dashed);
+  const pulseRef = useRef(pulse);
+  const headerClearRef = useRef(headerClear);
+  tooltipRef.current = tooltip;
+  onSelectRef.current = onSelect;
+  valueLabelRef.current = valueLabel;
+  dashedRef.current = dashed;
+  pulseRef.current = pulse;
+  headerClearRef.current = headerClear;
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -80,8 +94,7 @@ export function BubbleField<T extends { id: string }>({
     engine.setMotion(motion);
   }, [engine, motion]);
 
-  const draw = useCallback(
-    (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+  const draw = useRef((ctx: CanvasRenderingContext2D, w: number, h: number) => {
       ctx.clearRect(0, 0, w, h);
       const sel = selectedRef.current;
       const hov = hoverRef.current;
@@ -93,13 +106,13 @@ export function BubbleField<T extends { id: string }>({
         if (n.r < 1.5) continue;
         const isSel = n.id === sel;
         const isHov = n.id === hov;
-        const alpha = n.dim ? Math.max(0, n.r / Math.max(1, n.targetR || 1)) : 1;
+        const alpha = Math.min(1, Math.max(0, n.alpha));
 
         ctx.save();
         ctx.globalAlpha = alpha;
 
         // §5.3 pulse: a breathing halo for bubbles with a near catalyst.
-        if (pulse?.(n)) {
+        if (pulseRef.current?.(n)) {
           const t = (Math.sin(performance.now() / 620 + n.seed) + 1) / 2;
           ctx.beginPath();
           ctx.arc(n.x, n.y, n.r + 4 + t * 9, 0, Math.PI * 2);
@@ -109,28 +122,17 @@ export function BubbleField<T extends { id: string }>({
         }
 
         // Body: a lit sphere — highlight offset up-left, deep edge bottom-right.
-        const g = ctx.createRadialGradient(
-          n.x - n.r * 0.36,
-          n.y - n.r * 0.42,
-          n.r * 0.08,
-          n.x,
-          n.y,
-          n.r,
-        );
-        // Opacity has to carry white label text on a light background too,
-        // so the core stays near-solid and only the rim falls away.
-        g.addColorStop(0, withAlpha(n.color, 1));
-        g.addColorStop(0.55, withAlpha(n.color, 0.82));
-        g.addColorStop(1, withAlpha(n.color, 0.46));
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-        ctx.fillStyle = g;
-        ctx.fill();
+        // Built once per colour and radius bucket into an offscreen sprite: a
+        // fresh radial gradient per bubble per frame is the single most
+        // expensive thing on a 150-bubble field, and it is the same pixels
+        // every time.
+        const sprite = bodySprite(n.color, n.r);
+        ctx.drawImage(sprite, n.x - n.r, n.y - n.r, n.r * 2, n.r * 2);
 
         // Ring. Dashed = §6.1 private/unlisted entity.
         ctx.beginPath();
         ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-        if (dashed?.(n)) ctx.setLineDash([5, 4]);
+        if (dashedRef.current?.(n)) ctx.setLineDash([5, 4]);
         ctx.strokeStyle = withAlpha(n.color, isSel || isHov ? 1 : 0.75);
         ctx.lineWidth = isSel ? 2.5 : 1.4;
         ctx.stroke();
@@ -165,7 +167,7 @@ export function BubbleField<T extends { id: string }>({
           ctx.textBaseline = "middle";
           ctx.shadowColor = "rgba(8,18,32,0.55)";
           ctx.shadowBlur = 3;
-          const vl = valueLabel?.(n) ?? null;
+          const vl = valueLabelRef.current?.(n) ?? null;
           const vSize = Math.max(9, Math.min(22, n.r * 0.42));
           // Only the biggest bubbles have room for a name under the figure.
           const showName = n.r >= 62 && !!n.label;
@@ -194,9 +196,7 @@ export function BubbleField<T extends { id: string }>({
         }
         ctx.restore();
       }
-    },
-    [engine, dashed, pulse, valueLabel],
-  );
+  });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -219,7 +219,7 @@ export function BubbleField<T extends { id: string }>({
       canvas.style.width = `${W}px`;
       canvas.style.height = `${H}px`;
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      engine.setSize(W, H, headerClear);
+      engine.setSize(W, H, headerClearRef.current);
       if (reduce) engine.relax();
     };
     resize();
@@ -228,7 +228,7 @@ export function BubbleField<T extends { id: string }>({
 
     const frame = (now: number) => {
       engine.step(now);
-      draw(ctx, W, H);
+      draw.current(ctx, W, H);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -243,7 +243,7 @@ export function BubbleField<T extends { id: string }>({
       const hit = engine.hitTest(x, y);
       hoverRef.current = hit?.id ?? null;
       canvas.style.cursor = hit ? "pointer" : "default";
-      const html = hit ? tooltip?.(hit) ?? null : null;
+      const html = hit ? tooltipRef.current?.(hit) ?? null : null;
       if (html) {
         tip.innerHTML = html;
         tip.style.opacity = "1";
@@ -263,7 +263,7 @@ export function BubbleField<T extends { id: string }>({
     const onDown = (e: PointerEvent) => {
       const { x, y } = local(e);
       const hit = engine.hitTest(x, y);
-      onSelect?.(hit);
+      onSelectRef.current?.(hit);
     };
 
     canvas.addEventListener("pointermove", onMove);
@@ -276,8 +276,11 @@ export function BubbleField<T extends { id: string }>({
       canvas.removeEventListener("pointerleave", onLeave);
       canvas.removeEventListener("pointerdown", onDown);
     };
-    // `version` re-runs the loop when the page swaps datasets wholesale.
-  }, [engine, draw, tooltip, onSelect, headerClear, reduce, version]);
+    // Deps are the two things that genuinely need a fresh loop: a different
+    // engine, and the reduced-motion switch (which changes how it is stepped).
+    // `version` deliberately does NOT appear — data changes flow through the
+    // engine, not through remounting the renderer.
+  }, [engine, reduce]);
 
   return (
     <>
@@ -285,6 +288,46 @@ export function BubbleField<T extends { id: string }>({
       <div ref={tipRef} className="viz-tip" aria-hidden />
     </>
   );
+}
+
+/**
+ * Offscreen sphere sprites, keyed by colour and a radius bucket. Radii ease
+ * continuously, so bucketing to 2px keeps the cache small while the difference
+ * stays invisible; the sprite is drawn scaled to the exact radius.
+ */
+const SPRITES = new Map<string, HTMLCanvasElement>();
+function bodySprite(color: string, r: number): HTMLCanvasElement {
+  const bucket = Math.max(8, Math.round(r / 2) * 2);
+  const key = `${color}|${bucket}`;
+  const hit = SPRITES.get(key);
+  if (hit) return hit;
+  const size = bucket * 2;
+  const c = document.createElement("canvas");
+  c.width = size;
+  c.height = size;
+  const g2 = c.getContext("2d")!;
+  const grad = g2.createRadialGradient(
+    bucket - bucket * 0.36,
+    bucket - bucket * 0.42,
+    bucket * 0.08,
+    bucket,
+    bucket,
+    bucket,
+  );
+  // Opacity has to carry white label text on a light background too, so the
+  // core stays near-solid and only the rim falls away.
+  grad.addColorStop(0, withAlpha(color, 1));
+  grad.addColorStop(0.55, withAlpha(color, 0.82));
+  grad.addColorStop(1, withAlpha(color, 0.46));
+  g2.beginPath();
+  g2.arc(bucket, bucket, bucket, 0, Math.PI * 2);
+  g2.fillStyle = grad;
+  g2.fill();
+  // The cache is bounded: a field cycling colours continuously (prediction
+  // markets recolour on every price move) would otherwise grow without limit.
+  if (SPRITES.size > 900) SPRITES.clear();
+  SPRITES.set(key, c);
+  return c;
 }
 
 /** rgb(a,b,c) → rgba(a,b,c,alpha). The engine's scales emit rgb() only. */

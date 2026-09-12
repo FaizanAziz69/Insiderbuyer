@@ -308,7 +308,8 @@ html[data-theme="dark"] .viz-root {
   backdrop-filter: blur(14px);
   box-shadow: -18px 0 44px rgba(0,0,0,.28);
   transform: translateX(100%);
-  transition: transform .22s cubic-bezier(.22,.61,.36,1);
+  transition: transform .3s cubic-bezier(.22,.61,.36,1);
+  will-change: transform;
 }
 .viz-panel[data-open="1"] { transform: translateX(0); }
 .viz-panel::before {

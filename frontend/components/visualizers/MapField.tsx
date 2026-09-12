@@ -69,16 +69,24 @@ export function MapField<T>({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
   const [land, setLand] = useState<Land | null>(null);
-  const view = useRef({ zoom: 1.15, cx: 10, cy: 20 }); // lng/lat centre
+  const view = useRef({ zoom: 1.15, cx: 10, cy: 20 }); // lng/lat centre, animated
+  const viewTarget = useRef({ zoom: 1.15, cx: 10, cy: 20 });
   const pointsRef = useRef(points);
   const selRef = useRef(selectedId ?? null);
   const clustersRef = useRef<MapCluster<T>[]>([]);
   const hoverRef = useRef<string | null>(null);
   const dragRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null);
-  const [, force] = useState(0);
 
   pointsRef.current = points;
   selRef.current = selectedId ?? null;
+  // Same reason as the field renderer: these used to sit in the render loop's
+  // effect deps, so every data poll and every click restarted the loop.
+  const tooltipRef = useRef(tooltip);
+  const onSelectRef = useRef(onSelect);
+  const sizeForRef = useRef(sizeFor);
+  tooltipRef.current = tooltip;
+  onSelectRef.current = onSelect;
+  sizeForRef.current = sizeFor;
 
   useEffect(() => {
     let alive = true;
@@ -125,7 +133,7 @@ export function MapField<T>({
             id: p.id,
             x,
             y,
-            r: sizeFor(p.value, maxValue),
+            r: sizeForRef.current(p.value, maxValue),
             count: 1,
             value: p.value,
             label: p.label,
@@ -154,7 +162,7 @@ export function MapField<T>({
           y: sy,
           r:
             members.length === 1
-              ? sizeFor(members[0].value, maxValue)
+              ? sizeForRef.current(members[0].value, maxValue)
               : Math.min(46, 15 + Math.sqrt(members.length) * 7),
           count: members.length,
           value,
@@ -167,7 +175,7 @@ export function MapField<T>({
       }
       return out;
     },
-    [project, sizeFor],
+    [project],
   );
 
   useEffect(() => {
@@ -196,7 +204,18 @@ export function MapField<T>({
     const ro = new ResizeObserver(resize);
     ro.observe(holder);
 
-    const draw = () => {
+    let lastT = 0;
+    const draw = (now = 0) => {
+      // Ease the camera toward its target so a cluster click flies in rather
+      // than teleporting; dragging writes both so it stays 1:1 with the cursor.
+      const dt = lastT ? Math.min(now - lastT, 48) : 16;
+      lastT = now;
+      const k = 1 - Math.pow(1 - 0.16, dt / 16.67);
+      const v = view.current;
+      const t = viewTarget.current;
+      v.zoom += (t.zoom - v.zoom) * k;
+      v.cx += (t.cx - v.cx) * k;
+      v.cy += (t.cy - v.cy) * k;
       const styles = getComputedStyle(canvas);
       const mono = styles.getPropertyValue("--viz-mono").trim() || "monospace";
       const landFill = styles.getPropertyValue("--viz-land").trim() || "rgba(120,140,170,0.18)";
@@ -293,8 +312,8 @@ export function MapField<T>({
       }
     };
 
-    const frame = () => {
-      draw();
+    const frame = (now: number) => {
+      draw(now);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -311,15 +330,20 @@ export function MapField<T>({
       if (dragRef.current) {
         const s = (W / 360) * view.current.zoom;
         view.current.cx = dragRef.current.cx - (x - dragRef.current.x) / s;
-        view.current.cy = dragRef.current.cy + (y - dragRef.current.y) / s;
-        view.current.cy = Math.max(-70, Math.min(78, view.current.cy));
+        view.current.cy = Math.max(
+          -70,
+          Math.min(78, dragRef.current.cy + (y - dragRef.current.y) / s),
+        );
+        viewTarget.current.cx = view.current.cx;
+        viewTarget.current.cy = view.current.cy;
         canvas.style.cursor = "grabbing";
         return;
       }
       const c = hit(x, y);
       hoverRef.current = c?.id ?? null;
       canvas.style.cursor = c ? "pointer" : "grab";
-      const html = c && c.count === 1 ? tooltip?.(c.members[0]) ?? null : c ? clusterTip(c) : null;
+      const html =
+        c && c.count === 1 ? tooltipRef.current?.(c.members[0]) ?? null : c ? clusterTip(c) : null;
       if (html) {
         tip.innerHTML = html;
         tip.style.opacity = "1";
@@ -345,30 +369,30 @@ export function MapField<T>({
       if (moved > 4) return;
       const c = hit(x, y);
       if (!c) {
-        onSelect?.(null);
+        onSelectRef.current?.(null);
         return;
       }
       if (c.count === 1) {
-        onSelect?.(c.members[0]);
+        onSelectRef.current?.(c.members[0]);
         return;
       }
       // §4.5 explode on zoom: clicking a cluster flies into it.
       const lngs = c.members.map((m) => m.lng);
       const lats = c.members.map((m) => m.lat);
-      view.current.cx = (Math.min(...lngs) + Math.max(...lngs)) / 2;
-      view.current.cy = (Math.min(...lats) + Math.max(...lats)) / 2;
-      view.current.zoom = Math.min(MAX_ZOOM, view.current.zoom * 2.2);
-      force((v) => v + 1);
+      viewTarget.current.cx = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+      viewTarget.current.cy = (Math.min(...lats) + Math.max(...lats)) / 2;
+      viewTarget.current.zoom = Math.min(MAX_ZOOM, viewTarget.current.zoom * 2.2);
     };
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const { x, y } = local(e);
       const before = unproject(x, y, W, H);
-      const k = Math.exp(-e.deltaY * 0.0016);
-      view.current.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, view.current.zoom * k));
+      const kz = Math.exp(-e.deltaY * 0.0016);
+      view.current.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, view.current.zoom * kz));
       const after = unproject(x, y, W, H);
       view.current.cx += before.lng - after.lng;
       view.current.cy += before.lat - after.lat;
+      viewTarget.current = { ...view.current };
     };
 
     canvas.addEventListener("pointermove", onMove);
@@ -383,7 +407,9 @@ export function MapField<T>({
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [land, project, unproject, buildClusters, tooltip, onSelect]);
+    // Only the basemap and the projection helpers matter here; callbacks and
+    // data flow through refs so the loop stays mounted.
+  }, [land, project, unproject, buildClusters]);
 
   return (
     <>
@@ -393,8 +419,7 @@ export function MapField<T>({
         <button
           type="button"
           onClick={() => {
-            view.current.zoom = Math.min(MAX_ZOOM, view.current.zoom * 1.5);
-            force((v) => v + 1);
+            viewTarget.current.zoom = Math.min(MAX_ZOOM, viewTarget.current.zoom * 1.5);
           }}
           aria-label="Zoom in"
         >
@@ -403,8 +428,7 @@ export function MapField<T>({
         <button
           type="button"
           onClick={() => {
-            view.current.zoom = Math.max(MIN_ZOOM, view.current.zoom / 1.5);
-            force((v) => v + 1);
+            viewTarget.current.zoom = Math.max(MIN_ZOOM, viewTarget.current.zoom / 1.5);
           }}
           aria-label="Zoom out"
         >
@@ -413,8 +437,7 @@ export function MapField<T>({
         <button
           type="button"
           onClick={() => {
-            view.current = { zoom: 1.15, cx: 10, cy: 20 };
-            force((v) => v + 1);
+            viewTarget.current = { zoom: 1.15, cx: 10, cy: 20 };
           }}
           aria-label="Reset view"
         >

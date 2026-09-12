@@ -27,6 +27,8 @@ export interface EngineNode<T> extends PhysBody {
   flashDir: number;
   /** Base radius before the container fit factor. */
   baseR: number;
+  /** 0 → 1 on entry, so a new bubble fades in rather than popping. */
+  alpha: number;
   data: T;
 }
 
@@ -138,6 +140,7 @@ export class BubbleEngine<T extends { id: string }> {
           vx: (Math.random() - 0.5) * 0.6,
           vy: (Math.random() - 0.5) * 0.6,
           r: 1,
+          alpha: 0,
           targetR: this.o.min,
           expanded: false,
           expandT: 0,
@@ -228,9 +231,21 @@ export class BubbleEngine<T extends { id: string }> {
     if (this.scaleDirty) this.rescale();
     const dt = this.lastTime ? Math.min(now - this.lastTime, 48) : 16;
     this.lastTime = now;
-    for (const n of this.nodes) if (n.flash > 0) n.flash = Math.max(0, n.flash - dt / 900);
+    // Ease per second, not per frame: a fixed 0.08 per frame runs twice as fast
+    // on a 120Hz display as on a 60Hz one, which is half of why the field felt
+    // different from machine to machine.
+    const ease = (rate: number) => 1 - Math.pow(1 - rate, dt / 16.67);
+    const kFade = ease(0.09);
+    for (const n of this.nodes) {
+      if (n.flash > 0) n.flash = Math.max(0, n.flash - dt / 900);
+      n.alpha += ((n.dim ? 0 : 1) - n.alpha) * kFade;
+    }
     const bodies = this.nodes.filter((n) => !n.dim);
-    stepPhysics(bodies, this.motion && !this.reduce ? dt : 0, now, {
+    // Always hand over the real dt: passing 0 to pause also stalls the radius
+    // easing inside the step, so a paused field froze mid-grow. reduceMotion
+    // suppresses the wander, and thevelocities damp out on their own — the
+    // field glides to a stop instead of stopping dead.
+    stepPhysics(bodies, dt, now, {
       width: this.w,
       height: this.h,
       headerClear: this.headerClear,
@@ -238,7 +253,8 @@ export class BubbleEngine<T extends { id: string }> {
       expandRadius: 0,
     });
     // Dimmed nodes still ease their radius to zero so they fade rather than pop.
-    for (const n of this.nodes) if (n.dim) n.r += (0 - n.r) * 0.14;
+    const kDim = ease(0.12);
+    for (const n of this.nodes) if (n.dim) n.r += (0 - n.r) * kDim;
   }
 
   /**
