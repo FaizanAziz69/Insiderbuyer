@@ -481,10 +481,23 @@ export default function PredictionMarketsClient() {
               )}
 
               <div className="viz-cta">
-                <Link href="/insights" data-primary="1">
+                <Link
+                  href="/insights"
+                  data-primary="1"
+                  onClick={() =>
+                    track("web_panel_cta_click", { vertical: "prediction", cta: "coverage" })
+                  }
+                >
                   Read our market coverage
                 </Link>
-                <Link href="/premium">Premium</Link>
+                <Link
+                  href="/premium"
+                  onClick={() =>
+                    track("web_panel_cta_click", { vertical: "prediction", cta: "premium" })
+                  }
+                >
+                  Premium
+                </Link>
               </div>
 
               <Disclaimer>

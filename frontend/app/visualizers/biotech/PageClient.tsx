@@ -438,10 +438,27 @@ export default function BiotechClient() {
               </Disclaimer>
 
               <div className="viz-cta">
-                <Link href={`/companies/${selectedCompany.ticker}`} data-primary="1">
+                <Link
+                  href={`/companies/${selectedCompany.ticker}`}
+                  data-primary="1"
+                  onClick={() =>
+                    track("web_panel_cta_click", {
+                      vertical: "biotech",
+                      cta: "profile",
+                      ticker: selectedCompany.ticker,
+                    })
+                  }
+                >
                   {selectedCompany.ticker} profile
                 </Link>
-                <Link href="/premium">Premium</Link>
+                <Link
+                  href="/premium"
+                  onClick={() =>
+                    track("web_panel_cta_click", { vertical: "biotech", cta: "premium" })
+                  }
+                >
+                  Premium
+                </Link>
               </div>
             </>
           )}

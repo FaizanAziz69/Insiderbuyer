@@ -8,7 +8,7 @@ platform is `frontend/lib/visualizers` + `frontend/components/visualizers`.
 |---|---|---|---|
 | Prediction Market Bubbles | `/visualizers/prediction-markets` | Polymarket Gamma + CLOB + data API, polled every 15s, deltas over SSE | live |
 | Government Contracts | `/visualizers/government-contracts` | USAspending.gov + open.canada.ca, rebuilt nightly | live |
-| Goldminer AI | `/visualizers/goldminer` | curated project seed — **not yet loaded** | machinery live, dataset pending |
+| Goldminer AI | `/visualizers/goldminer` | curated project seed from operator reserve statements | live, 40 projects |
 | Biotech Catalysts | `/visualizers/biotech` | FMP roster + ClinicalTrials.gov + OSM geocoding; catalysts curated | live, catalysts pending |
 
 ## Admin operations
@@ -33,6 +33,15 @@ POST /api/visualizers/admin/biotech/refresh?step=roster|geocode|trials|financial
 POST /api/visualizers/admin/biotech/catalysts {rows:[…]}
 ```
 
+## Embeds
+
+Every visualizer has an iframe version at `/visualizers/embed/<product>` —
+`prediction-markets`, `government-contracts`, `goldminer`, `biotech`. It renders
+the identical component tree with the site chrome removed and an attribution bar
+added, so an embed can never drift from the page it came from, and every panel
+keeps its source line and disclaimer. Embeds are `noindex` so they cannot
+compete with the canonical page. The snippet is on the hub.
+
 ## Loading the Goldminer dataset
 
 `goldminer-seed-template.csv` in this folder is the exact shape the importer
@@ -50,14 +59,42 @@ Sizing then follows the §4.2 hierarchy automatically: study NPV if present,
 else in-situ ounces × spot × a stage discount, else a multiple of annual
 production — and the panel prints which one it used.
 
-## Why Goldminer ships empty
+## Where the Goldminer data came from, and how to extend it
 
-§4.4 assigns curation of the top 300–500 projects to editorial (~2–3 weeks) and
-§12 Q2 (buy vs scrape vs curate) is unanswered. Every free source we tested
-fails §8's rule that each figure carries a source and an as-of date: USGS MRDS
-holds occurrences with no economics, and Wikipedia's mine infoboxes yielded
-fourteen usable rows and no resource figures. Rather than put unsourced numbers
-on the map, the product ships complete and says what it is waiting for.
+The seed is `goldminer-seed-2025.csv`: 40 projects from four operators' own
+reserve statements, all effective 31 December 2025 —
+
+| Operator | Document | Properties |
+|---|---|---|
+| Newmont | 2025 Mineral Reserves news release | 23 rows → 20 projects |
+| Barrick | Mineral Reserves and Resources page | 14 |
+| Agnico Eagle | Form 6-K reserve exhibit `aem-20251231xex99d5.htm` | 23 rows |
+| Gold Fields | MRMR Supplement 2025 PDF, "Headline" table | 8 |
+
+**The recipe for the next operator**, in order of what actually worked:
+
+1. `data.sec.gov/submissions/CIK##########.json` → find the annual reserves
+   exhibit, then download it from `sec.gov/Archives/...`. Most reliable route;
+   sec.gov never blocks and never rate-limits a polite User-Agent.
+2. The company's own MRMR/reserves PDF, downloaded with `curl` and parsed with
+   `pypdf` locally. WebFetch chokes above 10 MB and on PDFs generally.
+3. The reserves page as HTML. Corporate SPA sites mostly render nothing useful.
+
+**Blocked or fruitless:** AngloGold Ashanti's report host sits behind Incapsula
+and refuses curl; goldfields.com serves an incomplete TLS chain (fetch the PDF
+from a Mac, not the box); Kinross's site is a client-rendered shell.
+
+**Coordinates are the trap.** Free-text geocoding lies about mine names —
+Nominatim put Carlin in Colorado, Yanacocha in Cusco and "AK Deposit" on a mulch
+yard in Hamilton; Wikipedia's title lookup put Phoenix in British Columbia. Only
+accept a Nominatim hit that is country-scoped AND whose `display_name` names a
+mine, or a verified Wikipedia article. Drop anything else — nine rows were
+dropped for this reason, including South Deep, which is simply not in OSM.
+
+Reaching the brief's 300–500 projects is a data-acquisition job, not an
+engineering one: roughly twenty more operators at the rate above, or a paid feed
+(Mining Data Online, S&P). The importer, the validator and the sizing hierarchy
+are done and proven against 40 rows.
 
 ## Things that will bite
 

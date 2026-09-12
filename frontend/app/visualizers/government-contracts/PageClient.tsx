@@ -403,10 +403,23 @@ export default function GovernmentContractsClient() {
               </Disclaimer>
 
               <div className="viz-cta">
-                <Link href="/government-contracts" data-primary="1">
+                <Link
+                  href="/government-contracts"
+                  data-primary="1"
+                  onClick={() =>
+                    track("web_panel_cta_click", { vertical: "contracts", cta: "table" })
+                  }
+                >
                   Full contractor table
                 </Link>
-                <Link href="/methodology">Methodology</Link>
+                <Link
+                  href="/methodology"
+                  onClick={() =>
+                    track("web_panel_cta_click", { vertical: "contracts", cta: "methodology" })
+                  }
+                >
+                  Methodology
+                </Link>
               </div>
             </>
           )}

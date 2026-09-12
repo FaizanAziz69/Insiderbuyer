@@ -28,6 +28,9 @@ const BARE_ROUTES = [
   // Round-2 brief, Section 4: the B2B site is a separate experience.
   "/press",
   "/campaigns",
+  // Phase 5 of the visualizer brief: embeds are the same page in someone
+  // else's iframe, so the consumer chrome has to come off.
+  "/visualizers/embed",
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

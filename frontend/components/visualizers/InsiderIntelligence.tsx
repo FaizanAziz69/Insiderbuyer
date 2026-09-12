@@ -20,6 +20,7 @@ import { Lock } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { usePremium } from "@/components/premium/PremiumContext";
+import { track } from "@/lib/analytics";
 import { fmtUsd, fmtDate } from "@/lib/visualizers/format";
 import { Badge, Cell, Row, Section } from "./DetailPanel";
 
@@ -157,10 +158,19 @@ export function InsiderIntelligence({ ticker }: { ticker: string | null }) {
       )}
 
       <div className="viz-cta">
-        <Link href={`/companies/${encodeURIComponent(ticker)}`} data-primary="1">
+        <Link
+          href={`/companies/${encodeURIComponent(ticker)}`}
+          data-primary="1"
+          onClick={() => track("web_panel_cta_click", { cta: "insider_profile", ticker })}
+        >
           {ticker} insider profile
         </Link>
-        <Link href={SUBSCRIBE_HREF}>Premium</Link>
+        <Link
+          href={SUBSCRIBE_HREF}
+          onClick={() => track("web_panel_cta_click", { cta: "premium", ticker })}
+        >
+          Premium
+        </Link>
       </div>
     </Section>
   );
