@@ -50,6 +50,36 @@ node dist/promoter/ir-parser.spec.js <corpusDir>     # corpus replay + parse rat
 The corpus directory needs `corpus.json` (`[{file,title,url}]`) and a
 `corpus/` folder of `<file>.txt` release bodies.
 
+## The database path
+
+SQL is the part a TypeScript compiler cannot check, so it has its own run
+against a real Postgres — it builds its own schema, exercises every write and
+read the three surfaces depend on, and drops the schema again:
+
+```bash
+docker compose up -d postgres
+npm run build
+node dist/promoter/promoter.service.spec.js \
+  postgres://iqs_user:iqs_password@localhost:5432/iqs_db
+```
+
+51 checks. Four real bugs came out of writing it, all of which would have
+surfaced first on a production ingest:
+
+- an unused `$1` in the `rescore` query — Postgres refuses the statement
+  outright with *could not determine data type of parameter $1*;
+- an in-scope release whose provider could not be read produced **no row at
+  all**, so it never reached the review queue and was lost in silence. It now
+  writes a provider-less placeholder: held for a human, invisible to every
+  public surface and to the scores until someone names the counterparty, at
+  which point it becomes a normal contract and the firm joins the lead list;
+- an out-of-range weight silently snapped that weight back to the shipped
+  default instead of being ignored — one typo would have moved a published
+  score for no reason anyone asked for;
+- `/promoter/issuer/:ticker` answered 200 with an empty shell for a ticker
+  whose only disclosure was still in review, so the company panel would have
+  claimed zero agreements when the truth was "not read yet".
+
 **Measured on 39 harvested releases (2026-09-14):** 29 in-scope disclosures,
 41 agreements, 9 filtered out as not-in-scope. Ticker 100%, provider 90%,
 term 78%, a fee figure on ~50%, auto-accepted at 59% with the rest queued for
@@ -173,7 +203,9 @@ the B2B lead list) · `ir_issuers` (our own, because TSXV/CSE names are not in
 the US `companies` table) · `promoter_scores` · `ir_audit` · `promoter_config`.
 
 A hand-reviewed row is the record of truth: a later re-read of the same release
-never overwrites a correction.
+never overwrites a correction. A row with no `provider_slug` is a disclosure
+held for review — it is excluded from scoring, the issuer page, the firm list
+and the export until an editor names the provider.
 
 ## Still open
 

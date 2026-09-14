@@ -13,7 +13,7 @@ import {
   ParsedDisclosure,
   REVIEW_THRESHOLD,
 } from './ir-parser';
-import { DEFAULT_WEIGHTS, PromoterWeights, normalizeWeights } from './scoring';
+import { DEFAULT_WEIGHTS, PromoterWeights, WEIGHT_KEYS, normalizeWeights } from './scoring';
 
 /**
  * Workstream F — IR Budget / Promoter Score.
@@ -232,7 +232,21 @@ export class PromoterService implements OnModuleInit {
 
   async setWeights(next: Partial<PromoterWeights>, actor: string): Promise<PromoterWeights> {
     const before = await this.getWeights();
-    const merged = normalizeWeights({ ...before, ...next });
+    // A value that is out of range is IGNORED, leaving the current weight in
+    // place. Merging it first and normalising afterwards looks equivalent and
+    // is not: a single typo would silently snap that weight back to the
+    // shipped default, changing a published score for a reason nobody asked
+    // for. Reject the field, keep the rest.
+    const clean: Partial<PromoterWeights> = {};
+    const ignored: string[] = [];
+    for (const [k, v] of Object.entries(next ?? {})) {
+      if (!WEIGHT_KEYS.includes(k as keyof PromoterWeights)) continue;
+      const n = Number(v);
+      if (isFinite(n) && n >= 0 && n <= 1000) (clean as any)[k] = n;
+      else ignored.push(k);
+    }
+    if (ignored.length) this.log.warn(`ignored out-of-range weights: ${ignored.join(', ')}`);
+    const merged = normalizeWeights({ ...before, ...clean });
     await this.q(
       `INSERT INTO promoter_config (key, value, updated_at) VALUES ('weights', $1::jsonb, now())
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
@@ -408,6 +422,34 @@ export class PromoterService implements OnModuleInit {
       );
       n++;
     }
+    // An in-scope release we could not read is exactly the case §2.3 wants a
+    // human to look at — but with no provider there is no agreement row, and
+    // without a row it would never appear in the queue and would be lost in
+    // silence. Write a placeholder so the reviewer gets it; it carries no
+    // provider_slug, which is what keeps it out of every public surface and
+    // out of the scores until someone fills it in.
+    if (n === 0 && parsed.ticker) {
+      const existing = (
+        await this.q(`SELECT id FROM ir_agreements WHERE disclosure_id = $1 LIMIT 1`, [disclosureId])
+      )?.[0];
+      if (!existing) {
+        const a = parsed.agreements[0];
+        await this.q(
+          `INSERT INTO ir_agreements
+             (disclosure_id, ticker, exchange, issuer_name, kind, start_date, term_months,
+              monthly_fee, total_value, currency, status, confidence, provenance, notes)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'needs_review',$11,$12::jsonb,$13::jsonb)`,
+          [
+            disclosureId, parsed.ticker, parsed.exchange, parsed.issuerName, parsed.kind,
+            a?.startDate ?? null, a?.termMonths ?? null, a?.monthlyFee ?? null,
+            a?.totalValue ?? null, a?.currency ?? null, parsed.confidence,
+            JSON.stringify(a?.provenance ?? {}),
+            JSON.stringify([...(a?.notes ?? []), 'No provider could be read from this release.']),
+          ],
+        );
+      }
+    }
+
     // A termination or an expiry retires the earlier contract with the same
     // provider, which is what makes "active contract count" mean anything.
     if (parsed.kind === 'termination' && parsed.ticker) {
@@ -619,8 +661,13 @@ export class PromoterService implements OnModuleInit {
            LEFT JOIN ir_issuers i ON i.ticker = a.ticker
           WHERE a.ticker IS NOT NULL
             AND a.status <> 'rejected'
-            AND COALESCE(a.start_date, '1900-01-01'::date) <= $2::date`,
-        [qtr, end],
+            AND a.provider_slug IS NOT NULL
+            AND COALESCE(a.start_date, '1900-01-01'::date) <= $1::date`,
+        // Only the quarter END is a parameter here. Passing the quarter label
+        // as an unused $1 made Postgres refuse the statement outright
+        // ("could not determine data type of parameter $1") — it cannot infer
+        // a type for a placeholder that never appears in the query.
+        [end],
       );
 
       const byTicker = new Map<string, any>();
@@ -774,7 +821,7 @@ export class PromoterService implements OnModuleInit {
               a.arms_length, a.status, a.kind, a.confidence, a.provenance, a.reviewed_at,
               d.source_url, d.headline, d.published_at
          FROM ir_agreements a JOIN ir_disclosures d ON d.id = a.disclosure_id
-        WHERE a.ticker = $1 AND a.status <> 'rejected'
+        WHERE a.ticker = $1 AND a.status <> 'rejected' AND a.provider_slug IS NOT NULL
         ORDER BY COALESCE(a.start_date, d.published_at::date) DESC NULLS LAST`,
       [ticker],
     );
@@ -783,7 +830,11 @@ export class PromoterService implements OnModuleInit {
          FROM promoter_scores WHERE ticker = $1 ORDER BY quarter`,
       [ticker],
     );
-    if (!issuer && !contracts.length) return null;
+    // An issuer row alone is not a page. `resolveIssuers` creates one for any
+    // ticker we have seen, including tickers whose only disclosure is still
+    // held for review — answering 200 with an empty shell would render a
+    // company panel claiming zero agreements when the truth is "not read yet".
+    if (!contracts.length) return null;
     return {
       ticker,
       issuer: issuer
@@ -844,7 +895,7 @@ export class PromoterService implements OnModuleInit {
               a.options_granted, a.option_strike::float8 AS option_strike, a.arms_length,
               a.confidence, a.reviewed_at, d.published_at, d.source_url
          FROM ir_agreements a JOIN ir_disclosures d ON d.id = a.disclosure_id
-        WHERE a.status <> 'rejected'
+        WHERE a.status <> 'rejected' AND a.provider_slug IS NOT NULL
         ORDER BY COALESCE(a.start_date, d.published_at::date) DESC NULLS LAST
         LIMIT $1`,
       [Math.min(Math.max(limit, 1), 20_000)],
@@ -911,8 +962,16 @@ export class PromoterService implements OnModuleInit {
       sets.push(`${col} = $${vals.length}`);
     }
     if (patch.providerName) {
-      vals.push(firmSlug(String(patch.providerName)));
+      const slug = firmSlug(String(patch.providerName));
+      vals.push(slug);
       sets.push(`provider_slug = $${vals.length}`);
+      await this.upsertFirm(slug, String(patch.providerName), before.kind, before.start_date);
+      // Naming the counterparty is what turns a held-back disclosure into a
+      // contract the public surfaces and the scores can use.
+      if (!before.provider_slug && !patch.status) {
+        vals.push(before.kind === 'termination' ? 'terminated' : 'active');
+        sets.push(`status = $${vals.length}`);
+      }
     }
     // Money edits must keep the CAD columns — every aggregate reads those.
     const currency = patch.currency ?? before.currency;
