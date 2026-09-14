@@ -49,6 +49,7 @@ import { LazyMount } from "@/components/LazyMount";
 import { SAProfileHeader } from "@/components/stock/SAProfileHeader";
 import { ScorePillarsCard } from "@/components/ScorePillarsCard";
 import { InsiderScoreBanner } from "@/components/company/InsiderScoreBanner";
+import { PromoterPanel } from "@/components/company/PromoterPanel";
 import { CongressTradingCard, WhaleActivityCard, RevenueBreakdownCard, BullBearCard } from "@/components/stock/StockCivicGrid";
 import {
   StrategyBanner, InsiderNetSharesCard, LobbyingStackedCard, ContractsStackedCard,
@@ -265,6 +266,10 @@ export default function CompanyPage({
                 style — nothing to scroll past when you switch tabs). */}
             {tab === "overview" && (
               <>
+                {/* Workstream F §2.5 per-issuer IR-spend module. Renders only
+                    for issuers with disclosed agreements (TSXV/CSE), so it is
+                    invisible on the US pages that make up most of the site. */}
+                <PromoterPanel ticker={sym} />
                 <AboutQQ
                   ticker={sym}
                   name={data.company.name}

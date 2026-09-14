@@ -93,6 +93,54 @@ const ALL_SECTIONS: Array<{ id: string; title: string; body: React.ReactNode }> 
     ),
   },
   {
+    id: "promoter-score",
+    title: "Promoter Score — disclosed investor-relations spend",
+    body: (
+      <>
+        <p>
+          <b>Scope: Canada only.</b> TSX Venture Exchange Policy 3.4 and the Canadian Securities
+          Exchange require a listed issuer to disclose every investor-relations, promotional and
+          market-making agreement by news release &mdash; the provider, the compensation, the term,
+          and any options granted &mdash; and to announce any amendment, extension or termination the
+          same way. US issuers publish no equivalent line item, so there is nothing to compute for
+          them and we do not guess. Every figure on these pages is read from an issuer&rsquo;s own
+          news release, and every agreement links back to it.
+        </p>
+        <p>
+          <b>How a release becomes a row.</b> We read the release, then extract the provider, start
+          date, term, monthly cash fee, total contract value, currency, and any options or shares
+          granted <i>to that provider</i>. One release can disclose several agreements &mdash; some
+          issuers announce three or more providers at once &mdash; and each becomes its own row.
+          Option grants to directors, officers or unrelated consultants announced in the same release
+          are <b>not</b> counted as promoter compensation. Where a figure is calculated rather than
+          stated (a total derived from a monthly fee and a term, for example), the row says so. Where
+          a release is ambiguous, the row is held back for an editor to check against the release
+          before it is published, and corrections are logged.
+        </p>
+        <p>
+          <b>The score.</b> For each issuer each quarter we compute five things: total disclosed
+          spend in Canadian dollars (contracts pro-rated over the months they actually run), the
+          change versus the prior quarter, spend as a share of market capitalisation, the notional
+          value of options granted to promoters, and the number of concurrent providers. Each is
+          converted to a percentile rank against sector peers &mdash; against the whole quarter&rsquo;s
+          cohort where a sector has too few issuers to rank within &mdash; and blended. Spend relative
+          to market capitalisation carries the most weight, because it is the only one of the five
+          that means the same thing for a C$4&nbsp;million shell and a C$300&nbsp;million producer. A
+          component we have no data for is dropped and the remaining weights rescaled, so an issuer
+          with no market capitalisation on file is ranked on what it does disclose rather than pushed
+          down for a gap.
+        </p>
+        <p>
+          <b>What the number is not.</b> Paying for investor relations is legal, disclosed and
+          ordinary; a high Promoter Score means a company has disclosed a lot of promotion relative
+          to its peers, and nothing more. It is not a rating of the company, its management or its
+          stock. Agency-client status with InsiderBuying has no input to any score, ranking or
+          inclusion decision &mdash; the scoring code cannot read it.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "top-insiders",
     title: "Top Insiders — hedge fund and famous-investor performance",
     body: (

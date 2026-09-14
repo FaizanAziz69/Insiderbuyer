@@ -26,6 +26,7 @@ import {
   TrendingUp,
   Users,
   Wrench,
+  Megaphone,
 } from "lucide-react";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { DATA_ARTICLES_ENABLED } from "@/lib/data-articles-flag";
@@ -167,6 +168,8 @@ export const NAV_GROUPS: NavGroup[] = [
               { label: "Market Heatmap", href: "/heatmaps/market", icon: Flame },
               { label: "Sector Heatmap", href: "/sectors", icon: Building2 },
               { label: "Top Investors & Funds", href: "/investors", icon: Landmark },
+              // Workstream F: TSXV/CSE disclosed investor-relations spend.
+              { label: "Promoter Score", href: "/promoter-score", icon: Megaphone, badge: "new" },
               { label: "Upcoming Earnings", href: "/earnings", icon: Calendar },
             ],
           },

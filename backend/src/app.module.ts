@@ -69,6 +69,7 @@ import { InvestorsModule } from './investors/investors.module';
 import { Iqs2Module } from './iqs2/iqs2.module';
 import { DataArticlesModule } from './data-articles/data-articles.module';
 import { DeInsidersModule } from './de-insiders/de-insiders.module';
+import { PromoterModule } from './promoter/promoter.module';
 import { EmailFlowState } from './entities/email-flow-state.entity';
 import { InsiderProfile } from './entities/insider-profile.entity';
 import { HistoricalInsiderBuy } from './entities/historical-insider-buy.entity';
@@ -225,6 +226,7 @@ import {
     Iqs2Module,
     DataArticlesModule,
     DeInsidersModule,
+    PromoterModule,
   ],
 })
 export class AppModule {}
