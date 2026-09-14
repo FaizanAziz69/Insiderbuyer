@@ -89,14 +89,14 @@ export function PromoterSpendChart({
         </p>
       </figcaption>
 
-      <div className="overflow-x-auto">
+      <div>
         <svg
           viewBox={`0 0 ${width} ${height}`}
           width="100%"
-          height={height}
+          preserveAspectRatio="xMinYMin meet"
           role="img"
           aria-label={`Ranked bar chart of disclosed investor relations spend for the top ${data.length} Canadian venture issuers`}
-          style={{ display: "block", minWidth: 560 }}
+          style={{ display: "block", width: "100%", height: "auto" }}
         >
           {ticks.map((t) => (
             <line

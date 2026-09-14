@@ -95,12 +95,15 @@ export default function PromoterScorePage() {
             {r.exchange ? <span className="ml-1.5 text-[10.5px] font-semibold text-faint">{r.exchange}</span> : null}
           </span>
           <span className="block text-[11.5px] text-mute leading-tight truncate max-w-[210px]">{r.name || "—"}</span>
+          {r.sector ? (
+            <span className="block text-[10.5px] text-faint leading-tight truncate max-w-[210px]">{r.sector}</span>
+          ) : null}
         </Link>
       ),
     },
     {
       key: "score",
-      label: "Promoter Score",
+      label: "Score",
       align: "center",
       info: "A 0–100 percentile rank against sector peers, blending disclosed IR spend, spend relative to market capitalisation, the change versus last quarter, options granted to promoters, and the number of concurrent providers. It measures how much promotion a company has disclosed — not whether the company is a good or bad investment.",
       sortValue: (r) => r.score ?? null,
@@ -108,7 +111,7 @@ export default function PromoterScorePage() {
     },
     {
       key: "spendCad",
-      label: "Disclosed IR spend",
+      label: "IR spend",
       align: "right",
       info: "Cash fees payable under the issuer's active investor-relations, promotional and market-making agreements for this quarter, converted to Canadian dollars. Contracts are pro-rated over the months they actually run.",
       sortValue: (r) => r.spendCad ?? 0,
@@ -116,7 +119,7 @@ export default function PromoterScorePage() {
     },
     {
       key: "qoqChange",
-      label: "vs last quarter",
+      label: "QoQ",
       align: "right",
       info: "Change in disclosed spend versus the prior quarter. A new contract shows as an increase; an expiry or termination shows as a decrease.",
       sortValue: (r) => r.qoqChange ?? -Infinity,
@@ -131,7 +134,7 @@ export default function PromoterScorePage() {
     },
     {
       key: "spendPerMcapBps",
-      label: "Spend / market cap",
+      label: "Spend/cap",
       align: "right",
       info: "Quarterly IR spend as basis points of market capitalisation — the comparable that means the same thing for a C$4M shell and a C$300M producer. Blank where no market capitalisation is available for the issuer.",
       sortValue: (r) => r.spendPerMcapBps ?? -1,
@@ -155,12 +158,6 @@ export default function PromoterScorePage() {
         </span>
       ),
     },
-    {
-      key: "sector",
-      label: "Sector",
-      sortValue: (r) => r.sector || "",
-      render: (r) => <span className="text-[12.5px] text-soft truncate inline-block max-w-[160px]">{r.sector || "—"}</span>,
-    },
   ];
 
   return (
@@ -180,10 +177,7 @@ export default function PromoterScorePage() {
           <span style={{ color: "var(--text-mute)" }}>
             Paying for investor relations is legal, disclosed and ordinary. This page reports what was disclosed; it does
             not rate the companies.
-          </span>{" "}
-          <Link href="/methodology#promoter-score" className="text-accent font-semibold hover:underline">
-            Methodology
-          </Link>
+          </span>
         </p>
       </header>
 
