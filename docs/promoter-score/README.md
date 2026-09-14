@@ -180,9 +180,16 @@ POST /api/promoter/admin/review/:id      { providerName, monthlyFee, …, actor,
 GET  /api/promoter/admin/audit?agreementId=&limit=
 PUT  /api/promoter/admin/weights         { perMcap, spend, qoq, options, contracts, actor }
 POST /api/promoter/admin/ingest?limit=
+POST /api/promoter/admin/reparse?limit=
 POST /api/promoter/admin/rescore?quarters=
 POST /api/promoter/admin/resolve-issuers?max=
 ```
+
+`admin/reparse` re-reads every stored release with the current parser. §2.3
+keeps the raw disclosure text for exactly this: without it a parser
+improvement only ever reaches releases published after it shipped, and
+everything already stored stays wrong for good. No wire is touched, and a
+hand-reviewed row still wins over a re-read.
 
 The review queue is in the Editorial Desk under **IR review queue**. Saving a
 row writes the previous version to `ir_audit` and rescores — §2.5 wants an

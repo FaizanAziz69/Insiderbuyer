@@ -199,6 +199,9 @@ async function main() {
   // counterparty.
   const nuvoPublic = await svc.issuer('NUVO');
   check('placeholder is invisible publicly', nuvoPublic, null);
+  // With clean fixtures the only thing the parser holds back is the NUVO
+  // placeholder, so this is that row — the same one the correction checks
+  // below walk through from unnamed to published.
   const target = queue[0];
   const before = (await client.query(`SELECT monthly_fee, monthly_fee_cad, reviewed_at FROM ir_agreements WHERE id = $1`, [target.id])).rows[0];
   check('row starts unreviewed', before.reviewed_at, null);
@@ -249,6 +252,20 @@ async function main() {
   const rows = await svc.exportRows(100);
   checkWith('export returns the agreement table', rows.length, (v) => v >= 4);
   checkWith('export carries the source url', rows[0].source_url, (v) => typeof v === 'string' && v.startsWith('http'));
+
+  // ── Re-parse stores nothing new and breaks nothing ────────────────────
+  const beforeCount = (await client.query(`SELECT count(*)::int AS n FROM ir_agreements`)).rows[0].n;
+  const re = await svc.reparse();
+  check('reparse read every stored disclosure', re.disclosures, 5);
+  const afterCount = (await client.query(`SELECT count(*)::int AS n FROM ir_agreements`)).rows[0].n;
+  check('reparse adds no duplicate rows', afterCount, beforeCount);
+  // The hand-set fee must survive a re-read. `target` is the placeholder row,
+  // which by this point an editor has named and priced at 5000 — that is the
+  // record of truth, and re-parsing the release must not put the machine's
+  // reading back over it.
+  const stillCorrected = (await client.query(`SELECT monthly_fee::float8 AS f, provider_name FROM ir_agreements WHERE id = $1`, [target.id])).rows[0];
+  check('reparse leaves a hand-reviewed row alone', stillCorrected.f, 5000);
+  check('and keeps the name the editor gave it', stillCorrected.provider_name, 'Harbourfront Capital Markets Inc.');
 
   const status = await svc.status();
   checkWith('status counts agreements', (status as any).agreements, (v) => v >= 4);

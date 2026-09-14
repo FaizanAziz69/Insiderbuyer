@@ -579,6 +579,47 @@ export class PromoterService implements OnModuleInit {
     }
   }
 
+  /**
+   * Re-read every stored release with the current parser.
+   *
+   * §2.3 keeps the raw disclosure text alongside the parsed fields, and this
+   * is what that is for: a parser improvement otherwise only ever reaches
+   * releases published after it shipped, leaving everything already stored
+   * wrong for good. Nothing is re-fetched — the wires are not touched at all —
+   * and the upsert path is the same one ingestion uses, so a hand-reviewed row
+   * still wins over a re-read.
+   */
+  async reparse(limit = 500): Promise<{ disclosures: number; agreements: number }> {
+    await this.ensureTables();
+    const rows: any[] = await this.q(
+      `SELECT id, source_url, headline, published_at, raw_text FROM ir_disclosures ORDER BY id LIMIT $1`,
+      [Math.min(Math.max(limit, 1), 5000)],
+    );
+    let agreements = 0;
+    for (const r of rows) {
+      if (!r.raw_text) continue;
+      const parsed = parseDisclosure(r.headline, r.raw_text);
+      const res = await this.store(
+        r.source_url,
+        { title: r.headline, publishedAt: r.published_at },
+        r.raw_text,
+        parsed,
+      );
+      agreements += res.agreements;
+    }
+    // Issuer names live on ir_issuers, which is only refreshed weekly, so a
+    // re-parse that corrects a name would otherwise not reach the page.
+    await this.q(
+      `UPDATE ir_issuers i SET name = best.n, updated_at = now()
+         FROM (SELECT ticker,
+                      (array_agg(issuer_name ORDER BY length(issuer_name) DESC NULLS LAST))[1] AS n
+                 FROM ir_agreements WHERE ticker IS NOT NULL GROUP BY ticker) best
+        WHERE i.ticker = best.ticker AND best.n IS NOT NULL AND best.n IS DISTINCT FROM i.name`,
+    );
+    await this.rescore();
+    return { disclosures: rows.length, agreements };
+  }
+
   // ── Issuer resolution ──────────────────────────────────────────────────
 
   /**

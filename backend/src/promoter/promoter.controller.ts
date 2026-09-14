@@ -178,6 +178,14 @@ export class PromoterController {
     return this.svc.startIngest(n);
   }
 
+  /** Re-read every stored release with the current parser. No wire is
+   *  touched; hand-reviewed rows are preserved. */
+  @Post('admin/reparse')
+  @UseGuards(AdminTokenGuard)
+  async reparse(@Query('limit') limit?: string) {
+    return this.svc.reparse(Number(limit) || undefined);
+  }
+
   @Post('admin/rescore')
   @UseGuards(AdminTokenGuard)
   async rescore(@Query('quarters') quarters?: string) {
