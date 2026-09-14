@@ -200,6 +200,16 @@ export class VisualizersController {
     return this.biotech.status();
   }
 
+  /** One company's catalysts and trials — fetched when the panel opens,
+   *  rather than shipped for all 220 companies to every visitor.
+   *  MUST stay below the literal 'biotech/status' route above: Nest matches
+   *  in declaration order, so a param route declared first swallows it. */
+  @Get('biotech/:ticker')
+  @Header('Cache-Control', 'public, max-age=900, stale-while-revalidate=3600')
+  biotechCompany(@Param('ticker') ticker: string) {
+    return this.biotech.readOne(ticker);
+  }
+
   @Post('admin/biotech/refresh')
   @UseGuards(AdminTokenGuard)
   refreshBiotech(@Query('step') step?: string) {

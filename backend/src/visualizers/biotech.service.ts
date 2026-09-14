@@ -137,31 +137,57 @@ export class BiotechService {
     if (!row?.payload) return { empty: true };
     const full = row.payload as { companies: BiotechProfileDto[]; asOf: string };
 
-    // The map payload was 345 KB, and 73% of it was per-company `trials` and
-    // `catalysts` detail that the arena never draws — the panel opens one
-    // company at a time and shows six rows of each (George 2026-09-14: the
-    // visualizers are slow to load). Ship those six, plus the totals and the
-    // distinct phases the label and the phase filter need, and the payload
-    // drops to about a quarter of the size. The cached blob is untouched, so
-    // this needs no rebuild and nothing is lost.
-    const n = BiotechService.DETAIL_ROWS;
+    // The map payload was 345 KB and 68% of it was per-company `trials` and
+    // `catalysts` that the arena never draws — the panel opens ONE company at
+    // a time (George 2026-09-14: the visualizers are slow to load). Slicing
+    // them to six saved almost nothing, because the median company has one
+    // trial and the bytes are in the objects themselves, so they come out
+    // entirely and are fetched per company by readOne(). What stays is the
+    // totals and the distinct phases, which the label and the phase filter
+    // need. The cached blob is untouched, so this needs no rebuild.
     const companies = (full.companies ?? []).map((c) => {
       const trials = c.trials ?? [];
       const catalysts = c.catalysts ?? [];
+      const { trials: _t, catalysts: _c, ...rest } = c;
+      void _t;
+      void _c;
       return {
-        ...c,
+        ...rest,
+        trials: [],
+        catalysts: [],
         trialCount: trials.length,
         catalystCount: catalysts.length,
         phases: [
           ...new Set(trials.map((t) => t.phase).filter((x): x is string => !!x)),
         ],
-        // Catalysts are already ordered soonest-first by the builder, and the
-        // panel shows the first six.
-        trials: trials.slice(0, n),
-        catalysts: catalysts.slice(0, n),
-      };
+      } as BiotechProfileDto;
     });
     return { ...full, companies };
+  }
+
+  /** One company's trials and catalysts, for the panel that opens over the
+   *  map. Same split as the contracts arena, which has always fetched its
+   *  awards per recipient rather than shipping every award to every visitor. */
+  async readOne(tickerRaw: string): Promise<{
+    ticker: string;
+    catalysts: BiotechProfileDto['catalysts'];
+    trials: BiotechProfileDto['trials'];
+  } | null> {
+    const ticker = (tickerRaw || '').toUpperCase();
+    if (!ticker) return null;
+    const row = await this.cache.findOne({ where: { key: 'biotech:map' } });
+    const full = row?.payload as { companies?: BiotechProfileDto[] } | undefined;
+    const hit = (full?.companies ?? []).find(
+      (c) => (c.ticker || '').toUpperCase() === ticker,
+    );
+    if (!hit) return null;
+    const n = BiotechService.DETAIL_ROWS;
+    return {
+      ticker,
+      // The panel shows six of each; there is no view that shows more.
+      catalysts: (hit.catalysts ?? []).slice(0, n),
+      trials: (hit.trials ?? []).slice(0, n),
+    };
   }
 
   async status(): Promise<Record<string, unknown>> {

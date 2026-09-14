@@ -144,7 +144,29 @@ export default function BiotechClient() {
     );
   }, [engine, caps, catalystDays, phase, insidersOnly]);
 
-  const selectedCompany = selected ? companies.find((c) => c.ticker === selected) ?? null : null;
+  const base = selected ? companies.find((c) => c.ticker === selected) ?? null : null;
+
+  // Catalysts and trials are no longer shipped for all 220 companies — the
+  // arena never draws them and they were 68% of a 345 KB payload. The panel
+  // fetches the one company it has open, the same split the contracts arena
+  // has always used for its awards.
+  const { data: detail } = useSWR<{
+    ticker: string;
+    catalysts: BiotechProfile["catalysts"];
+    trials: BiotechProfile["trials"];
+  }>(
+    selected ? `${API_BASE}/visualizers/biotech/${encodeURIComponent(selected)}` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 15 * 60_000 },
+  );
+
+  const selectedCompany = base
+    ? {
+        ...base,
+        catalysts: detail?.ticker === base.ticker ? detail.catalysts : base.catalysts,
+        trials: detail?.ticker === base.ticker ? detail.trials : base.trials,
+      }
+    : null;
 
   const select = useCallback(
     (p: EngineNode<BiotechProfile & { id: string }> | null) => {
