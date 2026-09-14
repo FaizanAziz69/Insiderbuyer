@@ -3093,6 +3093,37 @@ export class MarketStatsService {
     }
   }
 
+  /** Does this section carry a single real figure? */
+  private static sectionHasValues(rows: any[]): boolean {
+    return (rows || []).some((r) => Object.values(r?.values || {}).some((v) => v != null));
+  }
+
+  /**
+   * Fill statement sections the vendor returned empty from the filings.
+   *
+   * Only empty sections are replaced, never populated ones: the vendor's
+   * quarterly figures are normalised across companies and SEC's are as-filed,
+   * so mixing them inside one section would mean two definitions in one table.
+   */
+  private async fillEmptySectionsFromSec(
+    payload: any,
+    cik: string | null | undefined,
+    symbol: string,
+  ): Promise<any> {
+    if (!cik || !this.edgar) return payload;
+    const empties = (['income', 'balance', 'cashflow'] as const).filter(
+      (k) => !MarketStatsService.sectionHasValues(payload?.[k]),
+    );
+    if (!empties.length) return payload;
+    const sec = await this.edgar.quarterlyStatements(cik, symbol).catch(() => null);
+    if (!sec) return payload;
+    const out = { ...payload };
+    for (const k of empties) {
+      if (MarketStatsService.sectionHasValues(sec[k])) out[k] = sec[k];
+    }
+    return out;
+  }
+
   /** Retry quarterly statements under the symbol this company files under.
    *  Returns null when there is no different symbol to try, or when the
    *  canonical one is just as empty. The payload keeps the symbol the CALLER
@@ -3114,7 +3145,12 @@ export class MarketStatsService {
       if (resolved.canonical !== symbol) {
         const alt = await this.quarterlyStatementsFromFmp(resolved.canonical);
         if (alt && (alt.income.length || alt.balance.length || alt.cashflow.length)) {
-          return { ...alt, symbol, filedAs: resolved.canonical };
+          // A section can come back as rows of nothing but nulls — the vendor
+          // has the period but none of its figures. That looked identical to
+          // "we have it" and stopped us ever asking the filings, which is how
+          // MFPVV showed an empty cash flow statement that SEC had published.
+          const filled = await this.fillEmptySectionsFromSec(alt, resolved.cik, symbol);
+          return { ...filled, symbol, filedAs: resolved.canonical };
         }
       }
 

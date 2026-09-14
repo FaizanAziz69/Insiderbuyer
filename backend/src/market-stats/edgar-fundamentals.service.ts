@@ -136,8 +136,8 @@ export class EdgarFundamentalsService {
     facts: Record<string, any>,
     concepts: string[],
     kind: 'duration' | 'instant',
-  ): Map<string, number> {
-    const out = new Map<string, { val: number; filed: string }>();
+  ): Map<string, { val: number; days: number }> {
+    const out = new Map<string, { val: number; filed: string; days: number }>();
     for (const concept of concepts) {
       const node = facts[concept];
       if (!node?.units) continue;
@@ -159,15 +159,15 @@ export class EdgarFundamentalsService {
         if (!prev) out.set(end, entry);
       }
     }
-    return new Map([...out].map(([k, v]) => [k, v.val]));
+    return new Map([...out].map(([k, v]) => [k, { val: v.val, days: v.days }]));
   }
 
-  private pickInstant(raw: Fact[]): Map<string, { val: number; filed: string }> {
-    const out = new Map<string, { val: number; filed: string }>();
+  private pickInstant(raw: Fact[]): Map<string, { val: number; filed: string; days: number }> {
+    const out = new Map<string, { val: number; filed: string; days: number }>();
     for (const f of raw) {
       const filed = String(f.filed || '');
       const prev = out.get(f.end);
-      if (!prev || filed > prev.filed) out.set(f.end, { val: Number(f.val), filed });
+      if (!prev || filed > prev.filed) out.set(f.end, { val: Number(f.val), filed, days: 0 });
     }
     return out;
   }
@@ -186,8 +186,8 @@ export class EdgarFundamentalsService {
    * cumulative runs are grouped by their shared start date and differenced —
    * Q2 = YTD(Q2) − YTD(Q1) — which is how the filer's own quarter is recovered.
    */
-  private pickQuarters(raw: Fact[]): Map<string, { val: number; filed: string }> {
-    const out = new Map<string, { val: number; filed: string }>();
+  private pickQuarters(raw: Fact[]): Map<string, { val: number; filed: string; days: number }> {
+    const out = new Map<string, { val: number; filed: string; days: number }>();
 
     // As-filed quarters always win.
     for (const f of raw) {
@@ -195,7 +195,7 @@ export class EdgarFundamentalsService {
       if (n < Q_MIN_DAYS || n > Q_MAX_DAYS) continue;
       const filed = String(f.filed || '');
       const prev = out.get(f.end);
-      if (!prev || filed > prev.filed) out.set(f.end, { val: Number(f.val), filed });
+      if (!prev || filed > prev.filed) out.set(f.end, { val: Number(f.val), filed, days: n });
     }
 
     // Everything sharing a period START is one fiscal year's run of
@@ -228,8 +228,26 @@ export class EdgarFundamentalsService {
         out.set(end, {
           val: Number(cur.val) - Number(prev.val),
           filed: String(cur.filed || ''),
+          days: gap,
         });
       }
+    }
+
+    // Last resort: a period end that no quarter could be built for, but which
+    // a CUMULATIVE fact ends on. A newly-listed company's first 10-Q often
+    // reports cash flow for the year to date and never for the quarter —
+    // Midera Food Processing's only filing covers the 26 weeks to 2026-07-04
+    // and there is no quarterly figure in existence, at SEC or at any vendor.
+    // Carrying it with its true length is better than showing nothing; the
+    // length travels with the row so the table can say what period it is and
+    // nobody mistakes a half year for a quarter.
+    for (const f of raw) {
+      if (out.has(f.end)) continue;
+      const n = dayspan(f.start as string, f.end);
+      if (n <= Q_MAX_DAYS || n > 400) continue;
+      const filed = String(f.filed || '');
+      const prev = out.get(f.end);
+      if (!prev || filed > prev.filed) out.set(f.end, { val: Number(f.val), filed, days: n });
     }
 
     return out;
@@ -240,8 +258,8 @@ export class EdgarFundamentalsService {
     map: Record<string, string[]>,
     kind: 'duration' | 'instant',
     extra?: (values: Record<string, number | null>) => void,
-  ): Array<{ date: string; values: Record<string, number | null> }> {
-    const byField = new Map<string, Map<string, number>>();
+  ): Array<{ date: string; values: Record<string, number | null>; periodDays?: number }> {
+    const byField = new Map<string, Map<string, { val: number; days: number }>>();
     const dates = new Set<string>();
     for (const [field, concepts] of Object.entries(map)) {
       const s = this.series(facts, concepts, kind);
@@ -254,12 +272,14 @@ export class EdgarFundamentalsService {
       .slice(0, 13)
       .map((date) => {
         const values: Record<string, number | null> = {};
+        let periodDays = 0;
         for (const field of Object.keys(map)) {
           const v = byField.get(field)?.get(date);
-          values[field] = v == null ? null : v;
+          values[field] = v == null ? null : v.val;
+          if (v && v.days > periodDays) periodDays = v.days;
         }
         extra?.(values);
-        return { date, values };
+        return periodDays > 0 ? { date, values, periodDays } : { date, values };
       });
   }
 

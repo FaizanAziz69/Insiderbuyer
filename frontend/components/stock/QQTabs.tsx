@@ -350,7 +350,18 @@ export function AboutQQ({ ticker, name, description, address, marketCap, employe
  * Financials tab
  * ──────────────────────────────────────────────────────────────────────── */
 
-interface StmtPeriod { date: string; values: Record<string, number | null> }
+interface StmtPeriod {
+  date: string;
+  values: Record<string, number | null>;
+  /** Length of the reported period in days, when it is NOT a quarter. A
+   *  newly-listed filer's first 10-Q often reports cash flow for the year to
+   *  date and never for the quarter, and that figure is the only one in
+   *  existence — so it is shown, and labelled, rather than dropped. */
+  periodDays?: number;
+}
+
+/** True when this column covers more than a quarter. */
+const isCumulative = (p?: StmtPeriod) => (p?.periodDays ?? 0) > 100;
 type LineItem = { label: string; key: string; bold?: boolean; growth?: boolean; eps?: boolean };
 
 const INCOME_ITEMS: LineItem[] = [
@@ -414,6 +425,8 @@ export function FinancialsTab({ sym }: { sym: string }) {
     const cur = shown[i]?.values?.[key];
     // Same quarter a year earlier = 4 periods later in the newest-first list.
     const prev = periods[i + 4]?.values?.[key];
+    // A column covering half a year cannot be compared against a quarter.
+    if (isCumulative(shown[i]) || isCumulative(periods[i + 4])) return null;
     if (cur == null || prev == null || prev === 0) return null;
     return +(((cur - prev) / Math.abs(prev)) * 100).toFixed(2);
   };
@@ -463,7 +476,16 @@ export function FinancialsTab({ sym }: { sym: string }) {
                 <tbody>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
                     <th className="sticky left-0 text-left px-3.5 py-2.5 font-bold text-[12.5px]" style={{ background: "var(--bg-1)" }}>Fiscal Period</th>
-                    {shown.map((p) => <th key={p.date} className="px-3.5 py-2.5 text-right font-bold whitespace-nowrap">{fyQuarter(p.date)}</th>)}
+                    {shown.map((p) => (
+                      <th key={p.date} className="px-3.5 py-2.5 text-right font-bold whitespace-nowrap">
+                        {fyQuarter(p.date)}
+                        {isCumulative(p) && (
+                          <span className="block text-[11px] font-semibold text-mute">
+                            {Math.round((p.periodDays as number) / 7)} weeks to date
+                          </span>
+                        )}
+                      </th>
+                    ))}
                   </tr>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
                     <th className="sticky left-0 text-left px-3.5 py-2.5 font-bold text-[12.5px]" style={{ background: "var(--bg-1)" }}>Period Ending</th>

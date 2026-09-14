@@ -922,7 +922,7 @@ function StockOverviewGrid({
   // Quarterly statements — 9 periods, so TTM (q0–q3) can be compared with the
   // prior TTM (q4–q7) for real year-over-year growth.
   const { data: stmt } = useSWR<{
-    income: { date: string; values: Record<string, number | null> }[];
+    income: { date: string; values: Record<string, number | null>; periodDays?: number }[];
   }>(
     `${API_BASE}/market-stats/statements?symbol=${encodeURIComponent(ticker)}`,
     fetcher,
@@ -952,7 +952,12 @@ function StockOverviewGrid({
     if (rows.length < from + n) return null;
     let total = 0;
     for (let i = from; i < from + n; i++) {
-      const v = rows[i]?.values?.[key];
+      const row = rows[i];
+      // A row covering more than a quarter is a year-to-date figure, which a
+      // newly-listed filer's first 10-Q often is. Adding four of those would
+      // multiply the year rather than sum it.
+      if ((row?.periodDays ?? 0) > 100) return null;
+      const v = row?.values?.[key];
       if (v == null) return null;
       total += Number(v);
     }
