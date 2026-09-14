@@ -177,7 +177,7 @@ export default function IssuerPromoterPage({ ticker }: { ticker: string }) {
             {data.ticker}
           </h1>
           {data.issuer?.exchange ? (
-            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-mute)" }}>
+            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text-mute)" }}>
               {data.issuer.exchange}
             </span>
           ) : null}
@@ -214,7 +214,7 @@ export default function IssuerPromoterPage({ ticker }: { ticker: string }) {
           const llm = Object.values(c.provenance || {}).some((v) => v === "llm");
           const derived = Object.entries(c.provenance || {}).filter(([, v]) => String(v).startsWith("derived")).map(([k]) => k);
           return (
-            <article key={c.id} className="rounded-lg p-3.5" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+            <article key={c.id} className="rounded-lg p-3.5" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="text-[14.5px] font-bold m-0" style={{ color: "var(--text)" }}>
                   {c.providerName || "Provider not stated"}
@@ -283,7 +283,7 @@ export default function IssuerPromoterPage({ ticker }: { ticker: string }) {
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string | null }) {
   return (
-    <div className="rounded-lg p-3" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+    <div className="rounded-lg p-3" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
       <div className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: "var(--text-mute)" }}>
         {label}
       </div>
@@ -310,7 +310,7 @@ function Field({ label, value }: { label: string; value: string }) {
 
 function Tag({ children }: { children: React.ReactNode }) {
   return (
-    <span className="px-1.5 py-0.5 rounded text-[10.5px] font-semibold" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-mute)" }}>
+    <span className="px-1.5 py-0.5 rounded text-[10.5px] font-semibold" style={{ background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text-mute)" }}>
       {children}
     </span>
   );

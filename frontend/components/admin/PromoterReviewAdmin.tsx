@@ -113,7 +113,7 @@ function ReviewCard({ row, busy, onSave }: { row: Row; busy: boolean; onSave: (p
   const set = (k: string, v: any) => setDraft((d) => ({ ...d, [k]: v }));
 
   return (
-    <article className="rounded-lg p-3.5" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+    <article className="rounded-lg p-3.5" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
       <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
         <h3 className="text-[13.5px] font-bold m-0" style={{ color: "var(--text)" }}>
           {row.ticker || "no ticker"} · {row.issuerName || "unknown issuer"}
@@ -149,7 +149,7 @@ function ReviewCard({ row, busy, onSave }: { row: Row; busy: boolean; onSave: (p
             value={draft.providerName ?? ""}
             onChange={(e) => set("providerName", e.target.value)}
             className="text-[12.5px] rounded px-2 py-1"
-            style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
+            style={{ background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text)" }}
           />
         </label>
         {FIELDS.map(([k, label, type]) => (
@@ -163,7 +163,7 @@ function ReviewCard({ row, busy, onSave }: { row: Row; busy: boolean; onSave: (p
               value={draft[k] ?? ""}
               onChange={(e) => set(k, e.target.value === "" ? null : type === "number" ? Number(e.target.value) : e.target.value)}
               className="text-[12.5px] rounded px-2 py-1 tabular"
-              style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
+              style={{ background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text)" }}
             />
           </label>
         ))}
@@ -182,7 +182,7 @@ function ReviewCard({ row, busy, onSave }: { row: Row; busy: boolean; onSave: (p
           disabled={busy}
           onClick={() => onSave({ status: "rejected" })}
           className="text-[12.5px] font-semibold px-3 py-1.5 rounded"
-          style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-soft)" }}
+          style={{ background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text-soft)" }}
           title="Not an IR agreement — exclude it from every surface and every total."
         >
           Not an agreement

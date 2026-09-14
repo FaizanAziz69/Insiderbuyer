@@ -25,9 +25,18 @@ export function PromoterScoreCell({
   }
 
   // One hue, varying weight — intensity tracks the percentile.
+  //
+  // Mixed against the page surface, NOT against `transparent`: mixing with
+  // transparent is opacity, which blends every badge toward white and left an
+  // 86 and a 69 looking like the same washed-out blue (client, 2026-09-15).
+  // The ramp also starts much higher now, so the whole column reads as a
+  // filled chip rather than a tint.
   const t = Math.max(0, Math.min(100, score)) / 100;
-  const bg = `color-mix(in srgb, var(--accent) ${Math.round(12 + t * 68)}%, transparent)`;
-  const fg = t > 0.55 ? "#fff" : "var(--text)";
+  const bg = `color-mix(in srgb, var(--accent) ${Math.round(58 + t * 42)}%, var(--bg-elevated))`;
+  // --on-accent is the token for text sitting on an accent fill, and it flips
+  // dark in dark mode where the accent is a bright cyan. White would be
+  // unreadable there.
+  const fg = "var(--on-accent)";
 
   const LABELS: Record<string, string> = {
     perMcap: "Spend / market cap",
@@ -56,7 +65,7 @@ export function PromoterScoreCell({
           style={{
             top: "100%",
             width: 232,
-            background: "var(--panel)",
+            background: "var(--bg-elevated)",
             border: "1px solid var(--border)",
             boxShadow: "0 8px 24px rgba(0,0,0,.18)",
           }}

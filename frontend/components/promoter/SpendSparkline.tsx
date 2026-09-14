@@ -18,7 +18,7 @@ export function SpendSparkline({
   const H = 54;
 
   return (
-    <figure className="rounded-lg p-3.5 m-0" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+    <figure className="rounded-lg p-3.5 m-0" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
       <figcaption className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: "var(--text-mute)" }}>
         Disclosed spend by quarter
       </figcaption>

@@ -189,7 +189,7 @@ export default function PromoterScorePage() {
           value={quarter || data?.quarter || ""}
           onChange={(e) => setQuarter(e.target.value)}
           className="text-[12.5px] font-semibold rounded-md px-2.5 py-1.5"
-          style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
+          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text)" }}
           aria-label="Quarter"
         >
           {(data?.quarters?.length ? data.quarters : [data?.quarter || ""]).map((qt) => (
@@ -203,7 +203,7 @@ export default function PromoterScorePage() {
           value={sector}
           onChange={(e) => setSector(e.target.value)}
           className="text-[12.5px] font-semibold rounded-md px-2.5 py-1.5"
-          style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
+          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text)" }}
           aria-label="Sector"
         >
           <option value="">All sectors</option>
@@ -226,7 +226,7 @@ export default function PromoterScorePage() {
               onClick={() => setSort(v)}
               className="text-[12px] font-semibold px-2.5 py-1.5"
               style={{
-                background: sort === v ? "var(--accent)" : "var(--panel)",
+                background: sort === v ? "var(--accent)" : "var(--bg-elevated)",
                 color: sort === v ? "#fff" : "var(--text-soft)",
               }}
             >
@@ -240,7 +240,7 @@ export default function PromoterScorePage() {
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search issuer or sector"
           className="text-[12.5px] rounded-md px-2.5 py-1.5 flex-1 min-w-[160px]"
-          style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
+          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text)" }}
         />
       </div>
 
@@ -265,7 +265,7 @@ export default function PromoterScorePage() {
 
       <section
         className="mt-6 rounded-lg p-4"
-        style={{ background: "var(--panel)", border: "1px solid var(--border)" }}
+        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
       >
         <h2 className="text-[15px] font-bold mb-1.5" style={{ color: "var(--text)" }}>
           The full agreement table

@@ -39,7 +39,7 @@ export function PromoterPanel({ ticker }: { ticker: string }) {
   const active = data.contracts.filter((c) => c.status === "active");
 
   return (
-    <section className="rounded-lg p-4" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+    <section className="rounded-lg p-4" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
       <div className="flex items-center justify-between gap-3 mb-2.5">
         <h2 className="flex items-center gap-2 text-[15px] font-bold m-0" style={{ color: "var(--text)" }}>
           <Megaphone size={16} style={{ color: "var(--accent)" }} />

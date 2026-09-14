@@ -54,7 +54,7 @@ export function PromoterSpendChart({
     return (
       <div
         className="rounded-lg p-4 text-[13px]"
-        style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text-mute)" }}
+        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-mute)" }}
       >
         Loading disclosed spend…
       </div>
@@ -64,7 +64,7 @@ export function PromoterSpendChart({
     return (
       <div
         className="rounded-lg p-4 text-[13px]"
-        style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text-mute)" }}
+        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-mute)" }}
       >
         No disclosed IR spend recorded for this quarter yet.
       </div>
@@ -79,7 +79,7 @@ export function PromoterSpendChart({
   const ticks = [0.25, 0.5, 0.75, 1].map((f) => ({ f, v: max * f }));
 
   return (
-    <figure className="rounded-lg p-4 m-0" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+    <figure className="rounded-lg p-4 m-0" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
       <figcaption className="mb-3">
         <h2 className="text-[15px] font-bold leading-tight" style={{ color: "var(--text)" }}>
           Biggest disclosed IR spenders{quarter ? ` · ${quarter}` : ""}
@@ -161,7 +161,7 @@ export function PromoterSpendChart({
       {hover != null && data[hover] ? (
         <div
           className="mt-2 rounded-md px-3 py-2 text-[12px]"
-          style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-soft)" }}
+          style={{ background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text-soft)" }}
         >
           <Link href={`/promoter-score/${data[hover].ticker}`} className="font-bold text-accent hover:underline">
             {data[hover].ticker}
