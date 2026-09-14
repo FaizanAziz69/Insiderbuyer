@@ -242,7 +242,7 @@ function findIssuer(text: string): {
  * the capture that ends at the ticker bracket picks up a date and a wire name
  * and those went straight onto the ranking page as the company's name.
  */
-function cleanIssuerName(raw: string): string | null {
+export function cleanIssuerName(raw: string): string | null {
   let s = raw.replace(/\s+/g, ' ').trim();
   s = s.replace(/^(?:of|and|by|from|,|-)\s+/i, '');
   // "June 30'26 TheNewswire - X", "TheNewswire - X", "CNW - X"

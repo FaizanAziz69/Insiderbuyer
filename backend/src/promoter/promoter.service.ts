@@ -7,6 +7,7 @@ import { Company } from '../entities/company.entity';
 import { FmpService } from '../fmp/fmp.service';
 import { IrDiscoveryService } from './ir-discovery.service';
 import {
+  cleanIssuerName,
   isIrDisclosure,
   parseDisclosure,
   ParsedAgreement,
@@ -633,6 +634,22 @@ export class PromoterService implements OnModuleInit {
       );
       agreements += res.agreements;
     }
+    // Re-parsing is not enough on its own. Where the new parse cannot read an
+    // issuer name at all, the upsert keeps the one already stored — which on
+    // production meant Nord Precious Metals kept the wire furniture through a
+    // re-parse that was working correctly. So run the names already in the
+    // table through the same cleaner and repair them in place.
+    const names: any[] = await this.q(
+      `SELECT DISTINCT issuer_name FROM ir_agreements WHERE issuer_name IS NOT NULL`,
+    );
+    for (const { issuer_name } of names) {
+      const cleaned = cleanIssuerName(issuer_name);
+      if (!cleaned || cleaned === issuer_name) continue;
+      await this.q(`UPDATE ir_agreements SET issuer_name = $1 WHERE issuer_name = $2`, [cleaned, issuer_name]);
+      await this.q(`UPDATE ir_disclosures SET issuer_name = $1 WHERE issuer_name = $2`, [cleaned, issuer_name]);
+      await this.q(`UPDATE ir_issuers SET name = $1, updated_at = now() WHERE name = $2`, [cleaned, issuer_name]);
+    }
+
     // A re-parse can find providers, and therefore tickers, the old parser
     // missed, so give those issuers a row before refreshing names.
     await this.resolveIssuers();

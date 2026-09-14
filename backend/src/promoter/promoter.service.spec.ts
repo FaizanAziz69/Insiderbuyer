@@ -266,6 +266,10 @@ async function main() {
     `UPDATE ir_agreements SET issuer_name = $1 WHERE ticker = 'DNO'`,
     ["June 30'26 TheNewswire - Dinero Ventures Ltd"],
   );
+  await client.query(
+    `UPDATE ir_disclosures SET issuer_name = $1 WHERE ticker = 'DNO'`,
+    ["June 30'26 TheNewswire - Dinero Ventures Ltd"],
+  );
   await client.query(`UPDATE ir_issuers SET name = $1 WHERE ticker = 'DNO'`, ["June 30'26 TheNewswire - Dinero Ventures Ltd"]);
 
   const re = await svc.reparse();
