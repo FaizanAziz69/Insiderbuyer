@@ -417,7 +417,10 @@
   ],
   "thank-you-report": [],
   "top-picks-report": [],
-  "topics/[slug]": [],
+  "topics/[slug]": [
+    "/api/backend/content/blogs?topic={slug}&limit=60",
+    "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA"
+  ],
   "trades": [
     "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
     "/api/backend/trades?limit=1000&side=all",
