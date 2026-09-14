@@ -364,7 +364,14 @@ export class PromoterService implements OnModuleInit {
          (source_url, host, headline, published_at, raw_text, ticker, exchange, issuer_name, kind, status, confidence, notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)
        ON CONFLICT (source_url) DO UPDATE SET
-         confidence = EXCLUDED.confidence, status = EXCLUDED.status, notes = EXCLUDED.notes
+         confidence = EXCLUDED.confidence, status = EXCLUDED.status, notes = EXCLUDED.notes,
+         -- Issuer-level fields are re-read too. Without this a parser fix can
+         -- never reach a stored row: the first re-parse on production left
+         -- Nord Precious Metals as "June 30'26 TheNewswire - Nord Prec…"
+         -- because the upsert only ever refreshed the money columns.
+         ticker = EXCLUDED.ticker, exchange = EXCLUDED.exchange,
+         issuer_name = COALESCE(EXCLUDED.issuer_name, ir_disclosures.issuer_name),
+         kind = EXCLUDED.kind
        RETURNING id`,
       [
         url,
@@ -407,6 +414,9 @@ export class PromoterService implements OnModuleInit {
            monthly_fee_cad = CASE WHEN ir_agreements.reviewed_at IS NULL THEN EXCLUDED.monthly_fee_cad ELSE ir_agreements.monthly_fee_cad END,
            total_value_cad = CASE WHEN ir_agreements.reviewed_at IS NULL THEN EXCLUDED.total_value_cad ELSE ir_agreements.total_value_cad END,
            term_months = CASE WHEN ir_agreements.reviewed_at IS NULL THEN EXCLUDED.term_months ELSE ir_agreements.term_months END,
+           issuer_name = CASE WHEN ir_agreements.reviewed_at IS NULL THEN COALESCE(EXCLUDED.issuer_name, ir_agreements.issuer_name) ELSE ir_agreements.issuer_name END,
+           exchange    = COALESCE(EXCLUDED.exchange, ir_agreements.exchange),
+           provider_name = CASE WHEN ir_agreements.reviewed_at IS NULL THEN COALESCE(EXCLUDED.provider_name, ir_agreements.provider_name) ELSE ir_agreements.provider_name END,
            confidence  = GREATEST(ir_agreements.confidence, EXCLUDED.confidence),
            updated_at  = now()`,
         [
@@ -623,6 +633,9 @@ export class PromoterService implements OnModuleInit {
       );
       agreements += res.agreements;
     }
+    // A re-parse can find providers, and therefore tickers, the old parser
+    // missed, so give those issuers a row before refreshing names.
+    await this.resolveIssuers();
     // Issuer names live on ir_issuers, which is only refreshed weekly, so a
     // re-parse that corrects a name would otherwise not reach the page.
     await this.q(

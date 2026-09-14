@@ -259,6 +259,15 @@ async function main() {
   // passes. Assuming the string form is what crashed the first production
   // re-parse ("seen.slice is not a function"), so the fixtures below go
   // through the same path the server does.
+  // A parser fix must reach rows already stored. Simulate one: corrupt a
+  // stored issuer name the way thenewswire.com's dateline did on production,
+  // then re-parse and check the clean name comes back.
+  await client.query(
+    `UPDATE ir_agreements SET issuer_name = $1 WHERE ticker = 'DNO'`,
+    ["June 30'26 TheNewswire - Dinero Ventures Ltd"],
+  );
+  await client.query(`UPDATE ir_issuers SET name = $1 WHERE ticker = 'DNO'`, ["June 30'26 TheNewswire - Dinero Ventures Ltd"]);
+
   const re = await svc.reparse();
   check('reparse read every stored disclosure', re.disclosures, 5);
   const afterCount = (await client.query(`SELECT count(*)::int AS n FROM ir_agreements`)).rows[0].n;
@@ -270,6 +279,11 @@ async function main() {
   const stillCorrected = (await client.query(`SELECT monthly_fee::float8 AS f, provider_name FROM ir_agreements WHERE id = $1`, [target.id])).rows[0];
   check('reparse leaves a hand-reviewed row alone', stillCorrected.f, 5000);
   check('and keeps the name the editor gave it', stillCorrected.provider_name, 'Harbourfront Capital Markets Inc.');
+
+  const fixed = (await client.query(`SELECT issuer_name FROM ir_agreements WHERE ticker = 'DNO' LIMIT 1`)).rows[0];
+  check('reparse repairs a stored issuer name', fixed.issuer_name, 'Dinero Ventures Ltd');
+  const fixedIssuer = (await client.query(`SELECT name FROM ir_issuers WHERE ticker = 'DNO'`)).rows[0];
+  check('and the issuer row follows it', fixedIssuer.name, 'Dinero Ventures Ltd');
 
   const status = await svc.status();
   checkWith('status counts agreements', (status as any).agreements, (v) => v >= 4);
