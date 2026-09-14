@@ -20,6 +20,11 @@
  * Agency strings are matched against USAspending's `Awarding Agency` and
  * `Awarding Sub Agency` values, which is why they are spelled the way that API
  * spells them ("Department of Defense", not "DoD").
+ *
+ * SUB-AGENCIES ARE LISTED EXPLICITLY, because that is the name an award
+ * usually carries. A live run produced a real National Institutes of Health
+ * award and found no committee for it: the seed named only the parent
+ * department, and nobody on a health committee reached it.
  */
 
 export interface JurisdictionRule {
@@ -47,13 +52,31 @@ export interface JurisdictionRule {
 export const JURISDICTION_SEED: JurisdictionRule[] = [
   {
     committee: 'House Committee on Armed Services',
-    agencies: ['Department of Defense', 'Department of the Army', 'Department of the Navy', 'Department of the Air Force'],
+    agencies: [
+      'Department of Defense',
+      'Department of the Army',
+      'Department of the Navy',
+      'Department of the Air Force',
+      'Defense Health Agency',
+      'Defense Logistics Agency',
+      'Missile Defense Agency',
+      'Defense Advanced Research Projects Agency',
+    ],
     kind: 'oversight',
     source: 'House Armed Services Committee jurisdiction (House Rule X)',
   },
   {
     committee: 'Senate Committee on Armed Services',
-    agencies: ['Department of Defense', 'Department of the Army', 'Department of the Navy', 'Department of the Air Force'],
+    agencies: [
+      'Department of Defense',
+      'Department of the Army',
+      'Department of the Navy',
+      'Department of the Air Force',
+      'Defense Health Agency',
+      'Defense Logistics Agency',
+      'Missile Defense Agency',
+      'Defense Advanced Research Projects Agency',
+    ],
     kind: 'oversight',
     source: 'Senate Armed Services Committee jurisdiction (Senate Rule XXV)',
   },
@@ -61,6 +84,9 @@ export const JURISDICTION_SEED: JurisdictionRule[] = [
     committee: 'House Committee on Energy and Commerce',
     agencies: [
       'Department of Health and Human Services',
+      'National Institutes of Health',
+      'Centers for Disease Control and Prevention',
+      'Centers for Medicare and Medicaid Services',
       'Food and Drug Administration',
       'Department of Energy',
       'Federal Communications Commission',
@@ -77,7 +103,15 @@ export const JURISDICTION_SEED: JurisdictionRule[] = [
   },
   {
     committee: 'Senate Committee on Health, Education, Labor, and Pensions',
-    agencies: ['Department of Health and Human Services', 'Food and Drug Administration', 'Department of Labor', 'Department of Education'],
+    agencies: [
+      'Department of Health and Human Services',
+      'National Institutes of Health',
+      'Centers for Disease Control and Prevention',
+      'Centers for Medicare and Medicaid Services',
+      'Food and Drug Administration',
+      'Department of Labor',
+      'Department of Education',
+    ],
     kind: 'oversight',
     source: 'Senate HELP Committee jurisdiction (Senate Rule XXV)',
   },
@@ -197,7 +231,14 @@ export const JURISDICTION_SEED: JurisdictionRule[] = [
   },
   {
     committee: 'Subcommittee on Labor, Health and Human Services, Education, and Related Agencies',
-    agencies: ['Department of Health and Human Services', 'Department of Labor', 'Department of Education'],
+    agencies: [
+      'Department of Health and Human Services',
+      'National Institutes of Health',
+      'Centers for Disease Control and Prevention',
+      'Centers for Medicare and Medicaid Services',
+      'Department of Labor',
+      'Department of Education',
+    ],
     kind: 'appropriations',
     source: 'Appropriations Subcommittee on Labor-HHS-Education',
   },
