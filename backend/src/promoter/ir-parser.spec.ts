@@ -113,6 +113,17 @@ function unit() {
   check('wire release ticker', wire.ticker, 'NTH');
   check('wire release provider', wire.agreements[0].providerName, 'RedChip Companies, Inc');
 
+  // Republishers that serve the body lazily leave the name unreadable next to
+  // the ticker; the headline still carries it.
+  const headless = parseDisclosure(
+    'IC Group Engages Adelaide Capital to Enhance Investor Engagement',
+    'Home > Technology > IC Group Engages Adelaide Capital Investing News Network (TSXV: ICGH) entered into an investor relations agreement with Adelaide Capital Markets Inc. ("Adelaide") for an initial six-month term at a monthly fee of C$12,000.',
+  );
+  check('issuer name falls back to the headline', headless.issuerName, 'IC Group');
+  check('headline fallback keeps the ticker', headless.ticker, 'ICGH');
+  // It must not fire when the body does carry the name.
+  check('body name still wins', parseDisclosure('Dinero Announces Investor Relations Agreement', DINERO).issuerName, 'Dinero Ventures Ltd');
+
   // Relevance gate.
   check(
     'contact-footer is not a disclosure',

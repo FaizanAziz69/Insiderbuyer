@@ -235,6 +235,10 @@ function findIssuer(text: string): {
   return { name, ticker, exchange };
 }
 
+/** Leading company name in a release headline, up to the announcing verb. */
+const TITLE_VERB =
+  /\b(?:Announces?|Announced|Engages?|Enters?|Entered|Retains?|Hires?|Appoints?|Signs?|Provides?|Extends?|Renews?|Terminates?|Completes?|Commences?|Reports?|Updates?|to\s+Participate|Begins?)\b/;
+
 /**
  * Strip the dateline furniture some wires wrap around the issuer name.
  *
@@ -258,7 +262,26 @@ export function cleanIssuerName(raw: string): string | null {
   if (!/[A-Za-z]{3}/.test(s)) return null;
   // Whatever is left must not be the wire itself.
   if (PUBLISHER.test(s)) return null;
+  // A company name does not contain an announcing verb. When a republisher
+  // serves the body lazily, the text before the ticker is its own headline
+  // and navigation, which yielded issuers called "IC Group Engages Adelaide
+  // Capital Investing News Network". Reject those so the headline fallback
+  // gets its turn.
+  if (TITLE_VERB.test(s)) return null;
+  if (s.split(/\s+/).length > 7) return null;
   return s;
+}
+
+function issuerFromTitle(title: string): string | null {
+  const t = String(title || '').split(' - ')[0].trim();
+  const m = TITLE_VERB.exec(t);
+  const head = (m ? t.slice(0, m.index) : t).trim();
+  if (!head || head.length < 3) return null;
+  // Must read as a name: capitalised words only, nothing sentence-like.
+  const words = head.split(/\s+/);
+  if (words.length > 7) return null;
+  if (!words.every((w) => /^[A-Z0-9(&]/.test(w) || /^(?:the|of|and|for|de|la|le|&)$/i.test(w))) return null;
+  return cleanIssuerName(head);
 }
 
 // ── Providers ────────────────────────────────────────────────────────────
@@ -629,6 +652,11 @@ export function parseDisclosure(title: string, body: string): ParsedDisclosure {
   const text = narrow(body);
   const notes: string[] = [];
   const issuer = findIssuer(text);
+  // Some republishers serve the article body lazily, so the name never
+  // appears next to the ticker and the release is left nameless on the
+  // ranking page. The headline always leads with the company — "IC Group
+  // Engages Adelaide Capital…" — so fall back to that.
+  if (!issuer.name) issuer.name = issuerFromTitle(title);
   const kind = findKind(title, text);
   const hits = findProviders(title, text, issuer.name);
 
