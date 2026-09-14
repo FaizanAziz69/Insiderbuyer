@@ -482,8 +482,12 @@ export class PromoterService implements OnModuleInit {
     return { agreements: n, needsReview };
   }
 
-  private async upsertFirm(slug: string, name: string, _kind: string, seen: string | null) {
-    const day = seen ? seen.slice(0, 10) : null;
+  private async upsertFirm(slug: string, name: string, _kind: string, seen: string | Date | null) {
+    // On ingest this is an ISO string off the RSS feed; on a re-parse it is a
+    // Date handed back by the driver from `ir_disclosures.published_at`.
+    // Assuming the string form crashed the first production re-parse with
+    // "seen.slice is not a function".
+    const day = toDay(seen);
     await this.q(
       `INSERT INTO ir_firms (slug, name, first_seen, last_seen)
        VALUES ($1,$2,$3,$3)
@@ -591,17 +595,29 @@ export class PromoterService implements OnModuleInit {
    */
   async reparse(limit = 500): Promise<{ disclosures: number; agreements: number }> {
     await this.ensureTables();
-    const rows: any[] = await this.q(
-      `SELECT id, source_url, headline, published_at, raw_text FROM ir_disclosures ORDER BY id LIMIT $1`,
+    // Read the ids first and the bodies one at a time. Selecting every
+    // `raw_text` in one go put the whole corpus in memory and the backend hit
+    // the V8 heap limit on the first production run — these are full press
+    // releases, and there is no reason for more than one to be resident.
+    const ids: any[] = await this.q(
+      `SELECT id FROM ir_disclosures ORDER BY id LIMIT $1`,
       [Math.min(Math.max(limit, 1), 5000)],
     );
     let agreements = 0;
-    for (const r of rows) {
-      if (!r.raw_text) continue;
+    let read = 0;
+    for (const { id } of ids) {
+      const r = (
+        await this.q(
+          `SELECT id, source_url, headline, published_at, raw_text FROM ir_disclosures WHERE id = $1`,
+          [id],
+        )
+      )?.[0];
+      if (!r?.raw_text) continue;
+      read++;
       const parsed = parseDisclosure(r.headline, r.raw_text);
       const res = await this.store(
         r.source_url,
-        { title: r.headline, publishedAt: r.published_at },
+        { title: r.headline, publishedAt: toDay(r.published_at) },
         r.raw_text,
         parsed,
       );
@@ -617,7 +633,7 @@ export class PromoterService implements OnModuleInit {
         WHERE i.ticker = best.ticker AND best.n IS NOT NULL AND best.n IS DISTINCT FROM i.name`,
     );
     await this.rescore();
-    return { disclosures: rows.length, agreements };
+    return { disclosures: read, agreements };
   }
 
   // ── Issuer resolution ──────────────────────────────────────────────────
@@ -1103,6 +1119,14 @@ export class PromoterService implements OnModuleInit {
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────
+
+/** yyyy-mm-dd from a string, a Date, or nothing. */
+function toDay(v: string | Date | null | undefined): string | null {
+  if (!v) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString().slice(0, 10);
+  const s = String(v);
+  return s.length >= 10 ? s.slice(0, 10) : null;
+}
 
 function safeHost(url: string): string | null {
   try {

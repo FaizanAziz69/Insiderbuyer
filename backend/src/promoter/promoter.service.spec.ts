@@ -255,6 +255,10 @@ async function main() {
 
   // ── Re-parse stores nothing new and breaks nothing ────────────────────
   const beforeCount = (await client.query(`SELECT count(*)::int AS n FROM ir_agreements`)).rows[0].n;
+  // Re-parse reads `published_at` back as a Date, not the ISO string ingestion
+  // passes. Assuming the string form is what crashed the first production
+  // re-parse ("seen.slice is not a function"), so the fixtures below go
+  // through the same path the server does.
   const re = await svc.reparse();
   check('reparse read every stored disclosure', re.disclosures, 5);
   const afterCount = (await client.query(`SELECT count(*)::int AS n FROM ir_agreements`)).rows[0].n;
