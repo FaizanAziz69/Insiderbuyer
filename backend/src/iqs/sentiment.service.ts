@@ -61,14 +61,29 @@ export class SentimentService {
     return this.anthropic;
   }
 
+  /** Tickers whose recompute is already running, so a burst of requests for a
+   *  cold ticker costs one model call rather than one per request. */
+  private readonly inFlight = new Set<string>();
+
   /** 0-100 sentiment for a ticker, or null when unavailable. Serves the
-   *  cached row inside the TTL; recomputes (headlines → Claude) after it. */
+   *  cached row inside the TTL; recomputes (headlines → Claude) after it.
+   *
+   *  `blocking: false` (2026-09-14) never waits on that recompute. This call
+   *  sits inside getCompositeScore, which /scores/:ticker serves, which the
+   *  company page prefetches during SSR — so on a cold ticker a Yahoo fetch
+   *  plus a Claude call were holding the page's HTML. Measured before the
+   *  change: /scores/AAON 4.05s cold against 0.63s warm, and the page itself
+   *  8.1s against 1.3s. Non-blocking callers get whatever is cached (possibly
+   *  a stale row, possibly nothing) and the fresh value lands in Postgres for
+   *  the next reader. The composite already treats a null pillar as absent. */
   async getSentimentScore(
     ticker: string,
     companyName?: string | null,
+    opts: { blocking?: boolean } = {},
   ): Promise<{ score: number | null; rationale: string | null } | null> {
     const sym = (ticker || '').toUpperCase();
     if (!sym) return null;
+    const blocking = opts.blocking !== false;
 
     const existing = await this.repo.findOne({ where: { ticker: sym } });
     const fresh =
@@ -77,19 +92,50 @@ export class SentimentService {
       return { score: existing.score, rationale: existing.rationale };
     }
 
+    if (!blocking) {
+      void this.refreshInBackground(sym, companyName);
+      return existing ? { score: existing.score, rationale: existing.rationale } : null;
+    }
+
     try {
-      const computed = await this.compute(sym, companyName);
-      const row = existing ?? this.repo.create({ ticker: sym });
-      row.score = computed.score;
-      row.headlineCount = computed.headlineCount;
-      row.rationale = computed.rationale;
-      await this.repo.save(row);
-      return { score: row.score, rationale: row.rationale };
+      return await this.recompute(sym, companyName, existing);
     } catch (err: any) {
       this.logger.warn(`Sentiment compute failed for ${sym}: ${err?.message || err}`);
       // Fall back to the stale row rather than dropping the pillar entirely.
       return existing ? { score: existing.score, rationale: existing.rationale } : null;
     }
+  }
+
+  /** Fire-and-forget recompute. Never throws into the caller's request. */
+  private refreshInBackground(sym: string, companyName?: string | null): void {
+    if (this.inFlight.has(sym)) return;
+    this.inFlight.add(sym);
+    void (async () => {
+      try {
+        const existing = await this.repo.findOne({ where: { ticker: sym } });
+        await this.recompute(sym, companyName, existing);
+      } catch (err: any) {
+        this.logger.warn(
+          `Background sentiment refresh failed for ${sym}: ${err?.message || err}`,
+        );
+      } finally {
+        this.inFlight.delete(sym);
+      }
+    })();
+  }
+
+  private async recompute(
+    sym: string,
+    companyName: string | null | undefined,
+    existing: SentimentScore | null,
+  ): Promise<{ score: number | null; rationale: string | null }> {
+    const computed = await this.compute(sym, companyName);
+    const row = existing ?? this.repo.create({ ticker: sym });
+    row.score = computed.score;
+    row.headlineCount = computed.headlineCount;
+    row.rationale = computed.rationale;
+    await this.repo.save(row);
+    return { score: row.score, rationale: row.rationale };
   }
 
   private async compute(

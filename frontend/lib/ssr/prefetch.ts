@@ -34,6 +34,15 @@ const BACKEND = process.env.BACKEND_URL || "http://localhost:4000";
  *  rows, not five hundred of them. */
 const MAX_BYTES = 25_000;
 const DEFAULT_REVALIDATE = 120;
+/** Hard per-key budget (2026-09-14). Prefetching is an optimisation, never a
+ *  hard dependency — but every key was awaited to completion, so ONE slow
+ *  upstream held the whole page's HTML. /scores/:ticker was computing a news
+ *  sentiment score (Yahoo headlines + a Claude call) inside the request on a
+ *  cold ticker: /companies/AAON measured 8.1s cold against 1.3s warm. That
+ *  call is non-blocking now, and this is the backstop for the next one. A key
+ *  that overruns is simply skipped and the hook fetches it on the client, the
+ *  same path a failed key already took. */
+const KEY_TIMEOUT_MS = 2_000;
 /** Never prefetch: canvas-only data (no text value) and megabyte payloads. */
 const SKIP = [
   /\/market-stats\/heatmap/,
@@ -112,17 +121,22 @@ export async function ssrFallback(
       if (!key || !key.startsWith("/api/backend/")) return;
       if (SKIP.some((re) => re.test(key))) return;
       const path = key.replace(/^\/api\/backend/, "/api");
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), KEY_TIMEOUT_MS);
       try {
         const res = await fetch(`${BACKEND}${path}`, {
           next: { revalidate: opts.revalidate ?? DEFAULT_REVALIDATE },
           headers: { accept: "application/json" },
+          signal: ctrl.signal,
         });
         if (!res.ok) return;
         const text = await res.text();
         const value = shrink(JSON.parse(text), text);
         if (value !== null) out[key] = value;
       } catch {
-        /* skipped — client fetches as before */
+        /* timed out or failed — client fetches as before */
+      } finally {
+        clearTimeout(timer);
       }
     }),
   );

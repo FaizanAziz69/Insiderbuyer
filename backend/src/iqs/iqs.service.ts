@@ -3119,7 +3119,12 @@ export class IqsService {
     let sentimentValue: number | null = null;
     let sentimentRationale: string | null = null;
     try {
-      const s = await this.sentiment.getSentimentScore(sym, company?.name);
+      // Non-blocking: this method serves /scores/:ticker, which the company
+      // page prefetches during SSR. A cold ticker used to pay a headline
+      // fetch + a Claude call here and hold the HTML for seconds.
+      const s = await this.sentiment.getSentimentScore(sym, company?.name, {
+        blocking: false,
+      });
       sentimentValue = s?.score ?? null;
       sentimentRationale = s?.rationale ?? null;
     } catch {
