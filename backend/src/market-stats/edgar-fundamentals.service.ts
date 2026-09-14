@@ -327,6 +327,14 @@ export class EdgarFundamentalsService {
       const ocf = v.OperatingCashFlow;
       const capex = v.CapitalExpenditure;
       v.FreeCashFlow = ocf == null || capex == null ? null : ocf - Math.abs(capex);
+      // XBRL files payments as POSITIVE outflows; the vendor rows this table
+      // is otherwise built from sign them negative. Left as filed, a single
+      // SEC-sourced column showed capex of +6.6M beside the vendor's -3.4M for
+      // the quarter before it, which reads as a company that sold plant.
+      for (const key of ['CapitalExpenditure', 'RepurchaseOfCapitalStock']) {
+        const x = v[key];
+        if (x != null && x > 0) v[key] = -x;
+      }
       v.EndCashPosition = null;
     });
 
