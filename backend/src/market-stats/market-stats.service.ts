@@ -2935,6 +2935,15 @@ export class MarketStatsService {
           .map((r: any) => {
             const values: Record<string, number | null> = {};
             for (const [key, field] of Object.entries(map)) values[key] = n(r?.[field]);
+            // A row where every mapped figure is exactly zero is the vendor
+            // having no statement for that period, not a company that neither
+            // spent nor earned anything. FMP returns precisely this for
+            // Midera Food Processing's June quarter — operating cash flow,
+            // capex, investing, financing and free cash flow all 0 — and
+            // publishing it stated five facts the feed never had.
+            if (Object.values(values).every((v) => v === 0 || v == null)) {
+              for (const key of Object.keys(values)) values[key] = null;
+            }
             return { date: String(r?.date || '').slice(0, 10), values };
           })
           .filter((r) => !!r.date);
@@ -3099,27 +3108,49 @@ export class MarketStatsService {
   }
 
   /**
-   * Fill statement sections the vendor returned empty from the filings.
+   * Fill what the vendor could not supply from the company's own filings.
    *
-   * Only empty sections are replaced, never populated ones: the vendor's
-   * quarterly figures are normalised across companies and SEC's are as-filed,
-   * so mixing them inside one section would mean two definitions in one table.
+   * Two gaps, both real: a whole section that came back with no figures in it,
+   * and a single period inside an otherwise-good section. Midera Food
+   * Processing is the second kind — the vendor has its March quarter and
+   * nothing for June, while SEC has the 26-week figure the company actually
+   * filed.
+   *
+   * A period the vendor DID answer is never overwritten: its quarterly
+   * figures are normalised across companies and SEC's are as-filed, and
+   * mixing the two inside one column would put two definitions in one table.
    */
-  private async fillEmptySectionsFromSec(
+  private async fillGapsFromSec(
     payload: any,
     cik: string | null | undefined,
     symbol: string,
   ): Promise<any> {
     if (!cik || !this.edgar) return payload;
-    const empties = (['income', 'balance', 'cashflow'] as const).filter(
-      (k) => !MarketStatsService.sectionHasValues(payload?.[k]),
+    const sections = ['income', 'balance', 'cashflow'] as const;
+    const hasGap = sections.some(
+      (k) =>
+        !MarketStatsService.sectionHasValues(payload?.[k]) ||
+        (payload?.[k] || []).some((r: any) => !Object.values(r?.values || {}).some((v) => v != null)),
     );
-    if (!empties.length) return payload;
+    if (!hasGap) return payload;
     const sec = await this.edgar.quarterlyStatements(cik, symbol).catch(() => null);
     if (!sec) return payload;
+
     const out = { ...payload };
-    for (const k of empties) {
-      if (MarketStatsService.sectionHasValues(sec[k])) out[k] = sec[k];
+    for (const k of sections) {
+      const mine: any[] = payload?.[k] || [];
+      const theirs: any[] = sec?.[k] || [];
+      if (!theirs.length) continue;
+      if (!MarketStatsService.sectionHasValues(mine)) {
+        out[k] = theirs;
+        continue;
+      }
+      const byDate = new Map(theirs.map((r: any) => [r.date, r]));
+      out[k] = mine.map((r: any) => {
+        const empty = !Object.values(r?.values || {}).some((v) => v != null);
+        const fill = empty ? byDate.get(r.date) : null;
+        return fill && Object.values(fill.values || {}).some((v) => v != null) ? fill : r;
+      });
     }
     return out;
   }
@@ -3149,7 +3180,7 @@ export class MarketStatsService {
           // has the period but none of its figures. That looked identical to
           // "we have it" and stopped us ever asking the filings, which is how
           // MFPVV showed an empty cash flow statement that SEC had published.
-          const filled = await this.fillEmptySectionsFromSec(alt, resolved.cik, symbol);
+          const filled = await this.fillGapsFromSec(alt, resolved.cik, symbol);
           return { ...filled, symbol, filedAs: resolved.canonical };
         }
       }
