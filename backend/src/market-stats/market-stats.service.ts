@@ -2225,6 +2225,11 @@ export class MarketStatsService {
           this.fmp.getForwardEps(symbol),
         ]);
       const n = (v: any): number | null => {
+        // `Number(null)` is 0, and 0 is finite — so a field the vendor sent as
+        // null used to be published as a real zero. That is how Midera Food
+        // Processing came to show an operating cash flow of $0 against $245M
+        // of revenue (client, 2026-09-15). Absent must stay absent.
+        if (v === null || v === undefined || v === '') return null;
         const x = Number(v);
         return Number.isFinite(x) ? x : null;
       };
@@ -2673,6 +2678,11 @@ export class MarketStatsService {
       const { income, balance, cashflow } = await this.fmp.getStatements(symbol, 'annual', 5);
       if (!income.length && !balance.length && !cashflow.length) return null;
       const n = (v: any): number | null => {
+        // `Number(null)` is 0, and 0 is finite — so a field the vendor sent as
+        // null used to be published as a real zero. That is how Midera Food
+        // Processing came to show an operating cash flow of $0 against $245M
+        // of revenue (client, 2026-09-15). Absent must stay absent.
+        if (v === null || v === undefined || v === '') return null;
         const x = Number(v);
         return Number.isFinite(x) ? x : null;
       };
@@ -2911,6 +2921,11 @@ export class MarketStatsService {
       const { income, balance, cashflow } = await this.fmp.getStatements(symbol, 'quarter', 13);
       if (!income.length && !balance.length && !cashflow.length) return null;
       const n = (v: any): number | null => {
+        // `Number(null)` is 0, and 0 is finite — so a field the vendor sent as
+        // null used to be published as a real zero. That is how Midera Food
+        // Processing came to show an operating cash flow of $0 against $245M
+        // of revenue (client, 2026-09-15). Absent must stay absent.
+        if (v === null || v === undefined || v === '') return null;
         const x = Number(v);
         return Number.isFinite(x) ? x : null;
       };
