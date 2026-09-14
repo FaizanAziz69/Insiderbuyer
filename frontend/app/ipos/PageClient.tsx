@@ -312,7 +312,7 @@ export default function IposPage() {
         </div>
       )}
 
-      <ComplianceFooter methodology="/methodology#ipo-calendar" />
+      <ComplianceFooter />
     </div>
   );
 }

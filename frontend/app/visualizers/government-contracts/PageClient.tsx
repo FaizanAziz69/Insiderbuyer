@@ -412,14 +412,6 @@ export default function GovernmentContractsClient() {
                 >
                   Full contractor table
                 </Link>
-                <Link
-                  href="/methodology"
-                  onClick={() =>
-                    track("web_panel_cta_click", { vertical: "contracts", cta: "methodology" })
-                  }
-                >
-                  Methodology
-                </Link>
               </div>
             </>
           )}

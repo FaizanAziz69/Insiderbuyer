@@ -1,13 +1,14 @@
-import Link from "next/link";
-
 /**
  * Standard compliance footer for every data page — Developer Project Brief
  * (Aug 24 2026), §2.4: "publisher not adviser, informational purposes only,
- * historical patterns do not predict future results … the methodology note
- * must be one click away." Wording is fixed here so every page says the same
- * thing; pass `methodology` to deep-link the page's own section.
+ * historical patterns do not predict future results."
+ *
+ * The brief also asked for a methodology note one click away. The client
+ * removed that surface on 2026-09-15 — "hum kabhi bhi methodology user ko nai
+ * dekhayein gay" — so the page is gone and the link with it. The `methodology`
+ * prop is still accepted so callers need not all change at once, and ignored.
  */
-export function ComplianceFooter({ methodology = "/methodology", extra }: { methodology?: string; extra?: React.ReactNode }) {
+export function ComplianceFooter({ extra }: { methodology?: string; extra?: React.ReactNode }) {
   return (
     <footer
       className="mt-8 rounded-xl px-4 py-3 text-[12px] leading-relaxed"
@@ -18,9 +19,6 @@ export function ComplianceFooter({ methodology = "/methodology", extra }: { meth
       performance figures are historical and factual; historical patterns do not predict future
       results, and nothing here is a recommendation to buy or sell any security.{" "}
       {extra}
-      <Link href={methodology} className="font-semibold text-accent">
-        How these figures are calculated →
-      </Link>
     </footer>
   );
 }

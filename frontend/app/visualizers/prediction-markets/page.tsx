@@ -166,11 +166,7 @@ export default async function Page() {
           </div>
           <p style={{ color: "var(--text-faint)", fontSize: 11.5, marginTop: 14, lineHeight: 1.6 }}>
             Informational only; not betting or investment advice. Prices are from Polymarket and
-            reflect what buyers and sellers are paying, not a forecast by InsiderBuying.{" "}
-            <Link href="/methodology#prediction-markets" style={{ color: "var(--accent)" }}>
-              Methodology
-            </Link>
-            .
+            reflect what buyers and sellers are paying, not a forecast by InsiderBuying.
           </p>
         </section>
       )}

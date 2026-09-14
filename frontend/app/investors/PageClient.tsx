@@ -136,13 +136,10 @@ export default function InvestorsPage() {
       <p className="text-[12px]" style={{ color: "var(--text-mute)" }}>
         Performance = trailing-12-month value-weighted return of disclosed 13F long positions,
         rebalanced at each filing date; suppressed for portfolios under $100M or with fewer than 4
-        positions.{" "}
-        <Link href="/methodology#top-insiders" className="font-semibold text-accent">
-          Methodology
-        </Link>
+        positions.
       </p>
 
-      <ComplianceFooter methodology="/methodology#top-insiders" />
+      <ComplianceFooter />
     </div>
   );
 }

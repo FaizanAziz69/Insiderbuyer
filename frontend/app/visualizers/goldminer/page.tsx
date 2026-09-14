@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import PageClient from "./PageClient";
 import { SwrFallback } from "@/components/SwrFallback";
 import { ssrFallback, ARENA_MAX_BYTES } from "@/lib/ssr/prefetch";
@@ -63,11 +62,7 @@ export default async function Page() {
         note={
           <>
             Every figure carries the operator&rsquo;s own disclosure and an as-of date on its
-            panel.{" "}
-            <Link href="/methodology#goldminer" style={{ color: "var(--accent)" }}>
-              How asset value is calculated
-            </Link>
-            .
+            panel.
           </>
         }
       />

@@ -117,12 +117,6 @@ export function InsiderScoreBanner({
           </p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
             <Link
-              href="/methodology#insider-score"
-              className="text-[12.5px] font-semibold text-accent hover:underline inline-flex items-center gap-1"
-            >
-              <HelpCircle className="h-3.5 w-3.5" /> How the score works
-            </Link>
-            <Link
               href="/insiders/hot"
               className="text-[12.5px] font-semibold text-accent hover:underline"
             >
@@ -215,12 +209,6 @@ export function InsiderScoreBanner({
           />
         </div>
       </div>
-      <Link
-        href="/methodology#insider-score"
-        className="flex-shrink-0 text-[12.5px] font-semibold text-accent hover:underline inline-flex items-center gap-1 whitespace-nowrap"
-      >
-        <HelpCircle className="h-3.5 w-3.5" /> How it works
-      </Link>
     </section>
   );
 }

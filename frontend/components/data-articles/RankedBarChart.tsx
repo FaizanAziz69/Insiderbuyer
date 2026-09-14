@@ -322,10 +322,10 @@ export function RankedBarChart({ slug, chart, periods, title, subtitle, onLoaded
           Source: {data?.source ?? "SEC filings"}
           {data?.asOf ? ` · data to ${fmtDate(data.asOf)}` : ""}
         </span>
-        <Link href="/methodology#insider-score" className="inline-flex items-center gap-1 font-semibold" style={{ color: "var(--text-soft)" }}>
+        <span className="inline-flex items-center gap-1 font-semibold" style={{ color: "var(--text-soft)" }}>
           <span className="inline-block w-2 h-2 rounded-full" style={{ background: "var(--good)" }} />
           Scored by IQS
-        </Link>
+        </span>
       </footer>
     </section>
   );

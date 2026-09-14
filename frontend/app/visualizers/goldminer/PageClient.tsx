@@ -303,11 +303,6 @@ export default function GoldminerClient() {
                 numbers on this map that we cannot point at a filing for. As soon as the sheet
                 exists it imports in one call and every bubble below appears.
               </p>
-              <p style={{ marginTop: 10 }}>
-                <Link href="/methodology#goldminer" style={{ color: "var(--viz-accent)" }}>
-                  How asset value is calculated →
-                </Link>
-              </p>
             </div>
           </div>
         )}
@@ -459,11 +454,7 @@ export default function GoldminerClient() {
                         {Math.abs(evGap).toFixed(0)}% {evGap >= 0 ? "above" : "below"}
                       </b>{" "}
                       the median for {selectedProject.stage}-stage projects on this map. This is a
-                      peer comparison, not a valuation or a recommendation —{" "}
-                      <Link href="/methodology#goldminer" style={{ color: "var(--viz-accent)" }}>
-                        see the method
-                      </Link>
-                      .
+                      peer comparison, not a valuation or a recommendation.
                     </p>
                   )}
                 </Section>

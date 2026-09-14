@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import PageClient from "./PageClient";
 import { SwrFallback } from "@/components/SwrFallback";
 import { ssrFallback, ARENA_MAX_BYTES } from "@/lib/ssr/prefetch";
@@ -65,11 +64,7 @@ export default async function Page() {
         }))}
         note={
           <>
-            Nothing here is investment or medical advice.{" "}
-            <Link href="/methodology#biotech-catalysts" style={{ color: "var(--accent)" }}>
-              Methodology
-            </Link>
-            .
+            Nothing here is investment or medical advice.
           </>
         }
       />

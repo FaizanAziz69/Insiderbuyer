@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import PageClient from "./PageClient";
 import { SwrFallback } from "@/components/SwrFallback";
 import { ssrFallback, ARENA_MAX_BYTES } from "@/lib/ssr/prefetch";
@@ -59,11 +58,7 @@ export default async function Page() {
         }))}
         note={
           <>
-            Contract totals are obligations recorded in the window, not company-reported revenue.{" "}
-            <Link href="/methodology#government-contracts" style={{ color: "var(--accent)" }}>
-              Methodology
-            </Link>
-            .
+            Contract totals are obligations recorded in the window, not company-reported revenue.
           </>
         }
       />

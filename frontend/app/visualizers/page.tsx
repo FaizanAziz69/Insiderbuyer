@@ -224,11 +224,7 @@ export default function VisualizersHub() {
       >
         <b style={{ color: "var(--text)" }}>The rules these tools follow.</b> Every resource,
         economic and odds figure carries its source and an as-of date. Valuation views are
-        peer-comparison data with a{" "}
-        <Link href="/methodology" style={{ color: "var(--accent)" }}>
-          published methodology
-        </Link>
-        , never advice. Any company that is a paid client of ours carries a disclosure badge on its
+        peer-comparison data, never advice. Any company that is a paid client of ours carries a disclosure badge on its
         panel. Prediction market prices are shown as information: we do not take bets, route orders
         or link to trading venues.
       </section>

@@ -91,10 +91,7 @@ export function IqsScoreCardViz({ ticker }: { ticker: string }) {
       subtitle={`${score.distinctBuyers} distinct buyer${score.distinctBuyers === 1 ? "" : "s"} · ${score.transactionCount} filing${score.transactionCount === 1 ? "" : "s"}`}
       footnote={
         <>
-          Scored as of {formatDate(score.asOfDate)}.{" "}
-          <Link href="/methodology" className="text-accent hover:underline">
-            How the Insider Score works →
-          </Link>
+          Scored as of {formatDate(score.asOfDate)}.
         </>
       }
     >

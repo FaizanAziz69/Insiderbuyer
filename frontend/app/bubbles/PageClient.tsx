@@ -1042,10 +1042,7 @@ export default function BubblesPage() {
           New filing on the tape
         </div>
         <div className="bm-note">
-          Bubble size = total $ bought · &times;N badge = cluster buy · click to expand ·{" "}
-          <Link href="/methodology#insider-bubbles" className="bm-method">
-            methodology
-          </Link>
+          Bubble size = total $ bought · &times;N badge = cluster buy · click to expand
         </div>
       </div>
 
@@ -1274,8 +1271,7 @@ function ProfilePanel({
         </div>
         </PanelSignInGate>
         <div className="bm-p-disclaimer">
-          All figures trace to SEC Form 4 filings and licensed market data. Not financial advice.{" "}
-          <Link href="/methodology#insider-bubbles">Methodology</Link>
+          All figures trace to SEC Form 4 filings and licensed market data. Not financial advice.
         </div>
       </div>
     </aside>

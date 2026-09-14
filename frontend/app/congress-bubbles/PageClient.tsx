@@ -19,7 +19,7 @@
  * once per (member, radius, theme) and blitted per frame, which is what keeps
  * a mid-range phone at 60fps (acceptance §10 C). Data is the pre-aggregated
  * /congressional-trades/bubbles payload; every dollar figure is a PTR range
- * midpoint, computed server-side and stated in the panel and on /methodology.
+ * midpoint, computed server-side and stated in the panel.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -686,10 +686,7 @@ export default function CongressBubblesPage() {
           Net selling in the period
         </div>
         <div className="bm-note">
-          Bubble size = total reported trade volume (PTR range midpoints) · D/R badge = party ·{" "}
-          <Link href="/methodology#congress-bubbles" className="bm-method">
-            methodology
-          </Link>
+          Bubble size = total reported trade volume (PTR range midpoints) · D/R badge = party
         </div>
       </div>
 
@@ -860,8 +857,7 @@ function MemberPanel({
         <div className="bm-p-disclaimer">
           {method ??
             "Periodic Transaction Reports disclose amounts as ranges; every dollar figure here is the range midpoint."}{" "}
-          Source: House and Senate disclosures. Not financial advice.{" "}
-          <Link href="/methodology#congress-bubbles">Methodology</Link>
+          Source: House and Senate disclosures. Not financial advice.
         </div>
       </div>
     </aside>

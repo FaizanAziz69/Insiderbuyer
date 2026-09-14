@@ -89,7 +89,7 @@ export default async function DataIndexPage() {
         )}
       </ul>
 
-      <ComplianceFooter methodology="/methodology#data-articles" />
+      <ComplianceFooter />
     </div>
   );
 }

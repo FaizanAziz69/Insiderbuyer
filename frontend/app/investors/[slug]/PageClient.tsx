@@ -280,9 +280,6 @@ export default function InvestorDetailPage({ params }: { params: Promise<{ slug:
         <section className="card p-5">
           <div className="flex items-baseline justify-between gap-3 flex-wrap">
             <h2 className="text-[16px] font-bold">Performance by filing period</h2>
-            <Link href="/methodology#top-insiders" className="text-[12px] font-semibold text-accent">
-              How this is computed →
-            </Link>
           </div>
           <p className="text-[12.5px] mt-1" style={{ color: "var(--text-mute)" }}>
             Cumulative return of disclosed long positions, value-weighted and rebalanced at each
@@ -418,7 +415,6 @@ export default function InvestorDetailPage({ params }: { params: Promise<{ slug:
       )}
 
       <ComplianceFooter
-        methodology="/methodology#top-insiders"
         extra={<>Holdings are as reported on SEC Form 13F-HR and reflect positions at quarter-end, disclosed up to 45 days later. </>}
       />
     </div>
