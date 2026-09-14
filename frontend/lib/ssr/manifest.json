@@ -419,6 +419,9 @@
   "/api/backend/trades?side=buy&limit=40"
  ],
  "thank-you-report": [],
+ "top-congress-trades": [
+  "/api/backend/congress-trades/leaderboard?limit=250"
+ ],
  "top-picks-report": [],
  "topics/[slug]": [
   "/api/backend/content/blogs?topic={slug}&limit=60",

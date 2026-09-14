@@ -50,6 +50,7 @@ import { SAProfileHeader } from "@/components/stock/SAProfileHeader";
 import { ScorePillarsCard } from "@/components/ScorePillarsCard";
 import { InsiderScoreBanner } from "@/components/company/InsiderScoreBanner";
 import { PromoterPanel } from "@/components/company/PromoterPanel";
+import { CongressContractsPanel } from "@/components/company/CongressContractsPanel";
 import { CongressTradingCard, WhaleActivityCard, RevenueBreakdownCard, BullBearCard } from "@/components/stock/StockCivicGrid";
 import {
   StrategyBanner, InsiderNetSharesCard, LobbyingStackedCard, ContractsStackedCard,
@@ -270,6 +271,10 @@ export default function CompanyPage({
                     for issuers with disclosed agreements (TSXV/CSE), so it is
                     invisible on the US pages that make up most of the site. */}
                 <PromoterPanel ticker={sym} />
+                {/* Brief v5 §4 per-stock module. Renders only when a member
+                    holding this stock sits on a committee overseeing the
+                    agency that awarded it a contract. */}
+                <CongressContractsPanel ticker={sym} />
                 <AboutQQ
                   ticker={sym}
                   name={data.company.name}

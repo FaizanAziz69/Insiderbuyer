@@ -152,6 +152,9 @@ export const NAV_GROUPS: NavGroup[] = [
               { label: "Congress Bubbles", href: "/congress-bubbles", icon: Orbit, badge: "live" },
               // Renamed from "Congressional Trades" (George's wording).
               { label: "Politician Stock Tracker", href: "/congressional-trades", icon: Landmark },
+              // Brief v5: trades crossed with committee jurisdiction and
+              // federal contract awards.
+              { label: "Top Congress Trades", href: "/top-congress-trades", icon: Landmark, badge: "new" },
             ],
           },
         ],

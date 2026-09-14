@@ -70,6 +70,7 @@ import { Iqs2Module } from './iqs2/iqs2.module';
 import { DataArticlesModule } from './data-articles/data-articles.module';
 import { DeInsidersModule } from './de-insiders/de-insiders.module';
 import { PromoterModule } from './promoter/promoter.module';
+import { CongressTradesModule } from './congress-trades/congress-trades.module';
 import { EmailFlowState } from './entities/email-flow-state.entity';
 import { InsiderProfile } from './entities/insider-profile.entity';
 import { HistoricalInsiderBuy } from './entities/historical-insider-buy.entity';
@@ -227,6 +228,7 @@ import {
     DataArticlesModule,
     DeInsidersModule,
     PromoterModule,
+    CongressTradesModule,
   ],
 })
 export class AppModule {}

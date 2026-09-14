@@ -7,6 +7,7 @@ import { API_BASE, fetcher, formatCurrency, formatDate } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { VolumeByYear, SectorDonut, HoldingsDonut, AreaChart, SingleBarChart } from "@/components/charts/ProfileCharts";
 import { DataTable, Column } from "@/components/DataTable";
+import { CongressProximityPanel } from "@/components/congress-trades/CongressProximityPanel";
 
 interface PolTrade {
   ticker: string | null;
@@ -293,6 +294,10 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
           {/* ── TRADES ── */}
           {active === "trades" && (
             <div className="space-y-5">
+              {/* Brief v5 §4 per-politician module. It sits with the trades
+                  because that is the record it is drawn from, and renders
+                  nothing when this member has no verified rows. */}
+              <CongressProximityPanel name={p.name} />
               <section className="card p-4 sm:p-5">
                 <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-6">
                   <div>
