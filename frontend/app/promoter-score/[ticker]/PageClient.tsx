@@ -55,6 +55,16 @@ function money(v: number | null, ccy = "CAD"): string {
   return `${sym}${Math.round(v)}`;
 }
 
+/** Postgres `date` columns come back as timestamps once they have been
+ *  through JSON, so a start date rendered raw reads "2026-06-08T00:00:00.000Z".
+ *  UI date chips use the short register here, not the prose house style. */
+function day(v: string | null): string {
+  if (!v) return "—";
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return String(v).slice(0, 10);
+  return d.toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+}
+
 const STATUS: Record<string, { label: string; color: string }> = {
   active: { label: "Active", color: "var(--good)" },
   terminated: { label: "Terminated", color: "var(--bad)" },
@@ -149,7 +159,7 @@ export default function IssuerPromoterPage({ ticker }: { ticker: string }) {
                 <Field label="Monthly fee" value={money(c.monthlyFee, c.currency || "CAD")} />
                 <Field label="Contract value" value={money(c.totalValue, c.currency || "CAD")} />
                 <Field label="Term" value={c.termMonths ? `${c.termMonths} months` : "—"} />
-                <Field label="Start" value={c.startDate || "—"} />
+                <Field label="Start" value={day(c.startDate)} />
                 <Field
                   label="Options to provider"
                   value={
@@ -173,7 +183,7 @@ export default function IssuerPromoterPage({ ticker }: { ticker: string }) {
                   Source release <ExternalLink size={11} />
                 </a>
                 {c.source.publishedAt ? (
-                  <span style={{ color: "var(--text-mute)" }}>{String(c.source.publishedAt).slice(0, 10)}</span>
+                  <span style={{ color: "var(--text-mute)" }}>{day(c.source.publishedAt)}</span>
                 ) : null}
                 {c.reviewed ? <Tag>Checked by an editor</Tag> : null}
                 {llm ? <Tag>Some fields machine-read</Tag> : null}

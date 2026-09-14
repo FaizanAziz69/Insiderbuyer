@@ -100,9 +100,14 @@ export function PromoterReviewAdmin({ token }: { token: string }) {
 }
 
 function ReviewCard({ row, busy, onSave }: { row: Row; busy: boolean; onSave: (patch: Record<string, any>) => void }) {
+  // Date columns arrive as timestamps after JSON, and an editor should not be
+  // asked to retype "2026-06-08T00:00:00.000Z" as a date.
+  const asDay = (v: unknown) => (typeof v === "string" ? v.slice(0, 10) : v);
   const [draft, setDraft] = useState<Record<string, any>>({
     providerName: row.providerName ?? "",
     ...row.fields,
+    startDate: asDay(row.fields.startDate),
+    endDate: asDay(row.fields.endDate),
   });
 
   const set = (k: string, v: any) => setDraft((d) => ({ ...d, [k]: v }));
