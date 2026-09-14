@@ -592,12 +592,19 @@ export class PromoterService implements OnModuleInit {
    */
   async resolveIssuers(max = 60): Promise<number> {
     await this.ensureTables();
+    // One row per ticker, carrying the BEST issuer name we have seen for it —
+    // the longest non-null. A plain DISTINCT returned whichever row Postgres
+    // felt like, which on production meant tickers whose issuer name was null
+    // on one wire and present on another came back nameless.
     const rows: any[] = await this.q(
-      `SELECT DISTINCT a.ticker, a.exchange, a.issuer_name
+      `SELECT a.ticker,
+              max(a.exchange) AS exchange,
+              (array_agg(a.issuer_name ORDER BY length(a.issuer_name) DESC NULLS LAST))[1] AS issuer_name
          FROM ir_agreements a
          LEFT JOIN ir_issuers i ON i.ticker = a.ticker
         WHERE a.ticker IS NOT NULL
           AND (i.ticker IS NULL OR i.resolved_at < now() - interval '7 days')
+        GROUP BY a.ticker
         LIMIT $1`,
       [max],
     );

@@ -230,10 +230,35 @@ function findIssuer(text: string): {
   while (/\([^()]*\)\s*$/.test(before)) before = before.replace(/\([^()]*\)\s*$/, '').trim();
   const nm = /([A-Z][A-Za-z0-9&'.\- ]{2,60}?)\s*\.?\s*$/.exec(before);
   if (nm) {
-    name = nm[1].replace(/\s+/g, ' ').replace(/^(?:of|and|by|from|,|-)\s+/i, '').trim();
-    if (name.length < 3) name = null;
+    name = cleanIssuerName(nm[1]);
   }
   return { name, ticker, exchange };
+}
+
+/**
+ * Strip the dateline furniture some wires wrap around the issuer name.
+ *
+ * thenewswire.com writes "June 30'26 TheNewswire - Nord Precious Metals", so
+ * the capture that ends at the ticker bracket picks up a date and a wire name
+ * and those went straight onto the ranking page as the company's name.
+ */
+function cleanIssuerName(raw: string): string | null {
+  let s = raw.replace(/\s+/g, ' ').trim();
+  s = s.replace(/^(?:of|and|by|from|,|-)\s+/i, '');
+  // "June 30'26 TheNewswire - X", "TheNewswire - X", "CNW - X"
+  s = s.replace(
+    /^.{0,24}?\b(?:TheNewswire|Newsfile|ACCESS ?Newswire|GlobeNewswire|PR ?Newswire|CNW|Business ?Wire)\b\s*[-–—:]\s*/i,
+    '',
+  );
+  // A leading date that survived: "June 30'26 X", "Aug 1, 2026 X"
+  s = s.replace(/^[A-Z][a-z]{2,8}\.?\s+\d{1,2}(?:['’]\d{2}|,?\s+\d{4})\s*[-–—:]?\s*/, '');
+  s = s.replace(/^\d{1,2}\s*[-–—/]\s*\d{1,2}\s*/, '');
+  s = s.trim();
+  if (s.length < 3 || s.length > 70) return null;
+  if (!/[A-Za-z]{3}/.test(s)) return null;
+  // Whatever is left must not be the wire itself.
+  if (PUBLISHER.test(s)) return null;
+  return s;
 }
 
 // ── Providers ────────────────────────────────────────────────────────────

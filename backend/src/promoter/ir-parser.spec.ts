@@ -102,6 +102,17 @@ function unit() {
   check('kalo nai term', k.agreements[2].termMonths, 3);
   check('kalo nai monthly', k.agreements[2].monthlyFee, 3500);
 
+  // thenewswire.com wraps the issuer in dateline furniture, and it went
+  // straight onto the ranking page as the company's name on the first
+  // production run: "June 30'26 TheNewswire - Nord Precious Metals Corp".
+  const wire = parseDisclosure(
+    'Nord Precious Metals Announces Investor Relations Agreement',
+    `June 30'26 TheNewswire - Nord Precious Metals Corp (TSXV: NTH) announces that it has entered into an investor relations agreement with RedChip Companies, Inc. ("RedChip") for a term of 12 months at a monthly fee of US$15,000.`,
+  );
+  check('wire furniture stripped from the issuer name', wire.issuerName, 'Nord Precious Metals Corp');
+  check('wire release ticker', wire.ticker, 'NTH');
+  check('wire release provider', wire.agreements[0].providerName, 'RedChip Companies, Inc');
+
   // Relevance gate.
   check(
     'contact-footer is not a disclosure',
