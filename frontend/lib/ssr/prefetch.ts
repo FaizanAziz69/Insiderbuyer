@@ -55,6 +55,13 @@ const SKIP = [
   // rows still arrive; they just no longer sit in the critical path.
   /\/trades\?[^"]*limit=(?:2\d\d|[3-9]\d\d|\d{4,})/,
   /\/rankings\?[^"]*limit=(?:2\d\d|[3-9]\d\d|\d{4,})/,
+  // 2026-09-14: PAID identities. Both the homepage module and
+  // /insiders/top-buys render blurred decoys to a logged-out visitor, but the
+  // seeded JSON put the real ticker, company and insider name straight into
+  // the HTML where view-source reads them — which is exactly the leak the
+  // decoy pattern exists to prevent. The hooks fetch it on mount, so a
+  // subscriber still gets the rows.
+  /\/iqs2\/top-buys/,
 ];
 
 /** Slice the dominant array of a list response until it fits the budget.
