@@ -306,6 +306,10 @@ export class VerificationAgentService {
                 from: d.before,
                 to: d.after,
                 note: `${FIELD_LABEL[d.field] || d.field} updated to match the primary source record.`,
+                // The page distinguishes a machine correction from an editor's,
+                // because a reader is entitled to know which one moved a figure
+                // about a named person.
+                actor: 'agent',
               },
             ]),
             row.id,
