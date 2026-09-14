@@ -6,6 +6,7 @@ import { Company } from '../entities/company.entity';
 import { FmpService } from '../fmp/fmp.service';
 import { AnalystsService } from '../analysts/analysts.service';
 import { InvestorsService } from '../investors/investors.service';
+import { FlagEngineService } from '../congress-trades/flag-engine.service';
 import { LAUNCH_ARTICLES, ArticleSeed, ArticleSections } from './seed';
 
 /**
@@ -98,6 +99,7 @@ export class DataArticlesService implements OnModuleInit {
     private readonly fmp: FmpService,
     private readonly analysts: AnalystsService,
     private readonly investors: InvestorsService,
+    private readonly flags: FlagEngineService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -340,6 +342,10 @@ export class DataArticlesService implements OnModuleInit {
       case 'hedge-funds':
         payload = await this.buildHedgeFunds(a.slug, period);
         break;
+      case 'congress-proximity':
+      case 'congress-flags':
+        payload = await this.buildCongress(a.slug, period, a.chart);
+        break;
       default:
         throw new Error(`unknown chart kind ${a.chart}`);
     }
@@ -349,6 +355,87 @@ export class DataArticlesService implements OnModuleInit {
       [a.slug, period, JSON.stringify(payload)],
     );
     this.logger.log(`data-article ${a.slug}:${period} rebuilt (${Object.values(payload.variants)[0]?.length ?? 0} rows)`);
+  }
+
+
+  /* --------------------------------------------- builders: Brief v5 §4 */
+
+  /**
+   * Formats #19 and #20 — Brief v5 §4.
+   *
+   * Both read the SAME verified leaderboard the public page reads, through
+   * FlagEngineService rather than a query of their own: a data article that
+   * built its own view of the flags could show a row the page had already
+   * retired, and §2 Stage 5 is explicit that nothing unverified renders
+   * anywhere.
+   *
+   * The screen (#19) ranks by award value so the largest contracts lead; the
+   * per-event list (#20) is newest first, because an entry is a citation of a
+   * thing that just happened.
+   */
+  private async buildCongress(
+    slug: string,
+    period: Period,
+    kind: 'congress-proximity' | 'congress-flags',
+  ): Promise<ChartPayload> {
+    const days = PERIOD_DAYS[period] ?? 30;
+    const cutoff = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+    const all = await this.flags.leaderboard({ limit: 250 });
+    const inWindow = all.filter((r: any) => !r.awardDate || String(r.awardDate).slice(0, 10) >= cutoff);
+
+    const ordered =
+      kind === 'congress-flags'
+        ? [...inWindow].sort((a: any, b: any) => String(b.awardDate ?? '').localeCompare(String(a.awardDate ?? '')))
+        : [...inWindow].sort((a: any, b: any) => (b.awardValue ?? 0) - (a.awardValue ?? 0));
+
+    const rows: ChartRow[] = ordered.slice(0, TOP_N).map((r: any, i) => ({
+      rank: i + 1,
+      key: `${r.id}`,
+      label: r.ticker,
+      sublabel: r.member,
+      href: `/top-congress-trades`,
+      value: Number(r.awardValue) || 0,
+      valueKind: 'usd',
+      iqs: null,
+      detail: {
+        member: r.member,
+        party: r.party,
+        chamber: r.chamber,
+        committee: r.committee,
+        role: r.role,
+        agency: r.agency,
+        company: r.company,
+        awardValue: r.awardValue,
+        awardDate: r.awardDate,
+        tradeDate: r.tradeDate,
+        tradeAction: r.tradeAction,
+        // §5: a trade amount is an estimate from a disclosed band, and it
+        // travels labelled so no surface can present it as exact.
+        tradeValueEstimate: r.tradeValue,
+        score: r.score,
+        headline: r.headline,
+        evidence: r.evidence,
+      },
+    }));
+
+    return {
+      slug,
+      period,
+      periodLabel: PERIOD_LABEL[period],
+      asOf: new Date().toISOString().slice(0, 10),
+      refreshedAt: new Date().toISOString(),
+      valueKind: 'usd',
+      valueLabel: 'Award value',
+      variants: { all: rows },
+      totals: {
+        flags: inWindow.length,
+        members: new Set(inWindow.map((r: any) => r.member)).size,
+        companies: new Set(inWindow.map((r: any) => r.ticker)).size,
+        agencies: new Set(inWindow.map((r: any) => r.agency)).size,
+        total: inWindow.reduce((sum: number, r: any) => sum + (Number(r.awardValue) || 0), 0),
+      },
+      source: 'House and Senate disclosures, the public congressional committee roster, and USAspending.gov',
+    };
   }
 
   /* ------------------------------------------------ builders: Form 4 */
@@ -627,6 +714,13 @@ export class DataArticlesService implements OnModuleInit {
       ctx[`top${n}.ratings`] = String(r.detail.ratings ?? '—');
       ctx[`top${n}.positions`] = String(r.detail.positions ?? '—');
       ctx[`top${n}.aum`] = fmtUsd(r.detail.portfolioValue as number | null);
+      // Brief v5 §4 formats #19–20 name a person, a committee and an agency,
+      // none of which the generic ticker/name pair can carry.
+      ctx[`top${n}.member`] = String(r.detail.member ?? r.sublabel ?? '—');
+      ctx[`top${n}.committee`] = String(r.detail.committee ?? '—');
+      ctx[`top${n}.agency`] = String(r.detail.agency ?? '—');
+      ctx[`top${n}.award`] = fmtUsd(r.detail.awardValue as number | null);
+      ctx[`top${n}.cts`] = r.detail.score == null ? '—' : String(Math.round(Number(r.detail.score)));
     });
     return ctx;
   }

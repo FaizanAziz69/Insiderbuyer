@@ -1,6 +1,7 @@
 "use client";
 import { ExternalLink, X } from "lucide-react";
 import { ReportError } from "./ReportError";
+import { CorrectionNote, Correction } from "./CorrectionNote";
 
 /**
  * Brief v5 §2 Stage 3: "Every flag stores its full evidence chain: the
@@ -79,6 +80,10 @@ export function EvidenceChain({ row, onClose }: { row: Row; onClose: () => void 
   const award = e.award || {};
   const vendor = e.vendorResolution || {};
   const board = e.boardSeat || null;
+  // §5: a fix is only half of a correction; the other half is the dated note
+  // on the page. The agent writes its changes into the row's evidence, so a
+  // row that has moved says so wherever it is shown.
+  const corrections: Correction[] = Array.isArray(e.corrections) ? e.corrections : [];
 
   return (
     <section
@@ -184,6 +189,8 @@ export function EvidenceChain({ row, onClose }: { row: Row; onClose: () => void 
           </Leg>
         ) : null}
       </div>
+
+      <CorrectionNote corrections={corrections} />
 
       <ReportError flagId={row.id} />
     </section>

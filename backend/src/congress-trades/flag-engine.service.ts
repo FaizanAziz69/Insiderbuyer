@@ -5,6 +5,7 @@ import { Company } from '../entities/company.entity';
 import { AwardsService, AwardRow } from './awards.service';
 import { EntityResolutionService } from './entity-resolution.service';
 import { InfluenceMapService, nameKey } from './influence-map.service';
+import { DisclosuresService } from './disclosures.service';
 import {
   CTS_DEFAULT_WEIGHTS,
   CtsWeights,
@@ -62,6 +63,7 @@ export class FlagEngineService {
     private readonly awards: AwardsService,
     private readonly vendors: EntityResolutionService,
     private readonly influence: InfluenceMapService,
+    private readonly disclosures: DisclosuresService,
   ) {}
 
   private q<T = any>(sql: string, params?: any[]): Promise<T> {
@@ -84,7 +86,10 @@ export class FlagEngineService {
       sub_agency    text,
       award_value   numeric(20,2) NOT NULL,
       award_date    date NOT NULL,
-      trade_id      uuid,
+      -- Text, not uuid: a flag now points at a disclosure line whose id is
+      -- built from the filing's own facts (member, ticker, date, owner) so the
+      -- same line cannot be stored twice.
+      trade_id      text,
       trade_date    date,
       trade_action  varchar(10),
       trade_value   numeric(18,2),
@@ -104,6 +109,9 @@ export class FlagEngineService {
       created_at    timestamptz NOT NULL DEFAULT now(),
       updated_at    timestamptz NOT NULL DEFAULT now()
     )`);
+    // Existing deployments created this column as uuid before the flag engine
+    // moved onto the household disclosure record.
+    await this.q(`ALTER TABLE ct_flags ALTER COLUMN trade_id TYPE text USING trade_id::text`).catch(() => {});
     await this.q(`CREATE INDEX IF NOT EXISTS ct_flags_score_idx ON ct_flags (score DESC NULLS LAST)`);
     await this.q(`CREATE INDEX IF NOT EXISTS ct_flags_member_idx ON ct_flags (lower(member))`);
     await this.q(`CREATE INDEX IF NOT EXISTS ct_flags_ticker_idx ON ct_flags (ticker)`);
@@ -244,48 +252,71 @@ export class FlagEngineService {
    * quickly anything was known.
    */
   private async holdersOf(ticker: string, awardDate: string, windowDays: number) {
-    const rows: any[] = await this.q(
-      `SELECT id, "politicianName" AS member, party, chamber, action,
-              "transactionDate" AS trade_date, "reportedDate" AS reported_date,
-              "amountMin"::float8 AS amin, "amountMax"::float8 AS amax
-         FROM congressional_transactions
-        WHERE ticker = $1
-          AND "transactionDate" BETWEEN ($2::date - ($3 || ' days')::interval)
-                                    AND ($2::date + ($3 || ' days')::interval)
-        ORDER BY "transactionDate" DESC
-        LIMIT 200`,
-      [ticker, awardDate, String(windowDays)],
+    // Household, from the disclosure record: the owner of the account and the
+    // link to the filing both live there, and §7 P1 will not accept a flag
+    // whose evidence chain has no document to open.
+    const trades = await this.disclosures.householdTrades(ticker, awardDate, windowDays);
+    const byMember = new Map<string, any>();
+    for (const t of trades) {
+      // One row per member per ticker: the strongest disclosure wins, and a
+      // purchase before the award is what §3 scores highest.
+      const key = nameKey(t.member);
+      const prev = byMember.get(key);
+      if (prev && Math.abs(Date.parse(prev.tradeDate) - Date.parse(awardDate)) <=
+                  Math.abs(Date.parse(t.transactionDate) - Date.parse(awardDate))) continue;
+      byMember.set(key, {
+        tradeId: t.id,
+        member: t.member,
+        party: null,
+        chamber: t.chamber,
+        action: t.action,
+        owner: t.owner,
+        tradeDate: t.transactionDate,
+        reportedDate: t.disclosureDate,
+        sourceUrl: t.sourceUrl,
+        tradeValue: midpoint(t.amountMin, t.amountMax),
+        amountMin: t.amountMin,
+        amountMax: t.amountMax,
+        holdingOnly: false,
+      });
+    }
+
+    // §2's flag condition is "holds OR traded". A household with no trade in
+    // the window can still hold the stock, and the brief's default is
+    // "holdings current at award date" — so every member who has ever
+    // disclosed buying this ticker is checked for a surviving position.
+    const everHeld: any[] = await this.q(
+      `SELECT DISTINCT member FROM ct_disclosures WHERE ticker = upper($1) AND action = 'Buy'
+         AND transaction_date <= $2::date LIMIT 200`,
+      [ticker, awardDate],
     );
-    return rows.map((r) => ({
-      tradeId: r.id as string,
-      member: r.member as string,
-      party: r.party as string | null,
-      chamber: r.chamber as string | null,
-      action: r.action as string,
-      tradeDate: isoOf(r.trade_date),
-      reportedDate: isoOf(r.reported_date),
-      // §5: "every amount is labeled an estimate from the disclosed range" —
-      // the midpoint is the estimate, and the range is kept in the evidence.
-      tradeValue: midpoint(r.amin, r.amax),
-      amountMin: r.amin as number | null,
-      amountMax: r.amax as number | null,
-    }));
+    for (const h of everHeld) {
+      if (byMember.has(nameKey(h.member))) continue;
+      const pos = await this.disclosures.positionAt(h.member, ticker, awardDate);
+      if (!pos) continue;
+      byMember.set(nameKey(h.member), {
+        tradeId: null,
+        member: h.member,
+        party: null,
+        chamber: null,
+        action: null,
+        owner: pos.owners[0] ?? 'unknown',
+        tradeDate: null,
+        reportedDate: null,
+        sourceUrl: null,
+        tradeValue: pos.netValue,
+        amountMin: null,
+        amountMax: null,
+        holdingOnly: true,
+        position: pos,
+      });
+    }
+    return [...byMember.values()];
   }
 
   /** That member's typical disclosed trade, for §3's position-size factor. */
   private async medianTrade(member: string): Promise<number | null> {
-    const r = (
-      await this.q(
-        `SELECT percentile_cont(0.5) WITHIN GROUP (
-                  ORDER BY (COALESCE("amountMin",0) + COALESCE("amountMax","amountMin"))/2.0
-                )::float8 AS med
-           FROM congressional_transactions
-          WHERE lower("politicianName") = lower($1) AND "amountMin" IS NOT NULL`,
-        [member],
-      )
-    )?.[0];
-    const v = Number(r?.med);
-    return isFinite(v) && v > 0 ? v : null;
+    return this.disclosures.medianTrade(member);
   }
 
   private async revenueOf(ticker: string): Promise<number | null> {
@@ -310,14 +341,31 @@ export class FlagEngineService {
     // any public surface to every underlying document."
     const evidence = {
       trade: {
-        source: 'House/Senate periodic transaction report',
+        source: x.holder.holdingOnly
+          ? 'Position derived from disclosed purchases and sales'
+          : 'House/Senate periodic transaction report',
+        url: x.holder.sourceUrl ?? null,
         member: x.holder.member,
         action: x.holder.action,
+        // §2 Stage 1 aggregates the household, so the account is named rather
+        // than left to imply the member traded personally.
+        owner: x.holder.owner,
         transactionDate: x.holder.tradeDate,
         disclosureDate: x.holder.reportedDate,
         disclosedRange:
           x.holder.amountMin != null ? { min: x.holder.amountMin, max: x.holder.amountMax } : null,
         estimateNote: 'Amount is the midpoint of the disclosed range.',
+        derivedHolding: x.holder.holdingOnly
+          ? {
+              netValue: x.holder.position?.netValue ?? null,
+              buys: x.holder.position?.buys ?? null,
+              sells: x.holder.position?.sells ?? null,
+              firstBought: x.holder.position?.firstBought ?? null,
+              note:
+                'No trade in the window. This position is derived from the household’s disclosed ' +
+                'purchases net of sales, not read from an annual disclosure form.',
+            }
+          : null,
       },
       committee: {
         source: 'unitedstates/congress-legislators committee-membership-current',

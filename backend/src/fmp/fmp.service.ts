@@ -41,6 +41,15 @@ export interface FmpCongressTrade {
   amountMax: number | null;
   transactionDate: string;
   reportedDate: string;
+  /** Which household account the asset sits in — "Self", "Spouse", "Joint",
+   *  "Dependent". Brief v5 §2 Stage 1 aggregates a member's household, and a
+   *  spouse's account is disclosed on the member's own report precisely
+   *  because the law treats it as theirs. */
+  owner: string | null;
+  /** The filing this line came from. Brief v5 §7 P1 accepts a flag only when
+   *  its evidence chain is "complete and clickable", and the trade leg has no
+   *  document to open without this. */
+  sourceUrl: string | null;
 }
 
 /** A normalized insider Form 4 transaction from FMP's market-wide feed. */
@@ -660,6 +669,8 @@ export class FmpService {
       amountMax: max,
       transactionDate: r.transactionDate || r.disclosureDate,
       reportedDate: r.disclosureDate || r.transactionDate,
+      owner: r.owner ? String(r.owner) : null,
+      sourceUrl: r.link ? String(r.link) : null,
     };
   }
 

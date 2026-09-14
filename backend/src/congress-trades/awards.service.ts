@@ -40,6 +40,7 @@ const FIELDS = [
   'Award ID', 'Recipient Name', 'Recipient UEI', 'Awarding Agency',
   'Awarding Sub Agency', 'Award Amount', 'Base Obligation Date', 'Start Date',
   'Description', 'recipient_id', 'generated_internal_id', 'Last Modified Date',
+  'Contract Award Type',
 ];
 
 export interface AwardRow {
@@ -54,6 +55,8 @@ export interface AwardRow {
   actionDate: string;
   description: string | null;
   lastModified: string | null;
+  /** §2 Stage 2 asks for the "award type (new, modification, IDV)". */
+  awardType: string | null;
 }
 
 @Injectable()
@@ -80,10 +83,14 @@ export class AwardsService {
       amount         numeric(20,2) NOT NULL,
       action_date    date NOT NULL,
       description    text,
+      award_type     varchar(48),
       last_modified  timestamptz,
       seen_at        timestamptz NOT NULL DEFAULT now(),
       updated_at     timestamptz NOT NULL DEFAULT now()
     )`);
+    // Added after the table shipped, so existing deployments migrate on boot
+    // rather than needing a hand-run migration.
+    await this.q(`ALTER TABLE ct_awards ADD COLUMN IF NOT EXISTS award_type varchar(48)`);
     await this.q(`CREATE INDEX IF NOT EXISTS ct_awards_date_idx ON ct_awards (action_date DESC)`);
     await this.q(`CREATE INDEX IF NOT EXISTS ct_awards_uei_idx ON ct_awards (recipient_uei)`);
     await this.q(`CREATE INDEX IF NOT EXISTS ct_awards_agency_idx ON ct_awards (agency)`);
@@ -155,30 +162,35 @@ export class AwardsService {
     let fetched = 0;
     let stored = 0;
 
+    // One builder for the request, because the body used to be written out
+    // twice — once for the call and once for its retry — and a filter fixed in
+    // one of them would silently not apply to the other.
+    const body = (page: number) => ({
+      filters: {
+        award_type_codes: AWARD_TYPE_CODES,
+        time_period: [
+          {
+            start_date: from.toISOString().slice(0, 10),
+            end_date: to.toISOString().slice(0, 10),
+            date_type: 'new_awards_only',
+          },
+        ],
+        // `award_amounts`, PLURAL. USAspending accepts the singular without
+        // complaint, ignores it, and says so only in a `messages` array nobody
+        // reads: a live check came back with $1,211 awards against a $1M floor.
+        // §2's materiality filter was not being applied at all.
+        award_amounts: [{ lower_bound: minAwardValue }],
+      },
+      fields: FIELDS,
+      limit: 100,
+      page,
+    });
+
     while (page <= maxPages) {
       let results: any[] = [];
       let hasNext = false;
       try {
-        const { data } = await axios.post(
-          SEARCH_URL,
-          {
-            filters: {
-              award_type_codes: AWARD_TYPE_CODES,
-              time_period: [
-                {
-                  start_date: from.toISOString().slice(0, 10),
-                  end_date: to.toISOString().slice(0, 10),
-                  date_type: 'new_awards_only',
-                },
-              ],
-              award_amount: [{ lower_bound: minAwardValue }],
-            },
-            fields: FIELDS,
-            limit: 100,
-            page,
-          },
-          { timeout: 90_000 },
-        );
+        const { data } = await axios.post(SEARCH_URL, body(page), { timeout: 90_000 });
         results = data?.results || [];
         hasNext = !!data?.page_metadata?.hasNext;
       } catch (e: any) {
@@ -188,26 +200,7 @@ export class AwardsService {
         // One retry, because a single slow response should not cost the night.
         this.log.warn(`USAspending page ${page} failed (${e?.message || e}) — retrying once`);
         try {
-          const { data } = await axios.post(
-            SEARCH_URL,
-            {
-              filters: {
-                award_type_codes: AWARD_TYPE_CODES,
-                time_period: [
-                  {
-                    start_date: from.toISOString().slice(0, 10),
-                    end_date: to.toISOString().slice(0, 10),
-                    date_type: 'new_awards_only',
-                  },
-                ],
-                award_amount: [{ lower_bound: minAwardValue }],
-              },
-              fields: FIELDS,
-              limit: 100,
-              page,
-            },
-            { timeout: 120_000 },
-          );
+          const { data } = await axios.post(SEARCH_URL, body(page), { timeout: 120_000 });
           results = data?.results || [];
           hasNext = !!data?.page_metadata?.hasNext;
         } catch (e2: any) {
@@ -221,6 +214,11 @@ export class AwardsService {
         fetched++;
         const row = shape(r);
         if (!row) continue;
+        // Belt as well as braces on the materiality floor: this filter was
+        // silently dropped by the API once already, and a feed of $1,200
+        // awards would bury the leaderboard rather than break it, which is
+        // the kind of failure nobody notices.
+        if (row.amount < minAwardValue) continue;
         await this.upsert(row);
         stored++;
       }
@@ -236,8 +234,8 @@ export class AwardsService {
     await this.q(
       `INSERT INTO ct_awards
          (award_key, award_id, recipient_name, recipient_uei, recipient_id, agency, sub_agency,
-          amount, action_date, description, last_modified, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())
+          amount, action_date, description, award_type, last_modified, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
        ON CONFLICT (award_key) DO UPDATE SET
          -- A modification of an award we already hold updates it in place.
          -- This is the de-dup §2 asks for, done on USAspending's own identity
@@ -246,11 +244,12 @@ export class AwardsService {
          agency = EXCLUDED.agency,
          sub_agency = EXCLUDED.sub_agency,
          description = COALESCE(EXCLUDED.description, ct_awards.description),
+         award_type = COALESCE(EXCLUDED.award_type, ct_awards.award_type),
          last_modified = EXCLUDED.last_modified,
          updated_at = now()`,
       [
         a.awardKey, a.awardId, a.recipientName, a.recipientUei, a.recipientId,
-        a.agency, a.subAgency, a.amount, a.actionDate, a.description, a.lastModified,
+        a.agency, a.subAgency, a.amount, a.actionDate, a.description, a.awardType, a.lastModified,
       ],
     );
   }
@@ -260,7 +259,7 @@ export class AwardsService {
     await this.ensureTables();
     const rows: any[] = await this.q(
       `SELECT award_key, award_id, recipient_name, recipient_uei, recipient_id, agency, sub_agency,
-              amount::float8 AS amount, action_date, description, last_modified
+              amount::float8 AS amount, action_date, description, award_type, last_modified
          FROM ct_awards
         WHERE action_date >= (now() - ($1 || ' days')::interval)::date
         ORDER BY action_date DESC
@@ -278,6 +277,7 @@ export class AwardsService {
       amount: Number(r.amount),
       actionDate: iso(r.action_date)!,
       description: r.description,
+      awardType: r.award_type ?? null,
       lastModified: r.last_modified ? iso(r.last_modified) : null,
     }));
   }
@@ -287,7 +287,7 @@ export class AwardsService {
     const r = (
       await this.q(
         `SELECT award_key, award_id, recipient_name, recipient_uei, recipient_id, agency, sub_agency,
-                amount::float8 AS amount, action_date, description, last_modified
+                amount::float8 AS amount, action_date, description, award_type, last_modified
            FROM ct_awards WHERE award_key = $1`,
         [awardKey],
       )
@@ -297,7 +297,8 @@ export class AwardsService {
       awardKey: r.award_key, awardId: r.award_id, recipientName: r.recipient_name,
       recipientUei: r.recipient_uei, recipientId: r.recipient_id, agency: r.agency,
       subAgency: r.sub_agency, amount: Number(r.amount), actionDate: iso(r.action_date)!,
-      description: r.description, lastModified: r.last_modified ? iso(r.last_modified) : null,
+      description: r.description, awardType: r.award_type ?? null,
+      lastModified: r.last_modified ? iso(r.last_modified) : null,
     };
   }
 
@@ -359,8 +360,27 @@ function shape(r: any): AwardRow | null {
     amount,
     actionDate,
     description: r?.Description ? String(r.Description).slice(0, 4000) : null,
+    awardType: awardTypeOf(r, awardKey),
     lastModified: r?.['Last Modified Date'] ? String(r['Last Modified Date']) : null,
   };
+}
+
+/**
+ * §2 Stage 2 wants the award type. USAspending returns it as "Contract Award
+ * Type" — verified live, it carries values like "DELIVERY ORDER" and "BPA
+ * CALL"; the neighbouring "Award Type" field is null for contracts and belongs
+ * to assistance awards.
+ *
+ * When it is absent the identifier still tells us the shape: USAspending
+ * prefixes an indefinite-delivery vehicle `CONT_IDV_` and a contract award
+ * `CONT_AWD_`, which is the new-versus-IDV distinction the brief names.
+ */
+function awardTypeOf(r: any, awardKey: string): string | null {
+  const stated = r?.['Contract Award Type'];
+  if (stated) return String(stated).slice(0, 48);
+  if (/^CONT_IDV_/i.test(awardKey)) return 'IDV';
+  if (/^CONT_AWD_/i.test(awardKey)) return 'CONTRACT AWARD';
+  return null;
 }
 
 function iso(v: any): string | null {

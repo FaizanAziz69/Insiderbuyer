@@ -9,6 +9,8 @@
  * from the live payload on every read so evergreen sentences stay true.
  */
 
+import { STANDING_FRAME } from '../congress-trades/cts';
+
 export interface ArticleSections {
   /** "The numbers that matter" takeaway box. */
   takeaways: string[];
@@ -26,7 +28,7 @@ export interface ArticleSeed {
   dek: string;
   category: string;
   refresh: 'weekly' | 'monthly' | 'quarterly';
-  chart: 'insider-buys' | 'insider-sells' | 'analysts' | 'hedge-funds';
+  chart: 'insider-buys' | 'insider-sells' | 'analysts' | 'hedge-funds' | 'congress-proximity' | 'congress-flags';
   periods: string[];
   sections: ArticleSections;
 }
@@ -277,6 +279,148 @@ export const LAUNCH_ARTICLES: ArticleSeed[] = [
         { audience: 'Professionals', text: 'Returns are value-weighted, rebalanced at filing dates, and cover the top 100 positions by value; the methodology page documents every step.' },
       ],
       cta: { headline: 'Track every position, every quarter', body: 'Premium members get complete holdings for all tracked managers, quarter-over-quarter changes, and alerts when a tracked fund&rsquo;s holding also draws open-market insider buying.' },
+    },
+  },
+
+  /**
+   * Programmatic Guide format #19 — Brief v5 §4, "Members of Congress holding
+   * stocks their committees' agencies just awarded" (weekly rolling screen).
+   *
+   * Every sentence here is bound by v5 §5, which is why the copy states only
+   * what the three public records say and never why anyone did anything. The
+   * standing frame is imported rather than retyped so the article and the
+   * leaderboard page can never end up saying different things about what the
+   * ranking means.
+   */
+  {
+    slug: 'members-of-congress-holding-stocks-their-committees-agencies-awarded',
+    headline: 'Which members of Congress hold stocks their committees&rsquo; agencies just awarded?',
+    dek: 'A weekly screen of the places where three public records meet: a disclosed congressional stock trade, a committee with jurisdiction over a federal agency, and a contract that agency awarded to the company.',
+    category: 'Congress',
+    refresh: 'weekly',
+    chart: 'congress-proximity',
+    periods: ['30d', '90d'],
+    sections: {
+      takeaways: [
+        '{{flags}} verified rows in the {{period}}, covering {{members}} members of Congress and {{companies}} companies.',
+        'The awards behind them total {{total}} across {{agencies}} federal agencies.',
+        'The highest-ranking row is {{top1.member}} — {{top1.committee}} — against a {{top1.award}} award to {{top1.ticker}}, scoring {{top1.cts}} out of 100.',
+        'Every row here has passed independent re-verification against the original filing, the committee record and the award record.',
+      ],
+      body: [
+        {
+          heading: 'What has to be true before a row appears',
+          html: '<p>Three separate public records have to line up. A member of Congress disclosed a trade in a company, or reports holding it. A federal agency awarded that company a contract. And the member sits on a committee or subcommittee with jurisdiction over that agency. Miss any one of the three and there is no row.</p>',
+        },
+        {
+          heading: 'What the ranking measures',
+          html: '<p>The Congress Trade Score is a 0&ndash;100 measure of how closely those records sit together. It weighs the member&rsquo;s role on the committee, the gap between the trade date and the award date, the size of the position against that member&rsquo;s usual trade, and how large the contract is relative to the company. It is a measure of proximity between disclosed facts, and nothing else.</p>',
+        },
+        {
+          heading: 'The standing frame',
+          html: `<p>${STANDING_FRAME}</p>`,
+        },
+        {
+          heading: 'Dates mean two different things',
+          html: '<p>A periodic transaction report carries a transaction date and a disclosure date, and they can be up to 45 days apart. Both are shown on every row, because the second is when the trade became public and the first is when it happened. Reading one as the other would misstate the sequence.</p>',
+        },
+        {
+          heading: 'Amounts are ranges, not figures',
+          html: '<p>Congressional disclosure reports a band rather than an exact number &mdash; $1,001 to $15,000, $15,001 to $50,000, and so on. Every dollar figure attached to a trade on this page is the midpoint of the disclosed band, and it is labelled as an estimate wherever it appears.</p>',
+        },
+        {
+          heading: 'Where the award figures come from',
+          html: '<p>Contract values are the total obligated amount on the award record published by USAspending.gov, the federal government&rsquo;s own spending database. Each row links straight to that record, so the number on the page can be checked against the source in one click.</p>',
+        },
+        {
+          heading: 'How jurisdiction is decided',
+          html: '<p>Committee assignments come from the public congressional roster, including subcommittee seats and each member&rsquo;s title. The mapping from a committee to the agencies it oversees or funds is maintained by our editorial team and versioned, and every row records which version of that mapping was used to judge it.</p>',
+        },
+        {
+          heading: 'What this screen does not tell you',
+          html: '<p>It does not tell you why a trade was made, what anyone understood at the time, or whether a contract and a trade have anything to do with one another. Members of Congress may lawfully own and trade stocks. This page reports that two public records sit close together in time and subject, and leaves the reader to make of that what they will.</p>',
+        },
+        {
+          heading: 'How often this page updates',
+          html: '<p>The screen is rebuilt every Friday after the close. Rows are also re-checked against their original sources on a rolling schedule, and a row whose supporting record changes is corrected or removed automatically, with the change logged.</p>',
+        },
+      ],
+      pullQuote: {
+        text: 'Three public records, each meaningless alone. The product is the join, not the conclusion.',
+        attribution: 'InsiderBuying.com editorial standard',
+      },
+      whatItMeans: [
+        { audience: 'Readers following a member', text: 'Open the evidence panel on any row. It links to the disclosure, the committee record and the award record, so you can read the primary sources rather than our summary of them.' },
+        { audience: 'Shareholders', text: 'The company column is the practical one: it shows which listed contractors currently appear alongside congressional holdings, and the agency that awarded the work.' },
+        { audience: 'Researchers and journalists', text: 'Every figure traces to a public record and every row carries the version of the jurisdiction mapping used to judge it, so a row can be reconstructed exactly as it was published.' },
+      ],
+      cta: { headline: 'See every row and its sources', body: 'Premium members see the full ranked table beyond the free rows, the score behind each one, and an alert when a new row is verified above their chosen threshold.' },
+    },
+  },
+  /**
+   * Programmatic Guide format #20 — Brief v5 §4, "per-event flag pages".
+   *
+   * The prose below is the TEMPLATE for a single event: every sentence is
+   * built from {{placeholders}} that the live payload fills, so one format
+   * serves every event without a person writing about a named politician by
+   * hand. §5 applies with full force here, because these are the pages that
+   * name one individual rather than list many.
+   */
+  {
+    slug: 'congress-committee-contract-flags',
+    headline: 'Congress, committees and contracts: the latest verified rows',
+    dek: 'One entry for each verified place where a congressional disclosure, a committee jurisdiction and a federal contract award meet, newest first, each with its complete evidence trail.',
+    category: 'Congress',
+    refresh: 'weekly',
+    chart: 'congress-flags',
+    periods: ['30d', '90d'],
+    sections: {
+      takeaways: [
+        '{{flags}} verified entries in the {{period}}.',
+        'Most recent: {{top1.member}} and {{top1.ticker}}, against a {{top1.award}} award from {{top1.agency}}.',
+        'Each entry carries the disclosure record, the committee record and the award record.',
+        'Entries are re-checked against their sources on a rolling schedule and corrected when a source changes.',
+      ],
+      body: [
+        {
+          heading: 'How to read an entry',
+          html: '<p>Each entry names the member, the committee seat that gives their committee jurisdiction over the awarding agency, the company, and the contract. The three source links sit beneath it. Nothing in an entry is our characterisation; each line restates a record that already exists in public.</p>',
+        },
+        {
+          heading: 'The standing frame',
+          html: `<p>${STANDING_FRAME}</p>`,
+        },
+        {
+          heading: 'The most recent entry',
+          html: '<p>{{top1.member}} sits on the {{top1.committee}}, which has jurisdiction over {{top1.agency}}. That agency awarded {{top1.award}} to {{top1.ticker}}. The disclosure and the award record are linked on the entry itself, along with the date each one carries.</p>',
+        },
+        {
+          heading: 'The two numbers in an entry are not the same kind of number',
+          html: '<p>The contract figure is exact: it is the obligated amount on the federal award record. The trade figure is not. Congressional disclosure reports a band rather than an amount, so the trade figure in every entry is the midpoint of the disclosed band and is labelled an estimate wherever it appears.</p>',
+        },
+        {
+          heading: 'Why a trade date and a disclosure date are both shown',
+          html: '<p>Congressional filing rules allow up to 45 days between a transaction and its disclosure. An entry shows both dates so the sequence is unambiguous, and the score treats a trade placed before an award differently from one placed after it, because the two are not the same fact.</p>',
+        },
+        {
+          heading: 'Why an entry can disappear',
+          html: '<p>Filings get amended and award records get corrected. When a supporting record changes so that one of the three legs no longer holds &mdash; a position sold in an amended filing, an award cancelled, a member leaving the committee &mdash; the entry is withdrawn automatically and the reason is logged. Corrections appear on the entry with the date they were made.</p>',
+        },
+        {
+          heading: 'Reporting an error',
+          html: '<p>Every entry carries a way to report an error. A report is checked against the primary sources, a clear mismatch is corrected, and anything that would change what an entry says about a person is reviewed by an editor before it changes. The reader who reported it is told the outcome.</p>',
+        },
+      ],
+      pullQuote: {
+        text: 'An entry is a citation, not a conclusion. Read the three records it links to.',
+        attribution: 'InsiderBuying.com editorial standard',
+      },
+      whatItMeans: [
+        { audience: 'Readers', text: 'Follow the three source links before forming a view. They are the same records we used.' },
+        { audience: 'The people named', text: 'Every entry has a correction path, and a report is checked against the original filing rather than against our copy of it.' },
+        { audience: 'Researchers', text: 'Entries are dated, versioned against the jurisdiction mapping in force, and retain their correction history.' },
+      ],
+      cta: { headline: 'Follow the full record', body: 'Premium members see every verified entry, the score behind each, and an alert when a new one is published above their chosen threshold.' },
     },
   },
 ];

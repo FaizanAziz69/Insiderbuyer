@@ -267,12 +267,27 @@ export default function TopCongressTradesPage() {
         />
       </div>
 
+      {/* §4: "Free tier shows the top of the leaderboard; full ranking history
+          + scores behind Premium wall." Note the direction — unlike the other
+          paygated lists on this site, which count DOWN so the biggest names
+          sit behind the wall, the brief puts the TOP of this leaderboard in
+          front of it. A reader is meant to see the highest-scoring rows and
+          pay for the depth, not be shown the tail. */}
       <DataTable
         rows={rows}
         columns={columns}
         rowKey={(r) => String(r.id)}
         initialSort={{ key: "score", dir: "desc" }}
         empty={isLoading ? "Loading verified rows…" : "No verified rows match these filters yet."}
+        gate={{
+          label: "Top Congress Trades",
+          bullets: [
+            "The full ranking, not just the top of the board",
+            "Every score and how each one is made up",
+            "The complete evidence chain on every row",
+            "New flags as they clear verification",
+          ],
+        }}
       />
 
       {open != null && rows.find((r) => r.id === open) ? (

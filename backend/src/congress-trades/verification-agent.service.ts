@@ -46,7 +46,22 @@ import { checkCopy } from './cts';
 
 const AWARD_URL = 'https://api.usaspending.gov/api/v2/awards/';
 
+/**
+ * How many rows count as "on the public leaderboard" for §2 Stage 5's daily
+ * re-verification tier. Matches the depth a reader can reach on the page; any
+ * row below it is archive and rotates weekly.
+ */
+const LEADERBOARD_ROWS = 100;
+
 export type Severity = 'a' | 'b' | 'c';
+
+/** Column names are not reader-facing; a correction note must read as English. */
+const FIELD_LABEL: Record<string, string> = {
+  award_value: 'Award value',
+  award_date: 'Award date',
+  agency: 'Awarding agency',
+  trade_date: 'Transaction date',
+};
 
 @Injectable()
 export class VerificationAgentService {
@@ -124,7 +139,11 @@ export class VerificationAgentService {
    * published rows are re-checked oldest-verification-first rather than by id:
    * the row closest to breaching the target is always the next one done.
    */
-  async verify(limit = 60, mode: 'pending' | 'live' = 'pending') {
+  async verify(
+    limit = 60,
+    mode: 'pending' | 'live' = 'pending',
+    tier: 'daily' | 'weekly' = 'daily',
+  ) {
     await this.ensureTables();
     const rows: any[] =
       mode === 'pending'
@@ -132,11 +151,35 @@ export class VerificationAgentService {
             `SELECT * FROM ct_flags WHERE status = 'pending' ORDER BY score DESC NULLS LAST LIMIT $1`,
             [limit],
           )
-        : await this.q(
-            `SELECT * FROM ct_flags WHERE status = 'verified'
-              ORDER BY verified_at ASC NULLS FIRST LIMIT $1`,
-            [limit],
-          );
+        : tier === 'daily'
+          ? // §2 Stage 5 re-checks "daily for rows on the public leaderboard,
+            // weekly for archive", so the daily tier is exactly what a reader
+            // can currently see: the same ordering the leaderboard query uses,
+            // top LEADERBOARD_ROWS. Treating every verified row alike meant a
+            // row on page one waited behind an archive of rows nobody was
+            // looking at.
+            await this.q(
+              `SELECT * FROM (
+                 SELECT * FROM ct_flags WHERE status = 'verified'
+                  ORDER BY score DESC NULLS LAST, award_value DESC
+                  LIMIT ${LEADERBOARD_ROWS}
+               ) live
+               ORDER BY verified_at ASC NULLS FIRST LIMIT $1`,
+              [limit],
+            )
+          : // The archive: everything verified that is NOT on the leaderboard,
+            // oldest verification first so a full rotation completes.
+            await this.q(
+              `SELECT * FROM ct_flags
+                WHERE status = 'verified'
+                  AND id NOT IN (
+                    SELECT id FROM ct_flags WHERE status = 'verified'
+                     ORDER BY score DESC NULLS LAST, award_value DESC
+                     LIMIT ${LEADERBOARD_ROWS}
+                  )
+                ORDER BY verified_at ASC NULLS FIRST LIMIT $1`,
+              [limit],
+            );
 
     let passed = 0;
     let corrected = 0;
@@ -151,7 +194,7 @@ export class VerificationAgentService {
       else queued++;
     }
     this.log.log(
-      `verification (${mode}): ${rows.length} rows — ${passed} passed, ${corrected} corrected, ${retired} retired, ${queued} queued for a human`,
+      `verification (${mode === 'live' ? tier : mode}): ${rows.length} rows — ${passed} passed, ${corrected} corrected, ${retired} retired, ${queued} queued for a human`,
     );
     return { checked: rows.length, passed, corrected, retired, queued };
   }
@@ -245,6 +288,29 @@ export class VerificationAgentService {
         await this.q(`UPDATE ct_flags SET ${d.field} = $1, updated_at = now() WHERE id = $2`, [d.after, row.id]);
         await this.audit(row.id, 'agent', 'auto-correct', 'a', d.field, d.before, d.after,
           'Corrected to match the primary source record.');
+        // §5: "fix + dated correction note on the page". The audit table is
+        // the internal record; this is the half the reader sees, so it travels
+        // on the row itself and shows up wherever the row is shown.
+        await this.q(
+          `UPDATE ct_flags
+              SET evidence = jsonb_set(
+                    evidence, '{corrections}',
+                    COALESCE(evidence->'corrections', '[]'::jsonb) || $1::jsonb, true),
+                  updated_at = now()
+            WHERE id = $2`,
+          [
+            JSON.stringify([
+              {
+                at: new Date().toISOString().slice(0, 10),
+                field: d.field,
+                from: d.before,
+                to: d.after,
+                note: `${FIELD_LABEL[d.field] || d.field} updated to match the primary source record.`,
+              },
+            ]),
+            row.id,
+          ],
+        );
       }
       corrected(this.log, row, drift);
     }

@@ -21,6 +21,7 @@ import { EntityResolutionService } from './entity-resolution.service';
 import { InfluenceMapService } from './influence-map.service';
 import { FlagEngineService } from './flag-engine.service';
 import { VerificationAgentService } from './verification-agent.service';
+import { DisclosuresService } from './disclosures.service';
 
 async function main() {
   const url = process.argv[2] || process.env.CT_TEST_DB;
@@ -38,7 +39,9 @@ async function main() {
   const awards = new AwardsService(repo);
   const vendors = new EntityResolutionService(repo, awards);
   const influence = new InfluenceMapService(repo);
-  const flags = new FlagEngineService(repo, awards, vendors, influence);
+  const fmpStub: any = { getCongressional: async () => [] };
+  const disclosures = new DisclosuresService(repo, fmpStub);
+  const flags = new FlagEngineService(repo, awards, vendors, influence, disclosures);
   const agent = new VerificationAgentService(repo);
 
   // The engine joins against the congress trade table and the company
@@ -58,7 +61,7 @@ async function main() {
   // this sample cannot make a later one fail on a missing relation.
   await Promise.all([
     influence.ensureTables(), awards.ensureTables(), vendors.ensureTables(),
-    flags.ensureTables(), agent.ensureTables(),
+    flags.ensureTables(), agent.ensureTables(), disclosures.ensureTables(),
   ]);
 
   // ── Stage 1 ──────────────────────────────────────────────────────────
@@ -143,9 +146,11 @@ async function main() {
       console.log(`         no member has jurisdiction over ${w.sub_agency || w.agency} in the seed table`);
     } else {
       await client.query(
-        `INSERT INTO congressional_transactions
-           ("politicianName", chamber, party, ticker, "companyName", action, "amountMin", "amountMax", "transactionDate", "reportedDate")
-         VALUES ($1,'House','Democrat',$2,$3,'Buy',100000,250000,($4::date - 21),($4::date + 20))`,
+        `INSERT INTO ct_disclosures
+           (id, member, chamber, owner, ticker, action, amount_min, amount_max,
+            transaction_date, disclosure_date, source_url)
+         VALUES ('harness|' || $2 || '|' || $4, $1, 'House', 'self', $2, 'Buy', 100000, 250000,
+                 ($4::date - 21), ($4::date + 20), 'https://disclosures-clerk.house.gov/')`,
         [seat[0].member, w.ticker, w.listed_name || w.ticker, w.action_date],
       );
       await client.query(`INSERT INTO bubbles_cache (symbol, "revenueTtm") VALUES ($1, 2000000000)`, [w.ticker]);

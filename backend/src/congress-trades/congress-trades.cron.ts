@@ -4,6 +4,7 @@ import { AwardsService } from './awards.service';
 import { BoardRosterService } from './board-roster.service';
 import { EntityResolutionService } from './entity-resolution.service';
 import { FlagEngineService } from './flag-engine.service';
+import { DisclosuresService } from './disclosures.service';
 import { InfluenceMapService } from './influence-map.service';
 import { VerificationAgentService } from './verification-agent.service';
 
@@ -23,6 +24,7 @@ export class CongressTradesCronService implements OnModuleInit {
   constructor(
     private readonly influence: InfluenceMapService,
     private readonly awards: AwardsService,
+    private readonly disclosures: DisclosuresService,
     private readonly vendors: EntityResolutionService,
     private readonly flags: FlagEngineService,
     private readonly board: BoardRosterService,
@@ -36,6 +38,7 @@ export class CongressTradesCronService implements OnModuleInit {
       await this.influence.ensureTables();
       await this.influence.seedIfEmpty();
       await this.awards.ensureTables();
+      await this.disclosures.ensureTables();
       await this.vendors.ensureTables();
       await this.flags.ensureTables();
       await this.board.ensureTables();
@@ -49,6 +52,9 @@ export class CongressTradesCronService implements OnModuleInit {
   async nightly() {
     try {
       await this.influence.refreshAssignments();
+      // Leg 1 before leg 2: the engine needs the household record in place
+      // before it looks for holders of a freshly-ingested award.
+      await this.disclosures.ingest(6);
       await this.awards.ingest(14);
       await this.vendors.resolvePending(400);
       await this.flags.run(180);
@@ -66,9 +72,24 @@ export class CongressTradesCronService implements OnModuleInit {
   @Cron('20 */6 * * *')
   async reverify() {
     try {
-      await this.agent.verify(150, 'live');
+      await this.agent.verify(150, 'live', 'daily');
     } catch (e: any) {
       this.log.error(`re-verification failed: ${e?.message || e}`);
+    }
+  }
+
+  /**
+   * §2 Stage 5's second tier: "weekly for archive". Once a day, a slice of the
+   * rows that are verified but below the leaderboard, oldest first — seven
+   * passes rotate the archive through inside the week the brief asks for,
+   * without competing with the daily tier for the model budget.
+   */
+  @Cron('10 3 * * *')
+  async reverifyArchive() {
+    try {
+      await this.agent.verify(300, 'live', 'weekly');
+    } catch (e: any) {
+      this.log.error(`archive re-verification failed: ${e?.message || e}`);
     }
   }
 }

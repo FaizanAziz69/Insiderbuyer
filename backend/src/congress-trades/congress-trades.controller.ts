@@ -8,6 +8,7 @@ import { EntityResolutionService } from './entity-resolution.service';
 import { FlagEngineService } from './flag-engine.service';
 import { InfluenceMapService } from './influence-map.service';
 import { VerificationAgentService } from './verification-agent.service';
+import { CongressAlertsService } from './alerts.service';
 import { AMOUNT_NOTE, CTS_DEFAULT_WEIGHTS, STANDING_FRAME } from './cts';
 
 /**
@@ -28,6 +29,7 @@ export class CongressTradesController {
     private readonly influence: InfluenceMapService,
     private readonly agent: VerificationAgentService,
     private readonly board: BoardRosterService,
+    private readonly alerts: CongressAlertsService,
   ) {}
 
   // ── Public ─────────────────────────────────────────────────────────────
@@ -91,11 +93,14 @@ export class CongressTradesController {
 
   @Get('status')
   async status() {
-    const [flags, awards, vendors, influence, agent, board] = await Promise.all([
+    const [flags, awards, vendors, influence, agent, board, alerts] = await Promise.all([
       this.flags.status(), this.awards.status(), this.vendors.coverage(),
-      this.influence.status(), this.agent.status(), this.board.status(),
+      this.influence.status(), this.agent.status(), this.board.status(), this.alerts.status(),
     ]);
-    return { flags, awards, vendorResolution: vendors, influence, agent, board, defaultWeights: CTS_DEFAULT_WEIGHTS };
+    return {
+      flags, awards, vendorResolution: vendors, influence, agent, board, alerts,
+      defaultWeights: CTS_DEFAULT_WEIGHTS,
+    };
   }
 
   // ── Pipeline (admin) ───────────────────────────────────────────────────
@@ -131,10 +136,34 @@ export class CongressTradesController {
     return this.board.run(Number(days) || undefined);
   }
 
+  /** §2 Stage 5 re-checks the public leaderboard daily and the archive weekly,
+   *  so `tier` selects which of the two a live pass works through. */
   @Post('admin/verify')
   @UseGuards(AdminTokenGuard)
-  async verify(@Query('limit') limit?: string, @Query('mode') mode?: string) {
-    return this.agent.verify(Number(limit) || undefined, mode === 'live' ? 'live' : 'pending');
+  async verify(
+    @Query('limit') limit?: string,
+    @Query('mode') mode?: string,
+    @Query('tier') tier?: string,
+  ) {
+    return this.agent.verify(
+      Number(limit) || undefined,
+      mode === 'live' ? 'live' : 'pending',
+      tier === 'weekly' ? 'weekly' : 'daily',
+    );
+  }
+
+  /** §4 alerts: premium email plus the internal editorial Slack feed. */
+  @Post('admin/send-alerts')
+  @UseGuards(AdminTokenGuard)
+  async sendAlerts(@Query('limit') limit?: string) {
+    return this.alerts.run(Number(limit) || undefined);
+  }
+
+  /** §7 P3: "alert threshold configurable". */
+  @Put('admin/alert-threshold')
+  @UseGuards(AdminTokenGuard)
+  async setAlertThreshold(@Body() body: { minScore?: number; actor?: string }) {
+    return this.alerts.setThreshold(Number(body?.minScore), body?.actor || 'admin');
   }
 
   @Post('admin/triage-reports')
@@ -231,5 +260,28 @@ export class CongressTradesController {
   @UseGuards(AdminTokenGuard)
   async upsertSeat(@Body() body: any) {
     return this.board.upsertSeat(body || {}, body?.actor || 'admin');
+  }
+
+  /**
+   * §6's filing sources, read for a company and PROPOSED. Nothing this returns
+   * is in the roster: an editor still has to decide that a named director is
+   * an ex-official and which agency they oversaw.
+   */
+  @Post('admin/board-candidates')
+  @UseGuards(AdminTokenGuard)
+  async importBoardCandidates(@Query('ticker') ticker?: string, @Query('max') max?: string) {
+    return this.board.importCandidates(String(ticker || ''), Number(max) || undefined);
+  }
+
+  @Get('admin/board-candidates')
+  @UseGuards(AdminTokenGuard)
+  async boardCandidates(@Query('state') state?: string, @Query('limit') limit?: string) {
+    return this.board.candidates(state || 'pending', Number(limit) || undefined);
+  }
+
+  @Post('admin/board-candidates/:id/dismiss')
+  @UseGuards(AdminTokenGuard)
+  async dismissBoardCandidate(@Param('id') id: string, @Body() body: any) {
+    return this.board.dismissCandidate(Number(id), body?.actor || 'admin');
   }
 }
