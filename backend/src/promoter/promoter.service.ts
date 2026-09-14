@@ -260,6 +260,25 @@ export class PromoterService implements OnModuleInit {
     }
   }
 
+  /**
+   * Kick the pipeline off and return immediately.
+   *
+   * A full pass is minutes, not seconds: newsfilecorp.com is paced at one
+   * request every nine seconds to stay under its WAF, so eighty items is a
+   * quarter of an hour. An admin POST that waits for that dies at the nginx
+   * proxy timeout and leaves the caller unable to tell a slow run from a
+   * failed one. Poll `/promoter/status` instead.
+   */
+  startIngest(limit = 80): { started: boolean; alreadyRunning: boolean } {
+    if (this.ingesting) return { started: false, alreadyRunning: true };
+    void this.ingest(limit).catch((e) => this.log.error(`ingest failed: ${e?.message || e}`));
+    return { started: true, alreadyRunning: false };
+  }
+
+  get running(): boolean {
+    return this.ingesting;
+  }
+
   async ingest(limit = 80): Promise<{ discovered: number; fetched: number; agreements: number; review: number }> {
     if (this.ingesting) return { discovered: 0, fetched: 0, agreements: 0, review: 0 };
     this.ingesting = true;
@@ -944,7 +963,13 @@ export class PromoterService implements OnModuleInit {
               (SELECT count(*)::int FROM ir_issuers WHERE market_cap IS NULL) AS issuers_without_mcap,
               (SELECT max(fetched_at) FROM ir_disclosures) AS last_fetch`,
     );
-    return { ...counts, weights: await this.getWeights(), discovery: this.discovery.status(), reviewThreshold: REVIEW_THRESHOLD };
+    return {
+      ...counts,
+      ingestRunning: this.ingesting,
+      weights: await this.getWeights(),
+      discovery: this.discovery.status(),
+      reviewThreshold: REVIEW_THRESHOLD,
+    };
   }
 
   private async availableQuarters(): Promise<string[]> {

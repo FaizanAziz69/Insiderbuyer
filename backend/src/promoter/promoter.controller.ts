@@ -81,11 +81,12 @@ export class PromoterController {
     return this.svc.status();
   }
 
-  /** Refresh target for the in-process / GitHub schedulers. */
+  /** Refresh target for the in-process / GitHub schedulers. Returns as soon
+   *  as the run starts — a full pass takes minutes (see startIngest). */
   @Get('cron')
   @UseGuards(AdminTokenGuard)
   async cron() {
-    return this.svc.ingest();
+    return this.svc.startIngest();
   }
 
   // ── B2B feed (§2.5) ────────────────────────────────────────────────────
@@ -167,10 +168,14 @@ export class PromoterController {
     return this.svc.setWeights(rest, actor || 'admin');
   }
 
+  /** Starts a run and returns immediately; poll `/promoter/status` for the
+   *  counts. Pass `wait=1` for a short run you want the result of inline. */
   @Post('admin/ingest')
   @UseGuards(AdminTokenGuard)
-  async ingest(@Query('limit') limit?: string) {
-    return this.svc.ingest(Number(limit) || undefined);
+  async ingest(@Query('limit') limit?: string, @Query('wait') wait?: string) {
+    const n = Number(limit) || undefined;
+    if (wait === '1') return this.svc.ingest(n);
+    return this.svc.startIngest(n);
   }
 
   @Post('admin/rescore')
