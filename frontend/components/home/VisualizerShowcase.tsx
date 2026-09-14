@@ -87,6 +87,11 @@ const OTHERS = [
 
 interface Body extends PhysBody {
   t: string;
+  /** What gets drawn in the circle: the ticker without its exchange suffix.
+   *  "1INN.DE" is seven characters and will not fit a 19px bubble at phone
+   *  width, and a bubble with no name at all is the thing George asked us to
+   *  fix. The hover card still carries the full company name. */
+  short: string;
   label: string;
   total: number;
   up: boolean;
@@ -120,12 +125,18 @@ export function VisualizerShowcase() {
   const seed = useCallback(
     (w: number) => {
       if (!w || !bubbles.length) return;
-      const raw = bubbles.map((b) => radiusForDollars(b.total));
+      // Fewer bubbles on a narrow field. The preview is ranked by purchase
+      // dollars, so trimming the tail keeps the biggest buying; cramming all
+      // 44 into a phone-width square drops two of them below the size a
+      // ticker can be read at, and a nameless bubble is the thing George
+      // asked us to fix.
+      const shown = bubbles.slice(0, w < 560 ? 22 : w < 820 ? 32 : 44);
+      const raw = shown.map((b) => radiusForDollars(b.total));
       // Scale the whole field to the band we actually draw in — without this
       // 44 bubbles overflow a 380px strip and jam into the corners.
       const k = fitFactor(raw, w, HEIGHT, 0);
       const prev = new Map(bodiesRef.current.map((b) => [b.t, b]));
-      bodiesRef.current = bubbles.map((b, i) => {
+      bodiesRef.current = shown.map((b, i) => {
         const r = Math.max(8, raw[i] * k);
         const old = prev.get(b.t);
         if (old) {
@@ -133,10 +144,12 @@ export function VisualizerShowcase() {
           old.total = b.total;
           old.up = (b.chg ?? 0) >= 0;
           old.label = b.name || b.t;
+          old.short = b.t.split(".")[0];
           return old;
         }
         return {
           t: b.t,
+          short: b.t.split(".")[0],
           label: b.name || b.t,
           total: b.total,
           up: (b.chg ?? 0) >= 0,
@@ -257,9 +270,9 @@ export function VisualizerShowcase() {
         let fs = Math.max(9, Math.min(15, b.r * 0.46));
         for (; fs >= 8; fs -= 0.5) {
           c.font = `700 ${fs}px ui-sans-serif, system-ui, -apple-system, sans-serif`;
-          if (c.measureText(b.t).width <= room) break;
+          if (c.measureText(b.short).width <= room) break;
         }
-        if (c.measureText(b.t).width <= room) c.fillText(b.t, cx, cy);
+        if (c.measureText(b.short).width <= room) c.fillText(b.short, cx, cy);
       }
     };
     raf = requestAnimationFrame(frame);
