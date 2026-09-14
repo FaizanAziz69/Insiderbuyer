@@ -64,12 +64,18 @@ const SKIP = [
   /\/iqs2\/top-buys/,
 ];
 
+/** Per-route override for the seed budget. A visualizer page IS its dataset
+ *  — one canvas fed by one list — so a sliced seed paints a partial field and
+ *  visibly reflows when the hook revalidates. These payloads gzip to 5–18 KB,
+ *  which is cheaper than the round trip they replace. */
+export const ARENA_MAX_BYTES = 420_000;
+
 /** Slice the dominant array of a list response until it fits the budget.
  *  Works on a bare array or on the largest array-valued field of an object
  *  (`items`, `rows`, `trades`, `data`…); anything else is left alone. */
-function shrink(json: unknown, text: string): unknown | null {
-  if (text.length <= MAX_BYTES) return json;
-  const ratio = MAX_BYTES / text.length;
+function shrink(json: unknown, text: string, budget = MAX_BYTES): unknown | null {
+  if (text.length <= budget) return json;
+  const ratio = budget / text.length;
   if (Array.isArray(json)) {
     return json.slice(0, Math.max(1, Math.floor(json.length * ratio)));
   }
@@ -87,7 +93,7 @@ function shrink(json: unknown, text: string): unknown | null {
     const arr = obj[best] as unknown[];
     const keep = Math.max(1, Math.floor(arr.length * ratio));
     const out = { ...obj, [best]: arr.slice(0, keep) };
-    return JSON.stringify(out).length <= MAX_BYTES * 1.25 ? out : null;
+    return JSON.stringify(out).length <= budget * 1.25 ? out : null;
   }
   return null;
 }
@@ -118,7 +124,7 @@ function fill(template: string, params: Params): string | null {
 export async function ssrFallback(
   route: string,
   params: Params = {},
-  opts: { revalidate?: number } = {},
+  opts: { revalidate?: number; maxBytes?: number } = {},
 ): Promise<Record<string, unknown>> {
   const templates = (manifest as Manifest)[route] || [];
   const out: Record<string, unknown> = {};
@@ -138,7 +144,7 @@ export async function ssrFallback(
         });
         if (!res.ok) return;
         const text = await res.text();
-        const value = shrink(JSON.parse(text), text);
+        const value = shrink(JSON.parse(text), text, opts.maxBytes ?? MAX_BYTES);
         if (value !== null) out[key] = value;
       } catch {
         /* timed out or failed — client fetches as before */

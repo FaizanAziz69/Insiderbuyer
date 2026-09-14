@@ -82,6 +82,11 @@ export interface BiotechProfileDto {
   nextCatalystDays: number | null;
   iqs: number | null;
   insidersBuying: boolean;
+  /** Totals and the distinct phases, so the map can label and filter without
+   *  carrying every trial. Absent on payloads cached before 2026-09-14. */
+  trialCount?: number;
+  catalystCount?: number;
+  phases?: string[];
 }
 
 const num = (v: unknown): number | null => {
@@ -124,10 +129,39 @@ export class BiotechService {
 
   /* -------------------------------------------------------------- read */
 
+  /** How many trials and catalysts the detail panel actually shows. */
+  private static readonly DETAIL_ROWS = 6;
+
   async read(): Promise<{ companies: BiotechProfileDto[]; asOf: string } | { empty: true }> {
     const row = await this.cache.findOne({ where: { key: 'biotech:map' } });
-    if (row?.payload) return row.payload as { companies: BiotechProfileDto[]; asOf: string };
-    return { empty: true };
+    if (!row?.payload) return { empty: true };
+    const full = row.payload as { companies: BiotechProfileDto[]; asOf: string };
+
+    // The map payload was 345 KB, and 73% of it was per-company `trials` and
+    // `catalysts` detail that the arena never draws — the panel opens one
+    // company at a time and shows six rows of each (George 2026-09-14: the
+    // visualizers are slow to load). Ship those six, plus the totals and the
+    // distinct phases the label and the phase filter need, and the payload
+    // drops to about a quarter of the size. The cached blob is untouched, so
+    // this needs no rebuild and nothing is lost.
+    const n = BiotechService.DETAIL_ROWS;
+    const companies = (full.companies ?? []).map((c) => {
+      const trials = c.trials ?? [];
+      const catalysts = c.catalysts ?? [];
+      return {
+        ...c,
+        trialCount: trials.length,
+        catalystCount: catalysts.length,
+        phases: [
+          ...new Set(trials.map((t) => t.phase).filter((x): x is string => !!x)),
+        ],
+        // Catalysts are already ordered soonest-first by the builder, and the
+        // panel shows the first six.
+        trials: trials.slice(0, n),
+        catalysts: catalysts.slice(0, n),
+      };
+    });
+    return { ...full, companies };
   }
 
   async status(): Promise<Record<string, unknown>> {

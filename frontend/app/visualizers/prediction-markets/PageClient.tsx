@@ -33,23 +33,39 @@ import { Sparkline, SplitBar } from "@/components/visualizers/Sparkline";
 
 const CATEGORIES = ["Politics", "Economy", "Crypto", "Sports", "Tech & Science", "Other"];
 
-interface Snapshot {
+export interface Snapshot {
   markets: MarketContract[];
   asOf: number;
   stale: boolean;
 }
 
-export default function PredictionMarketsClient() {
+/**
+ * `initial` is the snapshot the server already fetched (George 2026-09-14:
+ * the prediction market page is slow to load). This page does not use SWR, so
+ * the site's SSR seeding could not reach it — it fired a raw fetch on mount
+ * and held an empty arena for a full round trip before the first bubble
+ * existed. Seeded here, the field is drawn on the first frame and the SSE
+ * stream takes over from there.
+ */
+export default function PredictionMarketsClient({
+  initial,
+}: {
+  initial?: Snapshot | null;
+}) {
   const router = useRouter();
   const params = useSearchParams();
 
-  const [markets, setMarkets] = useState<Map<string, MarketContract>>(new Map());
+  const [markets, setMarkets] = useState<Map<string, MarketContract>>(() => {
+    const m = new Map<string, MarketContract>();
+    for (const x of initial?.markets ?? []) m.set(x.id, x);
+    return m;
+  });
   const [cats, setCats] = useState<Set<string>>(new Set());
   const [motion, setMotion] = useState(true);
   const [selected, setSelected] = useState<string | null>(params.get("m"));
   const [connected, setConnected] = useState(false);
-  const [asOf, setAsOf] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
+  const [asOf, setAsOf] = useState<number>(initial?.asOf ?? 0);
+  const [loading, setLoading] = useState(!initial?.markets?.length);
   const [version, setVersion] = useState(0);
 
   // The engine is created once; data flows through setData/patch (§9.2).
@@ -93,7 +109,13 @@ export default function PredictionMarketsClient() {
   }, []);
 
   useEffect(() => {
+    // The server-seeded snapshot IS the first paint; refetching it on mount
+    // would only repeat the request the seed replaced. The stream (and its
+    // 20s polling fallback) keeps it current from here.
+    if (initial?.markets?.length) return;
     void loadSnapshot();
+    // `initial` is a server prop and never changes for a mounted page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadSnapshot]);
 
   /* ------------------------------------------------------------ stream */

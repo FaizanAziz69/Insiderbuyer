@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import PageClient from "./PageClient";
+import PageClient, { type Snapshot } from "./PageClient";
 
 /**
  * §9.8 SEO: a canvas is invisible to a crawler, so the page ships a real,
@@ -28,6 +28,22 @@ async function movers(): Promise<{ up: Mover[]; down: Mover[] } | null> {
     });
     if (!res.ok) return null;
     return (await res.json()) as { up: Mover[]; down: Mover[] };
+  } catch {
+    return null;
+  }
+}
+
+/** The arena's opening snapshot, fetched on the server so the canvas has
+ *  bubbles on its first frame instead of after a round trip. Short revalidate:
+ *  the prices move, and the SSE stream corrects anything stale within seconds
+ *  of hydration anyway. */
+async function snapshot(): Promise<Snapshot | null> {
+  try {
+    const res = await fetch(`${BACKEND}/api/visualizers/markets`, {
+      next: { revalidate: 15 },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as Snapshot;
   } catch {
     return null;
   }
@@ -71,7 +87,9 @@ export async function generateMetadata({
 }
 
 export default async function Page() {
-  const data = await movers();
+  // Both server fetches in parallel — the SEO movers table and the snapshot
+  // the canvas opens on.
+  const [data, initial] = await Promise.all([movers(), snapshot()]);
   const rows = [...(data?.up ?? []), ...(data?.down ?? [])]
     .sort((a, b) => Math.abs(b.oneDayChange ?? 0) - Math.abs(a.oneDayChange ?? 0))
     .slice(0, 12);
@@ -79,7 +97,7 @@ export default async function Page() {
   return (
     <>
       <Suspense fallback={<div style={{ minHeight: "70vh", background: "var(--bg-1)" }} />}>
-        <PageClient />
+        <PageClient initial={initial} />
       </Suspense>
 
       {rows.length > 0 && (

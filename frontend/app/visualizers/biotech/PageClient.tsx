@@ -128,7 +128,15 @@ export default function BiotechClient() {
             ) {
               return false;
             }
-            if (phase && !c.trials.some((t) => (t.phase ?? "").includes(phase))) return false;
+            // `phases` is the distinct set across ALL of a company's trials;
+            // `trials` itself now carries only the six the panel shows.
+            if (
+              phase &&
+              !(c.phases ?? c.trials.map((t) => t.phase ?? "")).some((p) =>
+                (p ?? "").includes(phase),
+              )
+            )
+              return false;
             if (insidersOnly && !c.insidersBuying) return false;
             return true;
           }
@@ -157,11 +165,13 @@ export default function BiotechClient() {
       `<div class="viz-tip-row">${fmtUsd(c.marketCap)} market cap</div>` +
       (c.nextCatalystDays != null
         ? `<div class="viz-tip-row">Next catalyst ${countdownLabel(c.nextCatalystDays)}</div>`
-        : `<div class="viz-tip-row">${c.trials.length} active trials</div>`)
+        : `<div class="viz-tip-row">${c.trialCount ?? c.trials.length} active trials</div>`)
     );
   }, []);
 
-  const withCatalysts = companies.filter((c) => c.catalysts.length > 0).length;
+  const withCatalysts = companies.filter(
+    (c) => (c.catalystCount ?? c.catalysts.length) > 0,
+  ).length;
 
   return (
     <SuiteShell

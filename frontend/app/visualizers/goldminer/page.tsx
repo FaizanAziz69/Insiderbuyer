@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import PageClient from "./PageClient";
+import { SwrFallback } from "@/components/SwrFallback";
+import { ssrFallback, ARENA_MAX_BYTES } from "@/lib/ssr/prefetch";
 import { SeoTable } from "@/components/visualizers/SeoTable";
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:4000";
@@ -19,6 +21,13 @@ interface Project {
 const usd = (v: number) => (v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`);
 
 export default async function Page() {
+  // Seed the arena's dataset server-side: the page IS its dataset, and
+  // without this the canvas waits a full round trip after hydration before
+  // it can draw anything (George 2026-09-14: the visualizers are slow to
+  // load). ARENA_MAX_BYTES keeps the seed whole — a sliced one paints a
+  // partial field and reflows.
+  const fallback = await ssrFallback('visualizers/goldminer', {}, { maxBytes: ARENA_MAX_BYTES });
+
   let rows: Project[] = [];
   try {
     const res = await fetch(`${BACKEND}/api/visualizers/mining`, { next: { revalidate: 1800 } });
@@ -32,7 +41,9 @@ export default async function Page() {
   return (
     <>
       <Suspense fallback={<div style={{ minHeight: "70vh", background: "var(--bg-1)" }} />}>
-        <PageClient />
+        <SwrFallback fallback={fallback}>
+          <PageClient />
+        </SwrFallback>
       </Suspense>
       <SeoTable
         title="Largest gold projects on the map"

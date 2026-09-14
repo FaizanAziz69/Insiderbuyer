@@ -223,8 +223,16 @@ export interface BiotechProfile {
   quarterlyBurn: number | null;
   runwayQuarters: number | null;
   financialsAsOf: string | null;
+  /** The first six only — the detail panel never shows more, and shipping
+   *  every trial for every company was 73% of a 345 KB payload. */
   catalysts: BiotechCatalyst[];
   trials: BiotechTrial[];
+  /** Totals across ALL of them, so the map can label without the detail. */
+  trialCount?: number;
+  catalystCount?: number;
+  /** Distinct phases across ALL trials — what the phase filter matches on,
+   *  since `trials` is truncated. */
+  phases?: string[];
   /** Days to the nearest catalyst — drives the §5.3 pulse. */
   nextCatalystDays: number | null;
   iqs: number | null;
