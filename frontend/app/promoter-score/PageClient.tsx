@@ -175,8 +175,8 @@ export default function PromoterScorePage() {
           release — the provider, the fee, the term, and any options granted. We read those releases and total the spend
           per quarter.{" "}
           <span style={{ color: "var(--text-mute)" }}>
-            Paying for investor relations is legal, disclosed and ordinary. This page reports what was disclosed; it does
-            not rate the companies.
+            Paying for investor relations is legal, disclosed and ordinary, and we take no view on whether it is a good
+            sign or a bad one. Open any issuer to see what its share price did after each contract began.
           </span>
         </p>
       </header>

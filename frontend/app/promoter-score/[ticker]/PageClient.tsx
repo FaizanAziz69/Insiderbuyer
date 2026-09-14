@@ -37,6 +37,14 @@ interface Contract {
   reviewed: boolean;
   provenance: Record<string, string>;
   source: { url: string; headline: string; publishedAt: string | null };
+  performance: {
+    startPrice: number | null;
+    priceNow: number | null;
+    pct30d: number | null;
+    pct90d: number | null;
+    pctToDate: number | null;
+    note: string | null;
+  } | null;
 }
 
 interface Payload {
@@ -63,6 +71,55 @@ function day(v: string | null): string {
   const d = new Date(v);
   if (isNaN(d.getTime())) return String(v).slice(0, 10);
   return d.toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+function signed(v: number | null): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  return `${v > 0 ? "+" : ""}${(v * 100).toFixed(0)}%`;
+}
+
+/**
+ * What the share price did after this contract began.
+ *
+ * This is the whole editorial position (§2.6). We do not say whether paying
+ * for promotion is a good sign or a bad one — we show what happened next and
+ * let the reader decide. Where we have no prices for the listing it says so
+ * outright, because a dash here would read as a flat return.
+ */
+function PerformanceRow({ perf }: { perf: Contract["performance"] }) {
+  if (!perf) return null;
+  const cells: Array<[string, number | null]> = [
+    ["30 days", perf.pct30d],
+    ["90 days", perf.pct90d],
+    ["Since", perf.pctToDate],
+  ];
+  const any = cells.some(([, v]) => v != null);
+  return (
+    <div className="mt-2.5 pt-2.5" style={{ borderTop: "1px dashed var(--border)" }}>
+      <div className="text-[10.5px] font-bold uppercase tracking-wide mb-1" style={{ color: "var(--text-mute)" }}>
+        Share price after this contract began
+      </div>
+      {any ? (
+        <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+          {cells.map(([label, v]) => (
+            <span key={label} className="text-[12.5px]">
+              <span style={{ color: "var(--text-mute)" }}>{label} </span>
+              <span
+                className="tabular font-bold"
+                style={{ color: v == null ? "var(--text-mute)" : v > 0 ? "var(--good)" : v < 0 ? "var(--bad)" : "var(--text)" }}
+              >
+                {signed(v)}
+              </span>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[12px] m-0" style={{ color: "var(--text-mute)" }}>
+          {perf.note || "No price data for this listing."}
+        </p>
+      )}
+    </div>
+  );
 }
 
 const STATUS: Record<string, { label: string; color: string }> = {
@@ -173,6 +230,8 @@ export default function IssuerPromoterPage({ ticker }: { ticker: string }) {
                 <Field label="Arm's length" value={c.armsLength == null ? "—" : c.armsLength ? "Yes" : "No"} />
               </dl>
 
+              <PerformanceRow perf={c.performance} />
+
               <div className="flex flex-wrap items-center gap-2 mt-2.5 text-[11.5px]">
                 <a
                   href={c.source.url}
@@ -196,8 +255,10 @@ export default function IssuerPromoterPage({ ticker }: { ticker: string }) {
 
       <p className="text-[11.5px] mt-4 leading-relaxed" style={{ color: "var(--text-mute)" }}>
         Figures are read from the issuer's own news releases disclosed under TSX Venture Policy 3.4 and CSE policy.
-        Paying for investor relations is legal, disclosed and ordinary; this page reports what was disclosed and does not
-        rate the company. Spotted an error?{" "}
+        Paying for investor relations is legal, disclosed and ordinary. We do not judge it either way — we show what the
+        share price did afterwards and leave the conclusion to you. Returns run from the first trading session on or
+        after the contract start date; where a listing is outside our price coverage we say so rather than show a blank.
+        Spotted an error?{" "}
         <a href="mailto:devs@insiderbuying.com?subject=Promoter%20Score%20correction" className="text-accent font-semibold hover:underline">
           Tell us
         </a>{" "}

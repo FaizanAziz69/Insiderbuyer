@@ -24,6 +24,7 @@ import { PromoterService } from './promoter.service';
 import { parseDisclosure } from './ir-parser';
 import { currentQuarter } from './promoter.service';
 import { DEFAULT_WEIGHTS } from './scoring';
+import { closeOnOrAfter } from './contract-performance.service';
 
 let failures = 0;
 function check(name: string, got: unknown, want: unknown) {
@@ -107,7 +108,10 @@ async function main() {
           : null,
   };
   const discovery: any = { status: () => ({}), discover: async () => [], resolveUrl: async () => null };
-  const svc = new PromoterService(repo, fmp, discovery);
+  // Performance needs live prices; this run is offline, so it is stubbed and
+  // has its own checks below against a fixed bar series.
+  const perf: any = { refresh: async () => ({ priced: 0, unpriced: 0 }), ensureTable: async () => {} };
+  const svc = new PromoterService(repo, fmp, discovery, perf);
 
   console.log(`\npromoter.service DB checks (schema ${schema})\n`);
   await svc.onModuleInit();
@@ -120,8 +124,8 @@ async function main() {
     )
   ).rows.map((r) => r.table_name);
   check('tables created', tables, [
-    'ir_agreements', 'ir_audit', 'ir_disclosures', 'ir_firms', 'ir_issuers',
-    'promoter_config', 'promoter_scores',
+    'ir_agreements', 'ir_audit', 'ir_contract_perf', 'ir_disclosures', 'ir_firms',
+    'ir_issuers', 'promoter_config', 'promoter_scores',
   ]);
 
   // ── Store ─────────────────────────────────────────────────────────────
@@ -288,6 +292,19 @@ async function main() {
   check('reparse repairs a stored issuer name', fixed.issuer_name, 'Dinero Ventures Ltd');
   const fixedIssuer = (await client.query(`SELECT name FROM ir_issuers WHERE ticker = 'DNO'`)).rows[0];
   check('and the issuer row follows it', fixedIssuer.name, 'Dinero Ventures Ltd');
+
+  // ── Performance: the framing, as a figure ─────────────────────────────
+  // Venture names do not trade every session, so a return must start from the
+  // first session ON OR AFTER the contract date, not an exact-date lookup.
+  const bars = [
+    { date: '2026-06-30', close: 0.40 },
+    { date: '2026-07-03', close: 0.50 },
+    { date: '2026-08-04', close: 0.75 },
+    { date: '2026-10-02', close: 0.25 },
+  ];
+  check('start price skips to the next traded session', closeOnOrAfter(bars, '2026-07-01'), 0.5);
+  check('exact session still matches', closeOnOrAfter(bars, '2026-08-04'), 0.75);
+  check('a date past the series has no price', closeOnOrAfter(bars, '2027-01-01'), null);
 
   const status = await svc.status();
   checkWith('status counts agreements', (status as any).agreements, (v) => v >= 4);

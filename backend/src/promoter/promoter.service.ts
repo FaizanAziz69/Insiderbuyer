@@ -6,6 +6,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Company } from '../entities/company.entity';
 import { FmpService } from '../fmp/fmp.service';
 import { IrDiscoveryService } from './ir-discovery.service';
+import { ContractPerformanceService } from './contract-performance.service';
 import {
   cleanIssuerName,
   isIrDisclosure,
@@ -79,6 +80,7 @@ export class PromoterService implements OnModuleInit {
     @InjectRepository(Company) private readonly companies: Repository<Company>,
     private readonly fmp: FmpService,
     private readonly discovery: IrDiscoveryService,
+    private readonly perf: ContractPerformanceService,
   ) {}
 
   async onModuleInit() {
@@ -210,6 +212,25 @@ export class PromoterService implements OnModuleInit {
       at          timestamptz NOT NULL DEFAULT now()
     )`);
     await this.q(`CREATE INDEX IF NOT EXISTS ir_audit_agreement_idx ON ir_audit (agreement_id)`);
+
+    // Created here as well as in ContractPerformanceService: the issuer read
+    // LEFT JOINs it, so the table has to exist even on an instance that has
+    // never refreshed prices.
+    await this.q(`CREATE TABLE IF NOT EXISTS ir_contract_perf (
+      agreement_id  bigint PRIMARY KEY,
+      fmp_symbol    varchar(24),
+      start_date    date,
+      start_price   numeric(14,4),
+      price_30d     numeric(14,4),
+      price_90d     numeric(14,4),
+      price_now     numeric(14,4),
+      perf_30d      real,
+      perf_90d      real,
+      perf_now      real,
+      currency      varchar(3),
+      note          text,
+      computed_at   timestamptz NOT NULL DEFAULT now()
+    )`);
 
     await this.q(`CREATE TABLE IF NOT EXISTS promoter_config (
       key     varchar(48) PRIMARY KEY,
@@ -346,6 +367,7 @@ export class PromoterService implements OnModuleInit {
       this.log.log(`ingest read ${fetched} releases, wrote ${agreements} agreements, ${review} held for review`);
       await this.resolveIssuers();
       await this.rescore();
+      await this.perf.refresh();
     } finally {
       this.ingesting = false;
     }
@@ -663,6 +685,7 @@ export class PromoterService implements OnModuleInit {
         WHERE i.ticker = best.ticker AND best.n IS NOT NULL AND best.n IS DISTINCT FROM i.name`,
     );
     await this.rescore();
+    await this.perf.refresh();
     return { disclosures: read, agreements };
   }
 
@@ -930,8 +953,11 @@ export class PromoterService implements OnModuleInit {
               a.monthly_fee_cad::float8 AS monthly_fee_cad, a.total_value_cad::float8 AS total_value_cad,
               a.options_granted, a.option_strike::float8 AS option_strike, a.no_security_compensation,
               a.arms_length, a.status, a.kind, a.confidence, a.provenance, a.reviewed_at,
-              d.source_url, d.headline, d.published_at
+              d.source_url, d.headline, d.published_at,
+              p.perf_30d, p.perf_90d, p.perf_now, p.start_price::float8 AS start_price,
+              p.price_now::float8 AS price_now, p.note AS perf_note
          FROM ir_agreements a JOIN ir_disclosures d ON d.id = a.disclosure_id
+         LEFT JOIN ir_contract_perf p ON p.agreement_id = a.id
         WHERE a.ticker = $1 AND a.status <> 'rejected' AND a.provider_slug IS NOT NULL
         ORDER BY COALESCE(a.start_date, d.published_at::date) DESC NULLS LAST`,
       [ticker],
@@ -1327,6 +1353,16 @@ function shapeContract(r: any) {
     reviewed: !!r.reviewed_at,
     provenance: r.provenance ?? {},
     source: { url: r.source_url, headline: r.headline, publishedAt: r.published_at },
+    // §2.6's framing, expressed as a figure rather than an adjective: what the
+    // share price did after this contract began.
+    performance: {
+      startPrice: r.start_price ?? null,
+      priceNow: r.price_now ?? null,
+      pct30d: r.perf_30d ?? null,
+      pct90d: r.perf_90d ?? null,
+      pctToDate: r.perf_now ?? null,
+      note: r.perf_note ?? null,
+    },
   };
 }
 

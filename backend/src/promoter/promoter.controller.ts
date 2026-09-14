@@ -16,6 +16,7 @@ import {
 import type { Response } from 'express';
 import { AdminTokenGuard } from '../common/admin-token.guard';
 import { PromoterService } from './promoter.service';
+import { ContractPerformanceService } from './contract-performance.service';
 import { DEFAULT_WEIGHTS, WEIGHT_LABELS } from './scoring';
 
 /**
@@ -30,7 +31,10 @@ import { DEFAULT_WEIGHTS, WEIGHT_LABELS } from './scoring';
  */
 @Controller('promoter')
 export class PromoterController {
-  constructor(private readonly svc: PromoterService) {}
+  constructor(
+    private readonly svc: PromoterService,
+    private readonly perf: ContractPerformanceService,
+  ) {}
 
   /** §2.5 ranking page: most-promoted stocks. */
   @Get('ranking')
@@ -184,6 +188,13 @@ export class PromoterController {
   @UseGuards(AdminTokenGuard)
   async reparse(@Query('limit') limit?: string) {
     return this.svc.reparse(Number(limit) || undefined);
+  }
+
+  /** Recompute what the share price did after each contract began. */
+  @Post('admin/refresh-performance')
+  @UseGuards(AdminTokenGuard)
+  async refreshPerformance(@Query('limit') limit?: string) {
+    return this.perf.refresh(Number(limit) || undefined);
   }
 
   @Post('admin/rescore')
