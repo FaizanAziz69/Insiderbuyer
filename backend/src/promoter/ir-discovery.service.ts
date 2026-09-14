@@ -93,7 +93,7 @@ export const DISCOVERY_QUERIES = [
  * become a parsed contract row, because the numbers are the product.
  */
 const FULL_TEXT_HOSTS: Record<string, number> = {
-  'www.newsfilecorp.com': 9000,
+  'www.newsfilecorp.com': 15_000,
   'www.globenewswire.com': 3000,
   'www.accessnewswire.com': 3000,
   'www.prnewswire.com': 3000,
@@ -115,6 +115,9 @@ export class IrDiscoveryService {
    *  during R&D and then served a JS challenge for everything after, so the
    *  pacing below is a correctness requirement, not politeness theatre. */
   private lastFetch = new Map<string, number>();
+  /** Hosts that answered with a challenge, and when they may be tried again.
+   *  Kept apart from `lastFetch` on purpose — see `fetchRelease`. */
+  private blockedUntil = new Map<string, number>();
 
   // ── Discovery ──────────────────────────────────────────────────────────
 
@@ -227,8 +230,18 @@ export class IrDiscoveryService {
     }
     const gap = FULL_TEXT_HOSTS[host];
     if (!gap) return null;
+
+    // A challenged host is SKIPPED, not waited on. The first production run
+    // stalled here: the back-off was written into the same clock as the
+    // pacing gap, so every later item on that host slept the full ten minutes
+    // instead of moving on, and a pass that should have read twenty-five
+    // releases sat on seven. Give up on this host for the rest of the pass and
+    // spend the time on wires that are answering.
+    const blocked = this.blockedUntil.get(host) ?? 0;
+    if (Date.now() < blocked) return null;
+
     const since = Date.now() - (this.lastFetch.get(host) ?? 0);
-    if (since < gap) await sleep(gap - since);
+    if (since < gap) await sleep(Math.min(gap - since, gap));
     this.lastFetch.set(host, Date.now());
 
     try {
@@ -247,8 +260,8 @@ export class IrDiscoveryService {
       // A WAF challenge is a 200 with a JS puzzle in it. Treat it as a miss
       // and back off rather than parsing the puzzle as a press release.
       if (html.includes('awsWafCookie') || html.includes('challenge-platform')) {
-        this.log.warn(`bot challenge from ${host} — backing off`);
-        this.lastFetch.set(host, Date.now() + 10 * 60_000);
+        this.log.warn(`bot challenge from ${host} — skipping it for the rest of this pass`);
+        this.blockedUntil.set(host, Date.now() + 30 * 60_000);
         return null;
       }
       const text = htmlToText(html);
@@ -268,13 +281,53 @@ export class IrDiscoveryService {
    * run spends its budget on releases it can actually read.
    */
   prioritise(items: DiscoveredItem[]): DiscoveredItem[] {
-    const rank = (s: string) =>
-      /newsfile|access ?newswire|globenewswire|globe newswire|pr ?newswire|cnw|business ?wire|newswire\.ca|investing news|junior mining|the newswire|globe and mail/i.test(s)
-        ? 0
-        : /yahoo|stock ?titan|kalkine|tradingview|citybiz|manila|scanx|pluang|simply wall/i.test(s)
-          ? 2
-          : 1;
-    return [...items].sort((a, b) => rank(a.source) - rank(b.source));
+    const wire = (s: string) => {
+      const m = /newsfile|access ?newswire|globenewswire|globe newswire|pr ?newswire|cnw|business ?wire|newswire\.ca|investing news|junior mining|the newswire|globe and mail|stockhouse/i.exec(s);
+      return m ? m[0].toLowerCase().replace(/\s+/g, '') : null;
+    };
+    const aggregator = (s: string) =>
+      /yahoo|stock ?titan|kalkine|tradingview|citybiz|manila|scanx|pluang|simply wall|wealth ?awesome|issuewire/i.test(s);
+
+    // Group by the wire the RSS `source` name points at, then deal one item
+    // from each group in turn. Two reasons, both learned in production: a
+    // straight sort put every newsfilecorp item first and the run walked into
+    // that host's bot challenge after seven reads; and the feed is mostly
+    // aggregators republishing the same releases, so anything that cannot be
+    // read full-text belongs at the back rather than in the middle.
+    const groups = new Map<string, DiscoveredItem[]>();
+    const tail: DiscoveredItem[] = [];
+    for (const it of items) {
+      const w = wire(it.source);
+      if (w) {
+        const arr = groups.get(w) ?? [];
+        arr.push(it);
+        groups.set(w, arr);
+      } else if (!aggregator(it.source)) {
+        tail.unshift(it); // unknown source: worth a try, after the known wires
+      } else {
+        tail.push(it);
+      }
+    }
+    const order = [...groups.values()];
+    const out: DiscoveredItem[] = [];
+    for (let i = 0; out.length < items.length - tail.length; i++) {
+      let moved = false;
+      for (const arr of order) {
+        if (i < arr.length) {
+          out.push(arr[i]);
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+    return [...out, ...tail];
+  }
+
+  /** Hosts currently refusing us, surfaced by `/promoter/status` so a thin
+   *  night is explainable rather than mysterious. */
+  blockedHosts(): string[] {
+    const now = Date.now();
+    return [...this.blockedUntil.entries()].filter(([, t]) => t > now).map(([h]) => h);
   }
 
   status() {
@@ -282,6 +335,7 @@ export class IrDiscoveryService {
       queries: DISCOVERY_QUERIES.length,
       queryList: DISCOVERY_QUERIES,
       fullTextHosts: Object.keys(FULL_TEXT_HOSTS),
+      blockedHosts: this.blockedHosts(),
     };
   }
 }
