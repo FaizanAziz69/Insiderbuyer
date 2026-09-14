@@ -3048,7 +3048,14 @@ export class MarketStatsService {
       if (viaCanonical) data = viaCanonical;
     }
 
-    this.detailCache.set(cacheKey, { ts: Date.now(), data });
+    // Never cache an empty answer for half an hour. The first request for a
+    // newly-listed symbol can race the SEC ticker file that the resolver needs
+    // (observed on the MFPVV deploy: the first call returned empty and the
+    // next one, once the file had loaded, returned the full statements). An
+    // empty result is cheap to recompute and always worth retrying.
+    if (data.income.length || data.balance.length || data.cashflow.length) {
+      this.detailCache.set(cacheKey, { ts: Date.now(), data });
+    }
     return data;
   }
 
