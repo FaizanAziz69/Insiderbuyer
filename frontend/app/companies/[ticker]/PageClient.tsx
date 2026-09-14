@@ -48,6 +48,7 @@ import { PriceChart } from "@/components/PriceChart";
 import { LazyMount } from "@/components/LazyMount";
 import { SAProfileHeader } from "@/components/stock/SAProfileHeader";
 import { ScorePillarsCard } from "@/components/ScorePillarsCard";
+import { InsiderScoreBanner } from "@/components/company/InsiderScoreBanner";
 import { CongressTradingCard, WhaleActivityCard, RevenueBreakdownCard, BullBearCard } from "@/components/stock/StockCivicGrid";
 import {
   StrategyBanner, InsiderNetSharesCard, LobbyingStackedCard, ContractsStackedCard,
@@ -244,6 +245,16 @@ export default function CompanyPage({
             ]}
             activeTab={tab}
             onTab={(k) => setTab(k as ProfileTab)}
+          />
+
+          {/* Insider Score, full width, on every tab (George 2026-09-14: the
+              score was "too hidden" and silently absent on unscored stocks).
+              Always rendered — it explains itself when there is no score. */}
+          <InsiderScoreBanner
+            ticker={sym}
+            name={data.company.name}
+            score={data.score as never}
+            transactions={(data.transactions || []) as never}
           />
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">

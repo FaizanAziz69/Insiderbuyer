@@ -18,7 +18,7 @@ import { LoginModal } from "./LoginModal";
 import { Logo } from "./Logo";
 import { MegaDropdown } from "./nav/MegaDropdown";
 import { StockSearch } from "./nav/StockSearch";
-import { NAV_GROUPS } from "@/lib/nav-config";
+import { NAV_GROUPS, flattenGroupLinks } from "@/lib/nav-config";
 import { useAuth } from "@/lib/auth";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
@@ -294,7 +294,7 @@ export function TopHeader() {
                   {g.label}
                 </div>
                 <ul className="space-y-1">
-                  {g.columns.flatMap((col) => col.links).map((link) => (
+                  {flattenGroupLinks(g).map((link) => (
                     <li key={link.href + link.label}>
                       <Link
                         href={link.href}

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { ChevronDown, Lock } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { NavGroup } from "@/lib/nav-config";
+import { NavGroup, NavLink as NavLinkT, NavSection } from "@/lib/nav-config";
 import { effectiveZoom } from "@/lib/zoom";
 
 interface Props {
@@ -54,6 +54,81 @@ export function MegaDropdown({ group }: Props) {
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
+
+  // One link row. Pulled out of the JSX so a child link renders identically to
+  // its parent, just indented.
+  function renderLink(link: NavLinkT) {
+    const Icon = link.icon;
+    return (
+      <Link
+        href={link.href}
+        onClick={() => setOpen(false)}
+        className="flex items-start gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-[var(--accent-soft)] transition group"
+      >
+        {Icon && (
+          <Icon
+            className="h-4 w-4 mt-0.5 flex-shrink-0"
+            style={{ color: "var(--accent)" }}
+          />
+        )}
+        <div>
+          <div className="text-[13px] font-semibold leading-tight group-hover:text-accent transition flex items-center gap-1.5 whitespace-nowrap">
+            {link.label}
+            {link.badge === "premium" && (
+              <span
+                className="inline-flex items-center gap-0.5 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                style={{
+                  background: "var(--premium)",
+                  color: "var(--premium-ink)",
+                }}
+              >
+                <Lock className="h-2.5 w-2.5" /> Insider Access
+              </span>
+            )}
+            {link.badge === "new" && (
+              <span
+                className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                style={{ background: "var(--good-soft)", color: "var(--good)" }}
+              >
+                New
+              </span>
+            )}
+            {link.badge === "popular" && (
+              <span
+                className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                style={{
+                  background: "color-mix(in srgb, var(--warn) 18%, transparent)",
+                  color: "var(--warn)",
+                }}
+              >
+                Popular
+              </span>
+            )}
+            {/* The drawer had a LIVE chip and the desktop panel did not — the
+                bubbles are the one thing on this menu that moves by itself. */}
+            {link.badge === "live" && (
+              <span
+                className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded inline-flex items-center gap-1"
+                style={{ background: "var(--bad-soft)", color: "var(--bad)" }}
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: "var(--bad)" }}
+                  aria-hidden
+                />
+                Live
+              </span>
+            )}
+          </div>
+          {link.description && (
+            <div className="text-[11px] text-mute leading-snug mt-0.5">
+              {link.description}
+            </div>
+          )}
+        </div>
+      </Link>
+    );
+  }
 
   // Mini "live score" preview shown on the premium callouts (client
   // 2026-08-22): fills the right half of the full-width card instead of
@@ -306,80 +381,46 @@ export function MegaDropdown({ group }: Props) {
                 gridTemplateColumns: `repeat(${group.columns.length}, minmax(max-content, 1fr))`,
               }}
             >
-              {group.columns.map((col, ci) => (
-                <div key={col.title ?? `col-${ci}`}>
-                  {col.title && (
-                    <div className="text-[10px] uppercase tracking-[0.18em] font-bold text-accent mb-3">
-                      {col.title}
-                    </div>
-                  )}
-                  <ul className="space-y-0.5">
-                    {col.links.map((link) => {
-                      const Icon = link.icon;
-                      return (
-                        <li key={link.href + link.label}>
-                          <Link
-                            href={link.href}
-                            onClick={() => setOpen(false)}
-                            className="flex items-start gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-[var(--accent-soft)] transition group"
-                          >
-                            {Icon && (
-                              <Icon
-                                className="h-4 w-4 mt-0.5 flex-shrink-0"
-                                style={{ color: "var(--accent)" }}
-                              />
-                            )}
-                            <div>
-                              <div className="text-[13px] font-semibold leading-tight group-hover:text-accent transition flex items-center gap-1.5 whitespace-nowrap">
-                                {link.label}
-                                {link.badge === "premium" && (
-                                  <span
-                                    className="inline-flex items-center gap-0.5 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
-                                    style={{
-                                      background: "var(--premium)",
-                                      color: "var(--premium-ink)",
-                                    }}
-                                  >
-                                    <Lock className="h-2.5 w-2.5" /> Insider Access
-                                  </span>
-                                )}
-                                {link.badge === "new" && (
-                                  <span
-                                    className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
-                                    style={{
-                                      background: "var(--good-soft)",
-                                      color: "var(--good)",
-                                    }}
-                                  >
-                                    New
-                                  </span>
-                                )}
-                                {link.badge === "popular" && (
-                                  <span
-                                    className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
-                                    style={{
-                                      background:
-                                        "color-mix(in srgb, var(--warn) 18%, transparent)",
-                                      color: "var(--warn)",
-                                    }}
-                                  >
-                                    Popular
-                                  </span>
-                                )}
-                              </div>
-                              {link.description && (
-                                <div className="text-[11px] text-mute leading-snug mt-0.5">
-                                  {link.description}
-                                </div>
-                              )}
-                            </div>
-                          </Link>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ))}
+              {group.columns.map((col, ci) => {
+                // A column is either one titled block (the old shape) or a
+                // stack of them (Analyst + Congress share a column).
+                const blocks: NavSection[] =
+                  col.sections ?? [{ title: col.title, links: col.links ?? [] }];
+                return (
+                  <div key={col.title ?? `col-${ci}`} className="space-y-4">
+                    {blocks.map((block, bi) => (
+                      <div key={block.title ?? `block-${bi}`}>
+                        {block.title && (
+                          <div className="text-[10px] uppercase tracking-[0.18em] font-bold text-accent mb-3">
+                            {block.title}
+                          </div>
+                        )}
+                        <ul className="space-y-0.5">
+                          {block.links.map((link) => (
+                            <li key={link.href + link.label}>
+                              {renderLink(link)}
+                              {link.children?.length ? (
+                                // Indented, with a hairline running down the
+                                // gutter so the nesting reads at a glance.
+                                <ul
+                                  className="mt-0.5 ml-[19px] pl-2.5 space-y-0.5"
+                                  style={{ borderLeft: "1px solid var(--border)" }}
+                                >
+                                  {link.children.map((child) => (
+                                    <li key={child.href + child.label}>
+                                      {renderLink(child)}
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
 
             {group.calloutPosition !== "top" && renderCallouts(group, "bottom")}

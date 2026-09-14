@@ -36,12 +36,25 @@ export interface NavLink {
   description?: string;
   icon?: any;
   badge?: "premium" | "new" | "live" | "popular";
+  /** Sub-links rendered indented under this one (George 2026-09-14: Top
+   *  Insider Scores hangs off Insider Bubbles rather than standing alone). */
+  children?: NavLink[];
+}
+
+/** A titled block of links. A column may stack several of these so two short
+ *  sections (Analyst / Congress) can share one column without a blank gap. */
+export interface NavSection {
+  title?: string;
+  links: NavLink[];
 }
 
 export interface NavColumn {
   /** Optional column heading. Omit to render a clean, header-less link list. */
   title?: string;
-  links: NavLink[];
+  /** Flat link list. Ignored when `sections` is set. */
+  links?: NavLink[];
+  /** Several titled blocks stacked down one column. */
+  sections?: NavSection[];
 }
 
 export interface NavCallout {
@@ -67,45 +80,112 @@ export interface NavGroup {
   calloutPosition?: "top" | "bottom";
 }
 
+/** Every link in a group, flattened — sections, then links, then children.
+ *  The mobile drawer renders one flat list per group, so it needs this rather
+ *  than reaching into `columns[].links` (which is now optional). */
+export function flattenGroupLinks(group: NavGroup): NavLink[] {
+  const out: NavLink[] = [];
+  for (const col of group.columns) {
+    const blocks: NavSection[] = col.sections ?? [{ links: col.links ?? [] }];
+    for (const block of blocks) {
+      for (const link of block.links) {
+        out.push(link);
+        if (link.children) out.push(...link.children);
+      }
+    }
+  }
+  return out;
+}
+
 export const NAV_GROUPS: NavGroup[] = [
   {
+    // Reorganised 2026-09-14 (George: "this is starting to get too crowded").
+    // One flat 13-link column plus two unlabelled ones became four titled
+    // sections in the order he specified — insider data first, then analyst,
+    // then congress, with everything else demoted to More Stock Tools.
     label: "Stock Data",
     columns: [
       {
-        links: [
-          // Delisted 2026-09-01 (George: needs work, remove for now) — see lib/data-articles-flag.ts.
-          ...(DATA_ARTICLES_ENABLED ? [{ label: "Data Articles", href: "/data", icon: FileText, badge: "new" as const }] : []),
-          { label: "Insider Bubbles", href: "/bubbles", icon: Orbit },
-          { label: "Congress Bubbles", href: "/congress-bubbles", icon: Orbit },
-          { label: "Prediction Markets", href: "/visualizers/prediction-markets", icon: Orbit, badge: "new" },
-          { label: "All Visualizers", href: "/visualizers", icon: Orbit },
-          { label: "Top Insiders", href: "/investors", icon: Landmark, badge: "new" },
-          { label: "Top Insider Scores", href: "/insiders/hot", icon: Flame, badge: "popular" },
-          { label: "Top Insider Buys", href: "/insiders/top-buys", icon: Receipt, badge: "new" },
-          { label: "Top Analysts", href: "/analyst-ratings", icon: Star },
-          // Moved out of Stock Lists 2026-08-25 (client): it is a data view,
-          // and it belongs next to the analysts whose calls build it.
-          { label: "Top Analyst Stocks", href: "/analyst-stocks", icon: LineChart },
-          { label: "Congressional Trades", href: "/congressional-trades", icon: Landmark },
-          { label: "Insider Trades", href: "/trades", icon: Activity },
-          { label: "Upcoming Earnings", href: "/earnings", icon: Calendar },
+        sections: [
+          {
+            title: "Insider Stock Data",
+            links: [
+              {
+                label: "Insider Bubbles",
+                href: "/bubbles",
+                icon: Orbit,
+                badge: "live",
+                // Hangs off the bubbles rather than sitting beside it: the
+                // scores board is what a bubble opens into.
+                children: [
+                  {
+                    label: "Top Insider Scores",
+                    href: "/insiders/hot",
+                    icon: Flame,
+                    badge: "popular",
+                  },
+                ],
+              },
+              { label: "Top Insider Buys", href: "/insiders/top-buys", icon: Receipt, badge: "new" },
+              // The Form 4 people page. The 13F fund roster (/investors) used
+              // to carry this same label — it is now "Top Investors & Funds"
+              // under More Stock Tools, so the two stop colliding.
+              { label: "Top Insiders", href: "/insiders", icon: Users, badge: "popular" },
+              { label: "Insider Trades", href: "/trades", icon: Activity },
+            ],
+          },
         ],
       },
       {
-        links: [
-          { label: "Top Gainers", href: "/market-data/top-gainers", icon: TrendingUp, badge: "popular" },
-          { label: "Top Losers", href: "/market-data/top-losers", icon: TrendingUp },
-          { label: "Short Squeeze List", href: "/short-squeeze", icon: Flame },
-          { label: "Short Interest", href: "/short-interest", icon: TrendingUp },
-          { label: "IPO Calendar", href: "/ipos", icon: Rocket, badge: "new" },
+        sections: [
+          {
+            title: "Analyst Stock Data",
+            links: [
+              { label: "Top Analyst Stocks", href: "/analyst-stocks", icon: LineChart },
+              { label: "Top Analysts", href: "/analyst-ratings", icon: Star },
+            ],
+          },
+          {
+            title: "Congress Stock Data",
+            links: [
+              { label: "Congress Bubbles", href: "/congress-bubbles", icon: Orbit, badge: "live" },
+              // Renamed from "Congressional Trades" (George's wording).
+              { label: "Politician Stock Tracker", href: "/congressional-trades", icon: Landmark },
+            ],
+          },
         ],
       },
       {
-        links: [
-          { label: "Market Heatmap", href: "/heatmaps/market", icon: Flame },
-          { label: "Sector Heatmap", href: "/sectors", icon: Building2 },
-          { label: "Top Insiders", href: "/insiders", icon: Users, badge: "popular" },
-          { label: "Dividends", href: "/dividends", icon: Coins },
+        sections: [
+          {
+            title: "More Stock Tools",
+            links: [
+              // Delisted 2026-09-01 (George: needs work, remove for now) — see lib/data-articles-flag.ts.
+              ...(DATA_ARTICLES_ENABLED ? [{ label: "Data Articles", href: "/data", icon: FileText, badge: "new" as const }] : []),
+              { label: "All Visualizers", href: "/visualizers", icon: Orbit },
+              { label: "Prediction Markets", href: "/visualizers/prediction-markets", icon: Orbit, badge: "new" },
+              { label: "Market Heatmap", href: "/heatmaps/market", icon: Flame },
+              { label: "Sector Heatmap", href: "/sectors", icon: Building2 },
+              { label: "Top Investors & Funds", href: "/investors", icon: Landmark },
+              { label: "Upcoming Earnings", href: "/earnings", icon: Calendar },
+            ],
+          },
+        ],
+      },
+      {
+        // Untitled continuation of More Stock Tools — one heading, two columns,
+        // so neither runs to twice the height of the insider column.
+        sections: [
+          {
+            links: [
+              { label: "Top Gainers", href: "/market-data/top-gainers", icon: TrendingUp, badge: "popular" },
+              { label: "Top Losers", href: "/market-data/top-losers", icon: TrendingUp },
+              { label: "Short Squeeze List", href: "/short-squeeze", icon: Flame },
+              { label: "Short Interest", href: "/short-interest", icon: TrendingUp },
+              { label: "IPO Calendar", href: "/ipos", icon: Rocket, badge: "new" },
+              { label: "Dividends", href: "/dividends", icon: Coins },
+            ],
+          },
         ],
       },
     ],

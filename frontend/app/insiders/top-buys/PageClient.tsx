@@ -8,6 +8,7 @@ import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { PremiumRowWall } from "@/components/premium/PremiumRowWall";
 import { MaskedCell } from "@/components/premium/MaskedCell";
+import { decoyFor } from "@/components/premium/lockedDecoys";
 import { PRODUCT_NAME } from "@/components/premium/PaywallCta";
 import { AdSlot } from "@/components/AdSlot";
 import { CompanyLogo } from "@/components/CompanyLogo";
@@ -86,17 +87,6 @@ const fmtDate = (d: string) =>
  * are blurred instead, and every masked cell links to the subscribe page.
  */
 const LOCKED_PREVIEW_ROWS = 15;
-const DECOYS: Array<[string, string, string, string]> = [
-  ["ACME", "Acme Holdings Inc", "J. Whitfield", "Chief Executive Officer"],
-  ["NRTH", "Northline Energy Corp", "M. Okafor", "Director"],
-  ["BLUE", "Bluewater Therapeutics", "S. Lindqvist", "Chief Financial Officer"],
-  ["VNTG", "Vantage Semiconductor", "R. Castellano", "10% Owner"],
-  ["HRBR", "Harbor Financial Group", "A. Nakamura", "President"],
-  ["SLST", "Solstice Biosciences", "D. Achterberg", "Director"],
-  ["PNCL", "Pinnacle Logistics Inc", "K. Moreau", "Chief Operating Officer"],
-  ["GRNF", "Greenfield Materials", "T. Balogun", "Director"],
-];
-const decoyFor = (i: number) => DECOYS[i % DECOYS.length];
 
 export default function TopBuysPage() {
   const [period, setPeriod] = useState("7d");
