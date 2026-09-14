@@ -73,6 +73,19 @@ function day(v: string | null): string {
   return d.toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
+/** The provenance map keys are column names; a reader should not have to
+ *  decode "totalValue" to learn that a figure was arithmetic, not disclosed. */
+function derivedLabel(fields: string[]): string {
+  const names: Record<string, string> = {
+    totalValue: "Contract value",
+    monthlyFee: "Monthly fee",
+    termMonths: "Term",
+  };
+  const listed = fields.map((f) => names[f] ?? f);
+  const what = listed.length === 1 ? listed[0] : listed.join(" and ");
+  return `${what} calculated from the other figures, not stated in the release`;
+}
+
 function signed(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return "—";
   return `${v > 0 ? "+" : ""}${(v * 100).toFixed(0)}%`;
@@ -246,7 +259,7 @@ export default function IssuerPromoterPage({ ticker }: { ticker: string }) {
                 ) : null}
                 {c.reviewed ? <Tag>Checked by an editor</Tag> : null}
                 {llm ? <Tag>Some fields machine-read</Tag> : null}
-                {derived.length ? <Tag>{derived.join(", ")} calculated from the other figures</Tag> : null}
+                {derived.length ? <Tag>{derivedLabel(derived)}</Tag> : null}
               </div>
             </article>
           );
