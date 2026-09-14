@@ -53,6 +53,45 @@ Notes:
 - The `_spf.wpcloud.com` include is a WordPress leftover. Harmless; leave it
   until someone confirms nothing sends through WordPress.
 
+## Status as of 2026-09-14 — the zone is BUILT and VERIFIED
+
+A Route 53 hosted zone for this domain **already existed** (`Z02585321O5CFNAA6P2Y6`,
+prepared by an earlier session) and was **missing its `_dmarc` record** — moving
+nameservers in that state would have silently dropped DMARC. It has been added.
+
+Every record has been queried against Route 53's own nameserver
+(`ns-1986.awsdns-56.co.uk`) while it is NOT yet authoritative, and all of them
+answer correctly: apex A, `www`, `img`, `press`, `origin`, all five MX, the SPF
+and both Google verification TXT values, and `_dmarc`. A sweep of eighteen
+other likely subdomain names found nothing else on the live zone to carry over.
+
+The zone also already contains `origin.insiderbuying.com` → 52.2.135.6 (the
+hostname CloudFront will use as its origin — it must differ from the alias, or
+the distribution would resolve its own origin back to itself) and both ACM
+validation CNAMEs, so the `insiderbuying.com` + `www` certificate validates by
+itself once the nameservers move.
+
+**Delegation set — the four nameservers to set at the registrar:**
+
+```
+ns-1986.awsdns-56.co.uk
+(+ the three others: aws route53 get-hosted-zone --profile insider \
+     --id Z02585321O5CFNAA6P2Y6 --query DelegationSet.NameServers)
+```
+
+### Measured, on the real pages, before any of this
+
+`/insiders/hot`, same connection, `curl --compressed`:
+
+| | connect | TLS | TTFB | total |
+|---|---|---|---|---|
+| origin, direct | 0.25s | 0.51s | 0.75s | **1.29s** |
+| through CloudFront | 0.06s | 0.12s | 0.31s | **0.29s** |
+
+**4.4x.** The CloudFront column was measured by requesting the same page
+through the existing `img.insiderbuying.com` distribution, whose origin is
+already this site — so it is the real path, not an estimate.
+
 ## Order of operations — nothing user-facing changes until step 5
 
 1. Apply `nginx-cdn-html.conf` at the origin (see `cloudfront-cdn.md`). Safe
