@@ -1,4 +1,9 @@
 import type { Metadata, Viewport } from "next";
+/** The asset CDN host. Must match `ASSET_CDN` in next.config.js (which sets
+ *  assetPrefix) and `CDN` in lib/cover-sources.ts — next.config.js is
+ *  CommonJS and cannot be imported here. Roll back by setting all three to
+ *  "" and redeploying. */
+const ASSET_CDN = "https://img.insiderbuying.com";
 import { Barlow, Barlow_Condensed, Figtree, Libre_Franklin } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
@@ -27,11 +32,19 @@ const libreFranklin = Libre_Franklin({
   display: "swap",
 });
 
+// Figtree is used by exactly ONE component — the homepage's Stock Lists &
+// Tools sidebar (.sbw-* in globals.css), which is inside <LazyMount> and so
+// is always below the fold. It was costing five preloaded weights at the
+// highest priority on EVERY page (2026-09-14: 157 KB of font was being
+// preloaded per page load, more than the HTML). `preload: false` leaves it to
+// load from CSS when that card actually renders, and the three weights the
+// card uses are 600/700/800 — 400 and 500 were never referenced.
 const figtree = Figtree({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["600", "700", "800"],
   variable: "--font-figtree",
   display: "swap",
+  preload: false,
 });
 
 const barlowCondensed = Barlow_Condensed({
@@ -144,6 +157,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${barlow.variable} ${barlowCondensed.variable} ${figtree.variable} ${libreFranklin.variable}`}
     >
       <head>
+        {/* Static assets (and every preloaded font) are served from the asset
+            CDN, which is a DIFFERENT ORIGIN — so the browser needs its own
+            TCP + TLS handshake before the first byte of a font or a chunk can
+            arrive. At Pakistan latency that is ~550ms, and without this hint
+            it does not start until the parser reaches the first preload tag.
+            Opening it up front overlaps the handshake with parsing the rest
+            of the head. */}
+        {ASSET_CDN && (
+          <>
+            <link rel="preconnect" href={ASSET_CDN} crossOrigin="anonymous" />
+            <link rel="dns-prefetch" href={ASSET_CDN} />
+          </>
+        )}
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script type="text/javascript" dangerouslySetInnerHTML={{ __html: marfeelScript }} />
         <AppleSplash />
