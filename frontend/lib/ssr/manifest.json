@@ -1,5 +1,6 @@
 {
   "": [
+    "/api/backend/bubbles/preview?window=30d&limit=44",
     "/api/backend/content/blogs?kind=stock-idea&limit=6",
     "/api/backend/content/blogs?limit=30",
     "/api/backend/earnings/calendar?days=7",

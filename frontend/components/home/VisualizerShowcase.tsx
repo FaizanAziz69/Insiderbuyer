@@ -1,28 +1,54 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { ChevronRight, Orbit } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
-import { stepPhysics, PhysBody } from "@/lib/bubbles-physics";
+import {
+  stepPhysics,
+  radiusForDollars,
+  fitFactor,
+  PhysBody,
+} from "@/lib/bubbles-physics";
 
 /**
  * The homepage visualizer showcase — replaces the Market Heat Map section.
  *
  * George 2026-09-14: "i want to replace the market heat map section on the
  * homepage with all of our visualizers … start with showing the Insider
- * Bubble then able to click into it and switch visualizers from there" and
- * "the homepage section will show a preview of insider bubbles".
+ * Bubble then able to click into it and switch visualizers from there".
  *
- * So: a LIVE Insider Bubbles field (the real physics engine both bubble maps
- * use, not a picture), with the rest of the suite as a rail beside it. The
- * whole field is one link into /bubbles, and every page it opens carries the
- * VisualizerSwitcher, which is the "switch visualizers from there" half.
+ * A LIVE Insider Bubbles field (the real engine both bubble maps use) with
+ * the rest of the suite beside it. The whole field is one link into /bubbles,
+ * and every page it opens carries the VisualizerSwitcher.
  *
- * It is fed by /bubbles/preview, not /bubbles. The full payload is 172 KB —
- * it carries every Form 4 behind every bubble — and this section exists on a
- * page that was cut down two days ago over a speed complaint. The preview is
- * ~6 KB and carries only what gets drawn.
+ * Four bugs George reported on the first cut, and what each actually was:
+ *
+ *  • "name should be on every bubble" — the first version invented its own
+ *    radius curve (14 + sqrt(total/max) * 34) and only labelled bubbles over
+ *    r=19. One $91M bubble dominated the field, so the median radius was 17
+ *    and 33 of 44 bubbles were never labelled. It now uses the SHARED
+ *    `radiusForDollars` + `fitFactor` the real map uses — a floor of 22 and
+ *    an area budget for the field it is actually drawn in.
+ *  • "name should not go out from bubble" — the label is now measured and
+ *    shrunk to fit inside its circle, and dropped rather than overflowed.
+ *  • "first time i cant see, after i go back and back then i see" — the frame
+ *    loop only attached when the canvas already existed, and the canvas was
+ *    rendered conditionally on data having arrived. On a cold load the effect
+ *    ran against a null canvas and never re-ran, so nothing ever drew; on a
+ *    back-navigation SWR replayed from cache and the canvas was there on the
+ *    first render. The canvas is unconditional now and the loop owns its
+ *    state through refs.
+ *  • "loading so slow, as page loads they should be there" — the section sat
+ *    inside <LazyMount> and its data was client-only. It now mounts with the
+ *    page and the preview is seeded server-side.
+ *
+ * Motion: the shared engine applies a constant upward drift, which is the
+ * lava-lamp look on a full-height map but piles every bubble against the top
+ * edge of a 380px band (exactly what George's screenshot shows). The preview
+ * runs the engine in reduceMotion, which keeps collision relaxation — so the
+ * field packs evenly and stays put — and adds a small per-bubble bob at DRAW
+ * time, which cannot accumulate into drift.
  */
 
 interface PreviewBubble {
@@ -35,7 +61,6 @@ interface PreviewBubble {
   buyers: number;
 }
 
-/** The other four, in the hub's order. */
 const OTHERS = [
   {
     href: "/visualizers/prediction-markets",
@@ -62,12 +87,14 @@ const OTHERS = [
 
 interface Body extends PhysBody {
   t: string;
+  label: string;
   total: number;
   up: boolean;
-  label: string;
 }
 
 const HEIGHT = 380;
+/** Below this the ticker cannot be drawn legibly, so the bubble goes bare. */
+const MIN_LABEL_R = 15;
 
 export function VisualizerShowcase() {
   const { data } = useSWR<{ bubbles: PreviewBubble[]; count: number }>(
@@ -75,120 +102,175 @@ export function VisualizerShowcase() {
     fetcher,
     { refreshInterval: 10 * 60_000, revalidateOnFocus: false },
   );
-
   const bubbles = useMemo(() => data?.bubbles ?? [], [data]);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const bodiesRef = useRef<Body[]>([]);
-  const rafRef = useRef<number | null>(null);
-  const [hover, setHover] = useState<Body | null>(null);
+  const hoverRef = useRef<Body | null>(null);
+  const widthRef = useRef(0);
+  const [hoverInfo, setHoverInfo] = useState<{
+    t: string;
+    label: string;
+    total: number;
+  } | null>(null);
 
-  // Build bodies whenever the data changes. Radius is by purchase dollars on
-  // a square-root scale, so area — not radius — tracks the money.
+  /** (Re)build the field for a given width. Keeps a body's position when the
+   *  ticker is already on screen, so a data refresh doesn't reshuffle it. */
+  const seed = useCallback(
+    (w: number) => {
+      if (!w || !bubbles.length) return;
+      const raw = bubbles.map((b) => radiusForDollars(b.total));
+      // Scale the whole field to the band we actually draw in — without this
+      // 44 bubbles overflow a 380px strip and jam into the corners.
+      const k = fitFactor(raw, w, HEIGHT, 0);
+      const prev = new Map(bodiesRef.current.map((b) => [b.t, b]));
+      bodiesRef.current = bubbles.map((b, i) => {
+        const r = Math.max(8, raw[i] * k);
+        const old = prev.get(b.t);
+        if (old) {
+          old.targetR = r;
+          old.total = b.total;
+          old.up = (b.chg ?? 0) >= 0;
+          old.label = b.name || b.t;
+          return old;
+        }
+        return {
+          t: b.t,
+          label: b.name || b.t,
+          total: b.total,
+          up: (b.chg ?? 0) >= 0,
+          // Spread across the whole band, not along one line: a seed that
+          // shares a row leaves the relaxation nothing to push apart.
+          x: w * (0.06 + 0.88 * Math.random()),
+          y: HEIGHT * (0.1 + 0.8 * Math.random()),
+          vx: 0,
+          vy: 0,
+          r: Math.max(4, r * 0.35),
+          targetR: r,
+          expanded: false,
+          expandT: 0,
+          seed: Math.random() * 1000,
+        };
+      });
+    },
+    [bubbles],
+  );
+
   useEffect(() => {
-    if (!bubbles.length) return;
     const el = wrapRef.current;
-    const w = el?.clientWidth || 800;
-    const max = Math.max(...bubbles.map((b) => b.total || 0), 1);
-    bodiesRef.current = bubbles.map((b, i) => {
-      const scale = Math.sqrt((b.total || 0) / max);
-      const r = 14 + scale * 34;
-      return {
-        t: b.t,
-        total: b.total || 0,
-        up: (b.chg ?? 0) >= 0,
-        label: b.name || b.t,
-        x: (w / (bubbles.length + 1)) * (i + 1),
-        y: HEIGHT * (0.25 + 0.5 * ((i * 37) % 100) / 100),
-        vx: 0,
-        vy: 0,
-        r,
-        targetR: r,
-        expanded: false,
-        expandT: 0,
-        seed: (i * 1.618) % (Math.PI * 2),
-      };
-    });
-  }, [bubbles]);
+    if (!el) return;
+    const w = el.clientWidth;
+    widthRef.current = w;
+    seed(w);
+  }, [seed]);
 
-  // One frame loop, paused when the section is off-screen so a homepage that
-  // is scrolled past costs nothing.
+  // One frame loop for the life of the component. It reads everything it
+  // needs from refs, so it never has to be torn down and rebuilt — the bug
+  // that left a cold load with no bubbles at all.
   useEffect(() => {
-    const canvas = canvasRef.current;
     const wrap = wrapRef.current;
-    if (!canvas || !wrap) return;
+    const canvas = canvasRef.current;
+    if (!wrap || !canvas) return;
+
     const reduce =
       typeof matchMedia === "function" &&
       matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let visible = true;
-    const io = new IntersectionObserver(
-      ([e]) => {
-        visible = e.isIntersecting;
-      },
-      { rootMargin: "120px" },
-    );
+    const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting), {
+      rootMargin: "160px",
+    });
     io.observe(wrap);
 
+    const ro = new ResizeObserver(() => {
+      const w = wrap.clientWidth;
+      if (!w || Math.abs(w - widthRef.current) < 2) return;
+      widthRef.current = w;
+      seed(w);
+    });
+    ro.observe(wrap);
+
+    let raf = 0;
     let last = performance.now();
     const frame = (now: number) => {
-      rafRef.current = requestAnimationFrame(frame);
+      raf = requestAnimationFrame(frame);
       const dt = Math.min(now - last, 48);
       last = now;
       if (!visible) return;
 
-      const w = wrap.clientWidth || 800;
+      const w = widthRef.current || wrap.clientWidth;
+      if (!w) return;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       if (canvas.width !== Math.round(w * dpr)) {
         canvas.width = Math.round(w * dpr);
         canvas.height = Math.round(HEIGHT * dpr);
-        canvas.style.width = `${w}px`;
-        canvas.style.height = `${HEIGHT}px`;
       }
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, w, HEIGHT);
+      const c = canvas.getContext("2d");
+      if (!c) return;
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.clearRect(0, 0, w, HEIGHT);
 
       const bodies = bodiesRef.current;
+      if (!bodies.length) return;
+
+      // reduceMotion: collisions still resolve, so the field relaxes into an
+      // even packing and then holds. The engine's upward drift would pile
+      // every bubble against the top of a band this short.
       stepPhysics(bodies as PhysBody[], dt, now, {
         width: w,
         height: HEIGHT,
         headerClear: 0,
-        reduceMotion: reduce,
+        reduceMotion: true,
       });
 
       const css = getComputedStyle(document.documentElement);
       const good = css.getPropertyValue("--good").trim() || "#16a34a";
       const bad = css.getPropertyValue("--bad").trim() || "#dc2626";
-      const text = css.getPropertyValue("--text").trim() || "#111";
+      const ink = css.getPropertyValue("--text").trim() || "#1d1e1f";
+      const hovered = hoverRef.current;
 
       for (const b of bodies) {
-        const tint = b.up ? good : bad;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-        ctx.fillStyle = `color-mix(in srgb, ${tint} ${b === hover ? 34 : 18}%, transparent)`;
-        ctx.fill();
-        ctx.lineWidth = b === hover ? 2 : 1.25;
-        ctx.strokeStyle = `color-mix(in srgb, ${tint} ${b === hover ? 95 : 62}%, transparent)`;
-        ctx.stroke();
-        if (b.r > 19) {
-          ctx.fillStyle = text;
-          ctx.font = `700 ${Math.min(13, Math.max(9, b.r * 0.42))}px ui-sans-serif, system-ui, sans-serif`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(b.t, b.x, b.y);
+        // Visual-only bob: it never feeds back into the body's position, so
+        // it cannot accumulate the way an acceleration would.
+        const bob = reduce ? 0 : Math.sin(now * 0.0009 + b.seed) * 2.2;
+        const cx = b.x;
+        const cy = b.y + bob;
+        const on = b === hovered;
+
+        c.beginPath();
+        c.arc(cx, cy, b.r, 0, Math.PI * 2);
+        c.fillStyle = `color-mix(in srgb, ${b.up ? good : bad} ${on ? 32 : 16}%, transparent)`;
+        c.fill();
+        c.lineWidth = on ? 2 : 1.25;
+        c.strokeStyle = `color-mix(in srgb, ${b.up ? good : bad} ${on ? 95 : 60}%, transparent)`;
+        c.stroke();
+
+        if (b.r < MIN_LABEL_R) continue;
+        // Fit the ticker inside the circle: start at a size proportional to
+        // the radius and shrink until it fits the chord, then give up rather
+        // than let it spill over the edge.
+        c.textAlign = "center";
+        c.textBaseline = "middle";
+        c.fillStyle = ink;
+        const room = b.r * 1.65;
+        let fs = Math.max(9, Math.min(15, b.r * 0.46));
+        for (; fs >= 8; fs -= 0.5) {
+          c.font = `700 ${fs}px ui-sans-serif, system-ui, -apple-system, sans-serif`;
+          if (c.measureText(b.t).width <= room) break;
         }
+        if (c.measureText(b.t).width <= room) c.fillText(b.t, cx, cy);
       }
     };
-    rafRef.current = requestAnimationFrame(frame);
+    raf = requestAnimationFrame(frame);
     return () => {
       io.disconnect();
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      ro.disconnect();
+      cancelAnimationFrame(raf);
     };
-  }, [hover]);
+  }, [seed]);
 
-  function onMove(e: React.MouseEvent<HTMLCanvasElement>) {
+  const onMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -196,8 +278,11 @@ export function VisualizerShowcase() {
     for (const b of bodiesRef.current) {
       if ((b.x - x) ** 2 + (b.y - y) ** 2 <= b.r * b.r) hit = b;
     }
-    setHover(hit);
-  }
+    hoverRef.current = hit;
+    setHoverInfo(
+      hit ? { t: hit.t, label: hit.label, total: hit.total } : null,
+    );
+  };
 
   return (
     <section
@@ -223,6 +308,11 @@ export function VisualizerShowcase() {
             Live
           </span>
         </h3>
+        {/* In the header, not floating over the field — it used to sit on top
+            of the bubbles (George's screenshot). */}
+        <span className="hidden sm:block text-[11px] text-mute whitespace-nowrap ml-auto mr-3">
+          Sized by insider dollars · last 30 days
+        </span>
         <Link
           href="/visualizers"
           className="text-[10px] font-mono text-accent uppercase tracking-wider inline-flex items-center gap-1 hover:underline whitespace-nowrap"
@@ -232,25 +322,35 @@ export function VisualizerShowcase() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_260px]">
-        {/* The field. One link — clicking anywhere opens the real map. */}
         <Link
           href="/bubbles"
-          ref={wrapRef as never}
           className="relative block"
           title="Open the live Insider Bubbles map"
-          onMouseLeave={() => setHover(null)}
+          onMouseLeave={() => {
+            hoverRef.current = null;
+            setHoverInfo(null);
+          }}
         >
-          {bubbles.length ? (
+          {/* The wrapper is what gets measured; the canvas is ALWAYS mounted
+              so the frame loop has something to attach to on a cold load. */}
+          <div ref={wrapRef} style={{ width: "100%", height: HEIGHT }}>
             <canvas
               ref={canvasRef}
               onMouseMove={onMove}
               style={{ display: "block", width: "100%", height: HEIGHT }}
             />
-          ) : (
-            <div className="shimmer" style={{ height: HEIGHT }} />
+          </div>
+
+          {!bubbles.length && (
+            <span
+              className="absolute inset-0 flex items-center justify-center text-[12.5px] text-mute"
+              aria-hidden
+            >
+              Loading insider bubbles…
+            </span>
           )}
 
-          {hover && (
+          {hoverInfo && (
             <span
               className="absolute left-3 bottom-3 rounded-lg px-3 py-2 pointer-events-none"
               style={{
@@ -259,25 +359,17 @@ export function VisualizerShowcase() {
                 boxShadow: "0 6px 20px rgba(0,0,0,0.16)",
               }}
             >
-              <span className="block text-[13px] font-bold">{hover.t}</span>
+              <span className="block text-[13px] font-bold">{hoverInfo.t}</span>
               <span className="block text-[11px] text-mute truncate max-w-[220px]">
-                {hover.label}
+                {hoverInfo.label}
               </span>
               <span className="block text-[12px] font-bold tabular mt-0.5">
-                {formatCurrency(hover.total)} bought
+                {formatCurrency(hoverInfo.total)} bought
               </span>
             </span>
           )}
-
-          <span
-            className="absolute right-3 top-3 text-[11px] text-mute pointer-events-none"
-            style={{ textShadow: "0 1px 2px var(--bg-2)" }}
-          >
-            Sized by insider dollars · last 30 days
-          </span>
         </Link>
 
-        {/* The rest of the suite. */}
         <div
           className="border-t lg:border-t-0 lg:border-l p-3 space-y-2"
           style={{ borderColor: "var(--border)" }}

@@ -45,15 +45,23 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Everything below the hero is deferred until scrolled near — the heat
-          map (260KB), AI news/articles/ideas and their explain-batch calls no
-          longer fire on first paint, so the top of the page appears fast. */}
-      <LazyMount minHeight={420}>
       {/* The visualizer suite, full width, opening on a live Insider Bubbles
           field (George 2026-09-14: replace the heat map section with the
           visualizers, previewing Insider Bubbles). The market heat map keeps
-          its own page and its nav link under More Stock Tools. */}
+          its own page and its nav link under More Stock Tools.
+
+          OUTSIDE LazyMount deliberately (George: "insider bubbles are loading
+          so slow on website home page, as page loads they should be there").
+          It sits directly under the hero, so it is on screen the moment the
+          page opens and deferring it only meant an empty box. It costs a 6 KB
+          preview that is also seeded server-side — the heat map this replaced
+          was deferred because it pulled 260 KB. */}
       <VisualizerShowcase />
+
+      {/* Everything below is deferred until scrolled near — the AI
+          news/articles/ideas and their explain-batch calls no longer fire on
+          first paint, so the top of the page appears fast. */}
+      <LazyMount minHeight={420}>
 
       {/* LATEST FINANCIAL NEWS — with the redesigned Popular Tools rail */}
       <div className="grid grid-cols-1 xl:grid-cols-[2.5fr_1fr] gap-6 xl:gap-10">
