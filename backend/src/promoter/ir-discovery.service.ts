@@ -259,6 +259,24 @@ export class IrDiscoveryService {
     }
   }
 
+  /**
+   * Put the items most likely to resolve to a readable wire first.
+   *
+   * Resolution costs two Google round-trips per item and most of the feed is
+   * aggregators republishing the same releases. The RSS `source` name is a
+   * free hint about where an item will land, so ordering by it means a capped
+   * run spends its budget on releases it can actually read.
+   */
+  prioritise(items: DiscoveredItem[]): DiscoveredItem[] {
+    const rank = (s: string) =>
+      /newsfile|access ?newswire|globenewswire|globe newswire|pr ?newswire|cnw|business ?wire|newswire\.ca|investing news|junior mining|the newswire|globe and mail/i.test(s)
+        ? 0
+        : /yahoo|stock ?titan|kalkine|tradingview|citybiz|manila|scanx|pluang|simply wall/i.test(s)
+          ? 2
+          : 1;
+    return [...items].sort((a, b) => rank(a.source) - rank(b.source));
+  }
+
   status() {
     return {
       queries: DISCOVERY_QUERIES.length,

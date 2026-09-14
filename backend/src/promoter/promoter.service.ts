@@ -49,6 +49,10 @@ import { DEFAULT_WEIGHTS, PromoterWeights, WEIGHT_KEYS, normalizeWeights } from 
 
 const DAY = 86_400_000;
 
+/** Ceiling on Google News round-trips in one pass. Resolution is two requests
+ *  per item, so an unbounded run over a 300-item feed is 600 calls. */
+const MAX_RESOLVES = 220;
+
 export interface ReviewRow {
   id: number;
   ticker: string | null;
@@ -301,9 +305,21 @@ export class PromoterService implements OnModuleInit {
     let agreements = 0;
     let review = 0;
     try {
-      const items = await this.discovery.discover();
+      const items = this.discovery.prioritise(await this.discovery.discover());
       this.log.log(`discovery returned ${items.length} items`);
-      for (const item of items.slice(0, limit)) {
+      let resolves = 0;
+      for (const item of items) {
+        // `limit` caps RELEASES READ, not items examined. It used to slice the
+        // item list, and the first pass on production read nothing at all: the
+        // discovery feed is dominated by aggregators that republish these
+        // releases, so the first sixty items were almost entirely hosts we
+        // skip on purpose and the one wire among them was mid-WAF-challenge.
+        if (fetched >= limit) break;
+        if (resolves >= MAX_RESOLVES) {
+          this.log.warn(`stopped after ${MAX_RESOLVES} url resolutions`);
+          break;
+        }
+        resolves++;
         const url = await this.discovery.resolveUrl(item.guid);
         if (!url || !this.discovery.isFullTextHost(url)) continue;
         const already = (await this.q(`SELECT id FROM ir_disclosures WHERE source_url = $1`, [url]))?.[0];
@@ -326,6 +342,7 @@ export class PromoterService implements OnModuleInit {
         agreements += res.agreements;
         if (res.needsReview) review++;
       }
+      this.log.log(`ingest read ${fetched} releases, wrote ${agreements} agreements, ${review} held for review`);
       await this.resolveIssuers();
       await this.rescore();
     } finally {
