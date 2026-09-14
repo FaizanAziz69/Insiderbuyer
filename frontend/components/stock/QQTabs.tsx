@@ -392,7 +392,17 @@ const CASH_ITEMS: LineItem[] = [
 
 export function FinancialsTab({ sym }: { sym: string }) {
   const [pill, setPill] = useState<"income" | "balance" | "cashflow" | "revbreak">("income");
-  const { data, isLoading } = useSWR<{ income: StmtPeriod[]; balance: StmtPeriod[]; cashflow: StmtPeriod[] }>(
+  const { data, isLoading } = useSWR<{
+    income: StmtPeriod[];
+    balance: StmtPeriod[];
+    cashflow: StmtPeriod[];
+    /** Set when this symbol is a newly-listed line and the filings live under
+     *  another one (MFPVV trades, MFP files). */
+    filedAs?: string;
+    /** Set when the rows were built from the company's own XBRL filings
+     *  because no vendor carries the symbol yet. */
+    source?: string;
+  }>(
     `${API_BASE}/market-stats/statements?symbol=${encodeURIComponent(sym)}`, fetcher, { revalidateOnFocus: false, dedupingInterval: 60 * 60_000 });
   const PILLS = [
     ["income", "Income"], ["balance", "Balance Sheet"], ["cashflow", "Cash Flow"], ["revbreak", "Revenue Breakdown"],
@@ -425,6 +435,24 @@ export function FinancialsTab({ sym }: { sym: string }) {
           <h2 className="text-[26px] font-bold tracking-tight">
             {sym} {pill === "income" ? "Income Statement" : pill === "balance" ? "Balance Sheet" : "Cash Flow"}
           </h2>
+          {/* Where the numbers came from, when it is not the obvious place.
+              A newly-listed line trades under a temporary symbol while its
+              filings stay under the permanent one, and a filer too new for
+              any vendor is read from its own XBRL. */}
+          {(data?.filedAs || data?.source === "sec-xbrl") && (
+            <p className="text-[12.5px] text-mute -mt-3">
+              {data?.filedAs && (
+                <>
+                  Filed under <strong>{data.filedAs}</strong>
+                  {data?.source === "sec-xbrl" ? ", " : " — "}
+                </>
+              )}
+              {data?.source === "sec-xbrl" && (
+                <>sourced directly from this company&rsquo;s SEC filings (XBRL).</>
+              )}
+              {!data?.source && <>the permanent symbol for this newly-listed line.</>}
+            </p>
+          )}
           <div className="card overflow-x-auto">
             {isLoading ? (
               <div className="p-12 text-center text-[13px] text-mute">Loading statements…</div>

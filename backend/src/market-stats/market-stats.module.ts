@@ -11,6 +11,8 @@ import { MarketStatsController } from './market-stats.controller';
 import { MarketStatsService } from './market-stats.service';
 import { PeCacheService } from './pe-cache.service';
 import { PeriodBaselineService } from './period-baseline.service';
+import { SymbolResolverService } from './symbol-resolver.service';
+import { EdgarFundamentalsService } from './edgar-fundamentals.service';
 
 @Module({
   imports: [
@@ -18,7 +20,7 @@ import { PeriodBaselineService } from './period-baseline.service';
     TypeOrmModule.forFeature([PeRatioCache, MarketProfileSnapshot, FundamentalsCache, EodClose]),
   ],
   controllers: [MarketStatsController],
-  providers: [MarketStatsService, PeCacheService, MarketSnapshotService, FundamentalsCacheService, PeriodBaselineService],
-  exports: [MarketStatsService, PeCacheService, MarketSnapshotService, FundamentalsCacheService, PeriodBaselineService],
+  providers: [MarketStatsService, PeCacheService, MarketSnapshotService, FundamentalsCacheService, PeriodBaselineService, SymbolResolverService, EdgarFundamentalsService],
+  exports: [MarketStatsService, PeCacheService, MarketSnapshotService, FundamentalsCacheService, PeriodBaselineService, SymbolResolverService, EdgarFundamentalsService],
 })
 export class MarketStatsModule {}

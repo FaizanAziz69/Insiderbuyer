@@ -6,6 +6,8 @@ import { MarketSnapshotService } from './market-snapshot.service';
 import { FundamentalsCacheService, FundamentalsRow } from './fundamentals-cache.service';
 import { PeCacheService } from './pe-cache.service';
 import { PeriodBaselineService } from './period-baseline.service';
+import { SymbolResolverService } from './symbol-resolver.service';
+import { EdgarFundamentalsService } from './edgar-fundamentals.service';
 import { REFERENCE_QUOTES, ReferenceQuote } from './reference-quotes';
 import {
   EXCLUDED_UNIVERSE_INDUSTRIES,
@@ -416,6 +418,8 @@ export class MarketStatsService {
     @Optional() private readonly snapshot?: MarketSnapshotService,
     @Optional() private readonly fundamentals?: FundamentalsCacheService,
     @Optional() private readonly baselines?: PeriodBaselineService,
+    @Optional() private readonly symbols?: SymbolResolverService,
+    @Optional() private readonly edgar?: EdgarFundamentalsService,
   ) {
     this.http = axios.create({
       timeout: 10_000,
@@ -2767,6 +2771,19 @@ export class MarketStatsService {
       return licensed;
     }
 
+    // Same suffix problem as the quarterly path: a newly-listed line trades
+    // under a symbol nobody files under (MFPVV → MFP). Try the canonical one
+    // before falling through to Yahoo.
+    const canonical = await this.canonicalFor(symbol);
+    if (canonical) {
+      const alt = await this.annualFinancialsFromFmp(canonical);
+      if (alt) {
+        const data = { ...alt, symbol, filedAs: canonical };
+        this.detailCache.set(cacheKey, { ts: Date.now(), data });
+        return data;
+      }
+    }
+
     const incomeTypes = [
       'annualTotalRevenue', 'annualCostOfRevenue', 'annualGrossProfit',
       'annualOperatingExpense', 'annualOperatingIncome', 'annualEBITDA',
@@ -3019,9 +3036,81 @@ export class MarketStatsService {
         if (fmpRows.length > revCount) income = fmpRows;
       } catch { /* keep Yahoo income */ }
     }
-    const data = { symbol, income, balance: build(bal), cashflow: build(cf) };
+    let data = { symbol, income, balance: build(bal), cashflow: build(cf) };
+
+    // Nothing anywhere? The symbol may not be the one the company FILES under.
+    // Newly-listed lines carry an exchange suffix (MFPVV is Midera Food
+    // Processing's when-issued line; its 10-Qs are filed as MFP) and no
+    // fundamentals vendor carries that symbol. Resolve and ask again under the
+    // canonical one — George 2026-09-14, /companies/MFPVV.
+    if (!data.income.length && !data.balance.length && !data.cashflow.length) {
+      const viaCanonical = await this.statementsViaCanonical(symbol);
+      if (viaCanonical) data = viaCanonical;
+    }
+
     this.detailCache.set(cacheKey, { ts: Date.now(), data });
     return data;
+  }
+
+  /** The symbol this company FILES under, when it differs from the traded one.
+   *  Null when there is nothing different to try. */
+  private async canonicalFor(symbol: string): Promise<string | null> {
+    if (!this.symbols) return null;
+    try {
+      let name: string | null = null;
+      try {
+        const batch = await this.getQuoteBatch([symbol]);
+        name = batch.get(symbol)?.name ?? null;
+      } catch {
+        name = null;
+      }
+      const resolved = await this.symbols.resolve(symbol, name);
+      return resolved && resolved.canonical !== symbol ? resolved.canonical : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Retry quarterly statements under the symbol this company files under.
+   *  Returns null when there is no different symbol to try, or when the
+   *  canonical one is just as empty. The payload keeps the symbol the CALLER
+   *  asked for, so the frontend needs no change. */
+  private async statementsViaCanonical(symbol: string): Promise<any | null> {
+    if (!this.symbols) return null;
+    try {
+      let name: string | null = null;
+      try {
+        const batch = await this.getQuoteBatch([symbol]);
+        name = batch.get(symbol)?.name ?? null;
+      } catch {
+        name = null;
+      }
+      const resolved = await this.symbols.resolve(symbol, name);
+      if (!resolved) return null;
+
+      // 1. The vendor, under the symbol the company actually files under.
+      if (resolved.canonical !== symbol) {
+        const alt = await this.quarterlyStatementsFromFmp(resolved.canonical);
+        if (alt && (alt.income.length || alt.balance.length || alt.cashflow.length)) {
+          return { ...alt, symbol, filedAs: resolved.canonical };
+        }
+      }
+
+      // 2. The filings themselves. A company that listed weeks ago has filed
+      //    a 10-Q the vendor has not ingested; SEC published every number of
+      //    it as XBRL the day it landed.
+      if (resolved.cik && this.edgar) {
+        const sec = await this.edgar.quarterlyStatements(resolved.cik, symbol);
+        if (sec) {
+          return resolved.canonical !== symbol
+            ? { ...sec, filedAs: resolved.canonical }
+            : sec;
+        }
+      }
+    } catch {
+      /* fall through — an empty Financials tab is what we already had */
+    }
+    return null;
   }
 
   /** Analyst forecast block: price targets + recommendation trend counts. */
