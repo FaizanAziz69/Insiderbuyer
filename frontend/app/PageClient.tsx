@@ -3,19 +3,19 @@ import Link from "next/link";
 import useSWR from "swr";
 import { ChevronRight } from "lucide-react";
 import { LazyMount } from "@/components/LazyMount";
-import { API_BASE, HeatQuote, heatToRanking, fetcher } from "@/lib/api";
+import { API_BASE, fetcher } from "@/lib/api";
 import { MonthlyBuySellMeter } from "@/components/home/MonthlyBuySellMeter";
 import { TopStoriesSection } from "@/components/home/TopStoriesSection";
 import { HomeDatasets } from "@/components/home/HomeDatasets";
 import { EarningsCalendar } from "@/components/home/EarningsCalendar";
 import { SidebarListsAndTools } from "@/components/home/SidebarListsAndTools";
 import { SidebarPopularTools } from "@/components/home/SidebarPopularTools";
-import { StockHeatmap, HeatmapLegend } from "@/components/heatmap/StockHeatmap";
 import { AdSlot } from "@/components/AdSlot";
 import { DATA_REFRESHING, useStalled } from "@/lib/useStalled";
 import { AiCatalyst, useExplainerPrewarm } from "@/components/AiCatalyst";
 import { AiStockIdeasSection } from "@/components/insights/AiStockIdeasSection";
 import { TopInsiderBuys } from "@/components/home/TopInsiderBuys";
+import { VisualizerShowcase } from "@/components/home/VisualizerShowcase";
 import { AiPopularArticlesSection } from "@/components/insights/AiPopularArticlesSection";
 import { AiLatestNewsSection } from "@/components/insights/AiLatestNewsSection";
 import { HomeThumbRegistry } from "@/components/insights/HomeThumbRegistry";
@@ -49,8 +49,11 @@ export default function HomePage() {
           map (260KB), AI news/articles/ideas and their explain-batch calls no
           longer fire on first paint, so the top of the page appears fast. */}
       <LazyMount minHeight={420}>
-      {/* Horizontal market heat map (full width) */}
-      <MarketHeatmapPanel />
+      {/* The visualizer suite, full width, opening on a live Insider Bubbles
+          field (George 2026-09-14: replace the heat map section with the
+          visualizers, previewing Insider Bubbles). The market heat map keeps
+          its own page and its nav link under More Stock Tools. */}
+      <VisualizerShowcase />
 
       {/* LATEST FINANCIAL NEWS — with the redesigned Popular Tools rail */}
       <div className="grid grid-cols-1 xl:grid-cols-[2.5fr_1fr] gap-6 xl:gap-10">
@@ -214,57 +217,6 @@ function TopGainersPanel() {
           ))
         )}
       </ul>
-    </aside>
-  );
-}
-
-/** Full-width horizontal market heat map. */
-function MarketHeatmapPanel() {
-  const HEIGHT = 380;
-  // Only the biggest TILES companies are ever drawn here (see below), so ask
-  // for exactly those. The unlimited endpoint returns the whole ~4k-row
-  // universe — 1.7 MB of JSON, 335 KB gzipped — and it was being downloaded
-  // on every first load of the homepage to paint 250 tiles.
-  const TILES = 250;
-  const { data } = useSWR<{ rows: HeatQuote[] }>(
-    `${API_BASE}/market-stats/heatmap?limit=${TILES}`,
-    fetcher,
-    { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
-  );
-  // A 380px-tall treemap cannot draw more than this legibly: everything below
-  // the mega caps collapses into unlabelled dots. The full map at
-  // /heatmaps/market still gets everything, and has search to reach the rest.
-  const rows = (data?.rows ?? []).slice(0, TILES).map(heatToRanking);
-
-  return (
-    <aside
-      className="rounded-lg overflow-hidden"
-      style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
-    >
-      <Link
-        href="/heatmaps/market"
-        className="flex items-center justify-between px-4 py-2.5 border-b group hover:bg-[var(--accent-soft)] transition"
-        style={{ borderColor: "var(--border)", background: "var(--bg-3)" }}
-        title="Open the full market heat map"
-      >
-        <h3 className="text-[13px] font-bold uppercase tracking-wider truncate group-hover:text-accent transition">
-          Market Heat Map
-        </h3>
-        <span className="text-[10px] font-mono text-accent uppercase tracking-wider inline-flex items-center gap-1">
-          Full map <ChevronRight className="h-3 w-3" />
-        </span>
-      </Link>
-      <div className="p-2">
-        {rows.length > 0 ? (
-          <StockHeatmap rows={rows} height={HEIGHT} mode="sector" rawSectors />
-        ) : (
-          <div className="shimmer rounded" style={{ height: HEIGHT }} />
-        )}
-        {/* Color legend — same bar as the full heat map page */}
-        <div className="px-1 pt-3">
-          <HeatmapLegend colorBy="change" />
-        </div>
-      </div>
     </aside>
   );
 }

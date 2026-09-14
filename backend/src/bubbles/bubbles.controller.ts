@@ -16,6 +16,24 @@ export class BubblesController {
     return this.svc.read(window);
   }
 
+  /**
+   * Slim preview for the homepage module (George 2026-09-14: the heat map
+   * section becomes a live Insider Bubbles preview). The full payload is
+   * 172 KB — it carries every Form 4 behind every bubble, which a preview
+   * never draws — and the homepage was just cut down over a speed complaint,
+   * so this returns the few fields a bubble needs to be drawn and nothing
+   * else: ~6 KB for 44 bubbles.
+   */
+  @Get('preview')
+  @Header('Cache-Control', 'public, max-age=300')
+  async preview(
+    @Query('window') window?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const n = Number(limit);
+    return this.svc.preview(window, Number.isFinite(n) && n > 0 ? Math.min(n, 120) : 44);
+  }
+
   @Get('status')
   async status() {
     return this.svc.status();

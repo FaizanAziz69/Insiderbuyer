@@ -83,6 +83,43 @@ export class BubblesService {
     return rows[0].payload;
   }
 
+  /**
+   * The same bubbles, stripped to what a preview canvas draws.
+   *
+   * Ranked by total purchase dollars so the preview shows the biggest insider
+   * buying rather than an arbitrary slice, and each bubble keeps only ticker,
+   * size, direction and industry. The `buys` arrays are the bulk of the full
+   * payload and a preview never opens one.
+   */
+  async preview(windowRaw: string | undefined, limit: number): Promise<unknown> {
+    const full = (await this.read(windowRaw)) as {
+      window: string;
+      generatedAt: string | null;
+      count: number;
+      bubbles?: Array<Record<string, any>>;
+    };
+    const bubbles = (full?.bubbles || [])
+      .slice()
+      .sort((a, b) => Number(b?.total || 0) - Number(a?.total || 0))
+      .slice(0, limit)
+      .map((b) => ({
+        t: b.t,
+        name: b.name ?? null,
+        total: Number(b.total) || 0,
+        chg: b.chg == null ? null : Number(b.chg),
+        ind: b.ind ?? b.sector ?? null,
+        iq: b.iq == null ? null : Number(b.iq),
+        buyers: Array.isArray(b.buys) ? b.buys.length : 0,
+      }));
+    return {
+      window: full?.window ?? null,
+      generatedAt: full?.generatedAt ?? null,
+      count: full?.count ?? bubbles.length,
+      shown: bubbles.length,
+      bubbles,
+    };
+  }
+
   async status(): Promise<unknown> {
     await this.ensureTables();
     const rows = await this.cacheRepo.query(

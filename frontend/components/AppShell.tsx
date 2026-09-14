@@ -7,6 +7,7 @@ import { TopTickerBar } from "./TopTickerBar";
 import { PREMIUM_UNLOCKED } from "@/lib/premium";
 import { InsiderActivityToast } from "@/components/home/InsiderActivityToast";
 import { useBarePage } from "@/lib/use-bare-page";
+import { VisualizerSwitcher } from "@/components/visualizers/VisualizerSwitcher";
 
 /**
  * Standalone funnel pages that render without the site chrome.
@@ -36,6 +37,15 @@ const BARE_ROUTES = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const bare = useBarePage();
+  // Every visualizer, including the two bubble maps that predate the suite.
+  // Not the hub itself — it already lists them all — and not the embeds,
+  // which are bare by definition.
+  const isVisualizer =
+    !!pathname &&
+    (pathname === "/bubbles" ||
+      pathname === "/congress-bubbles" ||
+      (pathname.startsWith("/visualizers/") &&
+        !pathname.startsWith("/visualizers/embed")));
   if (BARE_ROUTES.some((r) => pathname?.startsWith(r))) {
     return <>{children}</>;
   }
@@ -52,8 +62,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           founding-offer strip (30), which at z-20 rode OVER the nav and its
           open dropdowns on scroll; below the activity toast (40) and modals
           (50). */}
+      {/* Inside data-app-sticky on purpose: the two bubble maps size their
+          canvas to `innerHeight - stickyHeight`, so a bar added anywhere else
+          would push the field off the bottom of the screen by its own height.
+          Here the measurement absorbs it and the map shrinks to fit.
+          George 2026-09-14: from a visualizer you must be able to "switch
+          visualizers from there". */}
       <div data-app-chrome data-app-sticky className="sticky top-0 z-[35]">
         <TopHeader />
+        {isVisualizer && (
+          <div
+            className="px-6 sm:px-10 lg:px-16 xl:px-24"
+            style={{ background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}
+          >
+            <div className="max-w-[1640px] mx-auto">
+              <VisualizerSwitcher />
+            </div>
+          </div>
+        )}
       </div>
       <main
         className={
