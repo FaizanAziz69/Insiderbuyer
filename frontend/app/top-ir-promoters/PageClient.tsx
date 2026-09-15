@@ -9,6 +9,7 @@ import { usePremium } from "@/components/premium/PremiumContext";
 import { MaskedCell } from "@/components/premium/MaskedCell";
 import { firmDecoyFor } from "@/components/premium/lockedDecoys";
 import { PRODUCT_NAME } from "@/components/premium/PaywallCta";
+import { PromoterEmailSignup } from "@/components/promoter/PromoterEmailSignup";
 
 /**
  * Top IR Promoters — the paid dataset (George 2026-09-16): "the top performing
@@ -375,6 +376,8 @@ export default function TopIrPromotersPage() {
         }}
         empty={isLoading ? "Ranking IR firms by client results…" : "No firms with priced campaigns yet."}
       />
+
+      <PromoterEmailSignup source="top-ir-promoters" />
 
       <section
         className="mt-6 rounded-lg p-4"

@@ -7,6 +7,7 @@ import { API_BASE, fetcher } from "@/lib/api";
 import { DataTable, Column } from "@/components/DataTable";
 import { PromoterSpendChart } from "@/components/promoter/PromoterSpendChart";
 import { PromoterScoreCell } from "@/components/promoter/PromoterScoreCell";
+import { PromoterEmailSignup } from "@/components/promoter/PromoterEmailSignup";
 
 /**
  * Workstream F §2.5 — the ranking page: "most-promoted stocks (by score, by
@@ -321,6 +322,8 @@ export default function PromoterScorePage() {
             : "No disclosed IR agreements for this quarter yet."
         }
       />
+
+      <PromoterEmailSignup source="promoter-score" />
 
       <section
         className="mt-6 rounded-lg p-4"

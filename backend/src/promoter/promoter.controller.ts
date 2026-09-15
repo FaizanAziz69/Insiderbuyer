@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -17,6 +18,7 @@ import type { Response } from 'express';
 import { AdminTokenGuard } from '../common/admin-token.guard';
 import { PromoterService } from './promoter.service';
 import { ContractPerformanceService } from './contract-performance.service';
+import { PromoterEmailsService, PromoterEmailKind } from './promoter-emails.service';
 import { DEFAULT_WEIGHTS, WEIGHT_LABELS } from './scoring';
 
 /**
@@ -34,7 +36,67 @@ export class PromoterController {
   constructor(
     private readonly svc: PromoterService,
     private readonly perf: ContractPerformanceService,
+    private readonly emails: PromoterEmailsService,
   ) {}
+
+  // ── Promoter Score email list (George 2026-09-16) ──────────────────────
+
+  /** Join the dedicated list; sends the welcome email once. */
+  @Post('emails/subscribe')
+  async emailSubscribe(@Body() body: { email?: string; source?: string }) {
+    const out = await this.emails.subscribe(body?.email || '', body?.source);
+    if (!out.ok) throw new BadRequestException('A valid email address is required.');
+    return out;
+  }
+
+  /** One-click unsubscribe from the footer link / List-Unsubscribe header. */
+  @Get('emails/unsubscribe')
+  async emailUnsubscribe(@Query('token') token: string, @Res() res: Response) {
+    const ok = await this.emails.unsubscribe(token || '');
+    res
+      .status(ok ? 200 : 404)
+      .type('html')
+      .send(
+        `<!doctype html><meta charset="utf-8"><title>Promoter Score list</title>` +
+          `<div style="max-width:520px;margin:60px auto;padding:0 20px;font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.6;">` +
+          `<div style="font-size:26px;font-weight:900;letter-spacing:1px;">PROMOTER SCORE</div>` +
+          `<div style="border-bottom:3px solid #1a237e;margin:6px 0 22px;"></div>` +
+          (ok
+            ? `<p>You’re unsubscribed from the Promoter Score list. You won’t receive the monthly issue again.</p>`
+            : `<p>That unsubscribe link isn’t valid or has already been used.</p>`) +
+          `<p><a href="https://insiderbuying.com/promoter-score" style="color:#1a237e;font-weight:700;">Back to Promoter Score →</a></p></div>`,
+      );
+  }
+
+  @Get('emails/status')
+  @UseGuards(AdminTokenGuard)
+  emailStatus() {
+    return this.emails.status();
+  }
+
+  /** Render a template for review: ?kind=welcome|monthly. */
+  @Get('emails/preview')
+  @UseGuards(AdminTokenGuard)
+  async emailPreview(@Query('kind') kind: string, @Res() res: Response) {
+    const k: PromoterEmailKind = kind === 'monthly' ? 'monthly' : 'welcome';
+    const out = await this.emails.preview(k);
+    res.type('html').send(`<!-- subject: ${out.subject.replace(/--/g, '—')} -->\n${out.html}`);
+  }
+
+  /** Send one template to one address for review. */
+  @Post('emails/test-send')
+  @UseGuards(AdminTokenGuard)
+  async emailTestSend(@Body() body: { kind?: string; to?: string }) {
+    const k: PromoterEmailKind = body?.kind === 'monthly' ? 'monthly' : 'welcome';
+    return this.emails.testSend(k, body?.to || '');
+  }
+
+  /** Send the monthly issue to the whole list now. */
+  @Post('emails/send-monthly')
+  @UseGuards(AdminTokenGuard)
+  async emailSendMonthly() {
+    return this.emails.sendMonthly();
+  }
 
   /** §2.5 ranking page: most-promoted stocks. */
   @Get('ranking')
