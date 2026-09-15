@@ -223,11 +223,18 @@ export class VerificationAgentService {
     // Leg: the trade still exists as disclosed. A PTR can be amended, and an
     // amendment that removes the transaction breaks the row's first leg.
     if (row.trade_id) {
+      // Read the trade back from ct_disclosures, which is where the flag
+      // engine now takes it from. This used to query congressional_transactions
+      // by a uuid; once Stage 1 moved onto household disclosures the id became
+      // a composite key ("member|ticker|date|action|owner|amount"), Postgres
+      // refused to cast it to uuid, and the whole verification pass 500'd —
+      // which meant NOTHING could ever reach 'verified', and the public
+      // leaderboard stayed empty however many real flags the engine produced.
       const t = (
         await this.q(
-          `SELECT "transactionDate" AS d, "amountMin"::float8 AS amin, "amountMax"::float8 AS amax
-             FROM congressional_transactions WHERE id = $1`,
-          [row.trade_id],
+          `SELECT transaction_date AS d, amount_min::float8 AS amin, amount_max::float8 AS amax
+             FROM ct_disclosures WHERE id = $1`,
+          [String(row.trade_id)],
         )
       )?.[0];
       if (!t) {
@@ -326,6 +333,23 @@ export class VerificationAgentService {
       return { action: 'queued' };
     }
 
+    // `prose === null` means the review did not run — no key, no credit, an
+    // outage. That is NOT the same as "supported", and the row must not be
+    // published as though a gate had passed when none did. It is also not a
+    // reason to retire a good row, so it goes to the human queue, which is the
+    // one place §2 Stage 5 says a judgement about a named person may be made
+    // when the agent cannot make it. The next pass with a working model picks
+    // it up from there.
+    if (!prose) {
+      await this.queueForHuman(
+        row,
+        'The prose review could not run, so the sentence has not been checked against the facts. ' +
+          'Read the headline against the evidence chain and release it or send it back.',
+        null,
+      );
+      return { action: 'queued' };
+    }
+
     await this.q(
       `UPDATE ct_flags SET status = 'verified', verified_at = now(), updated_at = now() WHERE id = $1`,
       [row.id],
@@ -384,8 +408,10 @@ export class VerificationAgentService {
       return { verdict: String(parsed.verdict || ''), reason: String(parsed.reason || '') };
     } catch (e: any) {
       // A model outage must not publish an unchecked row, but it must not
-      // retire a good one either: abstaining leaves the row exactly where it
-      // was and the next pass tries again.
+      // retire a good one either. Returning null says "no answer", and the
+      // caller routes that to the human queue rather than treating silence
+      // as approval — for a while it did the opposite, and a billing failure
+      // would have published every pending headline unreviewed.
       this.log.warn(`prose review unavailable: ${e?.message || e}`);
       return null;
     }
