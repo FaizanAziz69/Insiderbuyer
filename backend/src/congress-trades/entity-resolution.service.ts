@@ -208,7 +208,9 @@ export class EntityResolutionService {
   // ── Resolution ─────────────────────────────────────────────────────────
 
   /** Resolve every vendor behind stored awards that has no decision yet. */
-  async resolvePending(limit = 250): Promise<{ resolved: number; ticker: number; notPublic: number; unresolved: number }> {
+  async resolvePending(
+    limit = 250,
+  ): Promise<{ resolved: number; ticker: number; notPublic: number; unresolved: number; failed: number }> {
     await this.ensureTables();
     const rows: any[] = await this.q(
       `SELECT DISTINCT a.recipient_uei AS uei, a.recipient_name AS name, a.recipient_id AS rid
@@ -221,18 +223,28 @@ export class EntityResolutionService {
     let ticker = 0;
     let notPublic = 0;
     let unresolved = 0;
+    let failed = 0;
     for (const r of rows) {
-      const res = await this.resolve(r.name, r.uei, r.rid);
-      await this.store(res);
-      if (res.status === 'ticker') ticker++;
-      else if (res.status === 'not_public') notPublic++;
-      else unresolved++;
+      // One vendor must not cost the run. A bad column name in hop 0 took the
+      // whole endpoint down with a 500 the first time this ran in production,
+      // and 757 awards went unresolved because of one of them.
+      try {
+        const res = await this.resolve(r.name, r.uei, r.rid);
+        await this.store(res);
+        if (res.status === 'ticker') ticker++;
+        else if (res.status === 'not_public') notPublic++;
+        else unresolved++;
+      } catch (e: any) {
+        failed++;
+        this.log.warn(`vendor "${r.name}" could not be resolved: ${e?.message || e}`);
+      }
     }
     const resolved = ticker + notPublic;
     this.log.log(
-      `entity resolution: ${rows.length} vendors — ${ticker} ticker, ${notPublic} not public, ${unresolved} to review`,
+      `entity resolution: ${rows.length} vendors — ${ticker} ticker, ${notPublic} not public, ` +
+        `${unresolved} to review${failed ? `, ${failed} errored` : ''}`,
     );
-    return { resolved, ticker, notPublic, unresolved };
+    return { resolved, ticker, notPublic, unresolved, failed };
   }
 
   /**
@@ -371,14 +383,19 @@ export class EntityResolutionService {
   private async matchOurUniverse(name: string): Promise<{ ticker: string; name: string } | null> {
     const key = normName(name);
     if (key.length < 4) return null;
+    // The column is `ticker`. It was written as `symbol` here, which is a
+    // column the table has never had, so this hop — the cheapest one and the
+    // only one that can reach a company we already cover — threw on every
+    // call and took the whole resolution run down with it. Nothing surfaced
+    // it locally because the run never got past the awards fetch.
     const rows: any[] = await this.q(
-      `SELECT symbol, name FROM companies
-        WHERE lower(name) LIKE $1 OR lower(name) = $2
+      `SELECT ticker, name FROM companies
+        WHERE ticker IS NOT NULL AND (lower(name) LIKE $1 OR lower(name) = $2)
         ORDER BY length(name) LIMIT 5`,
       [`${key.split(' ')[0]}%`, name.toLowerCase()],
     );
     for (const r of rows) {
-      if (normName(r.name) === key) return { ticker: r.symbol, name: r.name };
+      if (normName(r.name) === key) return { ticker: r.ticker, name: r.name };
     }
     return null;
   }
