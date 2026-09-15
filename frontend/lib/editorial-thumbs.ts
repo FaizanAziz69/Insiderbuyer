@@ -48,6 +48,10 @@ const THUMBS: Thumb[] = [
   // stories.
   // 2026-09-10: Thiel Macro 13F — 72% of the book in energy and power.
   // Client-supplied Thiel composite; pinned only (person the story is about).
+  // 2026-09-15: Gina Rinehart buys 13.5% of White Cliff Minerals, her
+  // estranged son's copper explorer. Client-supplied Rinehart composite;
+  // pinned only (person the story is about).
+  { file: "gina-rinehart-white-cliff-2026", pinnedOnly: true },
   { file: "thiel-energy-power-2026", pinnedOnly: true },
   { file: "pelosi-thiel-vistra", pinnedOnly: true },
   // 2026-09-05: client-supplied Burry composite (red ticker board) for the
@@ -142,6 +146,8 @@ const SLUG_OVERRIDES: Record<string, string> = {
   // company the story is about. The face on it is Ryan Cohen, who is not
   // in the story — swap if the client wants the subjects instead.
   "topic-alibaba-insider-buying-2026-09-11": "ryan-cohen-alibaba",
+  // 2026-09-15: Rinehart / White Cliff. Client-supplied cover.
+  "editorial-gina-rinehart-white-cliff-estranged-son-2026-09-15": "gina-rinehart-white-cliff-2026",
   // 2026-09-11: SpaceX directors funding MDMA therapy. The library's Musk /
   // Capitol composite is the closest thing we have to "Musk world meets
   // Washington", which is what this story is.
