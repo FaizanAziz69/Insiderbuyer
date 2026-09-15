@@ -177,5 +177,22 @@ checkWith('and US names are not swept up with them',
    'Woolpert, Inc.', 'Caddell Construction Co'],
   (r: string[]) => r.every((n) => !FOREIGN_FORM.test(n)));
 
+// ── The two name forms must meet ─────────────────────────────────────────
+//
+// The trade feed and the roster spell the same person differently. Every
+// comparison between them goes through nameKey, and when one of them did not,
+// half the members had their flags retired as "no longer serving".
+
+checkWith('a middle name does not make a different member',
+  [['John Karl Fetterman', 'John Fetterman'],
+   ['Angus Stanley King', 'Angus King'],
+   ['Gary C. Peters', 'Gary Peters'],
+   ['Addison Mitchell McConnell', 'Addison McConnell']],
+  (r: string[][]) => r.every(([a, b]) => nameKey(a) === nameKey(b)));
+
+checkWith('but two different members stay different',
+  [['John Fetterman', 'John Boozman'], ['Angus King', 'Alan Armstrong']],
+  (r: string[][]) => r.every(([a, b]) => nameKey(a) !== nameKey(b)));
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nall congress-trades checks passed\n');
 if (failures) process.exit(1);

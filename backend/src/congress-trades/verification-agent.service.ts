@@ -5,6 +5,7 @@ import axios from 'axios';
 import Anthropic from '@anthropic-ai/sdk';
 import { Company } from '../entities/company.entity';
 import { checkCopy } from './cts';
+import { nameKey } from './influence-map.service';
 
 /**
  * Top Ranking Congress Trades — Brief v5, Stage 5: the verification agent.
@@ -247,12 +248,21 @@ export class VerificationAgentService {
     }
 
     // Leg: the member still sits on the committee that gave jurisdiction.
-    const seat = (
-      await this.q(
-        `SELECT 1 FROM ct_assignments WHERE lower(member) = lower($1) AND committee = $2 LIMIT 1`,
-        [row.member, row.committee],
-      )
-    )?.[0];
+    //
+    // Matched on nameKey, the SAME comparison the flag engine used to build
+    // the row. It was an exact string equality, and the two sides do not carry
+    // the same name form: the trade feed says "John Karl Fetterman" where the
+    // roster says "John Fetterman", "Angus Stanley King" where the roster says
+    // "Angus King". Half the members in the first production run — 27 of 54 —
+    // had no exact match, so their perfectly good flags were retired on the
+    // first pass with "no longer serving on that committee", which was false.
+    // Retirement is one-way, so this destroyed real rows silently.
+    const candidates: any[] = await this.q(
+      `SELECT member FROM ct_assignments WHERE committee = $1`,
+      [row.committee],
+    );
+    const want = nameKey(row.member);
+    const seat = candidates.find((c) => nameKey(c.member) === want);
     if (!seat) {
       await this.retire(row, `No longer serving on ${row.committee}; the jurisdiction leg no longer holds.`);
       return { action: 'retired' };
