@@ -2,13 +2,12 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Megaphone, Lock } from "lucide-react";
+import { Megaphone } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
 import { DataTable, Column } from "@/components/DataTable";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { MaskedCell } from "@/components/premium/MaskedCell";
 import { firmDecoyFor } from "@/components/premium/lockedDecoys";
-import { PRODUCT_NAME } from "@/components/premium/PaywallCta";
 import { PromoterEmailSignup } from "@/components/promoter/PromoterEmailSignup";
 
 /**
@@ -303,12 +302,6 @@ export default function TopIrPromotersPage() {
           <h1 className="text-[26px] font-extrabold leading-none" style={{ color: "var(--text)" }}>
             Top IR Promoters
           </h1>
-          <span
-            className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
-            style={{ background: "var(--premium)", color: "var(--premium-ink)" }}
-          >
-            <Lock size={10} /> {PRODUCT_NAME}
-          </span>
         </div>
         <p className="text-[13.5px] leading-relaxed max-w-[780px]" style={{ color: "var(--text-soft)" }}>
           The investor-relations and promotional firms Canadian venture issuers hire, ranked by what their clients&apos;
