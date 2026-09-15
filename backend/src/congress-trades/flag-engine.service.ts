@@ -213,6 +213,9 @@ export class FlagEngineService {
           awardValue: award.amount,
           company: vendor.listedName || vendor.vendorName,
           ticker: vendor.ticker,
+          tradeAction: h.action ?? null,
+          tradeDate: h.tradeDate ?? null,
+          holdingOnly: !!h.holdingOnly,
         });
         // §5 is enforced here, not trusted: a headline that trips the list is
         // dropped rather than published, and the row is logged so the template

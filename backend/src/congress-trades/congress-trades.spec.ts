@@ -100,7 +100,7 @@ const headline = flagHeadline({
   agency: 'Department of Defense', awardValue: 2.4e9, company: 'Example Corp', ticker: 'EXC',
 });
 check('the generated headline is publishable', checkCopy(headline).ok, true);
-checkWith('and carries the verifiable number', headline, (h: string) => h.includes('$2.40B'));
+checkWith('and carries the verifiable number', headline, (h: string) => h.includes('$2.40 billion'));
 checkWith('and names the committee and the agency', headline,
   (h: string) => h.includes('Armed Services') && h.includes('Department of Defense'));
 checkWith('and says "reports holding" rather than asserting a motive', headline,
@@ -193,6 +193,38 @@ checkWith('a middle name does not make a different member',
 checkWith('but two different members stay different',
   [['John Fetterman', 'John Boozman'], ['Angus King', 'Alan Armstrong']],
   (r: string[][]) => r.every(([a, b]) => nameKey(a) !== nameKey(b)));
+
+// ── The headline says only what the filing says ──────────────────────────
+
+const HL = {
+  member: 'John Karl Fetterman', committee: 'Senate Committee on Homeland Security',
+  agency: 'Office of Procurement Operations', company: 'AMAZON COM INC', ticker: 'AMZN',
+};
+
+checkWith('the award figure is exact, not rounded to a million',
+  flagHeadline({ ...HL, awardValue: 1_191_029.16, tradeAction: 'Buy', tradeDate: '2026-03-30' }),
+  (r: string) => r.includes('$1,191,029') && !r.includes('$1M'));
+
+checkWith('billions stay readable',
+  flagHeadline({ ...HL, awardValue: 2_400_000_000, tradeAction: 'Buy', tradeDate: '2026-03-30' }),
+  (r: string) => r.includes('$2.40 billion'));
+
+checkWith('a disclosed purchase is not reported as a holding',
+  flagHeadline({ ...HL, awardValue: 5_000_000, tradeAction: 'Buy', tradeDate: '2026-03-30' }),
+  (r: string) => r.includes('disclosed buying on March 30th, 2026') && !r.includes('reports holding'));
+
+checkWith('a sale is said to be a sale',
+  flagHeadline({ ...HL, awardValue: 5_000_000, tradeAction: 'Sell', tradeDate: '2026-03-30' }),
+  (r: string) => r.includes('disclosed selling'));
+
+checkWith('an annual holdings disclosure still reads as holding',
+  flagHeadline({ ...HL, awardValue: 5_000_000, tradeAction: 'Buy', tradeDate: '2026-03-30', holdingOnly: true }),
+  (r: string) => r.includes('reports holding'));
+
+checkWith('and the headline still passes the copy rules',
+  [flagHeadline({ ...HL, awardValue: 1_191_029.16, tradeAction: 'Buy', tradeDate: '2026-03-30' }),
+   flagHeadline({ ...HL, awardValue: 5_000_000, tradeAction: 'Sell', tradeDate: '2026-03-30' })],
+  (r: string[]) => r.every((h) => checkCopy(h).ok));
 
 console.log(failures ? `\n${failures} FAILED\n` : '\nall congress-trades checks passed\n');
 if (failures) process.exit(1);

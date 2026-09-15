@@ -254,6 +254,37 @@ export const AMOUNT_NOTE =
  * exactly one shape of sentence to review with counsel, and so the copy check
  * runs on the way out.
  */
+/** The house date style, spelled out so a date cannot be read US/UK ambiguously. */
+function longDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const day = d.getUTCDate();
+  const suffix =
+    day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th';
+  const month = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ][d.getUTCMonth()];
+  return `${month} ${day}${suffix}, ${d.getUTCFullYear()}`;
+}
+
+/**
+ * The award figure, exactly.
+ *
+ * It used to round to the nearest million, so a $1,191,029 award was published
+ * as "$1M". The verification agent was right to refuse that: a reader who opens
+ * the award record finds a different number from the one in the sentence, and
+ * a rounded figure beside a named member of Congress is the kind of small
+ * inaccuracy that costs the whole page its credibility. Billions keep two
+ * decimals because the exact dollar is noise at that size; everything else is
+ * written out.
+ */
+function exactMoney(v: number): string {
+  if (!Number.isFinite(v)) return 'an undisclosed amount';
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(2)} billion`;
+  return `$${Math.round(v).toLocaleString('en-US')}`;
+}
+
 export function flagHeadline(input: {
   member: string;
   committee: string;
@@ -261,13 +292,30 @@ export function flagHeadline(input: {
   awardValue: number;
   company: string;
   ticker: string;
+  /** 'Buy' | 'Sell' — what the disclosure actually records. */
+  tradeAction?: string | null;
+  tradeDate?: string | null;
+  /** True when the position comes from an annual holdings disclosure rather
+   *  than a transaction report. */
+  holdingOnly?: boolean;
 }): string {
-  const money =
-    input.awardValue >= 1e9
-      ? `$${(input.awardValue / 1e9).toFixed(2)}B`
-      : `$${Math.round(input.awardValue / 1e6)}M`;
+  // Say what the filing says, and nothing more.
+  //
+  // Every row used to end "a company X reports holding", including rows whose
+  // only evidence was a single disclosed purchase. A purchase on one date is
+  // not a report of holding: the member may have sold the next week, and the
+  // filing makes no claim either way. The agent caught it, and it was right —
+  // this is exactly §5's "no inference beyond the record".
+  const act = String(input.tradeAction || '').toLowerCase();
+  const verb = act === 'sell' ? 'selling' : act === 'buy' ? 'buying' : null;
+  const when = input.tradeDate ? ` on ${longDate(input.tradeDate)}` : '';
+  const position =
+    input.holdingOnly || !verb
+      ? `a company ${input.member} reports holding`
+      : `a company ${input.member} disclosed ${verb}${when}`;
+
   return (
     `${input.member} sits on the ${input.committee}, which has jurisdiction over the ${input.agency}. ` +
-    `The ${input.agency} awarded ${money} to ${input.company} (${input.ticker}), a company ${input.member} reports holding.`
+    `The ${input.agency} awarded ${exactMoney(input.awardValue)} to ${input.company} (${input.ticker}), ${position}.`
   );
 }
