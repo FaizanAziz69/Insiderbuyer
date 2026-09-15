@@ -81,6 +81,33 @@ export interface NavGroup {
   calloutPosition?: "top" | "bottom";
 }
 
+/** A link as the mobile drawer lays it out: depth 1 = a child, indented
+ *  under its parent (Top Insider Scores under Insider Bubbles). */
+export type MobileLink = NavLink & { depth?: number };
+export interface MobileBlock {
+  title?: string;
+  links: MobileLink[];
+}
+
+/** The group as titled blocks for the mobile drawer — the same sub-sections
+ *  the desktop panel shows (George 2026-09-15: "on mobile view its not there").
+ *  A plain column becomes one block carrying the column's own title. */
+export function groupMobileBlocks(group: NavGroup): MobileBlock[] {
+  const out: MobileBlock[] = [];
+  for (const col of group.columns) {
+    const blocks: NavSection[] = col.sections ?? [{ title: col.title, links: col.links ?? [] }];
+    for (const block of blocks) {
+      const links: MobileLink[] = [];
+      for (const link of block.links) {
+        links.push(link);
+        if (link.children) links.push(...link.children.map((c) => ({ ...c, depth: 1 })));
+      }
+      if (links.length) out.push({ title: block.title, links });
+    }
+  }
+  return out;
+}
+
 /** Every link in a group, flattened — sections, then links, then children.
  *  The mobile drawer renders one flat list per group, so it needs this rather
  *  than reaching into `columns[].links` (which is now optional). */

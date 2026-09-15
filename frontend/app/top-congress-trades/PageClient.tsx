@@ -121,7 +121,7 @@ export default function TopCongressTradesPage() {
     },
     {
       key: "score",
-      label: "CTS",
+      label: "Congress Trade Score",
       align: "center",
       info: "The Congress Trade Score, 0–100. It blends the member's committee role, how close the trade sits to the award date, the size of the position against that member's usual trade, and how material the contract is to the company. It measures the proximity of public records. It is not a probability of wrongdoing and makes no allegation.",
       sortValue: (r) => r.score ?? null,

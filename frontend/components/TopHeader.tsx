@@ -18,7 +18,7 @@ import { LoginModal } from "./LoginModal";
 import { Logo } from "./Logo";
 import { MegaDropdown } from "./nav/MegaDropdown";
 import { StockSearch } from "./nav/StockSearch";
-import { NAV_GROUPS, flattenGroupLinks } from "@/lib/nav-config";
+import { NAV_GROUPS, groupMobileBlocks } from "@/lib/nav-config";
 import { useAuth } from "@/lib/auth";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
@@ -293,63 +293,70 @@ export function TopHeader() {
                 <div className="text-[10px] uppercase tracking-[0.18em] font-bold text-accent mb-3">
                   {g.label}
                 </div>
-                <ul className="space-y-1">
-                  {flattenGroupLinks(g).map((link) => (
-                    <li key={link.href + link.label}>
-                      <Link
-                        href={link.href}
-                        onClick={() => setMobileOpen(false)}
-                        className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-[var(--accent-soft)]"
-                      >
-                        <span className="text-[14px] font-semibold text-soft inline-flex items-center gap-1.5">
-                          {link.label}
-                          {/* Same badge chips as the desktop mega-dropdown */}
-                          {link.badge === "new" && (
-                            <span
-                              className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
-                              style={{ background: "var(--good-soft)", color: "var(--good)" }}
-                            >
-                              New
+                {groupMobileBlocks(g).map((block, bi) => (
+                  <div key={(block.title ?? "") + bi} className={bi > 0 ? "mt-4" : ""}>
+                    {block.title && (
+                      <div className="px-3 mb-1.5 text-[12px] font-bold text-faint">{block.title}</div>
+                    )}
+                    <ul className="space-y-1">
+                      {block.links.map((link) => (
+                        <li key={link.href + link.label}>
+                          <Link
+                            href={link.href}
+                            onClick={() => setMobileOpen(false)}
+                            className={`flex items-center justify-between py-2 rounded-md hover:bg-[var(--accent-soft)] ${link.depth ? "pl-7 pr-3" : "px-3"}`}
+                          >
+                            <span className="text-[14px] font-semibold text-soft inline-flex items-center gap-1.5">
+                              {link.label}
+                              {/* Same badge chips as the desktop mega-dropdown */}
+                              {link.badge === "new" && (
+                                <span
+                                  className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                                  style={{ background: "var(--good-soft)", color: "var(--good)" }}
+                                >
+                                  New
+                                </span>
+                              )}
+                              {link.badge === "popular" && (
+                                <span
+                                  className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                                  style={{
+                                    background: "color-mix(in srgb, var(--warn) 18%, transparent)",
+                                    color: "var(--warn)",
+                                  }}
+                                >
+                                  Popular
+                                </span>
+                              )}
+                              {link.badge === "premium" && (
+                                <span
+                                  className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
+                                  style={{ background: "var(--premium)", color: "var(--premium-ink)" }}
+                                >
+                                  Insider Access
+                                </span>
+                              )}
+                              {link.badge === "live" && (
+                                <span
+                                  className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded inline-flex items-center gap-1"
+                                  style={{ background: "var(--bad-soft)", color: "var(--bad)" }}
+                                >
+                                  <span
+                                    className="h-1.5 w-1.5 rounded-full"
+                                    style={{ background: "var(--bad)" }}
+                                    aria-hidden
+                                  />
+                                  Live
+                                </span>
+                              )}
                             </span>
-                          )}
-                          {link.badge === "popular" && (
-                            <span
-                              className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
-                              style={{
-                                background: "color-mix(in srgb, var(--warn) 18%, transparent)",
-                                color: "var(--warn)",
-                              }}
-                            >
-                              Popular
-                            </span>
-                          )}
-                          {link.badge === "premium" && (
-                            <span
-                              className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded"
-                              style={{ background: "var(--premium)", color: "var(--premium-ink)" }}
-                            >
-                              Insider Access
-                            </span>
-                          )}
-                          {link.badge === "live" && (
-                            <span
-                              className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded inline-flex items-center gap-1"
-                              style={{ background: "var(--bad-soft)", color: "var(--bad)" }}
-                            >
-                              <span
-                                className="h-1.5 w-1.5 rounded-full"
-                                style={{ background: "var(--bad)" }}
-                                aria-hidden
-                              />
-                              Live
-                            </span>
-                          )}
-                        </span>
-                        <ChevronRight className="h-4 w-4 text-faint flex-shrink-0" />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+                            <ChevronRight className="h-4 w-4 text-faint flex-shrink-0" />
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </div>
             ))}
           </div>

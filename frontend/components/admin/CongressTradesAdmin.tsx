@@ -541,7 +541,7 @@ function CorrectionsQueue({ token }: { token: string }) {
             </h4>
             <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-mute)" }}>
               {row.source === "report" ? "reader report" : "agent"}
-              {row.score != null ? ` · CTS ${Math.round(row.score)}` : ""}
+              {row.score != null ? ` · Congress Trade Score ${Math.round(row.score)}` : ""}
             </span>
           </div>
 
