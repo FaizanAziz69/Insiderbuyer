@@ -200,16 +200,37 @@ export class AwardsService {
         // Sorting by award amount across a multi-day window makes USAspending
         // order the whole result set and it times out at 45s; ingest wants
         // every row anyway, so the sort is gone and the timeout is generous.
-        // One retry, because a single slow response should not cost the night.
-        this.log.warn(`USAspending page ${page} failed (${e?.message || e}) — retrying once`);
-        try {
-          const { data } = await axios.post(SEARCH_URL, body(page), { timeout: 120_000 });
-          results = data?.results || [];
-          hasNext = !!data?.page_metadata?.hasNext;
-        } catch (e2: any) {
-          this.log.warn(`USAspending page ${page} failed again: ${e2?.message || e2}`);
-          break;
+        //
+        // Retries WAIT. The first production run lost the whole night to a
+        // 503: the retry fired inside the same second, hit the same overloaded
+        // service, and the ingest reported "0 fetched" as though the window
+        // were empty. A 503 or a 429 is the API asking for time, so give it
+        // some — and say plainly that the page was abandoned, because a silent
+        // zero here looks exactly like a quiet week in federal contracting.
+        const backoff = [5_000, 20_000, 60_000];
+        let recovered = false;
+        for (let attempt = 0; attempt < backoff.length && !recovered; attempt++) {
+          const status = attempt === 0 ? e?.response?.status : null;
+          this.log.warn(
+            `USAspending page ${page} failed (${status ? `HTTP ${status}, ` : ''}${e?.message || e}) — ` +
+              `retry ${attempt + 1}/${backoff.length} in ${backoff[attempt] / 1000}s`,
+          );
+          await new Promise((r) => setTimeout(r, backoff[attempt]));
+          try {
+            const { data } = await axios.post(SEARCH_URL, body(page), { timeout: 120_000 });
+            results = data?.results || [];
+            hasNext = !!data?.page_metadata?.hasNext;
+            recovered = true;
+          } catch (e2: any) {
+            if (attempt === backoff.length - 1) {
+              this.log.error(
+                `USAspending page ${page} abandoned after ${backoff.length} retries: ${e2?.message || e2}. ` +
+                  `Awards from this page are MISSING, not absent.`,
+              );
+            }
+          }
         }
+        if (!recovered) break;
       }
       if (!results.length) break;
 
