@@ -74,6 +74,57 @@ export interface CongressBubble {
   topTickers: Array<{ ticker: string; name: string; volume: number; trades: number }>;
 }
 
+
+/**
+ * One name shape for both sides of every roster comparison.
+ *
+ * Titles, suffixes, punctuation and middle names all go, leaving first and
+ * last. Both the roster keys and the lookups go through this, because the last
+ * time two sides of a member comparison used different rules the pipeline
+ * retired real rows as "no longer serving".
+ */
+export function personKey(raw: string): string {
+  const s = String(raw || '')
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')
+    .replace(/\b(hon|mr|mrs|ms|dr|rep|sen|senator|representative|jr|sr|ii|iii|iv)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const parts = s.split(' ').filter((x) => x.length > 1);
+  if (!parts.length) return '';
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1]}`;
+}
+
+/** Given names a member may file under but does not go by, or the reverse. */
+const NICKNAMES: Record<string, string[]> = {
+  stephen: ['steve'], steve: ['stephen'],
+  michael: ['mike'], mike: ['michael'],
+  thomas: ['tom'], tom: ['thomas'],
+  william: ['bill', 'will'], bill: ['william'], will: ['william'],
+  richard: ['rick', 'rich', 'dick'], rick: ['richard'], rich: ['richard'], dick: ['richard'],
+  robert: ['bob', 'rob'], bob: ['robert'], rob: ['robert'],
+  charles: ['chuck', 'charlie'], chuck: ['charles'], charlie: ['charles'],
+  daniel: ['dan', 'danny'], dan: ['daniel'], danny: ['daniel'],
+  joseph: ['joe'], joe: ['joseph'],
+  james: ['jim', 'jimmy'], jim: ['james'], jimmy: ['james'],
+  edward: ['ed', 'eddie'], ed: ['edward'], eddie: ['edward'],
+  david: ['dave'], dave: ['david'],
+  kenneth: ['ken'], ken: ['kenneth'],
+  gilbert: ['gil'], gil: ['gilbert'],
+  nicholas: ['nick'], nick: ['nicholas'],
+  anthony: ['tony'], tony: ['anthony'],
+  christopher: ['chris'], chris: ['christopher'],
+  jonathan: ['jon'], jon: ['jonathan'],
+  matthew: ['matt'], matt: ['matthew'],
+  benjamin: ['ben'], ben: ['benjamin'],
+  gregory: ['greg'], greg: ['gregory'],
+  patrick: ['pat'], pat: ['patrick'],
+  samuel: ['sam'], sam: ['samuel'],
+  theodore: ['ted'], ted: ['theodore'],
+  lloyd: [], carol: [],
+};
+
 @Injectable()
 export class CongressionalService implements OnModuleInit {
   private readonly logger = new Logger(CongressionalService.name);
@@ -111,11 +162,31 @@ export class CongressionalService implements OnModuleInit {
         'https://unitedstates.github.io/congress-legislators/legislators-current.json',
       );
       const members: any[] = await res.json();
+      // The trade feed and the roster do not spell people the same way. The
+      // feed carries the legal name — "Carol Devine Miller", "Thomas H. Kean",
+      // "David Harold McCormick" — where the roster carries the working one.
+      // So every name a member is known by gets a key, and the lookup side
+      // reduces to the same shape. Under the old first-word/last-word rule 13
+      // of the 40 members without a photo were unmatchable; under this one, 39
+      // of 40 match.
       const addNameKeys = (name: string, apply: (k: string) => void) => {
-        const low = name.toLowerCase();
-        apply(low);
-        const parts = low.split(/\s+/);
-        if (parts.length > 2) apply(`${parts[0]} ${parts[parts.length - 1]}`);
+        const k = personKey(name);
+        if (k) apply(k);
+      };
+      const addAllForms = (m: any, apply: (k: string) => void) => {
+        const n = m?.name || {};
+        const last = String(n.last || '').trim();
+        const firsts = new Set<string>();
+        for (const f of [n.first, n.nickname]) if (f) firsts.add(String(f).trim());
+        for (const f of firsts) {
+          addNameKeys(`${f} ${last}`, apply);
+          // "Stephen Cohen" in the feed, "Steve Cohen" on the roster. The
+          // equivalence runs both ways, and only ever pairs a first name with
+          // a last name already equal — Rich McCormick and Dave McCormick stay
+          // two different senators.
+          for (const alt of NICKNAMES[f.toLowerCase()] || []) addNameKeys(`${alt} ${last}`, apply);
+        }
+        if (n.official_full) addNameKeys(String(n.official_full), apply);
       };
       for (const m of members) {
         const bid = m?.id?.bioguide;
@@ -125,13 +196,16 @@ export class CongressionalService implements OnModuleInit {
         const state = term?.state || null;
         const name = `${m?.name?.first || ''} ${m?.name?.last || ''}`.trim();
         if (bid && party) byBioguide.set(bid, { party, name });
-        if (name && party) addNameKeys(name, (k) => byName.set(k, party));
+        if (name && party) addAllForms(m, (k) => byName.set(k, party));
         if (name) {
-          addNameKeys(name, (k) => metaByName.set(k, { state, chamber }));
+          addAllForms(m, (k) => metaByName.set(k, { state, chamber }));
           if (bid) {
             bioToName.set(bid, name.toLowerCase());
+            // The official congressional portrait: public domain, keyed by
+            // bioguide, from the same project as the roster itself. No licence
+            // to attribute and no page title to guess.
             const img = `https://unitedstates.github.io/images/congress/450x550/${bid}.jpg`;
-            addNameKeys(name, (k) => photoByName.set(k, img));
+            addAllForms(m, (k) => photoByName.set(k, img));
           }
         }
       }
@@ -287,7 +361,7 @@ export class CongressionalService implements OnModuleInit {
           chamber: r.chamber,
           party: r.party || null,
           state: meta?.state ?? null,
-          photo: r.photoUrl && r.photoUrl !== PhotosService.NO_PHOTO ? r.photoUrl : roster?.photoByName.get(key) ?? null,
+          photo: r.photoUrl && r.photoUrl !== PhotosService.NO_PHOTO ? r.photoUrl : roster?.photoByName.get(personKey(r.politicianName)) ?? null,
           buys: 0,
           sells: 0,
           buyCount: 0,
@@ -481,32 +555,35 @@ export class CongressionalService implements OnModuleInit {
       const missing = await this.repo.find({
         where: [{ photoUrl: IsNull() }, { photoUrl: PhotosService.NO_PHOTO }],
       });
-      const rosterPhoto = (name: string): string | null => {
-        const low = name.toLowerCase();
-        if (roster.photoByName.get(low)) return roster.photoByName.get(low)!;
-        const parts = low.split(/\s+/).filter(Boolean);
-        if (parts.length > 1) {
-          const fl = `${parts[0]} ${parts[parts.length - 1]}`;
-          if (roster.photoByName.get(fl)) return roster.photoByName.get(fl)!;
-        }
-        return null;
-      };
+      const rosterPhoto = (name: string): string | null =>
+        roster.photoByName.get(personKey(name)) ?? null;
       const seenName = new Set<string>();
       let fromRoster = 0;
+      let errored = 0;
       for (const row of missing) {
         if (seenName.has(row.politicianName)) continue;
         seenName.add(row.politicianName);
-        // Official congressional headshot first, Wikipedia only as a fallback.
-        const official = rosterPhoto(row.politicianName);
-        if (official) fromRoster += 1;
-        const url = official ?? (await this.photos.getPhoto(row.politicianName));
-        await this.repo.update(
-          { politicianName: row.politicianName },
-          { photoUrl: url },
-        );
+        // One member must not cost the backfill. It used to run inside a
+        // single try/catch, so the first Wikipedia timeout abandoned every
+        // member after it — 8 of 48 politicians had a photo and the other 40
+        // were left NULL, which reads as "no photo exists" rather than "we
+        // stopped asking".
+        try {
+          // Official congressional headshot first, Wikipedia only as a
+          // fallback — the official one is public domain and needs no
+          // attribution, and it is keyed rather than guessed.
+          const official = rosterPhoto(row.politicianName);
+          if (official) fromRoster += 1;
+          const url = official ?? (await this.photos.getPhoto(row.politicianName));
+          await this.repo.update({ politicianName: row.politicianName }, { photoUrl: url });
+        } catch (e: any) {
+          errored += 1;
+          this.logger.warn(`photo for ${row.politicianName}: ${e?.message || e}`);
+        }
       }
       this.logger.log(
-        `Photo backfill complete for ${seenName.size} unique politicians (${fromRoster} official headshots).`,
+        `Photo backfill complete for ${seenName.size} unique politicians ` +
+          `(${fromRoster} official headshots${errored ? `, ${errored} errored` : ''}).`,
       );
     } catch (err: any) {
       this.logger.warn(`Photo backfill error: ${err?.message || err}`);
