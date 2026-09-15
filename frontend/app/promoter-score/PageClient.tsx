@@ -37,6 +37,11 @@ interface Row {
   endedContracts: number;
   marketCap: number | null;
   components: Record<string, number | null>;
+  /** Share price change since the issuer's first priced IR contract began, as a fraction. */
+  perfSinceStart: number | null;
+  perf90d: number | null;
+  perfStartDate: string | null;
+  perfNote: string | null;
 }
 
 interface Payload {
@@ -54,6 +59,13 @@ function money(v: number | null): string {
   return `C$${Math.round(v)}`;
 }
 
+function shortDate(iso: string | null): string {
+  if (!iso) return "start";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "start";
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+}
+
 function pct(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return "—";
   const s = v > 0 ? "+" : "";
@@ -63,7 +75,9 @@ function pct(v: number | null): string {
 export default function PromoterScorePage() {
   const [quarter, setQuarter] = useState<string>("");
   const [sector, setSector] = useState<string>("");
-  const [sort, setSort] = useState<"score" | "spend" | "perMcap" | "contracts">("score");
+  const [sort, setSort] = useState<"score" | "spend" | "perMcap" | "contracts" | "perf">("score");
+  /** Stock-performance filter: every issuer, only priced ones, or only gainers. */
+  const [perfFilter, setPerfFilter] = useState<"all" | "priced" | "up" | "down">("all");
   const [q, setQ] = useState("");
 
   const key = `${API_BASE}/promoter/ranking?limit=250${quarter ? `&quarter=${quarter}` : ""}${
@@ -75,12 +89,16 @@ export default function PromoterScorePage() {
     () =>
       (data?.rows || []).filter(
         (r) =>
-          !q ||
-          r.ticker.toLowerCase().includes(q.toLowerCase()) ||
-          (r.name || "").toLowerCase().includes(q.toLowerCase()) ||
-          (r.sector || "").toLowerCase().includes(q.toLowerCase()),
+          (perfFilter === "all" ||
+            (perfFilter === "priced" && r.perfSinceStart != null) ||
+            (perfFilter === "up" && r.perfSinceStart != null && r.perfSinceStart > 0) ||
+            (perfFilter === "down" && r.perfSinceStart != null && r.perfSinceStart < 0)) &&
+          (!q ||
+            r.ticker.toLowerCase().includes(q.toLowerCase()) ||
+            (r.name || "").toLowerCase().includes(q.toLowerCase()) ||
+            (r.sector || "").toLowerCase().includes(q.toLowerCase())),
       ),
-    [data, q],
+    [data, q, perfFilter],
   );
 
   const columns: Column<Row>[] = [
@@ -143,6 +161,32 @@ export default function PromoterScorePage() {
           {r.spendPerMcapBps == null ? "—" : `${r.spendPerMcapBps.toFixed(1)} bps`}
         </span>
       ),
+    },
+    {
+      key: "perfSinceStart",
+      label: "Stock performance",
+      align: "right",
+      info: "Share price change from the first session on or after the issuer's earliest IR contract start date to the latest close. It measures what the stock did after the engagement began; it is not a claim that the promotion caused the move. Blank where our price data does not cover the listing.",
+      sortValue: (r) => r.perfSinceStart ?? -Infinity,
+      render: (r) =>
+        r.perfSinceStart == null ? (
+          <span className="text-[11px] leading-tight text-faint inline-block max-w-[150px]" title={r.perfNote || undefined}>
+            No price data
+          </span>
+        ) : (
+          <span className="inline-block text-right">
+            <span
+              className="block tabular text-[13.5px] font-bold"
+              style={{ color: r.perfSinceStart > 0 ? "var(--good)" : r.perfSinceStart < 0 ? "var(--bad)" : "var(--text-mute)" }}
+            >
+              {pct(r.perfSinceStart)}
+            </span>
+            <span className="block text-[10.5px] leading-tight text-faint">
+              since {shortDate(r.perfStartDate)}
+              {r.perf90d != null ? ` · 90d ${pct(r.perf90d)}` : ""}
+            </span>
+          </span>
+        ),
     },
     {
       key: "activeContracts",
@@ -220,6 +264,7 @@ export default function PromoterScorePage() {
             ["spend", "Spend"],
             ["perMcap", "Spend / cap"],
             ["contracts", "Providers"],
+            ["perf", "Performance"],
           ] as const).map(([v, label]) => (
             <button
               key={v}
@@ -234,6 +279,19 @@ export default function PromoterScorePage() {
             </button>
           ))}
         </div>
+
+        <select
+          value={perfFilter}
+          onChange={(e) => setPerfFilter(e.target.value as typeof perfFilter)}
+          className="text-[12.5px] font-semibold rounded-md px-2.5 py-1.5"
+          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text)" }}
+          aria-label="Stock performance filter"
+        >
+          <option value="all">Performance: all</option>
+          <option value="priced">Performance: with price data</option>
+          <option value="up">Performance: gainers only</option>
+          <option value="down">Performance: decliners only</option>
+        </select>
 
         <input
           value={q}
@@ -253,6 +311,7 @@ export default function PromoterScorePage() {
             sort === "spend" ? "spendCad"
             : sort === "perMcap" ? "spendPerMcapBps"
             : sort === "contracts" ? "activeContracts"
+            : sort === "perf" ? "perfSinceStart"
             : "score",
           dir: "desc",
         }}

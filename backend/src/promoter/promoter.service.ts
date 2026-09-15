@@ -914,15 +914,30 @@ export class PromoterService implements OnModuleInit {
       opts.sort === 'spend' ? 's.spend_cad'
       : opts.sort === 'perMcap' ? 's.spend_per_mcap_bps'
       : opts.sort === 'contracts' ? 's.active_contracts'
+      : opts.sort === 'perf' ? 'perf.perf_now'
       : 's.score';
     const limit = Math.min(Math.max(Number(opts.limit) || 50, 1), 250);
     const rows: any[] = await this.q(
       `SELECT s.ticker, s.quarter, s.score, s.spend_cad::float8 AS spend, s.prior_spend_cad::float8 AS prior,
               s.qoq_change, s.spend_per_mcap_bps, s.active_contracts, s.new_contracts, s.ended_contracts,
               s.sector, s.components,
-              i.name, i.exchange, i.market_cap::float8 AS market_cap, i.fmp_symbol
+              i.name, i.exchange, i.market_cap::float8 AS market_cap, i.fmp_symbol,
+              perf.perf_now, perf.perf_90d, perf.start_date AS perf_start, perf.note AS perf_note,
+              perf.currency AS perf_currency
          FROM promoter_scores s
          LEFT JOIN ir_issuers i ON i.ticker = s.ticker
+         -- Stock performance since the issuer's FIRST priced engagement began
+         -- (George 2026-09-15: "how the stock has performed post engagement").
+         -- One row per issuer: the earliest contract that has a price, else
+         -- the earliest unpriced one so its note can say why there is no figure.
+         LEFT JOIN LATERAL (
+           SELECT p.perf_now, p.perf_90d, p.start_date, p.note, p.currency
+             FROM ir_contract_perf p
+             JOIN ir_agreements a ON a.id = p.agreement_id
+            WHERE a.ticker = s.ticker AND a.status <> 'rejected' AND a.provider_slug IS NOT NULL
+            ORDER BY (p.perf_now IS NULL), p.start_date ASC
+            LIMIT 1
+         ) perf ON true
         WHERE s.quarter = $1 AND ($2::text IS NULL OR s.sector = $2)
         ORDER BY ${sort} DESC NULLS LAST
         LIMIT $3`,
@@ -1327,6 +1342,11 @@ function shapeRankRow(r: any) {
     endedContracts: r.ended_contracts,
     marketCap: r.market_cap,
     components: r.components,
+    // Post-engagement share performance, as a fraction (0.42 = +42%).
+    perfSinceStart: r.perf_now == null ? null : Number(r.perf_now),
+    perf90d: r.perf_90d == null ? null : Number(r.perf_90d),
+    perfStartDate: r.perf_start ?? null,
+    perfNote: r.perf_note ?? null,
   };
 }
 
