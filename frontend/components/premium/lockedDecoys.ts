@@ -21,3 +21,23 @@ export const DECOYS: Array<[string, string, string, string]> = [
 ];
 
 export const decoyFor = (i: number) => DECOYS[i % DECOYS.length];
+
+/**
+ * Fixed decoy IR-firm identities for the locked Top IR Promoters rows — same
+ * rule: the real firm name, website and client tickers never enter the DOM
+ * for a free visitor. Metrics stay visible; the identity is what the unlock
+ * buys.
+ */
+export const FIRM_DECOYS: Array<[string, string]> = [
+  ["Northstar IR Partners", "CA"],
+  ["Cobalt Street Communications", "CA"],
+  ["Meridian Capital Markets", "US"],
+  ["Harborline Advisory Group", "CA"],
+  ["Summit Ridge Investor Relations", "CA"],
+  ["Bluepeak Media Inc", "US"],
+  ["Granite Bay Consulting", "CA"],
+  ["Silverline Markets Ltd", "GB"],
+  ["Redwood Capital Communications", "CA"],
+  ["Lakeshore Investor Services", "CA"],
+];
+export const firmDecoyFor = (i: number) => FIRM_DECOYS[i % FIRM_DECOYS.length];

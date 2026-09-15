@@ -62,6 +62,9 @@ const SKIP = [
   // decoy pattern exists to prevent. The hooks fetch it on mount, so a
   // subscriber still gets the rows.
   /\/iqs2\/top-buys/,
+  // 2026-09-16: Top IR Promoters is a paid dataset — firm names must never
+  // reach view-source through the seed.
+  /\/promoter\/top-promoters/,
 ];
 
 /** Per-route override for the seed budget. A visualizer page IS its dataset

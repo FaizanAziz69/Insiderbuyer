@@ -95,6 +95,18 @@ export class PromoterController {
 
   // ── B2B feed (§2.5) ────────────────────────────────────────────────────
 
+  /** Top IR Promoters — firms ranked by client stock performance and volume
+   *  growth after engagement. Paygated on the page; the API is open like the
+   *  other presentational gates here. */
+  @Get('top-promoters')
+  @Header('Cache-Control', 'public, max-age=300')
+  async topPromoters(@Query('minCampaigns') minCampaigns?: string, @Query('limit') limit?: string) {
+    return this.svc.topPromoters({
+      minCampaigns: Number(minCampaigns) || undefined,
+      limit: Number(limit) || undefined,
+    });
+  }
+
   @Get('firms')
   async firms(
     @Headers('x-feed-token') token: string,

@@ -1004,6 +1004,109 @@ export class PromoterService implements OnModuleInit {
     };
   }
 
+  /**
+   * Top IR Promoters (George 2026-09-16, paygated dataset): IR and promotional
+   * firms ranked by what their clients' stocks did after the engagement began
+   * — median post-engagement return and median trade-volume growth, from
+   * ir_contract_perf. One row per firm, only firms with at least one priced
+   * campaign. The Promoter Performance score is the average percentile rank of
+   * the two medians among ranked firms (return only, when no client has a
+   * volume baseline), so it is a relative standing on this list, not a return.
+   * Small samples are the norm on this dataset, so the campaign count travels
+   * with every row and the page shows it.
+   */
+  async topPromoters(opts: { minCampaigns?: number; limit?: number } = {}) {
+    await this.ensureTables();
+    await this.perf.ensureTable();
+    const minCampaigns = Math.min(Math.max(Number(opts.minCampaigns) || 1, 1), 50);
+    const limit = Math.min(Math.max(Number(opts.limit) || 100, 1), 500);
+    const rows: any[] = await this.q(
+      `SELECT f.slug, f.name, f.website, f.country,
+              count(a.id)::int                                AS campaigns,
+              count(DISTINCT a.ticker)::int                   AS issuers,
+              count(p.perf_90d)::int                          AS priced_90,
+              count(p.perf_now)::int                          AS priced_now,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY p.perf_90d)  AS med_90,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY p.perf_now)  AS med_now,
+              avg(CASE WHEN p.perf_90d > 0 THEN 1.0 WHEN p.perf_90d IS NOT NULL THEN 0.0 END) AS hit_90,
+              count(COALESCE(p.vol_growth_90, p.vol_growth_30))::int   AS vol_n,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY COALESCE(p.vol_growth_90, p.vol_growth_30)) AS med_vol,
+              min(a.start_date)                               AS first_start,
+              max(a.start_date)                               AS latest_start,
+              sum(a.monthly_fee_cad)::float8                  AS monthly_book_cad,
+              array_agg(DISTINCT a.ticker ORDER BY a.ticker)  AS tickers
+         FROM ir_firms f
+         JOIN ir_agreements a ON a.provider_slug = f.slug AND a.status <> 'rejected'
+         LEFT JOIN ir_contract_perf p ON p.agreement_id = a.id
+        GROUP BY f.slug, f.name, f.website, f.country
+       HAVING count(p.perf_now) > 0 AND count(a.id) >= $1
+        ORDER BY count(a.id) DESC`,
+      [minCampaigns],
+    );
+    const firms = rows.map((r) => {
+      const med90 = r.med_90 == null ? null : Number(r.med_90);
+      const medNow = r.med_now == null ? null : Number(r.med_now);
+      return {
+        slug: r.slug,
+        name: r.name,
+        website: r.website ?? null,
+        country: r.country ?? null,
+        campaigns: r.campaigns,
+        issuers: r.issuers,
+        pricedCampaigns: r.priced_now,
+        priced90: r.priced_90,
+        // The ranking return: the 90-day median where a 90-day window has
+        // elapsed for at least one campaign, else the since-start median.
+        postReturn: med90 ?? medNow,
+        postReturnWindow: med90 != null ? ('90d' as const) : ('since-start' as const),
+        medianReturn90d: med90,
+        medianReturnSinceStart: medNow,
+        winRate90d: r.hit_90 == null ? null : Number(r.hit_90),
+        volumeCampaigns: r.vol_n,
+        medianVolumeGrowth: r.med_vol == null ? null : Number(r.med_vol),
+        firstStart: r.first_start,
+        latestStart: r.latest_start,
+        monthlyBookCad: r.monthly_book_cad == null ? null : round2(r.monthly_book_cad),
+        tickers: (r.tickers || []).filter(Boolean),
+        score: null as number | null,
+        rank: 0,
+      };
+    });
+    const pctRank = (vals: Array<number | null>) => {
+      const sorted = vals.filter((v): v is number => v != null).sort((a, b) => a - b);
+      return (v: number | null) => {
+        if (v == null || !sorted.length) return null;
+        if (sorted.length === 1) return 1;
+        // Share of ranked firms at or below this value; ties share a rank.
+        let below = 0;
+        for (const x of sorted) if (x < v) below++;
+        return below / (sorted.length - 1);
+      };
+    };
+    const rRet = pctRank(firms.map((f) => f.postReturn));
+    const rVol = pctRank(firms.map((f) => f.medianVolumeGrowth));
+    for (const f of firms) {
+      const a = rRet(f.postReturn);
+      const b = rVol(f.medianVolumeGrowth);
+      const blended = a == null ? null : b == null ? a : 0.6 * a + 0.4 * b;
+      f.score = blended == null ? null : Math.round(blended * 100);
+    }
+    firms.sort(
+      (x, y) =>
+        (y.score ?? -1) - (x.score ?? -1) ||
+        (y.postReturn ?? -Infinity) - (x.postReturn ?? -Infinity) ||
+        y.campaigns - x.campaigns,
+    );
+    firms.forEach((f, i) => (f.rank = i + 1));
+    return {
+      asOf: new Date().toISOString(),
+      minCampaigns,
+      total: firms.length,
+      weights: { postReturn: 0.6, volumeGrowth: 0.4 },
+      firms: firms.slice(0, limit),
+    };
+  }
+
   /** §2.3: the canonical IR-firm table "itself becomes the B2B lead list". */
   async firms(opts: { limit?: number; search?: string } = {}) {
     await this.ensureTables();

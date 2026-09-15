@@ -200,6 +200,7 @@ export const NAV_GROUPS: NavGroup[] = [
               { label: "Top Investors & Funds", href: "/investors", icon: Landmark },
               // Workstream F: TSXV/CSE disclosed investor-relations spend.
               { label: "Promoter Score", href: "/promoter-score", icon: Megaphone, badge: "new" },
+              { label: "Top IR Promoters", href: "/top-ir-promoters", icon: Megaphone, badge: "premium" },
               { label: "Upcoming Earnings", href: "/earnings", icon: Calendar },
             ],
           },

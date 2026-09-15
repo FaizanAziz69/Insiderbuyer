@@ -29,6 +29,40 @@ import { FmpService } from '../fmp/fmp.service';
 /** Returns are measured from the first session ON OR AFTER the start date. */
 const WINDOWS = [30, 90] as const;
 const DAY = 86_400_000;
+/** Sessions averaged for the pre-engagement volume baseline. */
+const VOL_BASELINE_SESSIONS = 30;
+/** Calendar days of bars fetched before the earliest start so that baseline exists. */
+const VOL_LOOKBACK_DAYS = 120;
+
+interface Bar {
+  date: string;
+  close: number;
+  volume: number;
+}
+
+const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+
+/**
+ * Average daily volume before and after the engagement started. "Before" is
+ * the last 30 sessions strictly before the start date; "after" is every
+ * session inside the 30 / 90 calendar days from the start. A window that has
+ * not elapsed yet is null, for the same reason the price windows are: a
+ * 90-day figure on a contract signed last week would be a label lying about
+ * its own length. A baseline of zero volume gives no growth figure at all.
+ */
+export function volumeWindows(bars: Bar[], start: string, lastDate: string) {
+  const before = bars.filter((b) => b.date < start).slice(-VOL_BASELINE_SESSIONS).map((b) => b.volume);
+  const at30 = new Date(Date.parse(start) + 30 * DAY).toISOString().slice(0, 10);
+  const at90 = new Date(Date.parse(start) + 90 * DAY).toISOString().slice(0, 10);
+  const after = (until: string) =>
+    until <= lastDate ? mean(bars.filter((b) => b.date >= start && b.date < until).map((b) => b.volume)) : null;
+  const volBefore = mean(before);
+  return {
+    volBefore: volBefore && volBefore > 0 ? volBefore : null,
+    volAfter30: after(at30),
+    volAfter90: after(at90),
+  };
+}
 
 @Injectable()
 export class ContractPerformanceService {
@@ -59,6 +93,16 @@ export class ContractPerformanceService {
       note          text,
       computed_at   timestamptz NOT NULL DEFAULT now()
     )`);
+    // 2026-09-16 (George, Top IR Promoters): trade-volume growth after the
+    // engagement began, alongside the price move. Average daily volume over
+    // the 30 sessions before the start date against the 30 / 90 calendar days
+    // after it. Added in place so the nightly refresh fills them.
+    await this.q(`ALTER TABLE ir_contract_perf
+      ADD COLUMN IF NOT EXISTS vol_before    real,
+      ADD COLUMN IF NOT EXISTS vol_after_30  real,
+      ADD COLUMN IF NOT EXISTS vol_after_90  real,
+      ADD COLUMN IF NOT EXISTS vol_growth_30 real,
+      ADD COLUMN IF NOT EXISTS vol_growth_90 real`);
   }
 
   /**
@@ -95,13 +139,15 @@ export class ContractPerformanceService {
         (min: string, r: any) => (isoOf(r.start_date)! < min ? isoOf(r.start_date)! : min),
         isoOf(group[0].start_date)!,
       );
-      let bars: Array<{ date: string; close: number }> = [];
+      let bars: Bar[] = [];
       if (symbol) {
         try {
-          const from = new Date(Date.parse(earliest) - 10 * DAY).toISOString().slice(0, 10);
+          // 120 days back, not 10: the volume baseline needs the 30 sessions
+          // BEFORE the earliest start, and venture names skip sessions.
+          const from = new Date(Date.parse(earliest) - VOL_LOOKBACK_DAYS * DAY).toISOString().slice(0, 10);
           bars = (await this.fmp.getEodBars(symbol, { from, adjusted: true }))
             .filter((b) => b.close > 0)
-            .map((b) => ({ date: b.date.slice(0, 10), close: b.close }));
+            .map((b) => ({ date: b.date.slice(0, 10), close: b.close, volume: Number(b.volume) || 0 }));
         } catch (e: any) {
           this.log.debug(`prices failed for ${symbol}: ${e?.message || e}`);
         }
@@ -141,6 +187,7 @@ export class ContractPerformanceService {
           // a label that says otherwise.
           win[d] = at <= now.date ? closeOnOrAfter(bars, at) : null;
         }
+        const vol = volumeWindows(bars, start, now.date);
         priced++;
         await this.write(r.id, {
           symbol,
@@ -151,6 +198,7 @@ export class ContractPerformanceService {
           p90: win[90],
           pNow: now.close,
           note: null,
+          ...vol,
         });
       }
     }
@@ -169,6 +217,9 @@ export class ContractPerformanceService {
       p90?: number | null;
       pNow?: number | null;
       note: string | null;
+      volBefore?: number | null;
+      volAfter30?: number | null;
+      volAfter90?: number | null;
     },
   ) {
     const pct = (then: number | null | undefined, base: number | null | undefined) =>
@@ -176,14 +227,18 @@ export class ContractPerformanceService {
     await this.q(
       `INSERT INTO ir_contract_perf
          (agreement_id, fmp_symbol, start_date, start_price, price_30d, price_90d, price_now,
-          perf_30d, perf_90d, perf_now, currency, note, computed_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
+          perf_30d, perf_90d, perf_now, currency, note,
+          vol_before, vol_after_30, vol_after_90, vol_growth_30, vol_growth_90, computed_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, now())
        ON CONFLICT (agreement_id) DO UPDATE SET
          fmp_symbol = EXCLUDED.fmp_symbol, start_date = EXCLUDED.start_date,
          start_price = EXCLUDED.start_price, price_30d = EXCLUDED.price_30d,
          price_90d = EXCLUDED.price_90d, price_now = EXCLUDED.price_now,
          perf_30d = EXCLUDED.perf_30d, perf_90d = EXCLUDED.perf_90d, perf_now = EXCLUDED.perf_now,
-         currency = EXCLUDED.currency, note = EXCLUDED.note, computed_at = now()`,
+         currency = EXCLUDED.currency, note = EXCLUDED.note,
+         vol_before = EXCLUDED.vol_before, vol_after_30 = EXCLUDED.vol_after_30,
+         vol_after_90 = EXCLUDED.vol_after_90, vol_growth_30 = EXCLUDED.vol_growth_30,
+         vol_growth_90 = EXCLUDED.vol_growth_90, computed_at = now()`,
       [
         agreementId,
         v.symbol,
@@ -197,6 +252,11 @@ export class ContractPerformanceService {
         pct(v.pNow, v.startPrice),
         v.currency,
         v.note,
+        v.volBefore ?? null,
+        v.volAfter30 ?? null,
+        v.volAfter90 ?? null,
+        pct(v.volAfter30, v.volBefore),
+        pct(v.volAfter90, v.volBefore),
       ],
     );
   }
