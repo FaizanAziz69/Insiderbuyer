@@ -80,21 +80,21 @@ export default function TopCongressTradesPage() {
   const key =
     `${API_BASE}/congress-trades/leaderboard?limit=250` +
     (chamber ? `&chamber=${encodeURIComponent(chamber)}` : "") +
-    (party ? `&party=${encodeURIComponent(party)}` : "") +
-    (agency ? `&agency=${encodeURIComponent(agency)}` : "");
+    (party ? `&party=${encodeURIComponent(party)}` : "");
   const { data, isLoading } = useSWR<Payload>(key, fetcher, { revalidateOnFocus: false });
 
   const rows = useMemo(
     () =>
       (data?.rows || []).filter(
         (r) =>
-          !q ||
+          (!agency || r.agency === agency) &&
+          (!q ||
           r.member.toLowerCase().includes(q.toLowerCase()) ||
           r.ticker.toLowerCase().includes(q.toLowerCase()) ||
           (r.company || "").toLowerCase().includes(q.toLowerCase()) ||
-          r.agency.toLowerCase().includes(q.toLowerCase()),
+          r.agency.toLowerCase().includes(q.toLowerCase())),
       ),
-    [data, q],
+    [data, agency, q],
   );
 
   const agencies = useMemo(

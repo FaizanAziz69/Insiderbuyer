@@ -477,7 +477,7 @@ export class FlagEngineService {
         WHERE status = 'verified'
           AND ($1::text IS NULL OR chamber = $1)
           AND ($2::text IS NULL OR party = $2)
-          AND ($3::text IS NULL OR agency = $3)
+          AND ($3::text IS NULL OR agency = $3 OR sub_agency = $3)
           AND ($4::text IS NULL OR committee = $4)
           AND ($5::float8 IS NULL OR score >= $5)
         ORDER BY score DESC NULLS LAST, award_value DESC
