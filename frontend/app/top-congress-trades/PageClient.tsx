@@ -2,12 +2,11 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Landmark, ExternalLink } from "lucide-react";
+import { ExternalLink, FileText, Landmark } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
 import { DataTable, Column } from "@/components/DataTable";
 import { CtsScoreCell } from "@/components/congress-trades/CtsScoreCell";
 import { EvidenceChain } from "@/components/congress-trades/EvidenceChain";
-import { ReportError } from "@/components/congress-trades/ReportError";
 
 /**
  * Top Ranking Congress Trades — Brief v5 §4, the flagship page.
@@ -182,14 +181,34 @@ export default function TopCongressTradesPage() {
       label: "Sources",
       align: "center",
       sortable: false,
-      render: (r) => (
-        <button
-          onClick={() => setOpen(open === r.id ? null : r.id)}
-          className="text-[12px] font-semibold text-accent hover:underline whitespace-nowrap"
-        >
-          {open === r.id ? "Hide" : "Evidence"}
-        </button>
-      ),
+      render: (r) => {
+        // The filing opens straight from the row, the way a Form 4 does
+        // everywhere else on the site — a reader who wants the document should
+        // not have to open a panel first to find the way to it.
+        const filing = r.evidence?.trade?.url || r.evidence?.boardSeat?.url || null;
+        return (
+          <span className="inline-flex items-center gap-2 whitespace-nowrap">
+            {filing ? (
+              <a
+                href={filing}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center justify-center text-mute hover:text-accent"
+                title="Open the disclosure filing"
+              >
+                <FileText className="h-4 w-4" />
+              </a>
+            ) : null}
+            <button
+              onClick={() => setOpen(open === r.id ? null : r.id)}
+              className="text-[12px] font-semibold text-accent hover:underline"
+            >
+              {open === r.id ? "Hide" : "Evidence"}
+            </button>
+          </span>
+        );
+      },
     },
   ];
 
@@ -290,16 +309,9 @@ export default function TopCongressTradesPage() {
         }}
       />
 
-      {/* §5 puts the corrections path on every FLAG, so it lives inside the
-          evidence chain and appears with the row it is about. The page-level
-          copy stood underneath as well, so an open row showed the same panel
-          twice — once collapsed and once as a form. Only show the page-level
-          one when no row is open, where it is the only way in. */}
       {open != null && rows.find((r) => r.id === open) ? (
         <EvidenceChain row={rows.find((r) => r.id === open)!} onClose={() => setOpen(null)} />
-      ) : (
-        <ReportError />
-      )}
+      ) : null}
     </div>
   );
 }

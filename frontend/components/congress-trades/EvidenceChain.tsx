@@ -1,6 +1,5 @@
 "use client";
 import { ExternalLink, X } from "lucide-react";
-import { ReportError } from "./ReportError";
 import { CorrectionNote, Correction } from "./CorrectionNote";
 
 /**
@@ -222,7 +221,6 @@ export function EvidenceChain({ row, onClose }: { row: Row; onClose: () => void 
 
       <CorrectionNote corrections={corrections} />
 
-      <ReportError flagId={row.id} />
     </section>
   );
 }
