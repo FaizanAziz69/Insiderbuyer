@@ -105,8 +105,10 @@ export class BoardRosterService {
       reviewed_at   timestamptz,
       created_at    timestamptz NOT NULL DEFAULT now()
     )`);
+    // One row per passage, so re-running an import refreshes rather than
+    // duplicating. Keyed on the excerpt because no name is ever guessed.
     await this.q(`CREATE UNIQUE INDEX IF NOT EXISTS ct_board_candidates_uniq
-      ON ct_board_candidates (filing_url, COALESCE(lower(candidate_name), ''))`);
+      ON ct_board_candidates (filing_url, md5(COALESCE(context, '')))`);
     await this.q(`CREATE INDEX IF NOT EXISTS ct_board_candidates_state_idx ON ct_board_candidates (state)`);
     this.ready = true;
   }
@@ -333,16 +335,16 @@ export class BoardRosterService {
       const url = `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${accession}/${doc}`;
       filings++;
 
-      const found = await this.namesIn(url, form);
-      if (!found.length) {
-        // Still worth proposing: an editor reading the proxy is the point, and
-        // a filing we could not parse is exactly the one a person should open.
+      const passages = await this.excerptsIn(url, form);
+      if (!passages.length) {
+        // A filing we could not excerpt is still worth proposing — often it is
+        // precisely the one a person should open.
         await this.proposeCandidate(ticker, cik, form, recent.filingDate[i], url, null, null);
         candidates++;
         continue;
       }
-      for (const f of found.slice(0, 12)) {
-        await this.proposeCandidate(ticker, cik, form, recent.filingDate[i], url, f.name, f.context);
+      for (const context of passages) {
+        await this.proposeCandidate(ticker, cik, form, recent.filingDate[i], url, null, context);
         candidates++;
       }
     }
@@ -357,7 +359,7 @@ export class BoardRosterService {
     await this.q(
       `INSERT INTO ct_board_candidates (ticker, cik, form, filing_date, filing_url, candidate_name, context)
        VALUES ($1,$2,$3,$4,$5,$6,$7)
-       ON CONFLICT (filing_url, COALESCE(lower(candidate_name), '')) DO NOTHING`,
+       ON CONFLICT (filing_url, md5(COALESCE(context, ''))) DO NOTHING`,
       [ticker, cik, form, filingDate || null, url, name, context],
     );
   }
@@ -386,13 +388,23 @@ export class BoardRosterService {
   }
 
   /**
-   * Best-effort person names out of a filing, with the sentence they sat in.
+   * The passage in a filing where the company talks about appointing a
+   * director, pulled out so an editor can judge it without opening the
+   * document — though the document is always linked too.
    *
-   * Deliberately shallow. The context string is the useful part — it is what
-   * an editor reads to decide — and a name with no context attached is still
-   * only ever a proposal.
+   * It deliberately does NOT guess the person's name. Three attempts at that
+   * are recorded in this file's history: a loose matcher proposed "Audit
+   * Committee" and "Fees Earned" as directors; tightening it left almost
+   * nothing; and what survived was "Navy Retired", pulled out of "Admiral …,
+   * U.S. Navy Retired". Proxy prose defeats a pattern in both directions, and
+   * a name field that is confidently wrong is worse than an empty one, because
+   * an editor may believe it. §5 forbids publishing a claim about a named
+   * individual that no source supports, and a guessed name is exactly that.
+   *
+   * So the proposal is the filing plus the sentence. The judgement stays with
+   * the person making it.
    */
-  private async namesIn(url: string, form: string): Promise<Array<{ name: string; context: string }>> {
+  private async excerptsIn(url: string, form: string): Promise<string[]> {
     let text = '';
     try {
       const { data } = await axios.get<string>(url, {
@@ -403,6 +415,7 @@ export class BoardRosterService {
       text = String(data)
         .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
         .replace(/<[^>]+>/g, ' ')
+        .replace(/&#8217;/g, "'")
         .replace(/&nbsp;/g, ' ')
         .replace(/&amp;/g, '&')
         .replace(/\s+/g, ' ');
@@ -411,19 +424,23 @@ export class BoardRosterService {
     }
     if (!text) return [];
 
-    const out: Array<{ name: string; context: string }> = [];
+    // Every proxy carries the Compensation Committee's report verbatim, and it
+    // sits inside the director language this matcher looks for. It is noise in
+    // every import rather than occasionally, so it is worth naming.
+    const BOILERPLATE =
+      /Compensation Discussion and Analysis be included|incorporated by reference into|Report of the (Audit|Compensation)/i;
+
+    const out: string[] = [];
     const seen = new Set<string>();
-    // A capitalised two-or-three word name sitting next to the language a
-    // company uses when it names a director.
     const near =
-      /((?:Mr\.|Ms\.|Mrs\.|Dr\.|Hon\.|General|Admiral|Senator|Representative|Secretary)?\s?[A-Z][a-z]+(?:\s+[A-Z]\.)?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)[^.]{0,120}?\b(?:as a director|to the Board of Directors|as a member of the Board|elected to the Board|appointed to the Board|has been appointed a director|joined the Board)/g;
+      /[^.]{0,200}\b(?:as a director|to the Board of Directors|as a member of the Board|elected to the Board|appointed to the Board|joined the Board|was appointed|has been elected)\b[^.]{0,200}\./g;
     let m: RegExpExecArray | null;
-    while ((m = near.exec(text)) && out.length < 25) {
-      const name = m[1].replace(/^(Mr\.|Ms\.|Mrs\.|Dr\.|Hon\.)\s*/, '').trim();
-      const key = name.toLowerCase();
-      if (key.length < 5 || seen.has(key)) continue;
+    while ((m = near.exec(text)) && out.length < 6) {
+      const passage = m[0].trim();
+      const key = passage.slice(0, 60).toLowerCase();
+      if (passage.length < 40 || seen.has(key) || BOILERPLATE.test(passage)) continue;
       seen.add(key);
-      out.push({ name, context: `${form}: ${m[0].slice(0, 300)}` });
+      out.push(`${form}: ${passage.slice(0, 600)}`);
     }
     return out;
   }

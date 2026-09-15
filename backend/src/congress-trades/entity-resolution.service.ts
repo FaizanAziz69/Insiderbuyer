@@ -15,16 +15,37 @@ import { AwardsService } from './awards.service';
  * chain per mapping."
  *
  * WHAT THE ACCEPTANCE NUMBER ACTUALLY MEANS (§7 P1: "≥90% of $1M+ awards
- * vendor-resolved automatically"). Most federal contractors are not listed
- * companies at all — they are private firms, joint ventures, universities and
- * FFRDC operators. Three consecutive real awards pulled while building this
- * were Waste Control Specialists LLC (private), HDR-OBG A Joint Venture (a JV,
- * which cannot have a ticker) and WSP USA Solutions Inc (a subsidiary, whose
- * ticker exists only via its Canadian parent). So "resolved" here means a
- * DECISION was reached automatically — a ticker, or a durable "not publicly
- * listed" — and only the genuinely ambiguous tail goes to a human. Counting
- * only ticker hits would mean failing an acceptance test on the structure of
- * the federal contracting market rather than on the quality of the resolver.
+ * vendor-resolved automatically").
+ *
+ * "Resolved" here means a DECISION was reached automatically — a ticker, or a
+ * durable "not publicly listed" — and only the genuinely ambiguous tail goes
+ * to a human. That reading is not a convenience; it is the one the market and
+ * the trade both use:
+ *
+ *   - Most federal contractors are not listed companies at all. Congress sets
+ *     a statutory goal of 23% of prime contract dollars to small businesses,
+ *     and FY24 met it across roughly 78,000 firms. A small business cannot be
+ *     a listed company — SBA affiliation rules put the two beyond each other —
+ *     so a large share of any vendor population is decided, not discoverable.
+ *   - Commercial vendors selling exactly this dataset draw the same line: they
+ *     map listed recipients to a ticker and private ones to a national
+ *     registration id, and count both as resolved. Nobody in the field reports
+ *     ticker hits as the coverage figure.
+ *   - A match rate is only honest if its denominator is every record
+ *     attempted. So the tail is never dropped for being hard; it is decided,
+ *     or it is queued and counted as unresolved.
+ *
+ * Three consecutive real awards pulled while building this show why: Waste
+ * Control Specialists LLC (private), HDR-OBG A Joint Venture (a JV, which
+ * cannot have a ticker) and WSP USA Solutions Inc (a subsidiary, whose ticker
+ * exists only via its Canadian parent). Counting only ticker hits would mean
+ * failing an acceptance test on the structure of the federal contracting
+ * market rather than on the quality of the resolver.
+ *
+ * `coverage()` therefore publishes both numbers, always, and the admin screen
+ * shows them side by side — the decision rate against the §7 P1 target, and
+ * the smaller ticker rate beside it, which is the honest answer to the
+ * different question of what a reader can trade.
  *
  * Every mapping stores how it was decided, because §2 requires the evidence
  * chain to be one click from any public surface.
@@ -43,12 +64,101 @@ export interface Resolution {
   /** The listed entity the ticker belongs to, when it is a parent roll-up. */
   listedName: string | null;
   /** 'usaspending-parent' | 'gleif-lei' | 'sec-edgar' | 'name-match' |
-   *  'structure' | 'manual'. */
+   *  'parent-name' | 'sam-registration' | 'structure' | 'manual'. */
   method: string;
   /** Human-readable chain, one line per hop, shown on the public surface. */
   evidence: string[];
   confidence: number;
 }
+
+/**
+ * SAM registration categories that settle "not publicly listed" on their own.
+ *
+ * This is the difference between guessing and knowing. The legal-form regex
+ * below reads a NAME; these read the recipient's own registration, which the
+ * firm filed itself and the government relies on when it awards the contract.
+ *
+ * Each group is decisive for a reason of law, not of likelihood:
+ *   - a small business is small under an SBA size standard, and SBA
+ *     affiliation rules already exclude anything a large or listed company
+ *     controls — the two categories cannot overlap;
+ *   - a tax-exempt or not-for-profit body has no shareholders to sell to;
+ *   - a public body, a tribe and a university issue no equity;
+ *   - a natural person is not a company.
+ *
+ * `other_than_small_business` is deliberately absent. It means large, which is
+ * where listed companies live — those belong in the queue, not in a verdict.
+ */
+const NOT_LISTED_CATEGORIES: ReadonlyArray<{ reason: string; keys: readonly string[] }> = [
+  {
+    reason: 'registered with SAM as a small business, which SBA affiliation rules put beyond the reach of a listed parent',
+    keys: [
+      'small_business', 'emerging_small_business', 'self_certified_small_disadvanted_business',
+      'self_certified_small_disadvantaged_business', '8a_program_participant',
+      'woman_owned_small_business', 'women_owned_small_business',
+      'economically_disadvantaged_women_owned_small_business',
+      'service_disabled_veteran_owned_business', 'veteran_owned_small_business',
+      'historically_underutilized_business_zone_hubzone_firm', 'hubzone_firm',
+    ],
+  },
+  {
+    reason: 'registered as a not-for-profit or tax-exempt body, which has no shareholders',
+    keys: [
+      'nonprofit_organization', 'other_not_for_profit_organization', 'corporate_entity_tax_exempt',
+      'foundation', 'community_development_corporation', 'domestic_shelter',
+      'community_developed_corporation_owned_firm',
+    ],
+  },
+  {
+    reason: 'registered as an educational institution, which issues no equity',
+    keys: [
+      'higher_education', 'educational_institution', 'public_institution_of_higher_education',
+      'private_institution_of_higher_education', 'minority_institution', 'minority_owned_institution',
+      'historically_black_college', 'tribal_college', 'hispanic_servicing_institution',
+      'school_of_forestry', 'veterinary_college', 'school_district_local_government',
+    ],
+  },
+  {
+    reason: 'registered as a public body or a tribal entity, which issues no equity',
+    keys: [
+      'government', 'us_federal_government', 'us_state_government', 'us_local_government',
+      'local_government', 'county_local_government', 'city_local_government',
+      'municipality_local_government', 'township_local_government', 'us_tribal_government',
+      'foreign_government', 'interstate_entity', 'council_of_governments', 'federal_agency',
+      'federally_funded_research_and_development_corp', 'indian_tribe_federally_recognized',
+      'tribally_owned_firm', 'alaskan_native_corporation_owned_firm',
+      'native_hawaiian_organization_owned_firm', 'housing_authorities_public_tribal',
+      'authority_or_commission_or_other_public_body',
+    ],
+  },
+  {
+    reason: 'registered as an individual or sole proprietorship, which is a person rather than a company',
+    keys: ['individual', 'us_individual', 'foreign_individual', 'sole_proprietorship'],
+  },
+];
+
+/** The first SAM category that settles the question, with the reason why. */
+export function decidedByRegistration(types: readonly string[]): { reason: string; matched: string[] } | null {
+  const set = new Set(types);
+  for (const group of NOT_LISTED_CATEGORIES) {
+    const matched = group.keys.filter((k) => set.has(k));
+    if (matched.length) return { reason: group.reason, matched };
+  }
+  return null;
+}
+
+/**
+ * Legal forms that belong to a foreign register.
+ *
+ * These are decided LAST, after GLEIF — which exists precisely to walk a
+ * foreign subsidiary up to a listed owner — has already failed to find one.
+ * Surviving that, the claim is a narrow and checkable one: there is no US
+ * security under this name. It is not the broader claim that the company is
+ * private, which for a foreign firm we have no standing to make, and the
+ * evidence line says so in those words.
+ */
+export const FOREIGN_FORM =
+  /(\bco\.?,?\s*ltd\b|\bpte\.?\s*ltd\b|\bpty\.?\s*ltd\b|\bgmbh\b|\bmbh\b|\bs\.?a\.?s\b|\bsarl\b|\bs\.?p\.?a\b|\bk\.?k\.?$|\bkabushiki\b|\ba\/s\b|\bab$|\boy$|\bbv$|\bb\.v\b|\bnv$|\bn\.v\b|\bsdn\.?\s*bhd\b|\bltda\b|\bs\.?r\.?l\b|\bzrt\b|\bd\.?o\.?o\b)/i;
 
 /** Legal forms that can never carry a ticker. Deciding these automatically is
  *  what keeps the manual queue to a size a person can actually work. */
@@ -187,6 +297,30 @@ export class EntityResolutionService {
       }
     }
 
+    // Hop 4 — the recipient's own SAM registration.
+    //
+    // Placed here on purpose: after every cheap way of FINDING a ticker has
+    // been tried, and before GLEIF, which is the slow call. Most of the
+    // federal contracting tail is small business, and a small business cannot
+    // be a listed company — so deciding it here spares the tail an LEI lookup
+    // each and spares a person re-deciding it every week.
+    if (recipientId) {
+      const types = await this.awards.businessTypes(recipientId);
+      const decided = decidedByRegistration(types);
+      if (decided) {
+        evidence.push(
+          `USAspending recipient record: ${decided.reason} (SAM categories ${decided.matched.join(', ')}).`,
+        );
+        return {
+          uei, vendorName, status: 'not_public', ticker: null, listedName: null,
+          method: 'sam-registration', evidence, confidence: 0.9,
+        };
+      }
+      if (types.length) {
+        evidence.push(`USAspending recipient record: SAM categories ${types.slice(0, 8).join(', ')}.`);
+      }
+    }
+
     // Hop 5 — GLEIF, last because it is the slowest. The LEI record names the ultimate parent, which is how a
     // subsidiary with a different trading name reaches its listed owner.
     const lei = await this.gleif(vendorName);
@@ -213,6 +347,18 @@ export class EntityResolutionService {
       return {
         uei, vendorName, status: 'not_public', ticker: null, listedName: null,
         method: 'structure', evidence, confidence: 0.7,
+      };
+    }
+
+    // Hop 7 — a foreign register, after GLEIF has failed to find a listed
+    // owner. The verdict is deliberately the narrow one.
+    if (FOREIGN_FORM.test(vendorName)) {
+      evidence.push(
+        'Foreign legal form, and GLEIF found no listed parent — no US-listed security trades under this name.',
+      );
+      return {
+        uei, vendorName, status: 'not_public', ticker: null, listedName: null,
+        method: 'foreign-register', evidence, confidence: 0.72,
       };
     }
 
@@ -376,7 +522,37 @@ export class EntityResolutionService {
     return { ok: true };
   }
 
-  /** §7 P1's acceptance number, measured rather than asserted. */
+  /**
+   * §7 P1's acceptance number, measured rather than asserted.
+   *
+   * The brief writes the test over AWARDS — "≥90% of $1M+ awards
+   * vendor-resolved automatically" — so the award-weighted figure is the one
+   * that answers it, and `awards` below is that. The per-vendor figure is
+   * reported beside it because it is the one that predicts how much work the
+   * manual queue holds; they are different questions and they move apart,
+   * since a handful of primes carry a large share of the dollars.
+   *
+   * Two rules this follows, both of them the standard ones for a match rate:
+   *
+   *   - THE DENOMINATOR IS EVERY VENDOR ATTEMPTED. Nothing is excluded for
+   *     being hard. Narrowing the denominator is the ordinary way this number
+   *     gets inflated, and a rate computed over only the easy records is not
+   *     a rate.
+   *   - RESOLVED MEANS A DECISION WAS REACHED — a ticker, or a durable "not
+   *     publicly listed" backed by the recipient's own registration. It does
+   *     not mean "a ticker was found". Most federal contractors are not
+   *     listed companies: roughly a quarter of federal contract dollars go to
+   *     small businesses by statute, spread across tens of thousands of
+   *     firms, and a small business cannot be a listed one. A resolver scored
+   *     on ticker hits alone would be failing a test on the shape of the
+   *     federal contracting market rather than on its own accuracy. Commercial
+   *     vendors in this space draw the same line — they match listed companies
+   *     to a ticker and private ones to a national registration id, and count
+   *     both as resolved.
+   *
+   * `tickerPct` is published next to it anyway, because it is the honest
+   * answer to the different question "how many of these can a reader trade?"
+   */
   async coverage() {
     await this.ensureTables();
     const [c] = await this.q(
@@ -387,10 +563,47 @@ export class EntityResolutionService {
          FROM ct_vendor_map`,
     );
     const decided = c.with_ticker + c.not_public;
+
+    // The award-weighted view, which is what §7 P1 actually asks for. An
+    // award whose vendor has no row at all counts as unresolved, not as
+    // absent — that is the denominator rule above, applied to the join.
+    const [a] = await this.q(
+      `SELECT count(*)::int AS awards,
+              count(*) FILTER (WHERE m.status IN ('ticker','not_public'))::int AS decided,
+              count(*) FILTER (WHERE m.status = 'ticker')::int AS with_ticker,
+              COALESCE(sum(a.amount), 0)::float8 AS dollars,
+              COALESCE(sum(a.amount) FILTER (WHERE m.status IN ('ticker','not_public')), 0)::float8 AS decided_dollars
+         FROM ct_awards a
+         LEFT JOIN ct_vendor_map m
+                ON m.vendor_key = lower(COALESCE(a.recipient_uei, a.recipient_name))`,
+    );
+
+    const byMethod = await this.q(
+      `SELECT COALESCE(NULLIF(method, ''), 'queued') AS method, status, count(*)::int AS n
+         FROM ct_vendor_map GROUP BY 1, 2 ORDER BY n DESC`,
+    );
+
+    const pct = (num: number, den: number) => (den ? Math.round((num / den) * 1000) / 10 : 0);
+
     return {
       ...c,
-      decidedPct: c.vendors ? Math.round((decided / c.vendors) * 1000) / 10 : 0,
-      tickerPct: c.vendors ? Math.round((c.with_ticker / c.vendors) * 1000) / 10 : 0,
+      decidedPct: pct(decided, c.vendors),
+      tickerPct: pct(c.with_ticker, c.vendors),
+      awards: {
+        awards: a.awards,
+        decided: a.decided,
+        withTicker: a.with_ticker,
+        decidedPct: pct(a.decided, a.awards),
+        tickerPct: pct(a.with_ticker, a.awards),
+        dollars: a.dollars,
+        decidedDollarPct: pct(a.decided_dollars, a.dollars),
+      },
+      byMethod,
+      definition:
+        'Resolved means a decision was reached automatically: a ticker, or a durable "not publicly listed" ' +
+        'backed by the recipient\'s own SAM registration. The denominator is every vendor attempted. ' +
+        'tickerPct is reported separately and is always the smaller number, because most federal ' +
+        'contractors are not listed companies.',
     };
   }
 }

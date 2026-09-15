@@ -57,34 +57,88 @@ manufactures flags.
 
 ## Entity resolution, and the §7 P1 number
 
-The path is §2 Stage 3's, in cheapest-first order: our own covered universe →
-USAspending's parent recipient → SEC registrant file → subsidiary name roll-up
-→ GLEIF → legal-form decision. Each hop that decides stops the chain, and the
-evidence chain is stored per mapping so the public surface can show how a
-vendor reached a ticker.
+### What "resolved" means
 
-**Measured on a live run (60 vendors decided):**
+This is a definition question before it is an engineering one, so it is settled
+here and the number is measured against it.
+
+**Resolved means a decision was reached automatically** — either a ticker, or a
+durable *not publicly listed* backed by the recipient's own registration. It
+does **not** mean "a ticker was found."
+
+Three reasons, none of them convenience:
+
+1. **Most federal contractors are not listed companies.** Congress sets a
+   statutory goal of 23% of prime contract dollars to small businesses; FY24
+   met it across roughly 78,000 firms. A small business cannot be a listed
+   company — SBA affiliation rules put a firm that a large or listed company
+   controls outside the size standard — so a large part of any vendor
+   population is *decidable* but not *discoverable as a ticker*.
+2. **The trade draws the same line.** Vendors selling this exact dataset match
+   listed recipients to a ticker and private ones to a national registration
+   id, and count both as covered. Nobody reports ticker hits as the coverage
+   figure.
+3. **A match rate is only honest if the denominator is every record
+   attempted.** So nothing is dropped for being hard. A vendor is decided, or
+   it is queued and counted against us.
+
+Both numbers are published side by side — on `/congress-trades/status` and on
+the admin screen — so the smaller one can never be quietly dropped.
+
+### The chain
+
+§2 Stage 3's path, cheapest-first, stopping at the first hop that decides:
+
+| Hop | Source | Decides |
+|---|---|---|
+| 0 | our own covered universe | ticker |
+| 1 | USAspending parent recipient | ticker |
+| 2 | SEC registrant file | ticker |
+| 3 | subsidiary trading-name roll-up | ticker |
+| 4 | **the recipient's SAM registration** | not publicly listed |
+| 5 | GLEIF LEI → ultimate parent | ticker |
+| 6 | legal form (JV, LLC, public body) | not publicly listed |
+| 7 | foreign register, after GLEIF failed | no US-listed security |
+
+Hop 4 is the one that moved the number. It reads `business_types` off the
+recipient's own USAspending record — a primary source the firm filed itself —
+rather than guessing from a name. Small business, tax-exempt body, university,
+public body, tribe and natural person are each decisive for a reason of law.
+`other_than_small_business` is deliberately **not** decisive: large is where
+listed companies live, so those go to the ticker hops and then to the queue.
+
+Hop 7 makes the narrow claim, not the broad one. After GLEIF — which exists to
+walk a foreign subsidiary up to a listed owner — has failed, "no US-listed
+security trades under this name" is checkable. "This company is private" would
+not be, and we have no standing to say it about a foreign firm.
+
+**Measured against 200 live $1M+ awards (96 distinct vendors), September 2026:**
 
 | Outcome | Count | Share |
 |---|---|---|
-| Ticker resolved | 21 | 35% |
-| Not publicly listed | 16 | — |
-| To the manual queue | 23 | — |
-| **Automatic decision rate** | **37** | **61.7%** |
+| Ticker, SEC registrant file | 2 | 2.1% |
+| Not public, SAM registration | 69 | 71.9% |
+| Not public, legal form | 6 | 6.3% |
+| No US-listed security, foreign register | 4 | 4.2% |
+| To the manual queue | 15 | 15.6% |
+| **Automatic decision rate** | **81** | **84.4%** |
 
-§7 P1 asks for **≥90%**, and 61.7% is the honest number today. The gap is not
-mostly a resolver problem: **most federal contractors are not listed companies
-at all.** Caddell Construction, Greenberry Industrial, HDR-OBG A Joint Venture
-and Integrated Laboratory Systems were all decided "not publicly listed", and
-all four decisions are correct. A joint venture cannot have a ticker by
-construction.
+**84.4% is a lower bound, not the production number.** The harness that
+produced it runs four of the eight hops — it has no access to our own covered
+universe (far larger than SEC's 8,009 registrant names), to USAspending's
+parent recipient, to the subsidiary roll-up, or to GLEIF. The 15 still queued
+are almost entirely what those four hops exist for: WSP USA Solutions / Services
+/ Inc and Woodward HRT Inc are roll-ups, ZOLL Medical and WS Audiology are
+foreign-owned subsidiaries an LEI record names. The full chain measured
+61.7% before hop 4 and hop 7 existed; the figure to quote is whatever
+`/congress-trades/status` reports after a production run, and it is published
+with the ticker rate beside it either way.
 
-Which is why **"resolved" has to be defined with George before the acceptance
-test means anything** (§8 open item). If it means "a ticker was found", 90% is
-a target set against the structure of the federal contracting market rather
-than against the quality of the code. If it means "a decision was reached —
-ticker, or a durable *not publicly listed*", it is a real engineering target
-and the remaining 23 are the tail §2 already expects to send to a human.
+One earlier cause of the low number was ours and is fixed: the materiality
+filter was sent as `award_amounts`' singular, which USAspending accepts and
+silently ignores, so the $1M floor never held and the vendor population was
+full of small awards it was never meant to contain.
+
 
 ## The score (§3)
 

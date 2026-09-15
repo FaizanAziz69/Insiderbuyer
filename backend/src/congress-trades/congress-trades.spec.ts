@@ -14,7 +14,7 @@ import {
 } from './cts';
 import { agencyKey, committeeKey, JURISDICTION_SEED } from './jurisdiction';
 import { nameKey, normaliseRole } from './influence-map.service';
-import { normName } from './entity-resolution.service';
+import { normName, decidedByRegistration, FOREIGN_FORM } from './entity-resolution.service';
 
 let failures = 0;
 function check(name: string, got: unknown, want: unknown) {
@@ -136,6 +136,46 @@ checkWith('and names appropriations subcommittees, not the full committee', JURI
     !r.some((x) => x.kind === 'appropriations' && /Committee on Appropriations$/.test(x.committee)));
 checkWith('every seed rule cites a source', JURISDICTION_SEED,
   (r: any[]) => r.every((x) => typeof x.source === 'string' && x.source.length > 10));
+
+// ── What "resolved" is allowed to mean ───────────────────────────────────
+//
+// The acceptance number lives or dies on this helper, so the cases that would
+// quietly inflate it are the ones worth pinning.
+
+checkWith('a SAM small-business registration settles "not publicly listed"',
+  decidedByRegistration(['category_business', 'small_business', 'us_owned_business']),
+  (r: any) => r !== null && /small business/.test(r.reason) && r.matched.includes('small_business'));
+
+checkWith('a large business does NOT — that is where listed companies live',
+  decidedByRegistration(['category_business', 'other_than_small_business', 'us_owned_business']),
+  (r: any) => r === null);
+
+checkWith('a university is decided', decidedByRegistration(['higher_education']),
+  (r: any) => r !== null && /educational/.test(r.reason));
+
+checkWith('so is a public body', decidedByRegistration(['us_state_government']),
+  (r: any) => r !== null && /public body/.test(r.reason));
+
+checkWith('so is a natural person', decidedByRegistration(['sole_proprietorship']),
+  (r: any) => r !== null && /individual/.test(r.reason));
+
+checkWith('an empty or unknown registration decides nothing',
+  [decidedByRegistration([]), decidedByRegistration(['us_owned_business', 'special_designations'])],
+  (r: any[]) => r.every((x) => x === null));
+
+checkWith('every decision states a reason a reader can check',
+  ['small_business', 'nonprofit_organization', 'higher_education', 'us_local_government', 'individual']
+    .map((t) => decidedByRegistration([t])),
+  (r: any[]) => r.every((x) => x && x.reason.length > 30 && x.matched.length > 0));
+
+checkWith('foreign legal forms are recognised as foreign',
+  ['YOKOSOH CO., LTD.', 'WORLD FUEL SERVICES (SINGAPORE) PTE LTD', 'Siemens GmbH', 'Saab AB'],
+  (r: string[]) => r.every((n) => FOREIGN_FORM.test(n)));
+
+checkWith('and US names are not swept up with them',
+  ['Lockheed Martin Corporation', 'Booz Allen Hamilton Inc', 'Accenture Federal Services LLC',
+   'Woolpert, Inc.', 'Caddell Construction Co'],
+  (r: string[]) => r.every((n) => !FOREIGN_FORM.test(n)));
 
 console.log(failures ? `\n${failures} FAILED\n` : '\nall congress-trades checks passed\n');
 if (failures) process.exit(1);

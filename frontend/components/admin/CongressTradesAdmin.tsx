@@ -270,6 +270,73 @@ interface VendorRow {
   award_value: number | null;
 }
 
+/**
+ * §7 P1's acceptance number, on the screen rather than in a comment.
+ *
+ * It is shown as two figures on purpose. "Resolved" counts a decision — a
+ * ticker, or a durable "not publicly listed" read off the recipient's own SAM
+ * registration — and that is the figure the acceptance test is written
+ * against. "With a ticker" is the smaller, separate answer to the different
+ * question of how many of these a reader can actually trade, and it is smaller
+ * because most federal contractors are not listed companies at all. Publishing
+ * only the first would flatter the resolver; publishing only the second would
+ * fail it for the shape of the federal contracting market.
+ */
+function ResolutionCoverage() {
+  const { data } = useSWR<any>(`${API_BASE}/congress-trades/status`, (u: string) =>
+    fetch(u).then((r) => r.json()),
+  );
+  const v = data?.vendorResolution;
+  if (!v) return null;
+  const a = v.awards || {};
+  const target = 90;
+
+  const Figure = ({ label, pct, sub }: { label: string; pct: number; sub: string }) => (
+    <div className="flex-1 min-w-[150px]">
+      <div className="text-[11.5px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-mute)" }}>
+        {label}
+      </div>
+      <div className="text-[22px] font-bold leading-tight" style={{ color: "var(--text)" }}>
+        {Number.isFinite(pct) ? `${pct}%` : "—"}
+      </div>
+      <div className="text-[11.5px]" style={{ color: "var(--text-faint)" }}>
+        {sub}
+      </div>
+    </div>
+  );
+
+  return (
+    <section
+      className="rounded-xl p-3.5 flex flex-col gap-2.5"
+      style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}
+    >
+      <div className="flex flex-wrap gap-4">
+        <Figure
+          label="Awards resolved"
+          pct={a.decidedPct}
+          sub={`${a.decided ?? 0} of ${a.awards ?? 0} awards · target ${target}%`}
+        />
+        <Figure
+          label="Awards with a ticker"
+          pct={a.tickerPct}
+          sub={`${a.withTicker ?? 0} map to a listed company`}
+        />
+        <Figure
+          label="Vendors resolved"
+          pct={v.decidedPct}
+          sub={`${v.unresolved ?? 0} of ${v.vendors ?? 0} still queued`}
+        />
+      </div>
+      <p className="text-[11.5px] leading-relaxed m-0" style={{ color: "var(--text-mute)" }}>
+        Resolved means a decision was reached automatically — a ticker, or a durable &ldquo;not publicly
+        listed&rdquo; backed by the recipient&rsquo;s own SAM registration. The denominator is every vendor
+        attempted; nothing is dropped for being hard. The ticker figure is always the smaller of the two,
+        because most federal contractors are private firms, joint ventures, universities and public bodies.
+      </p>
+    </section>
+  );
+}
+
 function VendorQueue({ token }: { token: string }) {
   const { data, mutate, isLoading } = useSWR<VendorRow[]>(
     [`${API_BASE}/congress-trades/admin/vendor-queue?limit=100`, token],
@@ -302,12 +369,22 @@ function VendorQueue({ token }: { token: string }) {
     }
   }
 
-  if (isLoading) return <p className="text-[13px] text-mute">Loading the vendor queue…</p>;
-  if (!Array.isArray(data)) return <p className="text-[13px] text-mute">{(data as any)?.message || "Could not load the queue."}</p>;
-  if (!data.length) return <p className="text-[13px] text-mute">No vendors waiting. Everything resolved automatically.</p>;
+  const shell = (body: React.ReactNode) => (
+    <div className="flex flex-col gap-3">
+      <ResolutionCoverage />
+      {body}
+    </div>
+  );
+
+  if (isLoading) return shell(<p className="text-[13px] text-mute">Loading the vendor queue…</p>);
+  if (!Array.isArray(data))
+    return shell(<p className="text-[13px] text-mute">{(data as any)?.message || "Could not load the queue."}</p>);
+  if (!data.length)
+    return shell(<p className="text-[13px] text-mute">No vendors waiting. Everything resolved automatically.</p>);
 
   return (
     <div className="flex flex-col gap-3">
+      <ResolutionCoverage />
       {/* Ordering is by award dollars, and that is the point: the tail is long,
           so the hour spent here should go to the vendors carrying the money. */}
       <p className="text-[12.5px] m-0" style={{ color: "var(--text-mute)" }}>
