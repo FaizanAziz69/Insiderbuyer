@@ -36,7 +36,12 @@ export function VerifyClient({ siteKey }: { siteKey: string }) {
 
   useEffect(() => {
     // Only same-origin paths — never an absolute URL someone pasted into ?return=.
-    const returnTo = safeReturnPath(new URLSearchParams(window.location.search).get("return"));
+    // The middleware REWRITES to /verify, so the address bar still shows the
+    // page the visitor asked for and ?return= is usually absent — fall back to
+    // the current location itself (unless this is a direct visit to /verify).
+    const params = new URLSearchParams(window.location.search);
+    const here = window.location.pathname + window.location.search;
+    const returnTo = safeReturnPath(params.get("return") ?? here);
 
     if (!siteKey) {
       // Kill switch tripped between build and request: the middleware is
