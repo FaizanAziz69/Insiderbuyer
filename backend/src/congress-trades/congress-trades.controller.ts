@@ -9,6 +9,7 @@ import { FlagEngineService } from './flag-engine.service';
 import { InfluenceMapService } from './influence-map.service';
 import { VerificationAgentService } from './verification-agent.service';
 import { CongressAlertsService } from './alerts.service';
+import { DisclosuresService } from './disclosures.service';
 import { AMOUNT_NOTE, CTS_DEFAULT_WEIGHTS, STANDING_FRAME } from './cts';
 
 /**
@@ -30,6 +31,7 @@ export class CongressTradesController {
     private readonly agent: VerificationAgentService,
     private readonly board: BoardRosterService,
     private readonly alerts: CongressAlertsService,
+    private readonly disclosures: DisclosuresService,
   ) {}
 
   // ── Public ─────────────────────────────────────────────────────────────
@@ -110,6 +112,21 @@ export class CongressTradesController {
   async refreshInfluence() {
     await this.influence.seedIfEmpty();
     return { seats: await this.influence.refreshAssignments() };
+  }
+
+  /**
+   * Stage 1's other half — the trades themselves.
+   *
+   * This was the one stage with no manual trigger. Every other stage had one,
+   * the nightly cron called this in the right order, and so a hand-run
+   * pipeline quietly produced a complete award side and an empty trade side:
+   * 757 awards, 101 of them mapped to a listed company, and zero flags,
+   * because there was nothing to match them against. Nothing errored.
+   */
+  @Post('admin/ingest-disclosures')
+  @UseGuards(AdminTokenGuard)
+  async ingestDisclosures(@Query('pages') pages?: string) {
+    return this.disclosures.ingest(Number(pages) || undefined);
   }
 
   @Post('admin/ingest-awards')
