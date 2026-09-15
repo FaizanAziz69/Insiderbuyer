@@ -34,6 +34,25 @@ function money(v: number | null | undefined): string {
   return `$${Math.round(v).toLocaleString()}`;
 }
 
+/** What the link at the end of a leg actually opens, said plainly. A reader
+ *  decides whether to trust a figure by what stands behind it, and "Source" on
+ *  its own says nothing about whether that is a filed PDF or a search page. */
+function linkLabel(href: string): { label: string; note?: string } {
+  if (/disclosures-clerk\.house\.gov/.test(href) || /\.pdf($|\?)/i.test(href))
+    return { label: "Open the filing (PDF)" };
+  if (/efdsearch\.senate\.gov/.test(href))
+    return {
+      label: "Open the filing on Senate EFD",
+      // The 403 a cold click gets is the Senate's own terms gate, not a broken
+      // link. Saying so is the difference between a reader thinking we are
+      // sloppy and a reader clicking through.
+      note: "Senate EFD asks you to accept its terms of use the first time.",
+    };
+  if (/usaspending\.gov/.test(href)) return { label: "Open the award record" };
+  if (/sec\.gov/.test(href)) return { label: "Open the SEC filing" };
+  return { label: "Open the source record" };
+}
+
 function Leg({
   title,
   source,
@@ -45,29 +64,40 @@ function Leg({
   children: React.ReactNode;
   href?: string | null;
 }) {
+  const link = href ? linkLabel(href) : null;
   return (
-    <div className="rounded-lg p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-      <div className="flex items-baseline justify-between gap-2 mb-1">
-        <h4 className="text-[12.5px] font-bold m-0" style={{ color: "var(--text)" }}>
-          {title}
-        </h4>
-        {href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer nofollow"
-            className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-accent hover:underline whitespace-nowrap"
-          >
-            Source <ExternalLink size={11} />
-          </a>
-        ) : null}
-      </div>
+    <div className="rounded-lg p-3 flex flex-col" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
+      <h4 className="text-[12.5px] font-bold m-0 mb-1" style={{ color: "var(--text)" }}>
+        {title}
+      </h4>
       <div className="text-[12.5px] leading-relaxed" style={{ color: "var(--text-soft)" }}>
         {children}
       </div>
       <div className="text-[11px] mt-1" style={{ color: "var(--text-mute)" }}>
         {source}
       </div>
+      {href && link ? (
+        <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+          {/* A full-width target that names the document, rather than a small
+              word in the corner. The whole point of the evidence chain is that
+              a reader can go and look, so the way out is the loudest thing in
+              the card. */}
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="inline-flex items-center gap-1.5 text-[12px] font-bold hover:underline"
+            style={{ color: "var(--accent)" }}
+          >
+            {link.label} <ExternalLink size={12} />
+          </a>
+          {link.note ? (
+            <div className="text-[10.5px] mt-1 leading-snug" style={{ color: "var(--text-faint)" }}>
+              {link.note}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

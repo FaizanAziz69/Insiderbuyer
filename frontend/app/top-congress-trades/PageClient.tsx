@@ -290,11 +290,16 @@ export default function TopCongressTradesPage() {
         }}
       />
 
+      {/* §5 puts the corrections path on every FLAG, so it lives inside the
+          evidence chain and appears with the row it is about. The page-level
+          copy stood underneath as well, so an open row showed the same panel
+          twice — once collapsed and once as a form. Only show the page-level
+          one when no row is open, where it is the only way in. */}
       {open != null && rows.find((r) => r.id === open) ? (
         <EvidenceChain row={rows.find((r) => r.id === open)!} onClose={() => setOpen(null)} />
-      ) : null}
-
-      <ReportError />
+      ) : (
+        <ReportError />
+      )}
     </div>
   );
 }
