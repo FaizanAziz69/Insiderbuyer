@@ -64,6 +64,18 @@ const FIELD_LABEL: Record<string, string> = {
   trade_date: 'Transaction date',
 };
 
+/**
+ * The model that reads the published sentence.
+ *
+ * Haiku, not Opus, and deliberately. The job is one binary judgement against a
+ * short list of facts already assembled for it — is every claim in this
+ * sentence present in these facts — and it runs on every flag on every pass,
+ * six-hourly plus the daily archive tier. That is the shape of work a small
+ * model does well and a large one only does expensively. Override with
+ * CONGRESS_REVIEW_MODEL if a harder judgement ever justifies the cost.
+ */
+const REVIEW_MODEL = process.env.CONGRESS_REVIEW_MODEL || 'claude-haiku-4-5-20251001';
+
 @Injectable()
 export class VerificationAgentService {
   private readonly log = new Logger(VerificationAgentService.name);
@@ -396,7 +408,7 @@ export class VerificationAgentService {
     };
     try {
       const res = await client.messages.create({
-        model: 'claude-opus-5',
+        model: REVIEW_MODEL,
         max_tokens: 300,
         system:
           'You check whether a published sentence is fully supported by the structured facts given with it. ' +
@@ -605,7 +617,7 @@ export class VerificationAgentService {
               (SELECT count(*)::int FROM ct_reports WHERE state = 'new') AS new_reports,
               (SELECT min(verified_at) FROM ct_flags WHERE status = 'verified') AS oldest_verification`,
     );
-    return { ...c, model: process.env.ANTHROPIC_API_KEY ? 'claude-opus-5' : null };
+    return { ...c, model: process.env.ANTHROPIC_API_KEY ? REVIEW_MODEL : null };
   }
 }
 
