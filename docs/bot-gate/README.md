@@ -50,12 +50,12 @@ Two halves:
 ## Rollback
 
 * App: set `BOT_GATE_ENABLED=0` in `.env.production`, `pm2 restart insider-frontend --update-env`.
-* nginx: `sudo cp /home/ubuntu/nginx-insider-before-botgate-<stamp>.bak /etc/nginx/sites-enabled/insider && sudo rm /etc/nginx/conf.d/bot-gate.conf /etc/nginx/conf.d/blocked-prefixes.conf && sudo nginx -t && sudo systemctl reload nginx`.
+* nginx: `sudo cp /home/ubuntu/nginx-insider-before-botgate-<stamp>.bak /etc/nginx/sites-enabled/insider && sudo rm /etc/nginx/conf.d/bot-gate.conf /etc/nginx/blocked-prefixes.txt && sudo nginx -t && sudo systemctl reload nginx`.
 
 ## Tuning
 
 * Another scraper network: append its prefixes to
-  `/etc/nginx/conf.d/blocked-prefixes.conf` (`x.x.x.x/nn 1;`), reload.
+  `/etc/nginx/blocked-prefixes.txt` (`x.x.x.x/nn 1;`), reload.
   Look them up with `whois -h whois.cymru.com " -v <ip>"`.
 * Only challenge datacenter/suspect traffic: `BOT_GATE_MODE=datacenter`.
 * Allowlist a bot: `GOOD_BOT_RE` in `frontend/lib/bot-gate.ts`.

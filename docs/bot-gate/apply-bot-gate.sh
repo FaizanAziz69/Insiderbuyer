@@ -8,7 +8,7 @@
 # refreshes the Tencent prefix list. Backs up the site config first.
 #
 # What it does:
-#   1. /etc/nginx/conf.d/blocked-prefixes.conf  — every IPv4 prefix Tencent
+#   1. /etc/nginx/blocked-prefixes.txt  — every IPv4 prefix Tencent
 #      Cloud (AS132203) announces, fetched live from RIPEstat.
 #   2. /etc/nginx/conf.d/bot-gate.conf          — geo deny map, scraper-UA map,
 #      per-IP rate-limit zones, cookie map.
@@ -36,7 +36,7 @@ for p in v4:
     print(f"{p} 1;")
 print(len(v4), "prefixes", file=sys.stderr)
 ' > "$TMP"
-install -m 644 "$TMP" "$CONFD/blocked-prefixes.conf"
+install -m 644 "$TMP" /etc/nginx/blocked-prefixes.txt; rm -f "$CONFD/blocked-prefixes.conf"
 rm -f "$TMP"
 
 echo "== 2/4 conf.d/bot-gate.conf"
@@ -46,7 +46,7 @@ cat > "$CONFD/bot-gate.conf" <<'BG'
 
 geo $block_asn {
     default 0;
-    include /etc/nginx/conf.d/blocked-prefixes.conf;
+    include /etc/nginx/blocked-prefixes.txt;
 }
 
 map $http_user_agent $block_ua {
@@ -112,7 +112,7 @@ once('''  location /api/backend/ {
 once('    proxy_cache_bypass $http_authorization;\n    proxy_no_cache $http_authorization;\n',
      '    proxy_cache_bypass $http_authorization $no_verified;\n    proxy_no_cache $http_authorization $no_verified;\n')
 
-once('  location / {\n',
+once('  location / {\n    proxy_pass http://next_up;\n',
 '''  # Bot gate: the interstitial and its verify endpoint are never cached and
   # must be allowed to set the ib_verified cookie (location / hides Set-Cookie).
   location = /api/verify {
@@ -128,6 +128,23 @@ once('  location / {\n',
 
   location / {
     limit_req zone=rl_pages burst=30 nodelay;
+    proxy_pass http://next_up;
+''')
+
+# api.insiderbuying.com exposes Nest directly: same network/UA refusal + API rate limit
+once('''  server_name api.insiderbuying.com;
+  client_max_body_size 20m;
+  location / {
+    proxy_pass http://api_up;
+''', '''  server_name api.insiderbuying.com;
+  client_max_body_size 20m;
+  # Bot gate (2026-09-15): same refusals as the main host.
+  if ($block_asn) { return 403; }
+  if ($block_ua)  { return 403; }
+  limit_conn rl_conn 40;
+  location / {
+    limit_req zone=rl_api burst=60 nodelay;
+    proxy_pass http://api_up;
 ''')
 once('    proxy_cache_bypass $http_authorization $bypass_bot;\n    proxy_no_cache $http_authorization $bypass_bot;\n',
      '    proxy_cache_bypass $http_authorization $bypass_bot $no_verified;\n    proxy_no_cache $http_authorization $bypass_bot $no_verified;\n')
