@@ -909,6 +909,7 @@ export class PromoterService implements OnModuleInit {
   /** The ranking page: most-promoted stocks. */
   async ranking(opts: { quarter?: string; sector?: string; sort?: string; limit?: number } = {}) {
     await this.ensureTables();
+    await this.perf.ensureTable();
     const quarter = opts.quarter && /^\d{4}-Q[1-4]$/.test(opts.quarter) ? opts.quarter : currentQuarter();
     const sort =
       opts.sort === 'spend' ? 's.spend_cad'

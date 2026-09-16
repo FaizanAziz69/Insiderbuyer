@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
@@ -66,8 +66,19 @@ export function volumeWindows(bars: Bar[], start: string, lastDate: string) {
 }
 
 @Injectable()
-export class ContractPerformanceService {
+export class ContractPerformanceService implements OnModuleInit {
   private readonly log = new Logger(ContractPerformanceService.name);
+
+  /** Every reader of ir_contract_perf (ranking, top promoters, the issuer
+   *  page) selects the newest columns, so the table must be current before
+   *  the first request — not only after the first refresh. */
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.ensureTable();
+    } catch (e: any) {
+      this.log.error(`ir_contract_perf schema check failed: ${e?.message || e}`);
+    }
+  }
 
   constructor(
     @InjectRepository(Company) private readonly companies: Repository<Company>,

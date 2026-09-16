@@ -218,7 +218,7 @@ export default function PromoterScorePage() {
       render: (r) =>
         r.deVolPost == null || r.deVolPost <= 0 ? (
           <span className="text-[11px] leading-tight text-faint inline-block max-w-[150px]" title={r.deNote || undefined}>
-            {r.deVenues && r.deVenues.length ? "No German trades" : "No German listing"}
+            {r.deVenues && r.deVenues.length ? "No German trades" : r.deNote ? "No German listing" : "Not yet computed"}
           </span>
         ) : (
           <span className="inline-block text-right" title={r.deVenues?.map((v) => `${v.name}: ${shares(v.volume)}`).join(" · ") || undefined}>
