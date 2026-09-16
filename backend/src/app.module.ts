@@ -71,6 +71,7 @@ import { DataArticlesModule } from './data-articles/data-articles.module';
 import { DeInsidersModule } from './de-insiders/de-insiders.module';
 import { PromoterModule } from './promoter/promoter.module';
 import { ProductUpdatesModule } from './product-updates/product-updates.module';
+import { FreeReportModule } from './free-report/free-report.module';
 import { CongressTradesModule } from './congress-trades/congress-trades.module';
 import { EmailFlowState } from './entities/email-flow-state.entity';
 import { InsiderProfile } from './entities/insider-profile.entity';
@@ -230,6 +231,7 @@ import {
     DeInsidersModule,
     PromoterModule,
     ProductUpdatesModule,
+    FreeReportModule,
     CongressTradesModule,
   ],
 })

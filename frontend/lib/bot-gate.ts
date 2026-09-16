@@ -52,6 +52,8 @@ const EXEMPT_PREFIXES = [
   // spam complaint waiting to happen.
   "/api/backend/promoter/emails/unsubscribe",
   "/api/backend/product-updates/unsubscribe",
+  // The free report PDF is opened from an email link, cookie-less.
+  "/api/backend/free-report/pdf",
 ];
 
 /** "Has a file extension" — static assets served from /public or by nginx. */
