@@ -328,11 +328,11 @@ const NAME_RUN = String.raw`[A-Z0-9](?:[^.;()]|\.(?=[A-Za-z])|\.(?=,?\s+(?:DBA|d
 /** Verb phrasings, used when nobody was introduced with a short form. */
 const PROVIDER_PATTERNS: Array<[RegExp, string]> = [
   [
-    /\b(?:entered into|signed|executed|has)\s+(?:an?|its)\s+[^.]{0,70}?(?:agreement|contract|engagement)\s*(?:\([^)]{0,50}\))?\s*with\s+([A-Z][^.;()]{2,60})/,
+    /\b(?:entered into|signed|executed|has)\s+(?:an?|its)\s+[^.]{0,70}?(?:agreement|contract|engagement)\s*(?:\([^)]{0,50}\))?\s*with\s+([A-Z][^.;()]{2,90})/,
     'regex:agreement-with',
   ],
   [
-    /\b(?:has\s+)?(?:engaged|retained|appointed|hired|contracted)\s+([A-Z][^.;()]{2,60}?)\s*(?:\([^)]{1,30}\))?\s*(?:to\s+(?:provide|perform|act|carry out|undertake)|for|as)\b/,
+    /\b(?:has\s+)?(?:engaged|retained|appointed|hired|contracted)\s+([A-Z][^.;()]{2,90}?)\s*(?:\([^)]{1,30}\))?\s*(?:to\s+(?:provide|perform|act|carry out|undertake)|for|as)\b/,
     'regex:engaged-x-to',
   ],
   [
@@ -552,18 +552,22 @@ function findProviders(title: string, text: string, issuerName: string | null): 
     push(cleanProvider(m[1]), bracket.trim(), m.index, 'regex:entity-with-short', m[1]);
   }
 
+  // "The engagement of X as…; The appointment of Y, as…" — one release,
+  // several counterparties (Forte Minerals, September 2026). The global
+  // patterns run whether or not a short-form introduction was found, since a
+  // release can introduce one firm formally and name the next in passing;
+  // `seen` keeps a firm found both ways to one hit.
+  for (const [re, how] of PROVIDER_PATTERNS) {
+    if (!re.global) continue;
+    re.lastIndex = 0;
+    let mm: RegExpExecArray | null;
+    while ((mm = re.exec(text))) push(cleanProvider(mm[1]), null, mm.index, how, mm[1]);
+  }
   if (!hits.length) {
     for (const [re, how] of PROVIDER_PATTERNS) {
-      if (re.global) {
-        // "The engagement of X as…; The appointment of Y, as…" — one release,
-        // several counterparties (Forte Minerals, September 2026).
-        re.lastIndex = 0;
-        let mm: RegExpExecArray | null;
-        while ((mm = re.exec(text))) push(cleanProvider(mm[1]), null, mm.index, how, mm[1]);
-      } else {
-        const mm = re.exec(text);
-        if (mm) push(cleanProvider(mm[1]), null, mm.index, how, mm[1]);
-      }
+      if (re.global) continue;
+      const mm = re.exec(text);
+      if (mm) push(cleanProvider(mm[1]), null, mm.index, how, mm[1]);
       if (hits.length) break;
     }
   }
@@ -819,6 +823,11 @@ export function parseDisclosure(title: string, body: string): ParsedDisclosure {
       a.providerShort = null;
       a.providerLegalName = null;
     }
+    // The ticker came from the same chrome — Pan Global's lazily loaded page
+    // was filed under Homeland Nickel's symbol — so it is no more trustworthy.
+    if (issuer.ticker) notes.push(`Ticker ${issuer.ticker} discarded: page body not isolated.`);
+    issuer.ticker = null;
+    confidence = Math.min(confidence, 0.3);
   }
 
   return {
@@ -954,13 +963,30 @@ const CHROME =
 export function isolated(text: string): boolean {
   const head = text.slice(0, 400);
   if (CHROME.test(head)) return false;
-  // A dateline is a place, a wire and a date within the first few lines.
+  // A dateline is a place, a wire and a date within the first few lines —
+  // or, on Investing News Network, a bare date line above the company name.
+  if (/^\s*[A-Z][a-z]+ \d{1,2}, \d{4}\s*\n+\s*[A-Z]/.test(head)) return true;
   return /[A-Z][A-Za-z .'-]{2,40}\s*[,/—–-]/.test(head) && /\b(19|20)\d{2}\b/.test(text.slice(0, 900));
 }
 
+/** Investing News Network's related-articles rail: other companies' releases,
+ *  each with its own dateline and ticker, follow the article. Cut before
+ *  anything else looks for a dateline, or the rail's first article becomes
+ *  the release (Homeland Nickel and Steadright were read this way). */
+const RAIL = [/Keep Reading\.{3}/, /The Conversation \(\d+\)/];
+
 export function narrow(body: string): string {
   let t = body.replace(/\r/g, '');
+  let rail = t.length;
+  for (const re of RAIL) {
+    const m = re.exec(t);
+    if (m && m.index > 0) rail = Math.min(rail, m.index);
+  }
+  t = t.slice(0, rail);
   const starts: RegExp[] = [
+    // INN's own body header: the network name, a date line, then the release
+    // text with no wire dateline of its own.
+    /Investing News Network\s*\n\s*(?=[A-Z][a-z]+ \d{1,2}, \d{4}\s*\n)/,
     /[A-Z][A-Za-z .'-]{2,40},\s*[A-Za-z .]{2,30}-{1,2}\(\s*(?:Newsfile Corp\.|GLOBE NEWSWIRE|ACCESS Newswire|ACCESSWIRE|Business Wire|CNW)/,
     /[A-Z][A-Za-z .'-]{2,40},\s*[A-Z]{2}\s*\/\s*(?:ACCESS Newswire|ACCESSWIRE|EINPresswire|Newsfile)\s*\//i,
     /[A-Z][A-Za-z .'-]{2,40}\s*,\s*[A-Z][a-z]{2,8}\.?\s+\d{1,2},?\s+\d{4}\s*\/(?:CNW|PRNewswire)/,
@@ -969,10 +995,17 @@ export function narrow(body: string): string {
     /\(TheNewswire\)\s+[A-Z][A-Za-z .'-]{2,40},/,
     /[A-Z][A-Za-z .'-]{2,40},\s*[A-Za-z .]{2,30}\s*[-–—]{1,2}\s*\(?[A-Z][a-z]{2,8}\.?\s+\d{1,2},?\s+\d{4}\)?\s*[-–—]/,
   ];
+  // The earliest dateline wins, whichever shape it has — trying the shapes
+  // in order let a later-listed shape match an earlier position on the page.
+  let best: RegExpExecArray | null = null;
   for (const re of starts) {
     const m = re.exec(t);
-    if (m && m.index < t.length * 0.92) {
-      t = t.slice(m.index);
+    if (m && m.index < t.length * 0.92 && (!best || m.index < best.index)) best = m;
+  }
+  if (best) {
+    const m = best;
+    {
+      t = t.slice(m.index + (m[0].startsWith('Investing News Network') ? m[0].length : 0));
       // The place in a dateline is one or two words ("Vancouver,", "New
       // York,"). The character class that finds it also spans spaces, so on
       // an Investing News Network page the match began inside the site
@@ -981,18 +1014,11 @@ export function narrow(body: string): string {
       const comma = t.indexOf(',');
       if (comma > 0) {
         const words = t.slice(0, comma).trim().split(/\s+/);
-        if (words.length > 2) t = words.slice(-2).join(' ') + t.slice(comma);
+        if (words.length > 2 && !/^[A-Z][a-z]+ \d{1,2}$/.test(t.slice(0, comma).trim())) t = words.slice(-2).join(' ') + t.slice(comma);
       }
-      break;
     }
   }
   const ends = [
-    // Investing News Network wraps every release in its own site: a related-
-    // articles rail ("Keep Reading...", "The Conversation (0)") and the footer.
-    // Names in that rail — Westport Fuel Systems, Blade Resources — were read
-    // as the issuer's IR providers (George, 2026-09-16).
-    /Keep Reading\.{3}/,
-    /The Conversation \(\d+\)/,
     /Neither (?:the )?TSX Venture Exchange nor/i,
     /The (?:Canadian Securities Exchange|CSE) has (?:not|neither)/i,
     /To view the source version of this press release/i,

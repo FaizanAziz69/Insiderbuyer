@@ -491,7 +491,10 @@ export class PromoterService implements OnModuleInit {
     // date was a new row — until the same VEGA release carried "AGORA
     // Internet Relations Corp" twice under two slugs. Hand-reviewed rows are
     // the record of truth and stay.
-    if (keptIds.length) {
+    const notIsolated = parsed.notes.some((x) => /page body not isolated/i.test(x));
+    if (keptIds.length || notIsolated) {
+      // A page whose body could not be isolated says nothing publishable, so
+      // any provider rows an earlier read left behind come off too.
       await this.q(
         `DELETE FROM ir_agreements
           WHERE disclosure_id = $1 AND reviewed_at IS NULL AND NOT (id = ANY($2::bigint[]))`,
