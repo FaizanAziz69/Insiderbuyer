@@ -44,6 +44,13 @@ interface Contract {
     pct90d: number | null;
     pctToDate: number | null;
     note: string | null;
+    dollarVolumeCad: number | null;
+    dollarVolumeCurrency: string | null;
+    dollarVolumeDays: number | null;
+    spendToDateCad: number | null;
+    spendMonths: number | null;
+    spendBasis: string | null;
+    volumeMultiple: number | null;
   } | null;
 }
 
@@ -131,6 +138,34 @@ function PerformanceRow({ perf }: { perf: Contract["performance"] }) {
           {perf.note || "No price data for this listing."}
         </p>
       )}
+      {perf.dollarVolumeCad != null || perf.spendToDateCad != null ? (
+        <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 mt-1.5">
+          <span className="text-[12.5px]">
+            <span style={{ color: "var(--text-mute)" }}>Traded since start </span>
+            <span className="tabular font-bold" style={{ color: "var(--text)" }}>
+              {perf.dollarVolumeCad == null ? "no price data" : money(perf.dollarVolumeCad)}
+            </span>
+            {perf.dollarVolumeDays != null ? <span style={{ color: "var(--text-mute)" }}> ({perf.dollarVolumeDays}d)</span> : null}
+          </span>
+          <span className="text-[12.5px]">
+            <span style={{ color: "var(--text-mute)" }}>Fees accrued </span>
+            <span className="tabular font-bold" style={{ color: "var(--text)" }}>
+              {perf.spendToDateCad == null ? "not disclosed" : money(perf.spendToDateCad)}
+            </span>
+            {perf.spendMonths != null && perf.spendBasis === "monthly" ? (
+              <span style={{ color: "var(--text-mute)" }}> ({perf.spendMonths.toFixed(1)} mo)</span>
+            ) : null}
+          </span>
+          {perf.volumeMultiple != null ? (
+            <span className="text-[12.5px]">
+              <span style={{ color: "var(--text-mute)" }}>Traded ÷ fees </span>
+              <span className="tabular font-extrabold" style={{ color: perf.volumeMultiple >= 1 ? "var(--text)" : "var(--bad)" }}>
+                {perf.volumeMultiple >= 100 ? `${Math.round(perf.volumeMultiple)}x` : `${perf.volumeMultiple.toFixed(1)}x`}
+              </span>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

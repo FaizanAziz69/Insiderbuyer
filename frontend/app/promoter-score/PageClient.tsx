@@ -55,6 +55,33 @@ interface Row {
   deVolGrowth90: number | null;
   deVenues: Array<{ code: string; name: string; volume: number }> | null;
   deNote: string | null;
+  /** The issuer's earliest dated IR contract — when the promotion began. */
+  promotionStart: string | null;
+  /** Dollar value traded on the home listing since the promotion began, in CAD. */
+  dollarVolumeCad: number | null;
+  dollarVolumeNative: number | null;
+  dollarVolumeCurrency: string | null;
+  dollarVolumeDays: number | null;
+  dollarVolumeSessions: number | null;
+  /** Cash IR fees accrued over that period across all of the issuer's contracts, CAD. */
+  spendToDateCad: number | null;
+  spendContracts: number;
+  totalContracts: number;
+  /** dollarVolumeCad ÷ spendToDateCad, one decimal. */
+  volumeMultiple: number | null;
+}
+
+function fullDate(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+function multiple(v: number | null): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  if (v >= 100) return `${Math.round(v)}x`;
+  return `${v.toFixed(1)}x`;
 }
 
 function shares(v: number | null): string {
@@ -96,7 +123,7 @@ function pct(v: number | null): string {
 export default function PromoterScorePage() {
   const [quarter, setQuarter] = useState<string>("");
   const [sector, setSector] = useState<string>("");
-  const [sort, setSort] = useState<"score" | "spend" | "perMcap" | "contracts" | "perf" | "deVol">("score");
+  const [sort, setSort] = useState<"score" | "spend" | "perMcap" | "contracts" | "perf" | "deVol" | "start" | "dvol" | "multiple">("score");
   /** Stock-performance filter: every issuer, only priced ones, or only gainers. */
   const [perfFilter, setPerfFilter] = useState<"all" | "priced" | "up" | "down">("all");
   const [q, setQ] = useState("");
@@ -157,6 +184,29 @@ export default function PromoterScorePage() {
       render: (r) => <span className="tabular font-bold text-[14px]" style={{ color: "var(--text)" }}>{money(r.spendCad)}</span>,
     },
     {
+      key: "promotionStart",
+      label: "Promotion start",
+      align: "right",
+      info: "The start date of the issuer's earliest disclosed IR, promotional or market-making contract — the day the promotion began. Where a release said only \"effective immediately\", the release date stands in. Every since-start figure on this row is measured from here.",
+      sortValue: (r) => (r.promotionStart ? Date.parse(r.promotionStart) : -Infinity),
+      render: (r) =>
+        r.promotionStart ? (
+          <span className="inline-block text-right">
+            <span className="block tabular text-[13px] font-semibold" style={{ color: "var(--text)" }}>
+              {fullDate(r.promotionStart)}
+            </span>
+            <span className="block text-[11px] leading-tight text-mute">
+              {r.dollarVolumeDays != null ? `${r.dollarVolumeDays}d ago` : ""}
+              {r.totalContracts > 1 ? `${r.dollarVolumeDays != null ? " · " : ""}${r.totalContracts} contracts` : ""}
+            </span>
+          </span>
+        ) : (
+          <span className="text-[12px]" style={{ color: "var(--text-soft)" }}>
+            No dated contract
+          </span>
+        ),
+    },
+    {
       key: "qoqChange",
       label: "QoQ",
       align: "right",
@@ -206,6 +256,68 @@ export default function PromoterScorePage() {
               since {shortDate(r.perfStartDate)}
               {r.perf90d != null ? ` · 90d ${pct(r.perf90d)}` : ""}
             </span>
+          </span>
+        ),
+    },
+    {
+      key: "dollarVolumeCad",
+      label: "$ traded since start",
+      align: "right",
+      info: "Dollar value of every share traded on the issuer's home exchange from the promotion start date to the latest close — each session's close price times its volume, summed — converted to Canadian dollars. Every trade has a buyer, so this is the money that changed hands for the stock after the promotion began. German-venue trades are not included (that data comes as shares, not prices). Blank where our price data does not cover the listing.",
+      sortValue: (r) => r.dollarVolumeCad ?? -Infinity,
+      render: (r) =>
+        r.dollarVolumeCad == null ? (
+          <span className="text-[12px] leading-tight inline-block max-w-[150px]" style={{ color: "var(--text-soft)" }} title={r.perfNote || undefined}>
+            No price data
+          </span>
+        ) : (
+          <span className="inline-block text-right">
+            <span className="block tabular text-[13.5px] font-bold" style={{ color: "var(--text)" }}>
+              {money(r.dollarVolumeCad)}
+            </span>
+            <span className="block text-[11px] leading-tight text-mute">
+              {r.dollarVolumeDays != null ? `${r.dollarVolumeDays}d` : "since start"}
+              {r.dollarVolumeDays ? ` · ${money(r.dollarVolumeCad / Math.max(1, r.dollarVolumeDays))}/day` : ""}
+              {r.dollarVolumeCurrency && r.dollarVolumeCurrency !== "CAD" ? ` · from ${r.dollarVolumeCurrency}` : ""}
+            </span>
+          </span>
+        ),
+    },
+    {
+      key: "volumeMultiple",
+      label: "Traded ÷ IR spend",
+      align: "right",
+      info: "Dollars traded since the promotion began divided by the cash IR fees the issuer accrued over the same period, across all of its disclosed contracts — 8.0x means eight dollars changed hands for every dollar of disclosed fees. Fees accrue by elapsed months at the disclosed monthly rate (or pro rata over the term for a contract disclosed as a total); options and share grants are not cash and are not counted. It measures what the market traded against what the promotion cost; it does not mean the promotion caused the trading, and it is not a return to shareholders.",
+      sortValue: (r) => r.volumeMultiple ?? -Infinity,
+      render: (r) =>
+        r.volumeMultiple == null ? (
+          <span
+            className="text-[12px] leading-tight inline-block max-w-[150px]"
+            style={{ color: "var(--text-soft)" }}
+            title={
+              r.dollarVolumeCad == null
+                ? r.perfNote || "No price data for this listing."
+                : "No cash fee was disclosed for this issuer's contracts, so there is nothing to divide by."
+            }
+          >
+            {r.dollarVolumeCad == null ? "No price data" : "No fee disclosed"}
+          </span>
+        ) : (
+          <span className="inline-block text-right">
+            <span
+              className="block tabular text-[14px] font-extrabold"
+              style={{ color: r.volumeMultiple >= 1 ? "var(--text)" : "var(--bad)" }}
+            >
+              {multiple(r.volumeMultiple)}
+            </span>
+            <span className="block text-[11px] leading-tight text-mute">
+              {money(r.dollarVolumeCad)} traded ÷ {money(r.spendToDateCad)} fees
+            </span>
+            {r.spendContracts < r.totalContracts ? (
+              <span className="block text-[10.5px] leading-tight text-faint">
+                fees known for {r.spendContracts} of {r.totalContracts} contracts
+              </span>
+            ) : null}
           </span>
         ),
     },
@@ -329,6 +441,9 @@ export default function PromoterScorePage() {
             ["perMcap", "Spend / cap"],
             ["contracts", "Providers"],
             ["perf", "Performance"],
+            ["start", "Start date"],
+            ["dvol", "$ traded"],
+            ["multiple", "Traded ÷ spend"],
             ["deVol", "German volume"],
           ] as const).map(([v, label]) => (
             <button
@@ -378,6 +493,9 @@ export default function PromoterScorePage() {
             : sort === "contracts" ? "activeContracts"
             : sort === "perf" ? "perfSinceStart"
             : sort === "deVol" ? "deVolPost"
+            : sort === "start" ? "promotionStart"
+            : sort === "dvol" ? "dollarVolumeCad"
+            : sort === "multiple" ? "volumeMultiple"
             : "score",
           dir: "desc",
         }}

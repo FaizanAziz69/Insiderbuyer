@@ -15,7 +15,7 @@ import {
   ParsedDisclosure,
   REVIEW_THRESHOLD,
 } from './ir-parser';
-import { DEFAULT_WEIGHTS, PromoterWeights, WEIGHT_KEYS, normalizeWeights } from './scoring';
+import { DEFAULT_WEIGHTS, PromoterWeights, WEIGHT_KEYS, normalizeWeights, fxToCad } from './scoring';
 
 /**
  * Workstream F — IR Budget / Promoter Score.
@@ -925,6 +925,9 @@ export class PromoterService implements OnModuleInit {
       : opts.sort === 'contracts' ? 's.active_contracts'
       : opts.sort === 'perf' ? 'perf.perf_now'
       : opts.sort === 'deVol' ? 'perf.de_vol_post'
+      : opts.sort === 'start' ? 'perf.start_date'
+      : opts.sort === 'dvol' ? 'perf.dvol_since_start_cad'
+      : opts.sort === 'multiple' ? '(perf.dvol_since_start_cad / NULLIF(spend.spend_to_date_cad, 0))'
       : 's.score';
     const limit = Math.min(Math.max(Number(opts.limit) || 50, 1), 250);
     const rows: any[] = await this.q(
@@ -935,7 +938,9 @@ export class PromoterService implements OnModuleInit {
               perf.perf_now, perf.perf_90d, perf.start_date AS perf_start, perf.note AS perf_note,
               perf.currency AS perf_currency,
               perf.de_vol_post, perf.de_post_days, perf.de_pct_of_total, perf.de_vol_after_30, perf.de_vol_after_90,
-              perf.de_vol_before, perf.de_vol_growth_30, perf.de_vol_growth_90, perf.de_venues, perf.de_note
+              perf.de_vol_before, perf.de_vol_growth_30, perf.de_vol_growth_90, perf.de_venues, perf.de_note,
+              perf.dvol_since_start_cad, perf.dvol_since_start, perf.dvol_currency, perf.dvol_days, perf.dvol_sessions,
+              spend.spend_to_date_cad, spend.spend_rows, spend.contract_rows, spend.first_start
          FROM promoter_scores s
          LEFT JOIN ir_issuers i ON i.ticker = s.ticker
          -- Stock performance since the issuer's FIRST priced engagement began
@@ -945,13 +950,28 @@ export class PromoterService implements OnModuleInit {
          LEFT JOIN LATERAL (
            SELECT p.perf_now, p.perf_90d, p.start_date, p.note, p.currency,
                   p.de_vol_post, p.de_post_days, p.de_pct_of_total, p.de_vol_after_30, p.de_vol_after_90,
-                  p.de_vol_before, p.de_vol_growth_30, p.de_vol_growth_90, p.de_venues, p.de_note
+                  p.de_vol_before, p.de_vol_growth_30, p.de_vol_growth_90, p.de_venues, p.de_note,
+                  p.dvol_since_start_cad, p.dvol_since_start, p.dvol_currency, p.dvol_days, p.dvol_sessions
              FROM ir_contract_perf p
              JOIN ir_agreements a ON a.id = p.agreement_id
             WHERE a.ticker = s.ticker AND a.status <> 'rejected' AND a.provider_slug IS NOT NULL
             ORDER BY (p.perf_now IS NULL), p.start_date ASC
             LIMIT 1
          ) perf ON true
+         -- IR fees accrued to date across ALL of the issuer's contracts
+         -- (George 2026-09-16: dollar volume traded since the promotion began
+         -- against what the promotion has cost so far, as a multiple). The
+         -- dollar-volume leg above runs from the earliest contract, so the
+         -- spend leg sums every contract's accrual over that same period.
+         LEFT JOIN LATERAL (
+           SELECT sum(p.spend_to_date_cad)::float8 AS spend_to_date_cad,
+                  count(p.spend_to_date_cad)::int  AS spend_rows,
+                  count(*)::int                    AS contract_rows,
+                  min(p.start_date)                AS first_start
+             FROM ir_contract_perf p
+             JOIN ir_agreements a ON a.id = p.agreement_id
+            WHERE a.ticker = s.ticker AND a.status <> 'rejected' AND a.provider_slug IS NOT NULL
+         ) spend ON true
         WHERE s.quarter = $1 AND ($2::text IS NULL OR s.sector = $2)
         ORDER BY ${sort} DESC NULLS LAST
         LIMIT $3`,
@@ -984,7 +1004,8 @@ export class PromoterService implements OnModuleInit {
               a.arms_length, a.status, a.kind, a.confidence, a.provenance, a.reviewed_at,
               d.source_url, d.headline, d.published_at,
               p.perf_30d, p.perf_90d, p.perf_now, p.start_price::float8 AS start_price,
-              p.price_now::float8 AS price_now, p.note AS perf_note
+              p.price_now::float8 AS price_now, p.note AS perf_note,
+              p.dvol_since_start_cad, p.dvol_currency, p.dvol_days, p.spend_to_date_cad, p.spend_months, p.spend_basis
          FROM ir_agreements a JOIN ir_disclosures d ON d.id = a.disclosure_id
          LEFT JOIN ir_contract_perf p ON p.agreement_id = a.id
         WHERE a.ticker = $1 AND a.status <> 'rejected' AND a.provider_slug IS NOT NULL
@@ -1336,18 +1357,7 @@ export function firmSlug(name: string): string {
     .slice(0, 96);
 }
 
-/**
- * Static CAD conversion.
- *
- * Deliberately not a live FX call: §2.4 compares spend across quarters and
- * issuers, and a rate that moves between rescores would make last quarter's
- * number change every night for no disclosed reason. These are contract
- * values, not market values. When George wants dated FX this becomes a table.
- */
-const FX_TO_CAD: Record<string, number> = { CAD: 1, USD: 1.37, EUR: 1.48, GBP: 1.73, AUD: 0.9 };
-export function fxToCad(currency: string | null | undefined): number {
-  return FX_TO_CAD[String(currency || 'CAD').toUpperCase()] ?? 1;
-}
+export { fxToCad } from './scoring';
 
 function statusFor(kind: string): string {
   return kind === 'termination' ? 'terminated' : 'active';
@@ -1476,7 +1486,30 @@ function shapeRankRow(r: any) {
     deVolGrowth90: r.de_vol_growth_90 == null ? null : Number(r.de_vol_growth_90),
     deVenues: Array.isArray(r.de_venues) ? r.de_venues : null,
     deNote: r.de_note ?? null,
+    // Promotion start = the issuer's earliest dated contract.
+    promotionStart: r.first_start ?? r.perf_start ?? null,
+    // Dollar value traded on the home listing since the promotion began, CAD.
+    dollarVolumeCad: r.dvol_since_start_cad == null ? null : Number(r.dvol_since_start_cad),
+    dollarVolumeNative: r.dvol_since_start == null ? null : Number(r.dvol_since_start),
+    dollarVolumeCurrency: r.dvol_currency ?? null,
+    dollarVolumeDays: r.dvol_days == null ? null : Number(r.dvol_days),
+    dollarVolumeSessions: r.dvol_sessions == null ? null : Number(r.dvol_sessions),
+    // Cash IR fees accrued over that period, summed across the issuer's contracts.
+    spendToDateCad: r.spend_to_date_cad == null ? null : Math.round(Number(r.spend_to_date_cad)),
+    spendContracts: r.spend_rows == null ? 0 : Number(r.spend_rows),
+    totalContracts: r.contract_rows == null ? 0 : Number(r.contract_rows),
+    // Dollar volume ÷ IR spend to date. 8.0 = eight dollars traded per dollar
+    // of disclosed fees. Null when either leg is missing or spend is zero.
+    volumeMultiple: volumeMultiple(r.dvol_since_start_cad, r.spend_to_date_cad),
   };
+}
+
+export function volumeMultiple(dvolCad: any, spendCad: any): number | null {
+  if (dvolCad == null || spendCad == null) return null;
+  const d = Number(dvolCad);
+  const s = Number(spendCad);
+  if (!isFinite(d) || !isFinite(s) || s <= 0) return null;
+  return Math.round((d / s) * 10) / 10;
 }
 
 function shapeContract(r: any) {
@@ -1511,6 +1544,15 @@ function shapeContract(r: any) {
       pct90d: r.perf_90d ?? null,
       pctToDate: r.perf_now ?? null,
       note: r.perf_note ?? null,
+      // Money that changed hands for the stock since this contract began,
+      // against the fees this contract has accrued over the same span.
+      dollarVolumeCad: r.dvol_since_start_cad == null ? null : Number(r.dvol_since_start_cad),
+      dollarVolumeCurrency: r.dvol_currency ?? null,
+      dollarVolumeDays: r.dvol_days == null ? null : Number(r.dvol_days),
+      spendToDateCad: r.spend_to_date_cad == null ? null : Math.round(Number(r.spend_to_date_cad)),
+      spendMonths: r.spend_months == null ? null : Number(r.spend_months),
+      spendBasis: r.spend_basis ?? null,
+      volumeMultiple: volumeMultiple(r.dvol_since_start_cad, r.spend_to_date_cad),
     },
   };
 }

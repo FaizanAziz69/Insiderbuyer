@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
 import { FmpService } from '../fmp/fmp.service';
 import { GermanVolumeService, GermanVolume } from './german-volume.service';
+import { fxToCad } from './scoring';
 
 /**
  * Workstream F — what happened to the share price after the promotion started.
@@ -134,6 +135,22 @@ export class ContractPerformanceService implements OnModuleInit {
       ADD COLUMN IF NOT EXISTS de_post_days     int,
       ADD COLUMN IF NOT EXISTS de_pct_of_total  real,
       ADD COLUMN IF NOT EXISTS de_note          text`);
+    // 2026-09-16 (George): "the buying volume (dollar value)" and "the return
+    // based on the IR spend and the buy volume — what multiple did the
+    // company get". Dollar value traded on the home listing from the contract
+    // start date to the latest session (price x shares, per session, summed),
+    // and the cash IR fees this contract accrued over that same span, both in
+    // CAD. The multiple is one divided by the other and is computed where it
+    // is read, so the two legs always describe the same period.
+    await this.q(`ALTER TABLE ir_contract_perf
+      ADD COLUMN IF NOT EXISTS dvol_since_start     double precision,
+      ADD COLUMN IF NOT EXISTS dvol_since_start_cad double precision,
+      ADD COLUMN IF NOT EXISTS dvol_currency        varchar(3),
+      ADD COLUMN IF NOT EXISTS dvol_days            int,
+      ADD COLUMN IF NOT EXISTS dvol_sessions        int,
+      ADD COLUMN IF NOT EXISTS spend_to_date_cad    double precision,
+      ADD COLUMN IF NOT EXISTS spend_months         real,
+      ADD COLUMN IF NOT EXISTS spend_basis          varchar(16)`);
   }
 
   /**
@@ -144,7 +161,9 @@ export class ContractPerformanceService implements OnModuleInit {
   async refresh(limit = 400): Promise<{ priced: number; unpriced: number }> {
     await this.ensureTable();
     const rows: any[] = await this.q(
-      `SELECT a.id, a.ticker, a.start_date, i.fmp_symbol, i.currency, COALESCE(i.name, a.issuer_name) AS issuer_name
+      `SELECT a.id, a.ticker, a.start_date, a.end_date, a.term_months, a.status,
+              a.monthly_fee_cad::float8 AS monthly_fee_cad, a.total_value_cad::float8 AS total_value_cad,
+              i.fmp_symbol, i.currency, COALESCE(i.name, a.issuer_name) AS issuer_name
          FROM ir_agreements a
          LEFT JOIN ir_issuers i ON i.ticker = a.ticker
         WHERE a.start_date IS NOT NULL
@@ -200,6 +219,10 @@ export class ContractPerformanceService implements OnModuleInit {
         const start = isoOf(r.start_date)!;
         const today = new Date().toISOString().slice(0, 10);
         const deFields = germanFields(de, bars, start, bars.length ? bars[bars.length - 1].date : today);
+        // Fees accrue whether or not we can price the stock, so the spend leg
+        // is written for every contract; the multiple simply stays empty
+        // where the dollar-volume leg is missing.
+        const spend = accruedSpendCad(r, start, today);
         if (!bars.length) {
           unpriced++;
           await this.write(r.id, {
@@ -210,6 +233,7 @@ export class ContractPerformanceService implements OnModuleInit {
               ? 'No price history available for this listing.'
               : 'This issuer is not covered by our price data.',
             ...deFields,
+            ...spend,
           });
           continue;
         }
@@ -222,6 +246,7 @@ export class ContractPerformanceService implements OnModuleInit {
             currency: r.currency ?? null,
             note: 'No session priced on or after the contract start date.',
             ...deFields,
+            ...spend,
           });
           continue;
         }
@@ -235,6 +260,7 @@ export class ContractPerformanceService implements OnModuleInit {
           win[d] = at <= now.date ? closeOnOrAfter(bars, at) : null;
         }
         const vol = volumeWindows(bars, start, now.date);
+        const dvol = dollarVolumeSince(bars, start, r.currency ?? null);
         priced++;
         await this.write(r.id, {
           symbol,
@@ -247,6 +273,8 @@ export class ContractPerformanceService implements OnModuleInit {
           note: null,
           ...vol,
           ...deFields,
+          ...dvol,
+          ...accruedSpendCad(r, start, now.date),
         });
       }
     }
@@ -277,6 +305,14 @@ export class ContractPerformanceService implements OnModuleInit {
       dePostDays?: number | null;
       dePctOfTotal?: number | null;
       deNote?: string | null;
+      dvolSinceStart?: number | null;
+      dvolSinceStartCad?: number | null;
+      dvolCurrency?: string | null;
+      dvolDays?: number | null;
+      dvolSessions?: number | null;
+      spendToDateCad?: number | null;
+      spendMonths?: number | null;
+      spendBasis?: string | null;
     },
   ) {
     const pct = (then: number | null | undefined, base: number | null | undefined) =>
@@ -287,9 +323,12 @@ export class ContractPerformanceService implements OnModuleInit {
           perf_30d, perf_90d, perf_now, currency, note,
           vol_before, vol_after_30, vol_after_90, vol_growth_30, vol_growth_90,
           de_isin, de_venues, de_vol_before, de_vol_after_30, de_vol_after_90,
-          de_vol_growth_30, de_vol_growth_90, de_vol_post, de_post_days, de_pct_of_total, de_note, computed_at)
+          de_vol_growth_30, de_vol_growth_90, de_vol_post, de_post_days, de_pct_of_total, de_note,
+          dvol_since_start, dvol_since_start_cad, dvol_currency, dvol_days, dvol_sessions,
+          spend_to_date_cad, spend_months, spend_basis, computed_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
-               $18,$19::jsonb,$20,$21,$22,$23,$24,$25,$26,$27,$28, now())
+               $18,$19::jsonb,$20,$21,$22,$23,$24,$25,$26,$27,$28,
+               $29,$30,$31,$32,$33,$34,$35,$36, now())
        ON CONFLICT (agreement_id) DO UPDATE SET
          fmp_symbol = EXCLUDED.fmp_symbol, start_date = EXCLUDED.start_date,
          start_price = EXCLUDED.start_price, price_30d = EXCLUDED.price_30d,
@@ -303,7 +342,11 @@ export class ContractPerformanceService implements OnModuleInit {
          de_vol_after_30 = EXCLUDED.de_vol_after_30, de_vol_after_90 = EXCLUDED.de_vol_after_90,
          de_vol_growth_30 = EXCLUDED.de_vol_growth_30, de_vol_growth_90 = EXCLUDED.de_vol_growth_90,
          de_vol_post = EXCLUDED.de_vol_post, de_post_days = EXCLUDED.de_post_days,
-         de_pct_of_total = EXCLUDED.de_pct_of_total, de_note = EXCLUDED.de_note, computed_at = now()`,
+         de_pct_of_total = EXCLUDED.de_pct_of_total, de_note = EXCLUDED.de_note,
+         dvol_since_start = EXCLUDED.dvol_since_start, dvol_since_start_cad = EXCLUDED.dvol_since_start_cad,
+         dvol_currency = EXCLUDED.dvol_currency, dvol_days = EXCLUDED.dvol_days, dvol_sessions = EXCLUDED.dvol_sessions,
+         spend_to_date_cad = EXCLUDED.spend_to_date_cad, spend_months = EXCLUDED.spend_months,
+         spend_basis = EXCLUDED.spend_basis, computed_at = now()`,
       [
         agreementId,
         v.symbol,
@@ -333,9 +376,85 @@ export class ContractPerformanceService implements OnModuleInit {
         v.dePostDays ?? null,
         v.dePctOfTotal ?? null,
         v.deNote ?? null,
+        v.dvolSinceStart ?? null,
+        v.dvolSinceStartCad ?? null,
+        v.dvolCurrency ?? null,
+        v.dvolDays ?? null,
+        v.dvolSessions ?? null,
+        v.spendToDateCad ?? null,
+        v.spendMonths ?? null,
+        v.spendBasis ?? null,
       ],
     );
   }
+}
+
+/** Average days per month, so a fee "per month" accrues evenly across a span. */
+const DAYS_PER_MONTH = 30.44;
+
+/**
+ * Dollar value traded on the home listing from the contract start date to the
+ * latest session: each session's close times its share volume, summed. Every
+ * trade has a buyer, so this is the money that changed hands for the stock
+ * after the promotion began — George's "buying volume (dollar value)". It is
+ * stated in the listing currency and converted to CAD at the same fixed
+ * reference rates the fees use, so the multiple compares like with like.
+ * German-venue trades are not included: onvista gives us shares, not prices.
+ */
+export function dollarVolumeSince(bars: Bar[], start: string, currency: string | null) {
+  const inSpan = bars.filter((b) => b.date >= start);
+  if (!inSpan.length) return { dvolSinceStart: null, dvolSinceStartCad: null, dvolCurrency: currency, dvolDays: null, dvolSessions: 0 };
+  const total = inSpan.reduce((a, b) => a + b.close * b.volume, 0);
+  const last = inSpan[inSpan.length - 1].date;
+  return {
+    dvolSinceStart: Math.round(total),
+    dvolSinceStartCad: Math.round(total * fxToCad(currency)),
+    dvolCurrency: (currency || 'CAD').toUpperCase().slice(0, 3),
+    dvolDays: Math.max(0, Math.round((Date.parse(last) - Date.parse(start)) / DAY)),
+    dvolSessions: inSpan.length,
+  };
+}
+
+/**
+ * Cash IR fees this contract has accrued from its start date to `until`, in
+ * CAD. A monthly fee accrues by elapsed months, stopping at the contract's
+ * end (a stated end date, or start + term). A contract disclosed only as a
+ * total value accrues that total pro rata over its term, or all at once when
+ * no term was disclosed. A contract with a monthly fee and no end is treated
+ * as still running — that is what an open-ended engagement is — but never
+ * beyond twelve months, so one undated row cannot compound forever. Options
+ * and share grants are not cash and are not counted here.
+ */
+export function accruedSpendCad(
+  a: { start_date?: any; end_date?: any; term_months?: number | null; monthly_fee_cad?: number | null; total_value_cad?: number | null },
+  start: string,
+  until: string,
+) {
+  const monthly = a.monthly_fee_cad != null && a.monthly_fee_cad > 0 ? Number(a.monthly_fee_cad) : null;
+  const total = a.total_value_cad != null && a.total_value_cad > 0 ? Number(a.total_value_cad) : null;
+  const term = a.term_months != null && a.term_months > 0 ? Number(a.term_months) : null;
+  if (!monthly && !total) return { spendToDateCad: null, spendMonths: null, spendBasis: null };
+  const explicitEnd = isoOf(a.end_date ?? null);
+  const termEnd = term ? addMonthsIso(start, term) : null;
+  const capEnd = addMonthsIso(start, 12);
+  const end = explicitEnd ?? termEnd ?? capEnd;
+  const stop = end < until ? end : until;
+  const months = stop > start ? (Date.parse(stop) - Date.parse(start)) / DAY / DAYS_PER_MONTH : 0;
+  if (monthly) {
+    return { spendToDateCad: Math.round(monthly * months), spendMonths: Math.round(months * 100) / 100, spendBasis: 'monthly' };
+  }
+  // Total only.
+  if (term) {
+    const share = Math.min(1, months / term);
+    return { spendToDateCad: Math.round(total! * share), spendMonths: Math.round(months * 100) / 100, spendBasis: 'total-prorated' };
+  }
+  return { spendToDateCad: Math.round(total!), spendMonths: Math.round(months * 100) / 100, spendBasis: 'total' };
+}
+
+function addMonthsIso(isoDate: string, n: number): string {
+  const d = new Date(isoDate);
+  d.setUTCMonth(d.getUTCMonth() + n);
+  return d.toISOString().slice(0, 10);
 }
 
 /** First close on or after `date`. Venture names do not trade every session,

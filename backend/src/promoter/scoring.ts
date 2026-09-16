@@ -79,3 +79,13 @@ export const WEIGHT_LABELS: Record<keyof PromoterWeights, string> = {
   options: 'Notional value of options granted to promoters',
   contracts: 'Number of concurrent IR providers',
 };
+
+/**
+ * Contract currencies to Canadian dollars. TSXV/CSE fees are almost always
+ * CAD; the rest are stated in USD. Fixed reference rates: these are disclosed
+ * values, not market values. When George wants dated FX this becomes a table.
+ */
+export const FX_TO_CAD: Record<string, number> = { CAD: 1, USD: 1.37, EUR: 1.48, GBP: 1.73, AUD: 0.9 };
+export function fxToCad(currency: string | null | undefined): number {
+  return FX_TO_CAD[String(currency || 'CAD').toUpperCase()] ?? 1;
+}
