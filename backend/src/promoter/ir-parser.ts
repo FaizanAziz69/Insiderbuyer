@@ -995,24 +995,47 @@ export function narrow(body: string): string {
     /\(TheNewswire\)\s+[A-Z][A-Za-z .'-]{2,40},/,
     /[A-Z][A-Za-z .'-]{2,40},\s*[A-Za-z .]{2,30}\s*[-–—]{1,2}\s*\(?[A-Z][a-z]{2,8}\.?\s+\d{1,2},?\s+\d{4}\)?\s*[-–—]/,
   ];
-  // The earliest dateline wins, whichever shape it has — trying the shapes
-  // in order let a later-listed shape match an earlier position on the page.
+  // A wire-anchored dateline (Newsfile, GLOBE NEWSWIRE, /CNW/, INN's header,
+  // TheNewswire) beats the generic "Place, Province - Month D, YYYY -" shape,
+  // and among equals the earliest wins. Pure first-pattern-wins let a later
+  // shape match an earlier position on the page; pure earliest-wins let the
+  // generic shape land on a summary paragraph newswire.ca prints above the
+  // release (PlantX, January 2021).
+  const generic = starts[starts.length - 1];
   let best: RegExpExecArray | null = null;
+  let bestTier = 9;
   for (const re of starts) {
     const m = re.exec(t);
-    if (m && m.index < t.length * 0.92 && (!best || m.index < best.index)) best = m;
+    if (!m || m.index >= t.length * 0.92) continue;
+    const tier = re === generic ? 1 : 0;
+    if (tier < bestTier || (tier === bestTier && (!best || m.index < best.index))) {
+      best = m;
+      bestTier = tier;
+    }
   }
   if (best) {
     const m = best;
     {
-      t = t.slice(m.index + (m[0].startsWith('Investing News Network') ? m[0].length : 0));
+      // A wire-led match ("/CNW/ -") sits at the end of its dateline; take
+      // the line from its start so the place and the date come along — the
+      // isolation check wants a year in the head, and the release's own
+      // date belongs with it.
+      let from = m.index;
+      if (!/^[A-Z]/.test(m[0]) && !m[0].startsWith('Investing News Network')) {
+        const lineStart = t.lastIndexOf('\n', m.index) + 1;
+        if (m.index - lineStart <= 200) from = lineStart;
+      }
+      t = t.slice(from + (m[0].startsWith('Investing News Network') ? m[0].length : 0));
       // The place in a dateline is one or two words ("Vancouver,", "New
       // York,"). The character class that finds it also spans spaces, so on
       // an Investing News Network page the match began inside the site
       // navigation — "Us Contact Us Browse Topics Vancouver," — and the head
       // then read as page chrome. Keep the last two words before the comma.
       const comma = t.indexOf(',');
-      if (comma > 0) {
+      // Only a place-led match ("…Browse Topics Vancouver, British Columbia")
+      // needs this; a wire-led one ("/CNW/ - PlantX Life…") starts exactly
+      // where it should and its first comma is somewhere in the body.
+      if (comma > 0 && comma < 60 && /^[A-Z]/.test(t)) {
         const words = t.slice(0, comma).trim().split(/\s+/);
         if (words.length > 2 && !/^[A-Z][a-z]+ \d{1,2}$/.test(t.slice(0, comma).trim())) t = words.slice(-2).join(' ') + t.slice(comma);
       }

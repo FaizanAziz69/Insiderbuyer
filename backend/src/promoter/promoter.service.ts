@@ -497,7 +497,12 @@ export class PromoterService implements OnModuleInit {
       // any provider rows an earlier read left behind come off too.
       await this.q(
         `DELETE FROM ir_agreements
-          WHERE disclosure_id = $1 AND reviewed_at IS NULL AND NOT (id = ANY($2::bigint[]))`,
+          WHERE disclosure_id = $1 AND reviewed_at IS NULL AND NOT (id = ANY($2::bigint[]))
+            -- A row the model read stays: the pattern parser re-reading the
+            -- same release finds a subset (LaFleur's seven providers became
+            -- four), and with the model unavailable that subset would become
+            -- the record.
+            AND COALESCE(provenance->>'providerName', '') <> 'llm'`,
         [disclosureId, keptIds],
       );
     }
