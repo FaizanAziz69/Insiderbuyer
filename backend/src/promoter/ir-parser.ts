@@ -322,7 +322,10 @@ const TITLE_VERB =
  */
 export function cleanIssuerName(raw: string): string | null {
   let s = raw.replace(/\s+/g, ' ').trim();
-  s = s.replace(/^(?:of|and|by|from|,|-)\s+/i, '');
+  // "…the common shares of Kutcho Copper Corp. (TSXV: KC)" — the prose that
+  // leads into the name is not the name (a Kutcho row read "Shares of Kutcho
+  // Copper Corp" on the ranking page).
+  s = s.replace(/^(?:(?:the\s+)?(?:common\s+)?(?:shares|securities|stock|units)\s+of|of|and|by|from|in|with|,|-)\s+/i, '');
   // "June 30'26 TheNewswire - X", "TheNewswire - X", "CNW - X"
   s = s.replace(
     /^.{0,24}?\b(?:TheNewswire|Newsfile|ACCESS ?Newswire|GlobeNewswire|PR ?Newswire|CNW|Business ?Wire)\b\s*[-–—:]\s*/i,

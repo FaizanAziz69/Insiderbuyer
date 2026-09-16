@@ -211,6 +211,13 @@ function unit() {
   check('comma-tail issuer name', comma.issuerName, 'Thiogenesis Therapeutics Corp');
   check('comma-tail ticker', comma.ticker, 'TTI');
 
+  // Prose leading into the issuer name is not the name.
+  const sharesOf = parseDisclosure(
+    'Kutcho Copper Engages Resource Stock Digest',
+    'Vancouver, British Columbia--(Newsfile Corp. - August 28, 2026) - The common shares of Kutcho Copper Corp. (TSXV: KC) ("Kutcho" or the "Company") trade on the TSXV. The Company has engaged Resource Stock Digest ("RSD") to provide investor relations services for a term of six months at a monthly fee of $5,000.',
+  );
+  check('shares-of prefix stripped from issuer', sharesOf.issuerName, 'Kutcho Copper Corp');
+
   // Undecoded numeric entities in stored text: "&#160;" (nbsp) and "&#8206;"
   // (left-to-right mark) sat between the name and the ticker bracket.
   const nbsp = parseDisclosure(
