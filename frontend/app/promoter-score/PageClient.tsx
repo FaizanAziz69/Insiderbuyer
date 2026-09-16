@@ -217,8 +217,11 @@ export default function PromoterScorePage() {
       sortValue: (r) => r.deVolPost ?? -Infinity,
       render: (r) =>
         r.deVolPost == null || r.deVolPost <= 0 ? (
-          <span className="text-[11px] leading-tight text-faint inline-block max-w-[150px]" title={r.deNote || undefined}>
-            {r.deVenues && r.deVenues.length ? "No German trades" : r.deNote ? "No German listing" : "Not yet computed"}
+          <span
+            className="text-[11px] leading-tight text-faint inline-block max-w-[150px]"
+            title={r.deNote || (r.perfStartDate ? undefined : "No agreement with a start date on file for this issuer.")}
+          >
+            {r.deVenues && r.deVenues.length ? "No German trades" : r.deNote ? "No German listing" : r.perfStartDate ? "Not yet computed" : "No dated contract"}
           </span>
         ) : (
           <span className="inline-block text-right" title={r.deVenues?.map((v) => `${v.name}: ${shares(v.volume)}`).join(" · ") || undefined}>
