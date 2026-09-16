@@ -43,6 +43,26 @@ interface Row {
   perf90d: number | null;
   perfStartDate: string | null;
   perfNote: string | null;
+  /** Shares traded through German venues from the first contract start through day 90 (or today). */
+  deVolPost: number | null;
+  dePostDays: number | null;
+  /** German volume as a fraction of German + home-exchange volume over the same span. */
+  dePctOfTotal: number | null;
+  deVolAvg30: number | null;
+  deVolAvg90: number | null;
+  deVolBefore: number | null;
+  deVolGrowth30: number | null;
+  deVolGrowth90: number | null;
+  deVenues: Array<{ code: string; name: string; volume: number }> | null;
+  deNote: string | null;
+}
+
+function shares(v: number | null): string {
+  if (v == null || !Number.isFinite(v) || v <= 0) return "—";
+  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(v >= 1e7 ? 1 : 2)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(v >= 1e5 ? 0 : 1)}K`;
+  return `${Math.round(v)}`;
 }
 
 interface Payload {
@@ -76,7 +96,7 @@ function pct(v: number | null): string {
 export default function PromoterScorePage() {
   const [quarter, setQuarter] = useState<string>("");
   const [sector, setSector] = useState<string>("");
-  const [sort, setSort] = useState<"score" | "spend" | "perMcap" | "contracts" | "perf">("score");
+  const [sort, setSort] = useState<"score" | "spend" | "perMcap" | "contracts" | "perf" | "deVol">("score");
   /** Stock-performance filter: every issuer, only priced ones, or only gainers. */
   const [perfFilter, setPerfFilter] = useState<"all" | "priced" | "up" | "down">("all");
   const [q, setQ] = useState("");
@@ -190,6 +210,45 @@ export default function PromoterScorePage() {
         ),
     },
     {
+      key: "deVolPost",
+      label: "Volume · Germany",
+      align: "right",
+      info: "Shares traded on German venues — Frankfurt, Stuttgart, Tradegate, gettex, LS Exchange, Quotrix, Munich, Düsseldorf, Hamburg, Berlin — from the issuer's earliest IR contract start date through the 90th day after it (or today, if sooner). The percentage is German volume as a share of German plus home-exchange volume over the same span; the growth figure compares average daily German volume in the first 30 days with the 30 sessions before the start. Source: onvista end-of-day data. A dash means no German quotation was found.",
+      sortValue: (r) => r.deVolPost ?? -Infinity,
+      render: (r) =>
+        r.deVolPost == null || r.deVolPost <= 0 ? (
+          <span className="text-[11px] leading-tight text-faint inline-block max-w-[150px]" title={r.deNote || undefined}>
+            {r.deVenues && r.deVenues.length ? "No German trades" : "No German listing"}
+          </span>
+        ) : (
+          <span className="inline-block text-right" title={r.deVenues?.map((v) => `${v.name}: ${shares(v.volume)}`).join(" · ") || undefined}>
+            <span className="block tabular text-[13.5px] font-bold" style={{ color: "var(--text)" }}>
+              {shares(r.deVolPost)}
+              <span className="ml-1 text-[10.5px] font-semibold text-faint">sh</span>
+            </span>
+            <span className="block text-[10.5px] leading-tight text-faint">
+              {r.dePostDays != null ? `${r.dePostDays}d post-start` : "post-start"}
+              {r.dePctOfTotal != null ? ` · ${(r.dePctOfTotal * 100).toFixed(r.dePctOfTotal < 0.1 ? 1 : 0)}% of flow` : ""}
+              {r.deVolGrowth30 != null ? (
+                <>
+                  {" · "}
+                  <span style={{ color: r.deVolGrowth30 > 0 ? "var(--good)" : r.deVolGrowth30 < 0 ? "var(--bad)" : undefined }}>
+                    {pct(r.deVolGrowth30)}
+                  </span>
+                  {" vs pre"}
+                </>
+              ) : null}
+            </span>
+            {r.deVenues && r.deVenues.length ? (
+              <span className="block text-[10px] leading-tight text-faint truncate max-w-[170px]">
+                {r.deVenues.slice(0, 3).map((v) => v.name).join(", ")}
+                {r.deVenues.length > 3 ? ` +${r.deVenues.length - 3}` : ""}
+              </span>
+            ) : null}
+          </span>
+        ),
+    },
+    {
       key: "activeContracts",
       label: "Providers",
       align: "center",
@@ -266,6 +325,7 @@ export default function PromoterScorePage() {
             ["perMcap", "Spend / cap"],
             ["contracts", "Providers"],
             ["perf", "Performance"],
+            ["deVol", "German volume"],
           ] as const).map(([v, label]) => (
             <button
               key={v}
@@ -313,6 +373,7 @@ export default function PromoterScorePage() {
             : sort === "perMcap" ? "spendPerMcapBps"
             : sort === "contracts" ? "activeContracts"
             : sort === "perf" ? "perfSinceStart"
+            : sort === "deVol" ? "deVolPost"
             : "score",
           dir: "desc",
         }}

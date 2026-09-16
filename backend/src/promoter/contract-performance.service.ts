@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
 import { FmpService } from '../fmp/fmp.service';
+import { GermanVolumeService, GermanVolume } from './german-volume.service';
 
 /**
  * Workstream F — what happened to the share price after the promotion started.
@@ -71,6 +72,7 @@ export class ContractPerformanceService {
   constructor(
     @InjectRepository(Company) private readonly companies: Repository<Company>,
     private readonly fmp: FmpService,
+    private readonly german: GermanVolumeService,
   ) {}
 
   private q<T = any>(sql: string, params?: any[]): Promise<T> {
@@ -103,6 +105,24 @@ export class ContractPerformanceService {
       ADD COLUMN IF NOT EXISTS vol_after_90  real,
       ADD COLUMN IF NOT EXISTS vol_growth_30 real,
       ADD COLUMN IF NOT EXISTS vol_growth_90 real`);
+    // 2026-09-16 (George): "Volume by exchange (add Germany)" — shares traded
+    // through the German venues after the engagement began, from onvista
+    // (see GermanVolumeService). `de_vol_post` is the cumulative German
+    // volume from the start date through the 90th day (or today if sooner);
+    // `de_pct_of_total` is that against German + home-exchange volume over
+    // the same sessions, so a reader sees what share of the flow was German.
+    await this.q(`ALTER TABLE ir_contract_perf
+      ADD COLUMN IF NOT EXISTS de_isin          varchar(12),
+      ADD COLUMN IF NOT EXISTS de_venues        jsonb,
+      ADD COLUMN IF NOT EXISTS de_vol_before    real,
+      ADD COLUMN IF NOT EXISTS de_vol_after_30  real,
+      ADD COLUMN IF NOT EXISTS de_vol_after_90  real,
+      ADD COLUMN IF NOT EXISTS de_vol_growth_30 real,
+      ADD COLUMN IF NOT EXISTS de_vol_growth_90 real,
+      ADD COLUMN IF NOT EXISTS de_vol_post      real,
+      ADD COLUMN IF NOT EXISTS de_post_days     int,
+      ADD COLUMN IF NOT EXISTS de_pct_of_total  real,
+      ADD COLUMN IF NOT EXISTS de_note          text`);
   }
 
   /**
@@ -153,8 +173,22 @@ export class ContractPerformanceService {
         }
       }
 
+      // German-venue volume, independent of whether FMP prices the home
+      // listing: an OTC-only quote in our price feed can still trade briskly
+      // in Frankfurt or on Tradegate.
+      let de: GermanVolume | null = null;
+      try {
+        const isin = await this.german.resolveIsin(symbol);
+        const from = new Date(Date.parse(earliest) - VOL_LOOKBACK_DAYS * DAY).toISOString().slice(0, 10);
+        de = isin ? await this.german.fetch(isin, from) : { isin: null, venues: [], bars: [], note: 'No ISIN on file for this issuer.' };
+      } catch (e: any) {
+        this.log.debug(`german volume failed for ${ticker}: ${e?.message || e}`);
+      }
+
       for (const r of group) {
         const start = isoOf(r.start_date)!;
+        const today = new Date().toISOString().slice(0, 10);
+        const deFields = germanFields(de, bars, start, bars.length ? bars[bars.length - 1].date : today);
         if (!bars.length) {
           unpriced++;
           await this.write(r.id, {
@@ -164,6 +198,7 @@ export class ContractPerformanceService {
             note: symbol
               ? 'No price history available for this listing.'
               : 'This issuer is not covered by our price data.',
+            ...deFields,
           });
           continue;
         }
@@ -175,6 +210,7 @@ export class ContractPerformanceService {
             start,
             currency: r.currency ?? null,
             note: 'No session priced on or after the contract start date.',
+            ...deFields,
           });
           continue;
         }
@@ -199,6 +235,7 @@ export class ContractPerformanceService {
           pNow: now.close,
           note: null,
           ...vol,
+          ...deFields,
         });
       }
     }
@@ -220,6 +257,15 @@ export class ContractPerformanceService {
       volBefore?: number | null;
       volAfter30?: number | null;
       volAfter90?: number | null;
+      deIsin?: string | null;
+      deVenues?: Array<{ code: string; name: string; volume: number }> | null;
+      deVolBefore?: number | null;
+      deVolAfter30?: number | null;
+      deVolAfter90?: number | null;
+      deVolPost?: number | null;
+      dePostDays?: number | null;
+      dePctOfTotal?: number | null;
+      deNote?: string | null;
     },
   ) {
     const pct = (then: number | null | undefined, base: number | null | undefined) =>
@@ -228,8 +274,11 @@ export class ContractPerformanceService {
       `INSERT INTO ir_contract_perf
          (agreement_id, fmp_symbol, start_date, start_price, price_30d, price_90d, price_now,
           perf_30d, perf_90d, perf_now, currency, note,
-          vol_before, vol_after_30, vol_after_90, vol_growth_30, vol_growth_90, computed_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, now())
+          vol_before, vol_after_30, vol_after_90, vol_growth_30, vol_growth_90,
+          de_isin, de_venues, de_vol_before, de_vol_after_30, de_vol_after_90,
+          de_vol_growth_30, de_vol_growth_90, de_vol_post, de_post_days, de_pct_of_total, de_note, computed_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
+               $18,$19::jsonb,$20,$21,$22,$23,$24,$25,$26,$27,$28, now())
        ON CONFLICT (agreement_id) DO UPDATE SET
          fmp_symbol = EXCLUDED.fmp_symbol, start_date = EXCLUDED.start_date,
          start_price = EXCLUDED.start_price, price_30d = EXCLUDED.price_30d,
@@ -238,7 +287,12 @@ export class ContractPerformanceService {
          currency = EXCLUDED.currency, note = EXCLUDED.note,
          vol_before = EXCLUDED.vol_before, vol_after_30 = EXCLUDED.vol_after_30,
          vol_after_90 = EXCLUDED.vol_after_90, vol_growth_30 = EXCLUDED.vol_growth_30,
-         vol_growth_90 = EXCLUDED.vol_growth_90, computed_at = now()`,
+         vol_growth_90 = EXCLUDED.vol_growth_90,
+         de_isin = EXCLUDED.de_isin, de_venues = EXCLUDED.de_venues, de_vol_before = EXCLUDED.de_vol_before,
+         de_vol_after_30 = EXCLUDED.de_vol_after_30, de_vol_after_90 = EXCLUDED.de_vol_after_90,
+         de_vol_growth_30 = EXCLUDED.de_vol_growth_30, de_vol_growth_90 = EXCLUDED.de_vol_growth_90,
+         de_vol_post = EXCLUDED.de_vol_post, de_post_days = EXCLUDED.de_post_days,
+         de_pct_of_total = EXCLUDED.de_pct_of_total, de_note = EXCLUDED.de_note, computed_at = now()`,
       [
         agreementId,
         v.symbol,
@@ -257,6 +311,17 @@ export class ContractPerformanceService {
         v.volAfter90 ?? null,
         pct(v.volAfter30, v.volBefore),
         pct(v.volAfter90, v.volBefore),
+        v.deIsin ?? null,
+        v.deVenues ? JSON.stringify(v.deVenues) : null,
+        v.deVolBefore ?? null,
+        v.deVolAfter30 ?? null,
+        v.deVolAfter90 ?? null,
+        pct(v.deVolAfter30, v.deVolBefore),
+        pct(v.deVolAfter90, v.deVolBefore),
+        v.deVolPost ?? null,
+        v.dePostDays ?? null,
+        v.dePctOfTotal ?? null,
+        v.deNote ?? null,
       ],
     );
   }
@@ -276,4 +341,41 @@ function isoOf(v: string | Date | null): string | null {
   if (!v) return null;
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   return String(v).slice(0, 10);
+}
+
+/**
+ * German-venue figures for one contract. Windows follow `volumeWindows`:
+ * average daily volume over the 30 German sessions before the start against
+ * the 30 / 90 calendar days after it (unelapsed window = null). `deVolPost`
+ * is the cumulative German volume from the start through day 90 or today,
+ * and `dePctOfTotal` compares it with the home listing's volume over the
+ * same calendar span — null when the home listing has no bars.
+ */
+export function germanFields(de: GermanVolume | null, homeBars: Bar[], start: string, lastDate: string) {
+  if (!de) return { deNote: 'German venue data unavailable.' };
+  const base = { deIsin: de.isin, deVenues: de.venues.length ? de.venues : null };
+  if (!de.bars.length) return { ...base, deNote: de.note ?? 'Not quoted on a German exchange.' };
+  const bars: Bar[] = de.bars.map((b) => ({ date: b.date, close: 0, volume: b.volume }));
+  const deLast = bars[bars.length - 1].date;
+  const last = deLast > lastDate ? deLast : lastDate;
+  const w = volumeWindows(bars, start, last);
+  const end = new Date(Date.parse(start) + 90 * DAY).toISOString().slice(0, 10);
+  const until = end < last ? end : last;
+  const inSpan = (b: Bar) => b.date >= start && b.date <= until;
+  const dePost = bars.filter(inSpan).reduce((a, b) => a + b.volume, 0);
+  const homePost = homeBars.filter(inSpan).reduce((a, b) => a + b.volume, 0);
+  const postDays = Math.max(0, Math.round((Date.parse(until) - Date.parse(start)) / DAY));
+  if (until < start) {
+    return { ...base, deNote: 'Contract has not started yet.' };
+  }
+  return {
+    ...base,
+    deVolBefore: w.volBefore,
+    deVolAfter30: w.volAfter30,
+    deVolAfter90: w.volAfter90,
+    deVolPost: dePost,
+    dePostDays: postDays,
+    dePctOfTotal: homeBars.length && dePost + homePost > 0 ? Math.round((dePost / (dePost + homePost)) * 10000) / 10000 : null,
+    deNote: dePost > 0 ? null : 'No shares traded on German venues since the contract began.',
+  };
 }

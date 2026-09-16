@@ -915,6 +915,7 @@ export class PromoterService implements OnModuleInit {
       : opts.sort === 'perMcap' ? 's.spend_per_mcap_bps'
       : opts.sort === 'contracts' ? 's.active_contracts'
       : opts.sort === 'perf' ? 'perf.perf_now'
+      : opts.sort === 'deVol' ? 'perf.de_vol_post'
       : 's.score';
     const limit = Math.min(Math.max(Number(opts.limit) || 50, 1), 250);
     const rows: any[] = await this.q(
@@ -923,7 +924,9 @@ export class PromoterService implements OnModuleInit {
               s.sector, s.components,
               i.name, i.exchange, i.market_cap::float8 AS market_cap, i.fmp_symbol,
               perf.perf_now, perf.perf_90d, perf.start_date AS perf_start, perf.note AS perf_note,
-              perf.currency AS perf_currency
+              perf.currency AS perf_currency,
+              perf.de_vol_post, perf.de_post_days, perf.de_pct_of_total, perf.de_vol_after_30, perf.de_vol_after_90,
+              perf.de_vol_before, perf.de_vol_growth_30, perf.de_vol_growth_90, perf.de_venues, perf.de_note
          FROM promoter_scores s
          LEFT JOIN ir_issuers i ON i.ticker = s.ticker
          -- Stock performance since the issuer's FIRST priced engagement began
@@ -931,7 +934,9 @@ export class PromoterService implements OnModuleInit {
          -- One row per issuer: the earliest contract that has a price, else
          -- the earliest unpriced one so its note can say why there is no figure.
          LEFT JOIN LATERAL (
-           SELECT p.perf_now, p.perf_90d, p.start_date, p.note, p.currency
+           SELECT p.perf_now, p.perf_90d, p.start_date, p.note, p.currency,
+                  p.de_vol_post, p.de_post_days, p.de_pct_of_total, p.de_vol_after_30, p.de_vol_after_90,
+                  p.de_vol_before, p.de_vol_growth_30, p.de_vol_growth_90, p.de_venues, p.de_note
              FROM ir_contract_perf p
              JOIN ir_agreements a ON a.id = p.agreement_id
             WHERE a.ticker = s.ticker AND a.status <> 'rejected' AND a.provider_slug IS NOT NULL
@@ -1450,6 +1455,18 @@ function shapeRankRow(r: any) {
     perf90d: r.perf_90d == null ? null : Number(r.perf_90d),
     perfStartDate: r.perf_start ?? null,
     perfNote: r.perf_note ?? null,
+    // Volume through the German venues (Frankfurt, Stuttgart, Tradegate,
+    // gettex, LS Exchange, …) after the first engagement began.
+    deVolPost: r.de_vol_post == null ? null : Number(r.de_vol_post),
+    dePostDays: r.de_post_days == null ? null : Number(r.de_post_days),
+    dePctOfTotal: r.de_pct_of_total == null ? null : Number(r.de_pct_of_total),
+    deVolAvg30: r.de_vol_after_30 == null ? null : Number(r.de_vol_after_30),
+    deVolAvg90: r.de_vol_after_90 == null ? null : Number(r.de_vol_after_90),
+    deVolBefore: r.de_vol_before == null ? null : Number(r.de_vol_before),
+    deVolGrowth30: r.de_vol_growth_30 == null ? null : Number(r.de_vol_growth_30),
+    deVolGrowth90: r.de_vol_growth_90 == null ? null : Number(r.de_vol_growth_90),
+    deVenues: Array.isArray(r.de_venues) ? r.de_venues : null,
+    deNote: r.de_note ?? null,
   };
 }
 

@@ -7,6 +7,7 @@ import { PromoterService } from './promoter.service';
 import { IrDiscoveryService } from './ir-discovery.service';
 import { ContractPerformanceService } from './contract-performance.service';
 import { PromoterEmailsService } from './promoter-emails.service';
+import { GermanVolumeService } from './german-volume.service';
 
 /** IR Budget / Promoter Score — Developer Project Brief v2, Workstream F.
  *  TSXV/CSE investor-relations agreements, parsed from the Policy 3.4 news
@@ -14,7 +15,7 @@ import { PromoterEmailsService } from './promoter-emails.service';
 @Module({
   imports: [FmpModule, TypeOrmModule.forFeature([Company])],
   controllers: [PromoterController],
-  providers: [PromoterService, IrDiscoveryService, ContractPerformanceService, PromoterEmailsService],
+  providers: [PromoterService, IrDiscoveryService, ContractPerformanceService, PromoterEmailsService, GermanVolumeService],
   exports: [PromoterService],
 })
 export class PromoterModule {}

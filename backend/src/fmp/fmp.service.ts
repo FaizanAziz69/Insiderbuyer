@@ -187,6 +187,18 @@ export class FmpService {
       }));
   }
 
+  /** ISIN of a symbol via `search-exchange-variants`, which lists every
+   *  listing of the instrument with its ISIN. Null when FMP has none. */
+  async getIsin(symbolRaw: string): Promise<string | null> {
+    const symbol = (symbolRaw || '').toUpperCase();
+    if (!this.enabled || !symbol) return null;
+    const rows = await this.get('search-exchange-variants', { symbol });
+    const exact = rows.find((r: any) => String(r?.symbol || '').toUpperCase() === symbol && r?.isin);
+    const any = rows.find((r: any) => r?.isin);
+    const isin = String((exact || any)?.isin || '').toUpperCase();
+    return /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isin) ? isin : null;
+  }
+
   /** IPO calendar (brief §8 / Workstream E). Stable endpoint rows:
    *  { symbol, date, daa, company, exchange, actions, shares, priceRange, marketCap }.
    *  Returns [] without a key or on error, like everything else here. */
