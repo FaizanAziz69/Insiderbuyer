@@ -76,6 +76,7 @@ export function Footer() {
                   two <li>s when the pages are rewritten. */}
               <li><Link href={SUBSCRIBE_HREF} className="text-soft hover:text-accent transition">Insider Access</Link></li>
               <li><Link href="/business" className="text-soft hover:text-accent transition">For Business / API</Link></li>
+              <li><Link href="/product-updates" className="text-soft hover:text-accent transition">Product Updates</Link></li>
               <li><Link href="/contact" className="text-soft hover:text-accent transition">Contact Us</Link></li>
             </ul>
           </div>

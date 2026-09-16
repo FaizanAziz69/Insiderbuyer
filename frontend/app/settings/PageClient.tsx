@@ -4,6 +4,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { PRODUCT_NAME } from "@/components/premium/PaywallCta";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
+import { ProductUpdatesSignup } from "@/components/ProductUpdatesSignup";
 
 export default function SettingsPage() {
   // The plan row used to be a hardcoded "Free" badge, so a paying subscriber
@@ -44,6 +45,10 @@ export default function SettingsPage() {
           )}
         </Row>
       </div>
+
+      {/* Product Updates list (George 2026-09-16): opt-in, separate from the
+          insider-buying sequence — one short email per feature, every few days. */}
+      <ProductUpdatesSignup source="settings" />
     </div>
   );
 }

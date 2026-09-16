@@ -47,6 +47,11 @@ const EXEMPT_PREFIXES = [
   "/manifest",
   "/.well-known/",
   "/api/backend/billing/webhook", // Stripe
+  // One-click unsubscribe links opened from an email client have no cookie
+  // and must never land on a challenge — an unsubscribe that fails is a
+  // spam complaint waiting to happen.
+  "/api/backend/promoter/emails/unsubscribe",
+  "/api/backend/product-updates/unsubscribe",
 ];
 
 /** "Has a file extension" — static assets served from /public or by nginx. */
