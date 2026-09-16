@@ -14,6 +14,8 @@ import {
   ParsedAgreement,
   ParsedDisclosure,
   REVIEW_THRESHOLD,
+  normalizeFirmName,
+  isGenericProviderName,
 } from './ir-parser';
 import { DEFAULT_WEIGHTS, PromoterWeights, WEIGHT_KEYS, normalizeWeights, fxToCad } from './scoring';
 
@@ -415,9 +417,10 @@ export class PromoterService implements OnModuleInit {
     if (!disclosureId) return { agreements: 0, needsReview };
 
     let n = 0;
+    const keptIds: number[] = [];
     for (const a of parsed.agreements) {
       if (!a.providerName || !parsed.ticker) continue;
-      const slug = firmSlug(a.providerName);
+      const slug = await this.slugFor(a.providerName);
       // Policy 3.4 releases mostly say "effective immediately" and carry no
       // separate date, which left a third of agreements undated and therefore
       // unmeasurable (no performance, no German volume). The release date is
@@ -426,9 +429,9 @@ export class PromoterService implements OnModuleInit {
         a.startDate = item.publishedAt;
         a.provenance = { ...(a.provenance || {}), startDate: 'fallback:release-date' };
       }
-      await this.upsertFirm(slug, a.providerName, parsed.kind, a.startDate ?? item.publishedAt);
+      await this.upsertFirm(slug, a.providerName, parsed.kind, a.startDate ?? item.publishedAt, a.providerLegalName);
       const rate = fxToCad(a.currency);
-      await this.q(
+      const up = await this.q(
         `INSERT INTO ir_agreements
            (disclosure_id, ticker, exchange, issuer_name, provider_slug, provider_name, provider_short,
             kind, start_date, end_date, term_months, monthly_fee, total_value, currency,
@@ -449,7 +452,8 @@ export class PromoterService implements OnModuleInit {
            exchange    = COALESCE(EXCLUDED.exchange, ir_agreements.exchange),
            provider_name = CASE WHEN ir_agreements.reviewed_at IS NULL THEN COALESCE(EXCLUDED.provider_name, ir_agreements.provider_name) ELSE ir_agreements.provider_name END,
            confidence  = GREATEST(ir_agreements.confidence, EXCLUDED.confidence),
-           updated_at  = now()`,
+           updated_at  = now()
+         RETURNING id`,
         [
           disclosureId,
           parsed.ticker,
@@ -478,7 +482,21 @@ export class PromoterService implements OnModuleInit {
           JSON.stringify(a.notes),
         ],
       );
+      if (up?.[0]?.id != null) keptIds.push(Number(up[0].id));
       n++;
+    }
+    // A re-read of the same release replaces what the earlier read produced.
+    // Every parser fix used to ADD rows beside the old ones — the unique key
+    // includes the slug and the start date, so a corrected name or a shifted
+    // date was a new row — until the same VEGA release carried "AGORA
+    // Internet Relations Corp" twice under two slugs. Hand-reviewed rows are
+    // the record of truth and stay.
+    if (keptIds.length) {
+      await this.q(
+        `DELETE FROM ir_agreements
+          WHERE disclosure_id = $1 AND reviewed_at IS NULL AND NOT (id = ANY($2::bigint[]))`,
+        [disclosureId, keptIds],
+      );
     }
     // An in-scope release we could not read is exactly the case §2.3 wants a
     // human to look at — but with no provider there is no agreement row, and
@@ -523,22 +541,46 @@ export class PromoterService implements OnModuleInit {
     return { agreements: n, needsReview };
   }
 
-  private async upsertFirm(slug: string, name: string, _kind: string, seen: string | Date | null) {
+  /** The firm slug for a parsed provider name. A release that names only the
+   *  legal entity behind a known trade name ("GRA Enterprises LLC" for
+   *  National Inflation Association) lands on the trade-name firm through
+   *  its aliases; otherwise the canonical slug of the name itself. */
+  private async slugFor(name: string): Promise<string> {
+    const own = firmSlug(name);
+    const hit: any[] = await this.q(
+      `SELECT slug FROM ir_firms
+        WHERE slug <> $1
+          AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(aliases, '[]'::jsonb)) x WHERE lower(x) = lower($2))
+        LIMIT 1`,
+      [own, name],
+    );
+    return hit.length ? hit[0].slug : own;
+  }
+
+  private async upsertFirm(slug: string, name: string, _kind: string, seen: string | Date | null, legal: string | null = null) {
     // On ingest this is an ISO string off the RSS feed; on a re-parse it is a
     // Date handed back by the driver from `ir_disclosures.published_at`.
     // Assuming the string form crashed the first production re-parse with
     // "seen.slice is not a function".
     const day = toDay(seen);
     await this.q(
-      `INSERT INTO ir_firms (slug, name, first_seen, last_seen)
-       VALUES ($1,$2,$3,$3)
+      `INSERT INTO ir_firms (slug, name, first_seen, last_seen, aliases)
+       VALUES ($1,$2,$3,$3, COALESCE($4::jsonb, '[]'::jsonb))
        ON CONFLICT (slug) DO UPDATE SET
          last_seen = GREATEST(COALESCE(ir_firms.last_seen, EXCLUDED.last_seen), EXCLUDED.last_seen),
          first_seen = LEAST(COALESCE(ir_firms.first_seen, EXCLUDED.first_seen), EXCLUDED.first_seen),
-         aliases = CASE WHEN ir_firms.name = EXCLUDED.name THEN ir_firms.aliases
-                        ELSE (ir_firms.aliases || to_jsonb(EXCLUDED.name)) END,
+         -- A stored name that still carries a bracket, a DBA clause, a
+         -- "-based" or a "Person of" is a pre-cleanup spelling; the canonical
+         -- one replaces it.
+         name = CASE WHEN ir_firms.name ~* '\\(|\\mdba\\M|doing business as|operating as|-based |^[A-Z][a-z]+ [A-Z][a-z]+ of '
+                     THEN EXCLUDED.name ELSE ir_firms.name END,
+         aliases = (
+           SELECT COALESCE(jsonb_agg(DISTINCT x), '[]'::jsonb)
+             FROM jsonb_array_elements_text(COALESCE(ir_firms.aliases, '[]'::jsonb) || to_jsonb(EXCLUDED.name) || COALESCE($4::jsonb, '[]'::jsonb)) x
+            WHERE x <> EXCLUDED.name
+         ),
          updated_at = now()`,
-      [slug, name, day],
+      [slug, name, day, legal ? JSON.stringify([legal]) : null],
     );
   }
 
@@ -694,6 +736,10 @@ export class PromoterService implements OnModuleInit {
     );
     await this.rescore();
     await this.perf.refresh();
+    // Firms whose every agreement was replaced above are variants of a name
+    // that now resolves elsewhere; without a row they would still show as
+    // separate "promoters" on the paid ranking.
+    await this.q(`DELETE FROM ir_firms f WHERE NOT EXISTS (SELECT 1 FROM ir_agreements a WHERE a.provider_slug = f.slug)`);
     return { disclosures: read, agreements };
   }
 
@@ -1348,7 +1394,11 @@ function safeHost(url: string): string | null {
 /** Canonical firm key. "JBouma Consulting Ltd." and "JBOUMA CONSULTING LTD"
  *  are the same lead, and the B2B list is worthless if they are two rows. */
 export function firmSlug(name: string): string {
-  return name
+  // Trade name over legal name, no geography, no contact person, no bracketed
+  // abbreviation — so "Independent Trading Group (ITG) Inc." and "Independent
+  // Trading Group" are one firm, as are the three spellings of Triomphe /
+  // Capital Analytica (George, 2026-09-16).
+  return normalizeFirmName(name)
     .toLowerCase()
     .replace(/&/g, ' and ')
     .replace(/\b(?:inc|incorporated|ltd|limited|llc|llp|lp|corp|corporation|co|gmbh|ag|plc|pty|sa)\b\.?/g, ' ')
@@ -1573,7 +1623,7 @@ function mergeLlm(base: ParsedDisclosure, out: any): ParsedDisclosure {
 
   const take = (a: ParsedAgreement | null, l: any): ParsedAgreement => {
     const seed: ParsedAgreement = a ?? {
-      providerName: null, providerShort: null, startDate: null, endDate: null, termMonths: null,
+      providerName: null, providerShort: null, providerLegalName: null, startDate: null, endDate: null, termMonths: null,
       monthlyFee: null, totalValue: null, currency: null, optionsGranted: null, optionStrike: null,
       sharesGranted: null, noSecurityCompensation: false, armsLength: null, confidence: 0,
       provenance: {}, notes: [],
@@ -1588,6 +1638,12 @@ function mergeLlm(base: ParsedDisclosure, out: any): ParsedDisclosure {
         (next as any)[f] = l[f];
         next.provenance[f] = 'llm';
       }
+    }
+    // The model reads names off the page as written; give them the same
+    // shape the pattern parser produces, and refuse the activity-as-a-name.
+    if (next.providerName) {
+      const clean = normalizeFirmName(String(next.providerName));
+      next.providerName = clean && !isGenericProviderName(clean) ? clean : null;
     }
     // A model-assisted row is never auto-accepted at full confidence: it is
     // good enough to publish a provisional number and short enough of proof to

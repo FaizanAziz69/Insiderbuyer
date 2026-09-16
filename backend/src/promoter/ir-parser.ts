@@ -53,6 +53,9 @@ export interface ParsedAgreement {
   providerName: string | null;
   /** What the release calls the provider afterwards — "Adelaide". */
   providerShort: string | null;
+  /** The legal entity behind a trade name: "GRA Enterprises LLC" for
+   *  "National Inflation Association". Null when the release gave one name. */
+  providerLegalName: string | null;
   startDate: string | null; // ISO yyyy-mm-dd
   endDate: string | null;
   termMonths: number | null;
@@ -314,6 +317,14 @@ const ENTITY_WITH_SHORT = new RegExp(
   'g',
 );
 
+/**
+ * A run of name text that may contain a period only where a name does: inside
+ * an abbreviation ("B.C", "L.L.C") or before a DBA clause ("Ltd. DBA …").
+ * A period followed by a space and a new sentence ends the run, so "Adelaide
+ * Capital Markets Inc. Under the terms…" stops at "Inc".
+ */
+const NAME_RUN = String.raw`[A-Z0-9](?:[^.;()]|\.(?=[A-Za-z])|\.(?=\s+(?:DBA|dba|d\/b\/a|doing business as|operating as)\b))*?`;
+
 /** Verb phrasings, used when nobody was introduced with a short form. */
 const PROVIDER_PATTERNS: Array<[RegExp, string]> = [
   [
@@ -325,7 +336,18 @@ const PROVIDER_PATTERNS: Array<[RegExp, string]> = [
     'regex:engaged-x-to',
   ],
   [
-    /\bservices?\s+(?:of|from|provided by)\s+([A-Z][^.;()]{2,60})/,
+    // "the engagement of BoxTop Integrated Communications to provide…",
+    // "the appointment of Port Guichon Strategic Advisory, as Investor
+    // Relations…" — the noun form the verb patterns above never saw.
+    new RegExp(
+      String.raw`\b(?:engagement|appointment|retention|hiring)\s+of\s+(` + NAME_RUN + String.raw`),?\s*(?:\([^)]{1,30}\))?\s*,?\s*(?:to\s+(?:provide|perform|act|carry out|undertake|assist)|as|for)\b`,
+    ),
+    'regex:engagement-of',
+  ],
+  [
+    // "the investor relations services of 1123963 B.C Ltd. DBA Capitaliz On
+    // It" — a numbered company starts with a digit, not a capital.
+    new RegExp(String.raw`\bservices?\s+(?:of|from|provided by)\s+(` + NAME_RUN + String.raw`)(?=\s*[(,;]|\s+(?:to|as|for|effective|pursuant|under|commencing)\b|\.(?!\S)(?!\s+(?:DBA|dba|d\/b\/a|doing business as|operating as)\b)|$)`),
     'regex:services-of',
   ],
 ];
@@ -337,6 +359,74 @@ const TITLE_PROVIDER =
 
 const PROVIDER_STOP =
   /\b(?:the Company|its|their|our|shares?|an? |and |with |for |to provide|services|agreement|pursuant|effective|commencing|dated|which|that|a leading)\b/i;
+
+/**
+ * "Legal Name DBA Trade Name" in its several spellings. The trade name is
+ * what investors know — National Inflation Association, Capital Analytica,
+ * Capitaliz On It — so it becomes the firm; the legal entity is kept as an
+ * alias so a later release that names only the legal entity lands on the
+ * same firm.
+ */
+const DBA_RE = /^(.{3,80}?)\s*,?\s*(?:\bd\.?b\.?a\.?\b|\bd\/b\/a\b|doing business as|operating as|\bo\/a\b|trading as)\s+(.{3,80})$/i;
+const DBA_PAREN_RE = /^(.{3,80}?)\s*\(\s*(?:dba|d\/b\/a|doing business as|operating as)\s+([^)]{3,80})\)\s*$/i;
+
+export function splitDba(name: string): { legal: string; trade: string } | null {
+  const m = DBA_PAREN_RE.exec(name) || DBA_RE.exec(name);
+  if (!m) return null;
+  const legal = m[1].replace(/[,;:]+$/, '').trim();
+  const trade = m[2].replace(/^["'“]+|["'”)]+$/g, '').replace(/[,;:]+$/, '').trim();
+  return legal.length >= 3 && trade.length >= 3 ? { legal, trade } : null;
+}
+
+/** "Vancouver-based", "Ontario-based", "Toronto, Ontario-based" — the
+ *  geography leaks into the capture because it is capitalised. */
+const LOCATION_PREFIX = /^(?:[A-Z][A-Za-z.]+(?:,? [A-Z][A-Za-z.]+)?-based)\s+/;
+/** "Robert Ferguson of Freeform Communications Inc." — the person is the
+ *  contact, the firm is the counterparty. */
+const PERSON_OF_FIRM = /^([A-Z][a-z]+(?: [A-Z]\.)?(?: [A-Z][a-z'’-]+){1,2}) of ((?:[A-Z0-9][^ ]* ?){1,7})$/;
+
+/**
+ * Words that describe the service, not the vendor. A name made only of these
+ * (plus joiners and corporate suffixes) is the activity wearing a capital
+ * letter — "Investor Relations", "Investor Relations Services", "Corporate
+ * Communications" — and is rejected even when it ends in a corporate tail.
+ * District Copper's "Engages Investor Relations Services" headline produced
+ * a firm literally called "Investor Relations" (George, 2026-09-16).
+ */
+const GENERIC_WORDS = new Set([
+  'investor', 'investors', 'relation', 'relations', 'service', 'services', 'marketing', 'market', 'markets',
+  'maker', 'making', 'capital', 'communication', 'communications', 'digital', 'media', 'consulting', 'consultant',
+  'consultants', 'corporate', 'strategic', 'advisory', 'advisors', 'advisor', 'awareness', 'provider', 'providers',
+  'agency', 'firm', 'group', 'company', 'program', 'campaign', 'outreach', 'public', 'pr', 'ir', 'shareholder',
+  'shareholders', 'financial', 'business', 'development', 'promotional', 'promotion', 'liquidity', 'trading',
+  'inc', 'ltd', 'llc', 'corp', 'corporation', 'limited', 'the', 'and', 'of', 'for', '&', 'a', 'an', 'to', 'its',
+]);
+
+export function isGenericProviderName(name: string): boolean {
+  const words = name
+    .toLowerCase()
+    .replace(/[.,()"'’]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  return words.length > 0 && words.every((w) => GENERIC_WORDS.has(w));
+}
+
+/** The canonical firm name for a raw capture: trade name over legal name,
+ *  no geography, no contact person. Shared with the slug so variants merge. */
+export function normalizeFirmName(raw: string): string {
+  let s = raw.replace(/\s+/g, ' ').trim();
+  s = s.replace(LOCATION_PREFIX, '').trim();
+  const dba = splitDba(s);
+  if (dba) s = dba.trade;
+  const pf = PERSON_OF_FIRM.exec(s);
+  if (pf && ENTITY_TAIL.test(pf[2])) s = pf[2].trim();
+  // A bracketed abbreviation after the name — "(ITG)", "(VLP)", "(AGORACOM)"
+  // — is the short form, not part of the name; the same firm without it must
+  // collapse onto the same row.
+  s = s.replace(/\s*\((?:[A-Z][A-Z0-9&.\- ]{1,20})\)/g, ' ').replace(/\s+/g, ' ').trim();
+  s = s.replace(/^(?:the|The)\s+/, '').replace(/[.,;:]+$/, '').trim();
+  return s;
+}
 
 function cleanProvider(raw: string): string | null {
   let s = raw.replace(/\s+/g, ' ').trim();
@@ -365,7 +455,13 @@ function cleanProvider(raw: string): string | null {
   // "the Howard Group" — the headline shape keeps the article; the firm does
   // not. Strip it so it collapses with "Howard Group" in the ir_firms table.
   s = s.replace(/^(?:the|The)\s+/, '').trim();
+  // Geography, contact person and DBA clauses come off here so every later
+  // check — and the firm slug — sees the same canonical name.
+  s = normalizeFirmName(s);
   if (s.length < 4 || s.length > 70) return null;
+  // The activity, not the actor — even when it ends in "Relations" or
+  // "Communications", which ENTITY_TAIL would otherwise wave through.
+  if (isGenericProviderName(s)) return null;
   if (!/[A-Za-z]{3}/.test(s)) return null;
   if (/^(?:this|that|it|we|its|a|an)\b/i.test(s)) return null;
 
@@ -396,6 +492,8 @@ const PUBLISHER =
 interface ProviderHit {
   name: string;
   short: string | null;
+  /** Legal entity when the release used a trade name (see splitDba). */
+  legal: string | null;
   at: number;
   how: string;
 }
@@ -405,8 +503,9 @@ function findProviders(title: string, text: string, issuerName: string | null): 
   const seen = new Set<string>();
   const issuerKey = issuerName ? issuerName.toLowerCase().slice(0, 10) : null;
 
-  const push = (name: string | null, short: string | null, at: number, how: string) => {
+  const push = (name: string | null, short: string | null, at: number, how: string, raw = '') => {
     if (!name) return;
+    const legal = splitDba(raw.replace(/\s+/g, ' ').trim())?.legal ?? null;
     const key = name.toLowerCase().replace(/[^a-z0-9]/g, '');
     if (!key || seen.has(key)) return;
     // The issuer is never its own IR provider, and it is named all over its
@@ -417,7 +516,7 @@ function findProviders(title: string, text: string, issuerName: string | null): 
       if (ik.length > 3 && key.includes(ik)) return;
     }
     seen.add(key);
-    hits.push({ name, short, at, how });
+    hits.push({ name, short, legal: legal && legal.toLowerCase() !== name.toLowerCase() ? legal : null, at, how });
   };
 
   ENTITY_WITH_SHORT.lastIndex = 0;
@@ -428,19 +527,19 @@ function findProviders(title: string, text: string, issuerName: string | null): 
     if (/^(?:TSX|TSXV|CSE|CNSX|NEO|OTC|OTCQB|OTCQX|NASDAQ|NYSE|FSE|FRA|WKN|ISIN)\b/i.test(bracket)) continue;
     // "the Company", "the Agreement", "the Offering" — self-reference, not a firm.
     if (/^(?:the\s+)?(?:company|agreement|issuer|offering|corporation|transaction|plan|board|exchange)$/i.test(bracket)) continue;
-    push(cleanProvider(m[1]), bracket.trim(), m.index, 'regex:entity-with-short');
+    push(cleanProvider(m[1]), bracket.trim(), m.index, 'regex:entity-with-short', m[1]);
   }
 
   if (!hits.length) {
     for (const [re, how] of PROVIDER_PATTERNS) {
       const mm = re.exec(text);
-      if (mm) push(cleanProvider(mm[1]), null, mm.index, how);
+      if (mm) push(cleanProvider(mm[1]), null, mm.index, how, mm[1]);
       if (hits.length) break;
     }
   }
   if (!hits.length) {
     const tm = TITLE_PROVIDER.exec(title);
-    if (tm) push(cleanProvider(tm[1]), null, 0, 'regex:title');
+    if (tm) push(cleanProvider(tm[1]), null, 0, 'regex:title', tm[1]);
   }
   return hits.sort((a, b) => a.at - b.at);
 }
@@ -749,6 +848,7 @@ function buildAgreement(win: string, full: string, hit: ProviderHit | null): Par
   const agreement: ParsedAgreement = {
     providerName: hit?.name ?? null,
     providerShort: hit?.short ?? null,
+    providerLegalName: hit?.legal ?? null,
     startDate,
     endDate,
     termMonths: term.months,
@@ -825,6 +925,8 @@ export function narrow(body: string): string {
     /[A-Z][A-Za-z .'-]{2,40},\s*[A-Z]{2}\s*\/\s*(?:ACCESS Newswire|ACCESSWIRE|EINPresswire|Newsfile)\s*\//i,
     /[A-Z][A-Za-z .'-]{2,40}\s*,\s*[A-Z][a-z]{2,8}\.?\s+\d{1,2},?\s+\d{4}\s*\/(?:CNW|PRNewswire)/,
     /\/(?:CNW|PRNewswire)[^/]{0,40}\/\s*-/,
+    // "(TheNewswire) Vancouver, British Columbia, September 11th, 2026 TheNewswire"
+    /\(TheNewswire\)\s+[A-Z][A-Za-z .'-]{2,40},/,
     /[A-Z][A-Za-z .'-]{2,40},\s*[A-Za-z .]{2,30}\s*[-–—]{1,2}\s*\(?[A-Z][a-z]{2,8}\.?\s+\d{1,2},?\s+\d{4}\)?\s*[-–—]/,
   ];
   for (const re of starts) {
@@ -835,6 +937,13 @@ export function narrow(body: string): string {
     }
   }
   const ends = [
+    // Investing News Network wraps every release in its own site: a related-
+    // articles rail ("Keep Reading...", "The Conversation (0)") and the footer.
+    // Names in that rail — Westport Fuel Systems, Blade Resources — were read
+    // as the issuer's IR providers (George, 2026-09-16).
+    /Keep Reading\.{3}/,
+    /The Conversation \(\d+\)/,
+    /\bConnect with us\s+Information\s+About Us/i,
     /Neither (?:the )?TSX Venture Exchange nor/i,
     /The (?:Canadian Securities Exchange|CSE) has (?:not|neither)/i,
     /To view the source version of this press release/i,
