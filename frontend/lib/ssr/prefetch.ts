@@ -65,6 +65,9 @@ const SKIP = [
   // 2026-09-16: Top IR Promoters is a paid dataset — firm names must never
   // reach view-source through the seed.
   /\/promoter\/top-promoters/,
+  // 2026-09-16: Promoter Score is paygated the same way — issuer tickers and
+  // names must not reach view-source through the seed.
+  /\/promoter\/ranking/,
 ];
 
 /** Per-route override for the seed budget. A visualizer page IS its dataset

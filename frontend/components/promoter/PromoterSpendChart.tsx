@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { useState } from "react";
 
 /**
@@ -42,10 +43,14 @@ export function PromoterSpendChart({
   rows,
   loading,
   quarter,
+  locked = false,
 }: {
   rows: Row[];
   loading?: boolean;
   quarter?: string;
+  /** Paygated view: the caller passes decoy tickers/names in `rows`; the
+   *  tooltip link then points at the subscribe page, not a decoy URL. */
+  locked?: boolean;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const data = rows.filter((r) => (r.spendCad ?? 0) > 0).slice(0, 12);
@@ -163,7 +168,7 @@ export function PromoterSpendChart({
           className="mt-2 rounded-md px-3 py-2 text-[12px]"
           style={{ background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text-soft)" }}
         >
-          <Link href={`/promoter-score/${data[hover].ticker}`} className="font-bold text-accent hover:underline">
+          <Link href={locked ? SUBSCRIBE_HREF : `/promoter-score/${data[hover].ticker}`} className="font-bold text-accent hover:underline">
             {data[hover].ticker}
           </Link>{" "}
           {data[hover].name ? <span style={{ color: "var(--text)" }}>{data[hover].name}</span> : null} ·{" "}

@@ -8,6 +8,12 @@ import { DataTable, Column } from "@/components/DataTable";
 import { PromoterSpendChart } from "@/components/promoter/PromoterSpendChart";
 import { PromoterScoreCell } from "@/components/promoter/PromoterScoreCell";
 import { PromoterEmailSignup } from "@/components/promoter/PromoterEmailSignup";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { MaskedCell } from "@/components/premium/MaskedCell";
+import { issuerDecoyFor } from "@/components/premium/lockedDecoys";
+
+/** Free rows on the ranking before the unlock wall — same count as Top IR Promoters. */
+const LOCKED_ROWS = 8;
 
 /**
  * Workstream F §2.5 — the ranking page: "most-promoted stocks (by score, by
@@ -128,6 +134,11 @@ function pct(v: number | null): string {
 }
 
 export default function PromoterScorePage() {
+  // Paygate (George 2026-09-16, "same as top promoters"): every figure stays
+  // visible, the issuer identity is what the unlock buys. Locked rows carry
+  // fixed decoy tickers and names — never the real ones, not even blurred.
+  const { unlocked } = usePremium();
+  const locked = !unlocked;
   const [quarter, setQuarter] = useState<string>("");
   const [sector, setSector] = useState<string>("");
   const [sort, setSort] = useState<"score" | "spend" | "perMcap" | "contracts" | "perf" | "deVol" | "start" | "dvol" | "multiple">("score");
@@ -148,20 +159,49 @@ export default function PromoterScorePage() {
             (perfFilter === "priced" && r.perfSinceStart != null) ||
             (perfFilter === "up" && r.perfSinceStart != null && r.perfSinceStart > 0) ||
             (perfFilter === "down" && r.perfSinceStart != null && r.perfSinceStart < 0)) &&
-          (!q ||
+          // Search only works unlocked: matching a hidden name would confirm it.
+          (locked ||
+            !q ||
             r.ticker.toLowerCase().includes(q.toLowerCase()) ||
             (r.name || "").toLowerCase().includes(q.toLowerCase()) ||
             (r.sector || "").toLowerCase().includes(q.toLowerCase())),
       ),
-    [data, q, perfFilter],
+    [data, q, perfFilter, locked],
+  );
+
+  /** Chart rows for a locked visitor: same bars, decoy identities. */
+  const chartRows = useMemo(
+    () =>
+      locked
+        ? rows.slice(0, 12).map((r, i) => {
+            const [t, n, ex] = issuerDecoyFor(i);
+            return { ...r, ticker: t, name: n, exchange: ex, sector: null };
+          })
+        : rows.slice(0, 12),
+    [rows, locked],
   );
 
   const columns: Column<Row>[] = [
     {
       key: "ticker",
       label: "Issuer",
+      sortable: !locked,
       sortValue: (r) => r.ticker,
-      render: (r) => (
+      render: (r, index) =>
+        locked ? (
+          (() => {
+            const [dTicker, dName, dExchange] = issuerDecoyFor(index);
+            return (
+              <MaskedCell label="the issuers" lock>
+                <span className="block font-bold text-[13.5px] leading-tight" style={{ color: "var(--text)" }}>
+                  {dTicker}
+                  <span className="ml-1.5 text-[10.5px] font-semibold text-faint">{dExchange}</span>
+                </span>
+                <span className="block text-[11.5px] text-mute leading-tight">{dName}</span>
+              </MaskedCell>
+            );
+          })()
+        ) : (
         <Link href={`/promoter-score/${r.ticker}`} className="group min-w-0 block">
           <span className="block font-bold text-[13.5px] leading-tight group-hover:text-accent" style={{ color: "var(--text)" }}>
             {r.ticker}
@@ -172,7 +212,7 @@ export default function PromoterScorePage() {
             <span className="block text-[10.5px] text-faint leading-tight truncate max-w-[210px]">{r.sector}</span>
           ) : null}
         </Link>
-      ),
+        ),
     },
     {
       key: "score",
@@ -415,7 +455,7 @@ export default function PromoterScorePage() {
       </header>
 
       {/* §2.5 "standard data-article chart module on top" */}
-      <PromoterSpendChart rows={rows.slice(0, 12)} loading={isLoading} quarter={data?.quarter} />
+      <PromoterSpendChart rows={chartRows} loading={isLoading} quarter={data?.quarter} locked={locked} />
 
       <div className="flex flex-wrap items-center gap-2 mt-5 mb-3">
         <select
@@ -486,13 +526,15 @@ export default function PromoterScorePage() {
           <option value="down">Performance: decliners only</option>
         </select>
 
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search issuer or sector"
-          className="text-[12.5px] rounded-md px-2.5 py-1.5 flex-1 min-w-[160px]"
-          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text)" }}
-        />
+        {!locked ? (
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search issuer or sector"
+            className="text-[12.5px] rounded-md px-2.5 py-1.5 flex-1 min-w-[160px]"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text)" }}
+          />
+        ) : null}
       </div>
 
       <DataTable
@@ -511,6 +553,16 @@ export default function PromoterScorePage() {
             : sort === "multiple" ? "volumeMultiple"
             : "score",
           dir: "desc",
+        }}
+        gate={{
+          label: "Promoter Score",
+          freeRows: LOCKED_ROWS,
+          teaser: true,
+          bullets: [
+            "Every TSXV and CSE issuer with a disclosed IR, promotional or market-making contract, named",
+            "Disclosed spend, spend against market cap, promotion start date, and what the stock did after",
+            "Dollars traded since the promotion began against the fees paid, and the volume through German venues",
+          ],
         }}
         empty={
           isLoading

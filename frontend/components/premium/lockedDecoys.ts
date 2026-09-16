@@ -41,3 +41,23 @@ export const FIRM_DECOYS: Array<[string, string]> = [
   ["Lakeshore Investor Services", "CA"],
 ];
 export const firmDecoyFor = (i: number) => FIRM_DECOYS[i % FIRM_DECOYS.length];
+
+/**
+ * Fixed decoy issuer identities for the locked Promoter Score rows (George
+ * 2026-09-16: "pay gate this as well, same as top promoters"). Same rule: the
+ * real ticker, company and sector never enter the DOM for a free visitor;
+ * the spend, score, performance and volume figures stay visible.
+ */
+export const ISSUER_DECOYS: Array<[string, string, string]> = [
+  ["NRVX", "Northvale Resources Corp", "TSXV"],
+  ["CBLT", "Cobalt Ridge Mining Inc", "CSE"],
+  ["AURM", "Aurum Creek Exploration", "TSXV"],
+  ["SLVK", "Silverlake Metals Ltd", "TSXV"],
+  ["HLCX", "Helix Critical Minerals", "CSE"],
+  ["BRGT", "Brightgate Lithium Corp", "TSXV"],
+  ["KNTR", "Kintra Gold Inc", "CSE"],
+  ["MRDN", "Meridian Uranium Corp", "TSXV"],
+  ["PLRS", "Polaris Battery Metals", "CSE"],
+  ["TMBR", "Timberline Copper Ltd", "TSXV"],
+];
+export const issuerDecoyFor = (i: number) => ISSUER_DECOYS[i % ISSUER_DECOYS.length];
