@@ -142,7 +142,7 @@ export const FEATURES: FeatureEmail[] = [
     preview: 'Disclosed IR spend per issuer, and what the stock did next.',
     path: '/promoter-score',
     cta: 'Open Promoter Score',
-    image: `${IMG}/promoter-score-2026-09.jpg`,
+    image: `${IMG}/promoter-score-2026-09b.jpg`,
     imageAlt: 'Promoter Score ranking',
     what:
       'Companies listed on the TSX Venture Exchange and the CSE must disclose every investor-relations, promotional and market-making agreement by news release: the firm hired, the fee, the term and any options granted. Promoter Score reads those releases and totals the spend for each issuer by quarter. The score is a 0–100 percentile against sector peers. Beside it you see the disclosed spend, spend relative to market cap, the date the promotion began, what the share price did after the first contract, the dollar value traded since then and how that compares with the fees paid, and the volume that came through German exchanges.',
