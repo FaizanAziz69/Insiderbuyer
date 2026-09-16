@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
+import { hasIrParagraph, issuerFromHeadline } from './ir-parser';
 
 /**
  * Workstream F — IR Budget / Promoter Score. Discovery.
@@ -56,6 +57,20 @@ export interface FetchedRelease extends DiscoveredItem {
 
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
+
+const DAY = 86_400_000;
+
+/** RSS `source` names that are the wires we can read full text from. */
+const WIRE_SOURCE =
+  /newsfile|access ?newswire|globenewswire|globe newswire|pr ?newswire|cnw|business ?wire|newswire\.ca|investing news|junior mining|the newswire|globe and mail|stockhouse/i;
+/** RSS `source` names that paraphrase releases — never read, but see
+ *  `followAggregators` for what their headlines are still good for. */
+const AGGREGATOR =
+  /yahoo|stock ?titan|kalkine|tradingview|citybiz|manila|scanx|pluang|simply wall|wealth ?awesome|issuewire|marketscreener|investing\.com|seeking alpha|benzinga|nasdaq\.com|morningstar/i;
+
+/** Aggregator headlines followed to the wire in one pass. Each is one more
+ *  Google News query; the feed rarely holds more than a handful that qualify. */
+const MAX_FOLLOW_UPS = 30;
 
 /**
  * Phrase variants, not one catch-all query. Policy 3.4 covers investor
@@ -124,37 +139,93 @@ export class IrDiscoveryService {
   async discover(): Promise<DiscoveredItem[]> {
     const seen = new Map<string, DiscoveredItem>();
     for (const query of DISCOVERY_QUERIES) {
-      try {
-        const url =
-          'https://news.google.com/rss/search?q=' +
-          encodeURIComponent(query) +
-          '&hl=en-CA&gl=CA&ceid=CA:en';
-        const { data } = await axios.get<string>(url, {
-          timeout: 25_000,
-          responseType: 'text',
-          headers: { 'User-Agent': UA },
-        });
-        for (const raw of String(data).match(/<item>[\s\S]*?<\/item>/g) || []) {
-          const guid = /<guid[^>]*>([\s\S]*?)<\/guid>/.exec(raw)?.[1];
-          const title = /<title>([\s\S]*?)<\/title>/.exec(raw)?.[1];
-          if (!guid || !title) continue;
-          if (seen.has(guid)) continue;
-          const pub = /<pubDate>([\s\S]*?)<\/pubDate>/.exec(raw)?.[1] || '';
-          const src = /<source[^>]*>([\s\S]*?)<\/source>/.exec(raw)?.[1] || '';
-          const when = pub ? new Date(pub) : null;
-          seen.set(guid, {
-            guid,
-            title: decodeEntities(title),
-            source: decodeEntities(src),
-            publishedAt: when && !isNaN(when.getTime()) ? when.toISOString() : null,
-            query,
-          });
-        }
-      } catch (e: any) {
-        this.log.warn(`discovery query failed (${query}): ${e?.message || e}`);
+      for (const it of await this.search(query)) {
+        if (!seen.has(it.guid)) seen.set(it.guid, it);
       }
     }
+    await this.followAggregators(seen);
     return [...seen.values()];
+  }
+
+  /** One Google News RSS query, as dated items. Failures are logged and
+   *  yield nothing — a pass must not die on one bad query. */
+  private async search(query: string, label = query): Promise<DiscoveredItem[]> {
+    const out: DiscoveredItem[] = [];
+    try {
+      const url =
+        'https://news.google.com/rss/search?q=' + encodeURIComponent(query) + '&hl=en-CA&gl=CA&ceid=CA:en';
+      const { data } = await axios.get<string>(url, {
+        timeout: 25_000,
+        responseType: 'text',
+        headers: { 'User-Agent': UA },
+      });
+      for (const raw of String(data).match(/<item>[\s\S]*?<\/item>/g) || []) {
+        const guid = /<guid[^>]*>([\s\S]*?)<\/guid>/.exec(raw)?.[1];
+        const title = /<title>([\s\S]*?)<\/title>/.exec(raw)?.[1];
+        if (!guid || !title) continue;
+        const pub = /<pubDate>([\s\S]*?)<\/pubDate>/.exec(raw)?.[1] || '';
+        const src = /<source[^>]*>([\s\S]*?)<\/source>/.exec(raw)?.[1] || '';
+        const when = pub ? new Date(pub) : null;
+        out.push({
+          guid,
+          title: decodeEntities(title),
+          source: decodeEntities(src),
+          publishedAt: when && !isNaN(when.getTime()) ? when.toISOString() : null,
+          query: label,
+        });
+      }
+    } catch (e: any) {
+      this.log.warn(`discovery query failed (${query}): ${e?.message || e}`);
+    }
+    return out;
+  }
+
+  /** Aggregator headlines already chased, and when — one chase a week each. */
+  private followed = new Map<string, number>();
+
+  /**
+   * Chase an aggregator's headline to the wire's own copy of the release.
+   *
+   * Why this exists (Elevate Service Group, TSXV: SERV, September 4, 2026):
+   * the issuer's headline was "…Commences OTCQB Trading and Provides Corporate
+   * Updates" — not one IR word in it — so Google News returned the wire's copy
+   * for none of our queries. What it DID return was kalkine.ca's rewrite,
+   * "…Grants Stock Options and Signs Investor Relations Agreement", and we
+   * skip aggregators on purpose because a paraphrase must never become a
+   * parsed row. Net effect: a US$250,000 IR agreement went unrecorded, and
+   * every release shaped like it will too.
+   *
+   * The aggregator headline is still a perfectly good TIP. When it reads as
+   * an IR engagement, search Google News for the issuer by name and take the
+   * wire items published within a few days of it. Those are then resolved,
+   * read and parsed exactly like anything else in the feed.
+   */
+  private async followAggregators(seen: Map<string, DiscoveredItem>): Promise<void> {
+    const now = Date.now();
+    const candidates = [...seen.values()].filter((it) => {
+      if (!AGGREGATOR.test(it.source)) return false;
+      if (!it.publishedAt || now - new Date(it.publishedAt).getTime() > 21 * DAY) return false;
+      if (!hasIrParagraph(it.title, '')) return false;
+      return now - (this.followed.get(it.guid) ?? 0) > 7 * DAY;
+    });
+    let chased = 0;
+    let added = 0;
+    for (const it of candidates) {
+      if (chased >= MAX_FOLLOW_UPS) break;
+      const issuer = issuerFromHeadline(it.title);
+      if (!issuer) continue;
+      this.followed.set(it.guid, now);
+      chased++;
+      const when = new Date(it.publishedAt!).getTime();
+      for (const f of await this.search(`"${issuer}"`, `via:${it.source}`)) {
+        if (seen.has(f.guid)) continue;
+        if (!f.publishedAt || Math.abs(new Date(f.publishedAt).getTime() - when) > 4 * DAY) continue;
+        if (!WIRE_SOURCE.test(f.source)) continue;
+        seen.set(f.guid, f);
+        added++;
+      }
+    }
+    if (chased) this.log.log(`followed ${chased} aggregator headlines to the wire, ${added} wire items added`);
   }
 
   // ── Resolution ─────────────────────────────────────────────────────────
@@ -222,6 +293,15 @@ export class IrDiscoveryService {
   }
 
   async fetchRelease(url: string): Promise<string | null> {
+    return (await this.fetchReleaseWithMeta(url))?.text ?? null;
+  }
+
+  /** The release text plus what the page says about itself — its headline
+   *  and publication time — for a release that arrives by URL rather than
+   *  through the dated, titled Google News feed. */
+  async fetchReleaseWithMeta(
+    url: string,
+  ): Promise<{ text: string; title: string | null; publishedAt: string | null } | null> {
     let host: string;
     try {
       host = new URL(url).hostname;
@@ -265,7 +345,8 @@ export class IrDiscoveryService {
         return null;
       }
       const text = htmlToText(html);
-      return text.length > 1200 ? text : null;
+      if (text.length <= 1200) return null;
+      return { text, title: pageTitle(html), publishedAt: pagePublished(html) };
     } catch (e: any) {
       this.log.debug(`fetch failed ${url}: ${e?.message || e}`);
       return null;
@@ -282,11 +363,10 @@ export class IrDiscoveryService {
    */
   prioritise(items: DiscoveredItem[]): DiscoveredItem[] {
     const wire = (s: string) => {
-      const m = /newsfile|access ?newswire|globenewswire|globe newswire|pr ?newswire|cnw|business ?wire|newswire\.ca|investing news|junior mining|the newswire|globe and mail|stockhouse/i.exec(s);
+      const m = WIRE_SOURCE.exec(s);
       return m ? m[0].toLowerCase().replace(/\s+/g, '') : null;
     };
-    const aggregator = (s: string) =>
-      /yahoo|stock ?titan|kalkine|tradingview|citybiz|manila|scanx|pluang|simply wall|wealth ?awesome|issuewire/i.test(s);
+    const aggregator = (s: string) => AGGREGATOR.test(s);
 
     // Group by the wire the RSS `source` name points at, then deal one item
     // from each group in turn. Two reasons, both learned in production: a
@@ -308,7 +388,11 @@ export class IrDiscoveryService {
         tail.push(it);
       }
     }
-    const order = [...groups.values()];
+    // Newest first within each wire. Google orders a query by relevance, so
+    // without this a 2019 release could take a resolution slot ahead of last
+    // night's — and the budget is what runs out first.
+    const when = (it: DiscoveredItem) => (it.publishedAt ? new Date(it.publishedAt).getTime() : 0);
+    const order = [...groups.values()].map((arr) => arr.sort((a, b) => when(b) - when(a)));
     const out: DiscoveredItem[] = [];
     for (let i = 0; out.length < items.length - tail.length; i++) {
       let moved = false;
@@ -357,6 +441,38 @@ function decodeEntities(s: string): string {
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .trim();
+}
+
+/** The page's own headline: og:title, else <title>, minus the site suffix. */
+export function pageTitle(html: string): string | null {
+  const og =
+    /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']{4,300})["']/i.exec(html) ||
+    /<meta[^>]+content=["']([^"']{4,300})["'][^>]+property=["']og:title["']/i.exec(html);
+  const raw = og?.[1] ?? /<title[^>]*>([\s\S]{4,300}?)<\/title>/i.exec(html)?.[1];
+  if (!raw) return null;
+  const t = decodeEntities(raw)
+    .replace(/\s+/g, ' ')
+    .replace(
+      /\s*[-|–—]\s*(?:The Globe and Mail|Newsfile|TMX Newsfile|GlobeNewswire|Stockhouse|Junior Mining Network|Investing News Network|INN|Business Wire|ACCESS Newswire|PR Newswire|Cision)\s*$/i,
+      '',
+    )
+    .trim();
+  return t.length >= 4 ? t : null;
+}
+
+/** When the page says it was published — article meta or JSON-LD. */
+export function pagePublished(html: string): string | null {
+  const m =
+    /<meta[^>]+(?:property|name)=["'](?:article:published_time|datePublished|pubdate|publish-date|date)["'][^>]+content=["']([^"']{8,40})["']/i.exec(
+      html,
+    ) ||
+    /<meta[^>]+content=["']([^"']{8,40})["'][^>]+(?:property|name)=["'](?:article:published_time|datePublished)["']/i.exec(
+      html,
+    ) ||
+    /"datePublished"\s*:\s*"([^"]{8,40})"/.exec(html);
+  if (!m) return null;
+  const d = new Date(m[1]);
+  return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 export function htmlToText(html: string): string {

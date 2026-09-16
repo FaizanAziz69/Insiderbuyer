@@ -114,13 +114,55 @@ const CA_TICKER =
 
 export function isIrDisclosure(title: string, body: string): boolean {
   const text = narrow(body);
-  const lead = `${title}\n${text.slice(0, 2200)}`;
-  if (!ACTIVITY.test(lead)) return false;
-  if (!AGREEMENT.test(`${title}\n${text.slice(0, 4000)}`)) return false;
+  if (!hasIrParagraph(title, text)) return false;
   // v1 is Canada only. No Canadian listing anywhere in the release ⇒ not our
   // universe; this is what keeps US IR-hire announcements (Delek, Harmonix,
   // Siguler Guff — all in the discovery feed) out of the dataset.
   return CA_TICKER.test(text);
+}
+
+/**
+ * Does the release announce an IR-type engagement ANYWHERE in its body?
+ *
+ * The first version only read the lead (2,200 characters), on the assumption
+ * that an IR hire is the subject of its own release. Elevate Service Group
+ * (TSXV: SERV, September 4, 2026) showed the other shape: a "corporate
+ * updates" release — OTCQB listing, DTC eligibility, an option grant, AGM
+ * results — with a US$250,000 investor relations agreement in its fifth
+ * section, 2,600 characters in. The gate rejected it.
+ *
+ * So the test is per paragraph, over the whole body: an activity word and an
+ * agreement word in the same paragraph. Paragraph-level rather than
+ * body-level so that a contact block ("Investor Relations: ir@…") plus an
+ * unrelated "option agreement" three sections away does not pass.
+ */
+export function hasIrParagraph(title: string, text: string): boolean {
+  if (ACTIVITY.test(title) && AGREEMENT.test(title)) return true;
+  for (const p of paragraphs(text)) {
+    if (ACTIVITY.test(p) && AGREEMENT.test(p)) return true;
+  }
+  return false;
+}
+
+/** `htmlToText` ends every block element with a newline, so a paragraph is a
+ *  line. A wire that flattened the release onto one line still passes — the
+ *  whole body is then one paragraph, which is the old body-level test. */
+function paragraphs(text: string): string[] {
+  return text
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 20);
+}
+
+/**
+ * The release's own date, read off the dateline `narrow` puts first —
+ * "Toronto, Ontario--(Newsfile Corp. - September 4, 2026) -". Used when a
+ * release arrives by URL rather than through the dated Google News feed.
+ */
+export function releaseDate(body: string): string | null {
+  const head = narrow(body).slice(0, 260);
+  const m = DATE_RE.exec(head);
+  return m ? toIso(m[1], m[2], m[3]) : null;
 }
 
 // ── Small helpers ────────────────────────────────────────────────────────
@@ -236,6 +278,27 @@ function findIssuer(text: string): {
     name = cleanIssuerName(nm[1]);
   }
   return { name, ticker, exchange };
+}
+
+/**
+ * The issuer in an AGGREGATOR headline — "Elevate Service Group Begins OTCQB
+ * Trading as ESVCF, Grants Stock Options and Signs Investor Relations
+ * Agreement" (kalkine.ca), "Elevate Service Group Inc. (TSXV:SERV) Falls
+ * 2.91%…". Aggregators rewrite headlines around the news, so the only stable
+ * part is the company name at the front. Used by discovery to go and find the
+ * wire's own copy of a release the aggregator surfaced.
+ */
+const HEADLINE_CUT =
+  /\s+(?:\(|Inc\b|Ltd\b|Corp\b|Co\b|Limited\b|Corporation\b|plc\b|Begins?|Commences?|Signs?|Engages?|Retains?|Hires?|Announces?|Enters?|Appoints?|Reports?|Grants?|Provides?|Completes?|Closes?|Expands?|Launches|Starts?|Adds?|Secures?|Renews?|Extends?|Terminates?|Partners?|Taps|Names|Gains?|Falls?|Climbs?|Slips?|Surges?|Drops?|Jumps?|Rises?|Stock\b|Shares?\b|Files?|Posts?|to\b|:|—|–|-\s)/;
+
+export function issuerFromHeadline(title: string): string | null {
+  const t = title.replace(/\s+/g, ' ').trim();
+  const m = HEADLINE_CUT.exec(t);
+  const name = (m ? t.slice(0, m.index) : t).replace(/[,.:;]+$/, '').trim();
+  if (name.length < 4 || name.length > 60) return null;
+  if (!/[A-Za-z]{3}/.test(name)) return null;
+  if (PUBLISHER.test(name)) return null;
+  return name;
 }
 
 /** Leading company name in a release headline, up to the announcing verb. */
@@ -575,7 +638,32 @@ function findProviders(title: string, text: string, issuerName: string | null): 
     const tm = TITLE_PROVIDER.exec(title);
     if (tm) push(cleanProvider(tm[1]), null, 0, 'regex:title', tm[1]);
   }
-  return hits.sort((a, b) => a.at - b.at);
+  return keepIrCounterparties(text, hits).sort((a, b) => a.at - b.at);
+}
+
+/**
+ * A multi-topic release names counterparties that are not promoters. Elevate
+ * Service Group's corporate update carried "the appointment of MNP LLP as
+ * auditor" three paragraphs above its investor relations agreement, and the
+ * `engagement-of` pattern read the auditor as an IR firm — and, being first
+ * on the page, handed it the lead paragraphs and the option grant.
+ *
+ * Rule: when at least one hit sits in a paragraph that talks about IR-type
+ * activity, keep only those hits. When none does — a terse release that
+ * introduces the firm in one sentence and says what it is for in the next —
+ * keep everything, which is the behaviour every earlier release was parsed
+ * under.
+ */
+function keepIrCounterparties(text: string, hits: ProviderHit[]): ProviderHit[] {
+  if (hits.length < 2) return hits;
+  const inIrParagraph = (h: ProviderHit) => {
+    const start = text.lastIndexOf('\n', h.at) + 1;
+    let end = text.indexOf('\n', h.at);
+    if (end < 0) end = text.length;
+    return ACTIVITY.test(text.slice(start, end));
+  };
+  const kept = hits.filter(inIrParagraph);
+  return kept.length ? kept : hits;
 }
 
 /**
@@ -676,6 +764,12 @@ const TOTAL_LEADS: Array<[RegExp, string]> = [
   [/for\s+(?:a\s+)?total\s+of\s+([^.;]{2,50})/i, 'regex:for-a-total-of'],
   [/(?:fee|consideration)\s+of\s+([^.;]{2,45}?)\s+for\s+the\s+(?:term|engagement|contract|agreement|period)/i, 'regex:fee-for-the-term'],
   [/will\s+(?:be\s+paid|receive|pay)\s+([^.;]{2,40}?)\s+(?:for|in\s+consideration|over\s+the)/i, 'regex:will-be-paid'],
+  // "the Company agreed to pay a fee of US$250,000 to CGM as compensation"
+  // (Elevate Service Group) — a flat fee for the engagement, stated with
+  // "pay … fee of" and no "per month". `findFees` refuses this lead when a
+  // monthly qualifier follows the amount, so "pay a fee of $5,000 per month"
+  // stays a monthly fee and does not double as a total.
+  [/\b(?:pay|paid|payable|receive)\s+(?:an?\s+)?(?:one[- ]time\s+|flat\s+|fixed\s+|cash\s+|engagement\s+|total\s+)?(?:fee|compensation|consideration|retainer)\s+of\s+([^.;]{2,45}?)(?=\s+(?:to|as|in|for|upon|on|payable|plus|\()|\s*,(?!\d)|\.(?!\d)|;|$)/i, 'regex:pay-fee-of'],
   // Last and loosest: "Kalo will pay GOLDINVEST a total of EUR 60,000."
   // It has to come after the specific leads, or it would win over them and
   // lose the qualifier that tells a contract value from a financing.
@@ -700,6 +794,10 @@ function findFees(text: string) {
   for (const [re, how] of TOTAL_LEADS) {
     const m = re.exec(text);
     if (!m) continue;
+    // An amount carrying a monthly qualifier is a rate, not a total —
+    // "pay a fee of $5,000 per month" belongs to the monthly leads above.
+    const after = text.slice(m.index + m[0].length, m.index + m[0].length + 30);
+    if (/\b(?:(?:per|a|each)\s+month|\/\s*mo(?:nth)?\b|monthly)/i.test(`${m[1]} ${after.trimStart().slice(0, 12)}`)) continue;
     const money = parseMoney(m[1]);
     if (money) {
       total = money;
@@ -734,6 +832,12 @@ function findSecurities(text: string, provider: string | null, short: string | n
   const keys: string[] = [];
   if (provider) keys.push(provider.toLowerCase().split(' ').slice(0, 2).join(' '));
   if (short) keys.push(short.toLowerCase());
+  // "the Consultant" stands for the provider only when the release defined it
+  // that way. Elevate Service Group granted "100,000 options … to a
+  // consultant" — an employee-plan grant in a release whose IR firm was
+  // introduced as "CGM" — and the bare word handed those options to CGM.
+  const genericRole =
+    !provider || /\(\s*(?:the\s+)?["'“]?(?:consultant|ir (?:firm|provider|consultant)|service provider)["'”]?\s*\)/i.test(text);
 
   let options: number | null = null;
   let strike: number | null = null;
@@ -744,7 +848,7 @@ function findSecurities(text: string, provider: string | null, short: string | n
     const low = s.toLowerCase();
     const namesProvider =
       keys.some((k) => k.length > 3 && low.includes(k)) ||
-      /\b(?:the\s+)?(?:consultant|ir (?:firm|provider|consultant)|service provider)\b/i.test(s);
+      (genericRole && /\b(?:the\s+)?(?:consultant|ir (?:firm|provider|consultant)|service provider)\b/i.test(s));
     if (!namesProvider) continue;
     if (/\b(?:will not|shall not|does not receive|no options|no shares|no securities)\b/i.test(s)) continue;
 

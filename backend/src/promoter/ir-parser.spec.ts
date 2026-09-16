@@ -15,7 +15,15 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { parseDisclosure, isIrDisclosure, REVIEW_THRESHOLD, narrow } from './ir-parser';
+import {
+  parseDisclosure,
+  isIrDisclosure,
+  hasIrParagraph,
+  issuerFromHeadline,
+  releaseDate,
+  REVIEW_THRESHOLD,
+  narrow,
+} from './ir-parser';
 
 let failures = 0;
 function check(name: string, got: unknown, want: unknown) {
@@ -50,6 +58,23 @@ const KALO = `VANCOUVER, BC / ACCESS Newswire / April 7, 2026 / Kalo Gold Corp .
 Fairfax Partners Inc. ("Fairfax") Kalo has entered into a Services Agreement effective April 8, 2026 with Fairfax Partners Inc. The Fairfax Agreement has an initial term of 12 months from the effective date. Kalo will pay Fairfax a monthly fee of CAD$5,000.
 GOLDINVEST Consulting GmbH ("GOLDINVEST") Kalo has entered into an agreement with GOLDINVEST Consulting GmbH effective April 8, 2026 for a term of six months. Kalo will pay GOLDINVEST a total of EUR 60,000.
 NAI Interactive Ltd. ("NAI") Kalo has entered into an agreement with NAI Interactive Ltd. for a period of three months commencing April 8, 2026 at a monthly fee of CAD$3,500.`;
+
+/** Elevate Service Group (TSXV: SERV) — the IR agreement is the fifth section
+ *  of a corporate-updates release, below an auditor appointment and an
+ *  employee option grant. Body condensed; every sentence the parser reads is
+ *  verbatim from the September 4, 2026 Newsfile release. */
+const ELEVATE = `Toronto, Ontario--(Newsfile Corp. - September 4, 2026) - Elevate Service Group Inc. (TSXV: SERV) (OTCQB: ESVCF) (FSE: Y19) ("Elevate" or the "Company") is pleased to provide a series of corporate updates, including the commencement of trading on the OTCQB Venture Market and DTC eligibility for its common shares in the United States.
+OTCQB Listing
+The Company announces that its common shares have commenced trading on the OTCQB Venture Market under the symbol ESVCF. The Company's common shares are also eligible for electronic clearing and settlement in the United States through the Depository Trust Company ("DTC").
+Stock Option Grant
+Elevate has granted 497,000 stock options to officers, employees and consultants in accordance with the Company's omnibus incentive plan and issued 69,444 Restricted Share Units ("RSUs") with a grant value of $150,000 to an employee, all under employment and consulting agreements. A total of 150,000 options were granted to an officer, 100,000 options were granted to a consultant, and 247,000 options were granted to employees.
+AGM Results
+The Company also announces that all matters submitted to shareholders at its Annual General Meeting held on July 16, 2026, were approved, including the election of Romeo Di Battista Jr., Paul Bissett, Aaron Unger and Sebastien Koechli as directors, the appointment of MNP LLP as auditor, and approval of the Company's long-term incentive plan.
+Marketing Services Agreement
+The Company also announces that it has entered into a marketing services and investor relations agreement with Capital Gain Media Inc. ("CGM") to provide investor awareness, content development and digital marketing services designed to broaden awareness of the Company among potential investors for a period of six months. In accordance with the terms and conditions of the agreement and as consideration for the services provided by CGM, the Company agreed to pay a fee of US$250,000 to CGM as compensation. CGM has a business address located at 1111 West Hastings Street, 15th Floor, Vancouver, BC, V6E 2J3 and its principal Graham Colmer can be contacted at admin@capitalgainmedia.com. As of the date hereof, to the Company's knowledge, CGM (including its directors and officers) does not own any securities of the Company and has an arm's-length relationship with the Company.
+Elevate Service Group Inc.
+Elevate is a national facilities management and essential commercial services platform focused on building an integrated platform through disciplined acquisitions and organic growth. Elevate trades on the TSX Venture Exchange under the ticker "SERV".
+Neither the TSXV nor its Regulation Services Provider (as that term is defined in the policies of the TSXV) accepts responsibility for the adequacy or accuracy of this release.`;
 
 function unit() {
   console.log('\nir-parser unit checks');
@@ -152,6 +177,39 @@ function unit() {
   check('termination kind', term.kind, 'termination');
 
   check('narrow drops wire chrome', narrow('Cookie Settings\nLogin\nSearch\n' + DINERO).startsWith('Stewart, British Columbia'), true);
+
+  // Elevate Service Group (TSXV: SERV), September 4, 2026 — the release George
+  // asked about. A "corporate updates" headline, the IR agreement in the
+  // fifth section, an auditor appointment and an option grant above it.
+  const ELEVATE_TITLE = 'Elevate Service Group Commences OTCQB Trading and Provides Corporate Updates';
+  check('elevate headline alone is not an IR headline', hasIrParagraph(ELEVATE_TITLE, ''), false);
+  check('elevate passes the gate', isIrDisclosure(ELEVATE_TITLE, ELEVATE), true);
+  const el = parseDisclosure(ELEVATE_TITLE, ELEVATE);
+  check('elevate ticker', el.ticker, 'SERV');
+  check('elevate issuer', el.issuerName, 'Elevate Service Group Inc');
+  check('elevate one agreement (auditor is not a promoter)', el.agreements.map((a) => a.providerName), ['Capital Gain Media Inc']);
+  const cgm = el.agreements[0];
+  check('elevate short', cgm.providerShort, 'CGM');
+  check('elevate term', cgm.termMonths, 6);
+  check('elevate total', cgm.totalValue, 250000);
+  check('elevate currency', cgm.currency, 'USD');
+  check('elevate monthly derived', cgm.monthlyFee, 41667);
+  // "100,000 options were granted to a consultant" is the employee plan, not
+  // CGM — the release never defines CGM as "the Consultant".
+  check('elevate options to provider', cgm.optionsGranted, 0);
+  check('elevate arms length', cgm.armsLength, true);
+  check('elevate auto-accepted', el.confidence >= REVIEW_THRESHOLD, true);
+  check('elevate release date', releaseDate(ELEVATE), '2026-09-04');
+  check('aggregator headline → issuer', issuerFromHeadline('Elevate Service Group Begins OTCQB Trading as ESVCF, Grants Stock Options and Signs Investor Relations Agreement'), 'Elevate Service Group');
+  check('aggregator headline with ticker → issuer', issuerFromHeadline('Elevate Service Group Inc. (TSXV:SERV) Falls 2.91% as Rising Losses Weigh'), 'Elevate Service Group');
+
+  // "pay a fee of $X per month" must stay a monthly rate, not become a total.
+  const monthlyOnly = parseDisclosure(
+    'Acme Engages IR Firm',
+    'TORONTO--(Newsfile Corp. - July 2, 2026) - Acme Metals Corp. (TSXV: ACM) has engaged Bright IR Inc. ("Bright") for investor relations services and will pay a fee of $5,000 per month for a term of six months.',
+  );
+  check('monthly fee is not a total', monthlyOnly.agreements[0].totalValue, 30000);
+  check('monthly fee is monthly', monthlyOnly.agreements[0].monthlyFee, 5000);
 
   console.log(failures ? `\n${failures} FAILED\n` : '\nall unit checks passed\n');
 }

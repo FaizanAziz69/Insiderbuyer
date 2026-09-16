@@ -256,6 +256,17 @@ export class PromoterController {
     return this.svc.startIngest(n);
   }
 
+  /** Push one release through by URL when discovery never surfaced it
+   *  (Elevate Service Group, September 2026: the IR agreement sat in the
+   *  fifth section of a "corporate updates" release). Same gate, parser and
+   *  store as the nightly pass; `force=1` skips only the relevance gate. */
+  @Post('admin/ingest-url')
+  @UseGuards(AdminTokenGuard)
+  async ingestUrl(@Query('url') url?: string, @Query('force') force?: string) {
+    if (!url || !/^https?:\/\//i.test(url)) throw new BadRequestException('Pass ?url=<press release URL>.');
+    return this.svc.ingestUrl(url, force === '1');
+  }
+
   /** Re-read every stored release with the current parser. No wire is
    *  touched; hand-reviewed rows are preserved. */
   @Post('admin/reparse')

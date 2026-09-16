@@ -16,6 +16,7 @@ import {
   REVIEW_THRESHOLD,
   normalizeFirmName,
   isGenericProviderName,
+  releaseDate,
 } from './ir-parser';
 import { DEFAULT_WEIGHTS, PromoterWeights, WEIGHT_KEYS, normalizeWeights, fxToCad } from './scoring';
 
@@ -56,6 +57,26 @@ const DAY = 86_400_000;
 /** Ceiling on Google News round-trips in one pass. Resolution is two requests
  *  per item, so an unbounded run over a 300-item feed is 600 calls. */
 const MAX_RESOLVES = 220;
+
+export interface IngestUrlResult {
+  ok: boolean;
+  url: string;
+  title?: string;
+  publishedAt?: string | null;
+  reason?: string;
+  relevant?: boolean;
+  agreements?: number;
+  needsReview?: boolean;
+  parsed?: ParsedDisclosure;
+}
+
+/** A remembered Google News item worth another look: a resolution that
+ *  failed or a wire that was mid-challenge, and not tried again since
+ *  yesterday. Anything stored, off-universe or off-host is settled. */
+function retryable(row: { outcome: string; seen_at: Date }): boolean {
+  if (row.outcome !== 'unresolved' && row.outcome !== 'no_text') return false;
+  return Date.now() - new Date(row.seen_at).getTime() > 20 * 3_600_000;
+}
 
 export interface ReviewRow {
   id: number;
@@ -117,6 +138,15 @@ export class PromoterService implements OnModuleInit {
     )`);
     await this.q(`CREATE INDEX IF NOT EXISTS ir_disclosures_ticker_idx ON ir_disclosures (ticker)`);
     await this.q(`CREATE INDEX IF NOT EXISTS ir_disclosures_status_idx ON ir_disclosures (status)`);
+
+    // What each Google News item came to, so a pass never pays the two
+    // resolution round-trips for the same item twice (see `ingest`).
+    await this.q(`CREATE TABLE IF NOT EXISTS ir_seen_items (
+      guid      text PRIMARY KEY,
+      url       text,
+      outcome   varchar(16) NOT NULL,
+      seen_at   timestamptz NOT NULL DEFAULT now()
+    )`);
 
     await this.q(`CREATE TABLE IF NOT EXISTS ir_agreements (
       id             bigserial PRIMARY KEY,
@@ -343,15 +373,42 @@ export class PromoterService implements OnModuleInit {
           this.log.warn(`stopped after ${MAX_RESOLVES} url resolutions`);
           break;
         }
-        resolves++;
-        const url = await this.discovery.resolveUrl(item.guid);
-        if (!url || !this.discovery.isFullTextHost(url)) continue;
+        // Every pass used to spend its whole resolution budget re-resolving
+        // the same three hundred items: the feed barely changes from one
+        // night to the next, and the dedupe on source_url could only run
+        // AFTER the two Google round-trips. 220 resolutions were buying
+        // 12–25 new reads a night and the newest releases sat behind items
+        // already in the table. Remember what each Google id came to, and
+        // skip it for free next time.
+        const seenRow = (
+          await this.q(`SELECT url, outcome, seen_at FROM ir_seen_items WHERE guid = $1`, [item.guid])
+        )?.[0] as { url: string | null; outcome: string; seen_at: Date } | undefined;
+        if (seenRow && !retryable(seenRow)) continue;
+        if (!seenRow?.url) resolves++;
+        const url = seenRow?.url || (await this.discovery.resolveUrl(item.guid));
+        if (!url) {
+          await this.markSeen(item.guid, null, 'unresolved');
+          continue;
+        }
+        if (!this.discovery.isFullTextHost(url)) {
+          await this.markSeen(item.guid, url, 'skip_host');
+          continue;
+        }
         const already = (await this.q(`SELECT id FROM ir_disclosures WHERE source_url = $1`, [url]))?.[0];
-        if (already) continue;
+        if (already) {
+          await this.markSeen(item.guid, url, 'stored');
+          continue;
+        }
 
         const text = await this.discovery.fetchRelease(url);
-        if (!text) continue;
-        if (!isIrDisclosure(item.title, text)) continue;
+        if (!text) {
+          await this.markSeen(item.guid, url, 'no_text');
+          continue;
+        }
+        if (!isIrDisclosure(item.title, text)) {
+          await this.markSeen(item.guid, url, 'not_ir');
+          continue;
+        }
         fetched++;
 
         let parsed = parseDisclosure(item.title, text);
@@ -363,17 +420,86 @@ export class PromoterService implements OnModuleInit {
           if (better) parsed = better;
         }
         const res = await this.store(url, item, text, parsed);
+        await this.markSeen(item.guid, url, 'stored');
         agreements += res.agreements;
         if (res.needsReview) review++;
       }
       this.log.log(`ingest read ${fetched} releases, wrote ${agreements} agreements, ${review} held for review`);
-      await this.resolveIssuers();
-      await this.rescore();
-      await this.perf.refresh();
+      await this.afterIngest();
     } finally {
       this.ingesting = false;
     }
     return { discovered: fetched, fetched, agreements, review };
+  }
+
+  private async markSeen(guid: string, url: string | null, outcome: string): Promise<void> {
+    await this.q(
+      `INSERT INTO ir_seen_items (guid, url, outcome, seen_at) VALUES ($1, $2, $3, now())
+       ON CONFLICT (guid) DO UPDATE SET
+         url = COALESCE(EXCLUDED.url, ir_seen_items.url), outcome = EXCLUDED.outcome, seen_at = now()`,
+      [guid, url, outcome],
+    );
+  }
+
+  /** Issuer link, score and price performance — what every ingest ends with. */
+  private async afterIngest(): Promise<void> {
+    await this.resolveIssuers();
+    await this.rescore();
+    await this.perf.refresh();
+  }
+
+  /**
+   * Push one release through by URL.
+   *
+   * George, 2026-09-17: "we are not picking up all the new IR contracts …
+   * can you manually push this through" — Elevate Service Group's September 4
+   * corporate update, which Google News only surfaced through an aggregator
+   * headline and whose IR agreement sat 2,600 characters into the body. Same
+   * gate, parser and store as the nightly pass, so a row written here is
+   * indistinguishable from one discovery found; `force` skips the relevance
+   * gate only — never the parser — for a release the gate misjudges.
+   */
+  async ingestUrl(url: string, force = false): Promise<IngestUrlResult> {
+    await this.ensureTables();
+    if (!this.discovery.isFullTextHost(url)) {
+      return { ok: false, url, reason: 'That host is not one of the wires we read full text from.' };
+    }
+    const page = await this.discovery.fetchReleaseWithMeta(url);
+    if (!page) return { ok: false, url, reason: 'Could not read a release body from that URL.' };
+    const title =
+      page.title || page.text.split('\n').find((l) => l.trim().length > 20)?.trim().slice(0, 200) || url;
+    const publishedAt = page.publishedAt || releaseDate(page.text);
+    const relevant = isIrDisclosure(title, page.text);
+    if (!relevant && !force) {
+      return {
+        ok: false,
+        url,
+        title,
+        publishedAt,
+        reason:
+          'The release does not read as a Policy 3.4 IR/promotional engagement of a Canadian-listed issuer. Pass force=1 to store it anyway.',
+      };
+    }
+    let parsed = parseDisclosure(title, page.text);
+    if (parsed.confidence < REVIEW_THRESHOLD) {
+      const better = await this.llmParse(title, page.text, parsed);
+      if (better) parsed = better;
+    }
+    const res = await this.store(url, { title, publishedAt }, page.text, parsed);
+    // The issuer link, the score and the price performance take longer
+    // together than the proxy lets a request run; they follow in the
+    // background and the ranking page picks them up on its next render.
+    void this.afterIngest().catch((e) => this.log.error(`post-ingest failed: ${e?.message || e}`));
+    return {
+      ok: true,
+      url,
+      title,
+      publishedAt,
+      relevant,
+      agreements: res.agreements,
+      needsReview: res.needsReview,
+      parsed,
+    };
   }
 
   private async store(
