@@ -191,7 +191,7 @@ export default function PromoterScorePage() {
       sortValue: (r) => r.perfSinceStart ?? -Infinity,
       render: (r) =>
         r.perfSinceStart == null ? (
-          <span className="text-[11px] leading-tight text-faint inline-block max-w-[150px]" title={r.perfNote || undefined}>
+          <span className="text-[12px] leading-tight inline-block max-w-[150px]" style={{ color: "var(--text-soft)" }} title={r.perfNote || undefined}>
             No price data
           </span>
         ) : (
@@ -202,7 +202,7 @@ export default function PromoterScorePage() {
             >
               {pct(r.perfSinceStart)}
             </span>
-            <span className="block text-[10.5px] leading-tight text-faint">
+            <span className="block text-[11px] leading-tight text-mute">
               since {shortDate(r.perfStartDate)}
               {r.perf90d != null ? ` · 90d ${pct(r.perf90d)}` : ""}
             </span>
@@ -218,7 +218,8 @@ export default function PromoterScorePage() {
       render: (r) =>
         r.deVolPost == null || r.deVolPost <= 0 ? (
           <span
-            className="text-[11px] leading-tight text-faint inline-block max-w-[150px]"
+            className="text-[12px] leading-tight inline-block max-w-[150px]"
+            style={{ color: "var(--text-soft)" }}
             title={r.deNote || (r.perfStartDate ? undefined : "No agreement with a start date on file for this issuer.")}
           >
             {r.deVenues && r.deVenues.length ? "No German trades" : r.deNote ? "No German listing" : r.perfStartDate ? "Not yet computed" : "No dated contract"}
@@ -227,9 +228,9 @@ export default function PromoterScorePage() {
           <span className="inline-block text-right" title={r.deVenues?.map((v) => `${v.name}: ${shares(v.volume)}`).join(" · ") || undefined}>
             <span className="block tabular text-[13.5px] font-bold" style={{ color: "var(--text)" }}>
               {shares(r.deVolPost)}
-              <span className="ml-1 text-[10.5px] font-semibold text-faint">sh</span>
+              <span className="ml-1 text-[10.5px] font-semibold text-mute">sh</span>
             </span>
-            <span className="block text-[10.5px] leading-tight text-faint">
+            <span className="block text-[11px] leading-tight text-mute">
               {r.dePostDays != null ? `${r.dePostDays}d post-start` : "post-start"}
               {r.dePctOfTotal != null ? ` · ${(r.dePctOfTotal * 100).toFixed(r.dePctOfTotal < 0.1 ? 1 : 0)}% of flow` : ""}
               {r.deVolGrowth30 != null ? (
@@ -243,7 +244,7 @@ export default function PromoterScorePage() {
               ) : null}
             </span>
             {r.deVenues && r.deVenues.length ? (
-              <span className="block text-[10px] leading-tight text-faint truncate max-w-[170px]">
+              <span className="block text-[10.5px] leading-tight text-mute truncate max-w-[170px]">
                 {r.deVenues.slice(0, 3).map((v) => v.name).join(", ")}
                 {r.deVenues.length > 3 ? ` +${r.deVenues.length - 3}` : ""}
               </span>
