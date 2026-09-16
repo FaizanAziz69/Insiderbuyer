@@ -78,6 +78,13 @@ function fullDate(iso: string | null): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 }
 
+function daysSince(iso: string | null): number | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  return Math.max(0, Math.round((Date.now() - t) / 86_400_000));
+}
+
 function multiple(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return "—";
   if (v >= 100) return `${Math.round(v)}x`;
@@ -196,8 +203,8 @@ export default function PromoterScorePage() {
               {fullDate(r.promotionStart)}
             </span>
             <span className="block text-[11px] leading-tight text-mute">
-              {r.dollarVolumeDays != null ? `${r.dollarVolumeDays}d ago` : ""}
-              {r.totalContracts > 1 ? `${r.dollarVolumeDays != null ? " · " : ""}${r.totalContracts} contracts` : ""}
+              {daysSince(r.promotionStart) != null ? `${daysSince(r.promotionStart)}d ago` : ""}
+              {r.totalContracts > 1 ? ` · ${r.totalContracts} contracts` : ""}
             </span>
           </span>
         ) : (
@@ -277,6 +284,9 @@ export default function PromoterScorePage() {
             </span>
             <span className="block text-[11px] leading-tight text-mute">
               {r.dollarVolumeDays != null ? `${r.dollarVolumeDays}d` : "since start"}
+              {r.perfStartDate && r.promotionStart && r.perfStartDate.slice(0, 10) !== r.promotionStart.slice(0, 10)
+                ? ` since ${shortDate(r.perfStartDate)}`
+                : ""}
               {r.dollarVolumeDays ? ` · ${money(r.dollarVolumeCad / Math.max(1, r.dollarVolumeDays))}/day` : ""}
               {r.dollarVolumeCurrency && r.dollarVolumeCurrency !== "CAD" ? ` · from ${r.dollarVolumeCurrency}` : ""}
             </span>
@@ -287,7 +297,7 @@ export default function PromoterScorePage() {
       key: "volumeMultiple",
       label: "Traded ÷ IR spend",
       align: "right",
-      info: "Dollars traded since the promotion began divided by the cash IR fees the issuer accrued over the same period, across all of its disclosed contracts — 8.0x means eight dollars changed hands for every dollar of disclosed fees. Fees accrue by elapsed months at the disclosed monthly rate (or pro rata over the term for a contract disclosed as a total); options and share grants are not cash and are not counted. It measures what the market traded against what the promotion cost; it does not mean the promotion caused the trading, and it is not a return to shareholders.",
+      info: "Dollars traded since the issuer's first priced contract began, divided by the cash IR fees accrued by all of the issuer's disclosed contracts since each began — 8.0x means eight dollars changed hands for every dollar of disclosed fees. Fees accrue by elapsed months at the disclosed monthly rate (or pro rata over the term for a contract disclosed as a total); options and share grants are not cash and are not counted. It measures what the market traded against what the promotion cost; it does not mean the promotion caused the trading, and it is not a return to shareholders.",
       sortValue: (r) => r.volumeMultiple ?? -Infinity,
       render: (r) =>
         r.volumeMultiple == null ? (
@@ -381,7 +391,10 @@ export default function PromoterScorePage() {
   ];
 
   return (
-    <div className="max-w-[1180px] mx-auto px-4 py-6">
+    // 1400, not the site's usual 1180: eleven columns since the start-date /
+    // dollars-traded / multiple additions, and a table that scrolls sideways
+    // hides exactly the columns George asked for.
+    <div className="max-w-[1400px] mx-auto px-4 py-6">
       <header className="mb-5">
         <div className="flex items-center gap-2.5 mb-2">
           <Megaphone size={20} style={{ color: "var(--accent)" }} />

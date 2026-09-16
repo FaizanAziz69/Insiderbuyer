@@ -37,6 +37,9 @@ const DAY_MS = 86_400_000;
 const SEND_HOURS_UTC: [number, number] = [13, 21];
 /** UTM tags so every click from these emails is attributable in GA4. */
 const UTM = 'utm_source=product-updates&utm_medium=email';
+/** Resend allows about two requests a second; back-to-back sends need a pause. */
+const SEND_GAP_MS = 600;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type ProductUpdateKind = 'welcome' | 'feature';
 
@@ -158,6 +161,7 @@ export class ProductUpdatesService implements OnModuleInit {
       if (!r.ok) invalid++;
       else if (r.existing) existing++;
       else added++;
+      await sleep(SEND_GAP_MS);
     }
     return { added, existing, invalid };
   }
@@ -254,6 +258,7 @@ export class ProductUpdatesService implements OnModuleInit {
       } catch (e: any) {
         this.log.warn(`feature ${step.id} → ${r.email} failed: ${e?.message || e}`);
       }
+      await sleep(SEND_GAP_MS);
     }
     if (sent) this.log.log(`product updates drip: sent=${sent} checked=${rows.length}`);
     return { sent, checked: rows.length };
@@ -320,6 +325,7 @@ export class ProductUpdatesService implements OnModuleInit {
     for (const step of ['welcome', ...FEATURES.map((f) => f.id)]) {
       await this.testSend(step, to);
       sent.push(step);
+      await sleep(SEND_GAP_MS);
     }
     return { sent };
   }
