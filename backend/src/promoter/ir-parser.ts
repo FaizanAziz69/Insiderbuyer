@@ -323,7 +323,7 @@ const ENTITY_WITH_SHORT = new RegExp(
  * A period followed by a space and a new sentence ends the run, so "Adelaide
  * Capital Markets Inc. Under the terms…" stops at "Inc".
  */
-const NAME_RUN = String.raw`[A-Z0-9](?:[^.;()]|\.(?=[A-Za-z])|\.(?=\s+(?:DBA|dba|d\/b\/a|doing business as|operating as)\b))*?`;
+const NAME_RUN = String.raw`[A-Z0-9](?:[^.;()]|\.(?=[A-Za-z])|\.(?=,?\s+(?:DBA|dba|d\/b\/a|doing business as|operating as)\b))*?`;
 
 /** Verb phrasings, used when nobody was introduced with a short form. */
 const PROVIDER_PATTERNS: Array<[RegExp, string]> = [
@@ -341,13 +341,27 @@ const PROVIDER_PATTERNS: Array<[RegExp, string]> = [
     // Relations…" — the noun form the verb patterns above never saw.
     new RegExp(
       String.raw`\b(?:engagement|appointment|retention|hiring)\s+of\s+(` + NAME_RUN + String.raw`),?\s*(?:\([^)]{1,30}\))?\s*,?\s*(?:to\s+(?:provide|perform|act|carry out|undertake|assist)|as|for)\b`,
+      'g',
     ),
     'regex:engagement-of',
   ],
   [
+    // "…entered into an investor relations agreement (the IR Agreement),
+    // effective October 1, 2024, with Triomphe Holdings Ltd., doing business
+    // as Capital Analytica" / "the extension of its investor relations
+    // agreement with Triomphe…" — the defined term and the date sit between
+    // "agreement" and "with", which the first pattern above never allowed.
+    new RegExp(
+      String.raw`\bagreements?\s*(?:\([^)]{0,60}\))?\s*,?\s*(?:(?:effective|dated|commencing)\s+(?:on\s+)?[A-Z][a-z]+\s+\d{1,2},?\s+\d{4},?\s*)?with\s+(` +
+        NAME_RUN +
+        String.raw`)(?=\s*[(;]|,(?!\s*(?:DBA|dba|d\/b\/a|doing business as|operating as)\b)|\s+(?:to|for|effective|pursuant|under|commencing|whereby|dated)\b|(?<!business|operating|trading)\s+as\b|\.(?!\S)(?!,?\s+(?:DBA|dba|d\/b\/a|doing business as|operating as)\b)|$)`,
+    ),
+    'regex:agreement-with-dated',
+  ],
+  [
     // "the investor relations services of 1123963 B.C Ltd. DBA Capitaliz On
     // It" — a numbered company starts with a digit, not a capital.
-    new RegExp(String.raw`\bservices?\s+(?:of|from|provided by)\s+(` + NAME_RUN + String.raw`)(?=\s*[(,;]|\s+(?:to|as|for|effective|pursuant|under|commencing)\b|\.(?!\S)(?!\s+(?:DBA|dba|d\/b\/a|doing business as|operating as)\b)|$)`),
+    new RegExp(String.raw`\bservices?\s+(?:of|from|provided by)\s+(` + NAME_RUN + String.raw`)(?=\s*[(;]|,(?!\s*(?:DBA|dba|d\/b\/a|doing business as|operating as)\b)|\s+(?:to|for|effective|pursuant|under|commencing)\b|(?<!business|operating|trading)\s+as\b|\.(?!\S)(?!\s+(?:DBA|dba|d\/b\/a|doing business as|operating as)\b)|$)`),
     'regex:services-of',
   ],
 ];
@@ -355,7 +369,7 @@ const PROVIDER_PATTERNS: Array<[RegExp, string]> = [
 /** Headline shape: "Galway Metals Engages Simone Capital Corp. for Investor
  *  Relations Services". The title is often cleaner than the body. */
 const TITLE_PROVIDER =
-  /\b(?:Engages|Hires|Retains|Appoints|Signs(?: With)?|Partners With|Enters? [Ii]nto .{0,40} [Ww]ith)\s+([A-Z][A-Za-z0-9&.,'\- ]{2,50}?)(?:\s+(?:for|to|as|and)\b|$)/;
+  /\b(?:Engages|Hires|Retains|Appoints|Signs(?: With)?|Partners With|Enters? [Ii]nto .{0,40} [Ww]ith)\s+([A-Z][A-Za-z0-9&.'\- ]{2,50}?)(?:\s*,|\s+(?:for|to|as|and)\b|$)/;
 
 const PROVIDER_STOP =
   /\b(?:the Company|its|their|our|shares?|an? |and |with |for |to provide|services|agreement|pursuant|effective|commencing|dated|which|that|a leading)\b/i;
@@ -400,6 +414,9 @@ const GENERIC_WORDS = new Set([
   'agency', 'firm', 'group', 'company', 'program', 'campaign', 'outreach', 'public', 'pr', 'ir', 'shareholder',
   'shareholders', 'financial', 'business', 'development', 'promotional', 'promotion', 'liquidity', 'trading',
   'inc', 'ltd', 'llc', 'corp', 'corporation', 'limited', 'the', 'and', 'of', 'for', '&', 'a', 'an', 'to', 'its',
+  // Headline verbs and nouns that leak into a title capture.
+  'team', 'expands', 'launches', 'announces', 'announce', 'initiates', 'completes', 'appoints', 'engages', 'retains',
+  'hires', 'signs', 'with', 'new', 'partner', 'partners', 'partnership', 'partnerships', 'update', 'campaign',
 ]);
 
 export function isGenericProviderName(name: string): boolean {
@@ -432,6 +449,11 @@ function cleanProvider(raw: string): string | null {
   let s = raw.replace(/\s+/g, ' ').trim();
   const stop = PROVIDER_STOP.exec(s);
   if (stop && stop.index > 2) s = s.slice(0, stop.index).trim();
+  // "Triomphe Holdings Ltd., doing business as Capital Analytica" — the
+  // lowercase clause would end the proper-noun run below at "Ltd.", losing
+  // the trade name. Resolve it first; the legal name travels separately.
+  const dbaEarly = splitDba(s);
+  if (dbaEarly) s = dbaEarly.trade;
   s = s.replace(/[,;:]+$/, '').replace(/\s+(?:of|in|from|and)$/i, '').trim();
   // Drop connective words the surrounding sentence leaked into the capture:
   // "engagement of Robert Ferguson", "MariCom Inc. and First Canadian Capital",
@@ -532,8 +554,16 @@ function findProviders(title: string, text: string, issuerName: string | null): 
 
   if (!hits.length) {
     for (const [re, how] of PROVIDER_PATTERNS) {
-      const mm = re.exec(text);
-      if (mm) push(cleanProvider(mm[1]), null, mm.index, how, mm[1]);
+      if (re.global) {
+        // "The engagement of X as…; The appointment of Y, as…" — one release,
+        // several counterparties (Forte Minerals, September 2026).
+        re.lastIndex = 0;
+        let mm: RegExpExecArray | null;
+        while ((mm = re.exec(text))) push(cleanProvider(mm[1]), null, mm.index, how, mm[1]);
+      } else {
+        const mm = re.exec(text);
+        if (mm) push(cleanProvider(mm[1]), null, mm.index, how, mm[1]);
+      }
       if (hits.length) break;
     }
   }
@@ -779,6 +809,16 @@ export function parseDisclosure(title: string, body: string): ParsedDisclosure {
   if (!isolated(text)) {
     confidence = Math.min(confidence, 0.5);
     notes.push('Could not isolate the release body from the page — fields may come from page chrome.');
+    // Whatever provider the extractors found on such a page came from the
+    // navigation or the related-articles rail (Pan Global's "Adelaide Capital"
+    // landed on Homeland Nickel this way). Drop it so the store writes the
+    // needs-review placeholder instead of a public row.
+    for (const a of agreements) {
+      if (a.providerName) notes.push(`Provider "${a.providerName}" discarded: page body not isolated.`);
+      a.providerName = null;
+      a.providerShort = null;
+      a.providerLegalName = null;
+    }
   }
 
   return {
@@ -933,6 +973,16 @@ export function narrow(body: string): string {
     const m = re.exec(t);
     if (m && m.index < t.length * 0.92) {
       t = t.slice(m.index);
+      // The place in a dateline is one or two words ("Vancouver,", "New
+      // York,"). The character class that finds it also spans spaces, so on
+      // an Investing News Network page the match began inside the site
+      // navigation — "Us Contact Us Browse Topics Vancouver," — and the head
+      // then read as page chrome. Keep the last two words before the comma.
+      const comma = t.indexOf(',');
+      if (comma > 0) {
+        const words = t.slice(0, comma).trim().split(/\s+/);
+        if (words.length > 2) t = words.slice(-2).join(' ') + t.slice(comma);
+      }
       break;
     }
   }
@@ -943,7 +993,6 @@ export function narrow(body: string): string {
     // as the issuer's IR providers (George, 2026-09-16).
     /Keep Reading\.{3}/,
     /The Conversation \(\d+\)/,
-    /\bConnect with us\s+Information\s+About Us/i,
     /Neither (?:the )?TSX Venture Exchange nor/i,
     /The (?:Canadian Securities Exchange|CSE) has (?:not|neither)/i,
     /To view the source version of this press release/i,

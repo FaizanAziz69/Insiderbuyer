@@ -547,14 +547,42 @@ export class PromoterService implements OnModuleInit {
    *  its aliases; otherwise the canonical slug of the name itself. */
   private async slugFor(name: string): Promise<string> {
     const own = firmSlug(name);
-    const hit: any[] = await this.q(
-      `SELECT slug FROM ir_firms
-        WHERE slug <> $1
-          AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(aliases, '[]'::jsonb)) x WHERE lower(x) = lower($2))
-        LIMIT 1`,
-      [own, name],
-    );
-    return hit.length ? hit[0].slug : own;
+    const firms: any[] = await this.q(`SELECT slug, aliases FROM ir_firms WHERE aliases <> '[]'::jsonb AND slug <> $1`, [own]);
+    for (const f of firms) {
+      const aliases: string[] = Array.isArray(f.aliases) ? f.aliases : [];
+      if (aliases.some((x) => firmSlug(String(x)) === own)) return f.slug;
+    }
+    return own;
+  }
+
+  /** Fold firms whose canonical name is an alias of another firm into that
+   *  firm — the legal entity "Triomphe Holdings Ltd" (SMET's release names
+   *  only that) onto "Capital Analytica" (TTI's release gives both). Order of
+   *  parsing decides which existed first, so this runs after a full re-parse. */
+  private async mergeAliasFirms(): Promise<number> {
+    const firms: any[] = await this.q(`SELECT slug, aliases FROM ir_firms WHERE aliases <> '[]'::jsonb`);
+    let merged = 0;
+    for (const f of firms) {
+      for (const alias of (Array.isArray(f.aliases) ? f.aliases : []) as string[]) {
+        const other = firmSlug(String(alias));
+        if (!other || other === f.slug) continue;
+        const exists: any[] = await this.q(`SELECT 1 FROM ir_firms WHERE slug = $1`, [other]);
+        if (!exists.length) continue;
+        // A row that would collide on (ticker, start_date) is the same
+        // contract read twice; the surviving firm already has it.
+        await this.q(
+          `DELETE FROM ir_agreements a USING ir_agreements b
+            WHERE a.provider_slug = $1 AND b.provider_slug = $2 AND a.reviewed_at IS NULL
+              AND a.ticker = b.ticker AND COALESCE(a.start_date, '1900-01-01') = COALESCE(b.start_date, '1900-01-01')`,
+          [other, f.slug],
+        );
+        await this.q(`UPDATE ir_agreements SET provider_slug = $2, updated_at = now() WHERE provider_slug = $1`, [other, f.slug]);
+        await this.q(`DELETE FROM ir_firms WHERE slug = $1`, [other]);
+        merged++;
+        this.log.log(`merged firm ${other} into ${f.slug} (alias "${alias}")`);
+      }
+    }
+    return merged;
   }
 
   private async upsertFirm(slug: string, name: string, _kind: string, seen: string | Date | null, legal: string | null = null) {
@@ -739,6 +767,7 @@ export class PromoterService implements OnModuleInit {
     // Firms whose every agreement was replaced above are variants of a name
     // that now resolves elsewhere; without a row they would still show as
     // separate "promoters" on the paid ranking.
+    await this.mergeAliasFirms();
     await this.q(`DELETE FROM ir_firms f WHERE NOT EXISTS (SELECT 1 FROM ir_agreements a WHERE a.provider_slug = f.slug)`);
     return { disclosures: read, agreements };
   }
