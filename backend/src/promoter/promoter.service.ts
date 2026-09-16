@@ -54,9 +54,12 @@ import { DEFAULT_WEIGHTS, PromoterWeights, WEIGHT_KEYS, normalizeWeights, fxToCa
 
 const DAY = 86_400_000;
 
-/** Ceiling on Google News round-trips in one pass. Resolution is two requests
- *  per item, so an unbounded run over a 300-item feed is 600 calls. */
-const MAX_RESOLVES = 220;
+/** Ceiling on Google News resolutions in one pass (two requests each). With
+ *  `ir_seen_items` only NEW items cost a resolution, and the headline-blind
+ *  wire sweep adds one to two hundred a day, so the ceiling is sized for a
+ *  full day of Canadian venture releases plus slack. Was 220 when every pass
+ *  re-resolved the same items. */
+const MAX_RESOLVES = 500;
 
 export interface IngestUrlResult {
   ok: boolean;
@@ -369,10 +372,6 @@ export class PromoterService implements OnModuleInit {
         // releases, so the first sixty items were almost entirely hosts we
         // skip on purpose and the one wire among them was mid-WAF-challenge.
         if (fetched >= limit) break;
-        if (resolves >= MAX_RESOLVES) {
-          this.log.warn(`stopped after ${MAX_RESOLVES} url resolutions`);
-          break;
-        }
         // Every pass used to spend its whole resolution budget re-resolving
         // the same three hundred items: the feed barely changes from one
         // night to the next, and the dedupe on source_url could only run
@@ -384,8 +383,20 @@ export class PromoterService implements OnModuleInit {
           await this.q(`SELECT url, outcome, seen_at FROM ir_seen_items WHERE guid = $1`, [item.guid])
         )?.[0] as { url: string | null; outcome: string; seen_at: Date } | undefined;
         if (seenRow && !retryable(seenRow)) continue;
-        if (!seenRow?.url) resolves++;
-        const url = seenRow?.url || (await this.discovery.resolveUrl(item.guid));
+        let url: string | null = item.url || seenRow?.url || null;
+        if (!url) {
+          // The cap applies to resolutions only: an item that already knows
+          // its URL (wire feed, remembered id) still gets read.
+          if (resolves >= MAX_RESOLVES) {
+            if (resolves === MAX_RESOLVES) this.log.warn(`resolution budget of ${MAX_RESOLVES} spent; reading only pre-resolved items from here`);
+            resolves++;
+            continue;
+          }
+          resolves++;
+          url = await this.discovery.resolveUrl(item.guid);
+          // Gentle on Google: the pass may now resolve a few hundred items.
+          await new Promise((r) => setTimeout(r, 250));
+        }
         if (!url) {
           await this.markSeen(item.guid, null, 'unresolved');
           continue;

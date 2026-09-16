@@ -41,12 +41,15 @@ import { hasIrParagraph, issuerFromHeadline } from './ir-parser';
  */
 
 export interface DiscoveredItem {
-  /** Google News article id — stable, and our dedupe key before resolution. */
+  /** Google News article id — stable, and our dedupe key before resolution.
+   *  For an item from a wire's own RSS feed this is the release URL. */
   guid: string;
   title: string;
   source: string;
   publishedAt: string | null;
   query: string;
+  /** Already-known publisher URL (wire RSS items). Skips Google resolution. */
+  url?: string;
 }
 
 export interface FetchedRelease extends DiscoveredItem {
@@ -62,7 +65,7 @@ const DAY = 86_400_000;
 
 /** RSS `source` names that are the wires we can read full text from. */
 const WIRE_SOURCE =
-  /newsfile|access ?newswire|globenewswire|globe newswire|pr ?newswire|cnw|business ?wire|newswire\.ca|investing news|junior mining|the newswire|globe and mail|stockhouse/i;
+  /newsfile|access ?newswire|globenewswire|globe newswire|pr ?newswire|cnw|business ?wire|newswire\.ca|investing news|junior mining|the ?newswire|globe and mail|stockhouse/i;
 /** RSS `source` names that paraphrase releases — never read, but see
  *  `followAggregators` for what their headlines are still good for. */
 const AGGREGATOR =
@@ -102,6 +105,51 @@ export const DISCOVERY_QUERIES = [
 ];
 
 /**
+ * The headline-blind sweep.
+ *
+ * Every query above matches a PHRASE, so a release only surfaces when the
+ * issuer put the engagement in its headline or first lines. Elevate Service
+ * Group did not — its IR agreement was the fifth section of a "corporate
+ * updates" release — and Google returned the wire copy for none of them.
+ *
+ * These queries instead ask for every Canadian-venture release of the last
+ * two days on a wire we can read, by exchange token and wire name rather than
+ * by subject, and leave the deciding to `isIrDisclosure` over the BODY. The
+ * Globe and Mail carries the Newsfile, CNW, GlobeNewswire and Business Wire
+ * releases of every Canadian-listed company and answers a server-side fetch;
+ * newsfilecorp.com itself challenges our server, globenewswire.com and
+ * businesswire.com refuse the connection — so the Globe is how those wires
+ * are read. Each query is capped at 100 items by Google, hence the split by
+ * exchange and wire (measured 2026-09-16: "TSXV" 72, "CSE:" 38, "Newsfile"
+ * "TSXV" 40 — all under the cap).
+ *
+ * `when:2d` overlaps the nightly pass by a day on purpose; `ir_seen_items`
+ * makes the overlap free.
+ */
+export const SWEEP_QUERIES = [
+  'site:theglobeandmail.com "TSXV" when:2d',
+  'site:theglobeandmail.com "TSX Venture" when:2d',
+  'site:theglobeandmail.com "CSE:" when:2d',
+  'site:theglobeandmail.com "Canadian Securities Exchange" when:2d',
+  'site:theglobeandmail.com "Newsfile" when:2d',
+  'site:theglobeandmail.com "CNW" when:2d',
+  'site:newswire.ca "TSXV" when:2d',
+  'site:newswire.ca "CSE" when:2d',
+  'site:accessnewswire.com "TSXV" when:2d',
+  'site:accessnewswire.com "CSE" when:2d',
+];
+
+/**
+ * Wires with an RSS feed of their own that the server can read. No Google
+ * in the loop: the item IS the publisher URL. TheNewswire is TSXV/CSE-heavy
+ * (22 of 45 items mentioned the TSXV when this was added) and its feed covers
+ * about five days.
+ */
+export const DIRECT_FEEDS: Array<{ url: string; source: string }> = [
+  { url: 'https://www.thenewswire.com/rss', source: 'TheNewswire' },
+];
+
+/**
  * Wires that serve the full release text to a plain GET. Anything else
  * (Yahoo, TradingView, StockTitan, aggregator summaries) either blocks
  * server-side fetches or paraphrases the release — and a paraphrase must never
@@ -138,13 +186,55 @@ export class IrDiscoveryService {
 
   async discover(): Promise<DiscoveredItem[]> {
     const seen = new Map<string, DiscoveredItem>();
-    for (const query of DISCOVERY_QUERIES) {
-      for (const it of await this.search(query)) {
-        if (!seen.has(it.guid)) seen.set(it.guid, it);
+    const add = (items: DiscoveredItem[]) => {
+      let n = 0;
+      for (const it of items) {
+        if (seen.has(it.guid)) continue;
+        seen.set(it.guid, it);
+        n++;
       }
-    }
+      return n;
+    };
+    let phrased = 0;
+    for (const query of DISCOVERY_QUERIES) phrased += add(await this.search(query));
+    let swept = 0;
+    for (const query of SWEEP_QUERIES) swept += add(await this.search(query, `sweep:${query}`));
+    let fed = 0;
+    for (const feed of DIRECT_FEEDS) fed += add(await this.feed(feed.url, feed.source));
     await this.followAggregators(seen);
+    this.log.log(`discovery: ${phrased} from phrase queries, ${swept} from the wire sweep, ${fed} from wire feeds`);
     return [...seen.values()];
+  }
+
+  /** A wire's own RSS feed: items carry the publisher URL, so nothing needs
+   *  resolving. `guid` is that URL. */
+  private async feed(feedUrl: string, source: string): Promise<DiscoveredItem[]> {
+    const out: DiscoveredItem[] = [];
+    try {
+      const { data } = await axios.get<string>(feedUrl, {
+        timeout: 30_000,
+        responseType: 'text',
+        headers: { 'User-Agent': UA, Accept: 'application/rss+xml,application/xml,text/xml,*/*' },
+      });
+      for (const raw of String(data).match(/<item>[\s\S]*?<\/item>/g) || []) {
+        const link = decodeEntities(/<link>([\s\S]*?)<\/link>/.exec(raw)?.[1] || '').trim();
+        const title = /<title>([\s\S]*?)<\/title>/.exec(raw)?.[1];
+        if (!/^https?:\/\//.test(link) || !title) continue;
+        const pub = /<pubDate>([\s\S]*?)<\/pubDate>/.exec(raw)?.[1] || '';
+        const when = pub ? new Date(pub) : null;
+        out.push({
+          guid: link,
+          url: link,
+          title: decodeEntities(title),
+          source,
+          publishedAt: when && !isNaN(when.getTime()) ? when.toISOString() : null,
+          query: `feed:${source}`,
+        });
+      }
+    } catch (e: any) {
+      this.log.warn(`wire feed failed (${feedUrl}): ${e?.message || e}`);
+    }
+    return out;
   }
 
   /** One Google News RSS query, as dated items. Failures are logged and
@@ -418,6 +508,8 @@ export class IrDiscoveryService {
     return {
       queries: DISCOVERY_QUERIES.length,
       queryList: DISCOVERY_QUERIES,
+      sweepQueries: SWEEP_QUERIES,
+      wireFeeds: DIRECT_FEEDS.map((f) => f.url),
       fullTextHosts: Object.keys(FULL_TEXT_HOSTS),
       blockedHosts: this.blockedHosts(),
     };

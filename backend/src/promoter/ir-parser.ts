@@ -162,7 +162,9 @@ function paragraphs(text: string): string[] {
 export function releaseDate(body: string): string | null {
   const head = narrow(body).slice(0, 260);
   const m = DATE_RE.exec(head);
-  return m ? toIso(m[1], m[2], m[3]) : null;
+  if (m) return toIso(m[1], m[2], m[3]);
+  const short = /([A-Z][a-z]{2,8})\.?\s+(\d{1,2})'(\d{2})\b/.exec(head); // "June 30'26"
+  return short ? toIso(short[1], short[2], `20${short[3]}`) : null;
 }
 
 // ── Small helpers ────────────────────────────────────────────────────────
@@ -250,9 +252,11 @@ function findIssuer(text: string): {
   name: string | null;
   ticker: string | null;
   exchange: ParsedDisclosure['exchange'];
+  /** Where the ticker bracket sits in the text; -1 when none. */
+  at: number;
 } {
   const m = CA_TICKER.exec(text);
-  if (!m) return { name: null, ticker: null, exchange: null };
+  if (!m) return { name: null, ticker: null, exchange: null, at: -1 };
   const ticker = m[2].toUpperCase();
   const ex = m[1].toUpperCase();
   const exchange: ParsedDisclosure['exchange'] = /CSE|CNSX|CANADIAN SECURITIES/.test(ex)
@@ -277,7 +281,7 @@ function findIssuer(text: string): {
   if (nm) {
     name = cleanIssuerName(nm[1]);
   }
-  return { name, ticker, exchange };
+  return { name, ticker, exchange, at: m.index };
 }
 
 /**
@@ -917,21 +921,52 @@ export function parseDisclosure(title: string, body: string): ParsedDisclosure {
   if (!isolated(text)) {
     confidence = Math.min(confidence, 0.5);
     notes.push('Could not isolate the release body from the page — fields may come from page chrome.');
-    // Whatever provider the extractors found on such a page came from the
-    // navigation or the related-articles rail (Pan Global's "Adelaide Capital"
-    // landed on Homeland Nickel this way). Drop it so the store writes the
-    // needs-review placeholder instead of a public row.
-    for (const a of agreements) {
-      if (a.providerName) notes.push(`Provider "${a.providerName}" discarded: page body not isolated.`);
-      a.providerName = null;
-      a.providerShort = null;
-      a.providerLegalName = null;
+    // Two shapes arrive here and they need opposite treatment.
+    //
+    // Pan Global's lazily loaded Investing News Network page: the release body
+    // never loaded, and the only ticker on the page was Homeland Nickel's, in
+    // the related-articles rail. Filing under it was wrong.
+    //
+    // IC Group's page, same republisher: chrome in front, but the ticker that
+    // follows is IC Group's own, and the release text with Adelaide's fee runs
+    // on after it. Throwing that away lost a real contract.
+    //
+    // What tells them apart is the headline. The issuer names itself in its
+    // own headline, and a ticker with that name standing right before it is
+    // the issuer's — a rail ticker has some other company's name there. When
+    // it anchors, keep the ticker and the providers found in the release text
+    // after it; the row still goes to review because the confidence cap holds.
+    const headlineIssuer = issuerFromTitle(title);
+    const anchored =
+      issuer.ticker != null &&
+      issuer.at >= 0 &&
+      headlineIssuer != null &&
+      headlineIssuer.length >= 4 &&
+      text.slice(Math.max(0, issuer.at - 200), issuer.at).toLowerCase().includes(headlineIssuer.toLowerCase());
+    if (anchored) {
+      notes.push(`Ticker ${issuer.ticker} kept: the headline's issuer "${headlineIssuer}" stands before it.`);
+      for (const [i, a] of agreements.entries()) {
+        const at = hits[i]?.at ?? -1;
+        if (at >= issuer.at - 50 && at <= issuer.at + 2500) continue;
+        if (a.providerName) notes.push(`Provider "${a.providerName}" discarded: found outside the release text.`);
+        a.providerName = null;
+        a.providerShort = null;
+        a.providerLegalName = null;
+      }
+    } else {
+      // Whatever provider the extractors found came from the navigation or
+      // the rail. Drop it so the store writes the needs-review placeholder
+      // instead of a public row.
+      for (const a of agreements) {
+        if (a.providerName) notes.push(`Provider "${a.providerName}" discarded: page body not isolated.`);
+        a.providerName = null;
+        a.providerShort = null;
+        a.providerLegalName = null;
+      }
+      if (issuer.ticker) notes.push(`Ticker ${issuer.ticker} discarded: page body not isolated.`);
+      issuer.ticker = null;
+      confidence = Math.min(confidence, 0.3);
     }
-    // The ticker came from the same chrome — Pan Global's lazily loaded page
-    // was filed under Homeland Nickel's symbol — so it is no more trustworthy.
-    if (issuer.ticker) notes.push(`Ticker ${issuer.ticker} discarded: page body not isolated.`);
-    issuer.ticker = null;
-    confidence = Math.min(confidence, 0.3);
   }
 
   return {
@@ -1070,6 +1105,10 @@ export function isolated(text: string): boolean {
   // A dateline is a place, a wire and a date within the first few lines —
   // or, on Investing News Network, a bare date line above the company name.
   if (/^\s*[A-Z][a-z]+ \d{1,2}, \d{4}\s*\n+\s*[A-Z]/.test(head)) return true;
+  // thenewswire.com's listing shape carries a two-digit year: "June 30'26
+  // TheNewswire - Nord Precious Metals Corp (TSXV: NTH)…". No four-digit
+  // year anywhere, but it is a dateline all the same.
+  if (/^\s*[A-Z][a-z]{2,8}\.?\s+\d{1,2}'\d{2}\s+TheNewswire\s*[-–—]/.test(head)) return true;
   return /[A-Z][A-Za-z .'-]{2,40}\s*[,/—–-]/.test(head) && /\b(19|20)\d{2}\b/.test(text.slice(0, 900));
 }
 
@@ -1097,6 +1136,8 @@ export function narrow(body: string): string {
     /\/(?:CNW|PRNewswire)[^/]{0,40}\/\s*-/,
     // "(TheNewswire) Vancouver, British Columbia, September 11th, 2026 TheNewswire"
     /\(TheNewswire\)\s+[A-Z][A-Za-z .'-]{2,40},/,
+    // thenewswire.com listing shape: "June 30'26 TheNewswire - Nord Precious…"
+    /[A-Z][a-z]{2,8}\.?\s+\d{1,2}'\d{2}\s+TheNewswire\s*[-–—]/,
     /[A-Z][A-Za-z .'-]{2,40},\s*[A-Za-z .]{2,30}\s*[-–—]{1,2}\s*\(?[A-Z][a-z]{2,8}\.?\s+\d{1,2},?\s+\d{4}\)?\s*[-–—]/,
   ];
   // A wire-anchored dateline (Newsfile, GLOBE NEWSWIRE, /CNW/, INN's header,
