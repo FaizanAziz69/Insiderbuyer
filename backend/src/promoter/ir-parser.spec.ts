@@ -203,6 +203,40 @@ function unit() {
   check('aggregator headline → issuer', issuerFromHeadline('Elevate Service Group Begins OTCQB Trading as ESVCF, Grants Stock Options and Signs Investor Relations Agreement'), 'Elevate Service Group');
   check('aggregator headline with ticker → issuer', issuerFromHeadline('Elevate Service Group Inc. (TSXV:SERV) Falls 2.91% as Rising Losses Weigh'), 'Elevate Service Group');
 
+  // A comma before the corporate tail is part of the issuer's name.
+  const comma = parseDisclosure(
+    'Thiogenesis Engages Brisco Capital for Investor Relations',
+    'San Diego, California--(Newsfile Corp. - September 3, 2026) - Thiogenesis Therapeutics, Corp. (TSXV: TTI) (OTCQB: TTIPF) ("Thiogenesis" or the "Company") has engaged Brisco Capital Partners Corp. ("Brisco") to provide investor relations services for a term of six months at a monthly fee of $6,000.',
+  );
+  check('comma-tail issuer name', comma.issuerName, 'Thiogenesis Therapeutics Corp');
+  check('comma-tail ticker', comma.ticker, 'TTI');
+
+  // Undecoded numeric entities in stored text: "&#160;" (nbsp) and "&#8206;"
+  // (left-to-right mark) sat between the name and the ticker bracket.
+  const nbsp = parseDisclosure(
+    'Tower Engages Simone Capital for Investor Relations Services',
+    'Vancouver, British Columbia--(Newsfile Corp. - July 30, 2026) - Tower Resources Ltd.&#160;(TSXV: TWR)&#160;("Tower" or the "Company") has engaged Simone Capital Corp. ("Simone") for investor relations services for a term of six months at a monthly fee of $5,000.',
+  );
+  check('nbsp entity issuer name', nbsp.issuerName, 'Tower Resources Ltd');
+  check('nbsp entity ticker', nbsp.ticker, 'TWR');
+  const lrm = parseDisclosure(
+    'XXIX Engages Bunt Capital for Investor Relations Services',
+    'Toronto, Ontario--(Newsfile Corp. - March 23, 2026) - XXIX Metal Corp&#8206;. (TSXV: XXIX) (OTCQB: QCCUF) ("XXIX" or the "Company") has engaged Bunt Capital Inc. ("Bunt") to provide investor relations services for six months at a monthly fee of $7,500.',
+  );
+  check('lrm entity issuer name', lrm.issuerName, 'XXIX Metal Corp');
+  check('lrm entity ticker', lrm.ticker, 'XXIX');
+
+  // An Investing News Network page for XXIX that served Steadright's release
+  // in the body: the headline is the only trustworthy thing on it.
+  const swapped = parseDisclosure(
+    'XXIX Engages Bunt Capital for Investor Relations Services',
+    'TheNewswire - September 11th, 2026 - Steadright Critical Minerals Inc. (CSE:SCM,OTC:SCMNF) ("Steadright" or the "Company") announces it has engaged Adelaide Capital Markets Inc. ("Adelaide") to provide investor relations services for a monthly fee of C$10,000 for six months.',
+  );
+  check('swapped body drops the ticker', swapped.ticker, null);
+  check('swapped body drops the provider', swapped.agreements[0].providerName, null);
+  check('swapped body keeps the headline issuer', swapped.issuerName, 'XXIX');
+  check('swapped body goes to review', swapped.confidence <= 0.3, true);
+
   // "pay a fee of $X per month" must stay a monthly rate, not become a total.
   const monthlyOnly = parseDisclosure(
     'Acme Engages IR Firm',

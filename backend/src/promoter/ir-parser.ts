@@ -277,6 +277,10 @@ function findIssuer(text: string): {
   let name: string | null = null;
   let before = text.slice(Math.max(0, m.index - 120), m.index).trim();
   while (/\([^()]*\)\s*$/.test(before)) before = before.replace(/\([^()]*\)\s*$/, '').trim();
+  // "Thiogenesis Therapeutics, Corp. (TSXV: TTI)" — a comma before the
+  // corporate tail is part of the name, not a boundary. Left alone, the
+  // capture below started after the comma and the issuer became "Corp".
+  before = before.replace(/,\s*((?:Corp|Inc|Ltd|Limited|Corporation|Co|LLC|plc)\.?)\s*$/i, ' $1');
   const nm = /([A-Z][A-Za-z0-9&'.\- ]{2,60}?)\s*\.?\s*$/.exec(before);
   if (nm) {
     name = cleanIssuerName(nm[1]);
@@ -969,6 +973,35 @@ export function parseDisclosure(title: string, body: string): ParsedDisclosure {
     }
   }
 
+  // Headline against body. Investing News Network's page for "XXIX Engages
+  // Bunt Capital" loaded XXIX's body lazily and served Steadright Critical
+  // Minerals' release in its place — a clean dateline, a clean ticker, all
+  // of it another company's. The headline is the one thing on such a page
+  // that is certainly about the right issuer, so when the headline names a
+  // company and that name is nowhere in the text before the ticker bracket,
+  // the ticker is not this release's ticker. First word of the headline
+  // issuer, four letters or more, so "Tower" still matches "Tower Resources
+  // Ltd." and two-letter brands ("IC Group") are left to the anchor rule.
+  const headIssuer = issuerFromTitle(title);
+  const headKey = (headIssuer ?? '').split(/\s+/)[0]?.toLowerCase().replace(/[^a-z0-9]/g, '') ?? '';
+  if (issuer.ticker && issuer.at >= 0 && headKey.length >= 4) {
+    const around = text.slice(Math.max(0, issuer.at - 200), issuer.at).toLowerCase();
+    if (!around.includes(headKey)) {
+      notes.push(
+        `Ticker ${issuer.ticker} discarded: the headline is about "${headIssuer}" but the text before the ticker names someone else.`,
+      );
+      for (const a of agreements) {
+        if (a.providerName) notes.push(`Provider "${a.providerName}" discarded: body belongs to another issuer.`);
+        a.providerName = null;
+        a.providerShort = null;
+        a.providerLegalName = null;
+      }
+      issuer.ticker = null;
+      issuer.name = headIssuer;
+      confidence = Math.min(confidence, 0.3);
+    }
+  }
+
   return {
     ticker: issuer.ticker,
     exchange: issuer.exchange,
@@ -1119,7 +1152,23 @@ export function isolated(text: string): boolean {
 const RAIL = [/Keep Reading\.{3}/, /The Conversation \(\d+\)/];
 
 export function narrow(body: string): string {
-  let t = body.replace(/\r/g, '');
+  // Releases stored before numeric entities were decoded still carry
+  // "&#160;" and "&#8206;" in raw_text; a re-parse must read them the same
+  // way a fresh fetch now does.
+  let t = body
+    .replace(/\r/g, '')
+    .replace(/&#(\d+);|&#x([0-9a-f]+);/gi, (_, d, h) => {
+      const cp = d ? Number(d) : parseInt(h, 16);
+      if (cp === 0xa0) return ' ';
+      if ((cp >= 0x200b && cp <= 0x200f) || cp === 0xfeff) return '';
+      try {
+        return String.fromCodePoint(cp);
+      } catch {
+        return '';
+      }
+    })
+    .replace(/[\u200b-\u200f\ufeff]/g, '')
+    .replace(/\u00a0/g, ' ');
   let rail = t.length;
   for (const re of RAIL) {
     const m = re.exec(t);

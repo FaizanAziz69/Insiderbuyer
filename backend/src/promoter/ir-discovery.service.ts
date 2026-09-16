@@ -525,6 +525,11 @@ function sleep(ms: number) {
 function decodeEntities(s: string): string {
   return s
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    // Numeric entities. Newsfile writes "Tower Resources Ltd.&#160;(TSXV:
+    // TWR)" and "XXIX Metal Corp&#8206;." — left undecoded, the issuer-name
+    // capture stopped at the ampersand and the rows read "Tower" and "XXIX".
+    .replace(/&#(\d+);/g, (_, n) => codePointToText(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => codePointToText(parseInt(h, 16)))
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
@@ -565,6 +570,19 @@ export function pagePublished(html: string): string | null {
   if (!m) return null;
   const d = new Date(m[1]);
   return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** A decoded code point as text: NBSP becomes a space, the invisible
+ *  direction marks and zero-width characters vanish, the rest is itself. */
+function codePointToText(cp: number): string {
+  if (!isFinite(cp) || cp <= 0 || cp > 0x10ffff) return '';
+  if (cp === 0xa0) return ' ';
+  if (cp === 0x200b || cp === 0x200c || cp === 0x200d || cp === 0x200e || cp === 0x200f || cp === 0xfeff) return '';
+  try {
+    return String.fromCodePoint(cp);
+  } catch {
+    return '';
+  }
 }
 
 export function htmlToText(html: string): string {
