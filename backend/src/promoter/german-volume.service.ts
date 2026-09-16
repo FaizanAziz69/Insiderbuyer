@@ -45,6 +45,17 @@ const GERMAN_CODES = new Set(['FRA', 'STU', 'GER', 'ETR', 'XETRA', 'GAT', 'TRO',
 const PAUSE_MS = 120;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const STOP = new Set(['inc', 'corp', 'corporation', 'ltd', 'limited', 'plc', 'co', 'company', 'the', 'holdings', 'group', 'and', 'of']);
+/** Distinctive lower-case words of a company name, corporate suffixes dropped. */
+export function nameTokens(name: string): Set<string> {
+  return new Set(
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]+/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w && !STOP.has(w)),
+  );
+}
 
 @Injectable()
 export class GermanVolumeService {
@@ -70,9 +81,29 @@ export class GermanVolumeService {
 
   /** ISIN for an FMP symbol, via `search-exchange-variants` (the profile
    *  endpoint carries it too but our wrapper strips it). */
-  async resolveIsin(fmpSymbol: string | null | undefined): Promise<string | null> {
-    if (!fmpSymbol) return null;
-    return this.fmp.getIsin(fmpSymbol);
+  async resolveIsin(fmpSymbol: string | null | undefined, issuerName?: string | null, ticker?: string | null): Promise<string | null> {
+    if (fmpSymbol) {
+      const viaFmp = await this.fmp.getIsin(fmpSymbol);
+      if (viaFmp) return viaFmp;
+    }
+    // FMP has no symbol for roughly half of these juniors; onvista's search
+    // knows most of them by name. Accept a STOCK hit whose name shares the
+    // distinctive words of ours (corporate suffixes stripped), or whose
+    // listed symbol is our ticker.
+    const name = (issuerName || '').trim();
+    if (!name) return null;
+    await sleep(PAUSE_MS);
+    const q = await this.getJson(`instruments/query?searchValue=${encodeURIComponent(name)}`);
+    const want = nameTokens(name);
+    const tick = (ticker || '').toUpperCase();
+    const hits: any[] = (q?.list || []).filter((x: any) => x?.entityType === 'STOCK' && /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(String(x?.isin || '')));
+    for (const h of hits) {
+      const got = nameTokens(String(h.name || ''));
+      const overlap = [...want].filter((w) => got.has(w)).length;
+      const symbolMatch = tick && String(h.symbol || '').toUpperCase() === tick;
+      if (symbolMatch || (want.size && overlap === want.size) || (want.size >= 2 && overlap >= 2)) return String(h.isin).toUpperCase();
+    }
+    return null;
   }
 
   /**

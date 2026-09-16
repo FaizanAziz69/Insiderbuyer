@@ -418,6 +418,14 @@ export class PromoterService implements OnModuleInit {
     for (const a of parsed.agreements) {
       if (!a.providerName || !parsed.ticker) continue;
       const slug = firmSlug(a.providerName);
+      // Policy 3.4 releases mostly say "effective immediately" and carry no
+      // separate date, which left a third of agreements undated and therefore
+      // unmeasurable (no performance, no German volume). The release date is
+      // the engagement date for those; the provenance records the fallback.
+      if (!a.startDate && item.publishedAt) {
+        a.startDate = item.publishedAt;
+        a.provenance = { ...(a.provenance || {}), startDate: 'fallback:release-date' };
+      }
       await this.upsertFirm(slug, a.providerName, parsed.kind, a.startDate ?? item.publishedAt);
       const rate = fxToCad(a.currency);
       await this.q(

@@ -144,7 +144,7 @@ export class ContractPerformanceService implements OnModuleInit {
   async refresh(limit = 400): Promise<{ priced: number; unpriced: number }> {
     await this.ensureTable();
     const rows: any[] = await this.q(
-      `SELECT a.id, a.ticker, a.start_date, i.fmp_symbol, i.currency
+      `SELECT a.id, a.ticker, a.start_date, i.fmp_symbol, i.currency, COALESCE(i.name, a.issuer_name) AS issuer_name
          FROM ir_agreements a
          LEFT JOIN ir_issuers i ON i.ticker = a.ticker
         WHERE a.start_date IS NOT NULL
@@ -189,9 +189,9 @@ export class ContractPerformanceService implements OnModuleInit {
       // in Frankfurt or on Tradegate.
       let de: GermanVolume | null = null;
       try {
-        const isin = await this.german.resolveIsin(symbol);
+        const isin = await this.german.resolveIsin(symbol, group[0]?.issuer_name, ticker);
         const from = new Date(Date.parse(earliest) - VOL_LOOKBACK_DAYS * DAY).toISOString().slice(0, 10);
-        de = isin ? await this.german.fetch(isin, from) : { isin: null, venues: [], bars: [], note: 'No ISIN on file for this issuer.' };
+        de = isin ? await this.german.fetch(isin, from) : { isin: null, venues: [], bars: [], note: 'Not found on onvista or in our price data, so no German quotation could be checked.' };
       } catch (e: any) {
         this.log.debug(`german volume failed for ${ticker}: ${e?.message || e}`);
       }
