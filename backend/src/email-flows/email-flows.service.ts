@@ -13,6 +13,11 @@ import { ABANDONED_FLOW } from './content/abandoned';
 import { POST_PURCHASE_FLOW } from './content/post-purchase';
 import { DISCOUNT_FLOW } from './content/discount';
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+}
+
 /** The urgency flow is the tail of the welcome timeline (day 9–10), so it
  *  ships as part of the welcome flow's step list. */
 const FLOWS: Record<EmailFlowName, FlowEmail[]> = {
@@ -190,19 +195,33 @@ export class EmailFlowsService {
   /** Send a single, flow-independent email in the house template (the
    *  fulfilment emails: what a popup promised, delivered before any sequence
    *  starts). Same renderer and sender as the flows. */
-  async sendOneOff(email: string, step: FlowEmail, firstName: string | null = null): Promise<void> {
+  async sendOneOff(
+    email: string,
+    step: FlowEmail,
+    firstName: string | null = null,
+    attachments: EmailAttachment[] = [],
+  ): Promise<void> {
     if (!this.enabled) return;
-    await this.sendStep({ email, firstName } as EmailFlowState, step);
+    await this.sendStep({ email, firstName } as EmailFlowState, step, attachments);
   }
 
-  private async sendStep(state: EmailFlowState, step: FlowEmail): Promise<void> {
+  private async sendStep(state: EmailFlowState, step: FlowEmail, attachments: EmailAttachment[] = []): Promise<void> {
     const firstName = state.firstName || 'friend';
     const v = step.subjects[this.pickVariant(state.email, step.id, step.subjects.length)];
     const subject = this.fill(v.subject, firstName);
     const html = this.renderHtml(step, firstName, v.preview);
     await axios.post(
       'https://api.resend.com/emails',
-      { from: this.from, to: [state.email], reply_to: this.replyTo, subject, html },
+      {
+        from: this.from,
+        to: [state.email],
+        reply_to: this.replyTo,
+        subject,
+        html,
+        // Resend takes attachments as base64; the free report PDF rides along
+        // this way so the email needs no link (George 2026-09-16).
+        attachments: attachments.length ? attachments.map((a) => ({ filename: a.filename, content: a.content.toString('base64') })) : undefined,
+      },
       { headers: { Authorization: `Bearer ${this.apiKey}` }, timeout: 20_000 },
     );
     this.logger.log(`sent ${state.flow}/${step.id} → ${state.email} ("${subject}")`);

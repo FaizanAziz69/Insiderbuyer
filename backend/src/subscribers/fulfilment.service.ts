@@ -3,6 +3,7 @@ import { EmailFlowsService } from '../email-flows/email-flows.service';
 import { FlowEmail } from '../email-flows/content/types';
 import { InsiderAlertsService } from '../insider-alerts/insider-alerts.service';
 import { ReportsService } from '../reports/reports.service';
+import { FreeReportService } from '../free-report/free-report.service';
 
 /**
  * Client 2026-09-08: "Refine all the email pop ups, subscribe opt-ins, and
@@ -37,6 +38,7 @@ export class FulfilmentService {
     private readonly emailFlows: EmailFlowsService,
     private readonly alerts: InsiderAlertsService,
     private readonly reports: ReportsService,
+    private readonly freeReport: FreeReportService,
   ) {}
 
   /** Fire-and-forget: pick the email for `source` and send it. */
@@ -89,10 +91,11 @@ export class FulfilmentService {
   }
 
   /** The "Get On The Inside" free investor report (George's lead-magnet
-   *  document, 2026-09-16): one link to the PDF, nothing else promised. */
+   *  document, 2026-09-16). The PDF travels AS AN ATTACHMENT — Faizan:
+   *  "email mein http wala option nai hona chaiya, sirf pdf" — so the email
+   *  carries no link to it at all. */
   private async sendFreeReport(email: string): Promise<void> {
-    const site = process.env.SITE_URL || 'https://insiderbuying.com';
-    const pdf = `${site}/api/backend/free-report/pdf`;
+    const pdf = await this.freeReport.pdf();
     const step: FlowEmail = {
       id: `fulfil-free-report`,
       offsetMinutes: 0,
@@ -105,17 +108,15 @@ export class FulfilmentService {
         },
       ],
       body: [
-        `<p style="margin:0 0 14px;">Here is the report you asked for: <strong>Get On The Inside — A Guide to Following Insider Buying, and 3 Stocks Insiders Are Buying Right Now</strong>.</p>`,
+        `<p style="margin:0 0 14px;">Here is the report you asked for: <strong>Get On The Inside — A Guide to Following Insider Buying, and 3 Stocks Insiders Are Buying Right Now</strong>. It is attached to this email as a PDF.</p>`,
         `<p style="margin:0 0 18px;">It explains how the insider buying signal works, why decades of research back it up, and walks through three current situations where executives are putting their own money into their company’s stock — with the filings behind each one.</p>`,
-        `<p style="margin:0 0 18px;"><a href="${pdf}" style="display:inline-block;background:#0D1F35;color:#C8A24A;font-weight:700;font-size:15px;text-decoration:none;padding:12px 20px;border-radius:6px;">Open the report (PDF) →</a></p>`,
-        `<p style="margin:0 0 14px;font-size:13px;color:#555;">If the button does not open, copy this address into your browser: ${pdf}</p>`,
-        `<p style="margin:0 0 14px;">Filings update daily. Before acting on anything in the report, check the current figures at <a href="${site}" style="color:#1a237e;font-weight:600;">InsiderBuying.com</a>.</p>`,
+        `<p style="margin:0 0 14px;">Filings update daily. Before acting on anything in the report, check the current figures on InsiderBuying.com.</p>`,
         'See you on the inside,',
         '__SIGNOFF__',
       ],
     };
-    await this.emailFlows.sendOneOff(email, step);
-    this.logger.log(`fulfilled free-report → ${email}`);
+    await this.emailFlows.sendOneOff(email, step, null, [{ filename: 'InsiderBuying-Get-On-The-Inside.pdf', content: pdf }]);
+    this.logger.log(`fulfilled free-report → ${email} (${pdf.length} bytes attached)`);
   }
 
   private async sendAlertsWelcome(email: string): Promise<void> {
