@@ -44,7 +44,7 @@ const TOP_STORIES: ContentFormat[] = [
     title: 'Top Stories',
     section: 'TOP STORIES',
     trigger:
-      'The event/ticker/person is trending across financial media in the last 24–48 hours, and has insider/congressional relevance.',
+      'The event/ticker/person is trending across financial media in the last 24 to 48 hours, and has insider/congressional relevance.',
     headlineFormula: 'Different spin to what other major outlets are using.',
     requiredData: ['trending event / filings', 'source-article facts to rewrite'],
     editorialNote:
@@ -78,7 +78,7 @@ const SERIES: ContentFormat[] = [
     title: 'Whale Watch: The Portfolios of Legendary Insiders',
     section: 'ORIGINAL SERIES',
     trigger: 'Profile a famous investor/insider and break down their top holdings.',
-    headlineFormula: '[Name] Is the King/Queen of [Niche] — These Are His/Her Top Holdings',
+    headlineFormula: '[Name] Is the King/Queen of [Niche]: These Are His/Her Top Holdings',
     requiredData: ['aggregated holdings across 13D/G, Form 4s, fund disclosures'],
   },
   {
@@ -109,8 +109,8 @@ const SERIES: ContentFormat[] = [
     kind: 'series',
     title: 'The Billion-Dollar Question',
     section: 'ORIGINAL SERIES',
-    trigger: 'A trader/insider who made an extraordinary sum — how, and what their positioning says now.',
-    headlineFormula: "This [Trader/Insider] Made [$X] in [Timeframe] — Does He/She Know Something We Don't?",
+    trigger: 'A trader/insider who made an extraordinary sum, how, and what their positioning says now.',
+    headlineFormula: "This [Trader/Insider] Made [$X] in [Timeframe]: Does He/She Know Something We Don't?",
     requiredData: ['the trade(s) / gain', 'timeframe', 'current positioning'],
   },
   {
@@ -119,7 +119,7 @@ const SERIES: ContentFormat[] = [
     kind: 'series',
     title: 'The Contrarians',
     section: 'ORIGINAL SERIES',
-    trigger: 'Contrarian trigger — a buy ≥$250K while the stock is ≥50% off its highs.',
+    trigger: 'Contrarian trigger: a buy ≥$250K while the stock is ≥50% off its highs.',
     headlineFormula: "Wall Street Gave Up on [Stock]. Its [CFO/Director] Just Bet [$X] It's Wrong.",
     requiredData: ['Form 4 buy ≥$250K', 'stock ≥50% off highs (price context)', 'the buyer'],
   },
@@ -143,7 +143,7 @@ const SERIES: ContentFormat[] = [
     headlineFormula: 'This CEO Earns [$X] a Year. He Just Put [Multiple]x That Into His Own Stock.',
     requiredData: ['executive compensation', 'Form 4 buy size'],
     editorialNote:
-      'Compute and feature the "conviction ratio" = buy size ÷ annual compensation — our signature metric.',
+      'Compute and feature the "conviction ratio" = buy size ÷ annual compensation, our signature metric.',
   },
   {
     key: 'quiet-whales',
@@ -224,7 +224,7 @@ const PROGRAMMATIC: ContentFormat[] = [
     section: 'POPULAR',
     trigger: 'Comp filing season + big-pay headlines',
     cadenceTag: 'Per-CEO',
-    headlineFormula: 'This CEO Took Home [$X] — Did He Buy Any Shares?',
+    headlineFormula: 'This CEO Took Home [$X]: Did He Buy Any Shares?',
     requiredData: ['CEO name', 'total compensation', 'open-market buys (if any)'],
   },
   {
@@ -301,7 +301,7 @@ const PROGRAMMATIC: ContentFormat[] = [
     section: 'STOCK IDEAS',
     trigger: 'New filing by a tracked investor',
     cadenceTag: 'Per-investor',
-    headlineFormula: 'What Is [Famous Investor] Buying — and Why?',
+    headlineFormula: 'What Is [Famous Investor] Buying, and Why?',
     requiredData: ['investor name', 'new filing holdings/changes'],
   },
   {
@@ -359,7 +359,7 @@ const PROGRAMMATIC: ContentFormat[] = [
     headlineFormula: 'This CEO or CFO Just Made a [$X] Bet on [Stock]',
     requiredData: ['the buy ($ value, shares, price)', 'the person', 'their track record on this stock'],
     sections: ['The trade', 'Who this person is', 'Their track record on this stock', 'What it means'],
-    wordCount: '600–800 words',
+    wordCount: '600 to 800 words',
   },
 ];
 

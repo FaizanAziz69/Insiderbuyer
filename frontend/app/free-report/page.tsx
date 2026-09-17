@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { FreeReportOptIn } from "@/components/FreeReportOptIn";
 
 export const metadata: Metadata = {
-  title: "Free Report: Get On The Inside — A Guide to Following Insider Buying | InsiderBuying.com",
+  title: "Free Report: Get On The Inside, A Guide to Following Insider Buying | InsiderBuying.com",
   description:
     "A free investor report on how the insider buying signal works, why decades of research back it up, and three stocks where insiders are putting their own money to work right now.",
   alternates: { canonical: "https://insiderbuying.com/free-report" },
@@ -33,7 +33,7 @@ export default function FreeReportPage() {
               A Guide to Following Insider Buying
             </div>
             <div className="text-[12.5px] italic mt-1.5" style={{ color: "#C8A24A" }}>
-              — and 3 Stocks Insiders Are Buying Right Now —
+              Plus 3 Stocks Insiders Are Buying Right Now
             </div>
           </div>
           <div className="mt-8">
@@ -50,7 +50,7 @@ export default function FreeReportPage() {
             Get On The Inside
           </h1>
           <p className="text-[14px] leading-relaxed mt-2" style={{ color: "var(--text-soft)" }}>
-            Every time a corporate insider buys or sells their own stock, federal law makes them tell you — in a public
+            Every time a corporate insider buys or sells their own stock, federal law makes them tell you, in a public
             filing, within two business days. This report explains how to read that signal, why decades of research
             back it up, and walks through three stocks where insiders are putting their own money to work right now.
           </p>
@@ -60,9 +60,9 @@ export default function FreeReportPage() {
               study, the Peter Lynch rule, cluster buying, information asymmetry, and how we score it all.
             </li>
             <li>
-              <strong style={{ color: "var(--text)" }}>Part Two:</strong> three current situations — a $15 million
+              <strong style={{ color: "var(--text)" }}>Part Two:</strong> three current situations: a $15 million
               C-suite buy into a drawdown, a founder-CEO buying his own stock all year, and a two-executive cluster buy at
-              a 52-week low — each with the chart, the filings and the analyst picture.
+              a 52-week low, each with the chart, the filings and the analyst picture.
             </li>
             <li>
               <strong style={{ color: "var(--text)" }}>Format:</strong> a PDF you can read in ten minutes and keep.

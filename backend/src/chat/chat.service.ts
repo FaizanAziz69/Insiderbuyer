@@ -1,6 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { IqsService } from '../iqs/iqs.service';
+import { NO_DASH_RULE, stripDashes } from '../common/house-style';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 
 export interface ChatMessage {
@@ -157,7 +158,7 @@ export class ChatService {
       const response = await this.client.messages.create({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 700,
-        system: SYSTEM_PROMPT,
+        system: SYSTEM_PROMPT + '\n\n' + NO_DASH_RULE,
         tools: TOOLS,
         messages,
       });
@@ -181,11 +182,12 @@ export class ChatService {
       }
 
       // Final text reply.
-      const text = response.content
+      const rawText = response.content
         .filter((b): b is Anthropic.Messages.TextBlock => b.type === 'text')
         .map((b) => b.text)
         .join('\n')
         .trim();
+      const text = stripDashes(rawText);
       return {
         reply: text || "Sorry, I couldn't generate a response. Please try again.",
         refused: /^(I can only help|I'm not able|That's outside)/i.test(text),

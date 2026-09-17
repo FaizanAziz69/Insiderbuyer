@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
 import { Company } from '../entities/company.entity';
+import { NO_DASH_RULE, stripDashes } from '../common/house-style';
 import { CivicService } from './civic.service';
 import { CongressionalService } from './congressional.service';
 
@@ -201,7 +202,7 @@ export class MemberBioService {
         model: MODEL,
         max_tokens: 700,
         output_config: { effort: 'low', format: { type: 'json_schema', schema } },
-        system,
+        system: system + ' ' + NO_DASH_RULE,
         messages: [{ role: 'user', content: `Write the About blurb for this member of Congress.\n\n${facts}` }],
       });
       if (response.stop_reason === 'refusal') return null;
@@ -212,7 +213,7 @@ export class MemberBioService {
         .trim();
       if (!text) return null;
       const parsed = JSON.parse(text) as { summary?: string; influence?: unknown[] };
-      const summary = String(parsed.summary || '').trim();
+      const summary = stripDashes(String(parsed.summary || '')).trim();
       if (!summary) return null;
       const influence = Array.isArray(parsed.influence)
         ? parsed.influence.map((x) => String(x || '').trim().toLowerCase()).filter((x) => x && x.length <= 40).slice(0, 6)

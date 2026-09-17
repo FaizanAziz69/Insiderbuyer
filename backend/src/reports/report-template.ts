@@ -152,7 +152,7 @@ export function renderInsiderReportHtml(d: InsiderReportData): string {
   return `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Insider Quality Score — ${esc(d.ticker)}</title></head>
+<title>Insider Quality Score: ${esc(d.ticker)}</title></head>
 <body style="margin:0;padding:0;background:#F5F7FA;font-family:Arial,Helvetica,sans-serif;color:${INK}">
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#F5F7FA;padding:24px 0">
 <tr><td align="center">
@@ -251,7 +251,7 @@ export function renderInsiderReportHtml(d: InsiderReportData): string {
 
   <!-- footer -->
   <tr><td style="padding:20px 24px 8px;font-size:11.5px;line-height:1.6;color:${SOFT}">
-    Built from SEC EDGAR Form 4 filings. For informational purposes only — not investment advice.
+    Built from SEC EDGAR Form 4 filings. For informational purposes only, not investment advice.
     Past performance does not guarantee future results. You received this report because you requested
     it for ${esc(d.ticker)}; you can unsubscribe from future insider alerts at any time.
   </td></tr>

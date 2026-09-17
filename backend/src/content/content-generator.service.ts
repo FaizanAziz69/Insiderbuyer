@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { IqsService } from '../iqs/iqs.service';
 import { ContentFormat } from './content-formats';
+import { NO_DASH_RULE, stripDashes, stripDashesDeep } from '../common/house-style';
 
 export interface GeneratedArticle {
   title: string;
@@ -88,9 +89,9 @@ const ARTICLE_TOOL: Anthropic.Messages.Tool = {
   },
 };
 
-const STYLE_BASE = `You are the content engine for **InsiderBuying.com** — you turn raw SEC Form 4 and congressional trading data into finished articles that follow the InsiderBuyer style guide EXACTLY. Never start from a blank page: every article starts from a signal in the data.
+const STYLE_BASE = `You are the content engine for **InsiderBuying.com**: you turn raw SEC Form 4 and congressional trading data into finished articles that follow the InsiderBuyer style guide EXACTLY. Never start from a blank page: every article starts from a signal in the data.
 
-VOICE: Bloomberg + MarketBeat — confident, specific, data-led, never breathless. Plain English, active voice, short paragraphs (2-3 sentences).
+VOICE: Bloomberg + MarketBeat, confident, specific, data-led, never breathless. Plain English, active voice, short paragraphs (2-3 sentences).
 
 PIPELINE (always): data → trigger → angle → headline → structure.
 - Trigger = the single strongest signal in the data: Size (a buy/sell ≥ $250K or top-decile for the ticker), Cluster (3+ insiders same direction within 14 days), First-time (an insider's first open-market buy ever or first in 3+ years), Contrarian (insiders buying while the stock is down 30%+ from highs, or selling near all-time highs), Overlap (insider + congressional activity on the same ticker), Trend (ticker trending AND recent insider activity), or Calendar (evergreen format on schedule).
@@ -99,24 +100,24 @@ PIPELINE (always): data → trigger → angle → headline → structure.
 HEADLINE RULES (all must pass):
 - Lead with the tension or the number, NOT the ticker.
 - Contain ≥1 specific element: a dollar figure, a name, a count, a %, or a timeframe.
-- Open a loop — state the surprising fact, never give away the "why" in the headline.
+- Open a loop, state the surprising fact, never give away the "why" in the headline.
 - ≤70 characters where possible.
 - No hype ("massive", "insane", "explosive") and no promises ("will soar", "guaranteed"). Prefer "puts on the radar", "worth watching", "here's what the filings show".
 - Questions only when the article genuinely answers them.
 - SEO variant (programmatic/SEO articles only): the headline may be the hook version, but the summary/meta should contain the ticker/company name and the primary keyword.
 
 CORE HEADLINE FORMULAS to draw from:
-- [Specific action] + [implied question] — "Pfizer's CFO Just Made His Biggest Buy Since 2019. Here's Why That Matters."
-- [Number] + [category] + [qualifier] — "3 Stocks Under $5 Insiders Are Buying Hand Over Fist"
-- [Contrast/irony] — "This CEO Took Home $84M Last Year. He Hasn't Bought a Single Share."
-- [Big number] + [mystery] — "This Trader Made $5.25B in One Year — Does He Know Something We Don't?"
-- [Then vs. now] — "Her Net Worth Was $400K Before Politics. Now It's $300M."
+- [Specific action] + [implied question]: "Pfizer's CFO Just Made His Biggest Buy Since 2019. Here's Why That Matters."
+- [Number] + [category] + [qualifier]: "3 Stocks Under $5 Insiders Are Buying Hand Over Fist"
+- [Contrast/irony]: "This CEO Took Home $84M Last Year. He Hasn't Bought a Single Share."
+- [Big number] + [mystery]: "This Trader Made $5.25B in One Year. Does He Know Something We Don't?"
+- [Then vs. now]: "Her Net Worth Was $400K Before Politics. Now It's $300M."
 
 NEVER give explicit financial advice:
 - ❌ "buy this stock", "this stock will go up", "guaranteed", "we recommend"
 - ✅ "may suggest", "could indicate", "historically associated with", "investors may want to monitor"
 
-STANDARD STRUCTURE — EVERY article, no exceptions:
+STANDARD STRUCTURE (EVERY article, no exceptions):
 1. Headline → the title field (headline rules above).
 2. Preview/dek → the summary field: ≤10 words, opens the loop.
 3. Key Points box → begin the body with <h3>Key points</h3> then a <ul> of 2-3 SPECIFIC, complete claims (numbers, names, dates).
@@ -126,7 +127,7 @@ STANDARD STRUCTURE — EVERY article, no exceptions:
 7. Disclosure → end the body with EXACTLY this paragraph, verbatim: <p><em>Not investment advice. Summarized from public SEC Form 4 and congressional disclosure data.</em></p>
 
 FORMATTING:
-- DATES — house style, no exceptions (client, 2026-09-12): month, ordinal day, year. "September 10th, 2026". Never "10 September", never "September 10" with the year left off, never "Sept 10" or "9/10/26". This holds in headlines, summaries, tables and body copy alike.
+- DATES, house style, no exceptions (client, 2026-09-12): month, ordinal day, year. "September 10th, 2026". Never "10 September", never "September 10" with the year left off, never "Sept 10" or "9/10/26". This holds in headlines, summaries, tables and body copy alike.
 - Bold a ticker the first time it appears: <strong>NVDA</strong>.
 - Cite our Insider Score feed when quoting a score ("per our Insider Score feed") and reference Form 4 / SEC filings for transactions.
 - Use real HTML tables for tabular data: <table><thead><tr><th>…</th></tr></thead><tbody><tr><td>…</td></tr></tbody></table>.
@@ -135,12 +136,12 @@ SECTION RULES:
 - Top Stories (news): report first, opine second. Facts/filings up top; your read in its own "Our take:" <h2> section. Include a bear/skeptic <h2> section in every story. The headline must spin differently from mainstream outlets.
 - Programmatic/SEO: hook intro (surprising fact first), populated Key Points box, ≥1 visual anchor per section, every list item = data point + context + why it matters, short paragraphs, no filler.
 
-DATA FIDELITY (non-negotiable): Use ONLY the numbers, dates, names, and transaction directions provided in the data. NEVER describe a purchase as a sale or invent selling activity; never invent or extrapolate dollar figures. If the provided data seems thin, write a shorter article — do not fill gaps with plausible-sounding specifics. Buy-signal articles (deep dives, stock ideas, cluster/CEO pieces, top-score lists) are about BUYING; if the data cannot support a bullish insider-buying narrative, state the facts plainly and neutrally instead of forcing a story.
-STOCK EMBEDS: whenever a specific stock is discussed as a ranked item or its own section, insert the marker [[STOCK:TICKER]] (e.g. [[STOCK:NVDA]]) on its own line immediately after that stock's heading or first paragraph. The site replaces each marker with a live data card (price chart, Insider Score, analyst rating) pulled from our database — so never fabricate chart/table data for a stock; place the marker instead. Do not wrap the marker in any HTML tags.
+DATA FIDELITY (non-negotiable): Use ONLY the numbers, dates, names, and transaction directions provided in the data. NEVER describe a purchase as a sale or invent selling activity; never invent or extrapolate dollar figures. If the provided data seems thin, write a shorter article, do not fill gaps with plausible-sounding specifics. Buy-signal articles (deep dives, stock ideas, cluster/CEO pieces, top-score lists) are about BUYING; if the data cannot support a bullish insider-buying narrative, state the facts plainly and neutrally instead of forcing a story.
+STOCK EMBEDS: whenever a specific stock is discussed as a ranked item or its own section, insert the marker [[STOCK:TICKER]] (e.g. [[STOCK:NVDA]]) on its own line immediately after that stock's heading or first paragraph. The site replaces each marker with a live data card (price chart, Insider Score, analyst rating) pulled from our database, so never fabricate chart/table data for a stock; place the marker instead. Do not wrap the marker in any HTML tags.
 
-HEADLINE TICKER RULES: single-stock articles MUST include the ticker in the headline. List/roundup articles must NOT enumerate tickers in the headline — the full list with tickers belongs inside the article body. List/roundup headlines SHOULD name the sector or category of stocks instead ("gold stocks", "AI stocks", "biotech stocks") — e.g. "Best Gold Stocks Right Now — And How to Invest", "5 Gold Stocks Worth Considering", "Insiders Are Buying These 3 Gold Stocks".
+HEADLINE TICKER RULES: single-stock articles MUST include the ticker in the headline. List/roundup articles must NOT enumerate tickers in the headline, the full list with tickers belongs inside the article body. List/roundup headlines SHOULD name the sector or category of stocks instead ("gold stocks", "AI stocks", "biotech stocks"), e.g. "Best Gold Stocks Right Now, And How to Invest", "5 Gold Stocks Worth Considering", "Insiders Are Buying These 3 Gold Stocks".
 
-Every figure must trace to the data provided — NEVER invent numbers. You MUST call the publish_article tool; do not respond with prose outside the tool call.`;
+Every figure must trace to the data provided, NEVER invent numbers. You MUST call the publish_article tool; do not respond with prose outside the tool call.`;
 
 @Injectable()
 export class ContentGeneratorService {
@@ -587,7 +588,7 @@ ${news}${context}`;
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 320,
         system:
-          'You are a concise, factual financial-news analyst. You explain why a stock is moving in plain language, cautiously, with no investment advice.',
+          NO_DASH_RULE + ' ' + 'You are a concise, factual financial-news analyst. You explain why a stock is moving in plain language, cautiously, with no investment advice.',
         messages: [{ role: 'user', content: prompt }],
       });
       const explainer = response.content
@@ -785,7 +786,7 @@ ${news}${context}`;
         max_tokens: 2000,
         // Bios are short; medium effort keeps the profile page responsive.
         output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
-        system,
+        system: system + ' ' + NO_DASH_RULE,
         messages: [
           {
             role: 'user',
@@ -945,7 +946,7 @@ ${news}${context}`;
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 700,
         system:
-          'You summarise SEC Form 4 insider activity for a stock research page. State ONLY what the supplied facts support. ' +
+          NO_DASH_RULE + ' ' + 'You summarise SEC Form 4 insider activity for a stock research page. State ONLY what the supplied facts support. ' +
           'Never invent transactions, names, dates, prices or ownership figures, and never estimate a number that is not given. ' +
           'Critically: if the facts say a category is NOT TRACKED, say it is not tracked — never report it as zero, none, or "no evidence of". ' +
           'Distinguish clearly between open-market purchases (a personal decision to invest) and routine compensation such as grants, option exercises and tax withholding. ' +
@@ -1008,7 +1009,7 @@ ${news}${context}`;
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 700,
         system:
-          'You are a balanced equity analyst. Give a fair bull case and bear case for a stock, grounded ONLY in the company facts and headlines provided plus widely-known, durable fundamentals. Do NOT invent specific numbers, prices, or events not supported by the input. Each point is one plain-English sentence. Informational only, never investment advice.',
+          NO_DASH_RULE + ' ' + 'You are a balanced equity analyst. Give a fair bull case and bear case for a stock, grounded ONLY in the company facts and headlines provided plus widely-known, durable fundamentals. Do NOT invent specific numbers, prices, or events not supported by the input. Each point is one plain-English sentence. Informational only, never investment advice.',
         tool_choice: { type: 'tool', name: 'publish_bull_bear' },
         tools: [tool],
         messages: [
@@ -1085,7 +1086,7 @@ ${news}${context}`;
         model: 'claude-haiku-4-5-20251001',
         max_tokens: Math.min(8000, 250 * items.length + 500),
         system:
-          'You are a rigorous financial-news analyst. For EACH stock: identify the REAL catalyst from its own dated headlines (weight the freshest most) and lead with it, named specifically. Every stock moves for a reason — when its headlines hold no dated announcement, explain the MECHANISM (unusual volume, thin float, range breakout or bounce, follow-through from earlier news, insider buying) rather than writing that no news explains it. Distinguish \'after announcing X\' (headline-confirmed) from \'consistent with X\' (inferred from the move). Never fabricate a specific event, deal or figure, and never write about the ABSENCE of news — avoid \"no news\", \"no catalyst\" or \"rather than fundamental news\" phrasing; describe only what is driving the move. Every explanation must be distinct and grounded in that company. No investment advice.',
+          NO_DASH_RULE + ' ' + 'You are a rigorous financial-news analyst. For EACH stock: identify the REAL catalyst from its own dated headlines (weight the freshest most) and lead with it, named specifically. Every stock moves for a reason — when its headlines hold no dated announcement, explain the MECHANISM (unusual volume, thin float, range breakout or bounce, follow-through from earlier news, insider buying) rather than writing that no news explains it. Distinguish \'after announcing X\' (headline-confirmed) from \'consistent with X\' (inferred from the move). Never fabricate a specific event, deal or figure, and never write about the ABSENCE of news — avoid \"no news\", \"no catalyst\" or \"rather than fundamental news\" phrasing; describe only what is driving the move. Every explanation must be distinct and grounded in that company. No investment advice.',
         tools: [tool],
         tool_choice: { type: 'tool', name: 'publish_explainers' },
         messages: [
@@ -1164,7 +1165,7 @@ tags: include "editorial" plus any tickers/themes involved.`;
     );
     parts.push(`Trigger / cadence: ${format.trigger}`);
     parts.push(
-      `HEADLINE — start from this formula, filling every [placeholder] from the data: "${format.headlineFormula}". Then REWRITE it into a fresh, specific headline of your own: lead with the most concrete fact in the data (a person's name, a ticker, a dollar figure, a count), and vary the sentence shape — question, statement, or number-led. Two articles from this template must never share the same generic headline; the data's specifics ARE the headline. It must still pass the universal headline rules.`,
+      `HEADLINE: start from this formula, filling every [placeholder] from the data: "${format.headlineFormula}". Then REWRITE it into a fresh, specific headline of your own: lead with the most concrete fact in the data (a person's name, a ticker, a dollar figure, a count), and vary the sentence shape — question, statement, or number-led. Two articles from this template must never share the same generic headline; the data's specifics ARE the headline. It must still pass the universal headline rules.`,
     );
     if (format.sections?.length) {
       parts.push(
@@ -1197,7 +1198,7 @@ tags: include "editorial" plus any tickers/themes involved.`;
     const response = await this.client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4000,
-      system: STYLE_BASE,
+      system: STYLE_BASE + '\n\n' + NO_DASH_RULE,
       tools: [ARTICLE_TOOL],
       tool_choice: { type: 'tool', name: 'publish_article' },
       messages: [{ role: 'user', content: userPrompt }],
@@ -1209,7 +1210,7 @@ tags: include "editorial" plus any tickers/themes involved.`;
     if (!toolUse) {
       throw new Error('Model did not call publish_article tool');
     }
-    const input = toolUse.input as GeneratedArticle;
+    const input = stripDashesDeep(toolUse.input as GeneratedArticle);
     if (!input.title || !input.body) {
       throw new Error('Generated article missing required fields');
     }
@@ -1335,7 +1336,7 @@ tags: include "editorial" plus any tickers/themes involved.`;
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 900,
         system:
-          'You are an editor at InsiderBuying.com, a financial intelligence platform tracking corporate insider transactions. ' +
+          NO_DASH_RULE + ' ' + 'You are an editor at InsiderBuying.com, a financial intelligence platform tracking corporate insider transactions. ' +
           'You write editorial pitches for a human writer to take or kill — not finished articles. ' +
           'Tone: neutral, factual, editorial. Not promotional. Not advice. Never recommend buying or selling a stock. ' +
           'Every figure must come from the signals supplied — never invent a number, a name, a date or a filing. ' +
@@ -1353,7 +1354,7 @@ tags: include "editorial" plus any tickers/themes involved.`;
       const block = response.content.find(
         (b): b is Anthropic.Messages.ToolUseBlock => b.type === 'tool_use',
       );
-      const input = block?.input as Record<string, string> | undefined;
+      const input = stripDashesDeep(block?.input as Record<string, string> | undefined);
       if (!input?.headline || !input?.lede) return null;
       return {
         headline: String(input.headline).trim(),
@@ -1454,7 +1455,7 @@ function scrubAbsence(text: string): string {
 }
 
 function plainExplainer(text: string): string {
-  return text
+  return stripDashes(text)
     .replace(/^#+\s*[^\n]*\n?/gm, (m) => (m.includes('%') || m.length > 60 ? '' : ''))
     .replace(/\*\*/g, '')
     .replace(/^[-*]\s+/gm, '')

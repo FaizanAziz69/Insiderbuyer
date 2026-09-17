@@ -75,12 +75,12 @@ export class FulfilmentService {
       signoffTitle: 'CEO and Publisher, Insider Buying',
       subjects: [
         {
-          subject: 'This week’s top insider buys — scored and ranked',
+          subject: 'This week’s top insider buys, scored and ranked',
           preview: 'What you signed up for: the week’s highest Insider Scores, delivered now',
         },
       ],
       body: [
-        `<p style="margin:0 0 14px;">You asked for this week’s top insider buys — here they are, ranked by Insider Score, exactly as they stand today. You’ll get the fresh list every Monday.</p>`,
+        `<p style="margin:0 0 14px;">You asked for this week’s top insider buys. Here they are, ranked by Insider Score, exactly as they stand today. You’ll get the fresh list every Monday.</p>`,
         body,
         'See you on the inside,',
         '__SIGNOFF__',
@@ -104,11 +104,11 @@ export class FulfilmentService {
       subjects: [
         {
           subject: 'Your free report: Get On The Inside',
-          preview: 'A guide to following insider buying — and 3 stocks insiders are buying right now',
+          preview: 'A guide to following insider buying, plus 3 stocks insiders are buying right now',
         },
       ],
       body: [
-        `<p style="margin:0 0 14px;">Here is the report you asked for: <strong>Get On The Inside — A Guide to Following Insider Buying, and 3 Stocks Insiders Are Buying Right Now</strong>. It is attached to this email as a PDF.</p>`,
+        `<p style="margin:0 0 14px;">Here is the report you asked for: <strong>Get On The Inside: A Guide to Following Insider Buying, and 3 Stocks Insiders Are Buying Right Now</strong>. It is attached to this email as a PDF.</p>`,
         `<p style="margin:0 0 18px;">It explains how the insider buying signal works, why decades of research back it up, and walks through three current situations where executives are putting their own money into their company’s stock — with the filings behind each one.</p>`,
         `<p style="margin:0 0 14px;">Filings update daily. Before acting on anything in the report, check the current figures on InsiderBuying.com.</p>`,
         'See you on the inside,',
@@ -123,7 +123,7 @@ export class FulfilmentService {
     const items = await this.alerts.latestQualifying(24 * 7, 5);
     const cards = items.length
       ? this.alerts.renderCards(items)
-      : `<p style="margin:0;color:#555;">No CEO, CFO or $1M+ open-market buy has been filed in the last seven days — your first alert goes out the moment one is.</p>`;
+      : `<p style="margin:0;color:#555;">No CEO, CFO or $1M+ open-market buy has been filed in the last seven days. Your first alert goes out the moment one is.</p>`;
     const step: FlowEmail = {
       id: `fulfil-alerts`,
       offsetMinutes: 0,
@@ -131,12 +131,12 @@ export class FulfilmentService {
       signoffTitle: 'CEO and Publisher, Insider Buying',
       subjects: [
         {
-          subject: 'You’re on the insider alerts list — here are the latest buys',
+          subject: 'You’re on the insider alerts list. Here are the latest buys',
           preview: 'CEO, CFO and $1M+ open-market buys, within hours of the Form 4',
         },
       ],
       body: [
-        `<p style="margin:0 0 14px;">You’re in. From now on, every open-market purchase by a CEO or CFO — and every $1 million-plus insider buy — reaches this inbox within hours of the SEC filing, each with the company’s Insider Score. This is what the last seven days looked like:</p>`,
+        `<p style="margin:0 0 14px;">You’re in. From now on, every open-market purchase by a CEO or CFO, and every $1 million-plus insider buy, reaches this inbox within hours of the SEC filing, each with the company’s Insider Score. This is what the last seven days looked like:</p>`,
         cards,
         `<p style="margin:16px 0 0;font-size:13px;color:#555;">One buy per email, no digests, no noise. Awards, option exercises and 10b5-1 plan trades never trigger an alert.</p>`,
         'See you on the inside,',

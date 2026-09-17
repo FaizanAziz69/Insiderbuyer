@@ -326,7 +326,7 @@ function reportEmailHtml(picks: TopPick[]): string {
     `<div style="font-size:26px;font-weight:900;letter-spacing:0.5px;">InsiderBuying.com</div>` +
     `<div style="border-bottom:3px solid #1a237e;margin:8px 0 22px;"></div>` +
     `<h1 style="font-size:22px;margin:0 0 10px;">Stocks You Can Buy Cheaper Than the Insiders Did</h1>` +
-    `<p style="font-size:15px;line-height:1.6;">Your report is attached as a PDF. Here it is inline as well — ` +
+    `<p style="font-size:15px;line-height:1.6;">Your report is attached as a PDF. Here it is inline as well: ` +
     `${picks.length} stocks where the current market price sits below the average price insiders actually paid.</p>` +
     `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:18px 0;">` +
     `<thead><tr style="text-align:left;background:#0D1F35;color:#fff;">` +
@@ -337,11 +337,11 @@ function reportEmailHtml(picks: TopPick[]): string {
     `<tbody>${rows}</tbody></table>` +
     `<p style="font-size:13px;line-height:1.6;color:#444;">Every figure comes from public SEC Form 4 filings. ` +
     `"Insiders paid" is the share-weighted average price across their open-market purchases in the last 180 days. ` +
-    `Prices move — check the live page for each stock before acting.</p>` +
+    `Prices move. Check the live page for each stock before acting.</p>` +
     `<p style="font-size:15px;margin-top:22px;">Want this in real time, the moment a filing lands? ` +
-    `<a href="https://insiderbuying.com/premium" style="color:#1a237e;font-weight:bold;">Get Premium — $199/year</a>.</p>` +
+    `<a href="https://insiderbuying.com/premium" style="color:#1a237e;font-weight:bold;">Get Premium, $199/year</a>.</p>` +
     `<div style="margin-top:26px;padding-top:12px;border-top:1px solid #e5e5e5;font-size:12px;color:#999;">` +
-    `Not investment advice. Summarized from public SEC Form 4 filings. 30-day money-back guarantee — reply to this email.</div>` +
+    `Not investment advice. Summarized from public SEC Form 4 filings. 30-day money-back guarantee, just reply to this email.</div>` +
     `</div>`
   );
 }

@@ -68,7 +68,7 @@ export function renderFreeReportPdf(bars: Record<string, Bar[]>, asOf: string): 
       margins: { top: TOP, bottom: 78, left: MARGIN, right: MARGIN },
       bufferPages: true,
       info: {
-        Title: 'Get On The Inside — A Guide to Following Insider Buying',
+        Title: 'Get On The Inside: A Guide to Following Insider Buying',
         Author: 'InsiderBuying.com',
         Subject: 'Free investor report, ' + COVER.edition,
       },
@@ -160,7 +160,7 @@ function cover(ctx: Ctx) {
   doc.moveTo(0, 0).lineTo(PAGE_W, 0).lineTo(PAGE_W, 470).lineTo(0, 540).closePath().fill(BLUE_DEEP);
   doc.moveTo(0, 0).lineTo(PAGE_W, 0).lineTo(PAGE_W, 300).lineTo(0, 380).closePath().fill(BLUE);
   doc.restore();
-  // A price line drawn across the lower field — the subject of the book.
+  // A price line drawn across the lower field, the subject of the book.
   doc.save().lineWidth(2).strokeColor('#1E6F97').opacity(0.9);
   const pts = coverSeries();
   pts.forEach(([x, y], i) => (i ? doc.lineTo(x, y) : doc.moveTo(x, y)));
@@ -291,7 +291,7 @@ function partTwo(ctx: Ctx, bars: Record<string, Bar[]>) {
   doc.moveDown(0.6);
   PART_TWO.stocks.forEach((s, i) => {
     if (i > 0) page(ctx);
-    ctx.toc.push({ label: `Stock #${s.number} — ${s.name}`, sub: `${s.exchange}: ${s.ticker} · ${s.tags.join(' · ')}`, page: currentPage(doc) });
+    ctx.toc.push({ label: `Stock #${s.number}: ${s.name}`, sub: `${s.exchange}: ${s.ticker} · ${s.tags.join(' · ')}`, page: currentPage(doc) });
     stock(ctx, s, bars[s.chartSymbol] || []);
   });
   ensure(ctx, 120);
@@ -443,7 +443,7 @@ function quote(ctx: Ctx, text: string, by: string) {
   doc.rect(MARGIN, y + 16, 5, h - 32).fill(GOLD);
   doc.font('Helvetica-Bold').fontSize(56).fillColor(GOLD).text('“', MARGIN + 22, y + 2, { lineBreak: false });
   doc.font('Helvetica-BoldOblique').fontSize(16).fillColor('#FFFFFF').text(text, MARGIN + 64, y + 26, { width: CONTENT_W - 96, lineGap: 3 });
-  doc.font('Helvetica-Bold').fontSize(9.5).fillColor(GOLD).text(`— ${by.toUpperCase()}`, MARGIN + 64, y + 26 + th + 12, { characterSpacing: 1.5 });
+  doc.font('Helvetica-Bold').fontSize(9.5).fillColor(GOLD).text(by.toUpperCase(), MARGIN + 64, y + 26 + th + 12, { characterSpacing: 1.5 });
   doc.y = y + h + 18;
 }
 
