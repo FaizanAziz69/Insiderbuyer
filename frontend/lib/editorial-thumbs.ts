@@ -51,6 +51,7 @@ const THUMBS: Thumb[] = [
   // 2026-09-15: Gina Rinehart buys 13.5% of White Cliff Minerals, her
   // estranged son's copper explorer. Client-supplied Rinehart composite;
   // pinned only (person the story is about).
+  { file: "nyse-flag-23-hour-trading", pinnedOnly: true },
   { file: "gina-rinehart-white-cliff-2026", pinnedOnly: true },
   { file: "thiel-energy-power-2026", pinnedOnly: true },
   { file: "pelosi-thiel-vistra", pinnedOnly: true },
@@ -134,6 +135,8 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-18: 23-hour trading top story. Client-supplied NYSE facade photo.
+  "editorial-us-stocks-23-hour-trading-december-6-2026-09-18": "nyse-flag-23-hour-trading",
   "stock-idea-borr-2026-09-18": "zefiro-methane-ceo",
   "topic-insider-buying-week-2026-09-18": "buffett-40pct-stock",
   // 2026-09-11: the three Popular Articles topic roundups. Covers picked per
