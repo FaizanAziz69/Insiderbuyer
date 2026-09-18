@@ -563,8 +563,14 @@ table th {
   text-align: left;
 }
 
-/* "Key points" box — the <h3>Key points</h3> + <ul> that opens every article. */
-.article-body h3:first-child {
+/* "Key points" box — the <h3>Key points</h3> + <ul> that opens every article.
+   Scoped to the FIRST heading of the article only. ArticleBody splits the
+   HTML into one wrapper <div> per segment around every viz / stock-card
+   embed, so a plain `h3:first-child` also matched any heading that directly
+   followed a pull-quote and rendered it as a small uppercase label
+   (client, 2026-09-19: "Inconsistent sub headings"). */
+.article-body > h3:first-child,
+.article-body > :first-child > h3:first-child {
   margin-top: 0;
   font-size: 12px;
   font-weight: 800;
@@ -572,7 +578,8 @@ table th {
   letter-spacing: 0.14em;
   color: var(--accent);
 }
-.article-body h3:first-child + ul {
+.article-body > h3:first-child + ul,
+.article-body > :first-child > h3:first-child + ul {
   margin-top: 0.5em;
   padding: 0.9em 1.1em 0.9em 2.4em;
   background: var(--accent-soft);
@@ -580,7 +587,8 @@ table th {
   border-left: 4px solid var(--accent);
   border-radius: 0 8px 8px 0;
 }
-.article-body h3:first-child + ul li {
+.article-body > h3:first-child + ul li,
+.article-body > :first-child > h3:first-child + ul li {
   margin: 0.35em 0;
   font-weight: 500;
 }
