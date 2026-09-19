@@ -51,6 +51,10 @@ const THUMBS: Thumb[] = [
   // 2026-09-15: Gina Rinehart buys 13.5% of White Cliff Minerals, her
   // estranged son's copper explorer. Client-supplied Rinehart composite;
   // pinned only (person the story is about).
+  // 2026-09-19: Greenland security deal top story. Client-supplied Trump /
+  // Frederiksen composite over Nuuk, resized from 2752x1536. pinnedOnly: two
+  // real people made for one story.
+  { file: "trump-frederiksen-greenland-deal", pinnedOnly: true },
   { file: "nyse-flag-23-hour-trading", pinnedOnly: true },
   { file: "gina-rinehart-white-cliff-2026", pinnedOnly: true },
   { file: "thiel-energy-power-2026", pinnedOnly: true },
@@ -135,6 +139,8 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-19: Greenland security deal top story. Client-supplied composite.
+  "editorial-us-denmark-greenland-security-deal-2026-09-19": "trump-frederiksen-greenland-deal",
   // 2026-09-18: 23-hour trading top story. Client-supplied NYSE facade photo.
   "editorial-us-stocks-23-hour-trading-december-6-2026-09-18": "nyse-flag-23-hour-trading",
   "stock-idea-borr-2026-09-18": "zefiro-methane-ceo",

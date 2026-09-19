@@ -101,7 +101,8 @@ const HERO_MAX_AGE_MS = 5 * 24 * 60 * 60_000;
  *  desk was still writing it, and the client asked for it to lead. */
 /*  2026-09-15: repointed to the Rinehart / White Cliff story. */
 /*  2026-09-18: repointed to the 23-hour trading story (client Instagram tip). */
-export const HERO_PIN: string | null = "editorial-us-stocks-23-hour-trading-december-6-2026-09-18";
+/*  2026-09-19: repointed to the Greenland security deal story (client BBC tip). */
+export const HERO_PIN: string | null = "editorial-us-denmark-greenland-security-deal-2026-09-19";
 
 export function rotateHero(editorial: BlogPostListItem[], nowMs = Date.now()): BlogPostListItem[] {
   if (editorial.length < 2) return editorial;
