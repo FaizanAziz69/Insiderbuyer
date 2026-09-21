@@ -21,18 +21,23 @@ export function MaskedCell({
   label,
   lock = false,
   className = "",
+  href,
 }: {
   children: React.ReactNode;
   /** What the unlock offers, e.g. "sector names" or "insider names". */
   label: string;
   lock?: boolean;
   className?: string;
+  /** Where the cell sends a locked visitor. Defaults to the subscribe page;
+   *  the B2B promoter datasets pass their Request Access form instead, since
+   *  no subscription opens them (George 2026-09-21). */
+  href?: string;
 }) {
   return (
     <Link
-      href={SUBSCRIBE_HREF}
+      href={href ?? SUBSCRIBE_HREF}
       aria-label={`Unlock ${label}`}
-      title={`Unlock ${label} — included with ${PRODUCT_NAME}`}
+      title={href ? `Request access to ${label}` : `Unlock ${label} — included with ${PRODUCT_NAME}`}
       className={`relative block ${className}`}
     >
       <span
@@ -43,7 +48,7 @@ export function MaskedCell({
         {children}
       </span>
       <span className="sr-only">
-        {label} — included with {PRODUCT_NAME}
+        {href ? `${label} — available on request` : `${label} — included with ${PRODUCT_NAME}`}
       </span>
       {lock && (
         <span className="absolute inset-0 flex items-center justify-center">

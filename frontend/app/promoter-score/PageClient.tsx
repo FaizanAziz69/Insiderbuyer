@@ -9,7 +9,8 @@ import { PromoterSpendChart } from "@/components/promoter/PromoterSpendChart";
 import { PromoterBacktest } from "@/components/promoter/PromoterBacktest";
 import { PromoterScoreCell } from "@/components/promoter/PromoterScoreCell";
 import { PromoterEmailSignup } from "@/components/promoter/PromoterEmailSignup";
-import { usePremium } from "@/components/premium/PremiumContext";
+import { useDataAccess } from "@/lib/data-access";
+import { RequestAccessGate } from "@/components/promoter/RequestAccessGate";
 import { MaskedCell } from "@/components/premium/MaskedCell";
 import { issuerDecoyFor } from "@/components/premium/lockedDecoys";
 
@@ -138,8 +139,12 @@ export default function PromoterScorePage() {
   // Paygate (George 2026-09-16, "same as top promoters"): every figure stays
   // visible, the issuer identity is what the unlock buys. Locked rows carry
   // fixed decoy tickers and names — never the real ones, not even blurred.
-  const { unlocked } = usePremium();
-  const locked = !unlocked;
+  // George 2026-09-21: this dataset is NOT sold through the subscription —
+  // access comes from a reviewed Request Access form, so nothing here reads
+  // `premium`. A paying subscriber without an approved request still sees the
+  // gate, which is the point.
+  const { granted, checking } = useDataAccess("promoter-score");
+  const locked = !granted;
   const [quarter, setQuarter] = useState<string>("");
   const [sector, setSector] = useState<string>("");
   const [sort, setSort] = useState<"score" | "spend" | "perMcap" | "contracts" | "perf" | "deVol" | "start" | "dvol" | "multiple">("score");
@@ -193,7 +198,7 @@ export default function PromoterScorePage() {
           (() => {
             const [dTicker, dName, dExchange] = issuerDecoyFor(index);
             return (
-              <MaskedCell label="the issuers" lock>
+              <MaskedCell label="the issuers" lock href="#request-access">
                 <span className="block font-bold text-[13.5px] leading-tight" style={{ color: "var(--text)" }}>
                   {dTicker}
                   <span className="ml-1.5 text-[10.5px] font-semibold text-faint">{dExchange}</span>
@@ -555,15 +560,18 @@ export default function PromoterScorePage() {
             : "score",
           dir: "desc",
         }}
+        // The row wall still limits what a visitor sees, but its CTA is no
+        // longer a subscribe button — the Request Access form below is the
+        // only way in, so the wall carries no bullets of its own.
         gate={{
           label: "Promoter Score",
           freeRows: LOCKED_ROWS,
           teaser: true,
-          bullets: [
-            "Every TSXV and CSE issuer with a disclosed IR, promotional or market-making contract, named",
-            "Disclosed spend, spend against market cap, promotion start date, and what the stock did after",
-            "Dollars traded since the promotion began against the fees paid, and the volume through German venues",
-          ],
+          bullets: [],
+          // Not a subscription product: the page owns the lock.
+          locked,
+          ctaHref: "#request-access",
+          ctaLabel: "Request access",
         }}
         empty={
           isLoading
@@ -571,6 +579,18 @@ export default function PromoterScorePage() {
             : "No disclosed IR agreements for this quarter yet."
         }
       />
+
+      {locked && !checking && (
+        <RequestAccessGate
+          dataset="promoter-score"
+          title="The Promoter Score dataset is available on request"
+          bullets={[
+            "Every TSXV and CSE issuer with a disclosed IR, promotional or market-making contract, named",
+            "Disclosed spend, spend against market cap, promotion start date, and what the stock did after",
+            "Dollars traded since the promotion began against the fees paid, and the volume through German venues",
+          ]}
+        />
+      )}
 
       {/* George 2026-09-21: the promotion backtest. */}
       <PromoterBacktest locked={locked} />

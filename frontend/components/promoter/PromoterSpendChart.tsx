@@ -2,8 +2,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock } from "lucide-react";
-import { SUBSCRIBE_HREF } from "@/lib/funnel";
-import { PRODUCT_NAME } from "@/components/premium/PaywallCta";
 import { useState } from "react";
 
 /**
@@ -63,6 +61,9 @@ export function PromoterSpendChart({
    *  tooltip link then points at the subscribe page, not a decoy URL. */
   locked?: boolean;
 }) {
+  // George 2026-09-21: this dataset is opened by a reviewed request, not a
+  // subscription, so every locked affordance points at the form on the page.
+  const REQUEST_HREF = "#request-access";
   const [hover, setHover] = useState<number | null>(null);
   const router = useRouter();
   const data = rows.filter((r) => (r.spendCad ?? 0) > 0).slice(0, 12);
@@ -137,7 +138,7 @@ export function PromoterSpendChart({
                 key={r.ticker}
                 onMouseEnter={() => setHover(i)}
                 onMouseLeave={() => setHover(null)}
-                onClick={() => router.push(locked ? SUBSCRIBE_HREF : `/promoter-score/${r.ticker}`)}
+                onClick={() => router.push(locked ? REQUEST_HREF : `/promoter-score/${r.ticker}`)}
                 style={{ cursor: "pointer" }}
               >
                 {/* Hit target spans the whole row, not just the bar. */}
@@ -203,9 +204,9 @@ export function PromoterSpendChart({
           style={{ background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text-soft)" }}
         >
           {locked ? (
-            <Link href={SUBSCRIBE_HREF} className="font-bold hover:underline" style={{ color: "var(--premium)" }}>
+            <Link href={REQUEST_HREF} className="font-bold hover:underline" style={{ color: "var(--premium)" }}>
               <Lock className="inline-block h-3 w-3 mr-1 -mt-0.5" aria-hidden />
-              Unlock this issuer
+              Request access to see this issuer
             </Link>
           ) : (
             <>
@@ -223,10 +224,10 @@ export function PromoterSpendChart({
         <p className="mt-2 text-[11.5px]" style={{ color: "var(--text-mute)" }}>
           <Lock className="inline-block h-3 w-3 mr-1 -mt-0.5" style={{ color: "var(--premium)" }} aria-hidden />
           Issuer names are hidden.{" "}
-          <Link href={SUBSCRIBE_HREF} className="font-semibold hover:underline" style={{ color: "var(--premium)" }}>
-            Unlock the issuers
+          <Link href={REQUEST_HREF} className="font-semibold hover:underline" style={{ color: "var(--premium)" }}>
+            Request access
           </Link>{" "}
-          with {PRODUCT_NAME}. Source: issuer news releases filed under TSX Venture Policy 3.4 and CSE policy.
+          to see them. Source: issuer news releases filed under TSX Venture Policy 3.4 and CSE policy.
         </p>
       ) : (
         <p className="mt-2 text-[11.5px]" style={{ color: "var(--text-mute)" }}>

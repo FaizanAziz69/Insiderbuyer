@@ -168,6 +168,14 @@ interface Props<T> {
      *  that carry an Insider Score" — so the preview is never padded with
      *  rows that have nothing to show. The wall still counts every row. */
     freeFilter?: (row: T) => boolean;
+    /** Override the subscription check. The B2B promoter datasets are opened
+     *  by a reviewed request, not by `premium` (George 2026-09-21), so they
+     *  pass their own lock — otherwise a subscriber would page the whole
+     *  table while the names beside it stayed masked. */
+    locked?: boolean;
+    /** Where the wall's button goes, when a subscription is not the answer. */
+    ctaHref?: string;
+    ctaLabel?: string;
   };
 }
 
@@ -371,7 +379,8 @@ export function DataTable<T>({
   // row is all that renders until the wall is dismissed.
   // Only wall a table that actually has more rows than the free allowance —
   // otherwise a short or empty result would show a wall hiding nothing.
-  const locked = !!gate && !premiumUnlocked && sortedAll.length > gateFree;
+  const gateUnlocked = gate?.locked != null ? !gate.locked : premiumUnlocked;
+  const locked = !!gate && !gateUnlocked && sortedAll.length > gateFree;
   // Free users see the top `gateFree` of the UNFILTERED ranking plus one faded
   // teaser. Filters then narrow that window — they can never widen it, so
   // cycling filters cannot be used to page through the locked rows.
@@ -654,6 +663,9 @@ export function DataTable<T>({
 
       {locked && gate && (
         <PremiumRowWall
+          ctaHref={gate.ctaHref}
+          ctaLabel={gate.ctaLabel}
+          forceShow={gate.locked === true}
           label={gate.label}
           total={sortedAll.length}
           bullets={gate.bullets}

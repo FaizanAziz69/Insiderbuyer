@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Company } from './entities/company.entity';
+import { DataAccessRequest } from './entities/data-access-request.entity';
 import { InsiderTransaction } from './entities/insider-transaction.entity';
 import { IqsScore } from './entities/iqs-score.entity';
 import { ProcessedFiling } from './entities/processed-filing.entity';
@@ -70,6 +71,7 @@ import { Iqs2Module } from './iqs2/iqs2.module';
 import { DataArticlesModule } from './data-articles/data-articles.module';
 import { DeInsidersModule } from './de-insiders/de-insiders.module';
 import { PromoterModule } from './promoter/promoter.module';
+import { DataAccessModule } from './data-access/data-access.module';
 import { ProductUpdatesModule } from './product-updates/product-updates.module';
 import { FreeReportModule } from './free-report/free-report.module';
 import { CongressTradesModule } from './congress-trades/congress-trades.module';
@@ -123,6 +125,7 @@ import {
             }),
         ssl: useSsl ? { rejectUnauthorized: false } : false,
         entities: [
+          DataAccessRequest,
           Company,
           InsiderTransaction,
           IqsScore,
@@ -230,6 +233,7 @@ import {
     DataArticlesModule,
     DeInsidersModule,
     PromoterModule,
+    DataAccessModule,
     ProductUpdatesModule,
     FreeReportModule,
     CongressTradesModule,

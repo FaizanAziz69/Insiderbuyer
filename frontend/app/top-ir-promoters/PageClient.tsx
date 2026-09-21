@@ -5,7 +5,8 @@ import { useMemo, useState } from "react";
 import { Megaphone } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
 import { DataTable, Column } from "@/components/DataTable";
-import { usePremium } from "@/components/premium/PremiumContext";
+import { useDataAccess } from "@/lib/data-access";
+import { RequestAccessGate } from "@/components/promoter/RequestAccessGate";
 import { MaskedCell } from "@/components/premium/MaskedCell";
 import { firmDecoyFor } from "@/components/premium/lockedDecoys";
 import { PromoterEmailSignup } from "@/components/promoter/PromoterEmailSignup";
@@ -103,8 +104,10 @@ function ScoreBar({ score }: { score: number | null }) {
 }
 
 export default function TopIrPromotersPage() {
-  const { unlocked } = usePremium();
-  const locked = !unlocked;
+  // George 2026-09-21: sold on request, not by subscription — see
+  // lib/data-access.ts.
+  const { granted, checking } = useDataAccess("top-ir-promoters");
+  const locked = !granted;
   const [minCampaigns, setMinCampaigns] = useState<1 | 2 | 3>(1);
   const [q, setQ] = useState("");
 
@@ -144,7 +147,7 @@ export default function TopIrPromotersPage() {
         if (locked) {
           const [dName, dCountry] = firmDecoyFor(f.rank - 1);
           return (
-            <MaskedCell label="the IR firms" lock>
+            <MaskedCell label="the IR firms" lock href="#request-access">
               <span className="block font-bold text-[13.5px] leading-tight" style={{ color: "var(--text)" }}>
                 {dName}
               </span>
@@ -361,14 +364,26 @@ export default function TopIrPromotersPage() {
           label: "Top IR Promoters",
           freeRows: LOCKED_ROWS,
           teaser: true,
-          bullets: [
-            "Every IR and promotional firm named in Policy 3.4 disclosures, ranked by client results",
-            "Median client return and volume growth after each engagement, with campaign counts",
-            "Client tickers per firm, linked to the issuer's full contract history",
-          ],
+          bullets: [],
+          // Not a subscription product: the page owns the lock.
+          locked,
+          ctaHref: "#request-access",
+          ctaLabel: "Request access",
         }}
         empty={isLoading ? "Ranking IR firms by client results…" : "No firms with priced campaigns yet."}
       />
+
+      {locked && !checking && (
+        <RequestAccessGate
+          dataset="top-ir-promoters"
+          title="The Top IR Promoters dataset is available on request"
+          bullets={[
+            "Every IR and promotional firm named in Policy 3.4 disclosures, ranked by client results",
+            "Median client return and volume growth after each engagement, with campaign counts",
+            "The issuers behind every campaign, the fees disclosed, and the dollars traded since",
+          ]}
+        />
+      )}
 
       <PromoterEmailSignup source="top-ir-promoters" />
 
