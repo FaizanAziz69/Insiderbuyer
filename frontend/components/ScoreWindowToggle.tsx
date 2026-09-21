@@ -6,11 +6,12 @@
  * means last 12 months of insider buying vs selling, recalculating average
  * buying costs, etc applied to all relevant columns").
  *
- * The window is not a filter over one set of scores: the backend stores a
- * separately computed score per window, so switching re-ranks the board on
- * 12 months of Form 4 history and moves every windowed column with it —
- * buyers, filings, dollars bought, average insider cost and the ROI against
- * that cost.
+ * The window is not a filter over one set of scores: the board is SCORED
+ * twice, by the same IQS 2.0 model, over two spans of Form 4 history. So
+ * switching re-ranks it and moves every windowed column with it — buyers,
+ * filings, dollars bought, the average insider cost and the return against
+ * that cost. The decay half-life scales with the window, so a 12-month score
+ * weighs a year of evidence rather than re-reading the same 90 days.
  */
 
 export type ScoreWindow = 90 | 365;
