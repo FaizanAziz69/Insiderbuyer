@@ -235,6 +235,17 @@ export default function InsiderReportLanding() {
           font-size:17px; line-height:1.6; -webkit-font-smoothing:antialiased;
         }
         .irl *{margin:0;padding:0;box-sizing:border-box}
+        /* This landing page paints its own light palette (--paper / --ink) and
+           does not follow the site theme. Every heading below was written to
+           inherit that --ink, but globals.css carries a bare
+           "h1,h2,h3,h4,h5,h6{color:var(--text)}", and a direct rule beats
+           inheritance whatever the specificity — so in DARK mode every heading
+           here turned near-white on near-white paper and the hero headline
+           vanished except the accent-coloured <em> (client, 2026-09-22).
+           Restoring inheritance fixes all of them at once; the two sections
+           that deliberately paint white on navy set their own colour further
+           down and still win on specificity. */
+        .irl h1,.irl h2,.irl h3,.irl h4,.irl h5,.irl h6{color:inherit}
         .irl .mono{font-family:var(--irl-mono),monospace}
         .irl .wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
         .irl a{color:inherit}

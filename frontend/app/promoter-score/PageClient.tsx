@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { Megaphone } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
 import { DataTable, Column } from "@/components/DataTable";
-import { PromoterSpendChart } from "@/components/promoter/PromoterSpendChart";
 import { PromoterBacktest } from "@/components/promoter/PromoterBacktest";
 import { PromoterScoreCell } from "@/components/promoter/PromoterScoreCell";
 import { PromoterEmailSignup } from "@/components/promoter/PromoterEmailSignup";
@@ -173,18 +172,6 @@ export default function PromoterScorePage() {
             (r.sector || "").toLowerCase().includes(q.toLowerCase())),
       ),
     [data, q, perfFilter, locked],
-  );
-
-  /** Chart rows for a locked visitor: same bars, decoy identities. */
-  const chartRows = useMemo(
-    () =>
-      locked
-        ? rows.slice(0, 12).map((r, i) => {
-            const [t, n, ex] = issuerDecoyFor(i);
-            return { ...r, ticker: t, name: n, exchange: ex, sector: null };
-          })
-        : rows.slice(0, 12),
-    [rows, locked],
   );
 
   const columns: Column<Row>[] = [
@@ -460,9 +447,18 @@ export default function PromoterScorePage() {
         </p>
       </header>
 
-      {/* §2.5 "standard data-article chart module on top" */}
-      <PromoterSpendChart rows={chartRows} loading={isLoading} quarter={data?.quarter} locked={locked} />
-
+      {/* The §2.5 "standard data-article chart module on top" (a ranked bar
+          chart of disclosed IR spend) used to sit here and is REMOVED on the
+          client's instruction (George, 2026-09-22: "the bar graph here is
+          still revealing the stocks … actually just remove it").
+          It had already been through two rounds of gating — decoy tickers so
+          the real ones never enter the DOM, then blurred labels with lock
+          glyphs — and a reader still took the decoy labels for real issuers,
+          which is the whole failure mode the Request Access gate exists to
+          prevent. A chart that has to be disguised to be shown is not worth
+          showing, so it goes rather than getting a third treatment.
+          `components/promoter/PromoterSpendChart.tsx` is left on disk, unused,
+          in case the chart returns for approved-access viewers only. */}
       <div className="flex flex-wrap items-center gap-2 mt-5 mb-3">
         <select
           value={quarter || data?.quarter || ""}
