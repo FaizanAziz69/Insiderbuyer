@@ -27,6 +27,11 @@ import { BacktestResult, BacktestStats, EquityPoint } from '../backtest/backtest
  *      a week; rebalance. Same statistics as the insider-strategy backtest so
  *      the two curves read alike. Starts where coverage becomes sustained.
  *
+ * A start date in the future is excluded: two rows carry one (a parse
+ * artifact off a term sentence), and an engagement that has not begun cannot
+ * be measured — it would also make the coverage line claim a record running
+ * into next year.
+ *
  * Honesty about the record: it is what we have ingested, weighted heavily
  * to 2025–2026 with a thin tail back to 2018, and FMP prices roughly half of
  * these venture issuers. The response says how many contracts, events and
@@ -218,6 +223,7 @@ export class PromoterBacktestService {
          FROM ir_agreements a
          LEFT JOIN ir_issuers i ON i.ticker = a.ticker
         WHERE a.start_date IS NOT NULL
+          AND a.start_date <= CURRENT_DATE
           AND a.provider_slug IS NOT NULL
           AND a.status <> 'rejected'
         ORDER BY a.start_date ASC`,
