@@ -6,6 +6,7 @@ import { Megaphone } from "lucide-react";
 import { API_BASE, fetcher } from "@/lib/api";
 import { DataTable, Column } from "@/components/DataTable";
 import { PromoterSpendChart } from "@/components/promoter/PromoterSpendChart";
+import { PromoterBacktest } from "@/components/promoter/PromoterBacktest";
 import { PromoterScoreCell } from "@/components/promoter/PromoterScoreCell";
 import { PromoterEmailSignup } from "@/components/promoter/PromoterEmailSignup";
 import { usePremium } from "@/components/premium/PremiumContext";
@@ -570,6 +571,9 @@ export default function PromoterScorePage() {
             : "No disclosed IR agreements for this quarter yet."
         }
       />
+
+      {/* George 2026-09-21: the promotion backtest. */}
+      <PromoterBacktest locked={locked} />
 
       <PromoterEmailSignup source="promoter-score" />
 

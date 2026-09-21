@@ -6,6 +6,7 @@ import { PromoterController } from './promoter.controller';
 import { PromoterService } from './promoter.service';
 import { IrDiscoveryService } from './ir-discovery.service';
 import { ContractPerformanceService } from './contract-performance.service';
+import { PromoterBacktestService } from './promoter-backtest.service';
 import { PromoterEmailsService } from './promoter-emails.service';
 import { GermanVolumeService } from './german-volume.service';
 
@@ -15,7 +16,7 @@ import { GermanVolumeService } from './german-volume.service';
 @Module({
   imports: [FmpModule, TypeOrmModule.forFeature([Company])],
   controllers: [PromoterController],
-  providers: [PromoterService, IrDiscoveryService, ContractPerformanceService, PromoterEmailsService, GermanVolumeService],
+  providers: [PromoterService, IrDiscoveryService, ContractPerformanceService, PromoterEmailsService, GermanVolumeService, PromoterBacktestService],
   exports: [PromoterService],
 })
 export class PromoterModule {}

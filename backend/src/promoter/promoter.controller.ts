@@ -18,6 +18,7 @@ import type { Response } from 'express';
 import { AdminTokenGuard } from '../common/admin-token.guard';
 import { PromoterService } from './promoter.service';
 import { ContractPerformanceService } from './contract-performance.service';
+import { PromoterBacktestService } from './promoter-backtest.service';
 import { PromoterEmailsService, PromoterEmailKind } from './promoter-emails.service';
 import { DEFAULT_WEIGHTS, WEIGHT_LABELS } from './scoring';
 
@@ -37,6 +38,7 @@ export class PromoterController {
     private readonly svc: PromoterService,
     private readonly perf: ContractPerformanceService,
     private readonly emails: PromoterEmailsService,
+    private readonly backtest: PromoterBacktestService,
   ) {}
 
   // ── Promoter Score email list (George 2026-09-16) ──────────────────────
@@ -121,6 +123,22 @@ export class PromoterController {
 
   /** The methodology block, read from the live weights so the published
    *  explanation cannot drift from the arithmetic. */
+  /** George 2026-09-21: how promoted stocks performed after the contract
+   *  started — event study + 90-day-hold portfolio vs the S&P/TSX 60.
+   *  Aggregates only; issuer names in best/worst are masked client-side for
+   *  free visitors like the rest of this page. */
+  @Get('backtest')
+  @Header('Cache-Control', 'public, max-age=300')
+  async backtestGet() {
+    return this.backtest.get();
+  }
+
+  @UseGuards(AdminTokenGuard)
+  @Post('admin/backtest/refresh')
+  async backtestRefresh() {
+    return this.backtest.refresh();
+  }
+
   @Get('methodology')
   @Header('Cache-Control', 'public, max-age=600')
   async methodology() {
