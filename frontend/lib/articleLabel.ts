@@ -99,9 +99,15 @@ export function articleLabel(item: LabelSource, offset = 0): string {
   // programmatic posts have nothing but their `kind` to label them with.
   // §4 — paid content is labelled as such wherever it appears, including on a
   // card in a feed, so a reader never meets the claim before the disclosure.
-  if (item.sponsored) return "SPONSORED";
-
+  // A §9 category the writer set outranks it, because the article page also
+  // renders the gold "Sponsored · Paid content" pill directly above this line
+  // and the two together read as the same word stamped twice (client,
+  // 2026-09-22). The disclosure is not lost by preferring the category: the
+  // pill is the label, this line is the framing. With no category set, paid
+  // content still falls back to SPONSORED here.
   if (item.category) return item.category.toUpperCase();
+
+  if (item.sponsored) return "SPONSORED";
 
   const pool = VARIANTS[item.kind] ?? GENERIC;
   const base = pool[(hash(item.slug) + offset) % pool.length];

@@ -59,6 +59,16 @@ export class FulfilmentService {
     if (source === 'popup-30s' || source === 'popup-exit' || source === 'home-right-rail' || source === 'cta-top5') {
       return this.sendWeeklyTopBuys(email, source);
     }
+    // In-article email capture (the `email-capture` viz). Every such source is
+    // tagged `article-<slug>`, and before this they matched nothing at all, so
+    // the form said "You're in" and sent NOTHING — the only mail was the
+    // welcome flow half an hour later, and an address already on the list got
+    // even that skipped (the controller only starts the flow for new rows).
+    // The copy beside the form promises alerts, insider buy reports and
+    // research, so the weekly top-buys email is what it owes them, instantly.
+    if (source.startsWith('article-')) {
+      return this.sendWeeklyTopBuys(email, source);
+    }
     if (source.startsWith('cta-')) {
       const ticker = source.slice(4).toUpperCase();
       if (/^[A-Z0-9.\-]{1,12}$/.test(ticker)) {
