@@ -171,45 +171,10 @@ export default function VisualizersHub() {
         ))}
       </div>
 
-      <section
-        style={{
-          marginTop: 30,
-          padding: "18px 20px",
-          borderRadius: 12,
-          border: "1px solid var(--border)",
-          background: "var(--bg-elevated)",
-        }}
-      >
-        <h2
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: 17,
-            fontWeight: 800,
-            margin: "0 0 6px",
-          }}
-        >
-          Put one on your own site
-        </h2>
-        <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--text-mute)", margin: "0 0 10px" }}>
-          Every visualizer has an embeddable version — the same live page without our navigation,
-          with a link back. Swap the last path segment for{" "}
-          <code>prediction-markets</code>, <code>government-contracts</code>,{" "}
-          <code>goldminer</code> or <code>biotech</code>.
-        </p>
-        <pre
-          style={{
-            margin: 0,
-            padding: "12px 14px",
-            borderRadius: 9,
-            background: "var(--bg-3)",
-            fontFamily: "var(--font-mono)",
-            fontSize: 12,
-            overflowX: "auto",
-          }}
-        >{`<iframe src="https://insiderbuying.com/visualizers/embed/prediction-markets"
-        width="100%" height="700" style="border:0" loading="lazy"
-        title="Prediction Market Bubbles by InsiderBuying"></iframe>`}</pre>
-      </section>
+      {/* The "Put one on your own site" embed block (iframe snippet + path
+          instructions) was removed on 2026-09-21 (George: "remove the code and
+          embed instructions on this page"). The /visualizers/embed/* routes
+          themselves still work for anyone who already has the snippet. */}
 
       <section
         style={{
