@@ -54,6 +54,10 @@ const THUMBS: Thumb[] = [
   // 2026-09-19: Greenland security deal top story. Client-supplied Trump /
   // Frederiksen composite over Nuuk, resized from 2752x1536. pinnedOnly: two
   // real people made for one story.
+  // 2026-09-21: hair-loss drug stocks top story. Client-supplied Rogaine
+  // product shot, resized from 1728x960. pinnedOnly: a brand graphic made
+  // for one story.
+  { file: "rogaine-hair-loss-stocks", pinnedOnly: true },
   { file: "trump-frederiksen-greenland-deal", pinnedOnly: true },
   { file: "nyse-flag-23-hour-trading", pinnedOnly: true },
   { file: "gina-rinehart-white-cliff-2026", pinnedOnly: true },
@@ -139,6 +143,8 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-21: hair-loss drug stocks top story. Client-supplied Rogaine shot.
+  "editorial-hair-loss-drug-stocks-next-glp-1-bet-2026-09-21": "rogaine-hair-loss-stocks",
   // 2026-09-19: Greenland security deal top story. Client-supplied composite.
   "editorial-us-denmark-greenland-security-deal-2026-09-19": "trump-frederiksen-greenland-deal",
   // 2026-09-18: 23-hour trading top story. Client-supplied NYSE facade photo.
