@@ -52,6 +52,7 @@ export class IqsController {
     @Query('country') country?: string,
     @Query('exchange') exchange?: string,
     @Query('live') live?: string,
+    @Query('window') window?: string,
   ) {
     return this.iqs.getRankings({
       limit: limit ? Number(limit) : undefined,
@@ -67,6 +68,9 @@ export class IqsController {
       country: country || undefined,
       exchange: exchange || undefined,
       withLive: live === '1' || live === 'true',
+      // George 2026-09-21: ?window=365 serves the 12-month board (scores and
+      // every windowed column); anything else falls back to the 90-day one.
+      windowDays: window ? Number(window) : undefined,
     });
   }
 
@@ -74,8 +78,8 @@ export class IqsController {
    *  for the formula). Lighter than a full SEC ingestion. */
   @Post('recalculate')
   @UseGuards(AdminTokenGuard)
-  async recalculate(@Body() body?: { limit?: number; after?: string }) {
-    return this.iqs.recalculateAll(undefined, {
+  async recalculate(@Body() body?: { limit?: number; after?: string; windowDays?: number }) {
+    return this.iqs.recalculateAll(body?.windowDays, {
       limit: body?.limit,
       after: body?.after,
     });

@@ -10,7 +10,9 @@ import {
 import { Company } from './company.entity';
 
 @Entity('iqs_scores')
-@Index(['company', 'asOfDate'], { unique: true })
+// George 2026-09-21: scores now exist per LOOKBACK WINDOW (90-day and
+// 365-day), so the daily uniqueness key carries the window too.
+@Index(['company', 'asOfDate', 'windowDays'], { unique: true })
 export class IqsScore {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -26,6 +28,13 @@ export class IqsScore {
   @Index()
   @Column({ type: 'date' })
   asOfDate: string;
+
+  /** Trailing days of Form 4 history this score was computed from: 90 (the
+   *  default board) or 365 (the 12-month view). Every windowed figure on the
+   *  row — buyers, transaction count, purchase value, ownership change, the
+   *  sub-factors and the composite — is measured over exactly this span. */
+  @Column({ type: 'int', default: 90 })
+  windowDays: number;
 
   // ── The six IQS components (each 0–100) ──────────────────────────
   // IQS = Insider×0.25 + Transaction×0.25 + Conviction×0.20

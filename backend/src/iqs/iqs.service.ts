@@ -143,8 +143,21 @@ const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
  * Per-company means an interrupted recalc now shows slightly stale scores
  * instead of hiding companies outright.
  */
-const LATEST_SCORE_PER_COMPANY =
-  's."asOfDate" = (SELECT MAX(s2."asOfDate") FROM iqs_scores s2 WHERE s2.company_id = s.company_id)';
+/** Newest stored score per company FOR ONE LOOKBACK WINDOW.
+ *
+ *  George 2026-09-21 asked for a 90-day / 12-month toggle, so iqs_scores now
+ *  holds one row per company per day PER WINDOW. Without the window in both
+ *  the filter and the MAX() subquery a 90-day row written today would hide a
+ *  365-day row written yesterday, and the board would silently mix the two.
+ *  Callers that are not window-aware keep the 90-day default. */
+const latestScoreFor = (windowDays: number) =>
+  `s."windowDays" = ${Number(windowDays)} AND s."asOfDate" = (SELECT MAX(s2."asOfDate") FROM iqs_scores s2 ` +
+  `WHERE s2.company_id = s.company_id AND s2."windowDays" = ${Number(windowDays)})`;
+const LATEST_SCORE_PER_COMPANY = latestScoreFor(WINDOWS.buys);
+
+/** The lookback windows the board is scored for (George 2026-09-21: a 90-day
+ *  / 12-month toggle). 365 rather than 360 so "12 months" means a year. */
+export const SCORE_WINDOWS = [90, 365] as const;
 
 /** Normalize an "Exchanges" filter value to a stored Company.exchange code,
  *  or null for "All" / unknown (no filter). Accepts UI labels and codes:
@@ -437,7 +450,7 @@ export class IqsService {
    *  serverless budget. Only open-market purchases (code P) feed the Buying
    *  component; missing components degrade to neutral 50 (dataCompleteness). */
   async recalculateAll(
-    windowDays = WINDOWS.buys,
+    windowDays: number = WINDOWS.buys,
     opts?: { limit?: number; after?: string },
   ): Promise<{ updated: number; remaining: number; cursor: string | null }> {
     const since = new Date(Date.now() - windowDays * 86400000);
@@ -527,7 +540,7 @@ export class IqsService {
       const isFundTicker = /^[A-Z]{4}X$/.test(tkr); // NASDAQ mutual-fund class
       const malformed = !tkr || /[^A-Z0-9.\-]/.test(tkr);
       if (malformed || tkr === 'N/A' || tkr === 'NONE' || isFundTicker) {
-        await this.scores.delete({ companyId: company.id });
+        await this.scores.delete({ companyId: company.id, windowDays });
         return;
       }
       const allTxs = await this.txRepo
@@ -577,7 +590,7 @@ export class IqsService {
 
       // No buys AND no sells in the window → genuinely nothing to score.
       if (!txs.length && !(totalSellValue > 0)) {
-        await this.scores.delete({ companyId: company.id });
+        await this.scores.delete({ companyId: company.id, windowDays });
         return;
       }
 
@@ -657,7 +670,7 @@ export class IqsService {
       // like the no-transactions case.
       const sellsOnly = totalPurchaseValue <= 0 || buyers.size === 0;
       if (sellsOnly && !(totalSellValue > 0)) {
-        await this.scores.delete({ companyId: company.id });
+        await this.scores.delete({ companyId: company.id, windowDays });
         return;
       }
 
@@ -890,11 +903,12 @@ export class IqsService {
         x == null ? null : +x.toFixed(2);
 
       const existing = await this.scores.findOne({
-        where: { companyId: company.id, asOfDate: today },
+        where: { companyId: company.id, asOfDate: today, windowDays },
       });
       const payload: Partial<IqsScore> = {
         companyId: company.id,
         asOfDate: today,
+        windowDays,
         iqsV1,
         // v2 components + sub-factors (explainability)
         buyingScore: round2(buyingScore),
@@ -985,23 +999,34 @@ export class IqsService {
     country?: string;
     exchange?: string;
     withLive?: boolean;
+      /** Trailing days of Form 4 history behind the score and every windowed
+       *  column (George 2026-09-21: the 90-day board, or the 12-month view). */
+      windowDays?: number;
   }): Promise<{ total: number; rows: RankingRow[] }> {
     const cacheKey = JSON.stringify({
       l: opts.limit, o: opts.offset, s: opts.sector,
       sm: opts.sectorMatch?.source, sg: opts.sectorGroup,
       mn: opts.minMarketCap, mx: opts.maxMarketCap,
       mi: opts.minIqs, c: opts.country, e: opts.exchange, lv: !!opts.withLive,
+      w: opts.windowDays ?? WINDOWS.buys,
     });
     const hit = this.rankCache.get(cacheKey);
     if (hit && Date.now() - hit.ts < this.RANK_TTL_MS) return hit.data;
 
     const limit = Math.min(opts.limit ?? 50, 5000);
     const offset = opts.offset ?? 0;
+    // Only the windows we actually score are addressable: an unknown value
+    // would return an empty board rather than a wrong one.
+    const windowDays: number = (SCORE_WINDOWS as readonly number[]).includes(
+      Number(opts.windowDays),
+    )
+      ? Number(opts.windowDays)
+      : WINDOWS.buys;
 
     const qb = this.scores
       .createQueryBuilder('s')
       .innerJoin(Company, 'c', 'c.id = s.company_id')
-      .where(LATEST_SCORE_PER_COMPANY)
+      .where(latestScoreFor(windowDays))
       // The board ranks insider BUYING — sells-only rows (transactionCount 0,
       // scored since 2026-08-14) belong on company pages, not here.
       .andWhere('s."transactionCount" > 0')
@@ -1155,7 +1180,10 @@ export class IqsService {
     // Form 4 open-market buys (one grouped query for the whole page).
     if (rows.length) {
       const ids = rows.map((r) => r.companyId);
-      const since90 = new Date(Date.now() - WINDOWS.buys * 86400 * 1000);
+      // Average insider cost, last buy date and ROI vs that cost are measured
+      // over the SAME window as the score, or the toggle would move the score
+      // and leave the cost basis on 90 days.
+      const since90 = new Date(Date.now() - windowDays * 86400 * 1000);
       const aggs = await this.txRepo
         .createQueryBuilder('t')
         .select('t.company_id', 'companyId')
@@ -1187,7 +1215,7 @@ export class IqsService {
       // company (open-market 'P' only). Powers the "Cluster / CEO / CFO /
       // Hedge Funds" preset filter on the rankings table. Cluster is derived
       // client-side from distinctBuyers ≥ 2.
-      const since90r = new Date(Date.now() - WINDOWS.buys * 86400 * 1000);
+      const since90r = new Date(Date.now() - windowDays * 86400 * 1000);
       const roleRows = await this.txRepo
         .createQueryBuilder('t')
         .select('t.company_id', 'companyId')
@@ -1221,7 +1249,7 @@ export class IqsService {
         r.hasCeoBuyer = !!c?.ceo;
         r.hasCfoBuyer = !!c?.cfo;
         r.hasFundBuyer = !!c?.fund;
-        // Repeat buyer: any single insider filed >1 open-market buy in 90 days.
+        // Repeat buyer: any single insider filed >1 open-market buy in the window.
         r.hasRepeatBuyer = c
           ? Array.from(c.buysByInsider.values()).some((n) => n >= 2)
           : false;
@@ -1246,7 +1274,7 @@ export class IqsService {
       }
     }
 
-    const result = { total: filteredTotal ?? total, rows };
+    const result = { total: filteredTotal ?? total, rows, windowDays };
     this.rankCache.set(cacheKey, { ts: Date.now(), data: result });
     // Bound the cache — only a handful of distinct query shapes are ever hot.
     if (this.rankCache.size > 64) {

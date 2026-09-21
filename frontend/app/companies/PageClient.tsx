@@ -3,6 +3,7 @@ import useSWR from "swr";
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import { ScoreWindowToggle, type ScoreWindow } from "@/components/ScoreWindowToggle";
 import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
 import { API_BASE, RankingRow, RankingsResponse, fetcher, formatCurrency, formatDate } from "@/lib/api";
 import { PremiumGate } from "@/components/PremiumGate";
@@ -98,8 +99,11 @@ const INSIDER_TYPE_PRESETS = [
 
 export default function CompaniesPage() {
   const [exchange, setExchange] = useState<ExchangeValue>("all");
+  // George 2026-09-21: 90-day board or the 12-month rescore. The backend
+  // stores a separate score per window, so this re-ranks rather than filters.
+  const [windowDays, setWindowDays] = useState<ScoreWindow>(90);
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=500${exchange !== "all" ? `&exchange=${exchange}` : ""}`,
+    `${API_BASE}/rankings?limit=500${exchange !== "all" ? `&exchange=${exchange}` : ""}${windowDays !== 90 ? `&window=${windowDays}` : ""}`,
     fetcher,
   );
 
@@ -268,6 +272,13 @@ export default function CompaniesPage() {
           U.S. public companies ranked by the Insider Score. Highest scores at the
           bottom — the top 5 need Insider Access.
         </p>
+        {/* George 2026-09-21: say what the toggle actually does, because it
+            re-scores rather than filtering. */}
+        <p className="text-mute text-sm mt-1">
+          {windowDays === 365
+            ? "Scored on the last 12 months of Form 4 filings. Buyers, filings, dollars bought, the average insider cost and the return against it all cover the same 12 months."
+            : "Scored on the last 90 days of Form 4 filings. Switch the lookback to re-rank the board on 12 months of filings, with every column recalculated over that span."}
+        </p>
         <p
           className="mt-3 max-w-3xl rounded-lg px-4 py-3 text-[13px] leading-relaxed"
           style={{
@@ -283,7 +294,10 @@ export default function CompaniesPage() {
         </p>
       </header>
 
-      <ExchangeFilter value={exchange} onChange={setExchange} />
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <ExchangeFilter value={exchange} onChange={setExchange} />
+        <ScoreWindowToggle value={windowDays} onChange={setWindowDays} />
+      </div>
 
       {/* Free rows — highest rank at top, counts down to rank 6 */}
       <div className="card overflow-hidden">
