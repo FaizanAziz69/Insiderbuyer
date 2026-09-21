@@ -172,29 +172,34 @@ export default function InsightDetailClient({
               </div>
             ) : null}
 
-            {/* §4: paid/IR content is "clearly labeled as sponsored". Above
-                the headline, not in the footer — a disclosure the reader meets
-                after the claim is not a disclosure. */}
-            {post.sponsored ? (
-              <div
-                className="mb-3 inline-block px-2.5 py-1 font-bold uppercase"
-                style={{
-                  fontSize: 11,
-                  letterSpacing: "0.14em",
-                  background: "var(--gold)",
-                  color: "#14202a",
-                }}
-              >
-                Sponsored · Paid content
-              </div>
-            ) : null}
+            {/* The gold "Sponsored · Paid content" pill used to sit here, on
+                §4 ("paid/IR content is clearly labeled as sponsored") and on
+                the principle that a disclosure the reader meets AFTER the
+                claim is not a disclosure. The client removed it twice over
+                (2026-09-22), so the paid label now lives where the supplied
+                mockup puts it instead: an "Advertisement. InsiderBuying has
+                been compensated by …" line at the top of the article body,
+                above the first paragraph of copy, with the full disclosure at
+                the end. That keeps the disclosure ahead of the claims, which
+                is the part that actually matters.
 
+                CONSEQUENCE WORTH KNOWING: nothing outside the body marks a
+                sponsored article any more, so a paid piece whose body omits
+                that line ships with no label at all. `sponsored` still bars it
+                from the organic Top Stories rotation (see dealHomeFeed), which
+                is the other half of §4 and is unaffected. */}
+
+            {/* Category badge — the §9 label ("EXCLUSIVE INTERVIEW",
+                "MARKET MOVER") as a chip rather than bare text, so it reads as
+                a tag on the story rather than a stray line above the
+                headline. */}
             <div
-              className="mb-3 font-bold uppercase"
+              className="mb-3 inline-block rounded-md px-2.5 py-1.5 font-bold uppercase"
               style={{
                 fontSize: 11,
                 color: "var(--accent)",
                 letterSpacing: "0.14em",
+                background: "var(--accent-soft)",
               }}
             >
               {articleLabel(post)}
