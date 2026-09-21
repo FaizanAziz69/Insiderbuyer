@@ -7,6 +7,7 @@ import { PriceChartViz } from "./PriceChartViz";
 import { TxCompareViz } from "./TxCompareViz";
 import { PullQuoteViz } from "./PullQuoteViz";
 import { PeerTableViz } from "./PeerTableViz";
+import { SinceListingViz } from "./SinceListingViz";
 
 /**
  * Editorial Playbook v2 §7 — the six approved data visualizations, dispatched
@@ -26,6 +27,7 @@ import { PeerTableViz } from "./PeerTableViz";
  *   <div data-viz="price-chart"      data-ticker="GPRO" data-range="1y"></div>
  *   <div data-viz="tx-compare"       data-ticker="CCJ" data-days="30"></div>
  *   <div data-viz="pull-quote">One striking stat, as text.</div>
+ *   <div data-viz="since-listing">DOL.TO | Dollarama | TSX: DOL | 2.81 | C$ | October 2009</div>
  *
  * Everything is pulled live at render, so an article published in August still
  * shows current filings in December — and an article can never state a figure
@@ -92,6 +94,16 @@ export function EditorialViz({ attrs }: { attrs: VizAttrs }) {
       );
     case "pull-quote":
       return <PullQuoteViz html={attrs.inner || ""} cite={attrs.cite || null} />;
+    case "since-listing":
+      return (
+        <SinceListingViz
+          html={attrs.inner || ""}
+          title={attrs.title || null}
+          subtitle={attrs.subtitle || null}
+          source={attrs.source || null}
+          note={attrs.note || null}
+        />
+      );
     case "peer-table":
       return (
         <PeerTableViz
