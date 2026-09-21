@@ -96,8 +96,8 @@ export class Iqs2Controller {
    */
   @Post('publish')
   @UseGuards(AdminTokenGuard)
-  async publish() {
-    return this.svc.publish();
+  async publish(@Query('window') window?: string) {
+    return this.svc.publish(window ? Number(window) : undefined);
   }
 
   /** Force a shadow recompute. `alt=1` runs the 25/20 comparison vector. */
@@ -107,12 +107,15 @@ export class Iqs2Controller {
     @Query('asOf') asOf?: string,
     @Query('limit') limit?: string,
     @Query('alt') alt?: string,
-    @Body() body?: { asOf?: string; limit?: number },
+    @Query('window') window?: string,
+    @Body() body?: { asOf?: string; limit?: number; windowDays?: number },
   ) {
     return this.svc.computeAll({
       asOf: asOf || body?.asOf,
       limit: limit ? Number(limit) : body?.limit,
       weights: alt === '1' || alt === 'true' ? WEIGHTS_ALTERNATE : WEIGHTS_LAUNCH,
+      // George 2026-09-21: ?window=365 scores the 12-month board.
+      windowDays: window ? Number(window) : body?.windowDays,
     });
   }
 }
