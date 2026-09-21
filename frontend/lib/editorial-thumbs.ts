@@ -54,14 +54,15 @@ const THUMBS: Thumb[] = [
   // 2026-09-19: Greenland security deal top story. Client-supplied Trump /
   // Frederiksen composite over Nuuk, resized from 2752x1536. pinnedOnly: two
   // real people made for one story.
-  // 2026-09-21: hair-loss drug stocks top story. Client-supplied Rogaine
-  // product shot, resized from 1728x960. pinnedOnly: a brand graphic made
-  // for one story.
+  // 2026-09-21: hair-loss drug stocks top story. Client-supplied balding-man
+  // skyline shot (replaced the Rogaine product graphic on request), resized
+  // from 3024x1376. pinnedOnly: made for one story.
   // 2026-09-21: Steve Eisman AI top story. Client-supplied composite,
   // resized to the house 1606x1000. pinnedOnly: one man's likeness made for
   // one story.
   { file: "steve-eisman-ai-moats", pinnedOnly: true },
-  { file: "rogaine-hair-loss-stocks", pinnedOnly: true },
+  // 2026-09-21: replaced the Rogaine product shot at the client's request.
+  { file: "hair-loss-balding-skyline", pinnedOnly: true },
   { file: "trump-frederiksen-greenland-deal", pinnedOnly: true },
   { file: "nyse-flag-23-hour-trading", pinnedOnly: true },
   { file: "gina-rinehart-white-cliff-2026", pinnedOnly: true },
@@ -149,8 +150,8 @@ export interface ThumbInput {
 const SLUG_OVERRIDES: Record<string, string> = {
   // 2026-09-21: Steve Eisman AI top story. Client-supplied composite.
   "editorial-steve-eisman-ai-terminator-moats-2026-09-21": "steve-eisman-ai-moats",
-  // 2026-09-21: hair-loss drug stocks top story. Client-supplied Rogaine shot.
-  "editorial-hair-loss-drug-stocks-next-glp-1-bet-2026-09-21": "rogaine-hair-loss-stocks",
+  // 2026-09-21: hair-loss drug stocks top story.
+  "editorial-hair-loss-drug-stocks-next-glp-1-bet-2026-09-21": "hair-loss-balding-skyline",
   // 2026-09-19: Greenland security deal top story. Client-supplied composite.
   "editorial-us-denmark-greenland-security-deal-2026-09-19": "trump-frederiksen-greenland-deal",
   // 2026-09-18: 23-hour trading top story. Client-supplied NYSE facade photo.
