@@ -59,5 +59,9 @@ export const ISSUER_DECOYS: Array<[string, string, string]> = [
   ["MRDN", "Meridian Uranium Corp", "TSXV"],
   ["PLRS", "Polaris Battery Metals", "CSE"],
   ["TMBR", "Timberline Copper Ltd", "TSXV"],
+  // 12 entries so the 12-bar spend chart never repeats a decoy (George
+  // 2026-09-21: NRVX and CBLT showed twice on his phone).
+  ["GLCR", "Glacier Peak Copper Corp", "TSXV"],
+  ["TNDR", "Tundra Nickel Ltd", "CSE"],
 ];
 export const issuerDecoyFor = (i: number) => ISSUER_DECOYS[i % ISSUER_DECOYS.length];

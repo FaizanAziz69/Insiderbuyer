@@ -1,6 +1,9 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Lock } from "lucide-react";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
+import { PRODUCT_NAME } from "@/components/premium/PaywallCta";
 import { useState } from "react";
 
 /**
@@ -18,6 +21,14 @@ import { useState } from "react";
  * Both themes come from the site's own tokens (`--accent`, `--text`,
  * `--panel`, `--border`), so dark mode is the design system's chosen step
  * rather than an automatic flip.
+ *
+ * Paygate (George 2026-09-21, "paygate this as well plz"): the caller already
+ * passes DECOY tickers when `locked` (the real ones never enter the DOM), but
+ * a decoy label with no lock cue reads as free data — George saw NRVX and
+ * CBLT on his phone and took them for real, ungated issuers. So a locked
+ * chart now says so: the labels are blurred with the gold lock glyph, the
+ * same treatment as MaskedCell in the table beneath, every bar links to the
+ * subscribe page, and the footer names what the unlock buys.
  */
 
 interface Row {
@@ -53,6 +64,7 @@ export function PromoterSpendChart({
   locked?: boolean;
 }) {
   const [hover, setHover] = useState<number | null>(null);
+  const router = useRouter();
   const data = rows.filter((r) => (r.spendCad ?? 0) > 0).slice(0, 12);
 
   if (loading) {
@@ -125,6 +137,7 @@ export function PromoterSpendChart({
                 key={r.ticker}
                 onMouseEnter={() => setHover(i)}
                 onMouseLeave={() => setHover(null)}
+                onClick={() => router.push(locked ? SUBSCRIBE_HREF : `/promoter-score/${r.ticker}`)}
                 style={{ cursor: "pointer" }}
               >
                 {/* Hit target spans the whole row, not just the bar. */}
@@ -136,9 +149,30 @@ export function PromoterSpendChart({
                   fontSize={12}
                   fontWeight={700}
                   fill="var(--text)"
+                  style={locked ? { filter: "blur(4px)", userSelect: "none" } : undefined}
+                  aria-hidden={locked || undefined}
                 >
                   {r.ticker}
                 </text>
+                {locked ? (
+                  /* Same gold padlock MaskedCell draws over a locked cell. */
+                  <svg
+                    x={LABEL_W - 8 - 30}
+                    y={y + ROW_H / 2 - 6}
+                    width={12}
+                    height={12}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--premium)"
+                    strokeWidth={2.2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <rect width="18" height="11" x="3" y="11" rx="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                ) : null}
                 <rect
                   x={LABEL_W}
                   y={y + 4}
@@ -168,14 +202,32 @@ export function PromoterSpendChart({
           className="mt-2 rounded-md px-3 py-2 text-[12px]"
           style={{ background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text-soft)" }}
         >
-          <Link href={locked ? SUBSCRIBE_HREF : `/promoter-score/${data[hover].ticker}`} className="font-bold text-accent hover:underline">
-            {data[hover].ticker}
-          </Link>{" "}
-          {data[hover].name ? <span style={{ color: "var(--text)" }}>{data[hover].name}</span> : null} ·{" "}
-          {money(data[hover].spendCad || 0)} this quarter across {data[hover].activeContracts}{" "}
+          {locked ? (
+            <Link href={SUBSCRIBE_HREF} className="font-bold hover:underline" style={{ color: "var(--premium)" }}>
+              <Lock className="inline-block h-3 w-3 mr-1 -mt-0.5" aria-hidden />
+              Unlock this issuer
+            </Link>
+          ) : (
+            <>
+              <Link href={`/promoter-score/${data[hover].ticker}`} className="font-bold text-accent hover:underline">
+                {data[hover].ticker}
+              </Link>{" "}
+              {data[hover].name ? <span style={{ color: "var(--text)" }}>{data[hover].name}</span> : null}
+            </>
+          )}{" "}
+          · {money(data[hover].spendCad || 0)} this quarter across {data[hover].activeContracts}{" "}
           {data[hover].activeContracts === 1 ? "provider" : "providers"}
-          {data[hover].sector ? ` · ${data[hover].sector}` : ""}
+          {!locked && data[hover].sector ? ` · ${data[hover].sector}` : ""}
         </div>
+      ) : locked ? (
+        <p className="mt-2 text-[11.5px]" style={{ color: "var(--text-mute)" }}>
+          <Lock className="inline-block h-3 w-3 mr-1 -mt-0.5" style={{ color: "var(--premium)" }} aria-hidden />
+          Issuer names are hidden.{" "}
+          <Link href={SUBSCRIBE_HREF} className="font-semibold hover:underline" style={{ color: "var(--premium)" }}>
+            Unlock the issuers
+          </Link>{" "}
+          with {PRODUCT_NAME}. Source: issuer news releases filed under TSX Venture Policy 3.4 and CSE policy.
+        </p>
       ) : (
         <p className="mt-2 text-[11.5px]" style={{ color: "var(--text-mute)" }}>
           Source: issuer news releases filed under TSX Venture Policy 3.4 and CSE policy. Hover a bar for detail.
