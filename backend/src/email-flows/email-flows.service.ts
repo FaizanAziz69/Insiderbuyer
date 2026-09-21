@@ -20,6 +20,13 @@ export interface EmailAttachment {
 
 /** The urgency flow is the tail of the welcome timeline (day 9–10), so it
  *  ships as part of the welcome flow's step list. */
+/** Footer line per email kind — see FlowEmail.footerKind. */
+const FOOTER_LINE: Record<'list' | 'requested' | 'internal', string> = {
+  list: 'You’re receiving this because you joined Insider Buying.',
+  requested: 'You’re receiving this because you requested access to an InsiderBuying.com dataset.',
+  internal: 'Automated notification from the InsiderBuying.com site.',
+};
+
 const FLOWS: Record<EmailFlowName, FlowEmail[]> = {
   welcome: [...WELCOME_FLOW, ...URGENCY_FLOW],
   abandoned: ABANDONED_FLOW,
@@ -192,7 +199,7 @@ export class EmailFlowsService {
       `<div style="border-bottom:3px solid #1a237e;margin:0 0 26px;"></div>` +
       blocks +
       `<div style="margin-top:34px;padding-top:14px;border-top:1px solid #e5e5e5;font-size:12px;color:#999;">` +
-      `You’re receiving this because you joined Insider Buying. ` +
+      `${FOOTER_LINE[step.footerKind ?? 'list']} ` +
       `<a href="${this.siteUrl}" style="color:#999;">insiderbuying</a></div>` +
       `</div>`
     );

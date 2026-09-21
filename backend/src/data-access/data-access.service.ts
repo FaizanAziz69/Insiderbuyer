@@ -143,6 +143,8 @@ export class DataAccessService {
       offsetMinutes: 0,
       brand: 'INSIDER BUYING',
       signoffTitle: 'InsiderBuying.com',
+      // Internal ops alert to our own desk — nobody 'joined' anything.
+      footerKind: 'internal',
       subjects: [{ subject: `Access request: ${row.company} — ${this.datasetLabel(row.dataset)}` }],
       body: [
         `<p style="margin:0 0 14px;"><strong>${row.name}</strong> (${row.title}) at <strong>${row.company}</strong> has requested access to ${this.datasetLabel(row.dataset)}.</p>`,
@@ -161,6 +163,8 @@ export class DataAccessService {
       offsetMinutes: 0,
       brand: 'INSIDER BUYING',
       signoffTitle: 'InsiderBuying.com',
+      // They asked for this dataset; they did not join a mailing list.
+      footerKind: 'requested',
       subjects: [
         { subject: `Your access to ${this.datasetLabel(row.dataset)}`, preview: 'Open the link to unlock the dataset' },
       ],

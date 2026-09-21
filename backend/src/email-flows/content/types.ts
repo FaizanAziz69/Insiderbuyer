@@ -18,6 +18,14 @@ export interface FlowEmail {
   body: string[];
   /** Signature block title line. */
   signoffTitle: string;
+  /** Why this person is receiving the email, for the footer.
+   *
+   *  'list' (default) is the marketing line for the newsletter and the
+   *  sequences. Transactional mail must not claim the reader joined a list:
+   *  an access grant answers a request they made, and an internal ops alert
+   *  to our own desk has no subscriber behind it at all (both were going out
+   *  with the marketing footer, spotted 2026-09-21). */
+  footerKind?: 'list' | 'requested' | 'internal';
 }
 
 export const SIGNOFF_BUYING = 'CEO and Publisher, Insider Buying';
