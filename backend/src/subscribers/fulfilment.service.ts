@@ -75,7 +75,23 @@ export class FulfilmentService {
         await this.reports.sendReportEmail(email, ticker);
         this.logger.log(`fulfilled ${source} → ${email}: ticker report`);
       }
+      return;
     }
+    // FALLBACK. Everything above is an allow-list, and anything it did not
+    // recognise used to fall off the end and send nothing at all, while the
+    // form that captured the address still said "You're in. Check your inbox."
+    // That was not one article's bug: `bubbles-panel`, `insider-activity-toast`
+    // and `B2B Lead` are all live opt-in surfaces sitting in the subscriber
+    // table having never sent a thing, and a browser holding a cached page can
+    // post a tag that was renamed since. An opt-in is a promise, so an
+    // unrecognised one now gets the weekly top buys rather than silence.
+    //
+    // Two exclusions, because they are not opt-ins: `qa-*` is test traffic, and
+    // `report-checkout-started` marks someone part-way through buying a report,
+    // who is owed the report and not a newsletter.
+    if (source.startsWith('qa-') || source === 'report-checkout-started') return;
+    this.logger.warn(`fulfilment: no rule for "${source}", falling back to weekly top buys`);
+    return this.sendWeeklyTopBuys(email, source);
   }
 
   private async sendWeeklyTopBuys(email: string, source: string): Promise<void> {
