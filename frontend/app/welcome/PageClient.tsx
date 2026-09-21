@@ -96,7 +96,9 @@ export default function WelcomeClient() {
         <div className="text-[10px] font-bold tracking-[3px]" style={{ color: "#C8A24A" }}>
           NEXT
         </div>
-        <h2 className="text-[24px] font-extrabold leading-tight mt-2">
+        {/* Explicit white: the global h2 colour is the dark text token, which
+            vanished on this navy card in the live check (2026-09-21). */}
+        <h2 className="text-[24px] font-extrabold leading-tight mt-2" style={{ color: "#fff" }}>
           Get our penny stock spotlight: one stock under $100M
         </h2>
         <p className="text-[14px] mt-2 max-w-[560px] mx-auto" style={{ color: "#cbd5e1" }}>
