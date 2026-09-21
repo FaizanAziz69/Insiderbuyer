@@ -57,6 +57,10 @@ const THUMBS: Thumb[] = [
   // 2026-09-21: hair-loss drug stocks top story. Client-supplied Rogaine
   // product shot, resized from 1728x960. pinnedOnly: a brand graphic made
   // for one story.
+  // 2026-09-21: Steve Eisman AI top story. Client-supplied composite,
+  // resized to the house 1606x1000. pinnedOnly: one man's likeness made for
+  // one story.
+  { file: "steve-eisman-ai-terminator", pinnedOnly: true },
   { file: "rogaine-hair-loss-stocks", pinnedOnly: true },
   { file: "trump-frederiksen-greenland-deal", pinnedOnly: true },
   { file: "nyse-flag-23-hour-trading", pinnedOnly: true },
@@ -143,6 +147,8 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-21: Steve Eisman AI top story. Client-supplied composite.
+  "editorial-steve-eisman-ai-terminator-moats-2026-09-21": "steve-eisman-ai-terminator",
   // 2026-09-21: hair-loss drug stocks top story. Client-supplied Rogaine shot.
   "editorial-hair-loss-drug-stocks-next-glp-1-bet-2026-09-21": "rogaine-hair-loss-stocks",
   // 2026-09-19: Greenland security deal top story. Client-supplied composite.

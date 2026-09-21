@@ -103,7 +103,8 @@ const HERO_MAX_AGE_MS = 5 * 24 * 60 * 60_000;
 /*  2026-09-18: repointed to the 23-hour trading story (client Instagram tip). */
 /*  2026-09-19: repointed to the Greenland security deal story (client BBC tip). */
 /*  2026-09-21: repointed to the hair-loss drug stocks story (client Bloomberg tip). */
-export const HERO_PIN: string | null = "editorial-hair-loss-drug-stocks-next-glp-1-bet-2026-09-21";
+/*  2026-09-21 (later): repointed to the Steve Eisman AI story (client CNBC tip). */
+export const HERO_PIN: string | null = "editorial-steve-eisman-ai-terminator-moats-2026-09-21";
 
 export function rotateHero(editorial: BlogPostListItem[], nowMs = Date.now()): BlogPostListItem[] {
   if (editorial.length < 2) return editorial;
