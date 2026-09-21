@@ -417,7 +417,7 @@ export class Iqs2Service {
 
         // Provisional roll-up to get this company's M×Raw for the universe.
         const provisional = scoreCompany({
-        windowDays,
+          windowDays,
           trades,
           shareGrowthTtm: null,
           universeRaw: [],
@@ -469,6 +469,11 @@ export class Iqs2Service {
       let written = 0;
       for (const r of results) {
         const final = scoreCompany({
+          // The FINAL roll-up is the published score and the counted-trade
+          // count — without the window here it silently fell back to 90 days,
+          // so the 12-month board counted 6 more trades than the 90-day one
+          // out of ~1,700 extra filings.
+          windowDays,
           trades: r.trades,
           shareGrowthTtm: r.shareGrowth,
           universeRaw,
