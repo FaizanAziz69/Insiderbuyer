@@ -67,13 +67,15 @@ export function TopHeader() {
           {NAV_GROUPS.map((g) => (
             <MegaDropdown key={g.label} group={g} />
           ))}
-          {/* Round-2 brief, Section 3D: My Portfolio is a primary nav item,
-              not a link buried inside a dropdown. */}
+          {/* George 2026-09-21: "remove the My Portfolio section and replace it
+              with this" — the primary nav slot now opens the stock-search
+              insider report (3 free reports, then Insider Access). /portfolio
+              itself stays reachable for portfolio subscribers. */}
           <Link
-            href="/portfolio"
+            href="/insider-report"
             className="nav-top-link inline-flex items-center px-4 py-2 rounded-md whitespace-nowrap"
           >
-            My Portfolio
+            Free Report
           </Link>
         </nav>
 
@@ -282,11 +284,11 @@ export function TopHeader() {
             )}
             {user && <div className="mb-6" />}
             <Link
-              href="/portfolio"
+              href="/insider-report"
               onClick={() => setMobileOpen(false)}
               className="flex items-center justify-between px-3 py-2 mb-6 rounded-md hover:bg-[var(--accent-soft)]"
             >
-              <span className="text-[14px] font-semibold text-soft">My Portfolio</span>
+              <span className="text-[14px] font-semibold text-soft">Free Report</span>
             </Link>
             {NAV_GROUPS.map((g) => (
               <div key={g.label} className="mb-6">

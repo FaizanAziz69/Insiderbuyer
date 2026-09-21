@@ -68,9 +68,9 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: "/pwa/icon-192.png", sizes: "192x192" }],
       },
       {
-        name: "My Portfolio",
-        short_name: "Portfolio",
-        url: "/portfolio?source=pwa",
+        name: "Free Report",
+        short_name: "Report",
+        url: "/insider-report?source=pwa",
         icons: [{ src: "/pwa/icon-192.png", sizes: "192x192" }],
       },
     ],

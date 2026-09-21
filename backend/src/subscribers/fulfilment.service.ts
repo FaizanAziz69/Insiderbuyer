@@ -3,6 +3,7 @@ import { EmailFlowsService } from '../email-flows/email-flows.service';
 import { FlowEmail } from '../email-flows/content/types';
 import { InsiderAlertsService } from '../insider-alerts/insider-alerts.service';
 import { ReportsService } from '../reports/reports.service';
+import { LandingService } from '../reports/landing.service';
 import { FreeReportService } from '../free-report/free-report.service';
 
 /**
@@ -39,6 +40,7 @@ export class FulfilmentService {
     private readonly alerts: InsiderAlertsService,
     private readonly reports: ReportsService,
     private readonly freeReport: FreeReportService,
+    private readonly landing: LandingService,
   ) {}
 
   /** Fire-and-forget: pick the email for `source` and send it. */
@@ -53,6 +55,7 @@ export class FulfilmentService {
     if (!source) return;
     if (source === 'alerts') return this.sendAlertsWelcome(email);
     if (source === 'free-report') return this.sendFreeReport(email);
+    if (source === 'penny-spotlight') return this.sendPennySpotlight(email);
     if (source === 'popup-30s' || source === 'popup-exit' || source === 'home-right-rail' || source === 'cta-top5') {
       return this.sendWeeklyTopBuys(email, source);
     }
@@ -117,6 +120,50 @@ export class FulfilmentService {
     };
     await this.emailFlows.sendOneOff(email, step, null, [{ filename: 'InsiderBuying-Get-On-The-Inside.pdf', content: pdf }]);
     this.logger.log(`fulfilled free-report → ${email} (${pdf.length} bytes attached)`);
+  }
+
+  /** George 2026-09-21, the /welcome page CTA: "get our penny stock
+   *  spotlight — one stock under $100M". One real name from our Form 4
+   *  record: the sub-$100M company with the most open-market insider buying
+   *  in the last 90 days. */
+  private async sendPennySpotlight(email: string): Promise<void> {
+    const pick = await this.landing.pennySpotlight();
+    if (!pick) {
+      this.logger.warn('penny-spotlight: no sub-$100M company with insider buying in the window');
+      return;
+    }
+    const usd = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+    const cap = pick.marketCap >= 1e6 ? `$${(pick.marketCap / 1e6).toFixed(1)} million` : usd(pick.marketCap);
+    const site = process.env.SITE_URL || 'https://insiderbuying.com';
+    const b = pick.biggest;
+    const step: FlowEmail = {
+      id: 'penny-spotlight',
+      offsetMinutes: 0,
+      brand: 'INSIDER BUYING',
+      signoffTitle: 'CEO and Publisher, Insider Buying',
+      subjects: [
+        { subject: `Your Penny Stock Spotlight: ${pick.ticker}, one stock under $100M`, preview: 'Where the insiders are buying small' },
+      ],
+      body: [
+        'Hello {{FIRSTNAME}},',
+        'You asked for our Penny Stock Spotlight, so here it is: one company under $100 million in market value where the insiders have been buying with their own money.',
+        `<h2 style="margin:18px 0 6px;font-size:22px;">${pick.name} (${pick.ticker})</h2>`,
+        `<p style="margin:0 0 16px;color:#444;">${pick.sector || 'Sector not classified'} · Market cap about ${cap}${pick.lastPrice ? ` · Last price $${pick.lastPrice.toFixed(2)}` : ''}</p>`,
+        `Over the last 90 days, ${pick.insiders === 1 ? 'one insider' : `${pick.insiders} insiders`} made ${pick.buys === 1 ? 'one open-market purchase' : `${pick.buys} open-market purchases`} totalling <strong>${usd(pick.totalBought)}</strong>, according to SEC Form 4 filings reviewed by InsiderBuying.com.`,
+        b
+          ? `The largest single purchase came from <strong>${b.insiderName}</strong>${b.title ? ` (${b.title})` : ''} on ${b.date}: ${b.shares.toLocaleString('en-US')} shares at $${b.price.toFixed(2)}, or <strong>${usd(b.value)}</strong>.`
+          : '',
+        'Small companies are where insider buying tells you the most, because a purchase like this is a large share of the person’s net worth and the stock has almost no analyst coverage to price it in.',
+        `<p style="margin:16px 0;"><a href="${site}/companies/${encodeURIComponent(pick.ticker)}" style="color:#e02b2b;font-weight:600;text-decoration:underline;">See every ${pick.ticker} insider filing, the chart and the Insider Score band</a></p>`,
+        'Insider Access members get the Insider Score itself, the full ranked list of sub-$100M names insiders are buying, and an alert the moment the next Form 4 lands.',
+        `<p style="margin:0 0 16px;"><a href="${site}/premium" style="color:#e02b2b;font-weight:600;text-decoration:underline;">Join Insider Access</a></p>`,
+        '<p style="margin:16px 0 0;font-size:12px;color:#666;">Informational only, not investment advice. Micro-cap stocks are volatile and thinly traded. Insider buying is one signal among many and does not guarantee future performance.</p>',
+        'See you on the inside,',
+        '__SIGNOFF__',
+      ].filter(Boolean),
+    };
+    await this.emailFlows.sendOneOff(email, step);
+    this.logger.log(`fulfilled penny-spotlight → ${email} (${pick.ticker})`);
   }
 
   private async sendAlertsWelcome(email: string): Promise<void> {

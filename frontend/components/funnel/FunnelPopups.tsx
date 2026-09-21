@@ -47,20 +47,30 @@ const COPY: Record<
     source: string;
     shownCookie: string;
     completedCookie: string;
+    /** "report" draws the report cover above the headline. */
+    visual?: "report";
+    /** Where a completed opt-in goes; default = confirm inside the popup. */
+    redirect?: string;
   }
 > = {
+  // George 2026-09-21: the free-report landing page is gone and its lead
+  // magnet is THE main popup. Source `free-report` makes the backend attach
+  // the PDF at once; completion goes to /welcome (the first welcome email as
+  // a page, then the penny-stock spotlight CTA) instead of an inline "done".
   popup1: {
-    headline: "Would You Want to Know If a CEO Just Bet $2 Million on Their Own Stock?",
-    lead: "Get the Weekly Insider Signal — free.",
+    headline: "Get On The Inside",
+    lead: "Free investor report: A Guide to Following Insider Buying.",
     lines: [
-      "Every Monday: the top insider buys of the week,",
-      "scored and ranked by our proprietary IQS model.",
-      "The moves the market hasn't priced in yet.",
+      "How the insider buying signal works, why decades of",
+      "research back it up, and 3 stocks where insiders are",
+      "putting their own money to work right now.",
     ],
-    cta: "Send Me This Week's Top Insider Buys →",
-    below: "Free. No credit card. Unsubscribe anytime.",
+    cta: "Send Me the Free Report →",
+    below: "A PDF you can read in ten minutes. Free. No credit card. Unsubscribe anytime.",
     dismiss: "No thanks — I'll find my own stock ideas",
-    source: "popup-30s",
+    source: "free-report",
+    visual: "report",
+    redirect: "/welcome",
     shownCookie: FUNNEL_COOKIES.popup1Shown,
     completedCookie: FUNNEL_COOKIES.popup1Completed,
   },
@@ -242,7 +252,20 @@ function FunnelModal({
         body: JSON.stringify({ email: email.trim().toLowerCase(), source: copy.source }),
       });
       if (!res.ok) throw new Error(String(res.status));
-      onCompleted(email.trim().toLowerCase());
+      const clean = email.trim().toLowerCase();
+      onCompleted(clean);
+      if (copy.redirect) {
+        // /welcome needs the address for its one-click penny-stock CTA; the
+        // tab's sessionStorage is the least persistent place that survives
+        // the navigation.
+        try {
+          sessionStorage.setItem("ib_welcome_email", clean);
+        } catch {
+          /* storage blocked — the page falls back to asking for it */
+        }
+        window.location.assign(copy.redirect);
+        return;
+      }
       // Brief: confirm INSIDE the popup. No redirect.
       setDone(true);
     } catch {
@@ -273,6 +296,15 @@ function FunnelModal({
           </div>
         ) : (
           <>
+            {copy.visual === "report" && (
+              <div className="fp-cover" aria-hidden>
+                <div className="fp-cover-kicker">FREE INVESTOR REPORT</div>
+                <div className="fp-cover-title">GET ON THE INSIDE</div>
+                <div className="fp-cover-rule" />
+                <div className="fp-cover-sub">A Guide to Following Insider Buying</div>
+                <div className="fp-cover-plus">Plus 3 Stocks Insiders Are Buying Right Now</div>
+              </div>
+            )}
             <h2 className="fp-head">{copy.headline}</h2>
             {copy.lead && <p className="fp-lead">{copy.lead}</p>}
             <p className="fp-sub">
@@ -351,6 +383,13 @@ const CSS = `
 .fp-dismiss { display: block; margin: 14px auto 0; background: none; border: 0; cursor: pointer;
   font-size: 12.5px; color: #7f8ea3; text-decoration: underline; }
 .fp-dismiss:hover { color: #cbd5e1; }
+.fp-cover { margin: -6px auto 16px; width: 168px; text-align: left; background: #08172a; border-top: 4px solid #C8A24A;
+  border-radius: 6px; padding: 12px 12px 14px; box-shadow: 0 14px 30px rgba(0,0,0,0.45); }
+.fp-cover-kicker { font-size: 7.5px; font-weight: 800; letter-spacing: 2px; color: #C8A24A; }
+.fp-cover-title { font-family: var(--font-heading), var(--font-sans), sans-serif; font-size: 17px; font-weight: 900; line-height: 1.05; margin-top: 6px; color: #fff; }
+.fp-cover-rule { width: 34px; height: 2px; background: #C8A24A; margin: 7px 0; }
+.fp-cover-sub { font-size: 9.5px; color: #E5E7EB; }
+.fp-cover-plus { font-size: 8.5px; font-style: italic; color: #C8A24A; margin-top: 3px; }
 .fp-done-title { font-family: var(--font-heading), var(--font-sans), sans-serif; font-size: 24px; font-weight: 800; margin: 8px 0 10px; }
 .fp-done-body { font-size: 14.5px; line-height: 1.6; color: #cbd5e1; margin: 0 0 18px; }
 @media (max-width: 640px) {

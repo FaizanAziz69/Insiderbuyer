@@ -1,12 +1,20 @@
 "use client";
 import { Star } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useWatchlist } from "@/lib/watchlist";
+import { useAuth } from "@/lib/auth";
+import { requireAccount } from "@/lib/auth-prompt";
 
 /**
  * Toggle a ticker in the personal (localStorage) watchlist. Renders a
  * star that fills when saved. `variant="icon"` for table rows / cards,
  * `variant="button"` for a labeled "+ Watchlist" on the stock detail page.
  * Stops propagation so it never triggers a surrounding row/card link.
+ *
+ * George 2026-09-21: watchlists need a (free) account. Signed out, the click
+ * opens the sign-up modal instead of writing to localStorage; the ticker is
+ * remembered and added the moment the account exists, so the click is not
+ * lost. Removing a saved ticker never needs an account.
  */
 export function WatchlistButton({
   ticker,
@@ -18,10 +26,24 @@ export function WatchlistButton({
   size?: "sm" | "md";
 }) {
   const { has, toggle } = useWatchlist();
+  const { user, loading } = useAuth();
   const saved = has(ticker);
+  const pending = useRef(false);
+  // Finish the add the visitor asked for once they have signed up / in.
+  useEffect(() => {
+    if (user && pending.current) {
+      pending.current = false;
+      if (!has(ticker)) toggle(ticker);
+    }
+  }, [user, has, toggle, ticker]);
   const onClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!saved && !user && !loading) {
+      pending.current = true;
+      requireAccount({ reason: "Create a free account to use watchlists and get alerts when insiders buy." });
+      return;
+    }
     toggle(ticker);
   };
   const label = saved ? "In Watchlist" : "Add to Watchlist";

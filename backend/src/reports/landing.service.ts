@@ -35,6 +35,18 @@ export interface LandingPanels {
   };
 }
 
+export interface PennySpotlight {
+  ticker: string;
+  name: string;
+  sector: string | null;
+  marketCap: number;
+  lastPrice: number | null;
+  totalBought: number;
+  insiders: number;
+  buys: number;
+  biggest: { insiderName: string; title: string | null; date: string; shares: number; price: number; value: number } | null;
+}
+
 const CACHE_MS = 6 * 60 * 60_000;
 
 @Injectable()
@@ -116,6 +128,74 @@ export class LandingService {
     };
     this.cache = { ts: Date.now(), data };
     return data;
+  }
+
+  /**
+   * George 2026-09-21 thank-you page CTA: "get our penny stock spotlight —
+   * one stock under $100M". The stock with the most open-market insider
+   * buying in the trailing 90 days among companies with a market cap under
+   * $100 million, plus its largest single purchase. Real Form 4 data, never
+   * a fixed pick, so the spotlight stays current without an editor.
+   */
+  async pennySpotlight(): Promise<PennySpotlight | null> {
+    const since = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+    const rows: Array<{
+      ticker: string; name: string; sector: string | null; marketCap: string; lastPrice: string | null;
+      total: string; insiders: string; buys: string;
+    }> = await this.tx
+      .createQueryBuilder('t')
+      .innerJoin('t.company', 'c')
+      .select('c.ticker', 'ticker')
+      .addSelect('c.name', 'name')
+      .addSelect('c.sector', 'sector')
+      .addSelect('c."marketCap"', 'marketCap')
+      .addSelect('c."lastPrice"', 'lastPrice')
+      .addSelect('SUM(t."totalValue")', 'total')
+      .addSelect('COUNT(DISTINCT t."insiderName")', 'insiders')
+      .addSelect('COUNT(*)', 'buys')
+      .where(`t."transactionCode" = 'P'`)
+      .andWhere(`t."transactionDate" >= :since`, { since })
+      .andWhere(`t."pricePerShare" > 0 AND t."pricePerShare" <= 1000000`)
+      .andWhere(`t."totalValue" >= 25000`)
+      .andWhere(`c.ticker IS NOT NULL`)
+      .andWhere(`c."marketCap" IS NOT NULL AND c."marketCap" > 0 AND c."marketCap" < 100000000`)
+      .groupBy('c.ticker').addGroupBy('c.name').addGroupBy('c.sector').addGroupBy('c."marketCap"').addGroupBy('c."lastPrice"')
+      .orderBy('total', 'DESC')
+      .limit(1)
+      .getRawMany();
+    const top = rows[0];
+    if (!top) return null;
+    const biggest = await this.tx
+      .createQueryBuilder('t')
+      .innerJoin('t.company', 'c')
+      .select(['t."insiderName" AS "insiderName"', 't."rawTitle" AS "rawTitle"', 't."transactionDate" AS "transactionDate"',
+        't."sharesBought" AS "sharesBought"', 't."pricePerShare" AS "pricePerShare"', 't."totalValue" AS "totalValue"'])
+      .where(`c.ticker = :t`, { t: top.ticker })
+      .andWhere(`t."transactionCode" = 'P'`)
+      .andWhere(`t."transactionDate" >= :since`, { since })
+      .orderBy('t."totalValue"', 'DESC')
+      .limit(1)
+      .getRawOne();
+    return {
+      ticker: String(top.ticker).toUpperCase(),
+      name: top.name,
+      sector: top.sector,
+      marketCap: Number(top.marketCap) || 0,
+      lastPrice: top.lastPrice != null ? Number(top.lastPrice) : null,
+      totalBought: Number(top.total) || 0,
+      insiders: Number(top.insiders) || 0,
+      buys: Number(top.buys) || 0,
+      biggest: biggest
+        ? {
+            insiderName: String(biggest.insiderName),
+            title: biggest.rawTitle ? String(biggest.rawTitle) : null,
+            date: String(biggest.transactionDate).slice(0, 10),
+            shares: Number(biggest.sharesBought) || 0,
+            price: Number(biggest.pricePerShare) || 0,
+            value: Number(biggest.totalValue) || 0,
+          }
+        : null,
+    };
   }
 
   /** Top tickers by trailing-90d open-market dollars for one Form 4 code. */

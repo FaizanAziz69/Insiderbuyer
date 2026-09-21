@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { EmailFlowsService } from './email-flows.service';
 import { EmailFlowName } from '../entities/email-flow-state.entity';
 
@@ -23,6 +24,26 @@ export class EmailFlowsController {
   @Post('newsletter')
   async newsletter() {
     return this.flows.sendWeeklyNewsletter();
+  }
+
+  /** Rendered HTML of one step, for the /welcome thank-you page (George
+   *  2026-09-21: "with our first welcome to insider buying message, same
+   *  email we send first"). Public: it is the marketing email every
+   *  subscriber receives, nothing account-specific. */
+  @Get('preview')
+  preview(
+    @Query('flow') flowRaw: string | undefined,
+    @Query('step') step: string | undefined,
+    @Query('firstName') firstName: string | undefined,
+    @Res() res: Response,
+  ) {
+    const flow = flowRaw && FLOW_NAMES.includes(flowRaw as EmailFlowName) ? (flowRaw as EmailFlowName) : null;
+    const st = flow && step ? this.flows.getStep(flow, step) : null;
+    if (!st) throw new BadRequestException('flow and step are required');
+    const name = (firstName || '').trim().slice(0, 40) || 'friend';
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(this.flows.renderHtml(st, name, st.subjects[0]?.preview));
   }
 
   /** The flows and their timings — sanity check. */

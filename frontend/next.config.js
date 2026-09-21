@@ -64,6 +64,10 @@ const nextConfig = {
       // The beehiiv-style sales draft was approved and now IS /premium
       // (client 2026-08-24) — the review URL keeps working.
       { source: "/premium-preview", destination: "/premium", permanent: false },
+      // George 2026-09-21: the free-report landing page is gone — the lead
+      // magnet is the site popup now, and "Free Report" in the nav is the
+      // stock-search insider report.
+      { source: "/free-report", destination: "/insider-report", permanent: true },
     ];
   },
 };

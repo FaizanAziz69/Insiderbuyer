@@ -114,6 +114,7 @@ const POPUP_FREE_PREFIXES = [
   "/press",
   "/top-picks-report",
   "/thank-you-report",
+  "/welcome",
   "/login",
   "/insider-report",
   "/score-explainer",

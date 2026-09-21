@@ -118,12 +118,8 @@ const PLANS: Array<{
     tagline: "Start exploring the tape.",
     cta: "Start free",
     featured: false,
-    feats: [
-      "Market data, movers & heatmaps",
-      "Stock pages & charts",
-      "Rankings preview",
-      "Insider alerts newsletter",
-    ],
+    // George 2026-09-21: the Free column lists exactly these three.
+    feats: ["News Articles", "Limited stock data", "Watchlists"],
   },
   {
     name: "Monthly",

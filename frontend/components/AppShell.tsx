@@ -1,6 +1,7 @@
 "use client";
 import { usePathname } from "next/navigation";
 import { TopHeader } from "./TopHeader";
+import { AuthPromptHost } from "@/components/AuthPromptHost";
 import { Footer } from "./Footer";
 import { TopTickerBar } from "./TopTickerBar";
 // import { ChatWidget } from "./chat/ChatWidget"; // hidden for now
@@ -70,6 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           visualizers from there". */}
       <div data-app-chrome data-app-sticky className="sticky top-0 z-[35]">
         <TopHeader />
+        <AuthPromptHost />
         {isVisualizer && (
           <div
             className="px-6 sm:px-10 lg:px-16 xl:px-24"

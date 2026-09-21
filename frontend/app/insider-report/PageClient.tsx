@@ -17,6 +17,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE } from "@/lib/api";
+import { getAuthToken } from "@/lib/auth";
 
 interface SearchHit {
   symbol: string;
@@ -150,7 +151,8 @@ export default function InsiderReportLanding() {
   const [channel, setChannel] = useState<"email" | "sms">("email");
   const [contact, setContact] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"idle" | "sending" | "done">("idle");
+  const [phase, setPhase] = useState<"idle" | "sending" | "done" | "limit">("idle");
+  const [remaining, setRemaining] = useState<number | null>(null);
   const contactRef = useRef<HTMLInputElement>(null);
 
   const choose = (s: SearchHit) => {
@@ -185,9 +187,10 @@ export default function InsiderReportLanding() {
     setError(null);
     setPhase("sending");
     try {
+      const token = getAuthToken();
       const res = await fetch(`${API_BASE}/report-requests`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           ticker: picked.symbol,
           companyName: picked.name,
@@ -196,10 +199,17 @@ export default function InsiderReportLanding() {
           source: "insider-report-landing",
         }),
       });
+      if (res.status === 402) {
+        // George 2026-09-21: three free reports per email, then Insider Access.
+        setPhase("limit");
+        return;
+      }
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || "Something went wrong — try again.");
       }
+      const out = (await res.json().catch(() => null)) as { remaining?: number | null } | null;
+      setRemaining(out && typeof out.remaining === "number" ? out.remaining : null);
       setPhase("done");
     } catch (e) {
       setPhase("idle");
@@ -415,7 +425,9 @@ export default function InsiderReportLanding() {
 
       <header>
         <div className="wrap nav">
-          <a className="brand" href="#top" aria-label="Insider Buying">
+          {/* George 2026-09-21: this page is now the "Free Report" primary nav
+              destination, so the wordmark goes back to the main site. */}
+          <a className="brand" href="/" aria-label="InsiderBuying.com home">
             {/* Site wordmark; the page is light-committed, so always the dark-text version. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -426,6 +438,7 @@ export default function InsiderReportLanding() {
             />
           </a>
           <nav className="nav-links">
+            <a href="/">&larr; InsiderBuying.com</a>
             <a href="#buying">Buying index</a>
             <a href="#rookie">The rookie mistake</a>
             <a href="#score">Quality Score</a>
@@ -513,7 +526,19 @@ export default function InsiderReportLanding() {
                     </div>
                   </div>
 
-                  {phase !== "done" ? (
+                  {phase === "limit" ? (
+                    <div className="done">
+                      <span className="stamp">3 of 3 free reports used</span>
+                      <h4>You&rsquo;ve used your three free insider reports.</h4>
+                      <p>
+                        Insider Access members get unlimited reports, the Insider Score on every stock, and an
+                        alert the moment a new Form 4 lands.
+                      </p>
+                      <a className="btn big" href="/premium" style={{ display: "inline-flex", marginTop: 14 }}>
+                        Join Insider Access
+                      </a>
+                    </div>
+                  ) : phase !== "done" ? (
                     <div className="gate">
                       <div className="gate-label" style={{ marginTop: 22 }}>
                         Where should we send the insider report?
@@ -553,6 +578,14 @@ export default function InsiderReportLanding() {
                         Check your {channel === "email" ? "inbox" : "messages"} in the next few
                         minutes. It includes the Insider Quality Score, every recent insider
                         transaction, and what the smart money is signaling.
+                        {remaining != null && (
+                          <>
+                            {" "}
+                            {remaining === 0
+                              ? "That was your last free report; Insider Access members get unlimited reports."
+                              : `You have ${remaining} free ${remaining === 1 ? "report" : "reports"} left.`}
+                          </>
+                        )}
                       </p>
                     </div>
                   )}

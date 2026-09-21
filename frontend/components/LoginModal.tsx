@@ -6,9 +6,21 @@ import { useAuth } from "@/lib/auth";
 
 type Mode = "signin" | "signup";
 
-export function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function LoginModal({
+  open,
+  onClose,
+  initialMode = "signin",
+  subtitle,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Which form opens first — the watchlist prompt opens on sign-up. */
+  initialMode?: Mode;
+  /** Optional line under the title, e.g. why an account is needed. */
+  subtitle?: string;
+}) {
   const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<Mode>("signin");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,8 +33,10 @@ export function LoginModal({ open, onClose }: { open: boolean; onClose: () => vo
       setError(null);
       setSubmitting(false);
       setPassword("");
+    } else {
+      setMode(initialMode);
     }
-  }, [open]);
+  }, [open, initialMode]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -128,9 +142,11 @@ export function LoginModal({ open, onClose }: { open: boolean; onClose: () => vo
                     {isSignup ? "Create your account" : "Welcome back"}
                   </h2>
                   <p className="text-soft text-sm mb-6 max-w-sm mx-auto">
-                    {isSignup
-                      ? "Sign up to save your watchlist and portfolio across devices."
-                      : "Sign in to access your watchlist and alerts."}
+                    {subtitle
+                      ? subtitle
+                      : isSignup
+                        ? "Sign up to save your watchlist and portfolio across devices."
+                        : "Sign in to access your watchlist and alerts."}
                   </p>
                 </div>
 

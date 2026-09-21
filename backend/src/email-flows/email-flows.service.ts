@@ -63,6 +63,12 @@ export class EmailFlowsService {
     return !!this.apiKey;
   }
 
+  /** One step of a flow by id, for previews (the /welcome thank-you page
+   *  shows the first welcome email exactly as it is sent). */
+  getStep(flow: EmailFlowName, stepId: string): FlowEmail | null {
+    return (FLOWS[flow] || []).find((st) => st.id === stepId) || null;
+  }
+
   // ── Flow lifecycle ───────────────────────────────────────────────────────
 
   /** Start (or no-op if already started) a flow for a recipient. */

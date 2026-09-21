@@ -41,8 +41,10 @@ export function ResearchModule() {
           beat the S&P 500" paraphrase is not something the study says). */}
       <div className="biv-research biv-research-one">
         <p className="biv-research-finding">
-          Harvard Business School research found that insiders&rsquo; opportunistic trades beat the market by{" "}
-          <span className="biv-accent">82 basis points a month</span>.
+          {/* George 2026-09-21: "remove the 82 basis points per month, just say
+              beat the market every month." */}
+          Harvard Business School research found that insiders&rsquo; opportunistic trades{" "}
+          <span className="biv-accent">beat the market every month</span>.
         </p>
         <div className="biv-research-mark biv-research-mark-under" aria-hidden="true">
           <span className="biv-research-serif">Harvard</span>

@@ -1,7 +1,7 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import axios from 'axios';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ReportLead } from '../entities/report-lead.entity';
 import { IqsService } from '../iqs/iqs.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
@@ -27,6 +27,17 @@ export class ReportsService {
     private readonly content: ContentService,
   ) {}
 
+  /** George 2026-09-21: "Users would have 3 reports, then will need to join
+   *  our paid subscription." Counted per email across all tickers; a failed
+   *  send does not use one up. A signed-in Insider Access member is exempt. */
+  static readonly FREE_REPORTS = 3;
+
+  async freeReportsUsed(email: string): Promise<number> {
+    return this.leads.count({
+      where: { contact: email.toLowerCase(), channel: 'email', status: In(['pending', 'sent']) },
+    });
+  }
+
   /** Store an opt-in from the landing page and queue delivery. */
   async createLead(body: {
     ticker?: string;
@@ -34,7 +45,7 @@ export class ReportsService {
     channel?: string;
     companyName?: string;
     source?: string;
-  }) {
+  }, opts: { premium?: boolean } = {}) {
     const ticker = (body?.ticker || '').trim().toUpperCase();
     if (!TICKER_RE.test(ticker)) {
       throw new BadRequestException('Valid ticker required');
@@ -55,6 +66,20 @@ export class ReportsService {
     });
     if (existing) {
       return { ok: true, deduped: true, id: existing.id };
+    }
+    if (channel === 'email' && !opts.premium) {
+      const used = await this.freeReportsUsed(contact);
+      if (used >= ReportsService.FREE_REPORTS) {
+        throw new HttpException(
+          {
+            message: `You have used your ${ReportsService.FREE_REPORTS} free insider reports.`,
+            limitReached: true,
+            used,
+            limit: ReportsService.FREE_REPORTS,
+          },
+          HttpStatus.PAYMENT_REQUIRED,
+        );
+      }
     }
 
     const lead = await this.leads.save(
