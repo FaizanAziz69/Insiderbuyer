@@ -10,6 +10,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { PremiumValue } from "@/components/premium/PremiumValue";
 import { rankColumn } from "@/components/tableColumns";
 import { sectorFilterPresets } from "@/lib/sector-groups";
 
@@ -72,7 +73,18 @@ const iqsCol: Column<RankingRow> = {
   label: "Insider Score",
   align: "center",
   sortValue: (r) => r.iqs ?? null,
-  render: (r) => <IqsScoreCell iqs={r.iqs} />,
+  // George 2026-09-21 ("giving away the insider scores without paywall"):
+  // the number is premium on every other table, so it is here too. Like
+  // /movers and /screener, PremiumValue blurs a DECOY — the real score never
+  // enters a free visitor's DOM. The tier band stays free elsewhere.
+  render: (r) =>
+    r.iqs != null ? (
+      <PremiumValue label="Insider Score">
+        <IqsScoreCell iqs={r.iqs} />
+      </PremiumValue>
+    ) : (
+      <IqsScoreCell iqs={r.iqs} />
+    ),
 };
 
 // Categorized preset filter for the "Insiders Buying" column. Cluster = 2+

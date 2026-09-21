@@ -18,6 +18,7 @@ import { Sparkline } from "@/components/Sparkline";
 import { AdSlot } from "@/components/AdSlot";
 import { DataTable, Column } from "@/components/DataTable";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { PremiumValue } from "@/components/premium/PremiumValue";
 import { PriceTargetCell } from "@/components/PriceTargetCell";
 import { ReasoningTip } from "@/components/ReasoningTip";
 import { WatchlistButton } from "@/components/WatchlistButton";
@@ -247,7 +248,17 @@ export default function InsiderHotStocksPage() {
       label: "Insider Score",
       align: "center",
       sortValue: (r) => r.iqs ?? null,
-      render: (r) => <IqsScoreCell iqs={r.iqs} />,
+      // George 2026-09-21: the six free rows were printing the real number.
+      // The wall's own copy promises "The Insider Score" behind it, so the
+      // preview rows show a blurred decoy, never the value.
+      render: (r) =>
+        r.iqs != null ? (
+          <PremiumValue label="Insider Score">
+            <IqsScoreCell iqs={r.iqs} />
+          </PremiumValue>
+        ) : (
+          <IqsScoreCell iqs={r.iqs} />
+        ),
     },
     {
       key: "perfVsCost",

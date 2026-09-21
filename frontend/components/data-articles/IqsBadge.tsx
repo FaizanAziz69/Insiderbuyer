@@ -1,3 +1,6 @@
+"use client";
+import { PremiumValue } from "@/components/premium/PremiumValue";
+
 /**
  * IQS badge — Developer Project Brief (Aug 24 2026), §2.1 component library:
  * "IQS badge (green ≥75, gold 50–74)". Below 50 the badge is muted; null
@@ -11,7 +14,10 @@ export function IqsBadge({ iqs, size = "sm" }: { iqs: number | null | undefined;
   const border = tier === "mute" ? "1px solid var(--border)" : "1px solid transparent";
   const pad = size === "md" ? "3px 9px" : "1px 7px";
   const fs = size === "md" ? 12 : 11;
+  // George 2026-09-21: the number is premium site-wide; a free visitor gets
+  // the blurred decoy + lock, same as every table cell.
   return (
+    <PremiumValue label="Insider Score">
     <span
       className="inline-flex items-center gap-1 rounded-full font-mono font-semibold tabular-nums shrink-0"
       style={{ background: bg, color: fg, border, padding: pad, fontSize: fs, lineHeight: 1.4, letterSpacing: 0.2 }}
@@ -20,5 +26,6 @@ export function IqsBadge({ iqs, size = "sm" }: { iqs: number | null | undefined;
     >
       IQS {Math.round(iqs)}
     </span>
+    </PremiumValue>
   );
 }

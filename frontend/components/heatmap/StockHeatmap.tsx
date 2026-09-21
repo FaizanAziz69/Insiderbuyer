@@ -7,6 +7,8 @@ import { RankingRow, formatCurrency, formatNumber } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { track } from "@/lib/analytics";
 import { effectiveZoom } from "@/lib/zoom";
+import { usePremium } from "@/components/premium/PremiumContext";
+import { Lock } from "lucide-react";
 
 export type ColorBy =
   | "change"
@@ -494,6 +496,11 @@ export function StockHeatmap({
   CURRENT_SIZE_BY = sizeBy;
   USE_RAW_SECTORS = rawSectors;
   const ref = useRef<HTMLDivElement>(null);
+  // George 2026-09-21 ("giving away the insider scores without paywall"):
+  // the numeric Insider Score is premium site-wide. The overlay chip, the
+  // iqs-mode tile label and the tooltip row keep their place for a free
+  // visitor but carry no number — the same rule as PremiumValue in tables.
+  const { unlocked } = usePremium();
   const [width, setWidth] = useState(800);
   // Hover state drives the TradingView-style interaction: the hovered tile
   // pops, its sector stays lit while the others dim, and a tooltip follows.
@@ -646,13 +653,15 @@ export function StockHeatmap({
                 colorBy === "relvol"
                   ? `${rv.toFixed(1)}×`
                   : mode === "iqs"
-                    ? `Insider Score ${iqs.toFixed(1)}`
+                    ? unlocked
+                      ? `Insider Score ${iqs.toFixed(1)}`
+                      : "Insider buying"
                     : colorBy === "change"
                       ? `${sign}${pct.toFixed(2)}%`
                       : `${metric >= 0 ? "+" : ""}${metric.toFixed(2)}%`;
               const tileTitle =
                 mode === "iqs"
-                  ? `${rect.row.ticker || rect.row.name} · Insider Score ${iqs.toFixed(1)} · ${formatCurrency(rect.row.marketCap)}`
+                  ? `${rect.row.ticker || rect.row.name} · ${unlocked ? `Insider Score ${iqs.toFixed(1)}` : "Insider buying"} · ${formatCurrency(rect.row.marketCap)}`
                   : `${rect.row.ticker || rect.row.name} · ${sign}${pct.toFixed(2)}% · ${formatCurrency(rect.row.marketCap)}`;
               // Insider-conviction overlay: scored tiles keep full color and get
               // a gold ring + score chip; unscored tiles fade back so the eye
@@ -788,7 +797,7 @@ export function StockHeatmap({
                           pointerEvents: "none",
                         }}
                       >
-                        {Math.round(ovScore)}
+                        {unlocked ? Math.round(ovScore) : <Lock size={9} strokeWidth={2.75} aria-label="Insider Score, members only" />}
                       </span>
                     )}
                   </Link>
@@ -819,6 +828,7 @@ function HeatmapTooltip({
    *  when it would spill past this, not just the viewport edge. */
   boundsRight?: number;
 }) {
+  const { unlocked } = usePremium();
   const r = hover.row;
   const chg = changePctFor(r);
   const up = chg >= 0;
@@ -879,7 +889,7 @@ function HeatmapTooltip({
         <Stat label="Mkt Cap" value={r.marketCap ? formatCurrency(r.marketCap) : "—"} />
         <Stat label="Volume" value={r.volume ? formatNumber(r.volume) : "—"} />
         {r.iqs > 0 && (
-          <Stat label="Insider Score" value={r.iqs.toFixed(1)} color="#e0b94a" />
+          <Stat label="Insider Score" value={unlocked ? r.iqs.toFixed(1) : "Members only"} color="#e0b94a" />
         )}
       </div>
     </div>,

@@ -10,6 +10,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { PriceTargetCell } from "@/components/PriceTargetCell";
 import { rankColumn } from "@/components/tableColumns";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { PremiumValue } from "@/components/premium/PremiumValue";
 import { sectorFilterPresets } from "@/lib/sector-groups";
 
 /** One public federal contractor — trailing-12-month contract dollars from
@@ -118,7 +119,10 @@ export default function GovernmentContractsPage() {
       // open market has nothing to score. Say that instead of leaving a gap.
       render: (r) =>
         r.iqs != null ? (
-          <IqsScoreCell iqs={r.iqs} />
+          // George 2026-09-21: premium number, blurred decoy for free visitors.
+          <PremiumValue label="Insider Score">
+            <IqsScoreCell iqs={r.iqs} />
+          </PremiumValue>
         ) : (
           <span className="text-faint text-[11px] whitespace-nowrap">No insider buying</span>
         ),
