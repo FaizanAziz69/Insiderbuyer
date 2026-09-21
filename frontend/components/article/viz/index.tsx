@@ -8,6 +8,7 @@ import { TxCompareViz } from "./TxCompareViz";
 import { PullQuoteViz } from "./PullQuoteViz";
 import { PeerTableViz } from "./PeerTableViz";
 import { SinceListingViz } from "./SinceListingViz";
+import { EmailCaptureViz } from "./EmailCaptureViz";
 
 /**
  * Editorial Playbook v2 §7 — the six approved data visualizations, dispatched
@@ -48,6 +49,8 @@ export interface VizAttrs {
   source?: string;
   note?: string;
   subtitle?: string;
+  /** Subscriber-list tag for email-capture. */
+  list?: string;
   /** Inner HTML of the placeholder — used by pull-quote and peer-table. */
   inner?: string;
 }
@@ -94,6 +97,14 @@ export function EditorialViz({ attrs }: { attrs: VizAttrs }) {
       );
     case "pull-quote":
       return <PullQuoteViz html={attrs.inner || ""} cite={attrs.cite || null} />;
+    case "email-capture":
+      return (
+        <EmailCaptureViz
+          html={attrs.inner || ""}
+          title={attrs.title || null}
+          list={attrs.list || null}
+        />
+      );
     case "since-listing":
       return (
         <SinceListingViz
