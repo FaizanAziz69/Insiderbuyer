@@ -1,11 +1,21 @@
 /**
  * IQS 2.0 — Workstream C: company roll-up, penalties and calibration.
  *
- * Raw = Σ TradeScoreᵢ × 0.5^(ageᵢ/30) over a trailing 90-day window, times a
+ * Raw = Σ TradeScoreᵢ × 0.5^(ageᵢ/H) over a trailing window, times a
  * cluster multiplier, converted to a PERCENTILE across the scored universe
  * that day, then penalties are subtracted. Calibrating before penalties is
  * what makes "90+" mean the same thing every day: top-decile buying quality
  * as of that day, with dilution and litigation deducted after.
+ *
+ * WINDOW (George 2026-09-21, the 90-day / 12-month toggle): the window and
+ * the decay half-life scale TOGETHER, H = window / 3. At 90 days that is the
+ * original 30-day half-life, so the published board is unchanged. Holding H
+ * at 30 while widening the window to a year would have been the wrong kind of
+ * "12-month score": a trade 365 days old would carry 0.5^12, about two
+ * hundredths of one percent, so the year-long board would have been a copy of
+ * the 90-day one wearing a different label. Scaling H keeps the shape of the
+ * model — a trade at the edge of the window always counts 12.5% — so the two
+ * boards differ because the evidence differs, not because the maths changed.
  *
  * Sector strength, momentum, volume and MD&A tone are gone from the score
  * entirely (brief §Workstream C, "Removed components"). Sector heat ships as
@@ -24,16 +34,25 @@ export interface ScoredTrade {
 }
 
 /** 0.5^(age/halfLife) — a 60-day-old trade counts 25%. */
-export function decayFactor(ageDays: number, halfLifeDays = IQS2_CONFIG.decayHalfLifeDays): number {
+export function decayFactor(ageDays: number, halfLifeDays: number = IQS2_CONFIG.decayHalfLifeDays): number {
   const a = num(ageDays);
   if (a === null || a < 0) return 0;
   return Math.pow(0.5, a / halfLifeDays);
 }
 
-export function decayedSum(trades: ScoredTrade[]): number {
+/** Half-life for a given window: window / 3, so the 90-day board keeps its
+ *  original 30-day half-life. */
+export const halfLifeFor = (windowDays: number = IQS2_CONFIG.windowDays): number =>
+  windowDays / 3;
+
+export function decayedSum(
+  trades: ScoredTrade[],
+  windowDays: number = IQS2_CONFIG.windowDays,
+): number {
+  const halfLife = halfLifeFor(windowDays);
   return trades
-    .filter((t) => t.ageDays <= IQS2_CONFIG.windowDays)
-    .reduce((sum, t) => sum + t.score * decayFactor(t.ageDays), 0);
+    .filter((t) => t.ageDays <= windowDays)
+    .reduce((sum, t) => sum + t.score * decayFactor(t.ageDays, halfLife), 0);
 }
 
 /** M = 1 + 0.15 × (distinct net buyers − 1), capped at 1.6. */
@@ -76,6 +95,8 @@ export function percentileOf(value: number, universe: number[]): number {
 
 export interface CompanyScoreInput {
   trades: ScoredTrade[];
+  /** Trailing days of filings this roll-up covers (default 90). */
+  windowDays?: number;
   shareGrowthTtm: number | null;
   /** Existing IQS 1.0 rule, carried over unchanged (0–15, positive). */
   litigationPenalty?: number | null;
@@ -96,9 +117,10 @@ export interface CompanyScoreResult {
 }
 
 export function scoreCompany(input: CompanyScoreInput): CompanyScoreResult {
-  const inWindow = input.trades.filter((t) => t.ageDays <= IQS2_CONFIG.windowDays);
+  const windowDays = input.windowDays ?? IQS2_CONFIG.windowDays;
+  const inWindow = input.trades.filter((t) => t.ageDays <= windowDays);
   const distinctBuyers = new Set(inWindow.map((t) => t.insiderKey)).size;
-  const raw = decayedSum(inWindow);
+  const raw = decayedSum(inWindow, windowDays);
   const multiplier = clusterMultiplier(distinctBuyers);
   const adjusted = raw * multiplier;
 

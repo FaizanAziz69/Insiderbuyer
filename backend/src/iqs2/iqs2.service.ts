@@ -99,8 +99,25 @@ export class Iqs2Service {
       unscored_reason varchar(40),
       weights jsonb,
       "updatedAt" timestamptz NOT NULL DEFAULT now(),
-      PRIMARY KEY (company_id, as_of)
+      window_days int NOT NULL DEFAULT 90,
+      PRIMARY KEY (company_id, as_of, window_days)
     )`);
+    await this.q(
+      `ALTER TABLE iqs2_company_scores ADD COLUMN IF NOT EXISTS window_days int NOT NULL DEFAULT 90`,
+    );
+    // Widen the primary key in place for tables created before the 90-day /
+    // 12-month split (George 2026-09-21) — without this the second window's
+    // rows collide with the first's on ON CONFLICT.
+    await this.q(
+      `DO $$
+       BEGIN
+         IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'iqs2_company_scores_pkey'
+                      AND pg_get_constraintdef(oid) = 'PRIMARY KEY (company_id, as_of)') THEN
+           ALTER TABLE iqs2_company_scores DROP CONSTRAINT iqs2_company_scores_pkey;
+           ALTER TABLE iqs2_company_scores ADD PRIMARY KEY (company_id, as_of, window_days);
+         END IF;
+       END $$;`,
+    );
     await this.q(
       `CREATE INDEX IF NOT EXISTS iqs2_company_score_idx ON iqs2_company_scores (as_of, score DESC)`,
     );
@@ -166,7 +183,7 @@ export class Iqs2Service {
    * Compute shadow scores for the whole universe as of `asOf` (default today).
    * `limit` exists for smoke runs; a full run is the daily cron.
    */
-  async computeAll(opts: { asOf?: string; limit?: number; weights?: TradeWeights } = {}) {
+  async computeAll(opts: { asOf?: string; limit?: number; weights?: TradeWeights; windowDays?: number } = {}) {
     if (this.running) return { skipped: true, reason: 'already running' };
     this.running = true;
     const started = Date.now();
@@ -175,7 +192,10 @@ export class Iqs2Service {
       await this.ensureTables();
       const asOf = opts.asOf ? new Date(opts.asOf) : new Date();
       const asOfISO = asOf.toISOString().slice(0, 10);
-      const windowStart = new Date(asOf.getTime() - IQS2_CONFIG.windowDays * 86400000);
+      // George 2026-09-21: the board is scored per window (90 or 365 days);
+      // the decay half-life scales with it, see company-score.ts.
+      const windowDays = opts.windowDays ?? IQS2_CONFIG.windowDays;
+      const windowStart = new Date(asOf.getTime() - windowDays * 86400000);
       // 24 months of history is needed for the routine-vs-opportunistic count.
       const historyStart = new Date(asOf.getTime() - 730 * 86400000);
 
@@ -397,6 +417,7 @@ export class Iqs2Service {
 
         // Provisional roll-up to get this company's M×Raw for the universe.
         const provisional = scoreCompany({
+        windowDays,
           trades,
           shareGrowthTtm: null,
           universeRaw: [],
@@ -443,7 +464,7 @@ export class Iqs2Service {
       // 50 purchases that had just been excluded. It also gives the brief's
       // determinism criterion its meaning: re-running a date reproduces that
       // date, it does not merge with what was there before.
-      await this.q(`DELETE FROM iqs2_company_scores WHERE as_of = $1`, [asOfISO]);
+      await this.q(`DELETE FROM iqs2_company_scores WHERE as_of = $1 AND window_days = $2`, [asOfISO, windowDays]);
 
       let written = 0;
       for (const r of results) {
@@ -454,10 +475,10 @@ export class Iqs2Service {
         });
         await this.q(
           `INSERT INTO iqs2_company_scores
-             (company_id, as_of, score, raw, multiplier, percentile, calibrated,
+             (company_id, as_of, window_days, score, raw, multiplier, percentile, calibrated,
               penalties, distinct_buyers, counted_trades, unscored_reason, weights, "updatedAt")
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12::jsonb, now())
-           ON CONFLICT (company_id, as_of) DO UPDATE SET
+           VALUES ($1,$2,$13,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12::jsonb, now())
+           ON CONFLICT (company_id, as_of, window_days) DO UPDATE SET
              score = EXCLUDED.score, raw = EXCLUDED.raw, multiplier = EXCLUDED.multiplier,
              percentile = EXCLUDED.percentile, calibrated = EXCLUDED.calibrated,
              penalties = EXCLUDED.penalties, distinct_buyers = EXCLUDED.distinct_buyers,
@@ -476,6 +497,7 @@ export class Iqs2Service {
             final.countedTrades,
             r.unscored,
             JSON.stringify(weights),
+            windowDays,
           ],
         );
         written++;
@@ -583,9 +605,9 @@ export class Iqs2Service {
    * Reversible: `POST /iqs/recalculate` rewrites these columns from the v1
    * model, and every v2 value is kept in iqs2_company_scores regardless.
    */
-  async publish(): Promise<{ updated: number; cleared: number; asOf: string }> {
+  async publish(windowDays: number = IQS2_CONFIG.windowDays): Promise<{ updated: number; cleared: number; asOf: string }> {
     await this.ensureTables();
-    const [latest] = await this.q(`SELECT MAX(as_of) AS d FROM iqs2_company_scores`);
+    const [latest] = await this.q(`SELECT MAX(as_of) AS d FROM iqs2_company_scores WHERE window_days = $1`, [windowDays]);
     const asOf = latest?.d ? new Date(latest.d).toISOString().slice(0, 10) : null;
     if (!asOf) return { updated: 0, cleared: 0, asOf: '' };
 
@@ -597,13 +619,16 @@ export class Iqs2Service {
               "distinctBuyers" = v2.distinct_buyers
          FROM iqs2_company_scores v2
         WHERE v2.as_of = $1
+          AND v2.window_days = $2
           AND v2.score IS NOT NULL
           AND s.company_id = v2.company_id
+          AND s."windowDays" = $2
           AND s."asOfDate" = (
-            SELECT MAX(x."asOfDate") FROM iqs_scores x WHERE x.company_id = s.company_id
+            SELECT MAX(x."asOfDate") FROM iqs_scores x
+             WHERE x.company_id = s.company_id AND x."windowDays" = $2
           )
         RETURNING s.id`,
-      [asOf],
+      [asOf, windowDays],
     );
 
     // Every other published row. Under the v2 rules a company with no
@@ -616,8 +641,10 @@ export class Iqs2Service {
     const cleared = await this.q(
       `UPDATE iqs_scores s
           SET "transactionCount" = 0, "distinctBuyers" = 0, iqs = 0
-        WHERE s."asOfDate" = (
-                SELECT MAX(x."asOfDate") FROM iqs_scores x WHERE x.company_id = s.company_id
+        WHERE s."windowDays" = $2
+          AND s."asOfDate" = (
+                SELECT MAX(x."asOfDate") FROM iqs_scores x
+                 WHERE x.company_id = s.company_id AND x."windowDays" = $2
               )
           -- Either half may already be zero from an earlier partial publish,
           -- so this cannot key on the count alone: NVDA kept iqs 23 with a
@@ -627,10 +654,11 @@ export class Iqs2Service {
                 SELECT 1 FROM iqs2_company_scores v2
                  WHERE v2.company_id = s.company_id
                    AND v2.as_of = $1
+                   AND v2.window_days = $2
                    AND v2.score IS NOT NULL
               )
         RETURNING s.id`,
-      [asOf],
+      [asOf, windowDays],
     );
 
     // TypeORM's query() returns [rows, affectedCount] for UPDATE ... RETURNING,

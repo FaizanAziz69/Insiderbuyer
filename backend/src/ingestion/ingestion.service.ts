@@ -11,6 +11,7 @@ import { SecClient, SecFilingHit } from "./sec.client";
 import { QuoteClient } from "./quote.client";
 import { BafinClient, BafinDealing } from "./bafin.client";
 import { IqsService } from "../iqs/iqs.service";
+import { SCORE_WINDOWS } from "../iqs/iqs.service";
 import { Iqs2Service } from "../iqs2/iqs2.service";
 import { MdaSentimentService } from "../iqs/mda-sentiment.service";
 import { MarketStatsService } from "../market-stats/market-stats.service";
@@ -76,11 +77,32 @@ export class IngestionService implements OnModuleInit {
    * which is how BIVI (the Appendix A case IQS 2.0 exists to cap) came back
    * to the top of the board. Whoever rescores must republish.
    */
-  private async republishIqs2(): Promise<void> {
+  /** Rescore and republish EVERY lookback window the board serves (George
+   *  2026-09-21: the 90-day / 12-month toggle).
+   *
+   *  Both halves matter. Skipping the v1 pass for a window leaves that board
+   *  frozen on the day it was first computed while the other moves under it;
+   *  skipping the IQS 2.0 republish leaves the retired v1 numbers on a live
+   *  page, which is the trap republishIqs2() was written for in the first
+   *  place. So each window gets both, in order. */
+  private async rescoreAllWindows(): Promise<void> {
+    for (const windowDays of SCORE_WINDOWS) {
+      try {
+        await this.iqs.recalculateAll(windowDays);
+        await this.republishIqs2(windowDays);
+      } catch (e: any) {
+        this.logger.warn(`rescore (${windowDays}d) failed: ${e?.message || e}`);
+      }
+    }
+  }
+
+  private async republishIqs2(windowDays?: number): Promise<void> {
     try {
-      await this.iqs2.computeAll();
-      const r = await this.iqs2.publish();
-      this.logger.log(`IQS 2.0 republished after rescore: ${r.updated} scored, ${r.cleared} cleared`);
+      await this.iqs2.computeAll(windowDays ? { windowDays } : {});
+      const r = await this.iqs2.publish(windowDays);
+      this.logger.log(
+        `IQS 2.0 republished after rescore (${windowDays ?? 90}d): ${r.updated} scored, ${r.cleared} cleared`,
+      );
     } catch (e: any) {
       this.logger.error(`IQS 2.0 republish failed: ${e?.message || e}`);
     }
@@ -322,8 +344,7 @@ export class IngestionService implements OnModuleInit {
       await this.delay(120);
     }
     if (opts.rescore) {
-      await this.iqs.recalculateAll();
-      await this.republishIqs2();
+      await this.rescoreAllWindows();
     }
     return {
       cik,
@@ -501,8 +522,7 @@ export class IngestionService implements OnModuleInit {
       }
 
       this.logger.log(`Computing IQS scores...`);
-      await this.iqs.recalculateAll();
-      await this.republishIqs2();
+      await this.rescoreAllWindows();
       this.logger.log(`Ingestion done: ${JSON.stringify(summary)}`);
       return summary;
     } finally {
@@ -816,8 +836,7 @@ export class IngestionService implements OnModuleInit {
     // rescore once at the end (via POST /iqs/recalculate) to fit the 60s budget.
     if (opts?.rescore === true) {
       this.logger.log("Rescoring after German ingestion…");
-      await this.iqs.recalculateAll();
-      await this.republishIqs2();
+      await this.rescoreAllWindows();
     }
 
     return {
