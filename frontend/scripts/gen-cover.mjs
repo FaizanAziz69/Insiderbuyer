@@ -23,6 +23,12 @@
  *     --prompt "a coil of burnished industrial copper wire and stacked copper
  *               cathode sheets fill the left of the frame"
  *
+ *
+ * Flags: --grade "<colour>" names the one colour the background is graded in
+ * (teal, orange, magenta, purple, gold, red — chosen per story, the way the
+ * folder does it). --halo <colour> adds the tabloid cutout outline that about a
+ * third of the folder carries. --cinematic switches to the cleaner full-colour
+ * variant (Thiel, Rinehart, the Uber CEO).
  * --ref may be repeated (a person plus an object, two people). Only use a
  * reference you have the rights to: everything in editorial-thumbs is
  * client-supplied, which is why it is the right place to draw from.
@@ -70,27 +76,88 @@ const arg = (flag, fallback = null) => {
  * key light, no clutter, and NEVER any lettering — headlines sit over the
  * image in the layout, and every model still garbles text in a raster.
  */
-const HOUSE_STYLE =
-  "Editorial cover image for a financial news publication. Deep slate blue-grey " +
-  "gradient studio background, one dramatic directional key light, shallow depth " +
-  "of field, photorealistic, premium business-magazine quality, clean uncluttered " +
-  "composition with the subject slightly right of centre and quiet negative space " +
-  "on the left. Absolutely no text, no words, no letters, no numbers, no logos, no " +
-  "watermarks and no signage anywhere in the image.";
-
 /**
- * The portrait layout every person cover in this folder uses: the subject cut
- * out with a thin white stroke, standing right of centre, the story's object
- * filling the left. Written to be read AFTER the reference image, so the
- * first instruction the model gets is to keep the face it was given.
+ * THE HOUSE LOOK, read off all 47 files in public/editorial-thumbs.
+ *
+ * The dominant template, roughly two thirds of the folder (Icahn, Buffett x3,
+ * Burry, Musk, Trump, Cathie Wood, Ackman x2, Englander, Kash Patel, Gates,
+ * Ryan Cohen, Jamie Dimon, Lutnick, Zefiro, Durant, Pelosi, Vimeo, White Gold):
+ *
+ *   SUBJECT   one real person, cut out of a press photo, BIG — head near the
+ *             top edge, torso cropped off by the bottom edge, head about a
+ *             third of the frame wide, centred or a little off-centre.
+ *   TREATMENT the subject is usually DESATURATED: high-contrast black and
+ *             white, or tinted in one flat colour, with visible grain. That
+ *             contrast against a colour background is what separates them.
+ *   BACKGROUND never a studio backdrop. A collage of the story itself —
+ *             the refinery, the Capitol and the NYSE, the skyline, the chips
+ *             and logos, cash stacks, a ticker board, newspaper pages — layered
+ *             at different scales and often repeated left and right of the head.
+ *   GRADE     ONE strong colour over the whole background: teal, orange,
+ *             magenta, purple, gold or red. This is the single strongest
+ *             signal that these images belong to one publication.
+ *   EDGE      about a third carry a thin cutout halo, and it is a deliberate
+ *             tabloid clash: yellow, white, hot pink, green.
+ *   TEXTURE   grunge, scratches, halftone dots, torn-paper edges are common.
+ *   TEXT      background lettering is NORMAL and wanted: brand logos, ticker
+ *             numbers, newspaper type, even big numeric callouts. Only the
+ *             article's own headline stays out, because the page draws that
+ *             over the image.
+ *
+ * The second variant (Thiel, Uber's CEO, Rinehart, Trump and Frederiksen,
+ * Eisman) keeps the subject in natural colour against a graded real scene with
+ * no halo. Cleaner and more premium. Pass --cinematic for that one.
+ *
+ * `burry-portrait-clean` (a clean cut-out on a plain slate gradient) is the ONE
+ * exception in the folder and is NOT the template. An earlier version of this
+ * file copied it and produced stock-photo portraits that did not belong.
  */
-const PORTRAIT_STYLE =
+const HOUSE_STYLE =
+  "Editorial cover art for a financial news publication, built as a photo " +
+  "composite rather than a single photograph. The background is a collage of " +
+  "real scenes and objects from the story, layered at different scales and " +
+  "filling the frame edge to edge with no plain studio backdrop. Grade the " +
+  "whole background in ONE strong unifying colour. Add subtle grunge texture: " +
+  "scratches, grain, halftone dots. Background signage, brand marks, ticker " +
+  "numbers and newsprint are welcome. Do not write the article's headline, a " +
+  "caption or a watermark into the image.";
+
+/** Shared opening for any cover built from a reference photo of a real person. */
+const KEEP_LIKENESS =
   "Keep the face, hair, build and clothing of the person in the reference " +
   "photograph exactly as they are: this is a real named individual and the " +
-  "likeness must not change. Recompose them as an editorial news cover. The " +
-  "person stands on the right of the frame, waist up, cut out with a thin clean " +
-  "white outline stroke. " +
+  "likeness must not change. ";
+
+/** The dominant folder template: desaturated cutout hero over a graded collage. */
+/** Same composition as PORTRAIT_STYLE, but with no reference to preserve. */
+const PORTRAIT_FROM_NAME_STYLE =
+  "Cut the person out and make them the hero of the cover: large in the frame, " +
+  "head near the top edge, body cropped by the bottom edge, their head about a " +
+  "third of the picture wide. Render the person in high-contrast desaturated " +
+  "black and white with visible film grain, so they stand out sharply against " +
+  "the colour-graded background behind them. " +
   HOUSE_STYLE;
+
+const PORTRAIT_STYLE =
+  KEEP_LIKENESS +
+  "Cut them out and make them the hero of the cover: large in the frame, head " +
+  "near the top edge, body cropped by the bottom edge, their head about a third " +
+  "of the picture wide. Render the person in high-contrast desaturated black " +
+  "and white with visible film grain, so they stand out sharply against the " +
+  "colour-graded background behind them. " +
+  HOUSE_STYLE;
+
+/** The cleaner variant: natural colour, no halo, cinematic light. */
+const CINEMATIC_PORTRAIT_STYLE =
+  KEEP_LIKENESS +
+  "Place them large in the frame in natural colour, head near the top edge and " +
+  "body cropped by the bottom edge, lit cinematically so they read clearly " +
+  "against the scene behind them. No cutout outline or sticker border. " +
+  HOUSE_STYLE;
+
+/** Optional tabloid cutout halo, the way a third of the folder does it. */
+const HALO = (colour) =>
+  ` Trace a thin ${colour} halo outline around the cut-out person, like a printed tabloid cutout.`;
 
 async function main() {
   const name = arg("--name");
@@ -105,10 +172,27 @@ async function main() {
     if (a === "--ref" && process.argv[i + 1]) acc.push(process.argv[i + 1]);
     return acc;
   }, []);
-  if (portrait && !refs.length) {
-    throw new Error("--portrait needs at least one --ref photo: prompting a real person by name invents a face instead of keeping theirs");
+  // A portrait normally REQUIRES a reference, because prompting a real person
+  // by name invents a face rather than keeping theirs. --from-name is the
+  // deliberate override for when no usable photograph exists: the composition
+  // and grade still come out on-house, but the likeness is the model's guess
+  // and must be treated as an illustration, not a portrait of that person.
+  const fromName = process.argv.includes("--from-name");
+  if (portrait && !refs.length && !fromName) {
+    throw new Error("--portrait needs at least one --ref photo (or --from-name to accept an invented likeness)");
   }
-  const style = portrait ? PORTRAIT_STYLE : HOUSE_STYLE;
+  const cinematic = process.argv.includes("--cinematic");
+  let style = portrait
+    ? refs.length
+      ? cinematic
+        ? CINEMATIC_PORTRAIT_STYLE
+        : PORTRAIT_STYLE
+      : PORTRAIT_FROM_NAME_STYLE
+    : HOUSE_STYLE;
+  const grade = arg("--grade");
+  if (grade) style += ` Grade the whole background in ${grade}.`;
+  const halo = arg("--halo");
+  if (halo) style += HALO(halo);
   const prompt = process.argv.includes("--no-house") ? subject : `${subject}. ${style}`;
 
   // Reference images go FIRST in the parts array: the model reads them as what
