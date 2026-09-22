@@ -464,11 +464,11 @@ export default function InsiderReportLanding() {
           <div className="hero-copy">
             <div className="eyebrow">Built on SEC Form 4 filings</div>
             <h1>
-              Thousands of stocks. Pick the right ones, and you can be <em>wealthy</em>.
+              Find out what insiders are <em>really</em> doing.
             </h1>
             <p className="lede">
               For over 30 years, corporate insiders buying their own stock have outperformed
-              the market by <strong>7%+ per year</strong>.{" "}
+              the market.{" "}
               <span className="hl">
                 <strong>It pays to know what stocks insiders are buying, right now.</strong>
               </span>
@@ -478,10 +478,7 @@ export default function InsiderReportLanding() {
           {/* signature object: interactive score lookup, above the fold */}
           <div className="lookup-card reveal" id="lookup">
             <div className="lookup-head">
-              <h3>
-                Find out what insiders are <em>really</em> doing.
-              </h3>
-              <p>Search any stock to get its Insider Quality Score and full report.</p>
+              <h3>Search any stock to get its Insider Quality Score and full report.</h3>
             </div>
             <div className="lookup-body">
               <div className="searchbox" ref={searchRef}>
