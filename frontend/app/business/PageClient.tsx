@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { CALENDLY_URL } from "@/lib/press-config";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -27,7 +28,11 @@ import {
    The global Nav + Footer are rendered by AppShell — none here.
    ──────────────────────────────────────────────────────────── */
 
-const DEMO_HREF = "/reports/cta/TOP5";
+/** "Book a demo" opens the same Calendly the press and campaigns pages use.
+ *  It used to point at /reports/cta/TOP5, which is the retail "5 Top Stocks to
+ *  Buy Right Now" email capture: an enterprise visitor reading about API
+ *  licensing clicked Book a demo and landed on a consumer lead magnet. */
+const DEMO_HREF = CALENDLY_URL;
 const CONTACT_HREF = "mailto:info@insiderbuying.com?subject=InsiderBuying%20API%20%2F%20licensing%20enquiry";
 
 // ─── Data ─────────────────────────────────────────────────────
@@ -157,13 +162,15 @@ export default function BusinessPage() {
               white-label dashboard under your own brand.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link
+              <a
                 href={DEMO_HREF}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="btn-primary whitespace-nowrap"
                 style={{ padding: "12px 22px", fontSize: 14, fontWeight: 600 }}
               >
                 Book a demo
-              </Link>
+              </a>
               <a
                 href="#license"
                 className="btn-secondary whitespace-nowrap"
@@ -345,14 +352,16 @@ export default function BusinessPage() {
               plan and a sandbox key to get you started.
             </p>
             <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link
+              <a
                 href={DEMO_HREF}
-                className="btn-primary whitespace-nowrap"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary whitespace-nowrap inline-flex items-center gap-1.5"
                 style={{ padding: "12px 22px", fontSize: 14, fontWeight: 600 }}
               >
                 Book a demo
                 <ArrowRight className="h-4 w-4" />
-              </Link>
+              </a>
               <a
                 href={CONTACT_HREF}
                 className="btn-secondary whitespace-nowrap inline-flex items-center gap-1.5"
