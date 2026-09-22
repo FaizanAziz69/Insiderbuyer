@@ -99,7 +99,7 @@ export class DailyDeskService {
    * Build today's batch. `publish: false` writes nothing to blog_posts, which
    * is how a run is inspected before the cron is armed.
    */
-  async run(opts: { publish: boolean; limit?: number }): Promise<{
+  async run(opts: { publish: boolean; limit?: number; draft?: boolean }): Promise<{
     picked: number;
     published: number;
     items: Array<Record<string, unknown>>;
@@ -133,7 +133,7 @@ export class DailyDeskService {
       usedTickers.add(candidate.ticker);
 
       try {
-        const item = await this.buildOne(step, candidate, dayIndex + slot, opts.publish);
+        const item = await this.buildOne(step, candidate, dayIndex + slot, opts.publish, !!opts.draft);
         items.push(item);
       } catch (e: any) {
         errors.push(`${candidate.ticker}: ${e?.message || e}`);
@@ -191,6 +191,7 @@ export class DailyDeskService {
     candidate: BuyCandidate,
     paletteSeed: number,
     publish: boolean,
+    draft: boolean,
   ): Promise<Record<string, unknown>> {
     const written = await this.writer.write(step.kind, candidate);
     if (!written) throw new Error('writer returned nothing');
@@ -243,11 +244,13 @@ export class DailyDeskService {
           : `${candidate.company} (${candidate.ticker})`,
     };
 
-    if (publish) await this.persist(row, candidate);
+    if (publish) await this.persist(row, candidate, draft);
 
     return {
       ...row,
       published: publish,
+      draft,
+      url: `https://insiderbuying.com/insights/${slug}`,
       bodyChars: written.body.length,
       coverFromPhoto: cover?.fromPhoto ?? false,
       buyer: candidate.who,
@@ -262,25 +265,29 @@ export class DailyDeskService {
     );
   }
 
-  private async persist(row: any, candidate: BuyCandidate) {
+  /** `draft` stores the row link-only: noindex, and off the home page, the
+   *  insights list, the rails and the sitemap. It is how a batch is read on the
+   *  real site before anyone else can find it. */
+  private async persist(row: any, candidate: BuyCandidate, draft = false) {
     await this.db.query(
       `INSERT INTO blog_posts
          (slug, title, kind, ticker, sector, topic, summary, body,
           "imagePrompt", "imageUrl", "imageAlt", category, eyebrow, draft, sponsored,
           "iqsAtGeneration", tags, "featuredTickers", "inputSnapshot", "generatedAt", "updatedAt")
        VALUES ($1,$2,$3,$4,$5,NULL,$6,$7,
-               NULL,$8,$9,$10,$10,false,false,
+               NULL,$8,$9,$10,$10,$14,false,
                NULL,$11::jsonb,$12::jsonb,$13::jsonb,NOW(),NOW())
        ON CONFLICT (slug) DO UPDATE SET
          title=EXCLUDED.title, summary=EXCLUDED.summary, body=EXCLUDED.body,
          "imageUrl"=EXCLUDED."imageUrl", "imageAlt"=EXCLUDED."imageAlt",
          category=EXCLUDED.category, eyebrow=EXCLUDED.eyebrow,
-         tags=EXCLUDED.tags, "updatedAt"=NOW()`,
+         tags=EXCLUDED.tags, draft=EXCLUDED.draft, "updatedAt"=NOW()`,
       [
         row.slug, row.title, row.kind, row.ticker, row.sector, row.summary, row.body,
         row.imageUrl, row.imageAlt, row.category,
         JSON.stringify(row.tags), JSON.stringify([row.ticker]),
         JSON.stringify({ source: 'daily-desk', buyer: candidate.who, date: candidate.date }),
+        draft,
       ],
     );
   }

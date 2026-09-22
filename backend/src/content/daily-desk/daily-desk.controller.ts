@@ -15,8 +15,12 @@ export class DailyDeskController {
 
   @Post('run')
   @UseGuards(AdminTokenGuard)
-  async run(@Body() body?: { publish?: boolean; limit?: number }) {
-    return this.desk.run({ publish: body?.publish === true, limit: body?.limit });
+  async run(@Body() body?: { publish?: boolean; limit?: number; draft?: boolean }) {
+    return this.desk.run({
+      publish: body?.publish === true,
+      limit: body?.limit,
+      draft: body?.draft === true,
+    });
   }
 
   @Get('status')
