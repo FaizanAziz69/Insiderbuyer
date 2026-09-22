@@ -148,6 +148,9 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-22: Michael Burry / Ero Copper top story. Reuses the clean Burry
+  // portrait that already fronts the Alibaba piece, at the client's request.
+  "editorial-michael-burry-copper-ero-position-2026-09-22": "burry-portrait-clean",
   // 2026-09-21: Steve Eisman AI top story. Client-supplied composite.
   "editorial-steve-eisman-ai-terminator-moats-2026-09-21": "steve-eisman-ai-moats",
   // 2026-09-21: hair-loss drug stocks top story.
