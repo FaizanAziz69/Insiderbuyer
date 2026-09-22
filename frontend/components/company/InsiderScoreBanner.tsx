@@ -32,6 +32,13 @@ import { formatCurrency } from "@/lib/api";
 
 const WINDOW_DAYS = 90;
 
+/** "90 days" / "12 months" — the banner reports the window the score was
+ *  actually computed over, so the toggle above it cannot leave the copy
+ *  claiming 90 days under a 12-month number. */
+function windowLabel(windowDays: number): string {
+  return windowDays === 365 ? "12 months" : `${windowDays} days`;
+}
+
 interface Tx {
   transactionCode?: string | null;
   transactionDate?: string | null;
@@ -45,8 +52,9 @@ interface Score {
 }
 
 /** Why this ticker has no score, phrased from its own filings. */
-function noScoreReason(transactions: Tx[]): string {
-  const since = new Date(Date.now() - WINDOW_DAYS * 86400000)
+function noScoreReason(transactions: Tx[], windowDays: number): string {
+  const label = windowLabel(windowDays);
+  const since = new Date(Date.now() - windowDays * 86400000)
     .toISOString()
     .slice(0, 10);
   const inWindow = (transactions || []).filter(
@@ -57,12 +65,12 @@ function noScoreReason(transactions: Tx[]): string {
   );
   if (qualifying.length) {
     // Filed, but nothing survived the plausibility / round-trip guards.
-    return `Insiders filed in the last ${WINDOW_DAYS} days, but none of those trades qualified for scoring — round-trip buys and filings whose price is far off the market are excluded.`;
+    return `Insiders filed in the last ${label}, but none of those trades qualified for scoring — round-trip buys and filings whose price is far off the market are excluded.`;
   }
   if (inWindow.length) {
-    return `Insiders here have filed ${inWindow.length} Form ${inWindow.length === 1 ? "4" : "4s"} in the last ${WINDOW_DAYS} days, but all of them are share awards, grants or other non-market transactions. Those are compensation, not a decision to buy, so they are not scored.`;
+    return `Insiders here have filed ${inWindow.length} Form ${inWindow.length === 1 ? "4" : "4s"} in the last ${label}, but all of them are share awards, grants or other non-market transactions. Those are compensation, not a decision to buy, so they are not scored.`;
   }
-  return `No insider has filed an open-market purchase or sale here in the last ${WINDOW_DAYS} days, so there is nothing to score yet.`;
+  return `No insider has filed an open-market purchase or sale here in the last ${label}, so there is nothing to score yet.`;
 }
 
 export function InsiderScoreBanner({
@@ -70,11 +78,14 @@ export function InsiderScoreBanner({
   name,
   score,
   transactions,
+  windowDays = WINDOW_DAYS,
 }: {
   ticker: string;
   name: string;
   score: Score | null;
   transactions: Tx[];
+  /** The lookback the score on this page was computed over. */
+  windowDays?: number;
 }) {
   const { unlocked } = usePremium();
 
@@ -113,7 +124,7 @@ export function InsiderScoreBanner({
         <div className="min-w-0 flex-1">
           {heading}
           <p className="text-[13.5px] leading-relaxed mt-1.5" style={{ color: "var(--text-mute)" }}>
-            {noScoreReason(transactions)}
+            {noScoreReason(transactions, windowDays)}
           </p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
             <Link
@@ -158,7 +169,8 @@ export function InsiderScoreBanner({
             Scored on {Number(score.transactionCount) || 0} qualifying trade
             {Number(score.transactionCount) === 1 ? "" : "s"} from{" "}
             {Number(score.distinctBuyers) || 0} insider
-            {Number(score.distinctBuyers) === 1 ? "" : "s"} in the last {WINDOW_DAYS} days.
+            {Number(score.distinctBuyers) === 1 ? "" : "s"} in the last{" "}
+            {windowLabel(windowDays)}.
           </p>
         </div>
         <Link
@@ -197,7 +209,7 @@ export function InsiderScoreBanner({
           {Number(score.distinctBuyers) || 0} insider
           {Number(score.distinctBuyers) === 1 ? "" : "s"} ·{" "}
           {formatCurrency(Number(score.totalPurchaseValue) || 0)} bought in the last{" "}
-          {WINDOW_DAYS} days
+          {windowLabel(windowDays)}
         </p>
         <div
           className="mt-2 h-1.5 rounded-full overflow-hidden"

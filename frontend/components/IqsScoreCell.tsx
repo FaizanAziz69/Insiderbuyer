@@ -1,5 +1,6 @@
 "use client";
 import { TierBadge } from "./TierBadge";
+import { useScoreWindow } from "@/lib/score-window";
 
 /**
  * Table cell that shows the Insider Score with its tier badge underneath.
@@ -10,6 +11,10 @@ import { TierBadge } from "./TierBadge";
  * were removed at the client's request — v2 IS the Insider Score.
  */
 export function IqsScoreCell({ iqs }: { iqs?: number | null }) {
+  // The empty-state tooltip has to name the window the reader is actually
+  // looking at — under "12 months" a "last 90 days" explanation is wrong.
+  const [windowDays] = useScoreWindow();
+  const windowLabel = windowDays === 365 ? "12 months" : "90 days";
   // A missing score is a real state, not missing data: the score only exists
   // where there are qualifying insider buys in the window. Say so instead of
   // rendering an ambiguous blank/dash (and never fabricate a number).
@@ -17,7 +22,7 @@ export function IqsScoreCell({ iqs }: { iqs?: number | null }) {
     return (
       <span
         className="text-mute text-[11px] leading-tight inline-block max-w-[92px]"
-        title="No qualifying open-market insider purchases in the last 90 days — the Insider Score only exists where insiders are buying."
+        title={`No qualifying open-market insider purchases in the last ${windowLabel} — the Insider Score only exists where insiders are buying.`}
       >
         No recent insider buying
       </span>

@@ -7,6 +7,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { Sparkline } from "@/components/Sparkline";
 import { DataTable, Column } from "@/components/DataTable";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
+import { useScoreWindow } from "@/lib/score-window";
 import { PriceTargetCell } from "@/components/PriceTargetCell";
 import { ReasoningTip } from "@/components/ReasoningTip";
 import { WatchlistButton } from "@/components/WatchlistButton";
@@ -186,6 +187,12 @@ export function StandardStockListTable({
   // serves them (RY.TO, SAP.DE and ABX.TO all return a target), and filtering
   // them out left the Analyst Price Target column empty on every row of the
   // all-dotted Canada and Germany lists.
+  // The insider columns on this table are scored over the window the reader
+  // picked, so the copy that describes them has to name the same one.
+  const [scoreWindow] = useScoreWindow();
+  const windowLabel = scoreWindow === 365 ? "12-month" : "90-day";
+  const windowPhrase = scoreWindow === 365 ? "12 months" : "90 days";
+
   const tickerKey = rows
     .map((r) => (r.ticker || "").toUpperCase())
     .filter(Boolean)
@@ -371,7 +378,7 @@ export function StandardStockListTable({
       label: "ROI",
       pro: true,
       align: "right",
-      info: "How far the stock trades above or below the insiders' own 90-day average purchase price.",
+      info: `How far the stock trades above or below the insiders' own ${windowLabel} average purchase price.`,
       sortValue: (r) => r.perfVsAvgCostPct ?? null,
       render: (r) =>
         r.perfVsAvgCostPct == null ? (
@@ -611,7 +618,7 @@ export function StandardStockListTable({
     if (verdicts.has("lookup-unavailable"))
       return "We couldn’t check insider filings for every name on this list right now, so the insider columns are hidden.";
     if (verdicts.has("no-insider-buying"))
-      return "No company on this list has open-market insider buying on record in the last 90 days, so the insider columns are hidden.";
+      return `No company on this list has open-market insider buying on record in the last ${windowPhrase}, so the insider columns are hidden.`;
     return "These listings aren’t in our SEC Form 4 coverage yet, so the insider columns are hidden.";
   })();
 

@@ -347,7 +347,8 @@ export default function PortfolioPage() {
             )}
           </div>
           <p className="text-[12px] text-mute">
-            Buyers and dollars are open-market insider purchases (SEC Form 4, code P) in the last 90 days. Awards,
+            Buyers and dollars are open-market insider purchases (SEC Form 4, code P) in the last{" "}
+            {windowDays === 365 ? "12 months" : "90 days"}. Awards,
             option exercises and tax withholding are excluded. Informational only — not investment advice.
           </p>
         </section>

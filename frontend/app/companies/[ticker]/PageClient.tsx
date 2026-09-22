@@ -266,6 +266,7 @@ export default function CompanyPage({
             name={data.company.name}
             score={data.score as never}
             transactions={(data.transactions || []) as never}
+            windowDays={windowDays}
           />
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 lg:gap-10">

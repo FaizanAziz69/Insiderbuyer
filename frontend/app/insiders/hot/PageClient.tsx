@@ -70,6 +70,8 @@ export default function InsiderHotStocksPage() {
   // 90-day or 12-month scoring window (George 2026-09-22) — shared with every
   // other board that shows the Insider Score.
   const [windowDays, setWindowDays] = useScoreWindow();
+  const windowPhrase = windowDays === 365 ? "12 months" : "90 days";
+  const windowAdj = windowDays === 365 ? "12-month" : "90-day";
   const { data: bt } = useBacktest();
 
   const { data, isLoading } = useSWR<RankingsResponse>(
@@ -249,7 +251,7 @@ export default function InsiderHotStocksPage() {
     {
       key: "iqs",
       pro: true,
-      info: "Our 0–99 Insider Score. Each officer/director open-market purchase is scored on conviction size, the buyer's track record and seniority, how routine their buying is, whether they bought into weakness, valuation and size, and insider ownership. Scores decay over 90 days, gain a cluster multiplier when several insiders buy, and are ranked market-wide; dilution and litigation are deducted. Recomputed daily.",
+      info: `Our 0–99 Insider Score. Each officer/director open-market purchase is scored on conviction size, the buyer's track record and seniority, how routine their buying is, whether they bought into weakness, valuation and size, and insider ownership. Scores decay over ${windowPhrase}, gain a cluster multiplier when several insiders buy, and are ranked market-wide; dilution and litigation are deducted. Recomputed daily.`,
       label: "Insider Score",
       align: "center",
       sortValue: (r) => r.iqs ?? null,
@@ -269,7 +271,7 @@ export default function InsiderHotStocksPage() {
       key: "perfVsCost",
       label: "Insider ROI",
       pro: true,
-      info: "How far the live price sits above or below the insiders' 90-day average purchase price (volume-weighted). Positive means the stock trades above what insiders paid; negative means you can buy below their cost.",
+      info: `How far the live price sits above or below the insiders' ${windowAdj} average purchase price (volume-weighted). Positive means the stock trades above what insiders paid; negative means you can buy below their cost.`,
       align: "right",
       sortValue: (r) => r.perfVsAvgCostPct ?? -9999,
       render: (r) =>
