@@ -54,6 +54,14 @@ const GRADES = [
 
 const HALOS = ['yellow', 'white', 'hot pink', 'lime green', 'cyan'];
 
+/** Dropped from slugs. The published ones read like
+ *  "michael-burry-copper-ero-position" and "steve-eisman-ai-terminator-moats":
+ *  four to six words that carry the story, no connective tissue. */
+const SLUG_STOPWORDS = new Set([
+  'a', 'an', 'the', 'of', 'in', 'on', 'at', 'to', 'for', 'and', 'its', 'with',
+  'across', 'same', 'single', 'from', 'as', 'by', 'that', 'this', 'over',
+]);
+
 @Injectable()
 export class DailyDeskService {
   private readonly logger = new Logger(DailyDeskService.name);
@@ -265,13 +273,23 @@ export class DailyDeskService {
     );
   }
 
+  /**
+   * A readable slug from the headline.
+   *
+   * Money has to come out first. Stripping punctuation from "Buys $29.88
+   * Million" leaves the token "2988", and the first dry run produced
+   * editorial-grab-ceo-anthony-tan-ping-yeow-buys-2988-2026-09-22, which reads
+   * like a broken id in the address bar. Figures belong in the headline, not
+   * in the URL.
+   */
   private slugify(title: string): string {
     return title
       .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .trim()
+      .replace(/\$[\d.,]+\s*(million|billion|thousand|m|bn|k)?/g, ' ')
+      .replace(/[^a-z0-9\s-]/g, ' ')
       .split(/\s+/)
-      .slice(0, 8)
+      .filter((w) => w && !/^\d+$/.test(w) && !SLUG_STOPWORDS.has(w))
+      .slice(0, 6)
       .join('-');
   }
 }
