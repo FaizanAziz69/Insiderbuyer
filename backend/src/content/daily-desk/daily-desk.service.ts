@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { BuyCandidate, ResearchService } from './research.service';
 import { DeskKind, WriterService, money } from './writer.service';
 import { CoverService } from './cover.service';
-import { photoFor } from './person-photos';
+import { looksInstitutional, photoFor } from './person-photos';
 import { join } from 'node:path';
 
 /**
@@ -206,13 +206,23 @@ export class DailyDeskService {
     const grade = GRADES[paletteSeed % GRADES.length];
     const halo = HALOS[paletteSeed % HALOS.length];
     const photo = photoFor(candidate.who);
-
+    // Who the cover shows, in the client's order of preference (2026-09-23):
+    //   1. a photograph we hold, which gives their exact face;
+    //   2. otherwise the person drawn from their name, because the cover has to
+    //      be of whoever the article is about;
+    //   3. an object scene only when there is no person to draw, i.e. the buyer
+    //      is a fund or a corporate entity with no face behind it.
+    const person = !photo && !looksInstitutional(candidate.who) ? candidate.who : null;
     const cover = await this.cover.generate({
       name: slug,
       scene: written.coverScene,
       grade,
-      halo: photo ? halo : undefined,
+      halo: photo || person ? halo : undefined,
       personRef: photo ? join(this.thumbsDir(), photo.file) : null,
+      personName: person,
+      personContext: person
+        ? [candidate.role, `of ${candidate.company}`].filter(Boolean).join(' ')
+        : null,
     });
 
     const row = {
@@ -228,7 +238,9 @@ export class DailyDeskService {
       imageUrl: cover?.url || null,
       imageAlt: photo
         ? `${photo.display}, who bought ${money(candidate.value)} of ${candidate.company}`
-        : `${candidate.company} (${candidate.ticker})`,
+        : person
+          ? `${person}, who bought ${money(candidate.value)} of ${candidate.company}`
+          : `${candidate.company} (${candidate.ticker})`,
     };
 
     if (publish) await this.persist(row, candidate);

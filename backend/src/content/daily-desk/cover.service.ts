@@ -89,6 +89,20 @@ export interface CoverRequest {
   halo?: string;
   /** Absolute path to a photograph of the subject, when we hold one. */
   personRef?: string | null;
+  /**
+   * The person the story is about, when we hold no photograph of them.
+   *
+   * Client decision 2026-09-23: the cover shows whoever the article is about,
+   * so a subject without a picture on file still gets a hero portrait, drawn
+   * from the description rather than copied from a reference. The likeness is
+   * then the model's reading of a public figure, which is close for someone
+   * widely photographed and a plausible stranger for someone who is not. That
+   * is the trade the client chose; `fromPhoto` on the result records which of
+   * the two any given cover was.
+   */
+  personName?: string | null;
+  /** Role and company, used to place an unphotographed subject. */
+  personContext?: string | null;
 }
 
 export interface CoverResult {
@@ -136,9 +150,14 @@ export class CoverService {
       if (fromPhoto) parts.push(this.inlineImage(req.personRef as string));
       for (const ex of this.exemplarsFor(req.name)) parts.push(this.inlineImage(ex));
 
+      const drawPerson = fromPhoto || !!req.personName;
       const instruction =
         (fromPhoto ? KEEP_LIKENESS : '') +
-        (fromPhoto ? HERO_TREATMENT + ' ' : '') +
+        (!fromPhoto && req.personName
+          ? `The cover is about ${req.personName}${req.personContext ? `, ${req.personContext}` : ''}. ` +
+            'Depict them as a real adult person in business dress, photorealistic. '
+          : '') +
+        (drawPerson ? HERO_TREATMENT + ' ' : '') +
         `The background collage shows: ${req.scene}. ` +
         `Grade the whole background in ${req.grade}. ` +
         (req.halo
@@ -192,13 +211,16 @@ export class CoverService {
     }
   }
 
-  /** Two exemplars per request, rotated by name so the whole day's batch does
-   *  not lean on the same two pictures. */
+  /** Three exemplars per request, rotated by name so the whole day's batch does
+   *  not lean on the same pictures. Three rather than two because the client's
+   *  bar is that every cover reads as one of the saved thumbs: more of the real
+   *  folder in front of the model is what holds the treatment. */
   private exemplarsFor(seed: string): string[] {
     const h = Array.from(seed).reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
     const a = STYLE_EXEMPLARS[h % STYLE_EXEMPLARS.length];
     const b = STYLE_EXEMPLARS[(h + 2) % STYLE_EXEMPLARS.length];
-    return [a, b]
+    const c = STYLE_EXEMPLARS[(h + 4) % STYLE_EXEMPLARS.length];
+    return [a, b, c]
       .map((f) => join(this.thumbsDir, f))
       .filter((f) => existsSync(f));
   }
