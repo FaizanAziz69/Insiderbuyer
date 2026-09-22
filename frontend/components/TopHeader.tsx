@@ -306,7 +306,10 @@ export function TopHeader() {
                           <Link
                             href={link.href}
                             onClick={() => setMobileOpen(false)}
-                            className={`flex items-center justify-between py-2 rounded-md hover:bg-[var(--accent-soft)] ${link.depth ? "pl-7 pr-3" : "px-3"}`}
+                            /* Children sit flush with their parent, not indented — the
+                                drawer matches the desktop panel (client
+                                2026-09-22: "everything in line"). */
+                            className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-[var(--accent-soft)]"
                           >
                             <span className="text-[14px] font-semibold text-soft inline-flex items-center gap-1.5">
                               {link.label}

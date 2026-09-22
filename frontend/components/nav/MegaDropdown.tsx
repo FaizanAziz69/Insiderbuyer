@@ -400,12 +400,14 @@ export function MegaDropdown({ group }: Props) {
                             <li key={link.href + link.label}>
                               {renderLink(link)}
                               {link.children?.length ? (
-                                // Indented, with a hairline running down the
-                                // gutter so the nesting reads at a glance.
-                                <ul
-                                  className="mt-0.5 ml-[19px] pl-2.5 space-y-0.5"
-                                  style={{ borderLeft: "1px solid var(--border)" }}
-                                >
+                                // Flush with the parent, not indented (client
+                                // 2026-09-22: "everything in line"). The child
+                                // still sits directly under its parent and is
+                                // still a nested list in the markup, so the
+                                // relationship reads from the order and from
+                                // assistive tech without breaking the column's
+                                // single left edge.
+                                <ul className="mt-0.5 space-y-0.5">
                                   {link.children.map((child) => (
                                     <li key={child.href + child.label}>
                                       {renderLink(child)}
