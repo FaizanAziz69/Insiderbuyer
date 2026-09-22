@@ -24,7 +24,7 @@ const P = {
   featuredTickers: ['ERO', 'QXO', 'SFM', 'ZTS'],
   category: 'MARKET MOVER',
   summary:
-    'The Big Short investor says he is ignoring the AI "woo-hoos" and has taken a mid-sized position in a Brazilian copper miner up 113% in a year. Form 4 filings reviewed by InsiderBuying.com show no insider has bought a share on the open market at any of his US-listed picks.',
+    'The Big Short investor says he is ignoring the AI "woo-hoos" and has taken a mid-sized position in a Brazilian copper miner up more than 110% in a year. Form 4 filings reviewed by InsiderBuying.com show no insider has bought a share on the open market at any of his US-listed picks.',
   imageAlt: 'Michael Burry, who has disclosed a new position in copper miner Ero Copper',
   tags: ['michael-burry', 'copper', 'ero-copper', 'qxo', 'sprouts', 'zoetis', 'ai', 'insider-selling'],
   snapshot: {
