@@ -54,3 +54,24 @@ nginx serves this folder with a 30-day cache, so overwriting a file in place is
 invisible to anyone who already loaded the old one — the Burry cover was swapped
 on 2026-08-24 and browsers kept showing the previous graphic. Save the new
 version under a new name and repoint the slug in `lib/editorial-thumbs.ts`.
+
+## Generating a cover (AI), added 2026-09-22
+
+`npm run cover -- --name <file-stem> --prompt "<subject>" [--slug <article-slug>]`
+(`scripts/gen-cover.mjs`). It calls Google's image model, writes the cover at
+exactly 1606x1000 and the matching `og/` copy, and prints the SLUG_OVERRIDES
+line. The key lives in `frontend/.env.local` (gitignored) as `GEMINI_API_KEY`
+and must never go in a tracked file: this repo is mirrored to a PUBLIC GitHub
+repo.
+
+The house prompt is in the script. It forbids text in the image on purpose:
+headlines sit over the cover in the layout, and every model still garbles
+lettering in a raster.
+
+**What it is good for, and what it is not.** Object, place and concept covers
+(copper, a skyline, a trading floor, a pill, a flag) come out indistinguishable
+from the client's own exports. A recognisable likeness of a REAL, NAMED person
+is a different matter: the model will produce one, and most of this folder is
+exactly that, but a synthetic photo of a real investor published as news art is
+an editorial decision, not a technical one. Keep using real photography for
+named people unless the client says otherwise, and label it if you do not.
