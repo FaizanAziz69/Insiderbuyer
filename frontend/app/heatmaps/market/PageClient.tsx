@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import { Flame, Search, ChevronDown, Check, Sparkles } from "lucide-react";
 import { API_BASE, HeatQuote, RankingRow, heatToRanking, fetcher } from "@/lib/api";
 import { StockHeatmap, HeatmapLegend, ColorBy, SizeBy } from "@/components/heatmap/StockHeatmap";
+import { ScoreWindowToggle } from "@/components/ScoreWindowToggle";
+import { useScoreWindow, windowParam } from "@/lib/score-window";
 import { ToolIntro } from "@/components/ToolIntro";
 
 // Index constituent sets — we filter our universe down to each index's members.
@@ -96,11 +98,12 @@ export default function MarketHeatmapPage() {
   const [source, setSource] = useState("S&P 500 Index");
   const [sourceOpen, setSourceOpen] = useState(false);
   const [iqsOverlay, setIqsOverlay] = useState(false);
+  const [windowDays, setWindowDays] = useScoreWindow();
 
   // Insider Score overlay — only fetched once the user turns it on, then held
   // by SWR so toggling back and forth is instant.
   const { data: scored } = useSWR<{ rows: RankingRow[] }>(
-    iqsOverlay ? `${API_BASE}/rankings?limit=2000` : null,
+    iqsOverlay ? `${API_BASE}/rankings?limit=2000${windowParam(windowDays)}` : null,
     fetcher,
     { revalidateOnFocus: false },
   );
@@ -267,6 +270,10 @@ export default function MarketHeatmapPage() {
             <Sparkles className="h-3.5 w-3.5" />
             IQS overlay
           </button>
+
+          {/* The lookback only means anything while the overlay is on, so it
+              appears with it rather than sitting inert beside the map. */}
+          {iqsOverlay && <ScoreWindowToggle value={windowDays} onChange={setWindowDays} />}
         </div>
 
         {rows.length > 0 ? (
@@ -294,7 +301,10 @@ export default function MarketHeatmapPage() {
               />
               <span>
                 Gold-ringed tiles carry an Insider Score — the number is the score, and
-                everything else is dimmed. {iqsByTicker.size > 0 ? `${iqsByTicker.size} companies scored.` : "Loading scores…"}
+                everything else is dimmed.{" "}
+                {iqsByTicker.size > 0
+                  ? `${iqsByTicker.size} companies scored on the last ${windowDays === 365 ? "12 months" : "90 days"}.`
+                  : "Loading scores…"}
               </span>
             </div>
           )}

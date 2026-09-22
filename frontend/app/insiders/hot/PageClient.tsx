@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Flame, Activity, ArrowUp, ArrowDown, ChevronDown } from "lucide-react";
 import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
 import { SectorFilter, SectorValue } from "@/components/SectorFilter";
+import { ScoreWindowToggle } from "@/components/ScoreWindowToggle";
+import { useScoreWindow, windowParam } from "@/lib/score-window";
 import {
   API_BASE,
   RankingRow,
@@ -65,6 +67,9 @@ export default function InsiderHotStocksPage() {
   // Sector filter (George 2026-09-01) — canonical buckets, matched server-side
   // over sector+industry so raw SIC-labelled rows are included too.
   const [sector, setSector] = useState<SectorValue>("all");
+  // 90-day or 12-month scoring window (George 2026-09-22) — shared with every
+  // other board that shows the Insider Score.
+  const [windowDays, setWindowDays] = useScoreWindow();
   const { data: bt } = useBacktest();
 
   const { data, isLoading } = useSWR<RankingsResponse>(
@@ -72,7 +77,7 @@ export default function InsiderHotStocksPage() {
     // first 150 tickers feed the coverage lookup); pulling 1000 was needless
     // database egress. Refresh every 30 min — scores only change on the ~6h
     // recalc, so tighter polling just re-transfers identical rows.
-    `${API_BASE}/rankings?limit=300&live=1${exchange !== "all" ? `&exchange=${exchange}` : ""}${sector !== "all" ? `&sectorGroup=${sector}` : ""}`,
+    `${API_BASE}/rankings?limit=300&live=1${exchange !== "all" ? `&exchange=${exchange}` : ""}${sector !== "all" ? `&sectorGroup=${sector}` : ""}${windowParam(windowDays)}`,
     fetcher,
     { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
@@ -574,6 +579,7 @@ export default function InsiderHotStocksPage() {
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         <ExchangeFilter value={exchange} onChange={setExchange} />
         <SectorFilter value={sector} onChange={setSector} />
+        <ScoreWindowToggle value={windowDays} onChange={setWindowDays} />
       </div>
 
       {/* Top 50 — one page, counting down #50 → #1 */}

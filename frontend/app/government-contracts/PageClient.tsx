@@ -12,6 +12,8 @@ import { rankColumn } from "@/components/tableColumns";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { PremiumValue } from "@/components/premium/PremiumValue";
 import { sectorFilterPresets } from "@/lib/sector-groups";
+import { ScoreWindowToggle } from "@/components/ScoreWindowToggle";
+import { useScoreWindow, windowParam } from "@/lib/score-window";
 
 /** One public federal contractor — trailing-12-month contract dollars from
  *  USAspending.gov, its top awarding agency, plus live analyst consensus and
@@ -54,8 +56,9 @@ function fmtBig(v: number | null): string {
 
 export default function GovernmentContractsPage() {
   const [q, setQ] = useState("");
+  const [windowDays, setWindowDays] = useScoreWindow();
   const { data, isLoading } = useSWR<{ rows: GovRow[] }>(
-    `${API_BASE}/gov-contracts`,
+    `${API_BASE}/gov-contracts${windowParam(windowDays, "?")}`,
     fetcher,
     { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
   );
@@ -232,6 +235,9 @@ export default function GovernmentContractsPage() {
             color: "var(--text)",
           }}
         />
+        <div className="mt-3">
+          <ScoreWindowToggle value={windowDays} onChange={setWindowDays} />
+        </div>
       </div>
 
       <div className="card overflow-hidden">

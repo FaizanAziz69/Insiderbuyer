@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Star, X } from "lucide-react";
 import { API_BASE, fetcher, formatCurrency } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
+import { ScoreWindowToggle } from "@/components/ScoreWindowToggle";
+import { useScoreWindow, windowParam } from "@/lib/score-window";
 import { DataTable, Column } from "@/components/DataTable";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { IqsScoreCell } from "@/components/IqsScoreCell";
@@ -54,6 +56,7 @@ export default function WatchlistPage() {
   const { tickers, add, remove, alertsEnabled } = useWatchlist();
   const { user } = useAuth();
   const [loginOpen, setLoginOpen] = useState(false);
+  const [windowDays, setWindowDays] = useScoreWindow();
 
   // Live quotes for the saved tickers — refreshed every 20s.
   const key = tickers.length
@@ -68,14 +71,19 @@ export default function WatchlistPage() {
   // company detail. Unlike the rankings feed (buy-scored companies only), this
   // covers ANY watchlist ticker that has Form 4 activity — buys and sells,
   // live-fetched from SEC when we haven't ingested it.
-  const detailsKey = tickers.length ? `wl-insider:${tickers.join(",")}` : null;
+  // The window is part of the KEY, not just the request: these rows are fetched
+  // one company at a time inside the fetcher, so without it SWR would serve the
+  // 90-day scores back under a 12-month toggle.
+  const detailsKey = tickers.length ? `wl-insider:${windowDays}:${tickers.join(",")}` : null;
   const { data: insiderData } = useSWR<Record<string, { iqs: number | null; trades: number | null }>>(
     detailsKey,
     async () => {
       const entries = await Promise.all(
         tickers.map(async (t) => {
           try {
-            const r = await fetch(`${API_BASE}/companies/${encodeURIComponent(t)}`);
+            const r = await fetch(
+              `${API_BASE}/companies/${encodeURIComponent(t)}${windowParam(windowDays, "?")}`,
+            );
             if (!r.ok) throw new Error("bad status");
             const d = await r.json();
             const txs: any[] = Array.isArray(d?.transactions) ? d.transactions : [];
@@ -340,14 +348,17 @@ export default function WatchlistPage() {
           </div>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <DataTable<WRow>
-            rows={rows}
-            rowKey={(r) => r.symbol}
-            initialSort={{ key: "marketCap", dir: "desc" }}
-            columns={columns}
-          />
-        </div>
+        <>
+          <ScoreWindowToggle value={windowDays} onChange={setWindowDays} />
+          <div className="card overflow-hidden">
+            <DataTable<WRow>
+              rows={rows}
+              rowKey={(r) => r.symbol}
+              initialSort={{ key: "marketCap", dir: "desc" }}
+              columns={columns}
+            />
+          </div>
+        </>
       )}
     </div>
   );

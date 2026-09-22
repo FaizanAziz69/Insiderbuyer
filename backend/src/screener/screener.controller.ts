@@ -29,6 +29,7 @@ export class ScreenerController {
     @Query('dir') dir?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('window') window?: string,
   ) {
     const num = (v?: string) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : undefined);
     return this.svc.screen({
@@ -47,6 +48,7 @@ export class ScreenerController {
       dir: dir === 'asc' ? 'asc' : 'desc',
       limit: num(limit),
       offset: num(offset),
+      windowDays: num(window),
     });
   }
 

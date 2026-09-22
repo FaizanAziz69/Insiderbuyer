@@ -49,6 +49,8 @@ import { LazyMount } from "@/components/LazyMount";
 import { SAProfileHeader } from "@/components/stock/SAProfileHeader";
 import { ScorePillarsCard } from "@/components/ScorePillarsCard";
 import { InsiderScoreBanner } from "@/components/company/InsiderScoreBanner";
+import { ScoreWindowToggle } from "@/components/ScoreWindowToggle";
+import { useScoreWindow, windowParam } from "@/lib/score-window";
 import { PromoterPanel } from "@/components/company/PromoterPanel";
 import { CongressContractsPanel } from "@/components/company/CongressContractsPanel";
 import { CongressTradingCard, WhaleActivityCard, RevenueBreakdownCard, BullBearCard } from "@/components/stock/StockCivicGrid";
@@ -151,6 +153,7 @@ export default function CompanyPage({
   const { ticker } = use(params);
   const sym = ticker.toUpperCase();
   const [tab, setTabState] = useState<ProfileTab>("overview");
+  const [windowDays, setWindowDays] = useScoreWindow();
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get("tab") as ProfileTab | null;
     if (q && TAB_KEYS.includes(q)) setTabState(q);
@@ -173,7 +176,7 @@ export default function CompanyPage({
 
   const { data, isLoading } = useSWR<
     CompanyDetail & { congressionalTrades?: CongressTrade[] }
-  >(`${API_BASE}/companies/${encodeURIComponent(ticker)}`, fetcher, {
+  >(`${API_BASE}/companies/${encodeURIComponent(ticker)}${windowParam(windowDays, "?")}`, fetcher, {
     revalidateOnFocus: false,
   });
   const { data: statsData } = useSWR<{ stats: StockStats | null }>(
@@ -252,6 +255,12 @@ export default function CompanyPage({
           {/* Insider Score, full width, on every tab (George 2026-09-14: the
               score was "too hidden" and silently absent on unscored stocks).
               Always rendered — it explains itself when there is no score. */}
+          {/* The lookback the reader chose on the board follows them here, so
+              the number on this page matches the row they clicked. */}
+          <div className="flex justify-end">
+            <ScoreWindowToggle value={windowDays} onChange={setWindowDays} />
+          </div>
+
           <InsiderScoreBanner
             ticker={sym}
             name={data.company.name}

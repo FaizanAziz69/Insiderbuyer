@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Lookback-window toggle for the Insider Score board (George 2026-09-21:
+ * Lookback-window toggle for the Insider Score (George 2026-09-21:
  * "a toggle that shows last 90 days and then last 12 months of data … that
  * means last 12 months of insider buying vs selling, recalculating average
  * buying costs, etc applied to all relevant columns").
@@ -12,6 +12,12 @@
  * filings, dollars bought, the average insider cost and the return against
  * that cost. The decay half-life scales with the window, so a 12-month score
  * weighs a year of evidence rather than re-reading the same 90 days.
+ *
+ * George 2026-09-22: the label reads INSIDER SCORE, not LOOKBACK — it sits on
+ * a dozen different boards now, and on a screener or a watchlist "lookback"
+ * alone does not say WHICH column moves. The state behind it is shared:
+ * `useScoreWindow()` (lib/score-window.ts) keeps the choice with the reader
+ * from page to page.
  */
 
 export type ScoreWindow = 90 | 365;
@@ -24,7 +30,7 @@ const OPTIONS: { value: ScoreWindow; label: string; hint: string }[] = [
 export function ScoreWindowToggle({
   value,
   onChange,
-  label = "Lookback",
+  label = "Insider Score",
 }: {
   value: ScoreWindow;
   onChange: (v: ScoreWindow) => void;

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { API_BASE, IdeaRow, IdeasResponse, fetcher, formatCurrency } from "@/lib/api";
+import { ScoreWindowToggle } from "@/components/ScoreWindowToggle";
+import { useScoreWindow, windowParam } from "@/lib/score-window";
 import { TierBadge } from "@/components/TierBadge";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { PremiumValue } from "@/components/premium/PremiumValue";
@@ -80,8 +82,9 @@ function IdeaItem({
 
 export default function ListsPage() {
   const { unlocked } = usePremium();
+  const [windowDays, setWindowDays] = useScoreWindow();
   const { data, isLoading } = useSWR<IdeasResponse>(
-    `${API_BASE}/ideas`,
+    `${API_BASE}/ideas${windowParam(windowDays, "?")}`,
     fetcher,
     { refreshInterval: 5 * 60 * 1000, revalidateOnFocus: false },
   );
@@ -102,6 +105,8 @@ export default function ListsPage() {
           minutes from SEC Form 4 filings.
         </p>
       </header>
+
+      <ScoreWindowToggle value={windowDays} onChange={setWindowDays} />
 
       {isLoading || !data ? (
         <div className="space-y-4">

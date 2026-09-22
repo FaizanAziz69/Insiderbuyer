@@ -159,6 +159,14 @@ const LATEST_SCORE_PER_COMPANY = latestScoreFor(WINDOWS.buys);
  *  / 12-month toggle). 365 rather than 360 so "12 months" means a year. */
 export const SCORE_WINDOWS = [90, 365] as const;
 
+/** Coerce a caller-supplied `window` to one we actually score. Anything else
+ *  (a typo, an old bookmark, `?window=30`) falls back to the 90-day board
+ *  rather than returning an empty one. */
+export function normalizeScoreWindow(raw: unknown): number {
+  const n = Number(raw);
+  return (SCORE_WINDOWS as readonly number[]).includes(n) ? n : WINDOWS.buys;
+}
+
 /** Normalize an "Exchanges" filter value to a stored Company.exchange code,
  *  or null for "All" / unknown (no filter). Accepts UI labels and codes:
  *  us/u.s./united states→US, ca/canada→CA, de/germany/deutschland→DE. */
@@ -1017,11 +1025,7 @@ export class IqsService {
     const offset = opts.offset ?? 0;
     // Only the windows we actually score are addressable: an unknown value
     // would return an empty board rather than a wrong one.
-    const windowDays: number = (SCORE_WINDOWS as readonly number[]).includes(
-      Number(opts.windowDays),
-    )
-      ? Number(opts.windowDays)
-      : WINDOWS.buys;
+    const windowDays = normalizeScoreWindow(opts.windowDays);
 
     const qb = this.scores
       .createQueryBuilder('s')
@@ -1284,7 +1288,17 @@ export class IqsService {
     return result;
   }
 
-  async getCompanyDetail(ticker: string) {
+  /** One company's page data. `windowDays` picks WHICH scored board the
+   *  number comes from (George 2026-09-21's 90-day / 12-month toggle).
+   *
+   *  It is not optional in practice: since iqs_scores gained a row per window
+   *  there are TWO rows per company per day, so ordering by asOfDate alone
+   *  returned whichever the planner happened to emit first — measured on prod
+   *  2026-09-22, SAP.DE and TSM served their 12-month score while the board
+   *  beside them showed the 90-day one, and scoreHistory zig-zagged between
+   *  the two. Both queries filter the window now. */
+  async getCompanyDetail(ticker: string, windowDaysRaw?: number) {
+    const windowDays = normalizeScoreWindow(windowDaysRaw);
     const company = await this.companies
       .createQueryBuilder('c')
       .where('LOWER(c.ticker) = :t', { t: ticker.toLowerCase() })
@@ -1297,6 +1311,7 @@ export class IqsService {
     const scoreRow = await this.scores
       .createQueryBuilder('s')
       .where('s.company_id = :id', { id: company.id })
+      .andWhere('s."windowDays" = :w', { w: windowDays })
       .orderBy('s."asOfDate"', 'DESC')
       .getOne();
 
@@ -1318,6 +1333,7 @@ export class IqsService {
     const historyRows = await this.scores
       .createQueryBuilder('s')
       .where('s.company_id = :id', { id: company.id })
+      .andWhere('s."windowDays" = :w', { w: windowDays })
       .orderBy('s."asOfDate"', 'ASC')
       .getMany();
     const scoreHistory = historyRows.map((s) => ({
@@ -2472,11 +2488,12 @@ export class IqsService {
     };
   }
 
-  async getIdeas() {
+  async getIdeas(windowDaysRaw?: number) {
+    const windowDays = normalizeScoreWindow(windowDaysRaw);
     const qb = this.scores
       .createQueryBuilder('s')
       .innerJoin(Company, 'c', 'c.id = s.company_id')
-      .where(LATEST_SCORE_PER_COMPANY)
+      .where(latestScoreFor(windowDays))
       // Ideas are buy ideas — exclude sells-only score rows.
       .andWhere('s."transactionCount" > 0')
       .select([

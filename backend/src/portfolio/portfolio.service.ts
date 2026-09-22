@@ -11,6 +11,7 @@ import {
 import { BillingService } from '../billing/billing.service';
 import { SmsService } from './sms.service';
 import { plausibleTxSql } from '../iqs/tx-sanity';
+import { normalizeScoreWindow } from '../iqs/iqs.service';
 
 /** The brief: "Free users: allow adding up to 5 stocks." */
 export const FREE_HOLDING_LIMIT = 10; // client 2026-09-08: 'up to 10 selections'
@@ -31,8 +32,11 @@ export interface HoldingRow {
   /** Null for a free user — the score is the thing the tier unlocks. */
   iqs: number | null;
   locked: boolean;
-  buyers90d: number;
-  bought90d: number;
+  /** Distinct buyers and dollars bought over the SELECTED lookback (90 days by
+   *  default, 12 months with ?window=365) — the response carries `windowDays`
+   *  so the table can label the columns honestly. */
+  buyers: number;
+  bought: number;
   lastBuy: string | null;
   addedAt: string | null;
 }
@@ -56,20 +60,25 @@ export class PortfolioService {
 
   /** The portfolio table. Insider Scores come back null and `locked: true`
    *  for a free user — the brief shows them blurred behind the upgrade. */
-  async list(user: User): Promise<{ holdings: HoldingRow[]; active: boolean; limit: number }> {
+  async list(
+    user: User,
+    windowDaysRaw?: number,
+  ): Promise<{ holdings: HoldingRow[]; active: boolean; windowDays: number; limit: number }> {
+    const windowDays = normalizeScoreWindow(windowDaysRaw);
     const active = this.billing.isPortfolioActive(user);
     const rows = await this.holdings.find({
       where: { userId: user.id },
       order: { createdAt: 'ASC' },
     });
     if (!rows.length) {
-      return { holdings: [], active, limit: active ? PAID_HOLDING_LIMIT : FREE_HOLDING_LIMIT };
+      return { holdings: [], active, windowDays, limit: active ? PAID_HOLDING_LIMIT : FREE_HOLDING_LIMIT };
     }
     const holdings = await this.holdingRows(
       rows.map((r) => ({ ticker: r.ticker, addedAt: r.createdAt.toISOString().slice(0, 10) })),
       active,
+      windowDays,
     );
-    return { holdings, active, limit: active ? PAID_HOLDING_LIMIT : FREE_HOLDING_LIMIT };
+    return { holdings, active, windowDays, limit: active ? PAID_HOLDING_LIMIT : FREE_HOLDING_LIMIT };
   }
 
   /**
@@ -81,7 +90,12 @@ export class PortfolioService {
    * receives a score — `iqs` is null and `locked` true, so the real number is
    * not in the response, not merely hidden.
    */
-  async preview(tickersRaw: string[], unlock: boolean): Promise<{ holdings: HoldingRow[]; active: boolean; limit: number }> {
+  async preview(
+    tickersRaw: string[],
+    unlock: boolean,
+    windowDaysRaw?: number,
+  ): Promise<{ holdings: HoldingRow[]; active: boolean; windowDays: number; limit: number }> {
+    const windowDays = normalizeScoreWindow(windowDaysRaw);
     const tickers = Array.from(
       new Set(
         tickersRaw
@@ -89,24 +103,36 @@ export class PortfolioService {
           .filter((t) => /^[A-Z0-9.\-]{1,16}$/.test(t)),
       ),
     ).slice(0, FREE_HOLDING_LIMIT);
-    if (!tickers.length) return { holdings: [], active: unlock, limit: FREE_HOLDING_LIMIT };
-    const holdings = await this.holdingRows(tickers.map((ticker) => ({ ticker, addedAt: null })), unlock);
-    return { holdings, active: unlock, limit: FREE_HOLDING_LIMIT };
+    if (!tickers.length) return { holdings: [], active: unlock, windowDays, limit: FREE_HOLDING_LIMIT };
+    const holdings = await this.holdingRows(
+      tickers.map((ticker) => ({ ticker, addedAt: null })),
+      unlock,
+      windowDays,
+    );
+    return { holdings, active: unlock, windowDays, limit: FREE_HOLDING_LIMIT };
   }
 
   private async holdingRows(
     rows: Array<{ ticker: string; addedAt: string | null }>,
     active: boolean,
+    windowDays: number,
   ): Promise<HoldingRow[]> {
     const tickers = rows.map((r) => r.ticker);
     const stats = await this.holdings.query(
       `
       WITH latest AS (
+        -- The window belongs in BOTH halves: iqs_scores holds one row per
+        -- company per day PER WINDOW since 2026-09-21, so without it this CTE
+        -- returns two rows for the same company and the join silently picks
+        -- one at random (measured on prod: SAP.DE served its 12-month score
+        -- next to a 90-day board).
         SELECT s.company_id, s.iqs
         FROM iqs_scores s
-        WHERE s."asOfDate" = (
-          SELECT MAX(s2."asOfDate") FROM iqs_scores s2 WHERE s2.company_id = s.company_id
-        )
+        WHERE s."windowDays" = $2
+          AND s."asOfDate" = (
+            SELECT MAX(s2."asOfDate") FROM iqs_scores s2
+            WHERE s2.company_id = s.company_id AND s2."windowDays" = $2
+          )
       ),
       buys AS (
         SELECT t.company_id,
@@ -116,7 +142,7 @@ export class PortfolioService {
         FROM insider_transactions t
         JOIN companies c ON c.id = t.company_id
         WHERE t."transactionCode" = 'P'
-          AND t."transactionDate" >= (CURRENT_DATE - INTERVAL '90 days')
+          AND t."transactionDate" >= (CURRENT_DATE - make_interval(days => $2::int))
           AND ${plausibleTxSql('t', 'c')}
         GROUP BY t.company_id
       )
@@ -128,7 +154,7 @@ export class PortfolioService {
       LEFT JOIN buys b ON b.company_id = c.id
       WHERE c.ticker = ANY($1)
       `,
-      [tickers],
+      [tickers, windowDays],
     );
     const byTicker = new Map(
       (stats as Record<string, unknown>[]).map((r) => [String(r.ticker).toUpperCase(), r]),
@@ -144,8 +170,8 @@ export class PortfolioService {
         price: s?.price != null ? Number(s.price) : null,
         iqs: active ? iqs : null,
         locked: !active,
-        buyers90d: s?.buyers != null ? Number(s.buyers) : 0,
-        bought90d: s?.bought != null ? Number(s.bought) : 0,
+        buyers: s?.buyers != null ? Number(s.buyers) : 0,
+        bought: s?.bought != null ? Number(s.bought) : 0,
         lastBuy: isoDate(s?.lastBuy),
         addedAt: r.addedAt,
       };

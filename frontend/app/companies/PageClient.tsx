@@ -3,7 +3,8 @@ import useSWR from "swr";
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { ScoreWindowToggle, type ScoreWindow } from "@/components/ScoreWindowToggle";
+import { ScoreWindowToggle } from "@/components/ScoreWindowToggle";
+import { useScoreWindow, windowParam } from "@/lib/score-window";
 import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
 import { API_BASE, RankingRow, RankingsResponse, fetcher, formatCurrency, formatDate } from "@/lib/api";
 import { PremiumGate } from "@/components/PremiumGate";
@@ -101,9 +102,9 @@ export default function CompaniesPage() {
   const [exchange, setExchange] = useState<ExchangeValue>("all");
   // George 2026-09-21: 90-day board or the 12-month rescore. The backend
   // stores a separate score per window, so this re-ranks rather than filters.
-  const [windowDays, setWindowDays] = useState<ScoreWindow>(90);
+  const [windowDays, setWindowDays] = useScoreWindow();
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=500${exchange !== "all" ? `&exchange=${exchange}` : ""}${windowDays !== 90 ? `&window=${windowDays}` : ""}`,
+    `${API_BASE}/rankings?limit=500${exchange !== "all" ? `&exchange=${exchange}` : ""}${windowParam(windowDays)}`,
     fetcher,
   );
 

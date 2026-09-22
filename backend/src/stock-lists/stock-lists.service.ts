@@ -417,7 +417,26 @@ export interface StockListFilters {
    *  which sits close to the gateway's ~10s ceiling. */
   limit?: number;
   offset?: number;
+  /** Lookback behind the insider columns — 90 (default) or 365. It moves the
+   *  Insider Score and the windowed aggregates beside it; it deliberately does
+   *  NOT re-pick the list, because a curated list ("penny stocks", "Trump
+   *  family") is defined by its own criteria, not by the scoring window. */
+  windowDays?: number;
 }
+
+/** The insider columns that are a function of the lookback window — the ones a
+ *  90-day / 12-month toggle has to move. Reference fields (sector, market cap,
+ *  ownership) are not in here: they describe the company, not the window. */
+const WINDOWED_INSIDER_FIELDS = [
+  'iqs',
+  'reasoning',
+  'avgCost',
+  'lastBuyDate',
+  'totalPurchaseValue',
+  'distinctBuyers',
+  'perfVsAvgCostPct',
+  'scoreUpdatedAt',
+] as const;
 
 @Injectable()
 export class StockListsService implements OnApplicationBootstrap {
@@ -1465,7 +1484,7 @@ export class StockListsService implements OnApplicationBootstrap {
             Math.max(0, filters.offset ?? 0) + (filters.limit ?? all.length),
           )
         : all;
-    const withInsider = await this.annotateInsiderCoverage(paged);
+    const withInsider = await this.annotateInsiderCoverage(paged, filters.windowDays);
     detail.rows = (await this.fillFundamentalGaps(
       slug,
       withInsider,
@@ -1514,6 +1533,8 @@ export class StockListsService implements OnApplicationBootstrap {
     }
 
     if (slug === 'iqs-top-picks') {
+      // The ONE list whose membership is the board itself, so here the window
+      // re-picks the rows as well as re-scoring them.
       const { total, rows: rawRows } = await this.iqs.getRankings({
         limit: 50,
         sector: filters.sector,
@@ -1521,6 +1542,7 @@ export class StockListsService implements OnApplicationBootstrap {
         maxMarketCap: filters.maxMarketCap,
         minIqs: filters.minIqs,
         exchange: filters.exchange,
+        windowDays: filters.windowDays,
       });
       // Drop rows whose SEC mapping yielded no usable ticker symbol.
       const rows = rawRows.filter(
@@ -1805,12 +1827,12 @@ export class StockListsService implements OnApplicationBootstrap {
    *  the lookup actually saw all of it — only a complete lookup can prove the
    *  negative ("no insider buying on record"). Shares IqsService's 10-minute
    *  rankings cache with the sector lists, so it costs one query per window. */
-  private async insiderUniverse(): Promise<{
+  private async insiderUniverse(windowDays?: number): Promise<{
     bySymbol: Map<string, RankingRow>;
     complete: boolean;
   }> {
     try {
-      const { total, rows } = await this.iqs.getRankings({ limit: 5000, offset: 0 });
+      const { total, rows } = await this.iqs.getRankings({ limit: 5000, offset: 0, windowDays });
       const bySymbol = new Map<string, RankingRow>();
       for (const r of rows) {
         const t = (r.ticker || '').toUpperCase();
@@ -1836,11 +1858,31 @@ export class StockListsService implements OnApplicationBootstrap {
    * insider buying on record" from "we couldn't look it up". No insider value
    * is ever synthesized — a stock with no Form 4 buying has nothing to show.
    */
-  private async annotateInsiderCoverage(rows: any[]): Promise<any[]> {
+  private async annotateInsiderCoverage(rows: any[], windowDays?: number): Promise<any[]> {
     if (!rows.length) return rows;
-    const { bySymbol, complete } = await this.insiderUniverse();
+    const { bySymbol, complete } = await this.insiderUniverse(windowDays);
+    // A caller that named a window wants the windowed columns to MOVE, not
+    // merely to be filled where blank: most builders join the 90-day board
+    // themselves, so `??` alone would leave a 90-day score sitting under a
+    // "12 months" toggle. Where the company IS on the chosen board its values
+    // are overwritten; where it is NOT, only the score itself is cleared —
+    // wiping the rest would throw away the 13F-derived average cost a persona
+    // list (Trump family, a fund's holdings) supplies from its own source,
+    // which never came from the scoring window in the first place.
+    const rescore = windowDays != null;
     return rows.map((r) => {
       const rk = bySymbol.get((r.ticker || '').toUpperCase());
+      if (rescore) {
+        if (rk) {
+          for (const f of WINDOWED_INSIDER_FIELDS) r[f] = (rk as any)[f] ?? null;
+          r.hasCeoBuyer = !!rk.hasCeoBuyer;
+          r.hasRepeatBuyer = !!rk.hasRepeatBuyer;
+        } else {
+          r.iqs = null;
+          r.reasoning = null;
+          r.scoreUpdatedAt = null;
+        }
+      }
       if (rk) {
         // ?? only fills what is absent; || is used for the boolean signal flags
         // (a builder that defaulted them to false must not mask a real true).

@@ -73,6 +73,10 @@ export interface ScreenerQuery {
   dir?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
+  /** Lookback behind the Insider Score column — 90 or 365 (George's toggle).
+   *  It moves the minIqs filter and the iqs sort with it, because those read
+   *  the same scored board. */
+  windowDays?: number;
 }
 
 /** The universe query. OTC is included deliberately — it is where most
@@ -194,7 +198,9 @@ export class ScreenerService implements OnModuleInit {
     await this.ensureUniverse();
 
     // Our insider data, keyed by ticker.
-    const ranked = await this.iqs.getRankings({ limit: 5000 }).catch(() => ({ rows: [] as any[] }));
+    const ranked = await this.iqs
+      .getRankings({ limit: 5000, windowDays: q.windowDays })
+      .catch(() => ({ rows: [] as any[] }));
     const scoreByTicker = new Map<string, any>();
     for (const r of ranked.rows || []) {
       if (r.ticker) scoreByTicker.set(String(r.ticker).toUpperCase(), r);

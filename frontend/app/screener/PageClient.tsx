@@ -9,6 +9,8 @@ import { IqsScoreCell } from "@/components/IqsScoreCell";
 import { WatchlistButton } from "@/components/WatchlistButton";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { ToolIntro } from "@/components/ToolIntro";
+import { ScoreWindowToggle } from "@/components/ScoreWindowToggle";
+import { useScoreWindow, windowParam } from "@/lib/score-window";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { PremiumValue } from "@/components/premium/PremiumValue";
 import { PRODUCT_NAME } from "@/components/premium/PaywallCta";
@@ -101,6 +103,7 @@ export default function ScreenerPage() {
   const [dir, setDir] = useState("desc");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
+  const [windowDays, setWindowDays] = useScoreWindow();
 
   const params = new URLSearchParams();
   if (setup) params.set("setup", setup);
@@ -115,6 +118,9 @@ export default function ScreenerPage() {
   params.set("dir", dir);
   params.set("limit", String(PAGE));
   params.set("offset", String(page * PAGE));
+  // Only an explicit 12-month choice goes on the wire (see windowParam) — the
+  // 90-day key is the one the SSR manifest seeds.
+  if (windowDays !== 90) params.set("window", String(windowDays));
 
   const { data, isLoading } = useSWR<ScreenerResponse>(
     `${API_BASE}/screener?${params.toString()}`,
@@ -224,6 +230,7 @@ export default function ScreenerPage() {
             </div>
           </Field>
         </div>
+        <ScoreWindowToggle value={windowDays} onChange={reset(setWindowDays)} />
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="text-xs text-mute">
             {isLoading && !data

@@ -48,22 +48,30 @@ export class PortfolioController {
 
   /** Holdings + scores. Scores are null/locked until the tier is live. */
   @Get()
-  async list(@Headers('authorization') auth?: string) {
-    return this.portfolio.list(await this.requireUser(auth));
+  async list(@Headers('authorization') auth?: string, @Query('window') window?: string) {
+    return this.portfolio.list(await this.requireUser(auth), window ? Number(window) : undefined);
   }
 
   /** Guest portfolio preview — see PortfolioService.preview. Scores unlock
    *  only for a bearer token belonging to an Insider Access member or an
    *  active portfolio-tier subscriber. */
   @Get('preview')
-  async preview(@Query('tickers') tickers?: string, @Headers('authorization') auth?: string) {
+  async preview(
+    @Query('tickers') tickers?: string,
+    @Headers('authorization') auth?: string,
+    @Query('window') window?: string,
+  ) {
     let unlock = false;
     const payload = this.auth.verifyToken(bearer(auth));
     if (payload) {
       const user = await this.users.findOne({ where: { id: payload.sub } });
       if (user) unlock = this.billing.isPortfolioActive(user) || (await this.billing.isPremium(user));
     }
-    return this.portfolio.preview((tickers || '').split(',').filter(Boolean), unlock);
+    return this.portfolio.preview(
+      (tickers || '').split(',').filter(Boolean),
+      unlock,
+      window ? Number(window) : undefined,
+    );
   }
 
   @Get('status')

@@ -8,6 +8,8 @@ import { StandardStockListTable, StandardRow } from "@/components/StandardStockL
 import { API_BASE, fetcher, formatDate } from "@/lib/api";
 import { AdSlot } from "@/components/AdSlot";
 import { ExchangeFilter, ExchangeValue } from "@/components/ExchangeFilter";
+import { ScoreWindowToggle } from "@/components/ScoreWindowToggle";
+import { useScoreWindow, windowParam } from "@/lib/score-window";
 import { PoliticiansLeaderboard } from "@/components/PoliticiansLeaderboard";
 import { ToolIntro } from "@/components/ToolIntro";
 
@@ -82,9 +84,19 @@ export default function StockListDetailPage({
   // global (a German stock scoring #1 shows #1 under "All"). Sent to the API
   // as ?exchange=; the backend maps US / CA / DE.
   const [exchange, setExchange] = useState<ExchangeValue>("all");
+  // The lookback moves the insider columns on every one of these lists; it only
+  // re-picks the rows on iqs-top-picks, whose membership IS the scored board.
+  const [windowDays, setWindowDays] = useScoreWindow();
+
+  const listQuery = [
+    exchange !== "all" ? `exchange=${exchange}` : "",
+    windowParam(windowDays, "&").replace(/^&/, ""),
+  ]
+    .filter(Boolean)
+    .join("&");
 
   const { data, isLoading } = useSWR<DetailResponse>(
-    `${API_BASE}/stock-lists/${slug}${exchange !== "all" ? `?exchange=${exchange}` : ""}`,
+    `${API_BASE}/stock-lists/${slug}${listQuery ? `?${listQuery}` : ""}`,
     fetcher,
     { refreshInterval: 5 * 60_000, revalidateOnFocus: false },
   );
@@ -187,7 +199,10 @@ export default function StockListDetailPage({
 
       {/* Exchanges filter — All / U.S. / Canada / Germany. Ranking is global;
           this narrows the visible list by listing venue. */}
-      <ExchangeFilter value={exchange} onChange={setExchange} />
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <ExchangeFilter value={exchange} onChange={setExchange} />
+        <ScoreWindowToggle value={windowDays} onChange={setWindowDays} />
+      </div>
 
       {/* Top banner ad */}
       <AdSlot slot="leaderboard" seed={`${slug}-top`} />

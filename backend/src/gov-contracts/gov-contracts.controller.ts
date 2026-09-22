@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { GovContractsService } from './gov-contracts.service';
 
 @Controller('gov-contracts')
@@ -8,8 +8,8 @@ export class GovContractsController {
   /** Ranked list of large public federal contractors with TTM contract $ +
    *  live analyst ratings and upside. */
   @Get()
-  async list() {
-    return { rows: await this.svc.getList() };
+  async list(@Query('window') window?: string) {
+    return { rows: await this.svc.getList(window ? Number(window) : undefined) };
   }
 
   /** Slice refresh from USAspending.gov — cloud cron calls this in a loop

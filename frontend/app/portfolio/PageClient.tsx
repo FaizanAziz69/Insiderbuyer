@@ -29,6 +29,8 @@ import { PremiumRowWall } from "@/components/premium/PremiumRowWall";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { track } from "@/lib/analytics";
+import { ScoreWindowToggle } from "@/components/ScoreWindowToggle";
+import { useScoreWindow, windowParam } from "@/lib/score-window";
 
 interface Holding {
   ticker: string;
@@ -37,8 +39,10 @@ interface Holding {
   price: number | null;
   iqs: number | null;
   locked: boolean;
-  buyers90d: number;
-  bought90d: number;
+  /** Over the SELECTED window — 90 days by default, 12 months with the
+   *  Insider Score toggle. The header label follows it. */
+  buyers: number;
+  bought: number;
   lastBuy: string | null;
 }
 interface PreviewResponse {
@@ -105,6 +109,7 @@ export default function PortfolioPage() {
   const [hydrated, setHydrated] = useState(false);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [windowDays, setWindowDays] = useScoreWindow();
 
   // Hydrate from the browser, then (signed in, empty) seed from the account.
   useEffect(() => {
@@ -124,7 +129,9 @@ export default function PortfolioPage() {
       .catch(() => undefined);
   }, [user]);
 
-  const key = tickers.length ? `${API_BASE}/portfolio/preview?tickers=${encodeURIComponent(tickers.join(","))}` : null;
+  const key = tickers.length
+    ? `${API_BASE}/portfolio/preview?tickers=${encodeURIComponent(tickers.join(","))}${windowParam(windowDays)}`
+    : null;
   const { data, isLoading } = useSWR<PreviewResponse>(
     key,
     (url: string) => {
@@ -188,14 +195,15 @@ export default function PortfolioPage() {
           price: null,
           iqs: null,
           locked: !unlocked,
-          buyers90d: 0,
-          bought90d: 0,
+          buyers: 0,
+          bought: 0,
           lastBuy: null,
         },
     );
   }, [tickers, data, unlocked]);
   const count = tickers.length;
   const scoresLocked = !unlocked && !(data?.active ?? false);
+  const windowLabel = windowDays === 365 ? "12mo" : "90d";
 
   return (
     <div className="space-y-10">
@@ -260,6 +268,10 @@ export default function PortfolioPage() {
             </p>
           )}
 
+          <div className="mb-3">
+            <ScoreWindowToggle value={windowDays} onChange={setWindowDays} />
+          </div>
+
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-[14px]">
@@ -273,8 +285,8 @@ export default function PortfolioPage() {
                         Insider Score
                       </span>
                     </Th>
-                    <Th right>Buyers (90d)</Th>
-                    <Th right>Bought (90d)</Th>
+                    <Th right>Buyers ({windowLabel})</Th>
+                    <Th right>Bought ({windowLabel})</Th>
                     <Th right>Last buy</Th>
                     <th className="px-4 py-3" />
                   </tr>
@@ -299,9 +311,9 @@ export default function PortfolioPage() {
                           <IqsScoreCell iqs={h.iqs} />
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right tabular">{h.buyers90d || "—"}</td>
+                      <td className="px-4 py-3 text-right tabular">{h.buyers || "—"}</td>
                       <td className="px-4 py-3 text-right tabular text-good font-semibold">
-                        {h.bought90d ? money(h.bought90d) : "—"}
+                        {h.bought ? money(h.bought) : "—"}
                       </td>
                       <td className="px-4 py-3 text-right text-[13px] text-mute whitespace-nowrap">
                         {h.lastBuy ? formatRelative(h.lastBuy) : "—"}

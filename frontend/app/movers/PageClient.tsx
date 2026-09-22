@@ -20,11 +20,14 @@ import { WatchlistButton } from "@/components/WatchlistButton";
 import { rankColumn } from "@/components/tableColumns";
 import { AdSlot } from "@/components/AdSlot";
 import { ToolIntro } from "@/components/ToolIntro";
+import { ScoreWindowToggle } from "@/components/ScoreWindowToggle";
+import { useScoreWindow, windowParam } from "@/lib/score-window";
 
 export default function MoversPage() {
   const [exchange, setExchange] = useState<ExchangeValue>("all");
+  const [windowDays, setWindowDays] = useScoreWindow();
   const { data, isLoading } = useSWR<RankingsResponse>(
-    `${API_BASE}/rankings?limit=200&live=1${exchange !== "all" ? `&exchange=${exchange}` : ""}`,
+    `${API_BASE}/rankings?limit=200&live=1${exchange !== "all" ? `&exchange=${exchange}` : ""}${windowParam(windowDays)}`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false },
   );
@@ -45,7 +48,10 @@ export default function MoversPage() {
         </ToolIntro>
       </header>
 
-      <ExchangeFilter value={exchange} onChange={setExchange} />
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <ExchangeFilter value={exchange} onChange={setExchange} />
+        <ScoreWindowToggle value={windowDays} onChange={setWindowDays} />
+      </div>
 
       <AdSlot slot="leaderboard" seed="movers-top" />
 

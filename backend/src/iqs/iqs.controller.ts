@@ -158,8 +158,8 @@ export class IqsController {
   }
 
   @Get('companies/:ticker')
-  async company(@Param('ticker') ticker: string) {
-    const detail = await this.iqs.getCompanyDetail(ticker);
+  async company(@Param('ticker') ticker: string, @Query('window') window?: string) {
+    const detail = await this.iqs.getCompanyDetail(ticker, window ? Number(window) : undefined);
     if (!detail) return { error: 'Not found' };
     return detail;
   }
@@ -244,8 +244,8 @@ export class IqsController {
   }
 
   @Get('ideas')
-  async ideas() {
-    return this.iqs.getIdeas();
+  async ideas(@Query('window') window?: string) {
+    return this.iqs.getIdeas(window ? Number(window) : undefined);
   }
 
   @Get('health')

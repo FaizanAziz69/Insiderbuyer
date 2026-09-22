@@ -158,7 +158,7 @@ export class GovContractsService {
   }
 
   /** The ranked list: cached USAspending totals + live analyst/quote data. */
-  async getList(): Promise<GovContractRow[]> {
+  async getList(windowDays?: number): Promise<GovContractRow[]> {
     const cached = await this.repo.find();
     const byTicker = new Map(cached.map((r) => [r.ticker, r]));
     const tickers = CONTRACTORS.map((c) => c.ticker);
@@ -175,7 +175,7 @@ export class GovContractsService {
     // universe get their live IQ Score (Pro column on the list page).
     const iqsBy = new Map<string, number>();
     try {
-      const { rows: rank } = await this.iqs.getRankings({ limit: 5000, offset: 0 });
+      const { rows: rank } = await this.iqs.getRankings({ limit: 5000, offset: 0, windowDays });
       for (const r of rank) if (r.ticker) iqsBy.set(r.ticker.toUpperCase(), r.iqs);
     } catch {
       /* rankings unavailable — column shows dashes */

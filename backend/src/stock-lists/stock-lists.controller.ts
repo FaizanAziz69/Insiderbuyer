@@ -43,6 +43,8 @@ export class StockListsController {
     // whole payload in a single ~10s-budget request.
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    /** 90 (default) or 365 — moves the insider columns, not the list. */
+    @Query('window') window?: string,
   ) {
     const detail = await this.svc.getDetail(slug, {
       country: country || undefined,
@@ -55,6 +57,7 @@ export class StockListsController {
       analystConsensus: analystConsensus || undefined,
       limit: limit && Number(limit) > 0 ? Number(limit) : undefined,
       offset: offset && Number(offset) > 0 ? Number(offset) : undefined,
+      windowDays: window ? Number(window) : undefined,
     });
     if (!detail) return { error: 'Unknown list' };
     return detail;
