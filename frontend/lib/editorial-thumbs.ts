@@ -73,6 +73,8 @@ const THUMBS: Thumb[] = [
   // pinnedOnly: burry-portrait-clean already serves generic Burry/Scion
   // stories; this one was made for a single article.
   { file: "burry-lululemon-trickster", pinnedOnly: true },
+  // Article-specific composite (Burry + copper): only ever its own story.
+  { file: "burry-copper-ero-2026", pinnedOnly: true },
   { file: "apple-500b-investment", tickers: ["AAPL"] },
   { file: "englander-nvidia-etf", tickers: ["NVDA"], kw: ["nvidia", "nvda"] },
   { file: "vimeo-insider-buys", tickers: ["VMEO"] },
@@ -148,9 +150,11 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
-  // 2026-09-22: Michael Burry / Ero Copper top story. Reuses the clean Burry
-  // portrait that already fronts the Alibaba piece, at the client's request.
-  "editorial-michael-burry-copper-ero-position-2026-09-22": "burry-portrait-clean",
+  // 2026-09-22: Michael Burry / Ero Copper top story. Its own cover now, built
+  // from burry-portrait-clean with scripts/gen-cover.mjs --portrait, so the
+  // Alibaba piece gets its portrait back instead of two live stories sharing
+  // one face.
+  "editorial-michael-burry-copper-ero-position-2026-09-22": "burry-copper-ero-2026",
   // 2026-09-21: Steve Eisman AI top story. Client-supplied composite.
   "editorial-steve-eisman-ai-terminator-moats-2026-09-21": "steve-eisman-ai-moats",
   // 2026-09-21: hair-loss drug stocks top story.
