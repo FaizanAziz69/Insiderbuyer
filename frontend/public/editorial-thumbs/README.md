@@ -68,10 +68,31 @@ The house prompt is in the script. It forbids text in the image on purpose:
 headlines sit over the cover in the layout, and every model still garbles
 lettering in a raster.
 
-**What it is good for, and what it is not.** Object, place and concept covers
-(copper, a skyline, a trading floor, a pill, a flag) come out indistinguishable
-from the client's own exports. A recognisable likeness of a REAL, NAMED person
-is a different matter: the model will produce one, and most of this folder is
-exactly that, but a synthetic photo of a real investor published as news art is
-an editorial decision, not a technical one. Keep using real photography for
-named people unless the client says otherwise, and label it if you do not.
+### Person covers: always pass a reference photo
+
+Most of this folder is named investors, so this is the main case. **Never
+prompt a real person by name and hope** — that invents a face that is close but
+not theirs, which on a live story looks worse than a stock photo. Pass a
+photograph we already hold:
+
+```
+npm run cover -- --name burry-copper --portrait \
+  --ref public/editorial-thumbs/burry-portrait-clean.jpg \
+  --prompt "a coil of copper wire and stacked cathode sheets fill the left"
+```
+
+`--portrait` adds the layout every person cover here uses (subject right, cut
+out with a white stroke, story object left) and tells the model to keep the
+face it was given. The result is our own photograph recomposed, not a new
+person. `--ref` repeats for more than one input.
+
+Three things learned doing it:
+* **The reference drives everything.** The subject keeps the source photo's
+  expression, wardrobe and colour treatment. A black-and-white source gives a
+  black-and-white subject on a colour background unless the prompt says "in
+  full colour"; a mid-sentence press photo gives a mid-sentence face. Pick the
+  frame you would have picked by hand.
+* **Only use a reference we have the rights to.** Everything already in this
+  folder is client-supplied, which is why it is the right place to draw from.
+* Object, place and concept covers with no person need no reference at all and
+  come out indistinguishable from the client's exports.
