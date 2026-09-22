@@ -195,8 +195,12 @@ export class CoverService {
       }
       writeFileSync(join(this.thumbsDir, 'og', `${req.name}.jpg`), og as Buffer);
 
+      // Three outcomes, not two. Reporting "object cover" whenever there was no
+      // photograph on file hid the fact that a subject HAD been drawn from
+      // their name: the Grab cover carried Anthony Tan and the log denied it.
+      const how = fromPhoto ? 'from photo' : req.personName ? 'person drawn from name' : 'object cover';
       this.logger.log(
-        `cover ${req.name}.jpg written (${fromPhoto ? 'from photo' : 'object cover'}, og ${Math.round((og as Buffer).length / 1024)} KB)`,
+        `cover ${req.name}.jpg written (${how}, og ${Math.round((og as Buffer).length / 1024)} KB)`,
       );
       return {
         url: `/editorial-thumbs/${req.name}.jpg`,

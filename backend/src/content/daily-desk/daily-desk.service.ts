@@ -253,6 +253,7 @@ export class DailyDeskService {
       url: `https://insiderbuying.com/insights/${slug}`,
       bodyChars: written.body.length,
       coverFromPhoto: cover?.fromPhoto ?? false,
+      coverShowsPerson: !!(cover && (cover.fromPhoto || person)),
       buyer: candidate.who,
       dollars: candidate.value,
     };
