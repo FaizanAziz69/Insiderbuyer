@@ -93,7 +93,16 @@ export async function generateMetadata({
     // 1200x747 copy in /editorial-thumbs/og/ (≤200 KB, baseline JPEG —
     // WhatsApp rejects progressive), written for every thumb by the `prebuild`
     // hook. The page itself keeps the full-size cover.
+    // Same precedence as the page itself (AiCoverImage): a post that brought its
+    // own cover under /editorial-thumbs uses it, and gets the 1200x747 og copy
+    // the desk wrote beside it. Without this the unfurl would show whatever the
+    // keyword matcher picked while the page showed the real cover.
+    const ownCover =
+      post.imageUrl && String(post.imageUrl).startsWith('/editorial-thumbs/')
+        ? String(post.imageUrl)
+        : null;
     const rawImage =
+      (ownCover && ogCopy(ownCover)) ||
       (editorialThumb && ogCopy(editorialThumb)) ||
       (post.imageUrl ? String(post.imageUrl) : null) ||
       // `auto=format` makes Unsplash negotiate WebP, which not every chat

@@ -227,10 +227,17 @@ export function AiCoverImage({
   // curated library if it's missing or fails to load.
   // Explicit list-level assignment wins (guarantees uniqueness across a
   // section); otherwise compute a best-fit per card.
+  // An article that BROUGHT its own cover wins the slot outright. The daily
+  // desk renders a cover per slug into /editorial-thumbs and stores the path on
+  // the post, and that picture is about this story specifically, so it has to
+  // outrank the keyword matcher that would otherwise hand it a generic thumb.
+  const ownCover =
+    typeof primary === "string" && primary.startsWith("/editorial-thumbs/") ? primary : null;
   const editorial =
-    editorialSrc !== undefined
+    ownCover ??
+    (editorialSrc !== undefined
       ? editorialSrc
-      : pickEditorialThumb({ ticker, sector, tags, seed: key, index: spreadIndex });
+      : pickEditorialThumb({ ticker, sector, tags, seed: key, index: spreadIndex }));
 
   // When preferPrimary is on and a story-specific AI image exists, it leads;
   // the curated library becomes the fallback chain behind it.

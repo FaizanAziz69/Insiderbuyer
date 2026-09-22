@@ -53,6 +53,7 @@ import { ScreenerModule } from './screener/screener.module';
 import { CtaModule } from './cta/cta.module';
 import { ChatModule } from './chat/chat.module';
 import { ContentModule } from './content/content.module';
+import { DailyDeskModule } from './content/daily-desk/daily-desk.module';
 import { SocialModule } from './social/social.module';
 import { ReportsModule } from './reports/reports.module';
 import { BillingModule } from './billing/billing.module';
@@ -217,6 +218,7 @@ import {
     CtaModule,
     ChatModule,
     ContentModule,
+    DailyDeskModule,
     SocialModule,
     ReportsModule,
     BillingModule,
