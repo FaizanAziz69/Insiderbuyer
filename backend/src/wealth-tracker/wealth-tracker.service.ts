@@ -76,6 +76,8 @@ interface StatsRow {
   top_holdings: Array<{ ticker: string; name: string; value: number }>;
   unpriced_buys: number;
   clamped_days: number;
+  /** The ten most recent trades as dots: side + return so far (buys only). */
+  last10: Array<{ side: 'buy' | 'sell'; ret: number | null; ticker: string; date: string }>;
   computed_at?: string;
 }
 
@@ -138,6 +140,20 @@ export class WealthTrackerService {
       computed_at timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY (bioguide, ticker)
     )`);
+    await this.q(`CREATE TABLE IF NOT EXISTS wt_lots (
+      trade_id text PRIMARY KEY,
+      bioguide text NOT NULL,
+      ticker text NOT NULL,
+      open_date date NOT NULL,
+      shares numeric(20,4) NOT NULL,
+      cost_per_share numeric(18,4) NOT NULL,
+      remaining numeric(20,4) NOT NULL,
+      sold_shares numeric(20,4) NOT NULL DEFAULT 0,
+      sold_proceeds numeric(20,2) NOT NULL DEFAULT 0,
+      computed_at timestamptz NOT NULL DEFAULT now()
+    )`);
+    await this.q(`CREATE INDEX IF NOT EXISTS wt_lots_member_idx ON wt_lots (bioguide, open_date)`);
+    await this.q(`ALTER TABLE wt_member_stats ADD COLUMN IF NOT EXISTS last10 jsonb NOT NULL DEFAULT '[]'::jsonb`);
     await this.q(`CREATE TABLE IF NOT EXISTS wt_curves (
       bioguide text PRIMARY KEY,
       points jsonb NOT NULL,
@@ -262,7 +278,9 @@ export class WealthTrackerService {
     const weekAgoMs = todayMs - 7 * DAY;
 
     let n = 0;
+    await this.q(`DELETE FROM wt_trades WHERE transaction_date > current_date + 7 OR transaction_date < '2000-01-01'`);
     await this.q(`DELETE FROM wt_positions`);
+    await this.q(`DELETE FROM wt_lots`);
     for (const m of members) {
       const mine = byMember.get(m.bioguide) || [];
       n++;
@@ -344,7 +362,44 @@ export class WealthTrackerService {
         top_holdings: out.positions.slice(0, 3).map((p) => ({ ticker: p.ticker, name: nameByTicker.get(p.ticker) || p.ticker, value: p.shares * p.price })),
         unpriced_buys: out.buysUnpriced,
         clamped_days: out.clampedDays,
+        last10: [],
       };
+      // Lots: what each priced buy has returned so far (realized part plus
+      // what remains at today's price). Persisted for the last-10 strip.
+      const lotByTrade = new Map(out.lots.map((l) => [l.tradeId, l]));
+      const priceNow = (ticker: string): number | null => {
+        const a = price(ticker);
+        if (!a) return null;
+        const p = a.c[Math.min(todayIdx, a.lastReal)];
+        return p > 0 ? p : null;
+      };
+      const recent = [...mine].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).filter((t) => t.side === 'buy' || t.side === 'sell').slice(0, 10);
+      row.last10 = recent.map((t) => {
+        const lot = lotByTrade.get(t.id);
+        let ret: number | null = null;
+        if (lot) {
+          const now = priceNow(lot.ticker);
+          const cost = lot.shares * lot.costPerShare;
+          if (cost > 0 && (lot.remaining <= 1e-9 || now != null)) ret = ((lot.soldProceeds + lot.remaining * (now || 0)) / cost - 1) * 100;
+        }
+        return { side: t.side as 'buy' | 'sell', ret, ticker: t.ticker || '', date: t.date };
+      });
+      if (out.lots.length) {
+        for (let i = 0; i < out.lots.length; i += 500) {
+          const chunk = out.lots.slice(i, i + 500);
+          const values: any[] = [];
+          const tuples = chunk.map((l, k) => {
+            const b = k * 9;
+            values.push(l.tradeId, m.bioguide, l.ticker, new Date(calendar[l.openIdx]).toISOString().slice(0, 10), l.shares, l.costPerShare, l.remaining, l.soldShares, l.soldProceeds);
+            return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9})`;
+          });
+          await this.q(
+            `INSERT INTO wt_lots (trade_id,bioguide,ticker,open_date,shares,cost_per_share,remaining,sold_shares,sold_proceeds) VALUES ${tuples.join(',')}
+             ON CONFLICT (trade_id) DO UPDATE SET remaining = EXCLUDED.remaining, sold_shares = EXCLUDED.sold_shares, sold_proceeds = EXCLUDED.sold_proceeds, computed_at = now()`,
+            values,
+          );
+        }
+      }
       stats.push(row);
       // Positions.
       if (out.positions.length) {
@@ -394,17 +449,18 @@ export class WealthTrackerService {
       const chunk = stats.slice(i, i + 200);
       const values: any[] = [];
       const tuples = chunk.map((s, k) => {
-        const b = k * 30;
+        const b = k * 31;
         values.push(
           s.bioguide, s.value, s.invested, s.realized, s.unrealized, s.ret_all, s.ret_90d, s.ret_ytd, s.ret_7d, s.bench_all, s.bench_90d, s.bench_ytd,
           s.wow_change, s.hit_rate, s.hit_sample, s.trades_total, s.trades_12m, s.buys_total, s.priced_trades, s.last_trade, s.avg_lag_days,
           s.holdings, s.qualifies, s.grade, s.grade_pct, JSON.stringify(s.badges), JSON.stringify(s.top_holdings), s.unpriced_buys, s.clamped_days, new Date().toISOString(),
+          JSON.stringify(s.last10),
         );
-        return `(${Array.from({ length: 30 }, (_, j) => `$${b + j + 1}`).join(',')})`;
+        return `(${Array.from({ length: 31 }, (_, j) => `$${b + j + 1}`).join(',')})`;
       });
       await this.q(
         `INSERT INTO wt_member_stats (bioguide,value,invested,realized,unrealized,ret_all,ret_90d,ret_ytd,ret_7d,bench_all,bench_90d,bench_ytd,wow_change,hit_rate,hit_sample,
-          trades_total,trades_12m,buys_total,priced_trades,last_trade,avg_lag_days,holdings,qualifies,grade,grade_pct,badges,top_holdings,unpriced_buys,clamped_days,computed_at)
+          trades_total,trades_12m,buys_total,priced_trades,last_trade,avg_lag_days,holdings,qualifies,grade,grade_pct,badges,top_holdings,unpriced_buys,clamped_days,computed_at,last10)
          VALUES ${tuples.join(',')}`,
         values,
       );
@@ -472,6 +528,7 @@ export class WealthTrackerService {
       badges: (r.badges || []) as BadgeKey[],
       topHoldings: r.top_holdings || [],
       unpricedBuys: Number(r.unpriced_buys) || 0,
+      last10: r.last10 || [],
       computedAt: r.computed_at,
     };
   }

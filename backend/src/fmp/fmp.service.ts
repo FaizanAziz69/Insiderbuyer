@@ -1626,7 +1626,7 @@ export class FmpService {
    *  can treat empty as "fall back". */
   async getEodBars(
     symbolRaw: string,
-    opts: { from?: string; to?: string; light?: boolean; adjusted?: boolean; ttlMs?: number } = {},
+    opts: { from?: string; to?: string; light?: boolean; adjusted?: boolean; ttlMs?: number; noCache?: boolean } = {},
   ): Promise<FmpBar[]> {
     const symbol = (symbolRaw || '').toUpperCase();
     if (!this.enabled || !symbol) return [];
@@ -1640,8 +1640,11 @@ export class FmpService {
     const rows = await this.get(`historical-price-eod/${variant}`, params);
     const bars = this.toBars(rows, false);
     // Only a non-empty answer is cached: a cached empty would pin the caller to
-    // its fallback for the whole TTL after one blip.
-    if (bars.length) this.historyCache.set(key, { ts: Date.now(), data: bars });
+    // its fallback for the whole TTL after one blip. A bulk caller that
+    // persists the series itself (the Wealth Tracker walks ~4,000 symbols a
+    // night) passes noCache — thousands of 20-year series in this Map is
+    // what took the process down on 2026-09-23.
+    if (bars.length && !opts.noCache) this.historyCache.set(key, { ts: Date.now(), data: bars });
     return bars;
   }
 

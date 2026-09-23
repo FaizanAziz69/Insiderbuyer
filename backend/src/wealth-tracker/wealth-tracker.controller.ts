@@ -1,4 +1,4 @@
-import { Controller, Get, Header, Headers, NotFoundException, Post, Query, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Header, Headers, NotFoundException, Param, Post, Query, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { Response } from 'express';
@@ -8,6 +8,7 @@ import { BillingService } from '../billing/billing.service';
 import { User } from '../entities/user.entity';
 import { LeaderboardFilters, View, WealthTrackerService } from './wealth-tracker.service';
 import { AgeBracket } from './roster.service';
+import { Last10Service, Last10Type } from './last10.service';
 
 /**
  * Public reads are cached materialisations; the only computation a request
@@ -20,6 +21,7 @@ import { AgeBracket } from './roster.service';
 export class WealthTrackerController {
   constructor(
     private readonly svc: WealthTrackerService,
+    private readonly last10: Last10Service,
     private readonly auth: AuthService,
     private readonly billing: BillingService,
     @InjectRepository(User) private readonly users: Repository<User>,
@@ -100,6 +102,22 @@ export class WealthTrackerController {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
     res.send(out.csv);
+  }
+
+  /** Build 2: the ten most recent disclosed trades for one person, any insider type. */
+  @Get('last10')
+  @Header('Cache-Control', 'public, max-age=300')
+  async lastTen(@Query('type') type?: string, @Query('key') key?: string) {
+    const t = (type === 'insider' || type === 'investor' ? type : 'congress') as Last10Type;
+    const data = await this.last10.get(t, String(key || ''));
+    return data || { type: t, key: key || '', subject: null, items: [], summary: null };
+  }
+
+  /** Build 2, stock-page variant: recent insider and congressional trades in one ticker. */
+  @Get('last10/ticker/:ticker')
+  @Header('Cache-Control', 'public, max-age=300')
+  lastTenTicker(@Param('ticker') ticker: string) {
+    return this.last10.forTicker(ticker);
   }
 
   @Get('status')

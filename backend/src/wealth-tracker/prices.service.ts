@@ -127,7 +127,7 @@ export class PricesService {
   }
 
   private async fetchAndStore(symbol: string): Promise<boolean> {
-    const bars = await this.fmp.getEodBars(symbol, { from: FROM, adjusted: true, ttlMs: 60_000 });
+    const bars = await this.fmp.getEodBars(symbol, { from: FROM, adjusted: true, noCache: true });
     if (!bars.length) return false;
     const points = bars.map((b) => ({ t: b.t, c: b.close })).filter((p) => Number.isFinite(p.c) && p.c > 0);
     if (!points.length) return false;

@@ -49,6 +49,11 @@ export function normaliseTicker(raw: unknown): string | null {
 export function normaliseRow(r: any, bioguide: string): StoredTrade | null {
   const date = String(r?.transactionDate || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  // Filers mistype years ("2220-04-07" is on the live feed). A trade more
+  // than a week in the future, or before the STOCK Act era, is a typo we
+  // cannot correct, so it does not enter the record at all.
+  const nextWeek = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+  if (date > nextWeek || date < '2000-01-01') return null;
   const disclosed = /^\d{4}-\d{2}-\d{2}/.test(String(r?.disclosureDate || '')) ? String(r.disclosureDate).slice(0, 10) : null;
   const ticker = normaliseTicker(r?.symbol);
   const { side, full } = sideOf(r?.type);

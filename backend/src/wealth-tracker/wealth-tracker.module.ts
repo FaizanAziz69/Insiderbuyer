@@ -10,13 +10,14 @@ import { WealthTrackerService } from './wealth-tracker.service';
 import { RosterService } from './roster.service';
 import { PtrService } from './ptr.service';
 import { PricesService } from './prices.service';
+import { Last10Service } from './last10.service';
 
 /** The Wealth Tracker — Developer Project Brief v7, Build 1 (politician
  *  portfolio reconstruction, rankings, badges, holdings). */
 @Module({
   imports: [FmpModule, AuthModule, BillingModule, TypeOrmModule.forFeature([Company, User])],
   controllers: [WealthTrackerController],
-  providers: [WealthTrackerService, RosterService, PtrService, PricesService],
-  exports: [WealthTrackerService, PtrService, PricesService],
+  providers: [WealthTrackerService, RosterService, PtrService, PricesService, Last10Service],
+  exports: [WealthTrackerService, PtrService, PricesService, Last10Service],
 })
 export class WealthTrackerModule {}
