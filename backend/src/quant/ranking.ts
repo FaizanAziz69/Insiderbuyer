@@ -75,15 +75,26 @@ export function gate1(input: Gate1Input, cfg: QuantConfig): Gate1Result {
   if (facts.currentRatio == null || facts.currentRatio < cfg.gate1.currentRatioMin) {
     failed.push(`current-ratio<${cfg.gate1.currentRatioMin}`);
   }
-  // A company with no debt has no interest to cover; that passes rather than
-  // failing on a missing ratio.
+  // Nothing to cover means the gate is passed, not failed.
+  //
+  // Two cases look identical in the data and are opposites in meaning: a
+  // company with no debt, and a company that pays no interest. The vendor
+  // reports an interest-coverage ratio of 0 for both, which reads as the
+  // worst possible score when it should be the best — EBIT over zero interest
+  // is unbounded. Left alone this failed 616 of ~890 names on every historical
+  // quarter and emptied the portfolio.
   const noDebt = debt != null && debt <= 0;
+  const noInterest = facts.interestExpense == null || Math.abs(facts.interestExpense) < 1;
   const coverage = facts.interestCoverage;
   attr.interestCoverage = coverage;
   attr.noDebt = noDebt;
-  if (!noDebt && (coverage == null || coverage < cfg.gate1.interestCoverageMin)) {
-    failed.push(`coverage<${cfg.gate1.interestCoverageMin}x`);
-  }
+  attr.noInterestExpense = noInterest;
+  const coverageSatisfied =
+    noDebt ||
+    // No interest to pay, and the business is profitable at the EBIT line.
+    (noInterest && facts.ebit != null && facts.ebit > 0) ||
+    (coverage != null && coverage >= cfg.gate1.interestCoverageMin);
+  if (!coverageSatisfied) failed.push(`coverage<${cfg.gate1.interestCoverageMin}x`);
 
   // Health and growth: revenue growing on a trailing-twelve-month basis.
   const revTtm = ttm(history, (f) => f.revenue);

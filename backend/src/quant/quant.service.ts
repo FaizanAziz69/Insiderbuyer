@@ -234,6 +234,26 @@ export class QuantService {
            AND t."sharesBought" * t."pricePerShare" > 0`,
         [chunk, since, asOf],
       );
+      // `insider_transactions` is the live Form 4 feed and is thin before
+      // about 2024, so a historical ranking sees no buying at all and scores
+      // every name zero. `historical_insider_buys` is the ten-year store the
+      // backtest already relies on: same filings, further back. It carries
+      // only purchases, which is all Gate 2 weights positively anyway.
+      const older = await this.q<any[]>(
+        `SELECT upper(h."symbol") AS symbol, h."insiderName" AS insider, h."typeOfOwner" AS role,
+                h."transactionDate" AS d, h."totalValue" AS dollars
+         FROM historical_insider_buys h
+         WHERE upper(h."symbol") = ANY($1) AND h."transactionDate" BETWEEN $2::date AND $3::date
+           AND h."totalValue" > 0`,
+        [chunk, since, asOf],
+      );
+      const seenKey = new Set(rows.map((r) => `${r.symbol}|${r.insider}|${new Date(r.d).toISOString().slice(0, 10)}`));
+      for (const o of older) {
+        const k = `${o.symbol}|${o.insider}|${new Date(o.d).toISOString().slice(0, 10)}`;
+        if (seenKey.has(k)) continue; // already in the live feed
+        rows.push({ ...o, code: 'P', planned: false, ad: 'A' });
+      }
+
       // First-buy detection needs the whole record, not just the window.
       const firstSeen = new Map<string, number>();
       for (const r of rows) {

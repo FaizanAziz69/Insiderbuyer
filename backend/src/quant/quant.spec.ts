@@ -75,6 +75,15 @@ truthy('gates are absolute: one failure blocks', !levered.pass);
 
 const debtFree = gate1({ symbol: 'NODEBT', facts: mkFacts({ totalDebt: 0, interestExpense: 0, interestCoverage: null }), history: history(12, 1000, 250), marketCap: 5e9, advDollars: 5e6, sectorGrossMargin: 0.3, goingConcern: false }, CFG);
 truthy('a debt-free company is not failed for a missing coverage ratio', debtFree.pass, debtFree.failed);
+// The vendor reports a coverage ratio of 0 both for a company with no debt
+// and for one that simply pays no interest. Reading that as the worst
+// possible score failed 616 of ~890 names on every historical quarter.
+const noInterest = gate1({ symbol: 'NOINT', facts: mkFacts({ totalDebt: 500, interestExpense: 0, interestCoverage: 0 }), history: history(12, 1000, 250), marketCap: 5e9, advDollars: 5e6, sectorGrossMargin: 0.3, goingConcern: false }, CFG);
+truthy('zero interest expense with positive EBIT passes coverage', noInterest.pass, noInterest.failed);
+const realFail = gate1({ symbol: 'THIN', facts: mkFacts({ totalDebt: 5000, interestExpense: 200, interestCoverage: 1.2 }), history: history(12, 1000, 250), marketCap: 5e9, advDollars: 5e6, sectorGrossMargin: 0.3, goingConcern: false }, CFG);
+truthy('a genuinely thin coverage ratio still fails', realFail.failed.includes('coverage<3x'), realFail.failed);
+const lossMaking = gate1({ symbol: 'LOSS', facts: mkFacts({ totalDebt: 500, interestExpense: 0, interestCoverage: 0, ebit: -100 }), history: history(12, 1000, 250), marketCap: 5e9, advDollars: 5e6, sectorGrossMargin: 0.3, goingConcern: false }, CFG);
+truthy('but no interest with negative EBIT does not get a free pass', lossMaking.failed.includes('coverage<3x'), lossMaking.failed);
 
 const illiquid = gate1({ symbol: 'THIN', facts: mkFacts(), history: history(12, 1000, 250), marketCap: 5e6, advDollars: 1000, sectorGrossMargin: 0.3, goingConcern: false }, CFG);
 truthy('tradability gate blocks what execution cannot buy', illiquid.failed.includes('market-cap-below-floor') && illiquid.failed.includes('adv-below-floor'), illiquid.failed);
