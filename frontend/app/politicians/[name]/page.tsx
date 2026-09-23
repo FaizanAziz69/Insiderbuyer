@@ -12,6 +12,16 @@ import { ssrFallback } from "@/lib/ssr/prefetch";
  * instead of arriving only after hydration. Data the server cannot fetch is
  * skipped and loads on the client exactly as before.
  */
+/** The member's name in the tab; the copy is the tracker's, never "net worth". */
+export async function generateMetadata(props: { params: Promise<{ name: string }> }) {
+  const { name } = await props.params;
+  const who = decodeURIComponent(name);
+  return {
+    title: `${who}: Stock Trades, Disclosed Holdings & Portfolio Growth (est.) | InsiderBuying.com`,
+    description: `Every disclosed stock trade by ${who}, the portfolio rebuilt from those filings, estimated cost per holding, returns against the S&P 500, hit rate and badges.`,
+  };
+}
+
 export default async function Page(props: { params: Promise<{ name: string }> }) {
   const fallback = await ssrFallback('politicians/[name]', await props.params);
   return (

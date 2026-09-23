@@ -723,6 +723,52 @@ export class FmpService {
     return out;
   }
 
+  /** RAW rows for one surname / full name, both chambers, exactly as FMP
+   *  returns them (assetType, the untouched `type`, `senateID` = bioguide on
+   *  BOTH feeds, owner, link). The Wealth Tracker keeps the whole vocabulary —
+   *  options, bonds, exchanges — because activity counts need it even though
+   *  only stock rows are reconstructed. Complete history per member, no cap
+   *  (Khanna: 13,130 rows in one call, 2026-09-23). */
+  async getCongressRaw(name: string): Promise<{ senate: any[]; house: any[] }> {
+    const clean = (name || '').trim();
+    if (!this.key || !clean) return { senate: [], house: [] };
+    const [senate, house] = await Promise.all([
+      this.get('senate-trades-by-name', { name: clean }),
+      this.get('house-trades-by-name', { name: clean }),
+    ]);
+    return { senate, house };
+  }
+
+  /** RAW latest-disclosure pages, both chambers (same row shape as above). */
+  async getCongressLatestRaw(pages = 3): Promise<{ senate: any[]; house: any[] }> {
+    const out = { senate: [] as any[], house: [] as any[] };
+    if (!this.key) return out;
+    for (let p = 0; p < pages; p++) {
+      const [s, h] = await Promise.all([
+        this.get('senate-latest', { page: p, limit: 250 }),
+        this.get('house-latest', { page: p, limit: 250 }),
+      ]);
+      out.senate.push(...s);
+      out.house.push(...h);
+      if (!s.length && !h.length) break;
+    }
+    return out;
+  }
+
+  /** Ticker renames FMP knows about, newest first. `limit=1000` reached back
+   *  to late 2023 on 2026-09-23; ask for more and take what comes. */
+  async getSymbolChanges(limit = 5000): Promise<Array<{ date: string; oldSymbol: string; newSymbol: string; companyName: string }>> {
+    const rows = await this.get('symbol-change', { limit });
+    return rows
+      .map((r) => ({
+        date: String(r?.date || '').slice(0, 10),
+        oldSymbol: String(r?.oldSymbol || '').toUpperCase(),
+        newSymbol: String(r?.newSymbol || '').toUpperCase(),
+        companyName: String(r?.companyName || ''),
+      }))
+      .filter((r) => r.date && r.oldSymbol && r.newSymbol && r.oldSymbol !== r.newSymbol);
+  }
+
   // ── 13F institutional ownership (Top Insiders page, brief Workstream B) ──
   // All three are on the `stable` tier this key is on (verified 2026-08-28).
 

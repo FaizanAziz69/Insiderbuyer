@@ -182,6 +182,9 @@ export const NAV_GROUPS: NavGroup[] = [
               // Brief v5: trades crossed with committee jurisdiction and
               // federal contract awards.
               { label: "Top Congress Trades", href: "/top-congress-trades", icon: Landmark, badge: "new" },
+              // Brief v7 Build 1: disclosed portfolios rebuilt trade by trade,
+              // ranked by estimated growth.
+              { label: "Wealth Tracker", href: "/politicians", icon: Landmark, badge: "new" },
             ],
           },
         ],

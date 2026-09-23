@@ -8,6 +8,12 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { VolumeByYear, SectorDonut, HoldingsDonut, AreaChart, SingleBarChart } from "@/components/charts/ProfileCharts";
 import { DataTable, Column } from "@/components/DataTable";
 import { CongressProximityPanel } from "@/components/congress-trades/CongressProximityPanel";
+import { getAuthToken } from "@/lib/auth";
+import { BadgeChips, GradeChip } from "@/components/wealth-tracker/Badges";
+import { GrowthChart, Tile } from "@/components/wealth-tracker/GrowthChart";
+import { HoldingsTable } from "@/components/wealth-tracker/HoldingsTable";
+import { pct } from "@/components/wealth-tracker/types";
+import type { WtMemberPayload } from "@/components/wealth-tracker/types";
 
 interface PolTrade {
   ticker: string | null;
@@ -74,8 +80,8 @@ interface Fundraising {
 
 const SECTIONS = [
   { id: "trades", label: "Trades" },
-  { id: "portfolio", label: "Live Stock Portfolio" },
-  { id: "networth", label: "Portfolio Value" },
+  { id: "portfolio", label: "Holdings" },
+  { id: "networth", label: "Portfolio Growth" },
   { id: "supporters", label: "Supporters" },
   { id: "opponents", label: "Opponents" },
   { id: "donors", label: "Corporate Donors" },
@@ -97,6 +103,18 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
     { revalidateOnFocus: false },
   );
   const p = data?.profile || null;
+  // Brief v7 Build 1: the reconstructed portfolio. A signed-in reader asks
+  // for the full depth and the API decides what a subscription unlocks; a
+  // guest's key matches the SSR manifest exactly.
+  const token = typeof window !== "undefined" ? getAuthToken() : null;
+  const wtKey = `${API_BASE}/wealth-tracker/member?name=${encodeURIComponent(decoded)}${token ? "&all=1" : ""}`;
+  const { data: wtData } = useSWR<WtMemberPayload>(
+    wtKey,
+    (url: string) => fetch(url, { cache: "no-store", headers: token ? { Authorization: `Bearer ${token}` } : {} }).then((r) => r.json()),
+    { revalidateOnFocus: false },
+  );
+  const wt = wtData?.member ? wtData : null;
+  const wtStats = wt?.stats || null;
   const [active, setActive] = useState("trades");
   const [bioOpen, setBioOpen] = useState(false);
 
@@ -231,10 +249,23 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
             )}
             <h1 className="text-[24px] font-bold tracking-tight leading-tight mt-4">{p.name}</h1>
             {subtitle && <div className="text-[13px] text-mute mt-1">{subtitle}</div>}
+            {wtStats ? (
+              <div className="mt-3 flex flex-col items-center gap-2">
+                <div className="inline-flex items-center gap-2">
+                  <GradeChip grade={wtStats.grade} size={34} building={!wtStats.qualifies} />
+                  {wtStats.grade ? (
+                    <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-mute)" }}>
+                      Performance Grade
+                    </span>
+                  ) : null}
+                </div>
+                {wtStats.badges.length ? <BadgeChips badges={wtStats.badges} meta={wt?.badgeMeta} size="md" /> : null}
+              </div>
+            ) : null}
 
             {/* 2×2 stat grid */}
             <div className="grid grid-cols-2 gap-y-5 gap-x-3 mt-6 mb-2 text-center">
-              <SideStat label="Est. Portfolio Value" value={s.estPortfolioValue != null ? formatCurrency(s.estPortfolioValue) : "—"} />
+              <SideStat label="Est. Portfolio Value" value={wtStats && wtStats.value > 0 ? formatCurrency(wtStats.value) : s.estPortfolioValue != null ? formatCurrency(s.estPortfolioValue) : "—"} />
               <SideStat label="Trade Volume" value={formatCurrency(s.estTotalVolume)} />
               <SideStat label="Total Trades" value={String(s.totalTrades)} />
               <SideStat label="Last Traded" value={formatDate(s.lastTraded)} />
@@ -242,9 +273,10 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
 
             {/* Facts list — only what we actually have */}
             <div className="mt-4 pt-4 text-left divide-y" style={{ borderTop: "1px solid var(--border)" }}>
-              <FactRow label="Current Member" value="Yes" valueColor="var(--accent)" />
+              <FactRow label="Current Member" value={wt?.member ? (wt.member.current ? "Yes" : "No") : "Yes"} valueColor="var(--accent)" />
+              {wt?.member?.trackedSince && <FactRow label="Tracked Since" value={formatDate(wt.member.trackedSince)} />}
               {yearsActive && <FactRow label="Years Active" value={yearsActive} />}
-              {p.age != null && <FactRow label="Age" value={String(p.age)} />}
+              {(wt?.member?.age ?? p.age) != null && <FactRow label="Age" value={String(wt?.member?.age ?? p.age)} />}
               <FactRow label="Chamber" value={p.chamber} />
               {p.state && <FactRow label="State" value={p.state} />}
               {partyWord && <FactRow label="Party" value={partyWord} />}
@@ -326,7 +358,7 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
                 </div>
               </section>
 
-              <section>
+              <section id="trades">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-[15px] font-bold uppercase tracking-wide">Trades</h2>
                   <span className="text-[11px] text-mute">Click a stock for details</span>
@@ -339,7 +371,18 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
           )}
 
           {/* ── LIVE STOCK PORTFOLIO ── */}
-          {active === "portfolio" && (
+          {active === "portfolio" && wt && wtStats && (
+            <section>
+              <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Current Holdings (est.)</h2>
+              <p className="text-[12.5px] mb-3" style={{ color: "var(--text-soft)" }}>
+                Rebuilt from every disclosed trade: each purchase opens a lot at the range midpoint on its trade date, each sale reduces
+                lots first-in first-out, and what remains is priced at the latest close.
+              </p>
+              <HoldingsTable holdings={wt.holdings} total={wt.holdingsTotal} locked={wt.holdingsLocked} bioguide={wt.member!.bioguide} memberName={wt.member!.name} />
+              <p className="text-[11px] text-faint mt-2">{wt.estimateNote}</p>
+            </section>
+          )}
+          {active === "portfolio" && !(wt && wtStats) && (
             <section>
               <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Estimated Live Stock Portfolio</h2>
               <div className="card overflow-hidden">
@@ -352,7 +395,34 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
           )}
 
           {/* ── NET WORTH (estimated portfolio value) ── */}
-          {active === "networth" && (
+          {active === "networth" && wt && wtStats && (
+            <section>
+              <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Disclosed Portfolio Growth (est.)</h2>
+              <div className="card p-4 sm:p-5">
+                <GrowthChart curve={wt.curve} stats={wtStats} trackedSince={wt.member!.trackedSince} />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+                  <Tile label="Est. cost of open positions" value={formatCurrency(wtStats.invested)} />
+                  <Tile label="Unrealized (est.)" value={`${wtStats.unrealized >= 0 ? "+" : "−"}${formatCurrency(Math.abs(wtStats.unrealized))}`} tone={wtStats.unrealized >= 0 ? "up" : "down"} />
+                  <Tile label="Realized (est.)" value={`${wtStats.realized >= 0 ? "+" : "−"}${formatCurrency(Math.abs(wtStats.realized))}`} tone={wtStats.realized >= 0 ? "up" : "down"} />
+                  <Tile
+                    label="Buys profitable"
+                    value={wtStats.hitRate != null ? `${wtStats.hitRate.toFixed(0)}%` : "—"}
+                    sub={wtStats.hitSample ? `${wtStats.hitSample} priced buys` : undefined}
+                    tone={wtStats.hitRate == null ? undefined : wtStats.hitRate >= 50 ? "up" : "down"}
+                  />
+                </div>
+                {wtStats.ret7d != null ? (
+                  <p className="text-[12px] mt-3" style={{ color: "var(--text-soft)" }}>
+                    Last 7 days: <strong style={{ color: wtStats.ret7d >= 0 ? "#10B981" : "#EF4444" }}>{pct(wtStats.ret7d)}</strong>
+                    {wtStats.wowChange != null ? ` (${wtStats.wowChange >= 0 ? "+" : "−"}${formatCurrency(Math.abs(wtStats.wowChange))} est., excluding new purchases and sales)` : ""}
+                    {wtStats.avgLagDays != null ? ` · Files ${Math.round(wtStats.avgLagDays)} days after a trade on average` : ""}
+                  </p>
+                ) : null}
+                <p className="text-[11px] text-faint mt-4">{wt.estimateNote}</p>
+              </div>
+            </section>
+          )}
+          {active === "networth" && !(wt && wtStats) && (
             <section>
               <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Estimated Portfolio Value</h2>
               <div className="card p-4 sm:p-5">

@@ -21,7 +21,9 @@
  *
  * Roll back by setting this to "" and redeploying.
  */
-const ASSET_CDN = "https://img.insiderbuying.com";
+// Local dev has no CDN build to point at, so `ASSET_CDN=off npm run dev`
+// serves assets from the dev server itself.
+const ASSET_CDN = process.env.ASSET_CDN === "off" ? "" : "https://img.insiderbuying.com";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -68,6 +70,8 @@ const nextConfig = {
       // magnet is the site popup now, and "Free Report" in the nav is the
       // stock-search insider report.
       { source: "/free-report", destination: "/insider-report", permanent: true },
+      // Brief v7 Build 1: the member leaderboard moved to the Wealth Tracker.
+      { source: "/stock-lists/politicians", destination: "/politicians", permanent: true },
     ];
   },
 };

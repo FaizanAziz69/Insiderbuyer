@@ -319,7 +319,11 @@
   "/api/backend/trades?limit=80",
   "/api/backend/trades?side=buy&limit=40"
  ],
+ "politicians": [
+  "/api/backend/wealth-tracker/leaderboard?view=growth90d&limit=600"
+ ],
  "politicians/[name]": [
+  "/api/backend/wealth-tracker/member?name={name}",
   "/api/backend/congressional-trades/profile?name={name}",
   "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
   "/api/backend/trades?side=buy&limit=40"

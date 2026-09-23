@@ -76,6 +76,7 @@ import { DataAccessModule } from './data-access/data-access.module';
 import { ProductUpdatesModule } from './product-updates/product-updates.module';
 import { FreeReportModule } from './free-report/free-report.module';
 import { CongressTradesModule } from './congress-trades/congress-trades.module';
+import { WealthTrackerModule } from './wealth-tracker/wealth-tracker.module';
 import { EmailFlowState } from './entities/email-flow-state.entity';
 import { InsiderProfile } from './entities/insider-profile.entity';
 import { HistoricalInsiderBuy } from './entities/historical-insider-buy.entity';
@@ -239,6 +240,7 @@ import {
     ProductUpdatesModule,
     FreeReportModule,
     CongressTradesModule,
+    WealthTrackerModule,
   ],
 })
 export class AppModule {}
