@@ -106,10 +106,18 @@ export class HouseArchiveService {
     return out;
   }
 
-  /** House members, keyed by every name form the Clerk index might use. */
+  /**
+   * Every member, keyed by each name form the Clerk index might use.
+   *
+   * Deliberately NOT restricted to current House members: a representative
+   * who later moved to the Senate still filed these reports as a
+   * representative, and their roster row now says Senate. Filtering on
+   * chamber lost Gary Peters, Bill Cassidy, Tammy Duckworth and Jacky Rosen
+   * among others on the first production load.
+   */
   private async houseIndex(): Promise<Map<string, string>> {
     const rows = await this.q<Array<{ bioguide: string; first: string; last: string; nickname: string | null; state: string | null; district: string | null }>>(
-      `SELECT bioguide, first, last, nickname, state, district FROM wt_members WHERE chamber = 'House'`,
+      `SELECT bioguide, first, last, nickname, state, district FROM wt_members`,
     );
     const idx = new Map<string, string>();
     const put = (k: string, bioguide: string) => {
