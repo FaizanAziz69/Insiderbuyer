@@ -197,6 +197,7 @@ export class UnifiedService {
     const fwd = new Map<string, { r6: number[]; r12: number[] }>();
     const nowMs = Date.now();
     for (const b of buys) {
+      if (!b.ticker) continue;
       const series = await seriesOf(b.ticker);
       if (!series) continue;
       const px = Number(b.px);

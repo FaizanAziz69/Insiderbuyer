@@ -95,7 +95,8 @@ export class PricesService {
 
   /** Candidate vendor spellings for a filed ticker, best first. */
   async candidates(ticker: string): Promise<string[]> {
-    const t = ticker.toUpperCase();
+    const t = String(ticker || '').toUpperCase();
+    if (!t) return [];
     const out = [t];
     const dashed = t.replace(/[./]/g, '-');
     if (dashed !== t) out.push(dashed);
