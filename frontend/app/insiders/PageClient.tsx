@@ -1,387 +1,200 @@
 "use client";
+
+/**
+ * TOP INSIDERS at /insiders — unified (Developer Project Brief v7, Build 3;
+ * George 2026-09-23: "This is to improve our Top insiders Page
+ * https://insiderbuying.com/insiders").
+ *
+ * Grown from the Workstream B hedge-fund grid into the destination for every
+ * insider type: type tabs (All · Corporate Insiders · Congress · Hedge Funds &
+ * Famous Investors) with the earlier style tabs as a secondary row, one card
+ * anatomy for every type, and the Performance Grade as the comparable layer —
+ * percentile-ranked within type, never across. Under the minimum sample a
+ * card reads "Building track record" instead of a grade.
+ */
+
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
-import { useState } from "react";
-import { MapPin, Target } from "lucide-react";
-import { API_BASE, InsiderRow, fetcher, formatCurrency } from "@/lib/api";
-import { usePremium } from "@/components/premium/PremiumContext";
-import { FREE_ROWS, PremiumRowWall } from "@/components/premium/PremiumRowWall";
+import { API_BASE, fetcher, formatDate } from "@/lib/api";
+import { UnifiedCard, type UnifiedCardData } from "@/components/wealth-tracker/UnifiedCard";
+import { ComplianceFooter } from "@/components/ComplianceFooter";
 
-interface TrackRecord {
-  name: string;
-  role: string;
-  ticker: string | null;
-  trades: number;
-  wins: number;
-  accuracy: number;
-  totalValue: number;
-}
-
-/** Preset groups. Politicians come from congressional disclosures rather than
- *  Form 4 — members of Congress aren't corporate insiders — so that preset
- *  swaps the data source behind the same table. */
-const GROUPS: { key: string; label: string; hint: string }[] = [
-  { key: "", label: "All insiders", hint: "Every Form 4 open-market buyer" },
-  { key: "ceo", label: "CEOs", hint: "Filings where the insider's role is CEO" },
-  { key: "cfo", label: "CFOs", hint: "Filings where the insider's role is CFO" },
-  {
-    key: "politician",
-    label: "Politicians",
-    hint: "Members of Congress, from STOCK Act disclosures",
-  },
-  {
-    key: "hedge-fund",
-    label: "Hedge Funds",
-    hint: "Funds, advisers and partnerships filing as 10% owners",
-  },
+const TYPES: Array<[string, string]> = [
+  ["all", "All"],
+  ["corporate", "Corporate Insiders"],
+  ["congress", "Congress"],
+  ["investor", "Hedge Funds & Famous Investors"],
 ];
 
-export default function InsidersPage() {
-  const [country, setCountry] = useState<string>("");
-  const [group, setGroup] = useState<string>("");
+/** Secondary row: sorts for every type, plus the editorial fund categories. */
+const STYLES: Array<[string, string, "sort" | "category"]> = [
+  ["popular", "Popular", "sort"],
+  ["performance", "Best Performance", "sort"],
+  ["active", "Most Active", "sort"],
+  ["growth", "Growth Investors", "category"],
+  ["value", "Value Investors", "category"],
+  ["short", "Short Sellers", "category"],
+  ["longterm", "Long-Term", "category"],
+];
 
-  const { data, isLoading } = useSWR<InsiderRow[]>(
-    `${API_BASE}/insiders?limit=50${country ? `&country=${encodeURIComponent(country)}` : ""}${
-      group ? `&group=${group}` : ""
-    }`,
-    fetcher,
-    { refreshInterval: 120000 },
-  );
-  const { data: countryData } = useSWR<{ countries: { country: string; count: number }[] }>(
-    `${API_BASE}/insiders/countries`,
-    fetcher,
-    { revalidateOnFocus: false },
-  );
-  const { data: trackData } = useSWR<{ rows: TrackRecord[] }>(
-    `${API_BASE}/insiders/track-record?limit=8`,
-    fetcher,
-    { revalidateOnFocus: false, refreshInterval: 5 * 60_000 },
-  );
-  const trackRows = trackData?.rows || [];
+const TAB_NOTES: Record<string, string> = {
+  short:
+    "13F filings disclose long positions only — no fund's short book is public. These managers are listed for the short-side research they are known for; the holdings and performance shown are their disclosed long positions. Two of them no longer file: Scion deregistered in 2025 and Kynikos closed in 2023.",
+};
 
-  const { unlocked } = usePremium();
-  const allRows = data || [];
-  // Same freemium shape as the other leaderboards: ranked best-first so rank 1
-  // is the biggest buyer, but listed bottom-up so the page counts down to it.
-  const ordered = allRows.map((r, i) => ({ row: r, rank: i + 1 })).reverse();
-  const rows = unlocked ? ordered : ordered.slice(0, FREE_ROWS + 1);
+interface Payload {
+  type: string;
+  sort: string;
+  category: string | null;
+  cards: UnifiedCardData[];
+  counts: Record<string, { total: number; graded: number }>;
+  computedAt: string | null;
+  note: string;
+}
 
-  // Show the priority countries from the spec (US / Canada / UK) first — always
-  // visible — then merge in any other countries the SEC data actually contains
-  // (some foreign private issuers file Form 4). Counts come from the API;
-  // Canada/UK read 0 until their disclosure feeds (SEDI / FCA) are wired.
-  const PRIORITY = ["United States", "Canada", "United Kingdom"];
-  const apiCounts = new Map(
-    (countryData?.countries || []).map((c) => [c.country.toUpperCase(), c.count]),
-  );
-  const extras = (countryData?.countries || [])
-    .filter((c) => !PRIORITY.some((p) => p.toUpperCase() === c.country.toUpperCase()))
-    .map((c) => ({ country: c.country, count: c.count }));
-  const countries = [
-    ...PRIORITY.map((p) => ({ country: p, count: apiCounts.get(p.toUpperCase()) || 0 })),
-    ...extras,
-  ];
+export default function InvestorsPage() {
+  const [type, setType] = useState("all");
+  const [style, setStyle] = useState("popular");
+
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const t = sp.get("type");
+    if (t && TYPES.some(([k]) => k === t)) setType(t);
+    const s = sp.get("tab") || sp.get("sort");
+    if (s && STYLES.some(([k]) => k === s)) setStyle(s);
+  }, []);
+  useEffect(() => {
+    const sp = new URLSearchParams();
+    if (type !== "all") sp.set("type", type);
+    if (style !== "popular") sp.set("tab", style);
+    const qs = sp.toString();
+    window.history.replaceState(null, "", `/insiders${qs ? `?${qs}` : ""}`);
+  }, [type, style]);
+
+  const styleMeta = STYLES.find(([k]) => k === style) || STYLES[0];
+  const isCategory = styleMeta[2] === "category";
+  // A fund category only makes sense for funds; picking one narrows the type.
+  const effectiveType = isCategory ? "investor" : type;
+  const key = useMemo(() => {
+    const sp = new URLSearchParams({ type: effectiveType, limit: "240" });
+    if (isCategory) sp.set("category", style);
+    else sp.set("sort", style);
+    return `${API_BASE}/wealth-tracker/unified?${sp.toString()}`;
+  }, [effectiveType, style, isCategory]);
+  const { data, isLoading } = useSWR<Payload>(key, fetcher, { revalidateOnFocus: false, dedupingInterval: 120_000, keepPreviousData: true });
+  const cards = data?.cards ?? [];
+  const counts = data?.counts || {};
+  const total = Object.values(counts).reduce((s, c) => s + c.total, 0);
 
   return (
-    <div className="space-y-6 w-full">
+    <div className="w-full space-y-5">
       <header>
-        <h1 className="text-[24px] font-bold tracking-tight">Top insiders</h1>
-        <p className="text-mute text-sm mt-1">
-          Insiders ranked by total recent purchase volume, descending — with each
-          insider&rsquo;s live track-record accuracy.
+        <p className="text-[12px] uppercase tracking-[2px] font-semibold" style={{ color: "var(--text-mute)" }}>
+          Top Insiders
+        </p>
+        <h1 className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-tight mt-1">Every insider we track, graded against their peers</h1>
+        <p className="mt-2 text-[15px] max-w-[76ch]" style={{ color: "var(--text-mute)" }}>
+          Corporate insiders from their Form 4 filings, members of Congress from their STOCK Act disclosures, and the most-watched funds from
+          their 13Fs. One card for each, a Performance Grade ranked within their own type, their last ten trades and what they hold now.
         </p>
       </header>
 
-      {/* Preset group filter — one bar across the page. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] uppercase tracking-wider font-bold text-mute mr-1">
-          Filter
-        </span>
-        {GROUPS.map((g) => {
-          const active = group === g.key;
-          return (
-            <button
-              key={g.key || "all"}
-              onClick={() => setGroup(g.key)}
-              title={g.hint}
-              className="px-3 py-1.5 rounded-full text-[12px] font-semibold transition"
-              style={{
-                background: active ? "var(--accent)" : "var(--bg-2)",
-                color: active ? "#fff" : "var(--text-soft)",
-                border: "1px solid var(--border-strong)",
-              }}
-            >
-              {g.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Country filter — data-driven. Location is the SEC filing address
-          (≈ company HQ); non-US countries appear as those feeds come online.
-          Hidden for Politicians, whose disclosures are US-only and carry no
-          filing address to filter on. */}
-      <div
-        className="flex flex-wrap items-center gap-2"
-        style={{ display: group === "politician" ? "none" : undefined }}
-      >
-        <span className="text-[11px] uppercase tracking-wider font-bold text-mute mr-1">
-          Country
-        </span>
-        <button
-          onClick={() => setCountry("")}
-          className="px-3 py-1.5 rounded-full text-[12px] font-semibold transition"
-          style={{
-            background: country === "" ? "var(--accent)" : "var(--bg-2)",
-            color: country === "" ? "#fff" : "var(--text-soft)",
-            border: "1px solid var(--border-strong)",
-          }}
-        >
-          All
-        </button>
-        {countries.map((c) => {
-          const empty = c.count === 0;
-          const active = country === c.country;
-          return (
-            <button
-              key={c.country}
-              onClick={() => setCountry(c.country)}
-              title={empty ? `No ${c.country} insider filings yet` : undefined}
-              className="px-3 py-1.5 rounded-full text-[12px] font-semibold transition"
-              style={{
-                background: active ? "var(--accent)" : "var(--bg-2)",
-                color: active ? "#fff" : empty ? "var(--text-mute)" : "var(--text-soft)",
-                border: "1px solid var(--border-strong)",
-                opacity: empty && !active ? 0.6 : 1,
-              }}
-            >
-              {c.country} <span className="opacity-60">({c.count})</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
-          <div className="card overflow-hidden">
-            <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
-              <div>
-                <div className="text-[15px] font-semibold">
-                  {group === "politician"
-                    ? "Ranked by disclosed purchase value"
-                    : "Ranked by buying volume"}
-                </div>
-                <div className="text-xs text-mute mt-0.5">
-                  {group === "politician"
-                    ? "STOCK Act disclosures · amount-band midpoints · descending"
-                    : "Last 90 days · descending"}
-                </div>
-              </div>
-            </div>
-            {isLoading || !data ? (
-              <div className="px-5 py-10 text-center text-mute">Loading…</div>
-            ) : allRows.length === 0 ? (
-              <div className="px-5 py-10 text-center text-mute">
-                {country && country !== "United States" ? (
-                  <>
-                    No {country} insider filings yet — {country} disclosures
-                    {country === "Canada"
-                      ? " (SEDI)"
-                      : country === "United Kingdom"
-                      ? " (FCA)"
-                      : ""}{" "}
-                    are being added. US coverage is live now.
-                  </>
-                ) : group ? (
-                  `No ${GROUPS.find((g) => g.key === group)?.label.toLowerCase() ?? "matching"} buyers in the current data.`
-                ) : (
-                  "No insiders ranked yet."
-                )}
-              </div>
-            ) : (
-              <ul className="divide-y divide-[var(--border)]">
-                {rows.map(({ row, rank }, i) => (
-                  <InsiderItem
-                    key={`${row.name}-${row.ticker}-${rank}`}
-                    row={row}
-                    rank={rank}
-                    teaser={!unlocked && i === FREE_ROWS}
-                  />
-                ))}
-              </ul>
-            )}
-            {allRows.length > FREE_ROWS && (
-            <PremiumRowWall
-              label="Top Insiders"
-              total={allRows.length}
-              bullets={[
-                "Every ranked insider, not just the preview",
-                "Track-record accuracy on each buyer",
-                "CEO, CFO, politician and fund presets in full",
-                "Every new Form 4 the moment it lands",
-              ]}
-            />
-            )}
-          </div>
-        </div>
-
-        {/* Track-record accuracy — real, computed from buys vs the live price. */}
-        <div className="card p-5 h-fit">
-          <div className="flex items-center gap-1.5">
-            <Target className="h-4 w-4 text-accent" />
-            <div className="text-[15px] font-semibold">Track-Record Accuracy</div>
-          </div>
-          <div className="text-xs text-mute mt-0.5 leading-relaxed">
-            Share of each insider&rsquo;s open-market buys now trading{" "}
-            <span className="text-good font-semibold">above</span> their purchase
-            price (vs the live quote).
-          </div>
-
-          {trackRows.length === 0 ? (
-            <div className="mt-5 text-xs text-mute py-6 text-center">
-              Building track records as price history accrues…
-            </div>
-          ) : (
-            <div className="mt-5 space-y-3.5">
-              {trackRows.map((t) => {
-                const color =
-                  t.accuracy >= 70
-                    ? "var(--good)"
-                    : t.accuracy >= 45
-                    ? "var(--warn)"
-                    : "var(--bad)";
-                return (
-                  <div key={`${t.name}-${t.ticker}`}>
-                    <div className="flex items-center justify-between text-[12px] mb-1 gap-2">
-                      <span className="font-semibold truncate">
-                        {t.ticker ? (
-                          <Link
-                            href={`/companies/${encodeURIComponent(t.ticker)}`}
-                            className="hover:text-accent"
-                          >
-                            {t.name}
-                          </Link>
-                        ) : (
-                          t.name
-                        )}
-                        <span className="text-faint font-normal ml-1">· {t.role}</span>
-                      </span>
-                      <span className="font-bold tabular flex-shrink-0" style={{ color }}>
-                        {t.accuracy}%
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--bg-3)" }}>
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${t.accuracy}%`, background: color }}
-                      />
-                    </div>
-                    <div className="text-[10px] text-faint mt-0.5">
-                      {t.wins}/{t.trades} buys in profit
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          <div
-            className="mt-4 pt-3 text-[10px] text-faint leading-relaxed"
-            style={{ borderTop: "1px solid var(--border)" }}
+      <nav className="flex gap-1 overflow-x-auto pb-1" role="tablist" aria-label="Insider type">
+        {TYPES.map(([k, label]) => (
+          <button
+            key={k}
+            role="tab"
+            aria-selected={effectiveType === k}
+            onClick={() => {
+              setType(k);
+              if (isCategory && k !== "investor") setStyle("popular");
+            }}
+            className="px-3.5 py-2 text-[13px] font-semibold rounded-lg whitespace-nowrap"
+            style={{
+              background: effectiveType === k ? "var(--accent)" : "var(--bg-2)",
+              color: effectiveType === k ? "#fff" : "var(--text)",
+              border: `1px solid ${effectiveType === k ? "var(--accent)" : "var(--border)"}`,
+            }}
           >
-            Accuracy = winning buys ÷ total open-market buys, scored against the
-            current price. Needs ≥2 priced buys per insider. Not investment advice.
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+            {label}
+            {counts[k]?.total ? (
+              <span className="ml-1.5 text-[11px] font-semibold" style={{ color: effectiveType === k ? "rgba(255,255,255,0.8)" : "var(--text-mute)" }}>
+                {counts[k].total}
+              </span>
+            ) : k === "all" && total ? (
+              <span className="ml-1.5 text-[11px] font-semibold" style={{ color: effectiveType === k ? "rgba(255,255,255,0.8)" : "var(--text-mute)" }}>
+                {total}
+              </span>
+            ) : null}
+          </button>
+        ))}
+      </nav>
 
-function InsiderItem({
-  row,
-  rank,
-  teaser = false,
-}: {
-  row: InsiderRow;
-  rank: number;
-  teaser?: boolean;
-}) {
-  return (
-    <li
-      className="px-5 py-4 flex items-center gap-4 hover:bg-[color-mix(in_srgb,var(--accent)_6%,transparent)]"
-      style={{ opacity: teaser ? 0.28 : 1, pointerEvents: teaser ? "none" : undefined }}
-    >
-      <span
-        className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-        style={{ background: "var(--bg-3)", color: "var(--text-soft)" }}
-      >
-        {rank}
-      </span>
-      {/* Politicians show their official headshot (client spec). */}
-      {row.kind === "politician" && (
-        <span
-          className="h-10 w-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center text-[11px] font-bold"
-          style={{ background: "var(--bg-3)", color: "var(--text-mute)" }}
-        >
-          {row.photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={row.photoUrl}
-              alt={row.name}
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            row.name
-              .split(/\s+/)
-              .filter(Boolean)
-              .slice(0, 2)
-              .map((w) => w[0])
-              .join("")
-              .toUpperCase()
-          )}
-        </span>
+      <nav className="flex gap-1 overflow-x-auto pb-1" role="tablist" aria-label="Sort and category">
+        {STYLES.filter(([, , kind]) => kind === "sort" || type === "investor" || type === "all").map(([k, label]) => (
+          <button
+            key={k}
+            role="tab"
+            aria-selected={style === k}
+            onClick={() => setStyle(k)}
+            className="px-3 py-1.5 text-[12.5px] font-semibold rounded-md whitespace-nowrap"
+            style={{
+              background: style === k ? "var(--bg-3)" : "transparent",
+              color: style === k ? "var(--text)" : "var(--text-soft)",
+              border: `1px solid ${style === k ? "var(--border)" : "transparent"}`,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {TAB_NOTES[style] && (
+        <p className="text-[12.5px] leading-relaxed max-w-[80ch] rounded-lg px-3.5 py-2.5" style={{ color: "var(--text-mute)", background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+          {TAB_NOTES[style]}
+        </p>
       )}
-      <div className="flex-1 min-w-0">
-        <Link
-          href={
-            row.kind === "politician"
-              ? `/politicians/${encodeURIComponent(row.name)}`
-              : `/insiders/${encodeURIComponent(row.name)}`
-          }
-          className="font-semibold text-sm truncate block hover:text-accent transition"
-        >
-          {row.name}
+
+      {isLoading && !data ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="card p-4" style={{ minHeight: 256 }}>
+              <div className="shimmer h-12 w-12 rounded-full mb-3" />
+              <div className="shimmer h-4 w-3/5 rounded mb-2" />
+              <div className="shimmer h-3 w-2/5 rounded" />
+            </div>
+          ))}
+        </div>
+      ) : cards.length ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {cards.map((c) => (
+            <UnifiedCard key={`${c.type}:${c.key}`} c={c} />
+          ))}
+        </div>
+      ) : (
+        <div className="card p-6 text-[14px]" style={{ color: "var(--text-mute)" }}>
+          {total === 0 ? "Cards appear after the nightly grading run." : "No one matches this view yet."}
+        </div>
+      )}
+
+      <p className="text-[12.5px]" style={{ color: "var(--text-soft)" }}>
+        Looking for the full Form 4 table — every buyer ranked by dollars bought, with country and role filters?{" "}
+        <Link href="/insiders/leaderboard" className="text-accent font-semibold">
+          Open the insider leaderboard
         </Link>
-        <div className="text-xs text-mute truncate">
-          {row.company}
-          {row.ticker && (
-            <>
-              {" · "}
-              <Link
-                href={`/companies/${encodeURIComponent(row.ticker)}`}
-                className="text-accent hover:underline font-mono"
-              >
-                {row.ticker}
-              </Link>
-            </>
-          )}
-        </div>
-        {(row.city || row.country) && (
-          <div className="text-[11px] text-faint truncate inline-flex items-center gap-1 mt-0.5">
-            <MapPin className="h-3 w-3" />
-            {[row.city, row.state, row.country].filter(Boolean).join(", ")}
-          </div>
-        )}
-      </div>
-      <span className="badge badge-neutral">{row.role}</span>
-      <div className="text-right hidden sm:block">
-        <div className="text-sm font-semibold tabular">{formatCurrency(row.totalValue)}</div>
-        <div className="text-[11px] text-mute">
-          {row.trades} trade{row.trades === 1 ? "" : "s"}
-        </div>
-      </div>
-    </li>
+        .
+      </p>
+
+      <p className="text-[12px] max-w-[100ch]" style={{ color: "var(--text-mute)" }}>
+        {data?.note ||
+          "Grades are percentile ranks within each insider type, on that type’s own data. Return figures are not comparable across types; the grade is."}{" "}
+        A grade needs 20 trades (funds: four quarters of filings); until then a card reads “Building track record”. Grades and badges recompute
+        nightly from the day a person entered the tracker.
+        {data?.computedAt ? ` Recomputed ${formatDate(data.computedAt)}.` : ""}
+      </p>
+
+      <ComplianceFooter />
+    </div>
   );
 }

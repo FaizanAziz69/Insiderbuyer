@@ -72,6 +72,9 @@ const nextConfig = {
       { source: "/free-report", destination: "/insider-report", permanent: true },
       // Brief v7 Build 1: the member leaderboard moved to the Wealth Tracker.
       { source: "/stock-lists/politicians", destination: "/politicians", permanent: true },
+      // Brief v7 Build 3: the unified Top Insiders page lives at /insiders (the
+      // URL George sent); the old fund grid folds into its Funds tab.
+      { source: "/investors", destination: "/insiders?type=investor", permanent: true },
     ];
   },
 };

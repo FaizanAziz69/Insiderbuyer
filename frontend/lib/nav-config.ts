@@ -160,8 +160,8 @@ export const NAV_GROUPS: NavGroup[] = [
               // under More Stock Tools, so the two stop colliding.
               // Brief v7 Build 3: the unified page is the destination; the Form 4
               // table keeps its own entry below.
-              { label: "Top Insiders", href: "/investors", icon: Users, badge: "popular" },
-              { label: "Insider Leaderboard (Form 4)", href: "/insiders", icon: Users },
+              { label: "Top Insiders", href: "/insiders", icon: Users, badge: "popular" },
+              { label: "Insider Leaderboard (Form 4)", href: "/insiders/leaderboard", icon: Users },
               { label: "Insider Trades", href: "/trades", icon: Activity },
             ],
           },
@@ -203,7 +203,7 @@ export const NAV_GROUPS: NavGroup[] = [
               { label: "Prediction Markets", href: "/visualizers/prediction-markets", icon: Orbit, badge: "new" },
               { label: "Market Heatmap", href: "/heatmaps/market", icon: Flame },
               { label: "Sector Heatmap", href: "/sectors", icon: Building2 },
-              { label: "Top Investors & Funds", href: "/investors?type=investor", icon: Landmark },
+              { label: "Top Investors & Funds", href: "/insiders?type=investor", icon: Landmark },
               // Workstream F: TSXV/CSE disclosed investor-relations spend.
               { label: "Promoter Score", href: "/promoter-score", icon: Megaphone, badge: "new" },
               { label: "Top IR Promoters", href: "/top-ir-promoters", icon: Megaphone },

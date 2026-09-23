@@ -132,7 +132,7 @@ export default function InvestorDetailPage({ params }: { params: Promise<{ slug:
     return (
       <div className="card p-6">
         <h1 className="text-[22px] font-bold">Investor not found</h1>
-        <Link href="/investors" className="text-accent text-[13px]">
+        <Link href="/insiders?type=investor" className="text-accent text-[13px]">
           ← All investors
         </Link>
       </div>
@@ -209,7 +209,7 @@ export default function InvestorDetailPage({ params }: { params: Promise<{ slug:
 
   return (
     <div className="w-full space-y-6">
-      <Link href="/investors" className="text-accent text-[13px] inline-flex items-center gap-1">
+      <Link href="/insiders?type=investor" className="text-accent text-[13px] inline-flex items-center gap-1">
         <ArrowLeft className="h-4 w-4" /> All investors
       </Link>
 
