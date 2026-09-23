@@ -201,6 +201,9 @@
   "/api/backend/trades?side=buy&limit=40"
  ],
  "insider-report": [],
+ "index-ibcx": [
+  "/api/backend/quant/index"
+ ],
  "insiders": [
   "/api/backend/wealth-tracker/unified?type=all&limit=240&sort=popular"
  ],

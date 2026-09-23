@@ -1757,6 +1757,57 @@ export class FmpService {
     return out;
   }
 
+  // ── Point-in-time inputs (Brief v6 §3, L1) ───────────────────────────
+  // Every statement carries `filingDate` and `acceptedDate`; those, not the
+  // period end, are when a fact became knowable. A screen that reads a June
+  // quarter on July 1st is reading the future, which is the bias §3 calls
+  // non-negotiable to avoid.
+
+  /** Quarterly ratios. These carry only a period end, so the caller takes the
+   *  knowable date from the matching statement. */
+  async getRatios(symbol: string, limit = 40): Promise<any[]> {
+    return this.get('ratios', { symbol: (symbol || '').toUpperCase(), period: 'quarter', limit });
+  }
+
+  /** Daily market capitalisation history, for point-in-time size screens. */
+  async getMarketCapHistory(symbol: string, from?: string): Promise<Array<{ date: string; marketCap: number }>> {
+    const rows = await this.get('historical-market-capitalization', {
+      symbol: (symbol || '').toUpperCase(),
+      limit: 5000,
+      ...(from ? { from } : {}),
+    });
+    return rows
+      .map((r) => ({ date: String(r?.date || '').slice(0, 10), marketCap: Number(r?.marketCap) || 0 }))
+      .filter((r) => r.date && r.marketCap > 0);
+  }
+
+  /** Every delisted listing FMP knows, so a historical universe is not built
+   *  only out of the survivors (§3: survivorship bias is how quant projects
+   *  fail quietly). */
+  async getDelistedCompanies(maxPages = 80): Promise<Array<{ symbol: string; companyName: string; exchange: string; ipoDate: string | null; delistedDate: string | null }>> {
+    const out: any[] = [];
+    for (let page = 0; page < maxPages; page++) {
+      const rows = await this.get('delisted-companies', { page, limit: 100 });
+      if (!rows.length) break;
+      out.push(...rows);
+      if (rows.length < 100) break;
+    }
+    return out
+      .map((r) => ({
+        symbol: String(r?.symbol || '').toUpperCase(),
+        companyName: String(r?.companyName || ''),
+        exchange: String(r?.exchange || ''),
+        ipoDate: r?.ipoDate ? String(r.ipoDate).slice(0, 10) : null,
+        delistedDate: r?.delistedDate ? String(r.delistedDate).slice(0, 10) : null,
+      }))
+      .filter((r) => r.symbol);
+  }
+
+  /** Actively-traded listings on one exchange — the live side of the universe. */
+  async getExchangeSymbols(exchange: string): Promise<any[]> {
+    return this.get('company-screener', { exchange, limit: 10000, isActivelyTrading: true });
+  }
+
   // ── Financial statements ─────────────────────────────────────────────
   private readonly statementCache = new Map<string, { ts: number; data: FmpStatements }>();
   private readonly STATEMENT_TTL_MS = 12 * 60 * 60_000;
@@ -1769,12 +1820,13 @@ export class FmpService {
     symbolRaw: string,
     period: 'annual' | 'quarter',
     limit = 8,
+    opts: { noCache?: boolean } = {},
   ): Promise<FmpStatements> {
     const empty: FmpStatements = { income: [], balance: [], cashflow: [] };
     const symbol = (symbolRaw || '').toUpperCase();
     if (!this.enabled || !symbol) return empty;
     const key = `stmt:${symbol}:${period}:${limit}`;
-    const hit = this.statementCache.get(key);
+    const hit = opts.noCache ? null : this.statementCache.get(key);
     if (hit && Date.now() - hit.ts < this.STATEMENT_TTL_MS) return hit.data;
     const params = { symbol, period, limit };
     const [income, balance, cashflow] = await Promise.all([
@@ -1783,7 +1835,9 @@ export class FmpService {
       this.get('cash-flow-statement', params),
     ]);
     const data: FmpStatements = { income, balance, cashflow };
-    if (income.length || balance.length || cashflow.length) {
+    // A bulk walk over thousands of symbols must not pin every statement set
+    // in memory: that is what took the box down on 2026-09-23.
+    if (!opts.noCache && (income.length || balance.length || cashflow.length)) {
       this.statementCache.set(key, { ts: Date.now(), data });
     }
     return data;
