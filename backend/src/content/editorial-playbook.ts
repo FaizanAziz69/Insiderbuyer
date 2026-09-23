@@ -231,10 +231,10 @@ export const VIZ_TYPES = [
   },
   {
     key: 'pull-quote',
-    title: 'Data Pull-Quote Box',
+    title: 'Data Pull-Quote',
     whenToUse: 'When one number is striking enough to deserve emphasis.',
     embed: '<div data-viz="pull-quote">Your one striking stat, as text.</div>',
-    note: 'Navy background, gold text, brand-styled. The only viz whose content the writer supplies directly.',
+    note: 'Body text at display size behind a single brand rule, no box and no gold (client, 2026-09-24). The only viz whose content the writer supplies directly.',
   },
 ] as const;
 export type VizKey = (typeof VIZ_TYPES)[number]['key'];

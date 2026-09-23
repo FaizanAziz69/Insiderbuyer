@@ -492,9 +492,10 @@ table th {
   font-weight: 500;
   font-style: italic;
 }
-/* §7 pull-quote box supplies its own navy/gold shell, so the generic
-   blockquote treatment above (own margin, padding, left rule, italic) stacked
-   inside it and left a tall box with the line floating in the middle. */
+/* The §7 pull-quote carries its own rule and spacing on the <aside>, so the
+   generic blockquote treatment above (own margin, padding, left rule, italic)
+   has to be cleared off the inner element or it doubles up. Colour is body ink
+   since 2026-09-24 — the navy/gold shell is gone at the client's request. */
 .article-body .viz-pull-quote blockquote {
   margin: 0;
   padding: 0;
@@ -503,7 +504,7 @@ table th {
   background: transparent;
   font-style: normal;
   font-weight: 600;
-  color: var(--gold);
+  color: var(--text);
 }
 .article-body img {
   border-radius: 8px;

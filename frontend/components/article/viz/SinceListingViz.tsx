@@ -2,7 +2,7 @@
 import { useMemo } from "react";
 import useSWR from "swr";
 import { API_BASE, fetcher } from "@/lib/api";
-import { VizFrame, VizSkeleton } from "./VizFrame";
+import { VizSkeleton } from "./VizFrame";
 
 /**
  * §7 viz 9 — "since listing" share-price cards.
@@ -17,9 +17,10 @@ import { VizFrame, VizSkeleton } from "./VizFrame";
  * (client, 2026-09-22: "I want the stock charts in there instead with the
  * arrow graphic and %ROI").
  *
- * So: one framed module, one compact card per company, each with the full
- * price history from listing, the headline return, and a trend arrow drawn
- * across the move.
+ * So: one module, one block per company, each with the full price history from
+ * listing, the headline return, and a trend arrow along the move. Unframed
+ * since 2026-09-24 at the client's request: no shell, no per-company card, the
+ * charts sit straight on the page.
  *
  * WHAT IS LIVE AND WHAT IS SUPPLIED. The curve, the latest price and therefore
  * the return are pulled at render from our own market data, so this module
@@ -127,8 +128,20 @@ function Card({ spec }: { spec: RowSpec }) {
     const pts = closes.map((c, i) => ({ x: x(i), y: y(c) }));
     const poly = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
     const last = closes[closes.length - 1];
+    // The annotation arrow runs along the move but stops at 78% of it: past
+    // that it collides with the closing dot and the price label, which is
+    // exactly the interference the client asked us to remove.
+    const a0 = { x: pts[0].x + 6, y: Math.min(BASE - 6, pts[0].y + 10) };
+    const aEnd = { x: pts[pts.length - 1].x, y: pts[pts.length - 1].y + 12 };
+    const T = 0.78;
     return {
       W, H, L, R, BASE,
+      arrow: {
+        x1: a0.x,
+        y1: a0.y,
+        x2: a0.x + (aEnd.x - a0.x) * T,
+        y2: a0.y + (aEnd.y - a0.y) * T,
+      },
       poly,
       area: `M ${L},${BASE} L ${poly.split(" ").join(" L ")} L ${R},${BASE} Z`,
       first: pts[0],
@@ -150,18 +163,20 @@ function Card({ spec }: { spec: RowSpec }) {
   const line = up ? "var(--good)" : "var(--bad)";
   // The trend arrow is an annotation, not a series, so it does NOT take the
   // red/green semantics: a red arrow climbing across a green chart reads as a
-  // loss to anyone who scans finance charts for colour first. Gold is the
-  // house annotation colour (pull quotes, the sponsored pill) and carries no
-  // directional meaning of its own.
-  const arrow = "var(--gold)";
+  // loss to anyone who scans finance charts for colour first. It is drawn in
+  // the body ink (client, 2026-09-24: "simple black arrows that dont
+  // interfere with the chart") — thin, slightly softened and stopped short of
+  // the last close, so it sits behind the price line rather than competing
+  // with it. `--text` rather than literal black so it inverts with the theme.
+  const arrow = "var(--text)";
   const gid = `sl-fill-${spec.symbol.replace(/[^A-Za-z0-9]/g, "")}`;
   const mid = `sl-head-${spec.symbol.replace(/[^A-Za-z0-9]/g, "")}`;
 
   return (
-    <div
-      className="rounded-lg px-3.5 pt-3 pb-2.5"
-      style={{ background: "var(--panel)", border: "1px solid var(--border)" }}
-    >
+    // No card: the chart sits directly on the page (client, 2026-09-24 —
+    // "get rid of the outer boxes and borders … just put the charts clean on
+    // the white background"). Companies are separated by space alone.
+    <div>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 mb-1.5">
         <div>
           <p className="text-[15.5px] font-bold leading-tight" style={{ color: "var(--text)" }}>
@@ -196,13 +211,13 @@ function Card({ spec }: { spec: RowSpec }) {
           <marker
             id={mid}
             viewBox="0 0 10 10"
-            refX="8"
+            refX="9"
             refY="5"
-            markerWidth="7"
-            markerHeight="7"
+            markerWidth="6"
+            markerHeight="6"
             orient="auto-start-reverse"
           >
-            <path d="M0,0 L10,5 L0,10 z" fill={arrow} />
+            <path d="M0,0 L10,5 L0,10 z" fill={arrow} fillOpacity="0.65" />
           </marker>
         </defs>
 
@@ -224,16 +239,18 @@ function Card({ spec }: { spec: RowSpec }) {
           strokeLinecap="round"
         />
 
-        {/* The trend arrow: start to finish, lifted clear of the curve so it
-            reads as an overlay rather than a second series. */}
+        {/* The trend arrow: a thin annotation along the move, stopped at 78%
+            of the span so its head lands inside the chart and never reaches
+            the closing dot, the price label or the right edge. */}
         <line
-          x1={geo.first.x + 4}
-          y1={Math.min(geo.BASE - 6, geo.first.y + 12)}
-          x2={geo.lastPoint.x - 16}
-          y2={geo.lastPoint.y + 14}
+          x1={geo.arrow.x1}
+          y1={geo.arrow.y1}
+          x2={geo.arrow.x2}
+          y2={geo.arrow.y2}
           stroke={arrow}
-          strokeWidth="3"
-          strokeDasharray="7 5"
+          strokeOpacity="0.65"
+          strokeWidth="1.5"
+          strokeDasharray="6 4"
           markerEnd={`url(#${mid})`}
         />
 
@@ -284,18 +301,38 @@ export function SinceListingViz({
 }) {
   const specs = useMemo(() => parseRows(html), [html]);
   if (specs.length === 0) return null;
+  // Deliberately NOT VizFrame. Every other viz keeps the navy band and the
+  // ruled shell, but the client asked for these charts unframed (2026-09-24):
+  // the title and the source line stay, as plain type on the page, because the
+  // manual still requires the attribution — it is the boxes that go.
   return (
-    <VizFrame
-      title={title || "Share price since listing"}
-      subtitle={subtitle || null}
-      source={source || null}
-      footnote={note || null}
-    >
-      <div className="p-3 grid gap-3">
+    <figure className="my-8 not-prose">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-4">
+        <span
+          className="text-[11px] font-bold uppercase tracking-wider"
+          style={{ color: "var(--text)" }}
+        >
+          {title || "Share price since listing"}
+        </span>
+        {subtitle ? (
+          <span className="text-[11.5px]" style={{ color: "var(--text-mute)" }}>
+            {subtitle}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="grid gap-8">
         {specs.map((s) => (
           <Card key={s.symbol} spec={s} />
         ))}
       </div>
-    </VizFrame>
+
+      {(source || note) && (
+        <figcaption className="mt-4 text-[11px] leading-relaxed" style={{ color: "var(--text-mute)" }}>
+          {note ? <span className="block mb-1">{note}</span> : null}
+          {source ? <span>Source: {source}</span> : null}
+        </figcaption>
+      )}
+    </figure>
   );
 }
