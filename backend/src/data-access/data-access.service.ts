@@ -302,6 +302,22 @@ export class DataAccessService {
         : 'the Promoter Score and Top IR Promoters datasets';
   }
 
+  /** Send the desk notification for a request that already exists.
+   *
+   *  Requests that arrived before the desk address was fixed (2026-09-24) were
+   *  emailed to a mailbox nobody was reading, and the notification is the only
+   *  thing that carries the Approve and Decline buttons — so there has to be a
+   *  way to send it again rather than asking the requester to apply twice.
+   *  Unlike the fire-and-forget call on submit, this one is awaited: the
+   *  caller asked for it, so the caller should hear about a failure. */
+  async resendNotification(id: string): Promise<{ ok: boolean; sentTo: string }> {
+    const row = await this.repo.findOne({ where: { id } });
+    if (!row) throw new BadRequestException('No such request.');
+    await this.notifyDesk(row);
+    this.log.log(`data access notification resent: ${row.companyEmail} → ${this.deskAddress}`);
+    return { ok: true, sentTo: this.deskAddress };
+  }
+
   private async notifyDesk(row: DataAccessRequest): Promise<void> {
     const step: FlowEmail = {
       id: 'data-access-request',

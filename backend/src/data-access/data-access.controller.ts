@@ -73,6 +73,14 @@ export class DataAccessController {
     return { rows: await this.svc.list(status) };
   }
 
+  /** Re-send the desk notification (with its Approve/Decline buttons) for a
+   *  request that is already on file. */
+  @UseGuards(AdminTokenGuard)
+  @Post('admin/:id/notify')
+  async notify(@Param('id') id: string) {
+    return this.svc.resendNotification(id);
+  }
+
   @UseGuards(AdminTokenGuard)
   @Post('admin/:id/approve')
   async approve(@Param('id') id: string, @Body() body?: { note?: string }) {
