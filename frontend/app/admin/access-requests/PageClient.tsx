@@ -76,7 +76,12 @@ function Shell({ children }: { children: React.ReactNode }) {
       <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--text-mute)" }}>
         InsiderBuying desk
       </p>
-      <h1 className="mt-1 mb-7 text-[26px] font-bold leading-tight">Dataset access requests</h1>
+      {/* Inline margins, not utilities: globals.css sets its own h1 rule and a
+          direct rule beats a class here, which left the heading sitting on top
+          of the first line of content. */}
+      <h1 className="text-[26px] font-bold leading-tight" style={{ margin: "4px 0 28px" }}>
+        Dataset access requests
+      </h1>
       {children}
     </main>
   );
@@ -297,7 +302,7 @@ function Queue({ exp, sig }: { exp: string; sig: string }) {
 
   return (
     <Shell>
-      <p className="-mt-4 mb-6 text-[13px]" style={{ color: "var(--text-mute)" }}>
+      <p className="mb-6 text-[13px]" style={{ color: "var(--text-mute)" }}>
         {rows.length} request{rows.length === 1 ? "" : "s"}
         {pending > 0 ? `, ${pending} waiting on you` : ", none waiting"}.
       </p>
