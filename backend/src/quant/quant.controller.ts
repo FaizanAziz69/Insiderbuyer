@@ -116,8 +116,8 @@ export class QuantController {
 
   @Post('admin/ingest-marketcaps')
   @UseGuards(AdminTokenGuard)
-  ingestMarketCaps(@Query('limit') limit?: string, @Query('activeOnly') activeOnly?: string) {
-    return this.ingest.ingestMarketCaps(limit ? Number(limit) : 200, activeOnly === '1');
+  ingestMarketCaps(@Query('limit') limit?: string, @Query('activeOnly') activeOnly?: string, @Query('from') from?: string) {
+    return this.ingest.ingestMarketCaps(limit ? Number(limit) : 200, activeOnly === '1', from || '2006-01-01');
   }
 
   // ── L2/L3 ────────────────────────────────────────────────────────────

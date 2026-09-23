@@ -103,8 +103,15 @@ export class QuantIngestService {
     return { symbols, points, cursor: rows.length < limit ? null : next, wrapped: rows.length < limit };
   }
 
-  /** Market-cap history, for point-in-time size screens. */
-  async ingestMarketCaps(limit = 200, activeOnly = false): Promise<any> {
+  /**
+   * Market-cap history, for point-in-time size screens.
+   *
+   * `from` is not optional in practice: without it FMP returns only the last
+   * 65 sessions however large a `limit` is passed, and every ranking before
+   * about three months ago then fails the size gate for want of a market cap.
+   * With it the same endpoint returns 2,193 sessions back to 2018.
+   */
+  async ingestMarketCaps(limit = 200, activeOnly = false, from = '2006-01-01'): Promise<any> {
     await this.pit.ensureTables();
     const mcKey = activeOnly ? 'pit:mcap:cursor:active' : 'pit:mcap:cursor';
     const after = await this.cursor(mcKey);
@@ -114,7 +121,7 @@ export class QuantIngestService {
     let symbols = 0;
     for (const r of rows) {
       try {
-        const hist = await this.fmp.getMarketCapHistory(r.symbol);
+        const hist = await this.fmp.getMarketCapHistory(r.symbol, from);
         if (!hist.length) continue;
         const points = hist
           .map((h) => [new Date(`${h.date}T00:00:00Z`).getTime(), h.marketCap])
