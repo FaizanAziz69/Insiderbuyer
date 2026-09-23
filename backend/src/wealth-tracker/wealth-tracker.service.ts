@@ -6,6 +6,7 @@ import { Company } from '../entities/company.entity';
 import { RosterService, ageOn, ageBracket, AgeBracket } from './roster.service';
 import { PtrService, StoredTrade } from './ptr.service';
 import { PricesService, BENCHMARK } from './prices.service';
+import { UnifiedService } from './unified.service';
 import {
   Aligned, alignSeries, calendarIndex, dayMs, disclosureLagDays, indexDaysBefore, indexYearStart,
   midpoint, reconstruct, thinCurve, trailingBenchmark, trailingReturn, CurvePoint,
@@ -91,6 +92,7 @@ export class WealthTrackerService {
     private readonly roster: RosterService,
     private readonly ptr: PtrService,
     private readonly prices: PricesService,
+    private readonly unified: UnifiedService,
   ) {}
 
   private q<T = any>(sql: string, params: any[] = []): Promise<T> {
@@ -209,6 +211,12 @@ export class WealthTrackerService {
       }
       this.running.step = 'compute';
       report.compute = await this.recompute((p) => { if (this.running) this.running.progress = p; });
+      this.running.step = 'unified';
+      try {
+        report.unified = await this.unified.rebuild();
+      } catch (e: any) {
+        this.log.warn(`unified rebuild failed: ${e?.message || e}`);
+      }
       report.seconds = Math.round((Date.now() - t0) / 1000);
       await this.q(`INSERT INTO wt_meta (key, value, updated_at) VALUES ('last_run', $1, now()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`, [JSON.stringify(report)]);
       this.log.log(`run done in ${report.seconds}s: ${JSON.stringify(report.compute)}`);

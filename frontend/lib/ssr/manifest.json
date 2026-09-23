@@ -238,8 +238,7 @@
   "/api/backend/trades?side=buy&limit=40"
  ],
  "investors": [
-  "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",
-  "/api/backend/trades?side=buy&limit=40"
+  "/api/backend/wealth-tracker/unified?type=all&limit=240&sort=popular"
  ],
  "investors/[slug]": [
   "/api/backend/market-stats/quotes?symbols=%5EGSPC%2C%5EDJI%2C%5EIXIC%2CGC%3DF%2CSI%3DF%2CCL%3DF%2CBTC-USD%2CNVDA",

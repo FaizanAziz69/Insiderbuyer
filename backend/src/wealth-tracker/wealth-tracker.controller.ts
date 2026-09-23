@@ -9,6 +9,7 @@ import { User } from '../entities/user.entity';
 import { LeaderboardFilters, View, WealthTrackerService } from './wealth-tracker.service';
 import { AgeBracket } from './roster.service';
 import { Last10Service, Last10Type } from './last10.service';
+import { UnifiedService, UnifiedType } from './unified.service';
 
 /**
  * Public reads are cached materialisations; the only computation a request
@@ -22,6 +23,7 @@ export class WealthTrackerController {
   constructor(
     private readonly svc: WealthTrackerService,
     private readonly last10: Last10Service,
+    private readonly unified: UnifiedService,
     private readonly auth: AuthService,
     private readonly billing: BillingService,
     @InjectRepository(User) private readonly users: Repository<User>,
@@ -118,6 +120,22 @@ export class WealthTrackerController {
   @Header('Cache-Control', 'public, max-age=300')
   lastTenTicker(@Param('ticker') ticker: string) {
     return this.last10.forTicker(ticker);
+  }
+
+  /** Build 3: one card anatomy for every insider type, graded within type. */
+  @Get('unified')
+  @Header('Cache-Control', 'public, max-age=300')
+  unifiedList(@Query('type') type?: string, @Query('sort') sort?: string, @Query('category') category?: string, @Query('limit') limit?: string) {
+    const t = (['corporate', 'congress', 'investor'].includes(String(type)) ? type : 'all') as 'all' | UnifiedType;
+    const s = (sort === 'performance' || sort === 'active' ? sort : 'popular') as 'popular' | 'performance' | 'active';
+    const cat = ['growth', 'value', 'short', 'longterm'].includes(String(category)) ? String(category) : undefined;
+    return this.unified.list({ type: t, sort: s, category: cat, limit: limit ? Number(limit) : 200 });
+  }
+
+  @Post('admin/rebuild-unified')
+  @UseGuards(AdminTokenGuard)
+  rebuildUnified() {
+    return this.unified.rebuild();
   }
 
   @Get('status')
