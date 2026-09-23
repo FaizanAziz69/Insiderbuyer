@@ -180,6 +180,26 @@ export class RosterService {
     return { current: rows.length - former, former };
   }
 
+  /**
+   * When the tracker itself started, taken as the earliest add-date on the
+   * roster.
+   *
+   * §4.3 says grades recompute from a member's add-date forward with no
+   * retroactive backfill. That rule exists so someone ADDED late cannot
+   * arrive with a rank earned on history we were not watching. It is not
+   * meant to erase the board at launch, when every member is added at once —
+   * read that way it would blank every grade on the site on day one, which is
+   * what happened the first time this shipped. So a member present at
+   * inception is tracked from inception; a member added afterwards serves
+   * their window.
+   */
+  async inception(): Promise<number | null> {
+    await this.ensureTables();
+    const rows = await this.q<Array<{ t: string | null }>>(`SELECT min(added_at)::text AS t FROM wt_members`);
+    const t = rows[0]?.t ? new Date(rows[0].t).getTime() : null;
+    return Number.isFinite(t as number) ? (t as number) : null;
+  }
+
   async all(): Promise<Array<MemberRow & { fmp_name: string | null; tracked_since: string | null; added_at: string }>> {
     await this.ensureTables();
     return this.q(`SELECT bioguide, name, first, last, nickname, chamber, party, state, district,

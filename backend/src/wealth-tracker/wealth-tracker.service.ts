@@ -444,9 +444,16 @@ export class WealthTrackerService {
     // forward. `added_at` is written once and never rewritten, so this is a
     // real floor rather than a restatement of "today".
     const addedAt = new Map(members.map((m) => [m.bioguide, m.added_at ? new Date(m.added_at).getTime() : null]));
+    const inception = await this.roster.inception();
+    // A member on the roster when the tracker started is tracked from
+    // inception; one added later serves the window. Without the inception
+    // exemption the rule blanks every grade on launch day, which is the
+    // letter of §4.3 against its purpose.
+    const FOUNDING_WINDOW = 2 * DAY;
     const trackedLongEnough = (bioguide: string): boolean => {
       const t = addedAt.get(bioguide);
       if (t == null) return true;
+      if (inception != null && t - inception <= FOUNDING_WINDOW) return true;
       return Date.now() - t >= MIN_TRACKED_DAYS * DAY;
     };
     const grades = gradeCongress(stats.map((s) => ({
