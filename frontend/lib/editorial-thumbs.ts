@@ -148,6 +148,12 @@ export interface ThumbInput {
 /** Hard pin: specific article slugs → a specific thumbnail file (wins over
  *  all keyword/pool logic). Used when an editorial needs one exact image. */
 const SLUG_OVERRIDES: Record<string, string> = {
+  // 2026-09-22: PesoRama sponsored CEO interview (unlisted draft). Client
+  // supplied the composite 2026-09-23. The pin matters as much as the file:
+  // the page resolves its cover through this registry BEFORE the stored
+  // imageUrl, so without it the keyword matcher would hand this slug an
+  // unrelated photo.
+  "editorial-pesorama-ceo-rahim-bhaloo-mexico-dollar-stores-2026-09-22": "pesorama-bhaloo-mexico",
   // 2026-09-22: Michael Burry / Ero Copper top story. Reuses the clean Burry
   // portrait that already fronts the Alibaba piece, at the client's request.
   "editorial-michael-burry-copper-ero-position-2026-09-22": "burry-portrait-clean",
