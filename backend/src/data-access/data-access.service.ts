@@ -1,10 +1,34 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { randomBytes } from 'crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { DataAccessRequest } from '../entities/data-access-request.entity';
 import { EmailFlowsService } from '../email-flows/email-flows.service';
 import { FlowEmail } from '../email-flows/content/types';
+
+/** A request as the review page sees it: everything except the access token. */
+export interface PublicRequest {
+  id: string;
+  dataset: string;
+  datasetLabel: string;
+  name: string;
+  title: string;
+  company: string;
+  companyEmail: string;
+  status: string;
+  createdAt: Date;
+  decidedAt: Date | null;
+}
+
+/** A signed pair of decisions for one request, minted for a proven link. */
+export interface ActionSigs {
+  exp: string;
+  approveSig: string;
+  declineSig: string;
+}
+
+/** A queue row carries its own signed actions so the list can act on any row. */
+export type QueueRow = PublicRequest & ActionSigs;
 
 /** The datasets behind the gate. 'both' is what the pages ask for. */
 export const DATASETS = ['promoter-score', 'top-ir-promoters', 'both'] as const;
@@ -137,6 +161,139 @@ export class DataAccessService {
     return { ok: true, status: row.status };
   }
 
+  // ────────────────────────────────────────────────────────────────────────
+  // Deciding from the inbox.
+  //
+  // George asked to approve or decline straight from the notification email
+  // (2026-09-24) — there is no admin screen behind a login, and handing him
+  // the ADMIN_API_TOKEN to paste into a browser would be worse than the
+  // problem. So each email carries links signed with an HMAC over the request
+  // id, the action and an expiry. Possession of the link is the authority,
+  // which is sound because the link only ever exists in the desk mailbox.
+  //
+  // TWO RULES THIS DEPENDS ON. A signed GET only ever SHOWS the request —
+  // mail scanners and link previewers fetch every URL in an email, so a GET
+  // that decided anything would auto-approve requests the moment the mail
+  // arrived. The decision is a POST from the page. And the signature is
+  // compared in constant time, because a plain === on a hex digest leaks it a
+  // byte at a time to anyone who can time the endpoint.
+  private get linkSecret(): string {
+    return process.env.DATA_ACCESS_LINK_SECRET || process.env.ADMIN_API_TOKEN || '';
+  }
+
+  /** 30 days: long enough that a request survives a holiday, short enough
+   *  that an old forwarded mail stops working. */
+  private static readonly LINK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+  private sign(payload: string): string {
+    return createHmac('sha256', this.linkSecret).update(payload).digest('hex').slice(0, 32);
+  }
+
+  private signatureOk(payload: string, sig: string): boolean {
+    if (!this.linkSecret) return false;
+    const expected = Buffer.from(this.sign(payload));
+    const given = Buffer.from(String(sig || ''));
+    return expected.length === given.length && timingSafeEqual(expected, given);
+  }
+
+  /** Validate a link and hand back what it points at. `action` is part of the
+   *  signed payload, so an approve link cannot be edited into a decline. */
+  private checkLink(scope: string, exp: string, sig: string): void {
+    if (!this.linkSecret) {
+      throw new BadRequestException('Review links are not configured on this server.');
+    }
+    const expMs = Number(exp);
+    if (!Number.isFinite(expMs)) throw new BadRequestException('Malformed link.');
+    if (!this.signatureOk(`${scope}:${exp}`, sig)) {
+      throw new BadRequestException('This link is not valid.');
+    }
+    if (Date.now() > expMs) {
+      throw new BadRequestException('This link has expired. Open the request list instead.');
+    }
+  }
+
+  private linkFor(scope: string, path: string): string {
+    const exp = String(Date.now() + DataAccessService.LINK_TTL_MS);
+    const sig = this.sign(`${scope}:${exp}`);
+    const sep = path.includes('?') ? '&' : '?';
+    return `${this.siteUrl}${path}${sep}exp=${exp}&sig=${sig}`;
+  }
+
+  /** The one-click link in the email: opens the review page for this request
+   *  with an action pre-selected. Nothing is decided until the page posts. */
+  decisionUrl(id: string, action: 'approve' | 'decline'): string {
+    return this.linkFor(`${id}:${action}`, `/admin/access-requests?id=${id}&action=${action}`);
+  }
+
+  /** "See every request" — the same machinery, scoped to the whole queue. */
+  queueUrl(): string {
+    return this.linkFor('queue', '/admin/access-requests');
+  }
+
+  /** What the review page shows before anyone clicks anything.
+   *
+   *  It hands back a signature for BOTH actions, not just the one the email
+   *  button carried. Arriving on an Approve link and then deciding to decline
+   *  is an ordinary thing to do, and the link's own signature only covers the
+   *  action it was minted for — so the already-proven link mints the pair. */
+  async reviewByLink(
+    id: string,
+    action: 'approve' | 'decline',
+    exp: string,
+    sig: string,
+  ): Promise<{ request: PublicRequest; actions: ActionSigs }> {
+    this.checkLink(`${id}:${action}`, exp, sig);
+    const row = await this.repo.findOne({ where: { id } });
+    if (!row) throw new BadRequestException('No such request.');
+    return { request: this.publicView(row), actions: this.actionSigs(row.id) };
+  }
+
+  private actionSigs(id: string): ActionSigs {
+    const exp = String(Date.now() + DataAccessService.LINK_TTL_MS);
+    return {
+      exp,
+      approveSig: this.sign(`${id}:approve:${exp}`),
+      declineSig: this.sign(`${id}:decline:${exp}`),
+    };
+  }
+
+  /** The decision itself. Same signature, but it has to arrive as a POST. */
+  async decideByLink(
+    id: string,
+    action: 'approve' | 'decline',
+    exp: string,
+    sig: string,
+    note?: string,
+  ): Promise<{ ok: boolean; status: string }> {
+    this.checkLink(`${id}:${action}`, exp, sig);
+    return this.decide(id, action === 'approve', note);
+  }
+
+  /** The queue behind the "see all requests" link: every row, each carrying
+   *  its own pair of signed actions so the page can act without a token. */
+  async queueByLink(exp: string, sig: string): Promise<{ rows: QueueRow[] }> {
+    this.checkLink('queue', exp, sig);
+    const rows = await this.list('all');
+    return { rows: rows.map((r) => ({ ...this.publicView(r), ...this.actionSigs(r.id) })) };
+  }
+
+  /** Never hand the minted access token back to the review page — it belongs
+   *  in the requester's mailbox and nowhere else. */
+  private publicView(row: DataAccessRequest): PublicRequest {
+    return {
+      id: row.id,
+      dataset: row.dataset,
+      datasetLabel: this.datasetLabel(row.dataset),
+      name: row.name,
+      title: row.title,
+      company: row.company,
+      companyEmail: row.companyEmail,
+      status: row.status,
+      createdAt: row.createdAt,
+      decidedAt: row.decidedAt,
+    };
+  }
+
   private datasetLabel(d: string): string {
     return d === 'promoter-score'
       ? 'the Promoter Score dataset'
@@ -157,8 +314,21 @@ export class DataAccessService {
       body: [
         `<p style="margin:0 0 14px;"><strong>${row.name}</strong> (${row.title}) at <strong>${row.company}</strong> has requested access to ${this.datasetLabel(row.dataset)}.</p>`,
         `<p style="margin:0 0 14px;">Company email: <a href="mailto:${row.companyEmail}">${row.companyEmail}</a></p>`,
-        `<p style="margin:0 0 14px;">Request id: ${row.id}</p>`,
-        '<p style="margin:0 0 14px;">Approve or decline it from the admin data-access list. Approving emails them an access link automatically.</p>',
+        // Two buttons, because the alternative was "go and find the admin
+        // list", and there is no admin list (George, 2026-09-24). Laid out as
+        // a table with inline styles: Outlook ignores flexbox, margins on
+        // anchors and most of everything else.
+        `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 18px;"><tr>
+           <td style="padding-right:10px;">
+             <a href="${this.decisionUrl(row.id, 'approve')}" style="display:inline-block;background:#11824d;color:#ffffff;font-weight:700;font-size:14px;padding:11px 22px;border-radius:6px;text-decoration:none;">Approve</a>
+           </td>
+           <td>
+             <a href="${this.decisionUrl(row.id, 'decline')}" style="display:inline-block;background:#ffffff;color:#1d1e1f;font-weight:700;font-size:14px;padding:10px 21px;border:1px solid #c2c9cf;border-radius:6px;text-decoration:none;">Decline</a>
+           </td>
+         </tr></table>`,
+        '<p style="margin:0 0 14px;">Either button opens the request in your browser and asks you to confirm — nothing is decided by the click itself. Approving emails them the access link automatically.</p>',
+        `<p style="margin:0 0 14px;"><a href="${this.queueUrl()}" style="color:#005882;font-weight:600;">See every access request</a>, including the ones already decided.</p>`,
+        `<p style="margin:0;color:#6c7783;font-size:12px;">Request id: ${row.id}. These links work for 30 days and carry the authority to decide, so treat them as you would a password.</p>`,
       ],
     };
     await this.emailFlows.sendOneOff(this.deskAddress, step);

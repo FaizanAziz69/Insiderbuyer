@@ -24,6 +24,49 @@ export class DataAccessController {
     return this.svc.verify(token || '', dataset || 'both');
   }
 
+  // ── Deciding from the email (no admin token; the link is signed) ──
+  //
+  // These are NOT guarded by AdminTokenGuard on purpose: the whole point is
+  // that George can act from his inbox without holding the admin secret. The
+  // HMAC in the link is the credential, and it is scoped to one request and
+  // one action. See the signing block in the service.
+
+  /** Read-only. Mail scanners hit this and must not change anything. */
+  @Get('review')
+  async review(
+    @Query('id') id?: string,
+    @Query('action') action?: string,
+    @Query('exp') exp?: string,
+    @Query('sig') sig?: string,
+  ) {
+    return this.svc.reviewByLink(
+      id || '',
+      action === 'decline' ? 'decline' : 'approve',
+      exp || '',
+      sig || '',
+    );
+  }
+
+  /** The decision. A POST, so no link preview can trigger it. */
+  @Post('review')
+  async reviewDecide(
+    @Body() body: { id?: string; action?: string; exp?: string; sig?: string; note?: string },
+  ) {
+    return this.svc.decideByLink(
+      body?.id || '',
+      body?.action === 'decline' ? 'decline' : 'approve',
+      body?.exp || '',
+      body?.sig || '',
+      body?.note,
+    );
+  }
+
+  /** Every request, for the "see every access request" link. */
+  @Get('queue')
+  async queue(@Query('exp') exp?: string, @Query('sig') sig?: string) {
+    return this.svc.queueByLink(exp || '', sig || '');
+  }
+
   @UseGuards(AdminTokenGuard)
   @Get('admin/list')
   async list(@Query('status') status?: string) {
