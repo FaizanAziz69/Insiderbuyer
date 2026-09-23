@@ -17,8 +17,10 @@ import { Company } from '../entities/company.entity';
 
 const CURRENT_URL = 'https://unitedstates.github.io/congress-legislators/legislators-current.json';
 const HISTORICAL_URL = 'https://unitedstates.github.io/congress-legislators/legislators-historical.json';
-/** A former member is kept while the FMP record could still hold their trades. */
-export const FORMER_SINCE = '2016-01-01';
+/** A former member is kept while any source could still hold their trades.
+ *  Widened to 2013 for the House Clerk archive (2014-2017 PTRs): a filer who
+ *  left in 2016 still has to be in the roster for their filings to resolve. */
+export const FORMER_SINCE = '2013-01-01';
 
 export interface MemberRow {
   bioguide: string;

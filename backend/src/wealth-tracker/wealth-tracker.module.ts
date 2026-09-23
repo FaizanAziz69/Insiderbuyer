@@ -12,13 +12,14 @@ import { PtrService } from './ptr.service';
 import { PricesService } from './prices.service';
 import { Last10Service } from './last10.service';
 import { UnifiedService } from './unified.service';
+import { HouseArchiveService } from './house-archive.service';
 
 /** The Wealth Tracker — Developer Project Brief v7, Build 1 (politician
  *  portfolio reconstruction, rankings, badges, holdings). */
 @Module({
   imports: [FmpModule, AuthModule, BillingModule, TypeOrmModule.forFeature([Company, User])],
   controllers: [WealthTrackerController],
-  providers: [WealthTrackerService, RosterService, PtrService, PricesService, Last10Service, UnifiedService],
-  exports: [WealthTrackerService, PtrService, PricesService, Last10Service, UnifiedService],
+  providers: [WealthTrackerService, RosterService, PtrService, PricesService, Last10Service, UnifiedService, HouseArchiveService],
+  exports: [WealthTrackerService, PtrService, PricesService, Last10Service, UnifiedService, HouseArchiveService],
 })
 export class WealthTrackerModule {}

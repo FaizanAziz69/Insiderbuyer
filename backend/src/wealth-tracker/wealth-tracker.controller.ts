@@ -10,6 +10,7 @@ import { LeaderboardFilters, View, WealthTrackerService } from './wealth-tracker
 import { AgeBracket } from './roster.service';
 import { Last10Service, Last10Type } from './last10.service';
 import { UnifiedService, UnifiedType } from './unified.service';
+import { HouseArchiveService } from './house-archive.service';
 
 /**
  * Public reads are cached materialisations; the only computation a request
@@ -24,6 +25,7 @@ export class WealthTrackerController {
     private readonly svc: WealthTrackerService,
     private readonly last10: Last10Service,
     private readonly unified: UnifiedService,
+    private readonly houseArchive: HouseArchiveService,
     private readonly auth: AuthService,
     private readonly billing: BillingService,
     @InjectRepository(User) private readonly users: Repository<User>,
@@ -136,6 +138,23 @@ export class WealthTrackerController {
   @UseGuards(AdminTokenGuard)
   rebuildUnified() {
     return this.unified.rebuild();
+  }
+
+  /** What the committed House Clerk archive holds (no database access). */
+  @Get('house-archive')
+  houseArchiveStatus() {
+    return this.houseArchive.status();
+  }
+
+  /** Load the pre-2017 House record the vendor does not carry. Idempotent. */
+  @Post('admin/load-house-archive')
+  @UseGuards(AdminTokenGuard)
+  loadHouseArchive(@Query('years') years?: string) {
+    const list = String(years || '')
+      .split(',')
+      .map((y) => Number(y.trim()))
+      .filter((y) => Number.isFinite(y) && y > 2000);
+    return this.houseArchive.load({ years: list.length ? list : undefined });
   }
 
   @Get('status')
