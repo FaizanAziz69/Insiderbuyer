@@ -32,8 +32,16 @@ export class DataAccessService {
     private readonly emailFlows: EmailFlowsService,
   ) {}
 
+  /** Who gets told that someone asked for a dataset. George owns these
+   *  decisions, and on 2026-09-24 asked for every request to reach him rather
+   *  than the devs mailbox, so his address is the default rather than a
+   *  deployment detail. EMAIL_REPLY_TO is deliberately no longer in the chain:
+   *  it is the site-wide reply-to for outbound mail, not an inbox anyone
+   *  watches, and falling back to it once meant nobody saw a request.
+   *  DATA_ACCESS_NOTIFY still overrides it, with one address (the notify mail
+   *  goes out through sendOneOff, which sends to a single recipient). */
   private get deskAddress(): string {
-    return process.env.DATA_ACCESS_NOTIFY || process.env.EMAIL_REPLY_TO || 'devs@insiderbuying.com';
+    return process.env.DATA_ACCESS_NOTIFY || 'george@insiderbuying.com';
   }
 
   private get siteUrl(): string {
