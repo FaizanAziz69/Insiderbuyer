@@ -128,6 +128,13 @@ export class QuantController {
     return this.quant.start({ asOf, limit: limit ? Number(limit) : undefined });
   }
 
+  /** Rank at each quarter end across a span so the index has a curve. */
+  @Post('admin/backfill-rankings')
+  @UseGuards(AdminTokenGuard)
+  backfillRankings(@Body() body: { from: string; to?: string; limit?: number }) {
+    return this.quant.backfillRankings({ from: body?.from, to: body?.to, limit: body?.limit });
+  }
+
   // ── §8 backtesting ───────────────────────────────────────────────────
 
   @Post('admin/backtest')

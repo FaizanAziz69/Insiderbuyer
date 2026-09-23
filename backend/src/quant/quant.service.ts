@@ -488,6 +488,50 @@ export class QuantService {
     }
   }
 
+  /**
+   * Rank at each quarter end across a span, so the published index has a
+   * curve rather than a single point.
+   *
+   * This is only honest because L1 is point-in-time: each pass sees the
+   * filings that were public on that date and the universe as it was listed
+   * then, so a 2024 ranking cannot know what was filed in 2025. Running this
+   * against a vendor snapshot of "current" fundamentals would manufacture a
+   * backtest out of hindsight, which is the failure §3 is written against.
+   */
+  async backfillRankings(opts: { from: string; to?: string; limit?: number }): Promise<any> {
+    await this.ensureTables();
+    const to = opts.to || new Date().toISOString().slice(0, 10);
+    const dates: string[] = [];
+    const start = new Date(`${opts.from}T00:00:00Z`);
+    // Quarter ends: the index reconstitutes quarterly (§6).
+    let y = start.getUTCFullYear();
+    let q = Math.floor(start.getUTCMonth() / 3);
+    for (;;) {
+      const endMonth = q * 3 + 3;
+      const d = new Date(Date.UTC(y, endMonth, 0));
+      const iso = d.toISOString().slice(0, 10);
+      if (iso > to) break;
+      if (iso >= opts.from) dates.push(iso);
+      q++;
+      if (q > 3) {
+        q = 0;
+        y++;
+      }
+      if (dates.length > 60) break;
+    }
+    const done: Array<{ asOf: string; ranked: number; positions: number }> = [];
+    for (const asOf of dates) {
+      try {
+        const out = await this.runRanking({ asOf, limit: opts.limit });
+        done.push({ asOf, ranked: out.ranked, positions: out.positions });
+        this.log.log(`backfill ${asOf}: ${out.ranked} ranked, ${out.positions} positions`);
+      } catch (e: any) {
+        this.log.warn(`backfill ${asOf} failed: ${e?.message || e}`);
+      }
+    }
+    return { quarters: dates.length, completed: done.length, detail: done };
+  }
+
   // ── Reads ─────────────────────────────────────────────────────────────
 
   async latestSnapshot(): Promise<any | null> {
