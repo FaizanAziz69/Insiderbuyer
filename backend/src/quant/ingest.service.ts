@@ -141,12 +141,36 @@ export class QuantIngestService {
     return { symbols, cursor: rows.length < limit ? null : next, wrapped: rows.length < limit };
   }
 
+  /**
+   * Seed the §7.1 benchmark blend into the price store.
+   *
+   * The benchmarks are not companies we cover, so the universe walk never
+   * reaches them, and without their series every capture ratio comes back
+   * null — which silently removes the one test §7 uses to accept or reject a
+   * parameter set. Idempotent, so it can run on every boot.
+   */
+  async ingestBenchmarks(from = '2006-01-01'): Promise<any> {
+    await this.pit.ensureTables();
+    const cfg = await this.quant.config();
+    const out: Record<string, number> = {};
+    for (const b of cfg.risk.benchmarkBlend) {
+      try {
+        out[b.symbol] = await this.pit.ingestPrices(b.symbol, from);
+      } catch (e: any) {
+        this.log.warn(`benchmark ${b.symbol}: ${e?.message || e}`);
+        out[b.symbol] = 0;
+      }
+    }
+    return out;
+  }
+
   /** Nightly: refresh the universe, then take one slice of each walk. */
   @Cron('40 3 * * *')
   async nightly(): Promise<void> {
     if (process.env.VERCEL) return;
     try {
       await this.pit.refreshUniverse();
+      await this.ingestBenchmarks();
       // Live names first: they are what the engine ranks tonight.
       await this.ingestFundamentals(200, 44, true);
       await this.ingestPrices(200, '2006-01-01', true);

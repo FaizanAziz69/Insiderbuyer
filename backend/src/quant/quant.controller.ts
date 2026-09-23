@@ -114,6 +114,13 @@ export class QuantController {
     return this.ingest.ingestPrices(limit ? Number(limit) : 250, from || '2006-01-01', activeOnly === '1');
   }
 
+  /** Seed the §7.1 benchmark blend, without which capture ratios are null. */
+  @Post('admin/ingest-benchmarks')
+  @UseGuards(AdminTokenGuard)
+  ingestBenchmarks(@Query('from') from?: string) {
+    return this.ingest.ingestBenchmarks(from || '2006-01-01');
+  }
+
   @Post('admin/ingest-marketcaps')
   @UseGuards(AdminTokenGuard)
   ingestMarketCaps(@Query('limit') limit?: string, @Query('activeOnly') activeOnly?: string, @Query('from') from?: string) {
