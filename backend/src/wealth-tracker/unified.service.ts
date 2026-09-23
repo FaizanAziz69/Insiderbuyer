@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
 import { Last10Service } from './last10.service';
+import { PricesService } from './prices.service';
+import { Series } from './reconstruction';
 import { BADGE_CONFIG, BadgeKey, Grade, gradeForPercentile, percentileRanks } from './badges';
 
 /**
@@ -65,6 +67,7 @@ export class UnifiedService {
   constructor(
     @InjectRepository(Company) private readonly companies: Repository<Company>,
     private readonly last10: Last10Service,
+    private readonly prices: PricesService,
   ) {}
 
   private q<T = any>(sql: string, params: any[] = []): Promise<T> {
@@ -165,6 +168,50 @@ export class UnifiedService {
     );
     if (!rows.length) return [];
     const keys = rows.map((r) => r.k);
+    // Forward returns per buy at 6 and 12 months (§4.2: "avg return per buy
+    // at 6/12m"), from the filed price to the dividend-adjusted close on the
+    // horizon date; a horizon that has not elapsed is not scored. The stored
+    // series are the same ones the reconstruction engine reads.
+    const buys = await this.q<Array<{ k: string; ticker: string; d: string; px: string }>>(
+      `SELECT lower(btrim(regexp_replace(t."insiderName", '\s+', ' ', 'g'))) AS k, c.ticker, to_char(t."transactionDate",'YYYY-MM-DD') AS d, t."pricePerShare" AS px
+       FROM insider_transactions t JOIN companies c ON c.id = t.company_id
+       WHERE lower(btrim(regexp_replace(t."insiderName", '\s+', ' ', 'g'))) = ANY($1) AND t."transactionCode" = 'P'
+         AND t."sharesBought" * t."pricePerShare" > 0 AND t."sharesBought" * t."pricePerShare" <= 5e9 AND t."pricePerShare" > 0
+         AND t."transactionDate" >= current_date - ${CORPORATE_LOOKBACK_DAYS + 365}`,
+      [keys],
+    );
+    const buyTickers = Array.from(new Set(buys.map((b) => b.ticker).filter(Boolean)));
+    try {
+      await this.prices.ensure(buyTickers, new Set(buyTickers), { concurrency: 4 });
+    } catch (e: any) {
+      this.log.warn(`forward-return prices: ${e?.message || e}`);
+    }
+    const seriesCache = new Map<string, Series | null>();
+    const seriesOf = async (ticker: string): Promise<Series | null> => {
+      if (!seriesCache.has(ticker)) {
+        const r = await this.prices.loadResolved(ticker);
+        seriesCache.set(ticker, r ? r.series : null);
+      }
+      return seriesCache.get(ticker) || null;
+    };
+    const fwd = new Map<string, { r6: number[]; r12: number[] }>();
+    const nowMs = Date.now();
+    for (const b of buys) {
+      const series = await seriesOf(b.ticker);
+      if (!series) continue;
+      const px = Number(b.px);
+      const t0 = Date.parse(`${b.d}T00:00:00Z`);
+      const agg = fwd.get(b.k) || { r6: [], r12: [] };
+      for (const [days, arr] of [[182, agg.r6], [365, agg.r12]] as Array<[number, number[]]>) {
+        const target = t0 + days * 86_400_000;
+        if (target > nowMs) continue;
+        const close = closeOnOrBefore(series, target);
+        if (close == null || !(close > 0)) continue;
+        arr.push(Math.max(-95, Math.min(300, (close / px - 1) * 100)));
+      }
+      fwd.set(b.k, agg);
+    }
+    const mean = (xs: number[]) => (xs.length ? xs.reduce((a, c) => a + c, 0) / xs.length : null);
     // Role + primary company + top holdings (latest reported post-holdings × live price).
     const detail = await this.q<any[]>(
       `SELECT DISTINCT ON (k, ticker) k, ticker, company, role, post * COALESCE(live, 0) AS value, d
@@ -193,10 +240,10 @@ export class UnifiedService {
 
     const grades = this.grade(rows.map((r) => ({
       key: r.k,
-      qualifies: Number(r.trades) >= BADGE_CONFIG.minTrades && Number(r.priced_buys) >= 5,
+      qualifies: Number(r.trades) >= BADGE_CONFIG.minTrades && ((fwd.get(r.k)?.r12.length || 0) >= 5 || (fwd.get(r.k)?.r6.length || 0) >= 5),
       parts: [
-        [r.avg_ret_12m != null ? Number(r.avg_ret_12m) : r.avg_ret_all != null ? Number(r.avg_ret_all) : null, CORPORATE_WEIGHTS.avgReturn],
-        [Number(r.priced_buys) > 0 ? (Number(r.wins) / Number(r.priced_buys)) * 100 : null, CORPORATE_WEIGHTS.winRate],
+        [fwdAvg(fwd.get(r.k)), CORPORATE_WEIGHTS.avgReturn],
+        [fwdWin(fwd.get(r.k)) ?? (Number(r.priced_buys) > 0 ? (Number(r.wins) / Number(r.priced_buys)) * 100 : null), CORPORATE_WEIGHTS.winRate],
         [r.avg_buy_dollars != null ? Math.log10(Math.max(1, Number(r.avg_buy_dollars))) : null, CORPORATE_WEIGHTS.conviction],
         [Number(r.trades), CORPORATE_WEIGHTS.sample],
       ],
@@ -210,8 +257,11 @@ export class UnifiedService {
       const primary = hold[0]?.ticker || roleRow?.ticker || null;
       const g = grades.get(r.k) || null;
       const l10 = await this.last10.get('insider', r.name);
-      const qualifies = Number(r.trades) >= BADGE_CONFIG.minTrades && Number(r.priced_buys) >= 5;
-      const winRate = Number(r.priced_buys) > 0 ? (Number(r.wins) / Number(r.priced_buys)) * 100 : null;
+      const f = fwd.get(r.k);
+      const qualifies = Number(r.trades) >= BADGE_CONFIG.minTrades && ((f?.r12.length || 0) >= 5 || (f?.r6.length || 0) >= 5);
+      const avg12 = f && f.r12.length ? mean(f.r12) : null;
+      const avg6 = f && f.r6.length ? mean(f.r6) : null;
+      const winRate = fwdWin(f) ?? (Number(r.priced_buys) > 0 ? (Number(r.wins) / Number(r.priced_buys)) * 100 : null);
       cards.push({
         type: 'corporate',
         key: r.name,
@@ -222,12 +272,20 @@ export class UnifiedService {
         grade: g?.grade || null,
         gradePct: g?.pct ?? null,
         building: !qualifies,
-        sampleNote: qualifies ? `${r.trades} Form 4 trades · ${r.priced_buys} buys priced` : `${r.trades} of 20 trades needed for a grade`,
+        sampleNote: qualifies
+          ? `${r.trades} Form 4 trades · ${f?.r12.length || 0} buys scored at 12m`
+          : Number(r.trades) < BADGE_CONFIG.minTrades
+            ? `${r.trades} of 20 trades needed for a grade`
+            : 'Fewer than 5 buys old enough to score at 6 months',
         headline: {
-          label: 'Avg return per buy (12m)',
-          pct: r.avg_ret_12m != null ? Number(r.avg_ret_12m) : null,
+          label: avg12 != null ? 'Avg return per buy (12m)' : 'Avg return per buy (6m)',
+          pct: avg12 ?? avg6,
           est: false,
-          sub: winRate != null ? `${Math.round(winRate)}% of buys up · ${r.buys} buys on record` : null,
+          sub: [
+            winRate != null ? `${Math.round(winRate)}% of buys up` : null,
+            avg12 != null && avg6 != null ? `${avg6 >= 0 ? '+' : ''}${avg6.toFixed(1)}% at 6m` : null,
+            `${r.buys} buys on record`,
+          ].filter(Boolean).join(' · '),
         },
         last10: (l10?.items || []).map((i) => ({ side: i.side === 'BUY' ? 'buy' : 'sell', ret: i.returnPct })),
         topHoldings: hold.slice(0, 3).map((h) => ({ ticker: h.ticker, name: h.name })),
@@ -377,6 +435,35 @@ export class UnifiedService {
         'Grades are percentile ranks within each insider type, on that type’s own data: Form 4 trades for corporate insiders, reconstructed STOCK Act disclosures (estimates) for Congress, 13F filings (quarter-end approximations) for funds. Return figures are not comparable across types; the grade is.',
     };
   }
+}
+
+/** Last close on or before `ms` from an ascending series. */
+function closeOnOrBefore(series: Series, ms: number): number | null {
+  let lo = 0;
+  let hi = series.t.length - 1;
+  let best = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (series.t[mid] <= ms) {
+      best = mid;
+      lo = mid + 1;
+    } else hi = mid - 1;
+  }
+  // A close more than 10 days older than the target is a gap, not a price.
+  if (best < 0 || ms - series.t[best] > 10 * 86_400_000) return null;
+  return series.c[best];
+}
+
+function fwdAvg(f: { r6: number[]; r12: number[] } | undefined): number | null {
+  if (!f) return null;
+  const xs = f.r12.length >= 5 ? f.r12 : f.r6;
+  return xs.length ? xs.reduce((a, c) => a + c, 0) / xs.length : null;
+}
+
+function fwdWin(f: { r6: number[]; r12: number[] } | undefined): number | null {
+  if (!f) return null;
+  const xs = f.r12.length >= 5 ? f.r12 : f.r6;
+  return xs.length ? (xs.filter((x) => x > 0).length / xs.length) * 100 : null;
 }
 
 function fmtMoney(v: number): string {
