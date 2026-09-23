@@ -130,10 +130,19 @@ export class TrackerVerificationService {
       else ambiguous.add(key);
     }
 
+    // Only rows the vendor supplied are reconciled against the vendor.
+    //
+    // The pre-2017 House record comes from the Clerk's own PDFs, which FMP
+    // has never carried, so re-reading FMP and not finding them says nothing
+    // about whether they are right. Left in, they flagged 1,282 perfectly
+    // good rows as "missing at source" on the first production pass. They are
+    // also settled history: a filing from 2015 does not get amended.
     const stored = await this.q<any[]>(
       `SELECT id, ticker, to_char(transaction_date,'YYYY-MM-DD') AS date, raw_type, owner, amount_min, amount_max,
               to_char(disclosure_date,'YYYY-MM-DD') AS disclosed, source_url
-       FROM wt_trades WHERE bioguide = $1`,
+       FROM wt_trades
+       WHERE bioguide = $1
+         AND (source_url IS NULL OR source_url NOT LIKE '%disclosures-clerk.house.gov%')`,
       [bioguide],
     );
 
