@@ -15,6 +15,7 @@ import Link from "next/link";
 import { ArrowLeft, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
+import { LastTenStrip } from "@/components/wealth-tracker/LastTenStrip";
 import { DataTable, type Column } from "@/components/DataTable";
 import { ComplianceFooter } from "@/components/ComplianceFooter";
 import { fmtMoneyShort } from "@/components/investors/InvestorCard";
@@ -274,6 +275,9 @@ export default function InvestorDetailPage({ params }: { params: Promise<{ slug:
           </p>
         )}
       </header>
+
+      {/* Brief v7 Build 2: the latest quarter's position changes as trades (13F approximation). */}
+      <LastTenStrip type="investor" subjectKey={slug} title="Last 10 position changes" />
 
       {/* Performance chart (§4.3) */}
       {d.legs.length > 0 && (

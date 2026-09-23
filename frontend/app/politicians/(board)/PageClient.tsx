@@ -10,6 +10,7 @@ import { PoliticianAvatar } from "@/components/PoliticianAvatar";
 import { usePremium } from "@/components/premium/PremiumContext";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 import { BadgeChips, GradeChip } from "@/components/wealth-tracker/Badges";
+import { TenDots } from "@/components/wealth-tracker/LastTenStrip";
 import { VIEWS, partyMeta, pct, signedMoney } from "@/components/wealth-tracker/types";
 import type { WtLeaderboard, WtLeaderboardRow } from "@/components/wealth-tracker/types";
 
@@ -178,9 +179,10 @@ export default function WealthTrackerPage() {
                 {r.member.state ? ` · ${r.member.state}` : ""}
                 {r.member.age != null ? ` · ${r.member.age}` : ""}
               </span>
-              {r.stats.badges.length ? (
-                <span className="block mt-1">
-                  <BadgeChips badges={r.stats.badges} meta={data?.badgeMeta} max={3} />
+              {r.stats.badges.length || r.stats.last10?.length ? (
+                <span className="flex items-center gap-2 mt-1 flex-wrap">
+                  {r.stats.last10?.length ? <TenDots dots={r.stats.last10} size={7} title="Last 10 trades, newest first" /> : null}
+                  {r.stats.badges.length ? <BadgeChips badges={r.stats.badges} meta={data?.badgeMeta} max={3} /> : null}
                 </span>
               ) : null}
             </span>

@@ -45,6 +45,8 @@ export interface WtStats {
   badges: BadgeKey[];
   topHoldings: Array<{ ticker: string; name: string; value: number }>;
   unpricedBuys: number;
+  /** Ten most recent trades as dots (Build 2): side + return so far on buys. */
+  last10: Array<{ side: "buy" | "sell"; ret: number | null; ticker: string; date: string }>;
   computedAt: string;
 }
 

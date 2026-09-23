@@ -1,4 +1,5 @@
 "use client";
+import { TickerLastTen } from "@/components/wealth-tracker/LastTenStrip";
 import { use, useMemo, useState, useRef, useEffect } from "react";
 import useSWR from "swr";
 import Link from "next/link";
@@ -371,6 +372,9 @@ export default function CompanyPage({
                     </span>
                   </div>
                 )}
+
+                {/* Brief v7 §3: recent insider + congressional trades in this ticker. */}
+                <TickerLastTen ticker={sym} />
 
                 <div className="card overflow-hidden">
                   <div className="overflow-x-auto">

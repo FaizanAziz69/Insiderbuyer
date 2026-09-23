@@ -16,9 +16,15 @@ import { ssrFallback } from "@/lib/ssr/prefetch";
 export async function generateMetadata(props: { params: Promise<{ name: string }> }) {
   const { name } = await props.params;
   const who = decodeURIComponent(name);
+  const title = `${who}: Stock Trades, Disclosed Holdings & Portfolio Growth (est.) | InsiderBuying.com`;
+  const description = `Every disclosed stock trade by ${who}, the portfolio rebuilt from those filings, estimated cost per holding, returns against the S&P 500, hit rate and badges.`;
+  // The share card is the last-10-trades strip (Brief v7 §3 "social pipeline").
+  const image = `https://insiderbuying.com/api/og/last10?type=congress&key=${encodeURIComponent(who)}`;
   return {
-    title: `${who}: Stock Trades, Disclosed Holdings & Portfolio Growth (est.) | InsiderBuying.com`,
-    description: `Every disclosed stock trade by ${who}, the portfolio rebuilt from those filings, estimated cost per holding, returns against the S&P 500, hit rate and badges.`,
+    title,
+    description,
+    openGraph: { title, description, images: [{ url: image, width: 1200, height: 630 }] },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
 

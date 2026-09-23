@@ -20,6 +20,7 @@ import {
 } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataTable, Column } from "@/components/DataTable";
+import { LastTenStrip } from "@/components/wealth-tracker/LastTenStrip";
 import { VolumeByYear, SectorDonut } from "@/components/charts/ProfileCharts";
 
 interface TradeRow {
@@ -289,6 +290,9 @@ export default function InsiderProfilePage({
           accent={s.avgBuyReturnPct != null ? (s.avgBuyReturnPct >= 0 ? "#10B981" : "#EF4444") : undefined}
         />
       </div>
+
+      {/* Brief v7 Build 2: the ten most recent Form 4 trades, exact as filed. */}
+      <LastTenStrip type="insider" subjectKey={decoded} />
 
       {/* Best trade + last active */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

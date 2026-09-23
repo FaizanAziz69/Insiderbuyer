@@ -13,6 +13,7 @@
 import Link from "next/link";
 import { TrendingDown, TrendingUp, Minus, Sparkles } from "lucide-react";
 import { CompanyLogo } from "@/components/CompanyLogo";
+import { LastTenStrip } from "@/components/wealth-tracker/LastTenStrip";
 
 export interface InvestorCardData {
   slug: string;
@@ -52,7 +53,7 @@ export function InvestorCard({ c }: { c: InvestorCardData }) {
   const overlapValue = c.overlap.reduce((a, o) => a + o.insiderBought, 0);
 
   return (
-    <article className="card p-4 flex flex-col gap-3 relative" style={{ minHeight: 232 }}>
+    <article className="card p-4 flex flex-col gap-3 relative" style={{ minHeight: 248 }}>
       {c.overlap.length > 0 && (
         <Link
           href={`/investors/${c.slug}#overlap`}
@@ -114,6 +115,11 @@ export function InvestorCard({ c }: { c: InvestorCardData }) {
             13F · {c.asOf}
           </span>
         )}
+      </div>
+
+      {/* Brief v7 §4.1: the condensed ten-dot strip on every card. */}
+      <div className="flex items-center gap-2 text-[11px]" style={{ color: "var(--text-mute)" }}>
+        <LastTenStrip type="investor" subjectKey={c.slug} variant="dots" />
       </div>
 
       {c.topHoldings.length > 0 ? (

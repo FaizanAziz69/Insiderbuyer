@@ -12,6 +12,7 @@ import { getAuthToken } from "@/lib/auth";
 import { BadgeChips, GradeChip } from "@/components/wealth-tracker/Badges";
 import { GrowthChart, Tile } from "@/components/wealth-tracker/GrowthChart";
 import { HoldingsTable } from "@/components/wealth-tracker/HoldingsTable";
+import { LastTenStrip } from "@/components/wealth-tracker/LastTenStrip";
 import { pct } from "@/components/wealth-tracker/types";
 import type { WtMemberPayload } from "@/components/wealth-tracker/types";
 
@@ -329,6 +330,8 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
               {/* Brief v5 §4 per-politician module. It sits with the trades
                   because that is the record it is drawn from, and renders
                   nothing when this member has no verified rows. */}
+              {/* Brief v7 Build 2: the ten most recent disclosed trades. */}
+              <LastTenStrip type="congress" subjectKey={decoded} />
               <CongressProximityPanel name={p.name} />
               <section className="card p-4 sm:p-5">
                 <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-6">
