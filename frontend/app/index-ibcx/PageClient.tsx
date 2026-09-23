@@ -30,6 +30,9 @@ interface IndexPayload {
   constituents: Array<{ symbol: string; weight: number; sector: string | null; sleeves: string[] }>;
   asOf: string | null;
   disclaimer: string;
+  liveFrom: string | null;
+  reconstructed: boolean;
+  hypotheticalNote: string;
 }
 
 const SLEEVE_LABEL: Record<string, string> = {
@@ -83,6 +86,14 @@ export default function IbcxPage() {
             <Tile label="Constituents" value={String(data.constituents.length)} />
             <Tile label="As of" value={data.asOf ? formatDate(data.asOf) : "—"} />
           </div>
+
+          {data.reconstructed ? (
+            <p className="rounded-lg px-3.5 py-2.5 text-[12.5px] leading-relaxed"
+              style={{ background: "var(--bg-2)", border: "1px solid var(--border)", color: "var(--text-soft)" }}>
+              <strong>Reconstructed history.</strong> {data.hypotheticalNote}
+              {data.liveFrom ? ` Levels from ${data.liveFrom} onward are published as the engine runs.` : ""}
+            </p>
+          ) : null}
 
           {curve.length > 1 ? (
             <section className="card p-4 sm:p-5">

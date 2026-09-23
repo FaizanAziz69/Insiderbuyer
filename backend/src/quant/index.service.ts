@@ -114,12 +114,26 @@ export class IndexService {
     );
     const first = series[0];
     const level = latest ? Number(latest.level) : null;
+    // Anything dated well before the snapshot that produced it is a
+    // reconstruction: the rules applied after the fact to point-in-time data,
+    // not a level we published at the time. §10 requires that distinction to
+    // be explicit and such figures labelled hypothetical pending counsel, so
+    // the payload carries the boundary rather than leaving the page to infer it.
+    const liveRows = await this.q<Array<{ d: string | null }>>(
+      `SELECT to_char(min(as_of),'YYYY-MM-DD') AS d FROM quant_snapshots
+       WHERE created_at <= (as_of + interval '3 days')`,
+    );
+    const liveFrom: string | null = liveRows[0]?.d || null;
     return {
       indexId: 'IBCX',
       name: 'InsiderBuying Conviction Index',
       level,
       inception: first?.as_of || null,
       sinceInception: first && level ? Math.round((level / Number(first.level) - 1) * 1e4) / 1e4 : null,
+      liveFrom,
+      reconstructed: !liveFrom || (first ? first.as_of < liveFrom : true),
+      hypotheticalNote:
+        'Levels dated before this index began publishing are a reconstruction: the same rules applied after the fact to point-in-time data — the filings and statements that were public on each date, and the universe as it was listed then, including companies later delisted. No allowance is made for trading costs, and no money was managed to these levels. Treat reconstructed figures as hypothetical.',
       series: series.map((r) => ({ date: r.as_of, level: Number(r.level), reconstituted: r.reconstituted })),
       constituents: latest?.constituents || [],
       asOf: latest?.as_of || null,
