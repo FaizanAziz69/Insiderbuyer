@@ -149,8 +149,11 @@ export class UnifiedService {
                 count(*) FILTER (WHERE code = 'P') AS buys,
                 count(*) FILTER (WHERE code = 'P' AND d >= current_date - ${CORPORATE_LOOKBACK_DAYS}) AS buys_recent,
                 count(*) FILTER (WHERE d >= current_date - 365) AS trades_12m,
-                avg(CASE WHEN code = 'P' AND live > 0 AND px > 0 AND d >= current_date - 365 THEN (live - px) / px * 100 END) AS avg_ret_12m,
-                avg(CASE WHEN code = 'P' AND live > 0 AND px > 0 THEN (live - px) / px * 100 END) AS avg_ret_all,
+                -- Per-buy returns are clamped to [-95%, +300%]: a filed price in a
+                -- different share class (ordinary vs ADS) or a bad print would
+                -- otherwise hand the board to one row.
+                avg(CASE WHEN code = 'P' AND live > 0 AND px > 0 AND d >= current_date - 365 THEN least(greatest((live - px) / px * 100, -95), 300) END) AS avg_ret_12m,
+                avg(CASE WHEN code = 'P' AND live > 0 AND px > 0 THEN least(greatest((live - px) / px * 100, -95), 300) END) AS avg_ret_all,
                 count(*) FILTER (WHERE code = 'P' AND live > 0 AND px > 0) AS priced_buys,
                 count(*) FILTER (WHERE code = 'P' AND live > 0 AND px > 0 AND live > px) AS wins,
                 avg(CASE WHEN code = 'P' THEN dollars END) AS avg_buy_dollars,
@@ -353,7 +356,9 @@ export class UnifiedService {
       params.push(JSON.stringify([opts.category]));
       where.push(`categories @> $${params.length}::jsonb`);
     }
-    if (opts.sort === 'performance') where.push('headline_pct IS NOT NULL');
+    // Best Performance ranks graded profiles only (the §4.3 suppression rule):
+    // an ungraded three-trade record is not a performance.
+    if (opts.sort === 'performance') where.push('headline_pct IS NOT NULL AND grade IS NOT NULL');
     const order =
       opts.sort === 'performance' ? 'headline_pct DESC' : opts.sort === 'active' ? 'activity_12m DESC, grade_pct DESC NULLS LAST' : 'grade_pct DESC NULLS LAST, weight DESC';
     const rows = await this.q<any[]>(
