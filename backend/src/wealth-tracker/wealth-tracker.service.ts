@@ -12,7 +12,7 @@ import {
   midpoint, reconstruct, thinCurve, trailingBenchmark, trailingReturn, CurvePoint,
 } from './reconstruction';
 import {
-  awardBadges, gradeCongress, BadgeKey, Grade, BADGE_CONFIG, BADGE_META, STANDING_FRAME, ESTIMATE_NOTE,
+  awardBadges, gradeCongress, BadgeKey, Grade, BADGE_CONFIG, BADGE_META, MIN_TRACKED_DAYS, STANDING_FRAME, ESTIMATE_NOTE,
 } from './badges';
 
 /**
@@ -440,7 +440,19 @@ export class WealthTrackerService {
     }
 
     // Grades and badges need the whole field.
-    const grades = gradeCongress(stats.map((s) => ({ key: s.bioguide, qualifies: s.qualifies, retAll: s.ret_all, hitRate: s.hit_rate, trades12m: s.trades_12m, avgLagDays: s.avg_lag_days })));
+    // §4.3 roster governance: a member earns a grade from their add-date
+    // forward. `added_at` is written once and never rewritten, so this is a
+    // real floor rather than a restatement of "today".
+    const addedAt = new Map(members.map((m) => [m.bioguide, m.added_at ? new Date(m.added_at).getTime() : null]));
+    const trackedLongEnough = (bioguide: string): boolean => {
+      const t = addedAt.get(bioguide);
+      if (t == null) return true;
+      return Date.now() - t >= MIN_TRACKED_DAYS * DAY;
+    };
+    const grades = gradeCongress(stats.map((s) => ({
+      key: s.bioguide, qualifies: s.qualifies, retAll: s.ret_all, hitRate: s.hit_rate,
+      trades12m: s.trades_12m, avgLagDays: s.avg_lag_days, trackedLongEnough: trackedLongEnough(s.bioguide),
+    })));
     for (const s of stats) {
       const g = grades.get(s.bioguide);
       s.grade = g?.grade || null;
@@ -449,6 +461,7 @@ export class WealthTrackerService {
     const badges = awardBadges(stats.map((s) => ({
       key: s.bioguide, qualifies: s.qualifies, retAll: s.ret_all, ret90d: s.ret_90d, hitRate: s.hit_rate, hitSample: s.hit_sample,
       trades12m: s.trades_12m, tradesTotal: s.trades_total, avgLagDays: s.avg_lag_days, grade: s.grade,
+      trackedLongEnough: trackedLongEnough(s.bioguide),
     })));
     for (const s of stats) s.badges = badges.get(s.bioguide) || [];
 
@@ -533,6 +546,7 @@ export class WealthTrackerService {
       holdings: Number(r.holdings) || 0,
       qualifies: !!r.qualifies,
       grade: r.grade || null,
+      trackedLongEnough: r.tracked_long_enough == null ? true : !!r.tracked_long_enough,
       badges: (r.badges || []) as BadgeKey[],
       topHoldings: r.top_holdings || [],
       unpricedBuys: Number(r.unpriced_buys) || 0,

@@ -169,6 +169,18 @@ check('fast filer under 15 days', badges.get('m39')!.includes('FAST_FILER'), tru
 check('gold grade rides on A/A+', badges.get('m29')!.includes('GOLD_GRADE'), true);
 check('m0 has no badges', badges.get('m0') || [], []);
 
+// §4.3 roster governance: nothing is earned before the add-date.
+const fresh = field.map((r) => ({ ...r, trackedLongEnough: false }));
+check('a member inside their tracking window gets no grade', gradeCongress(fresh).size, 0);
+check('and no badges', awardBadges(fresh.map((r) => ({ ...r, ret90d: r.retAll }))).size, 0);
+const mixed = field.map((r, i) => ({ ...r, trackedLongEnough: i !== 29 }));
+const mixedGrades = gradeCongress(mixed);
+check('a newly added member does not take a graded slot', mixedGrades.has('m29'), false);
+check('while the rest are still graded', mixedGrades.size, 29);
+const mixedBadges = awardBadges(mixed.map((r) => ({ ...r, ret90d: r.retAll })));
+check('nor a top-ten badge slot', (mixedBadges.get('m29') || []).length, 0);
+check('and the slot goes to the next eligible member', (mixedBadges.get('m28') || []).includes('TOP_PERFORMER'), true);
+
 // ── ingestion shape ──────────────────────────────────────────────────────
 const raw = { symbol: 'INTC', senateID: 'P000197', disclosureDate: '2026-08-24', transactionDate: '2026-07-24', firstName: 'Nancy', lastName: 'Pelosi', owner: 'Spouse', assetDescription: 'Intel Corporation - Common Stock', assetType: 'Stock', type: 'Purchase', amount: '$500,001 - $1,000,000', link: 'https://x' };
 const row = normaliseRow(raw, 'P000197')!;

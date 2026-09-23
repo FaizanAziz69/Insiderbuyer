@@ -115,11 +115,25 @@ export interface GradeInput {
   hitRate: number | null;
   trades12m: number;
   avgLagDays: number | null;
+  /**
+   * Roster governance (Brief v7 §4.3): "Grades and badges recompute nightly
+   * from add-date forward only; no retroactive backfill when someone is
+   * added". False while a member has not yet been tracked for the minimum
+   * period, so a profile added yesterday cannot appear with a grade earned on
+   * history we were not watching.
+   */
+  trackedLongEnough?: boolean;
 }
+
+/**
+ * Minimum days on the roster before a member can carry a grade. The rule is
+ * the brief's: ranks are earned from the add-date forward, never backfilled.
+ */
+export const MIN_TRACKED_DAYS = 30;
 
 /** Composite percentile per member; ungraded members come back null. */
 export function gradeCongress(rows: GradeInput[]): Map<string, { grade: Grade; percentile: number }> {
-  const graded = rows.filter((r) => r.qualifies && r.retAll != null);
+  const graded = rows.filter((r) => r.qualifies && r.retAll != null && r.trackedLongEnough !== false);
   const pRet = percentileRanks(graded.map((r) => r.retAll));
   const pHit = percentileRanks(graded.map((r) => r.hitRate));
   const pAct = percentileRanks(graded.map((r) => r.trades12m));
@@ -152,6 +166,8 @@ export function gradeCongress(rows: GradeInput[]): Map<string, { grade: Grade; p
 export interface BadgeInput {
   key: string;
   qualifies: boolean;
+  /** Same governance rule as the grade: no badge before the add-date. */
+  trackedLongEnough?: boolean;
   retAll: number | null;
   ret90d: number | null;
   hitRate: number | null;
@@ -163,7 +179,11 @@ export interface BadgeInput {
 }
 
 /** Award every badge across the population at once (ranks need the whole field). */
-export function awardBadges(rows: BadgeInput[], cfg = BADGE_CONFIG): Map<string, BadgeKey[]> {
+export function awardBadges(rowsIn: BadgeInput[], cfg = BADGE_CONFIG): Map<string, BadgeKey[]> {
+  // A member still inside their tracking window is excluded from the field
+  // entirely, not merely denied a badge: leaving them in would let them take
+  // a top-ten slot from someone who earned it on tracked history.
+  const rows = rowsIn.filter((r) => r.trackedLongEnough !== false);
   const out = new Map<string, BadgeKey[]>();
   const give = (k: string, b: BadgeKey) => {
     const arr = out.get(k) || [];

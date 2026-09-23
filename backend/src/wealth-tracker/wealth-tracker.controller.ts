@@ -1,4 +1,4 @@
-import { Controller, Get, Header, Headers, NotFoundException, Param, Post, Query, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Header, Headers, NotFoundException, Param, Post, Query, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { Response } from 'express';
@@ -11,6 +11,8 @@ import { AgeBracket } from './roster.service';
 import { Last10Service, Last10Type } from './last10.service';
 import { UnifiedService, UnifiedType } from './unified.service';
 import { HouseArchiveService } from './house-archive.service';
+import { TrackerVerificationService } from './verification.service';
+import { FilingAlertsService } from './filing-alerts.service';
 
 /**
  * Public reads are cached materialisations; the only computation a request
@@ -26,10 +28,20 @@ export class WealthTrackerController {
     private readonly last10: Last10Service,
     private readonly unified: UnifiedService,
     private readonly houseArchive: HouseArchiveService,
+    private readonly verification: TrackerVerificationService,
+    private readonly alerts: FilingAlertsService,
     private readonly auth: AuthService,
     private readonly billing: BillingService,
     @InjectRepository(User) private readonly users: Repository<User>,
   ) {}
+
+  /** The signed-in user's id, or null. Follows are per-account, not per-email. */
+  private async userIdFrom(authHeader?: string): Promise<string | null> {
+    const m = (authHeader || '').match(/^Bearer\s+(.+)$/i);
+    if (!m) return null;
+    const payload = this.auth.verifyToken(m[1].trim());
+    return payload?.sub || null;
+  }
 
   private async isPremium(authHeader?: string): Promise<boolean> {
     const m = (authHeader || '').match(/^Bearer\s+(.+)$/i);
@@ -155,6 +167,56 @@ export class WealthTrackerController {
       .map((y) => Number(y.trim()))
       .filter((y) => Number.isFinite(y) && y > 2000);
     return this.houseArchive.load({ years: list.length ? list : undefined });
+  }
+
+  // ── Stage 5 verification (§5) ────────────────────────────────────────
+
+  /** The correction record is public: §5 makes corrections append-only, and
+   *  a correction nobody can read is not a correction. */
+  @Get('corrections')
+  @Header('Cache-Control', 'public, max-age=300')
+  corrections(@Query('limit') limit?: string, @Query('bioguide') bioguide?: string) {
+    return this.verification.corrections(limit ? Number(limit) : 100, bioguide);
+  }
+
+  @Get('verification/status')
+  verificationStatus() {
+    return this.verification.status();
+  }
+
+  @Post('admin/verify')
+  @UseGuards(AdminTokenGuard)
+  verify(@Query('limit') limit?: string, @Query('bioguide') bioguide?: string) {
+    return bioguide ? this.verification.verifyMember(bioguide) : this.verification.verify(limit ? Number(limit) : 12);
+  }
+
+  // ── Filing alerts (§5, Premium) ──────────────────────────────────────
+
+  @Get('follows')
+  async follows(@Headers('authorization') authHeader?: string) {
+    const userId = await this.userIdFrom(authHeader);
+    if (!userId) return { following: [] };
+    return { following: await this.alerts.following(userId) };
+  }
+
+  @Post('follows')
+  async followMember(@Body() body: { bioguide: string; follow?: boolean }, @Headers('authorization') authHeader?: string) {
+    const userId = await this.userIdFrom(authHeader);
+    if (!userId) throw new UnauthorizedException('Sign in to follow a member.');
+    return body.follow === false
+      ? this.alerts.unfollow(userId, body.bioguide)
+      : this.alerts.follow(userId, body.bioguide);
+  }
+
+  @Post('admin/dispatch-alerts')
+  @UseGuards(AdminTokenGuard)
+  dispatchAlerts(@Query('dryRun') dryRun?: string, @Query('days') days?: string) {
+    return this.alerts.dispatch({ dryRun: dryRun === '1', lookbackDays: days ? Number(days) : undefined });
+  }
+
+  @Get('alerts/status')
+  alertsStatus() {
+    return this.alerts.status();
   }
 
   @Get('status')
