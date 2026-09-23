@@ -69,6 +69,19 @@ function band(min: number | null, max: number | null): string {
   return f((min ?? max) as number);
 }
 
+/** Options, bonds and the like are counted as activity but never priced, so
+ *  the chip says what it is instead of showing a blank return. */
+function classTag(assetClass: string | null | undefined): string {
+  switch (assetClass) {
+    case 'option': return ' · option';
+    case 'bond': return ' · bond';
+    case 'fund': return ' · fund';
+    case 'crypto': return ' · crypto';
+    case 'other': return ' · other asset';
+    default: return '';
+  }
+}
+
 function summarise(items: Last10Item[], precision: Precision) {
   const buys = items.filter((i) => i.side === 'BUY' && i.returnPct != null);
   const up = buys.filter((i) => (i.returnPct as number) > 0).length;
@@ -139,7 +152,7 @@ export class Last10Service {
     const m = (await this.q<any[]>(`SELECT bioguide, name, fmp_name, photo_url FROM wt_members WHERE bioguide = $1`, [bioguide]))[0];
     if (!m) return null;
     const rows = await this.q<any[]>(
-      `SELECT t.id, t.ticker, t.asset_description, t.side, t.amount_min, t.amount_max, to_char(t.transaction_date,'YYYY-MM-DD') AS date, t.source_url,
+      `SELECT t.id, t.ticker, t.asset_description, t.asset_class, t.side, t.amount_min, t.amount_max, to_char(t.transaction_date,'YYYY-MM-DD') AS date, t.source_url,
               l.shares, l.cost_per_share, l.remaining, l.sold_proceeds
        FROM wt_trades t LEFT JOIN wt_lots l ON l.trade_id = t.id
        WHERE t.bioguide = $1 AND t.side IN ('buy','sell')
@@ -170,7 +183,7 @@ export class Last10Service {
         ticker,
         name: r.asset_description || ticker || '',
         side: isBuy ? 'BUY' : 'SELL',
-        sizeLabel: band(r.amount_min != null ? Number(r.amount_min) : null, r.amount_max != null ? Number(r.amount_max) : null),
+        sizeLabel: band(r.amount_min != null ? Number(r.amount_min) : null, r.amount_max != null ? Number(r.amount_max) : null) + classTag(r.asset_class),
         sizeValue: r.amount_min != null && r.amount_max != null ? (Number(r.amount_min) + Number(r.amount_max)) / 2 : null,
         price,
         priceNow,
@@ -306,7 +319,7 @@ export class Last10Service {
       [ticker],
     );
     const ptr = await this.q<any[]>(
-      `SELECT t.side, t.amount_min, t.amount_max, to_char(t.transaction_date,'YYYY-MM-DD') AS date, t.source_url, t.asset_description,
+      `SELECT t.side, t.asset_class, t.amount_min, t.amount_max, to_char(t.transaction_date,'YYYY-MM-DD') AS date, t.source_url, t.asset_description,
               m.name, m.fmp_name, l.shares, l.cost_per_share, l.remaining, l.sold_proceeds
        FROM wt_trades t JOIN wt_members m ON m.bioguide = t.bioguide LEFT JOIN wt_lots l ON l.trade_id = t.id
        WHERE t.ticker = $1 AND t.side IN ('buy','sell') ORDER BY t.transaction_date DESC LIMIT 10`,
@@ -338,7 +351,7 @@ export class Last10Service {
       const who = r.fmp_name || r.name;
       items.push({
         date: r.date, ticker, name: r.asset_description || ticker, side: isBuy ? 'BUY' : 'SELL',
-        sizeLabel: `${band(r.amount_min != null ? Number(r.amount_min) : null, r.amount_max != null ? Number(r.amount_max) : null)} (est.)`,
+        sizeLabel: `${band(r.amount_min != null ? Number(r.amount_min) : null, r.amount_max != null ? Number(r.amount_max) : null)}${classTag(r.asset_class)} (est.)`,
         sizeValue: r.amount_min != null && r.amount_max != null ? (Number(r.amount_min) + Number(r.amount_max)) / 2 : null,
         price: r.cost_per_share != null ? Number(r.cost_per_share) : null, priceNow: live, returnPct, realized, url: r.source_url || null,
         who, kind: 'congress', href: `/politicians/${encodeURIComponent(who)}`,
