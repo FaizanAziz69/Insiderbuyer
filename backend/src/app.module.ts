@@ -8,6 +8,8 @@ import { InsiderTransaction } from './entities/insider-transaction.entity';
 import { IqsScore } from './entities/iqs-score.entity';
 import { ProcessedFiling } from './entities/processed-filing.entity';
 import { CongressionalTransaction } from './entities/congressional-transaction.entity';
+import { CqsScore } from './entities/cqs-score.entity';
+import { CqsModule } from './cqs/cqs.module';
 import { Subscriber } from './entities/subscriber.entity';
 import { BlogPost } from './entities/blog-post.entity';
 import { StoryPitch } from './entities/story-pitch.entity';
@@ -134,6 +136,7 @@ import {
           IqsScore,
           ProcessedFiling,
           CongressionalTransaction,
+          CqsScore,
           Subscriber,
           PressOrder,
           SiteBanner,
@@ -243,6 +246,7 @@ import {
     CongressTradesModule,
     WealthTrackerModule,
     QuantModule,
+    CqsModule,
   ],
 })
 export class AppModule {}

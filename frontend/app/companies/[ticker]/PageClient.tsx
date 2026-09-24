@@ -54,6 +54,7 @@ import { ScoreWindowToggle } from "@/components/ScoreWindowToggle";
 import { useScoreWindow, windowParam } from "@/lib/score-window";
 import { PromoterPanel } from "@/components/company/PromoterPanel";
 import { CongressContractsPanel } from "@/components/company/CongressContractsPanel";
+import { CqsStockPanel } from "@/components/company/CqsStockPanel";
 import { CongressTradingCard, WhaleActivityCard, RevenueBreakdownCard, BullBearCard } from "@/components/stock/StockCivicGrid";
 import {
   StrategyBanner, InsiderNetSharesCard, LobbyingStackedCard, ContractsStackedCard,
@@ -286,6 +287,8 @@ export default function CompanyPage({
                     holding this stock sits on a committee overseeing the
                     agency that awarded it a contract. */}
                 <CongressContractsPanel ticker={sym} />
+                {/* Brief v9 CQS module: Congress Quality Score stock-level breakdown */}
+                <CqsStockPanel ticker={sym} />
                 <AboutQQ
                   ticker={sym}
                   name={data.company.name}

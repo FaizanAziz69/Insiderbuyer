@@ -1,0 +1,338 @@
+INSIDERBUYING.COM
+Developer Project Brief — v9
+Congress Quality Score (CQS) — Stock-Level Scoring, Ranking Methodology & Data Dictionary
+Field
+Detail
+Prepared for
+Faizan — Lead Developer
+Prepared by
+George, Founder & CEO, InsiderBuying Inc.
+Date
+September 23, 2026
+What it is
+The congressional counterpart to the Insider Quality Score: one 0–100 score per STOCK that measures how strong the congressional buying signal on that stock is right now. It powers a ranked index/table, the Congress bubbles visualizer, the gold-tier system, alerts, and the strategy library.
+Relationship to prior briefs
+CTS (Brief v5) scores one politician × one contract intersection — it becomes an input here. Brief v7 politician grades become the 'who is buying' quality input. CQS rolls everything up to the stock.
+Working name
+CQS — pairs with IQS so readers learn one system. George confirms.
+
+1. Qualification — which stocks get scored
+A stock enters the CQS universe only when at least one of the following fires inside a rolling 90-day window (on transaction date, using filings available at scoring time):
+	•	Size trigger: any single member purchase in a disclosure band whose lower bound is ≥ $100,001 (i.e., the $100,001–$250,000 band and above). PTRs report ranges, not amounts, so '$100k+' is implemented as a band floor — exact and auditable.
+	•	Cluster trigger: two or more distinct members (households) buying the same stock inside the window, any size ≥ $15,001.
+	•	Influence trigger: any purchase ≥ $15,001 by a member whose committee has jurisdiction over an agency that awarded the company a material contract (the CTS condition from Brief v5).
+Exclusions (noise filters): ETFs, mutual funds, Treasuries and municipal bonds; purchases the filing marks as made by a third-party manager or held in a blind/qualified trust (lower informational content — tracked, scored at 0.25x); dividend reinvestments; exchanges/rollovers. Sales are tracked and shown but contribute only lightly (§2, C8).
+2. The score — eight components
+CQS = Σ (component score × weight), each component normalized 0–100, then the total mapped to 0–100 with the adjustments in §3. Weights below are proposed starting values — final weights are set by the calibration protocol in §5, not by opinion.
+#
+Component
+What it measures
+Scoring logic (summary)
+Weight
+C1
+Cluster breadth
+How many distinct members are buying
+1 member = 0; 2 = 55; 3 = 80; 4+ = 100. Bonus +10 if cluster is BIPARTISAN (see §4)
+20%
+C2
+Position size
+How large the purchases are
+Band floor scale: $15k→10 · $50k→25 · $100k→50 · $250k→70 · $500k→85 · $1M+→100; summed across cluster, capped
+15%
+C3
+Committee influence
+Power over the company's agencies/sector
+Best member's jurisdiction relevance × role weight (chair 1.0 · ranking 0.85 · subcommittee chair 0.8 · member 0.5)
+15%
+C4
+Contract alignment
+Contracts awarded by agencies the members oversee
+Max CTS among the stock's intersections (Brief v5), scaled by award value ÷ company revenue
+15%
+C5
+Buyer track record
+Is this member historically right?
+Volume-weighted Brief v7 Performance Grade of the buyers (A+ = 100 … C = 20; ungraded = 40 neutral)
+12%
+C6
+Relative conviction
+Is this big FOR THIS MEMBER?
+Purchase band vs. the member's own median trade band + first-ever purchase of this stock bonus
+8%
+C7
+Freshness
+How recent the signal is
+Decays from transaction date: 100 at ≤ 14 days → 50 at 60 days → 0 at 120 days
+10%
+C8
+Net direction
+Are members also selling?
+Starts at 100; discretionary member sells of the same stock in-window subtract (buys outweigh sells ~3:1, mirroring IQS asymmetry)
+5%
+
+3. Signal amplifiers & dampeners (multipliers on the total)
+Adjustment
+Effect
+Why
+Insider overlap
+× 1.20 when corporate insiders are also net buyers (IQS ≥ 70) in the last 90 days
+Two independent informed groups agreeing is the strongest pattern we can observe
+Legislative catalyst
+× 1.10 when a buying member's committee has pending markup/hearing activity on legislation affecting the company's sector
+Captures 'favorable legislation', not just contracts
+Contrarian entry
+× 1.10 when buys occurred ≥ 20% below the 52-week high
+Buying weakness has carried more information than buying strength in insider research
+Liquidity normalization
+× 0.80 for mega-caps where the cluster's total is < 0.0001% of ADV
+A $250k buy means more in a $2B company than a $3T one
+Filing-lag dampener
+× 0.85 if all qualifying buys were disclosed ≥ 30 days after the trade
+A signal disclosed late is less actionable for our readers
+Late-filing flag
+Displayed, not scored: any filing past the 45-day STOCK Act deadline is flagged on the row
+Factual transparency; never a score input that implies wrongdoing
+
+Final CQS = min(100, weighted total × product of applicable multipliers). Grade bands match IQS for one visual language: 90+ A+ · 80–89 A · 70–79 B+ · 60–69 B · <60 C. A and above earns the gold-tier ring (paygated per the visualizer spec).
+4. What I added beyond your spec — and why each strengthens the signal
+Your three pillars — clustering, $100k+ positions, and committee-to-contract influence — are the core. I added seven things; each addresses a specific way congressional data produces false signals:
+	•	Buyer track record (C5). Treats a cluster of historically accurate traders differently from a cluster of historically poor ones. This is the idea that makes IQS work, transplanted; without it, every politician counts the same.
+	•	Relative conviction (C6). A $100k buy is routine for a member who always trades $250k blocks and exceptional for one whose median is $15k. Scoring against each member's own baseline catches genuine departures from habit. First-ever purchases score higher for the same reason.
+	•	Bipartisan cluster bonus. Same-party clusters can reflect shared ideology or the same advisers. Members of opposing parties independently buying the same stock is harder to explain by politics and more likely to reflect information about the business.
+	•	Freshness decay (C7). PTRs can arrive up to 45 days after the trade. A signal half-priced-in by the time it's public must score lower, or the index will be ranked by history rather than opportunity.
+	•	Insider overlap multiplier. Connects CQS to the IQS system you already own — the one piece of this index no competitor can replicate.
+	•	Legislative catalyst. Extends 'influence' from contracts to pending legislation in the members' committees — the second channel you named in the gold-tier brief.
+	•	Noise exclusions and managed-account discount. Removes the funds, bonds and third-party-managed trades that inflate most congress trackers' activity counts without carrying member decision-making.
+4.1 One caution that protects the whole index
+Quiver's September 2026 insider-strategy test found that naive cluster buying badly underperformed on the S&P 500. Clusters are not automatically signal. That is why cluster breadth is only 20% of CQS, why track record and relative conviction check who is in the cluster, and why every weight above is provisional until the calibration in §5 proves it earns its place. If calibration shows a component adds nothing, it is cut — the index is better with seven honest components than eight hopeful ones.
+5. Calibration & validation protocol
+	•	Weights and thresholds are fitted on a training window only (disclosure history through Dec 2023), using point-in-time data: a trade enters the score on its FILING date, never its transaction date. Anything else is lookahead.
+	•	Test: forward returns of CQS deciles at 1, 3, 6 and 12 months, measured from filing date, vs. sector-matched benchmarks. The score is valid only if higher deciles monotonically outperform lower deciles in the holdout (2024 → present), run once per Backtest Runbook v1.
+	•	Component ablation: each component removed in turn; any whose removal doesn't degrade holdout decile spread is dropped or down-weighted.
+	•	Publish the calibration summary on the methodology page (decile chart, labeled hypothetical). A score that openly shows its validation is a score allocators and journalists will cite.
+6. The CQS Index — full column set & data dictionary
+One row per qualifying stock. Columns grouped for UI sections; bold group names become column-group headers. Free vs. Premium marked.
+Group
+Column
+Definition / source
+Display
+Tier
+Identity
+Rank
+Position by CQS (ties: freshness)
+#
+Free
+
+Ticker · Company
+Security master
+Logo + name
+Free
+
+Sector · Industry
+GICS-equivalent classification
+Tag
+Free
+
+Exchange
+Listing venue
+Tag
+Free
+Market data
+Market cap
+Price × shares outstanding, daily
+$B/$M
+Free
+
+Current price
+Last close (intraday optional)
+$
+Free
+
+1D / 1M / YTD change
+Price change
+Green/red %
+Free
+
+52-week range position
+% below 52w high
+Mini bar
+Premium
+
+Avg daily $ volume
+20-day ADV
+$M
+Premium
+Scores
+CQS (0–100) + grade
+This methodology
+Score + A+…C badge; gold ring if ≥ A
+Free (grade) / Premium (number)
+
+Component breakdown
+C1–C8 + multipliers applied
+Stacked bar
+Premium
+
+IQS (insider score)
+Corporate insider score for the same stock
+Score chip
+Free
+
+CTS (best)
+Highest contract-alignment score (Brief v5)
+Score chip
+Premium
+
+Overlap flag
+Insider + congress both buying
+Icon
+Free
+Congress activity
+# buying members
+Distinct households, 90d
+Count
+Free
+
+Party mix
+R / D / I counts; bipartisan flag
+Colored dots
+Free
+
+Total est. buy value
+Sum of band midpoints (est.)
+$ (est.)
+Free
+
+Largest single buy band
+Highest disclosed band
+Band label
+Free
+
+Buy / sell count
+Member transactions in window
+B:S ratio
+Free
+
+Buyers (names)
+Members + portraits, linked to profiles
+Avatar stack
+Premium
+
+Buyer grades
+Brief v7 grades of each buyer
+Grade chips
+Premium
+Influence
+Relevant committees
+Committees with jurisdiction over the company's agencies/sector
+Tags
+Premium
+
+Highest role
+Chair / ranking / member
+Tag
+Premium
+
+Contracts (12m)
+Award count + total value from agencies under buyers' jurisdiction
+$ + count
+Premium
+
+Contract value ÷ revenue
+Materiality
+%
+Premium
+
+Legislative catalyst
+Pending committee activity affecting the sector
+Flag + link
+Premium
+Trade performance
+Trade ROI (per trade)
+(Current price − close on transaction date) ÷ close on transaction date
+GREEN if +, RED if −
+Free (top trade) / Premium (all)
+
+Avg cluster ROI
+Mean ROI across qualifying buys
+Green/red %
+Free
+
+Since-filing ROI
+Return from the FILING date — what a reader could actually have captured
+Green/red %
+Premium
+
+Est. $ P&L
+Band midpoint × ROI (est.)
+Green/red $ (est.)
+Premium
+Timing
+First / last buy date
+Transaction dates
+Date
+Free
+
+Last filing date
+Disclosure date
+Date
+Free
+
+Avg filing lag
+Days transaction → filing
+Days
+Premium
+
+Late-filing flag
+Any filing past 45 days
+Neutral icon
+Free
+
+Freshness
+C7 component value
+Fading dot
+Premium
+Evidence
+Filing links
+PTR source documents
+Links
+Free
+
+Verification status
+Stage 5 agent check + last verified time
+Check icon
+Free
+
+Two ROI columns on purpose: trade ROI (from the member's transaction date) shows how the member's call has done; since-filing ROI shows what a reader could realistically have captured after disclosure. Showing both is more honest — and more interesting — than showing only the flattering one.
+7. Surfaces
+	•	CQS Index page: the ranked table above, sortable on any column, filters for sector, market cap band, party mix, committee, overlap flag, grade, freshness.
+	•	Stock pages: CQS module next to IQS, with component bar and buyer list.
+	•	Congress bubbles: bubble size = total est. buy value; ring = gold tier (CQS ≥ A); portraits per Brief v1.
+	•	Alerts (Premium): new A-grade CQS, score jumps ≥ 15 points, overlap flag turning on.
+	•	Strategy library (Brief v8): add 'Top CQS' — top 10 by CQS, monthly — a test of this score in public.
+8. Legal frame (unchanged, enforced in templates)
+CQS measures the strength of a disclosed, lawful trading signal. It is never described as a measure of impropriety. Brief v5 rules apply verbatim: neutral verbs, banned-word list, estimates labeled, transaction vs. filing dates distinguished, Stage 5 verification and append-only corrections, counsel review before launch.
+9. Phasing & open items
+Phase
+Deliverable
+Acceptance
+P1
+Qualification + C1, C2, C7, C8 (no dependencies) + index table with market & ROI columns
+Band-floor logic audited on 20 random filings; ROI columns reproduce from price data
+P2
+C3–C6 + multipliers (needs Brief v5 CTS and v7 grades) + component breakdown
+Every score decomposes to its evidence
+P3
+Calibration run (§5), methodology page, alerts, strategy-library entry
+Holdout decile test run once and published; failing components removed
+
+Open item
+Owner
+Confirm name (CQS) and grade band cutoffs
+George
+Committee → sector/agency jurisdiction table (shared with Brief v5) — legislative-calendar source
+Faizan scopes, editorial populates
+Treatment of options trades inside PTRs (v1 proposal: calls count as buys at 1.25x, puts excluded)
+George approves
+
+End of brief. Questions to George. Companions: Briefs v5 (CTS, legal frame), v7 (politician grades), v8 (strategy library), Backtest Runbook v1.
