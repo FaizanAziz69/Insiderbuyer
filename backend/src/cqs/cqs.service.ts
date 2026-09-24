@@ -169,6 +169,15 @@ export class CqsService {
       computed++;
     }
 
+    // A stock that has fallen out of qualification must leave the board, not
+    // keep the row an earlier run wrote today. Without this, today's index
+    // serves the union of every run made today: the first recalculation after
+    // this fix left AMZN, MSB, SFM and TMO on the board, all of which had
+    // qualified only through the old influence trigger.
+    await this.q(
+      `DELETE FROM cqs_scores WHERE "asOfDate" = $1::date AND "windowDays" = $2 AND ticker <> ALL($3::text[])`,
+      [todayStr, WINDOW_DAYS, tickers],
+    );
     await this.q(`DELETE FROM cqs_scores WHERE "asOfDate" < $1::date - $2::int`, [
       todayStr,
       KEEP_DAYS,
