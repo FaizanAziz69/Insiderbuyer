@@ -176,6 +176,10 @@ interface Props<T> {
     /** Where the wall's button goes, when a subscription is not the answer. */
     ctaHref?: string;
     ctaLabel?: string;
+    /** Rows that exist behind the wall, when the API withheld them rather than
+     *  sending them to be hidden here. Without it the wall would count only
+     *  what it was handed and quote "7" for a 600-row board. */
+    total?: number;
   };
 }
 
@@ -667,7 +671,7 @@ export function DataTable<T>({
           ctaLabel={gate.ctaLabel}
           forceShow={gate.locked === true}
           label={gate.label}
-          total={sortedAll.length}
+          total={gate.total ?? sortedAll.length}
           bullets={gate.bullets}
         />
       )}

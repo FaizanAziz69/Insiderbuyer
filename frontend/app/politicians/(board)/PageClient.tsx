@@ -1,5 +1,5 @@
 "use client";
-import useSWR from "swr";
+import { usePremiumSWR } from "@/lib/premium-fetch";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Landmark, Lock } from "lucide-react";
@@ -101,7 +101,7 @@ export default function WealthTrackerPage() {
     if (former) sp.set("includeFormer", "1");
     return `${API_BASE}/wealth-tracker/leaderboard?${sp.toString()}`;
   }, [view, f, former, unlocked]);
-  const { data, isLoading } = useSWR<WtLeaderboard>(key, fetcher, { revalidateOnFocus: false });
+  const { data, isLoading } = usePremiumSWR<WtLeaderboard>(key, { revalidateOnFocus: false });
 
   const rows = useMemo(() => {
     const all = data?.rows || [];
@@ -362,6 +362,19 @@ export default function WealthTrackerPage() {
           rowKey={(r) => r.member.bioguide}
           initialSort={{ key: "rank", dir: "asc" }}
           empty={isLoading ? "Building the leaderboard…" : data?.membersTracked === 0 ? "The tracker has not run yet." : "No members match these filters."}
+          gate={{
+            label: "the Wealth Tracker",
+            // The API sends a guest the free window and nothing else, so the
+            // count behind the wall has to come from the payload, not from the
+            // rows in hand (George 2026-09-24: paygate the wealth tracker).
+            total: data?.total ?? data?.membersTracked,
+            bullets: [
+              "Every ranked member, not the top six",
+              "Disclosed portfolio growth, hit rate and benchmark gap for each",
+              "Age, activity, recency and return-band filters",
+              "Full holdings depth per member, and CSV export",
+            ],
+          }}
         />
       </div>
 

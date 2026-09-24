@@ -1,5 +1,5 @@
 "use client";
-import useSWR from "swr";
+import { usePremiumSWR } from "@/lib/premium-fetch";
 import Link from "next/link";
 import { useState } from "react";
 import { Landmark, Clock } from "lucide-react";
@@ -102,11 +102,19 @@ const ROLE_LABEL: Record<string, string> = {
 
 export default function CqsIndexPage() {
   const [q, setQ] = useState("");
-  const { data, isLoading } = useSWR<{ rows: CqsRow[]; asOfDate: string | null; frame: string }>(
-    `${API_BASE}/cqs/leaderboard?limit=100`,
-    fetcher,
-    { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
-  );
+  // The API strips the paid fields for anyone without a subscription, so this
+  // read has to carry the token (see lib/premium-fetch.ts). Signed out it uses
+  // the same key as before, which keeps the SSR seed and the Googlebot HTML.
+  const { data, isLoading } = usePremiumSWR<{
+    rows: CqsRow[];
+    asOfDate: string | null;
+    frame: string;
+    total?: number;
+    premium?: boolean;
+  }>(`${API_BASE}/cqs/leaderboard?limit=100`, {
+    refreshInterval: 30 * 60_000,
+    revalidateOnFocus: false,
+  });
 
   const rows = (data?.rows || []).filter(
     (r) =>
@@ -116,6 +124,16 @@ export default function CqsIndexPage() {
       (r.sector || "").toLowerCase().includes(q.toLowerCase()) ||
       (r.buyers || []).some((b) => b.name.toLowerCase().includes(q.toLowerCase())),
   );
+
+  /**
+   * The API removes the paid fields rather than blanking them (George
+   * 2026-09-24), so an absent `committees` or `contractValue12m` means "not
+   * entitled", not "no oversight link" and not "$0". Those two cells have a
+   * real empty state — most stocks genuinely have neither — so without this
+   * flag a logged-out reader would be told, confidently and wrongly, that no
+   * stock on the board has an oversight connection.
+   */
+  const withheld = data?.premium === false;
 
   const columns: Column<CqsRow>[] = [
     rankColumn<CqsRow>(),
@@ -318,11 +336,11 @@ export default function CqsIndexPage() {
       info: "A committee one of the buying members sits on that has jurisdiction over an agency awarding this company federal work, with the most senior seat any buyer holds. Seats come from the committee roster and the jurisdiction table, not from a contract flag, so oversight can register even where no flagged intersection exists. Empty for most stocks, which is the honest answer: most congressional buying has no oversight connection at all.",
       sortValue: (r) => r.committees?.[0] || "",
       render: (r) =>
-        r.committees?.length ? (
+        withheld || r.committees?.length ? (
           <PremiumValue label="Committee influence">
             <span className="inline-flex flex-col leading-tight">
               <span className="text-[11.5px] font-semibold truncate max-w-[180px]" style={{ color: "var(--text)" }}>
-                {r.committees[0]}
+                {r.committees?.[0]}
                 {r.committees.length > 1 ? ` +${r.committees.length - 1}` : ""}
               </span>
               <span className="text-[10.5px] text-mute">
@@ -343,7 +361,7 @@ export default function CqsIndexPage() {
       info: "Federal award dollars to this company over the last twelve months, with its top awarding agency. Sourced from USAspending.gov award records and our verified contract flags only — never inferred from a company-name match, which is how a bank ends up holding Coast Guard contracts.",
       sortValue: (r) => num(r.contractValue12m) ?? 0,
       render: (r) =>
-        r.contractValue12m ? (
+        withheld || r.contractValue12m ? (
           <PremiumValue label="Contract alignment">
             <span className="inline-flex flex-col leading-tight items-end">
               <span className="tabular font-bold text-[13px]" style={{ color: "var(--good)" }}>

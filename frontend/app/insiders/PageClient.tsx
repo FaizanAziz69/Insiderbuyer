@@ -14,7 +14,8 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import useSWR from "swr";
+import { usePremiumSWR } from "@/lib/premium-fetch";
+import { PremiumRowWall } from "@/components/premium/PremiumRowWall";
 import Link from "next/link";
 import { API_BASE, fetcher, formatDate } from "@/lib/api";
 import { UnifiedCard, type UnifiedCardData } from "@/components/wealth-tracker/UnifiedCard";
@@ -51,6 +52,8 @@ interface Payload {
   counts: Record<string, { total: number; graded: number }>;
   computedAt: string | null;
   note: string;
+  /** False when the API withheld cards beyond the free window. */
+  premium?: boolean;
 }
 
 export default function InvestorsPage() {
@@ -82,10 +85,14 @@ export default function InvestorsPage() {
     else sp.set("sort", style);
     return `${API_BASE}/wealth-tracker/unified?${sp.toString()}`;
   }, [effectiveType, style, isCategory]);
-  const { data, isLoading } = useSWR<Payload>(key, fetcher, { revalidateOnFocus: false, dedupingInterval: 120_000, keepPreviousData: true });
+  const { data, isLoading } = usePremiumSWR<Payload>(key, { revalidateOnFocus: false, dedupingInterval: 120_000, keepPreviousData: true });
   const cards = data?.cards ?? [];
   const counts = data?.counts || {};
   const total = Object.values(counts).reduce((s, c) => s + c.total, 0);
+  // The wall speaks for the tab in front of the reader. `total` is every type
+  // added up, which is the right number for the "All" badge and the wrong one
+  // under a Congress-only board.
+  const wallTotal = type === "all" ? total : counts[effectiveType]?.total ?? total;
 
   return (
     <div className="w-full space-y-5">
@@ -167,11 +174,31 @@ export default function InvestorsPage() {
           ))}
         </div>
       ) : cards.length ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {cards.map((c) => (
-            <UnifiedCard key={`${c.type}:${c.key}`} c={c} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {cards.map((c) => (
+              <UnifiedCard key={`${c.type}:${c.key}`} c={c} />
+            ))}
+          </div>
+          {/* The API sends a guest a free window per type and withholds the
+              rest (George 2026-09-24). `counts` still carries the real totals,
+              so the wall can say exactly what is behind it rather than quoting
+              the handful of cards above. */}
+          {data?.premium === false && wallTotal > cards.length && (
+            <div className="card overflow-hidden">
+              <PremiumRowWall
+                label="Top Insiders"
+                total={wallTotal}
+                bullets={[
+                  "Every graded insider, fund and member of Congress we track",
+                  "Performance Grades ranked within each insider's own type",
+                  "Their last ten trades, and what each one holds now",
+                  "Sort by performance, activity or following",
+                ]}
+              />
+            </div>
+          )}
+        </>
       ) : (
         <div className="card p-6 text-[14px]" style={{ color: "var(--text-mute)" }}>
           {total === 0 ? "Cards appear after the nightly grading run." : "No one matches this view yet."}

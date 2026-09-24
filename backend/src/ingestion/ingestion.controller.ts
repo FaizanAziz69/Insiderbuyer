@@ -55,6 +55,26 @@ export class IngestionController {
     return this.ingestion.ingestCompany(body || {});
   }
 
+  /** One chunk of the fleet-wide 12-month Form 4 backfill. The daily cron's
+   *  market-wide EFTS feed is capped per date chunk and drops busy filers, so
+   *  the 12-month board was scoring a 90-day-deep table (George 2026-09-24:
+   *  "its not picking up other buys throughout the period"). Call with the
+   *  returned `cursor` as `after` until `done`, then rescore both windows.
+   *  Body: { limit?, daysBack?, after?, scoredOnly? }. */
+  @Post("backfill-form4-history")
+  @UseGuards(AdminTokenGuard)
+  async backfillForm4History(
+    @Body()
+    body: {
+      limit?: number;
+      daysBack?: number;
+      after?: string;
+      scoredOnly?: boolean;
+    },
+  ) {
+    return this.ingestion.backfillForm4History(body || {});
+  }
+
   /** Backfill insider filing location onto older transactions. */
   @Post("backfill-locations")
   @UseGuards(AdminTokenGuard)

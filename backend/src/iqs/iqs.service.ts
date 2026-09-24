@@ -159,6 +159,14 @@ const LATEST_SCORE_PER_COMPANY = latestScoreFor(WINDOWS.buys);
  *  / 12-month toggle). 365 rather than 360 so "12 months" means a year. */
 export const SCORE_WINDOWS = [90, 365] as const;
 
+/** How a lookback window reads in prose. The score sentence is stored ON the
+ *  row, so a hardcoded "last 90 days" travels with the 12-month score and the
+ *  board then contradicts its own numbers (George 2026-09-24: "something not
+ *  right with the new 12 month score feature"). */
+export function windowLabel(windowDays: number): string {
+  return windowDays >= 365 ? '12 months' : `${windowDays} days`;
+}
+
 /** Coerce a caller-supplied `window` to one we actually score. Anything else
  *  (a typo, an old bookmark, `?window=30`) falls back to the 90-day board
  *  rather than returning an empty one. */
@@ -405,13 +413,13 @@ export class IqsService {
         maximumFractionDigits: 1,
       }).format(v);
     const reasoning = sellsOnly
-      ? `No open-market insider buying in the last 90 days — ` +
+      ? `No open-market insider buying in the last ${windowLabel(WINDOWS.buys)} — ` +
         `${sellers.size} insider${sellers.size === 1 ? '' : 's'} sold ${fmtUsd(totalSellValue)}. ` +
         `The score reflects net insider selling.`
       : `${buyers.size} insider${buyers.size === 1 ? '' : 's'}` +
         `${buyerLeaders.size ? ` (incl. ${[...buyerLeaders].join(', ')})` : ''}` +
         ` bought ${fmtUsd(totalPurchaseValue)} across ${buyFilings} filing${buyFilings === 1 ? '' : 's'}` +
-        ` in the last 90 days` +
+        ` in the last ${windowLabel(WINDOWS.buys)}` +
         `${totalSellValue > 0 ? `. Insiders also sold ${fmtUsd(totalSellValue)} in the same window` : ''}.`;
 
     const round2 = (x: number | null): number | null => (x == null ? null : +x.toFixed(2));
@@ -815,14 +823,14 @@ export class IqsService {
           maximumFractionDigits: 1,
         }).format(v);
       const reasoning = sellsOnly
-        ? `No open-market insider buying in the last 90 days — ` +
+        ? `No open-market insider buying in the last ${windowLabel(windowDays)} — ` +
           `${sellers.size} insider${sellers.size === 1 ? '' : 's'} sold ${fmtUsd(totalSellValue)}` +
           `${ownPct != null ? `; insiders still hold ~${ownPct.toFixed(1)}% of the company` : ''}. ` +
           `The score reflects net insider selling.`
         : `${buyers.size} insider${buyers.size === 1 ? '' : 's'}` +
           `${leaders.length ? ` (incl. ${leaders.join(', ')})` : ''}` +
           ` bought ${fmtUsd(totalPurchaseValue)} across ${txs.length} filing${txs.length === 1 ? '' : 's'}` +
-          ` in the last 90 days` +
+          ` in the last ${windowLabel(windowDays)}` +
           `${avgAddPct != null ? `, growing their personal stakes ~${Math.min(999, avgAddPct).toFixed(0)}% on average` : ''}` +
           `${ownPct != null ? `; insiders now hold ~${ownPct.toFixed(1)}% of the company` : ''}` +
           `${totalSellValue > 0 ? `. Insiders also sold ${fmtUsd(totalSellValue)} in the same window` : ''}.`;

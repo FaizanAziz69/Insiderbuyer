@@ -16,6 +16,13 @@ import { Iqs2Service } from "../iqs2/iqs2.service";
 import { MdaSentimentService } from "../iqs/mda-sentiment.service";
 import { MarketStatsService } from "../market-stats/market-stats.service";
 import { FmpService } from "../fmp/fmp.service";
+import {
+  BACKFILL_BUDGET_MS,
+  BACKFILL_COMPANY_DELAY_MS,
+  BACKFILL_DEFAULT_LIMIT,
+  BACKFILL_FILING_DELAY_MS,
+  Form4BackfillResult,
+} from "./form4-backfill";
 
 /** Ceiling for a plausible per-share price. BRK-A (~$700k) is the priciest
  *  real stock ever, so anything above this is a Form 4 parse artifact. */
@@ -974,6 +981,120 @@ export class IngestionService implements OnModuleInit {
   /** Repair company reference facts from FMP: quarantined/implausible market
    *  caps, missing sector/industry, missing shares outstanding. Bounded slice
    *  per run; targets scored companies first (they're user-visible). */
+  /**
+   * One chunk of the fleet-wide 12-month Form 4 backfill (see
+   * `./form4-backfill.ts` for why this exists and what was measured).
+   *
+   * Walks our OWN issuer list and reads each company's EDGAR submissions
+   * index, which is complete per company — unlike the market-wide EFTS feed
+   * the cron uses, which is capped per date chunk and drops busy filers.
+   *
+   * Call until `done`, then rescore both windows. Nothing is deleted and any
+   * accession already in `processed_filings` is skipped, so a re-run is free
+   * and an interrupted sweep resumes from `cursor`.
+   */
+  async backfillForm4History(opts?: {
+    /** Issuers per call. Default 25; the wall-clock budget stops it sooner. */
+    limit?: number;
+    /** Lookback. Default 365 — the 12-month board is what this is for. */
+    daysBack?: number;
+    /** Cursor: resume at the first ticker after this one. */
+    after?: string;
+    /** Only issuers that currently carry a score (skips the long tail). */
+    scoredOnly?: boolean;
+  }): Promise<Form4BackfillResult> {
+    const limit = Math.min(Math.max(opts?.limit ?? BACKFILL_DEFAULT_LIMIT, 1), 200);
+    const daysBack = Math.min(Math.max(opts?.daysBack ?? 365, 1), 3650);
+    const after = opts?.after || "";
+
+    const qb = this.companies
+      .createQueryBuilder("c")
+      .where("c.ticker IS NOT NULL")
+      .andWhere("c.cik IS NOT NULL")
+      .andWhere("c.cik <> ''");
+    if (opts?.scoredOnly) {
+      qb.andWhere(
+        "EXISTS (SELECT 1 FROM iqs_scores s WHERE s.company_id = c.id)",
+      );
+    }
+    const all = (await qb.getMany())
+      .filter((c) => (c.ticker || "") > after)
+      .sort((a, b) => (a.ticker || "").localeCompare(b.ticker || ""));
+
+    const out: Form4BackfillResult = {
+      scanned: 0,
+      filings: 0,
+      skipped: 0,
+      transactions: 0,
+      failed: 0,
+      remaining: all.length,
+      cursor: null,
+      done: all.length === 0,
+    };
+    if (!all.length) return out;
+
+    const deadline = Date.now() + BACKFILL_BUDGET_MS;
+    const summary = { filings: 0, transactions: 0, companies: 0 };
+    const seen = new Set<string>();
+
+    for (const company of all.slice(0, limit)) {
+      let filings: SecFilingHit[] = [];
+      try {
+        filings = await this.sec.listForm4ByCik(company.cik, daysBack);
+      } catch (err: any) {
+        // A single unreadable index is not a reason to abandon the sweep —
+        // the cursor still advances so the next call does not retry it
+        // forever. Re-run the whole sweep later to pick it up.
+        this.logger.warn(
+          `Form 4 backfill ${company.ticker}: ${err?.message || err}`,
+        );
+        out.failed++;
+        out.scanned++;
+        out.cursor = company.ticker || null;
+        continue;
+      }
+      out.filings += filings.length;
+
+      for (const f of filings) {
+        const done = await this.processedRepo.findOne({
+          where: { accessionNumber: f.accessionNo },
+        });
+        if (done) {
+          out.skipped++;
+          continue;
+        }
+        const before = summary.transactions;
+        // The EDGAR index knows the issuer; the market-wide feed's hit shape
+        // does not always carry our ticker, so pin it rather than letting
+        // processFiling re-resolve and possibly create a duplicate company.
+        await this.processFiling(
+          { ...f, ticker: f.ticker || company.ticker },
+          seen,
+          summary,
+        );
+        out.transactions += summary.transactions - before;
+        await this.delay(BACKFILL_FILING_DELAY_MS);
+      }
+
+      out.scanned++;
+      // Advance only on a COMPLETED company, so a budget stop never leaves
+      // an issuer half-ingested behind the cursor.
+      out.cursor = company.ticker || null;
+      if (Date.now() > deadline) break;
+      await this.delay(BACKFILL_COMPANY_DELAY_MS);
+    }
+
+    out.remaining = all.length - out.scanned;
+    out.done = out.remaining <= 0;
+    if (out.done) out.cursor = null;
+    this.logger.log(
+      `Form 4 backfill: ${out.scanned} issuers, +${out.transactions} tx, ` +
+        `${out.skipped} already held, ${out.failed} unreadable, ` +
+        `${out.remaining} to go`,
+    );
+    return out;
+  }
+
   async repairCompanyFacts(opts?: {
     limit?: number;
     /** Refresh cap/sector/shares from FMP for EVERY company, not just the

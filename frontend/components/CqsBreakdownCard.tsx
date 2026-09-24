@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { CqsGradeBadge, gradeOf } from "./CqsScoreCell";
-import { PremiumValue } from "./premium/PremiumValue";
+import { PremiumValue, UnlockCta } from "./premium/PremiumValue";
 
 /**
  * The Congress Quality Score decomposed — Brief v9 §9 P2's acceptance test is
@@ -124,6 +124,16 @@ export function CqsBreakdownCard({ score }: { score: CqsScoreCard }) {
     },
   ];
 
+  /**
+   * The API withholds the score and its components from a reader without a
+   * subscription (George 2026-09-24), so an absent `cqs` means "not entitled",
+   * not "zero". Rendering the bars anyway would draw eight components at 0 and
+   * five adjustments reading "checked, did not apply" — a page of confident,
+   * fabricated findings. The grade is free and stays; everything derived from
+   * the withheld numbers is replaced by the unlock.
+   */
+  const withheld = score.cqs == null;
+
   const multipliers = [
     { key: "insiderOverlap", label: "Insider overlap", value: n(score.multiplierInsiderOverlap ?? 1), up: true },
     { key: "legislativeCatalyst", label: "Legislative catalyst", value: n(score.multiplierLegislativeCatalyst ?? 1), up: true },
@@ -159,6 +169,22 @@ export function CqsBreakdownCard({ score }: { score: CqsScoreCard }) {
         </div>
       </div>
 
+      {withheld ? (
+        <div
+          className="rounded-lg px-4 py-5 text-center"
+          style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}
+        >
+          <p className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>
+            The grade is free. The score behind it is part of Insider Access.
+          </p>
+          <p className="text-[12px] mt-1.5 leading-relaxed" style={{ color: "var(--text-mute)" }}>
+            Eight weighted components — cluster breadth, position size, committee
+            jurisdiction, federal contract alignment, the buyers&rsquo; own track
+            records — and the adjustments applied on top of them.
+          </p>
+          <UnlockCta label="the Congress Quality Score" className="mt-3" />
+        </div>
+      ) : (
       <div className="space-y-2.5">
         {components.map((c) => (
           <div key={c.label}>
@@ -185,8 +211,9 @@ export function CqsBreakdownCard({ score }: { score: CqsScoreCard }) {
           </div>
         ))}
       </div>
+      )}
 
-      <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+      <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border)", display: withheld ? "none" : undefined }}>
         <p className="text-[11px] uppercase tracking-wider font-bold text-mute mb-2">
           Signal adjustments
         </p>

@@ -1,6 +1,6 @@
 "use client";
-import useSWR from "swr";
-import { API_BASE, fetcher } from "@/lib/api";
+import { API_BASE } from "@/lib/api";
+import { usePremiumSWR } from "@/lib/premium-fetch";
 import { CqsBreakdownCard, CqsScoreCard } from "../CqsBreakdownCard";
 
 /**
@@ -12,9 +12,8 @@ import { CqsBreakdownCard, CqsScoreCard } from "../CqsBreakdownCard";
  * buying, so an empty card on every other stock would be noise.
  */
 export function CqsStockPanel({ ticker }: { ticker: string }) {
-  const { data } = useSWR<{ score: CqsScoreCard | null }>(
+  const { data } = usePremiumSWR<{ score: CqsScoreCard | null }>(
     ticker ? `${API_BASE}/cqs/ticker/${encodeURIComponent(ticker)}` : null,
-    fetcher,
     { revalidateOnFocus: false },
   );
   if (!data?.score) return null;

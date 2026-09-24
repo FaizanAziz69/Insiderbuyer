@@ -13,6 +13,7 @@ import { UnifiedService, UnifiedType } from './unified.service';
 import { HouseArchiveService } from './house-archive.service';
 import { TrackerVerificationService } from './verification.service';
 import { FilingAlertsService } from './filing-alerts.service';
+import { FREE_BOARD_ROWS, PremiumAccessService } from '../common/premium-access';
 
 /**
  * Public reads are cached materialisations; the only computation a request
@@ -32,6 +33,7 @@ export class WealthTrackerController {
     private readonly alerts: FilingAlertsService,
     private readonly auth: AuthService,
     private readonly billing: BillingService,
+    private readonly access: PremiumAccessService,
     @InjectRepository(User) private readonly users: Repository<User>,
   ) {}
 
@@ -57,9 +59,24 @@ export class WealthTrackerController {
     }
   }
 
+  /**
+   * George 2026-09-24: "plesae paygate the new wealth tracker and CQS data".
+   *
+   * Brief v7 §5 had shipped this board free ("the wall sits on holdings depth
+   * and exports, not on the ranking") with only the filters gated. That is now
+   * overridden: a guest gets the free window — the top six of the requested
+   * ranking plus the one faded teaser row the table draws — and the real
+   * `total` so the wall can say what is behind it.
+   *
+   * Truncating beats blanking the paid columns. Half-populated rows sort and
+   * filter into nonsense in the browser, and a scraper that wanted the ranking
+   * would still have it. Seven rows is the whole free product, and the member
+   * pages underneath stay reachable and indexable.
+   */
   @Get('leaderboard')
-  @Header('Cache-Control', 'public, max-age=300')
-  leaderboard(
+  async leaderboard(
+    @Res({ passthrough: true }) res: Response,
+    @Headers('authorization') authHeader?: string,
     @Query('view') view?: string,
     @Query('party') party?: string,
     @Query('chamber') chamber?: string,
@@ -91,7 +108,29 @@ export class WealthTrackerController {
       offset: offset ? Number(offset) : undefined,
       q: q ? String(q).slice(0, 60) : undefined,
     };
-    return this.svc.leaderboard(f);
+    const [out, entitled] = await Promise.all([
+      this.svc.leaderboard(f),
+      this.access.isPremium(authHeader),
+    ]);
+    // Varies by Authorization from here on, so it can never sit in a shared
+    // cache: one subscriber's response served to the next guest through it
+    // would be the leak this endpoint was changed to close.
+    res.setHeader('Vary', 'Authorization');
+    res.setHeader(
+      'Cache-Control',
+      entitled ? 'private, no-store' : 'public, max-age=300',
+    );
+    if (entitled) return { ...out, premium: true };
+    const rows = (out.rows || []) as unknown[];
+    return {
+      ...out,
+      // +1 is the teaser the table fades out; without it the wall would sit
+      // under a table that ends exactly where the free rows do, which reads as
+      // "that is all there is" rather than "there is more".
+      rows: rows.slice(0, FREE_BOARD_ROWS + 1),
+      total: out.total ?? rows.length,
+      premium: false,
+    };
   }
 
   /** One member: header facts, stats, badges, holdings (top 5 free), growth curve. */
@@ -137,13 +176,40 @@ export class WealthTrackerController {
   }
 
   /** Build 3: one card anatomy for every insider type, graded within type. */
+  /** Build 3's board carries the same graded performance data as the
+   *  leaderboard, so it is gated the same way (George 2026-09-24). Each TYPE
+   *  keeps its own free window — a guest browsing "Investors" should not find
+   *  it empty because the six free slots went to corporate insiders. */
   @Get('unified')
-  @Header('Cache-Control', 'public, max-age=300')
-  unifiedList(@Query('type') type?: string, @Query('sort') sort?: string, @Query('category') category?: string, @Query('limit') limit?: string) {
+  async unifiedList(
+    @Res({ passthrough: true }) res: Response,
+    @Headers('authorization') authHeader?: string,
+    @Query('type') type?: string, @Query('sort') sort?: string, @Query('category') category?: string, @Query('limit') limit?: string) {
     const t = (['corporate', 'congress', 'investor'].includes(String(type)) ? type : 'all') as 'all' | UnifiedType;
     const s = (sort === 'performance' || sort === 'active' ? sort : 'popular') as 'popular' | 'performance' | 'active';
     const cat = ['growth', 'value', 'short', 'longterm'].includes(String(category)) ? String(category) : undefined;
-    return this.unified.list({ type: t, sort: s, category: cat, limit: limit ? Number(limit) : 200 });
+    const [out, entitled] = await Promise.all([
+      this.unified.list({ type: t, sort: s, category: cat, limit: limit ? Number(limit) : 200 }),
+      this.access.isPremium(authHeader),
+    ]);
+    res.setHeader('Vary', 'Authorization');
+    res.setHeader(
+      'Cache-Control',
+      entitled ? 'private, no-store' : 'public, max-age=300',
+    );
+    if (entitled) return { ...out, premium: true };
+    // The board is `cards`, not `rows`, and `counts` already carries the real
+    // per-type totals the wall quotes — so truncating the cards does not cost
+    // the page its "379 members tracked" line.
+    const cards = ((out as any).cards || []) as Array<{ type?: string }>;
+    const perType = new Map<string, number>();
+    const free = cards.filter((c) => {
+      const k = String(c?.type || 'all');
+      const n = (perType.get(k) || 0) + 1;
+      perType.set(k, n);
+      return n <= FREE_BOARD_ROWS + 1;
+    });
+    return { ...out, cards: free, premium: false };
   }
 
   @Post('admin/rebuild-unified')

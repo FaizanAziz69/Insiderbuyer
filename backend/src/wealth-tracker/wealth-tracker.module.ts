@@ -16,11 +16,13 @@ import { UnifiedService } from './unified.service';
 import { HouseArchiveService } from './house-archive.service';
 import { TrackerVerificationService } from './verification.service';
 import { FilingAlertsService } from './filing-alerts.service';
+import { PremiumAccessModule } from '../common/premium-access.module';
 
 /** The Wealth Tracker — Developer Project Brief v7, Build 1 (politician
  *  portfolio reconstruction, rankings, badges, holdings). */
 @Module({
-  imports: [FmpModule, AuthModule, BillingModule, EmailFlowsModule, TypeOrmModule.forFeature([Company, User])],
+  imports: [
+    PremiumAccessModule,FmpModule, AuthModule, BillingModule, EmailFlowsModule, TypeOrmModule.forFeature([Company, User])],
   controllers: [WealthTrackerController],
   providers: [WealthTrackerService, RosterService, PtrService, PricesService, Last10Service, UnifiedService, HouseArchiveService, TrackerVerificationService, FilingAlertsService],
   exports: [WealthTrackerService, PtrService, PricesService, Last10Service, UnifiedService, HouseArchiveService, TrackerVerificationService, FilingAlertsService],
