@@ -10,6 +10,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { rankColumn } from "@/components/tableColumns";
 import { CqsScoreCell, CqsGradeBadge, gradeOf } from "@/components/CqsScoreCell";
 import { PremiumValue } from "@/components/premium/PremiumValue";
+import { IqsScoreCell } from "@/components/IqsScoreCell";
 
 /** One qualifying stock on the Congress Quality Score index (Brief v9 §6). */
 export interface CqsRow {
@@ -31,6 +32,8 @@ export interface CqsRow {
   highestRole: string | null;
   contractValue12m: number | null;
   contractCount12m: number;
+  topAgency: string | null;
+  iqs: number | null;
   bestCtsScore: number | null;
   firstBuyDate: string | null;
   lastBuyDate: string | null;
@@ -169,32 +172,44 @@ export default function CqsIndexPage() {
         ),
     },
     {
-      key: "overlap",
-      label: "Insider overlap",
+      key: "iqs",
+      label: "Insider Score",
       group: "Congress Quality Score",
       align: "center",
       filterable: true,
       filterType: "preset",
+      filterLabelText: "Insider overlap",
       filterPresets: [
         {
           key: "overlap",
-          label: "Insiders buying too",
+          label: "Insiders buying too (70+)",
           test: (r) => (num(r.multiplierInsiderOverlap) ?? 1) > 1,
         },
+        { key: "scored", label: "Has an Insider Score", test: (r) => num(r.iqs) != null },
       ],
-      info: "On when corporate insiders at the same company are also net buyers (Insider Score 70 or better over the last 90 days). Two independent informed groups agreeing is the strongest pattern we can observe, and it lifts the score by 20%.",
-      sortValue: (r) => ((num(r.multiplierInsiderOverlap) ?? 1) > 1 ? 1 : 0),
-      render: (r) =>
-        (num(r.multiplierInsiderOverlap) ?? 1) > 1 ? (
-          <span
-            className="px-2 h-[18px] inline-flex items-center rounded-full text-[9.5px] font-bold uppercase tracking-wide"
-            style={{ background: "var(--good-soft)", color: "var(--good)", border: "1px solid var(--good)" }}
-          >
-            Insiders too
+      info: "Our 0–99 Insider Score for the same stock, from corporate Form 4 buying. At 70 or better the two independent groups agree and the Congress Quality Score is lifted by 20% — the overlap flag. Most stocks members buy are large caps whose executives are paid in stock and sell rather than buy, so there is often no score to show.",
+      // Brief v9 §6 lists the Insider Score as its own free column beside CQS.
+      // It was only being used as an on/off overlap flag, which is off for every
+      // row today, so the column read as a row of dashes on live data.
+      sortValue: (r) => num(r.iqs),
+      render: (r) => {
+        const iqs = num(r.iqs);
+        const overlap = (num(r.multiplierInsiderOverlap) ?? 1) > 1;
+        return (
+          <span className="inline-flex flex-col items-center gap-1 leading-none">
+            <IqsScoreCell iqs={iqs} />
+            {overlap && (
+              <span
+                className="px-1.5 h-[17px] inline-flex items-center rounded-full text-[9.5px] font-bold uppercase tracking-wide"
+                style={{ background: "var(--good-soft)", color: "var(--good)", border: "1px solid var(--good)" }}
+                title="Corporate insiders are net buyers too — the score is lifted 20%."
+              >
+                Overlap
+              </span>
+            )}
           </span>
-        ) : (
-          <span className="text-faint text-[11px]">—</span>
-        ),
+        );
+      },
     },
     {
       key: "distinctMembers",
@@ -300,7 +315,7 @@ export default function CqsIndexPage() {
       label: "Committee",
       group: "Influence",
       pro: true,
-      info: "Committees with jurisdiction over an agency that has awarded this company work, where one of the buying members holds a seat — and the most senior seat any of them holds. Empty for most stocks, which is the honest answer: most congressional buying has no contract or oversight connection at all.",
+      info: "A committee one of the buying members sits on that has jurisdiction over an agency awarding this company federal work, with the most senior seat any buyer holds. Seats come from the committee roster and the jurisdiction table, not from a contract flag, so oversight can register even where no flagged intersection exists. Empty for most stocks, which is the honest answer: most congressional buying has no oversight connection at all.",
       sortValue: (r) => r.committees?.[0] || "",
       render: (r) =>
         r.committees?.length ? (
@@ -325,7 +340,7 @@ export default function CqsIndexPage() {
       group: "Influence",
       align: "right",
       pro: true,
-      info: "Federal award dollars to this company from agencies under the buying members' committee jurisdiction, over the last twelve months, with the award count.",
+      info: "Federal award dollars to this company over the last twelve months, with its top awarding agency. Sourced from USAspending.gov award records and our verified contract flags only — never inferred from a company-name match, which is how a bank ends up holding Coast Guard contracts.",
       sortValue: (r) => num(r.contractValue12m) ?? 0,
       render: (r) =>
         r.contractValue12m ? (
@@ -334,7 +349,9 @@ export default function CqsIndexPage() {
               <span className="tabular font-bold text-[13px]" style={{ color: "var(--good)" }}>
                 {fmtBig(r.contractValue12m)}
               </span>
-              <span className="text-[10.5px] text-mute">{r.contractCount12m} awards</span>
+              <span className="text-[10.5px] text-mute truncate max-w-[150px]">
+                {r.topAgency || `${r.contractCount12m} awards`}
+              </span>
             </span>
           </PremiumValue>
         ) : (

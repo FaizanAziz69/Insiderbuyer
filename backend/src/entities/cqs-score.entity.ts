@@ -141,6 +141,19 @@ export class CqsScore {
   @Column({ type: 'numeric', precision: 8, scale: 2, nullable: true })
   bestCtsScore: number | null;
 
+  /** Top awarding federal agency for this company, where we hold contract data. */
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  topAgency: string | null;
+
+  /**
+   * The corporate Insider Score for the same stock, 90-day — Brief v9 §6 lists
+   * it as its own free column next to CQS, and it is what the insider-overlap
+   * multiplier reads. Stored so the board can show a number rather than only a
+   * flag that is off for every row.
+   */
+  @Column({ type: 'numeric', precision: 8, scale: 2, nullable: true })
+  iqs: number | null;
+
   // ── Buyers (Brief v9 §6 "Congress activity" group) ────────────────────
   /** One entry per distinct member: name, party, chamber, grade, dollars, photo. */
   @Column({ type: 'jsonb', nullable: true })

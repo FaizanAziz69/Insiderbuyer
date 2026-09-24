@@ -6,6 +6,7 @@ import { CongressionalTransaction } from '../entities/congressional-transaction.
 import { Company } from '../entities/company.entity';
 import { FlagEngineService } from '../congress-trades/flag-engine.service';
 import { nameKey } from '../congress-trades/influence-map.service';
+import { agencyKey, committeeKey } from '../congress-trades/jurisdiction';
 import {
   assembleCqsScore,
   isExcludedSecurity,
@@ -137,14 +138,18 @@ export class CqsService {
     }
 
     // 4. Everything else, in set-based queries.
-    const [companies, iqs, grades, medians, priorBuys, series] = await Promise.all([
-      this.loadCompanies(tickers),
-      this.loadIqs(tickers),
-      this.loadMemberGrades(),
-      this.loadMemberMedianBands(),
-      this.loadPriorBuys(tickers, windowStart),
-      this.loadPriceSeries(tickers),
-    ]);
+    const [companies, iqs, grades, medians, priorBuys, series, seats, juris, agencies] =
+      await Promise.all([
+        this.loadCompanies(tickers),
+        this.loadIqs(tickers),
+        this.loadMemberGrades(),
+        this.loadMemberMedianBands(),
+        this.loadPriorBuys(tickers, windowStart),
+        this.loadPriceSeries(tickers),
+        this.loadSeats(),
+        this.loadJurisdiction(),
+        this.loadCompanyAgencies(tickers, flagsByTicker),
+      ]);
 
     let computed = 0;
     for (const ticker of tickers) {
@@ -161,6 +166,9 @@ export class CqsService {
         medians,
         priorBuys,
         series: series.get(ticker) || null,
+        seats,
+        juris,
+        agencies: agencies.get(ticker) || null,
       });
       // Upsert, not save: the row carries no id and the table has a unique
       // index on (ticker, asOfDate, windowDays), so a second run on the same
@@ -202,6 +210,9 @@ export class CqsService {
     medians: Map<string, number>;
     priorBuys: Set<string>;
     series: Array<{ t: number; c: number }> | null;
+    seats: Map<string, Array<{ committee: string; role: string }>>;
+    juris: Map<string, Set<string>>;
+    agencies: { agencies: Set<string>; label: string | null; value: number; count: number } | null;
   }): CqsScore {
     const { ticker, txs, todayStr, asOfMs, flags, company, iqs, series } = ctx;
     const buys = txs.filter((t) => t.action === 'Buy');
@@ -286,18 +297,35 @@ export class CqsService {
     const maxLag = lags.length ? Math.max(...lags) : null;
     const hasLateFiling = lags.some((l) => l > STOCK_ACT_DEADLINE_DAYS);
 
-    // ── Influence: only the seats of members who actually bought here ────
+    // ── Influence ────────────────────────────────────────────────────────
+    // A buying member's committee seat counts only where that committee has
+    // jurisdiction over an agency that actually awards this company work. Seat
+    // and jurisdiction come from the influence map; the agency link comes from
+    // the contract cache and the verified flags, never from a name guess.
     const buyerKeys = new Set([...members.keys()]);
-    const ownFlags = flags.filter((f) => buyerKeys.has(nameKey(f.member)));
-    const seats = ownFlags.map((f) => ({ role: f.role as string, relevance: 1 }));
-    const committees = [...new Set(ownFlags.map((f) => f.committee).filter(Boolean))];
-    const highestRole = seats.length
-      ? [...seats].sort((a, b) => roleRank(b.role) - roleRank(a.role))[0].role
+    const companyAgencies = ctx.agencies?.agencies ?? new Set<string>();
+    const qualifyingSeats: Array<{ member: string; committee: string; role: string }> = [];
+    if (companyAgencies.size) {
+      for (const [key, m] of members) {
+        for (const seat of ctx.seats.get(key) || []) {
+          const overseen = ctx.juris.get(committeeKey(seat.committee));
+          if (!overseen) continue;
+          if (![...companyAgencies].some((a) => overseen.has(a))) continue;
+          qualifyingSeats.push({ member: m.name, committee: seat.committee, role: seat.role });
+        }
+      }
+    }
+    const committees = [...new Set(qualifyingSeats.map((s) => s.committee))];
+    const highestRole = qualifyingSeats.length
+      ? [...qualifyingSeats].sort((a, b) => roleRank(b.role) - roleRank(a.role))[0].role
       : null;
-    const contractValue12m = ownFlags.reduce(
-      (a, f) => a + (this.num(f.awardValue ?? f.award_value) ?? 0),
-      0,
-    );
+
+    // C4's own evidence stays the Brief v5 flag: an intersection is a scored,
+    // verified row there, not something this service re-derives.
+    const ownFlags = flags.filter((f) => buyerKeys.has(nameKey(f.member)));
+    const contractValue12m = ctx.agencies?.value ?? 0;
+    const contractCount = ctx.agencies?.count ?? 0;
+    const topAgency = ctx.agencies?.label ?? null;
     const bestCts = ownFlags.reduce<number | null>((mx, f) => {
       const s = this.num(f.score);
       return s == null ? mx : mx == null ? s : Math.max(mx, s);
@@ -356,7 +384,7 @@ export class CqsService {
     // ── Components ───────────────────────────────────────────────────────
     const c1 = scoreC1ClusterBreadth(members.size, isBipartisan);
     const c2 = scoreC2PositionSize([...members.values()].map((m) => m.floors));
-    const c3 = scoreC3CommitteeInfluence(seats);
+    const c3 = scoreC3CommitteeInfluence(qualifyingSeats.map((s) => ({ role: s.role, relevance: 1 })));
     const revenue = null; // no revenue on the security master yet — materiality stays neutral
     const c4 = scoreC4ContractAlignment(
       bestCts,
@@ -432,7 +460,9 @@ export class CqsService {
       committees: committees.length ? committees : null,
       highestRole,
       contractValue12m: contractValue12m || null,
-      contractCount12m: ownFlags.length,
+      contractCount12m: contractCount,
+      topAgency,
+      iqs,
       bestCtsScore: bestCts,
       buyers: [...members.values()]
         .sort((a, b) => b.estValue - a.estValue)
@@ -459,7 +489,7 @@ export class CqsService {
       avgClusterRoiPct: avgClusterRoi,
       estPnlUsd: estPnl,
       dataCompleteness: completeness({
-        hasFlags: ownFlags.length > 0,
+        hasFlags: qualifyingSeats.length > 0,
         hasGrades: buyerGrades.some((b) => b.grade != null),
         hasPrices: series != null && series.length > 0,
         hasLags: lags.length > 0,
@@ -491,6 +521,98 @@ export class CqsService {
       }
     } catch (e: any) {
       this.logger.warn(`CQS: ct_flags unavailable (${e?.message}) — C3/C4 score 0.`);
+    }
+    return out;
+  }
+
+  /**
+   * Committee seats, from the Brief v5 influence map.
+   *
+   * C3 asks whether the buyers have power over the company's agencies. That is
+   * a seat plus a jurisdiction rule — NOT a contract flag. Reading ct_flags for
+   * it (as both earlier cuts did) ties C3 to C4: a flag needs all three legs
+   * (trade AND award AND jurisdiction), so C3 could only ever fire when C4 did,
+   * and with five rows in that table it never fired at all. ct_assignments has
+   * 3,892 seats and covers 17 of the 25 members currently on this board.
+   */
+  private async loadSeats(): Promise<Map<string, Array<{ committee: string; role: string }>>> {
+    const out = new Map<string, Array<{ committee: string; role: string }>>();
+    try {
+      const rows: any[] = await this.q(`SELECT member, committee, role FROM ct_assignments`);
+      for (const r of rows) {
+        const k = nameKey(r.member);
+        const list = out.get(k);
+        if (list) list.push({ committee: r.committee, role: r.role });
+        else out.set(k, [{ committee: r.committee, role: r.role }]);
+      }
+    } catch (e: any) {
+      this.logger.warn(`CQS: ct_assignments unavailable (${e?.message}) — C3 scores 0.`);
+    }
+    return out;
+  }
+
+  /** committee key -> the agency keys that committee oversees, current version. */
+  private async loadJurisdiction(): Promise<Map<string, Set<string>>> {
+    const out = new Map<string, Set<string>>();
+    try {
+      const rows: any[] = await this.q(
+        `SELECT committee, agency FROM ct_jurisdiction
+          WHERE active AND version = (SELECT max(version) FROM ct_jurisdiction WHERE active)`,
+      );
+      for (const r of rows) {
+        const k = committeeKey(r.committee);
+        const set = out.get(k);
+        if (set) set.add(agencyKey(r.agency));
+        else out.set(k, new Set([agencyKey(r.agency)]));
+      }
+    } catch (e: any) {
+      this.logger.warn(`CQS: ct_jurisdiction unavailable (${e?.message}) — C3 scores 0.`);
+    }
+    return out;
+  }
+
+  /**
+   * Which federal agencies award this company work, and how much.
+   *
+   * Only authoritative sources: the curated gov_contract_cache that already
+   * powers /government-contracts, and the verified flags. Deliberately NOT a
+   * name match against ct_awards — tried it, and "Bank" pulled Coast Guard
+   * awards onto the Bank of Nova Scotia while "INTEL" pulled FAA awards onto
+   * Intel. That is the entity-resolution problem, and guessing at it here would
+   * put a fabricated oversight link on a published row.
+   */
+  private async loadCompanyAgencies(
+    tickers: string[],
+    flagsByTicker: Map<string, any[]>,
+  ): Promise<Map<string, { agencies: Set<string>; label: string | null; value: number; count: number }>> {
+    const out = new Map<string, { agencies: Set<string>; label: string | null; value: number; count: number }>();
+    const put = (t: string) => {
+      let e = out.get(t);
+      if (!e) { e = { agencies: new Set(), label: null, value: 0, count: 0 }; out.set(t, e); }
+      return e;
+    };
+    try {
+      const rows: any[] = await this.q(
+        `SELECT ticker, "topAgency", "ttmAmount"::float8 AS ttm FROM gov_contract_cache
+          WHERE ticker = ANY($1::text[]) AND "hasData" AND "ttmAmount" > 0`,
+        [tickers],
+      );
+      for (const r of rows) {
+        const e = put(String(r.ticker).toUpperCase());
+        if (r.topAgency) { e.agencies.add(agencyKey(r.topAgency)); e.label = r.topAgency; }
+        e.value += Number(r.ttm) || 0;
+      }
+    } catch (e: any) {
+      this.logger.warn(`CQS: gov_contract_cache unavailable (${e?.message}).`);
+    }
+    for (const [ticker, flags] of flagsByTicker) {
+      for (const f of flags) {
+        const e = put(ticker);
+        if (f.agency) { e.agencies.add(agencyKey(f.agency)); e.label = e.label || f.agency; }
+        if (f.subAgency) e.agencies.add(agencyKey(f.subAgency));
+        e.value += this.num(f.awardValue) ?? 0;
+        e.count++;
+      }
     }
     return out;
   }
@@ -732,6 +854,7 @@ function shapeRow(r: CqsScore): any {
     estPnlUsd: n(r.estPnlUsd),
     bestCtsScore: n(r.bestCtsScore),
     contractValue12m: n(r.contractValue12m),
+    iqs: n(r.iqs),
     avgFilingLagDays: n(r.avgFilingLagDays),
     maxFilingLagDays: n(r.maxFilingLagDays),
     pctVs52wHigh: n(r.pctVs52wHigh),
