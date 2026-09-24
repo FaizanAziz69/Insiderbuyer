@@ -1,280 +1,512 @@
 "use client";
+import useSWR from "swr";
+import Link from "next/link";
+import { useState } from "react";
+import { Landmark, Clock } from "lucide-react";
+import { API_BASE, fetcher } from "@/lib/api";
+import { AdSlot } from "@/components/AdSlot";
+import { DataTable, Column } from "@/components/DataTable";
+import { CompanyLogo } from "@/components/CompanyLogo";
+import { rankColumn } from "@/components/tableColumns";
+import { CqsScoreCell, CqsGradeBadge, gradeOf } from "@/components/CqsScoreCell";
+import { PremiumValue } from "@/components/premium/PremiumValue";
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { AppShell } from '@/components/AppShell';
-import { CqsScoreCell } from '@/components/CqsScoreCell';
-
-interface CqsRow {
+/** One qualifying stock on the Congress Quality Score index (Brief v9 §6). */
+export interface CqsRow {
   id: string;
   ticker: string;
   companyName: string;
-  cqs: number;
+  cqs: number | null;
   grade: string;
   isGoldRing: boolean;
   distinctMembers: number;
   isBipartisan: boolean;
   partyCounts: { R: number; D: number; I: number } | null;
-  totalEstBuyValue: number;
+  totalEstBuyValue: number | null;
   largestSingleBand: string | null;
   buyCount: number;
   sellCount: number;
+  buyers: Array<{ name: string; party: string | null; grade: string | null; estValue: number }> | null;
+  committees: string[] | null;
+  highestRole: string | null;
+  contractValue12m: number | null;
+  contractCount12m: number;
+  bestCtsScore: number | null;
+  firstBuyDate: string | null;
+  lastBuyDate: string | null;
+  lastFilingDate: string | null;
+  avgFilingLagDays: number | null;
+  hasLateFiling: boolean;
+  tradeRoiPct: number | null;
+  sinceFilingRoiPct: number | null;
+  avgClusterRoiPct: number | null;
+  estPnlUsd: number | null;
+  c7Freshness: number | null;
+  multiplierInsiderOverlap: number | null;
   sector: string | null;
   marketCap: number | null;
   lastPrice: number | null;
-  c1ClusterBreadth: number;
-  c2PositionSize: number;
-  c3CommitteeInfluence: number;
-  c4ContractAlignment: number;
-  c5BuyerTrackRecord: number;
-  c6RelativeConviction: number;
-  c7Freshness: number;
-  c8NetDirection: number;
-  multiplierInsiderOverlap: number;
-  updatedAt: string;
 }
 
-export default function PageClient() {
-  const [rows, setRows] = useState<CqsRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [sector, setSector] = useState('');
-  const [bipartisanOnly, setBipartisanOnly] = useState(false);
-  const [minScore, setMinScore] = useState(0);
+/**
+ * Postgres hands `numeric` columns back as strings through node-postgres, so a
+ * field typed `number` can still arrive as "4458011.50". The API coerces now,
+ * but every formatter and sort key here coerces too: a string reaching
+ * Number.isFinite renders a dash on a row that has data, and a string reaching
+ * a sort comparator orders "9" above "1279004".
+ */
+const num = (v: unknown): number | null => {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
 
-  useEffect(() => {
-    async function fetchCqs() {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams();
-        params.set('limit', '100');
-        if (search) params.set('search', search);
-        if (sector) params.set('sector', sector);
-        if (minScore > 0) params.set('minScore', minScore.toString());
+/** Compact dollars: $28.4B, $970M, $4.1M — the same shape the other boards use. */
+function fmtBig(raw: number | string | null | undefined): string {
+  const v = num(raw);
+  if (v == null || v === 0) return "—";
+  const a = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(a >= 1e10 ? 1 : 2)}B`;
+  if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M`;
+  if (a >= 1e3) return `${sign}$${(a / 1e3).toFixed(0)}K`;
+  return `${sign}$${Math.round(a)}`;
+}
 
-        const res = await fetch(`/api/backend/cqs/leaderboard?${params.toString()}`);
-        if (res.ok) {
-          const data = await res.json();
-          setRows(data.rows || []);
-        }
-      } catch (err) {
-        console.error('Failed to load CQS leaderboard:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
+function fmtPct(raw: number | string | null | undefined): React.ReactNode {
+  const v = num(raw);
+  if (v == null) return <span className="text-faint">—</span>;
+  return (
+    <span
+      className="tabular font-semibold"
+      style={{ color: v > 0 ? "var(--good)" : v < 0 ? "var(--bad)" : "var(--text-mute)" }}
+    >
+      {v > 0 ? "+" : ""}
+      {v.toFixed(1)}%
+    </span>
+  );
+}
 
-    const timer = setTimeout(fetchCqs, 200);
-    return () => clearTimeout(timer);
-  }, [search, sector, minScore]);
+const shortDate = (d: string | null): string =>
+  d ? new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "—";
 
-  const filteredRows = rows.filter((r) => {
-    if (bipartisanOnly && !r.isBipartisan) return false;
-    return true;
-  });
+const ROLE_LABEL: Record<string, string> = {
+  chair: "Chair",
+  ranking: "Ranking member",
+  viceChair: "Vice chair",
+  member: "Member",
+};
+
+export default function CqsIndexPage() {
+  const [q, setQ] = useState("");
+  const { data, isLoading } = useSWR<{ rows: CqsRow[]; asOfDate: string | null; frame: string }>(
+    `${API_BASE}/cqs/leaderboard?limit=100`,
+    fetcher,
+    { refreshInterval: 30 * 60_000, revalidateOnFocus: false },
+  );
+
+  const rows = (data?.rows || []).filter(
+    (r) =>
+      !q ||
+      r.ticker.toLowerCase().includes(q.toLowerCase()) ||
+      (r.companyName || "").toLowerCase().includes(q.toLowerCase()) ||
+      (r.sector || "").toLowerCase().includes(q.toLowerCase()) ||
+      (r.buyers || []).some((b) => b.name.toLowerCase().includes(q.toLowerCase())),
+  );
+
+  const columns: Column<CqsRow>[] = [
+    rankColumn<CqsRow>(),
+    {
+      key: "ticker",
+      label: "Company",
+      sortValue: (r) => r.ticker,
+      render: (r) => (
+        <Link href={`/companies/${r.ticker}`} className="flex items-center gap-2.5 group">
+          <span
+            className="flex-shrink-0 rounded-md overflow-hidden bg-white flex items-center justify-center"
+            style={{ width: 30, height: 30, padding: 3, border: "1px solid var(--border)" }}
+          >
+            <CompanyLogo ticker={r.ticker} name={r.companyName} size={24} />
+          </span>
+          <span className="min-w-0">
+            <span
+              className="block font-bold text-[13.5px] leading-tight group-hover:text-accent"
+              style={{ color: "var(--text)" }}
+            >
+              {r.ticker}
+            </span>
+            <span className="block text-[11.5px] text-mute leading-tight truncate max-w-[190px]">
+              {r.companyName}
+            </span>
+          </span>
+        </Link>
+      ),
+    },
+    {
+      key: "cqs",
+      label: "CQS",
+      group: "Congress Quality Score",
+      align: "center",
+      pro: true,
+      filterable: true,
+      filterType: "range",
+      info: "The 0–100 Congress Quality Score: how strong the congressional buying signal on this stock is right now, from cluster breadth, position sizes, committee jurisdiction, contract proximity, the buyers' own track records, conviction against their habit, freshness and net direction. The grade is free; the number is part of the subscription.",
+      sortValue: (r) => num(r.cqs),
+      // Brief v9 §6: grade free, number premium. The grade stays visible so a
+      // visitor can see the ranking is real without being handed the score.
+      render: (r) =>
+        num(r.cqs) == null ? (
+          <span className="text-faint text-[11px]">Not scored</span>
+        ) : (
+          <span className="inline-flex flex-col items-center gap-1 leading-none">
+            <PremiumValue label="Congress Quality Score">
+              <span className="tabular text-[15px] font-bold" style={{ color: "var(--accent)" }}>
+                {Math.round(num(r.cqs)!)}
+              </span>
+            </PremiumValue>
+            <CqsGradeBadge grade={r.grade || gradeOf(num(r.cqs)!)} isGoldRing={r.isGoldRing} />
+          </span>
+        ),
+    },
+    {
+      key: "overlap",
+      label: "Insider overlap",
+      group: "Congress Quality Score",
+      align: "center",
+      filterable: true,
+      filterType: "preset",
+      filterPresets: [
+        {
+          key: "overlap",
+          label: "Insiders buying too",
+          test: (r) => (num(r.multiplierInsiderOverlap) ?? 1) > 1,
+        },
+      ],
+      info: "On when corporate insiders at the same company are also net buyers (Insider Score 70 or better over the last 90 days). Two independent informed groups agreeing is the strongest pattern we can observe, and it lifts the score by 20%.",
+      sortValue: (r) => ((num(r.multiplierInsiderOverlap) ?? 1) > 1 ? 1 : 0),
+      render: (r) =>
+        (num(r.multiplierInsiderOverlap) ?? 1) > 1 ? (
+          <span
+            className="px-2 h-[18px] inline-flex items-center rounded-full text-[9.5px] font-bold uppercase tracking-wide"
+            style={{ background: "var(--good-soft)", color: "var(--good)", border: "1px solid var(--good)" }}
+          >
+            Insiders too
+          </span>
+        ) : (
+          <span className="text-faint text-[11px]">—</span>
+        ),
+    },
+    {
+      key: "distinctMembers",
+      label: "Buying members",
+      group: "Congress activity",
+      align: "center",
+      filterable: true,
+      filterType: "range",
+      info: "Distinct members of Congress who disclosed a purchase of this stock in the trailing 90 days. Repeat filings by the same member count once.",
+      sortValue: (r) => num(r.distinctMembers) ?? 0,
+      render: (r) => (
+        <span className="tabular text-[14px] font-bold" style={{ color: "var(--text)" }}>
+          {r.distinctMembers}
+        </span>
+      ),
+    },
+    {
+      key: "party",
+      label: "Party mix",
+      group: "Congress activity",
+      align: "center",
+      filterable: true,
+      filterType: "preset",
+      filterLabelText: "Party",
+      filterPresets: [
+        { key: "bipartisan", label: "Bipartisan clusters", test: (r) => r.isBipartisan },
+        { key: "r", label: "Any Republican buyer", test: (r) => (num(r.partyCounts?.R) || 0) > 0 },
+        { key: "d", label: "Any Democrat buyer", test: (r) => (num(r.partyCounts?.D) || 0) > 0 },
+      ],
+      info: "How the buying members split by party. A bipartisan cluster — members of opposing parties independently buying the same stock — is harder to explain by shared politics, and earns a bonus in the score.",
+      sortValue: (r) => (r.isBipartisan ? 1 : 0),
+      render: (r) => (
+        <span className="inline-flex items-center justify-center gap-1.5">
+          {(r.partyCounts?.R || 0) > 0 && (
+            <span className="tabular text-[11px] font-bold" style={{ color: "var(--bad)" }}>
+              {r.partyCounts!.R}R
+            </span>
+          )}
+          {(r.partyCounts?.D || 0) > 0 && (
+            <span className="tabular text-[11px] font-bold" style={{ color: "var(--accent-2)" }}>
+              {r.partyCounts!.D}D
+            </span>
+          )}
+          {(r.partyCounts?.I || 0) > 0 && (
+            <span className="tabular text-[11px] font-bold text-mute">{r.partyCounts!.I}I</span>
+          )}
+          {r.isBipartisan && (
+            <span
+              className="px-1.5 h-[18px] inline-flex items-center rounded-full text-[9.5px] font-bold uppercase tracking-wide"
+              style={{ background: "var(--gold-soft)", color: "var(--text)", border: "1px solid var(--gold)" }}
+              title="Members of both parties bought this stock in the window."
+            >
+              Bipartisan
+            </span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "totalEstBuyValue",
+      label: "Est. buy value",
+      group: "Congress activity",
+      align: "right",
+      filterable: true,
+      filterType: "range",
+      info: "Sum of the midpoints of every disclosed purchase band in the window. Periodic Transaction Reports give ranges, not amounts, so this is an estimate — labelled est. everywhere it appears.",
+      sortValue: (r) => num(r.totalEstBuyValue) ?? 0,
+      render: (r) => (
+        <span className="tabular font-bold text-[14px]" style={{ color: "var(--text)" }}>
+          {fmtBig(r.totalEstBuyValue)} <span className="text-mute font-normal text-[11px]">est.</span>
+        </span>
+      ),
+    },
+    {
+      key: "largestSingleBand",
+      label: "Largest band",
+      group: "Congress activity",
+      align: "center",
+      info: "The highest disclosure band any single member reported on this stock in the window. The $100,001+ band on its own qualifies a stock for the index.",
+      sortValue: (r) => r.largestSingleBand || "",
+      render: (r) => (
+        <span className="text-[11px] tabular text-mute whitespace-nowrap">
+          {r.largestSingleBand || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "buySell",
+      label: "Buys : sells",
+      group: "Congress activity",
+      align: "center",
+      info: "Member transactions in the window. Sales are tracked and shown, but they weigh about a third of a purchase in the score: members sell for tax, divestment and ethics reasons that say nothing about the company.",
+      sortValue: (r) => num(r.buyCount) ?? 0,
+      render: (r) => (
+        <span className="tabular text-[12px]" style={{ color: "var(--text)" }}>
+          {r.buyCount}
+          <span className="text-mute"> : {r.sellCount}</span>
+        </span>
+      ),
+    },
+    {
+      key: "committee",
+      label: "Committee",
+      group: "Influence",
+      pro: true,
+      info: "Committees with jurisdiction over an agency that has awarded this company work, where one of the buying members holds a seat — and the most senior seat any of them holds. Empty for most stocks, which is the honest answer: most congressional buying has no contract or oversight connection at all.",
+      sortValue: (r) => r.committees?.[0] || "",
+      render: (r) =>
+        r.committees?.length ? (
+          <PremiumValue label="Committee influence">
+            <span className="inline-flex flex-col leading-tight">
+              <span className="text-[11.5px] font-semibold truncate max-w-[180px]" style={{ color: "var(--text)" }}>
+                {r.committees[0]}
+                {r.committees.length > 1 ? ` +${r.committees.length - 1}` : ""}
+              </span>
+              <span className="text-[10.5px] text-mute">
+                {ROLE_LABEL[r.highestRole || "member"] || r.highestRole}
+              </span>
+            </span>
+          </PremiumValue>
+        ) : (
+          <span className="text-faint text-[11px]">No oversight link</span>
+        ),
+    },
+    {
+      key: "contractValue12m",
+      label: "Contracts (12m)",
+      group: "Influence",
+      align: "right",
+      pro: true,
+      info: "Federal award dollars to this company from agencies under the buying members' committee jurisdiction, over the last twelve months, with the award count.",
+      sortValue: (r) => num(r.contractValue12m) ?? 0,
+      render: (r) =>
+        r.contractValue12m ? (
+          <PremiumValue label="Contract alignment">
+            <span className="inline-flex flex-col leading-tight items-end">
+              <span className="tabular font-bold text-[13px]" style={{ color: "var(--good)" }}>
+                {fmtBig(r.contractValue12m)}
+              </span>
+              <span className="text-[10.5px] text-mute">{r.contractCount12m} awards</span>
+            </span>
+          </PremiumValue>
+        ) : (
+          <span className="text-faint text-[11px]">—</span>
+        ),
+    },
+    {
+      key: "avgClusterRoiPct",
+      label: "Avg cluster ROI",
+      group: "Trade performance",
+      align: "right",
+      filterable: true,
+      filterType: "range",
+      info: "Mean return across the qualifying buys, each measured from the close on the member's own transaction date to the latest close. How the members' calls have done.",
+      sortValue: (r) => num(r.avgClusterRoiPct),
+      render: (r) => fmtPct(r.avgClusterRoiPct),
+    },
+    {
+      key: "sinceFilingRoiPct",
+      label: "Since filing",
+      group: "Trade performance",
+      align: "right",
+      pro: true,
+      info: "Return from the date the purchase was actually disclosed — what a reader could realistically have captured, as opposed to what the member captured. Shown alongside the trade ROI on purpose: one flatters, the other is actionable.",
+      sortValue: (r) => num(r.sinceFilingRoiPct),
+      render: (r) => (
+        <PremiumValue label="Since-filing ROI">{fmtPct(r.sinceFilingRoiPct)}</PremiumValue>
+      ),
+    },
+    {
+      key: "lastBuyDate",
+      label: "Last buy",
+      group: "Timing",
+      align: "center",
+      info: "Transaction date of the most recent qualifying purchase, and whether any filing on this stock missed the 45-day STOCK Act deadline. The late-filing flag is factual transparency — it is displayed, never scored.",
+      sortValue: (r) => r.lastBuyDate || "",
+      render: (r) => (
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+          <span className="text-[11.5px] tabular" style={{ color: "var(--text)" }}>
+            {shortDate(r.lastBuyDate)}
+          </span>
+          {r.hasLateFiling && (
+            <Clock
+              className="h-3.5 w-3.5"
+              style={{ color: "var(--text-mute)" }}
+              aria-label="Filed after the 45-day STOCK Act deadline"
+            />
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "marketCap",
+      label: "Market cap",
+      group: "Stock",
+      align: "right",
+      filterable: true,
+      filterType: "marketCapPreset",
+      sortValue: (r) => num(r.marketCap) ?? 0,
+      render: (r) => (
+        <span className="tabular text-[13px] text-mute">{fmtBig(r.marketCap)}</span>
+      ),
+    },
+    {
+      key: "sector",
+      label: "Sector",
+      group: "Stock",
+      filterable: true,
+      filterType: "select",
+      sortValue: (r) => r.sector || "",
+      filterLabel: (r) => r.sector || "Unclassified",
+      render: (r) => (
+        <span className="text-[11.5px] text-mute truncate block max-w-[170px]">
+          {r.sector || "—"}
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <AppShell>
-      <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
-        {/* Title Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-semibold mb-2">
-              <span>Brief v9 Methodology</span>
-              <span>•</span>
-              <span>Gold Tier Active</span>
-            </div>
-            <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              Congress Quality Score (CQS) Index
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400 text-sm mt-1 max-w-3xl">
-              Stock-level congressional buying conviction index. Evaluates cluster breadth, position sizes, committee jurisdiction, and contract proximity on a 0–100 scale.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/congressional-trades"
-              className="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 transition"
-            >
-              View Disclosure Stream
-            </Link>
-          </div>
+    <div className="w-full space-y-6">
+      <header>
+        <div className="flex items-center gap-2 text-mute text-sm mb-1">
+          <Landmark className="h-4 w-4" />
+          <span className="font-mono uppercase tracking-wider text-[11px]">
+            Congress Quality Score
+          </span>
         </div>
+        <h1
+          className="text-[32px] sm:text-[40px] font-semibold tracking-tight"
+          style={{ letterSpacing: "-0.6px" }}
+        >
+          The CQS Index
+        </h1>
+        <p className="text-mute text-[14px] sm:text-[15px] mt-3 max-w-4xl leading-relaxed">
+          One score per stock for how strong the congressional buying signal on it is right
+          now, built only from{" "}
+          <Link href="/congressional-trades" className="text-accent hover:underline">
+            Periodic Transaction Reports
+          </Link>{" "}
+          filed under the STOCK Act. A stock enters the index when a single member discloses a
+          purchase of $100,001 or more, when two or more members buy it inside 90 days, or when
+          a buyer sits on a committee with jurisdiction over an agency that awards the company
+          work. Everything here is public disclosure. Informational, not investment advice.
+        </p>
+      </header>
 
-        {/* Filter Controls Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Search Ticker / Name
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. NVDA, Apple..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
-          </div>
+      <AdSlot slot="leaderboard" seed="cqs-index" />
 
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Sector Filter
-            </label>
-            <select
-              value={sector}
-              onChange={(e) => setSector(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-            >
-              <option value="">All Sectors</option>
-              <option value="Technology">Technology</option>
-              <option value="Healthcare">Healthcare</option>
-              <option value="Industrials">Industrials / Defense</option>
-              <option value="Energy">Energy</option>
-              <option value="Financials">Financials</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Min CQS Score ({minScore})
-            </label>
-            <input
-              type="range"
-              min="0"
-              max="90"
-              step="5"
-              value={minScore}
-              onChange={(e) => setMinScore(Number(e.target.value))}
-              className="w-full accent-amber-500 mt-2"
-            />
-          </div>
-
-          <div className="flex items-end">
-            <label className="inline-flex items-center gap-2 cursor-pointer pb-2">
-              <input
-                type="checkbox"
-                checked={bipartisanOnly}
-                onChange={(e) => setBipartisanOnly(e.target.checked)}
-                className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500"
-              />
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Bipartisan Clusters Only
-              </span>
-            </label>
-          </div>
-        </div>
-
-        {/* CQS Index Leaderboard Table */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
-          {loading ? (
-            <div className="p-12 text-center text-slate-500 text-sm">
-              Loading Congress Quality Score index...
-            </div>
-          ) : filteredRows.length === 0 ? (
-            <div className="p-12 text-center text-slate-500 text-sm">
-              No qualified congressional buying stocks match the current filters.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    <th className="py-3.5 px-4 w-12 text-center">#</th>
-                    <th className="py-3.5 px-4">Company</th>
-                    <th className="py-3.5 px-4 text-center">CQS Score</th>
-                    <th className="py-3.5 px-4 text-center">Party Mix</th>
-                    <th className="py-3.5 px-4 text-right">Est. Buy Value</th>
-                    <th className="py-3.5 px-4 text-center">Max Buy Band</th>
-                    <th className="py-3.5 px-4 text-center">Insider Overlap</th>
-                    <th className="py-3.5 px-4 text-right">Market Cap</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs text-slate-700 dark:text-slate-300">
-                  {filteredRows.map((r, i) => {
-                    const hasOverlap = Number(r.multiplierInsiderOverlap || 1) > 1;
-                    return (
-                      <tr
-                        key={r.id || r.ticker}
-                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                      >
-                        <td className="py-4 px-4 text-center font-bold text-slate-400 tabular-nums">
-                          {i + 1}
-                        </td>
-                        <td className="py-4 px-4">
-                          <Link
-                            href={`/companies/${r.ticker}`}
-                            className="font-bold text-slate-900 dark:text-white hover:text-amber-500 dark:hover:text-amber-400 transition"
-                          >
-                            {r.ticker}
-                          </Link>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[200px]">
-                            {r.companyName}
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 text-center">
-                          <CqsScoreCell
-                            cqs={r.cqs}
-                            grade={r.grade}
-                            isGoldRing={r.isGoldRing}
-                          />
-                        </td>
-                        <td className="py-4 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            {r.partyCounts?.R ? (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-600 dark:text-red-400">
-                                {r.partyCounts.R}R
-                              </span>
-                            ) : null}
-                            {r.partyCounts?.D ? (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                                {r.partyCounts.D}D
-                              </span>
-                            ) : null}
-                            {r.isBipartisan && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                                Bipartisan
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 text-right font-semibold tabular-nums text-slate-900 dark:text-white">
-                          ${(Number(r.totalEstBuyValue || 0) / 1000).toFixed(0)}k est.
-                        </td>
-                        <td className="py-4 px-4 text-center text-slate-500 font-mono text-[11px]">
-                          {r.largestSingleBand || '—'}
-                        </td>
-                        <td className="py-4 px-4 text-center">
-                          {hasOverlap ? (
-                            <span
-                              className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                              title="Corporate insiders are also net buyers (IQS >= 70)"
-                            >
-                              IQS + CQS Overlap
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 text-[11px]">—</span>
-                          )}
-                        </td>
-                        <td className="py-4 px-4 text-right tabular-nums text-slate-500">
-                          {r.marketCap
-                            ? `$${(Number(r.marketCap) / 1e9).toFixed(1)}B`
-                            : '—'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Legal Frame Compliance Footnote */}
-        <div className="p-4 rounded-xl bg-slate-100 dark:bg-slate-800/40 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-          <strong>Compliance Frame:</strong> Information based on public disclosures filed under the STOCK Act (Periodic Transaction Reports). CQS evaluates disclosed trading signal strength and does not imply impropriety or insider trading.
-        </div>
+      <div
+        className="card p-4"
+        style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+      >
+        <label className="block text-[11px] uppercase tracking-wider font-bold text-mute mb-1">
+          Search
+        </label>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Ticker, company, member or sector…"
+          className="w-full sm:max-w-xs px-3 py-2 rounded-md text-[13px]"
+          style={{
+            background: "var(--bg-1)",
+            border: "1px solid var(--border-strong)",
+            color: "var(--text)",
+          }}
+        />
+        {data?.asOfDate && (
+          <p className="text-[11.5px] text-mute mt-3">
+            Scored{" "}
+            {new Date(`${data.asOfDate}T00:00:00Z`).toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+              timeZone: "UTC",
+            })}{" "}
+            over a trailing 90-day window. Sector, market cap, party and score filters are in
+            the Filters panel below.
+          </p>
+        )}
       </div>
-    </AppShell>
+
+      <div className="card overflow-hidden">
+        {isLoading ? (
+          <div className="text-center text-mute py-10">Loading the congressional buying index…</div>
+        ) : (
+          <DataTable<CqsRow>
+            rows={rows}
+            rowKey={(r) => r.ticker}
+            initialSort={{ key: "cqs", dir: "desc" }}
+            empty="No stock currently clears the qualification rules. The index only lists stocks members are actively buying."
+            columns={columns}
+            gate={{
+              label: "Congress Quality Score",
+              bullets: [
+                "The 0–100 score behind every grade on this board",
+                "Committee jurisdiction and federal contract alignment per stock",
+                "Since-filing returns: what a reader could actually have captured",
+                "The buyers, their Performance Grades and their conviction",
+              ],
+            }}
+          />
+        )}
+      </div>
+
+      <p className="text-[12px] text-mute leading-relaxed">
+        {data?.frame ||
+          "Congress Quality Score measures the strength of a disclosed, lawful trading signal from Periodic Transaction Reports filed under the STOCK Act. Dollar figures are estimates: PTRs report ranges, not amounts. Nothing here implies impropriety."}{" "}
+        Grade bands match the Insider Score so the two read as one system: 90+ A+, 80–89 A,
+        70–79 B+, 60–69 B, below 60 C. Weights are the Brief v9 starting values and are
+        provisional until the decile calibration is run and published.
+      </p>
+    </div>
   );
 }

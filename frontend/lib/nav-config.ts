@@ -188,6 +188,9 @@ export const NAV_GROUPS: NavGroup[] = [
               // Brief v7 Build 1: disclosed portfolios rebuilt trade by trade,
               // ranked by estimated growth.
               { label: "Wealth Tracker", href: "/politicians", icon: Landmark, badge: "new" },
+              // Brief v9: the stock-level congressional buying score, the
+              // congressional counterpart to the Insider Score.
+              { label: "Congress Quality Score", href: "/cqs-index", icon: Landmark, badge: "new" },
               // Brief v6: the published proprietary index.
               { label: "Conviction Index (IBCX)", href: "/index-ibcx", icon: Landmark, badge: "new" },
             ],

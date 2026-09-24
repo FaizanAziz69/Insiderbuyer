@@ -1,111 +1,271 @@
 "use client";
+import Link from "next/link";
+import { CqsGradeBadge, gradeOf } from "./CqsScoreCell";
+import { PremiumValue } from "./premium/PremiumValue";
 
-import React from 'react';
-import { CqsScoreCell } from './CqsScoreCell';
+/**
+ * The Congress Quality Score decomposed — Brief v9 §9 P2's acceptance test is
+ * "every score decomposes to its evidence", so this is the page that has to
+ * hold up. Each of the eight components shows what it scored, what it is worth
+ * in the total, and what it was reading.
+ *
+ * The multipliers are shown in three states, not two: applied, checked and not
+ * triggered, and NOT CHECKED. A multiplier we cannot compute yet (the
+ * legislative calendar, average daily volume) must not render as a grey pill
+ * that reads "we looked and it did not fire".
+ */
 
-interface CqsBreakdownCardProps {
-  score: {
-    cqs: number;
-    grade: string;
-    isGoldRing: boolean;
-    c1ClusterBreadth: number;
-    c2PositionSize: number;
-    c3CommitteeInfluence: number;
-    c4ContractAlignment: number;
-    c5BuyerTrackRecord: number;
-    c6RelativeConviction: number;
-    c7Freshness: number;
-    c8NetDirection: number;
-    multiplierInsiderOverlap?: number;
-    multiplierLegislativeCatalyst?: number;
-    multiplierContrarianEntry?: number;
-    multiplierLiquidityNorm?: number;
-    multiplierFilingLag?: number;
-    distinctMembers?: number;
-    isBipartisan?: boolean;
-    totalEstBuyValue?: number;
-  };
+export interface CqsScoreCard {
+  cqs: number | string | null;
+  grade: string;
+  isGoldRing: boolean;
+  c1ClusterBreadth: number | string | null;
+  c2PositionSize: number | string | null;
+  c3CommitteeInfluence: number | string | null;
+  c4ContractAlignment: number | string | null;
+  c5BuyerTrackRecord: number | string | null;
+  c6RelativeConviction: number | string | null;
+  c7Freshness: number | string | null;
+  c8NetDirection: number | string | null;
+  multiplierInsiderOverlap?: number | string | null;
+  multiplierLegislativeCatalyst?: number | string | null;
+  multiplierContrarianEntry?: number | string | null;
+  multiplierLiquidityNorm?: number | string | null;
+  multiplierFilingLag?: number | string | null;
+  multipliersUnavailable?: string[] | null;
+  distinctMembers?: number;
+  isBipartisan?: boolean;
+  totalEstBuyValue?: number | string | null;
+  largestSingleBand?: string | null;
+  committees?: string[] | null;
+  highestRole?: string | null;
+  buyers?: Array<{
+    name: string;
+    party: string | null;
+    grade: string | null;
+    estValue: number;
+  }> | null;
+  lastBuyDate?: string | null;
+  hasLateFiling?: boolean;
 }
 
-export function CqsBreakdownCard({ score }: CqsBreakdownCardProps) {
+const n = (v: unknown): number => {
+  const x = Number(v);
+  return Number.isFinite(x) ? x : 0;
+};
+
+const fmtBig = (v: number): string =>
+  v >= 1e9
+    ? `$${(v / 1e9).toFixed(2)}B`
+    : v >= 1e6
+      ? `$${(v / 1e6).toFixed(1)}M`
+      : v >= 1e3
+        ? `$${(v / 1e3).toFixed(0)}K`
+        : `$${Math.round(v)}`;
+
+export function CqsBreakdownCard({ score }: { score: CqsScoreCard }) {
+  const cqs = n(score.cqs);
+  const unavailable = new Set(score.multipliersUnavailable || []);
+
   const components = [
-    { label: 'Cluster Breadth', val: Number(score.c1ClusterBreadth || 0), weight: '20%', desc: `${score.distinctMembers || 0} buyers ${score.isBipartisan ? '(Bipartisan +10)' : ''}` },
-    { label: 'Position Size', val: Number(score.c2PositionSize || 0), weight: '15%', desc: 'Summed disclosure band floors' },
-    { label: 'Committee Influence', val: Number(score.c3CommitteeInfluence || 0), weight: '15%', desc: 'Jurisdiction oversight & member roles' },
-    { label: 'Contract Alignment', val: Number(score.c4ContractAlignment || 0), weight: '15%', desc: 'Agency contract proximity (CTS)' },
-    { label: 'Buyer Track Record', val: Number(score.c5BuyerTrackRecord || 0), weight: '12%', desc: 'Historical member performance grade' },
-    { label: 'Relative Conviction', val: Number(score.c6RelativeConviction || 0), weight: '8%', desc: 'Trade size vs median baseline' },
-    { label: 'Freshness Decay', val: Number(score.c7Freshness || 0), weight: '10%', desc: 'Decay from transaction date' },
-    { label: 'Net Direction', val: Number(score.c8NetDirection || 0), weight: '5%', desc: 'Buy vs Sell volume ratio' },
+    {
+      label: "Cluster breadth",
+      val: n(score.c1ClusterBreadth),
+      weight: 20,
+      desc: `${score.distinctMembers ?? 0} distinct ${
+        (score.distinctMembers ?? 0) === 1 ? "member" : "members"
+      }${score.isBipartisan ? ", bipartisan" : ""}`,
+    },
+    {
+      label: "Position size",
+      val: n(score.c2PositionSize),
+      weight: 15,
+      desc: score.largestSingleBand
+        ? `Largest band ${score.largestSingleBand}`
+        : "Disclosure band floors, per member",
+    },
+    {
+      label: "Committee influence",
+      val: n(score.c3CommitteeInfluence),
+      weight: 15,
+      desc: score.committees?.length
+        ? `${score.committees[0]}${score.highestRole ? ` · ${score.highestRole}` : ""}`
+        : "No buyer sits on a committee with jurisdiction here",
+    },
+    {
+      label: "Contract alignment",
+      val: n(score.c4ContractAlignment),
+      weight: 15,
+      desc: "Federal awards from agencies the buyers oversee",
+    },
+    {
+      label: "Buyer track record",
+      val: n(score.c5BuyerTrackRecord),
+      weight: 12,
+      desc: "Performance Grades of the buyers, weighted by dollars",
+    },
+    {
+      label: "Relative conviction",
+      val: n(score.c6RelativeConviction),
+      weight: 8,
+      desc: "This buy against the member's own median trade",
+    },
+    {
+      label: "Freshness",
+      val: n(score.c7Freshness),
+      weight: 10,
+      desc: "Decay from the transaction date",
+    },
+    {
+      label: "Net direction",
+      val: n(score.c8NetDirection),
+      weight: 5,
+      desc: "Member buying against member selling in the window",
+    },
   ];
 
   const multipliers = [
-    { label: 'Insider Overlap', val: score.multiplierInsiderOverlap, active: (score.multiplierInsiderOverlap || 1) > 1, mult: '× 1.20' },
-    { label: 'Legislative Catalyst', val: score.multiplierLegislativeCatalyst, active: (score.multiplierLegislativeCatalyst || 1) > 1, mult: '× 1.10' },
-    { label: 'Contrarian Entry', val: score.multiplierContrarianEntry, active: (score.multiplierContrarianEntry || 1) > 1, mult: '× 1.10' },
-    { label: 'Liquidity Norm', val: score.multiplierLiquidityNorm, active: (score.multiplierLiquidityNorm || 1) < 1, mult: '× 0.80' },
-    { label: 'Filing-Lag Dampener', val: score.multiplierFilingLag, active: (score.multiplierFilingLag || 1) < 1, mult: '× 0.85' },
+    { key: "insiderOverlap", label: "Insider overlap", value: n(score.multiplierInsiderOverlap ?? 1), up: true },
+    { key: "legislativeCatalyst", label: "Legislative catalyst", value: n(score.multiplierLegislativeCatalyst ?? 1), up: true },
+    { key: "contrarianEntry", label: "Contrarian entry", value: n(score.multiplierContrarianEntry ?? 1), up: true },
+    { key: "liquidityNorm", label: "Liquidity normalisation", value: n(score.multiplierLiquidityNorm ?? 1), up: false },
+    { key: "filingLag", label: "Filing-lag dampener", value: n(score.multiplierFilingLag ?? 1), up: false },
   ];
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
+    <div
+      className="card p-5"
+      style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+    >
+      <div
+        className="flex items-start justify-between gap-4 pb-4 mb-4"
+        style={{ borderBottom: "1px solid var(--border)" }}
+      >
         <div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-            Congress Quality Score (CQS)
+          <h3 className="text-[17px] font-semibold" style={{ color: "var(--text)" }}>
+            Congress Quality Score
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Brief v9 stock-level congressional buying conviction
+          <p className="text-[12px] text-mute mt-0.5">
+            How strong the congressional buying signal on this stock is, over the last 90 days.
           </p>
         </div>
-        <CqsScoreCell cqs={score.cqs} grade={score.grade} isGoldRing={score.isGoldRing} />
+        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+          <PremiumValue label="Congress Quality Score">
+            <span className="tabular text-[26px] font-bold leading-none" style={{ color: "var(--accent)" }}>
+              {Math.round(cqs)}
+            </span>
+          </PremiumValue>
+          <CqsGradeBadge grade={score.grade || gradeOf(cqs)} isGoldRing={score.isGoldRing} size="md" />
+        </div>
       </div>
 
-      {/* 8 Components Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-        {components.map((c, i) => (
-          <div key={i} className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-            <div className="flex justify-between items-center mb-1 text-xs">
-              <span className="font-semibold text-slate-700 dark:text-slate-300">
-                {c.label} <span className="text-slate-400">({c.weight})</span>
+      <div className="space-y-2.5">
+        {components.map((c) => (
+          <div key={c.label}>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[12.5px] font-semibold" style={{ color: "var(--text)" }}>
+                {c.label}
+                <span className="text-mute font-normal"> · {c.weight}%</span>
               </span>
-              <span className="font-bold tabular-nums text-slate-900 dark:text-white">
-                {Math.round(c.val)} / 100
-              </span>
+              <span className="tabular text-[12px] text-mute">{Math.round(c.val)}</span>
             </div>
-            <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mb-1">
+            <div
+              className="h-1.5 rounded-full mt-1 overflow-hidden"
+              style={{ background: "var(--bg-3)" }}
+            >
               <div
-                className="bg-emerald-500 h-full rounded-full transition-all duration-300"
-                style={{ width: `${Math.min(100, Math.max(0, c.val))}%` }}
+                className="h-full rounded-full"
+                style={{
+                  width: `${Math.max(0, Math.min(100, c.val))}%`,
+                  background: c.val > 0 ? "var(--accent)" : "var(--border-strong)",
+                }}
               />
             </div>
-            <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
-              {c.desc}
-            </span>
+            <p className="text-[11px] text-mute mt-1 leading-snug">{c.desc}</p>
           </div>
         ))}
       </div>
 
-      {/* Active Multipliers */}
-      <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-          Signal Multipliers
-        </h4>
-        <div className="flex flex-wrap gap-2">
-          {multipliers.map((m, i) => (
-            <span
-              key={i}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
-                m.active
-                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold'
-                  : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700'
-              }`}
-            >
-              {m.label} <span className="font-bold">{m.mult}</span>
-            </span>
-          ))}
+      <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+        <p className="text-[11px] uppercase tracking-wider font-bold text-mute mb-2">
+          Signal adjustments
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {multipliers.map((m) => {
+            const notChecked = unavailable.has(m.key);
+            const applied = !notChecked && m.value !== 1;
+            const color = notChecked
+              ? "var(--text-faint)"
+              : applied
+                ? m.up
+                  ? "var(--good)"
+                  : "var(--bad)"
+                : "var(--text-mute)";
+            return (
+              <span
+                key={m.key}
+                className="inline-flex items-center gap-1 px-2 h-[22px] rounded-full text-[10.5px] font-semibold"
+                style={{ color, border: `1px solid ${color}`, opacity: notChecked ? 0.6 : 1 }}
+                title={
+                  notChecked
+                    ? `${m.label}: we do not have the input for this stock yet, so it was not applied either way.`
+                    : applied
+                      ? `${m.label} applied: ×${m.value.toFixed(2)}.`
+                      : `${m.label}: checked, did not apply.`
+                }
+              >
+                {m.label}
+                <span className="tabular">
+                  {notChecked ? "n/a" : applied ? `×${m.value.toFixed(2)}` : "—"}
+                </span>
+              </span>
+            );
+          })}
         </div>
       </div>
+
+      {score.buyers?.length ? (
+        <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+          <p className="text-[11px] uppercase tracking-wider font-bold text-mute mb-2">
+            Who bought{" "}
+            {n(score.totalEstBuyValue) > 0 && (
+              <span className="normal-case tracking-normal font-normal">
+                · {fmtBig(n(score.totalEstBuyValue))} est.
+              </span>
+            )}
+          </p>
+          <ul className="space-y-1.5">
+            {score.buyers.slice(0, 6).map((b) => (
+              <li key={b.name} className="flex items-center justify-between gap-3 text-[12px]">
+                <Link
+                  href={`/insiders/${encodeURIComponent(b.name)}`}
+                  className="font-semibold hover:text-accent truncate"
+                  style={{ color: "var(--text)" }}
+                >
+                  {b.name}
+                  {b.party ? <span className="text-mute font-normal"> ({b.party.charAt(0)})</span> : null}
+                </Link>
+                <span className="flex items-center gap-2 flex-shrink-0">
+                  {b.grade && (
+                    <PremiumValue label="Buyer grades">
+                      <span className="text-[10.5px] font-bold text-mute">Grade {b.grade}</span>
+                    </PremiumValue>
+                  )}
+                  <span className="tabular text-mute">{fmtBig(b.estValue)} est.</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <p className="text-[11px] text-mute leading-relaxed mt-4">
+        Built from Periodic Transaction Reports filed under the STOCK Act. Dollar figures are
+        estimates: PTRs report ranges, not amounts. Nothing here implies impropriety.
+        {score.hasLateFiling
+          ? " One or more of these filings arrived after the 45-day statutory deadline; that is shown, never scored."
+          : ""}
+      </p>
     </div>
   );
 }

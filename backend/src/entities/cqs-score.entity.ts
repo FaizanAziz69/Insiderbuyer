@@ -125,6 +125,68 @@ export class CqsScore {
   @Column({ type: 'numeric', precision: 12, scale: 4, nullable: true })
   lastPrice: number | null;
 
+  // ── Influence & contract evidence (Brief v9 §6 "Influence" group) ──────
+  @Column({ type: 'jsonb', nullable: true })
+  committees: string[] | null;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  highestRole: string | null;
+
+  @Column({ type: 'numeric', precision: 18, scale: 2, nullable: true })
+  contractValue12m: number | null;
+
+  @Column({ type: 'int', default: 0 })
+  contractCount12m: number;
+
+  @Column({ type: 'numeric', precision: 8, scale: 2, nullable: true })
+  bestCtsScore: number | null;
+
+  // ── Buyers (Brief v9 §6 "Congress activity" group) ────────────────────
+  /** One entry per distinct member: name, party, chamber, grade, dollars, photo. */
+  @Column({ type: 'jsonb', nullable: true })
+  buyers: Array<{
+    name: string;
+    party: string | null;
+    chamber: string | null;
+    grade: string | null;
+    estValue: number;
+    largestBand: number;
+    photoUrl: string | null;
+  }> | null;
+
+  // ── Timing (Brief v9 §6 "Timing" group) ───────────────────────────────
+  @Column({ type: 'date', nullable: true })
+  firstBuyDate: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  lastBuyDate: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  lastFilingDate: string | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 2, nullable: true })
+  avgFilingLagDays: number | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 2, nullable: true })
+  maxFilingLagDays: number | null;
+
+  // ── Market context ────────────────────────────────────────────────────
+  /** Percent below the 52-week high, negative (feeds the contrarian multiplier). */
+  @Column({ type: 'numeric', precision: 8, scale: 2, nullable: true })
+  pctVs52wHigh: number | null;
+
+  /** Multipliers that could not be evaluated for this row — never shown as "did not fire". */
+  @Column({ type: 'jsonb', nullable: true })
+  multipliersUnavailable: string[] | null;
+
+  /** Mean ROI across the qualifying buys, from each buy's transaction date. */
+  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
+  avgClusterRoiPct: number | null;
+
+  /** Estimated dollar P&L: band midpoint x ROI, summed (est.). */
+  @Column({ type: 'numeric', precision: 18, scale: 2, nullable: true })
+  estPnlUsd: number | null;
+
   @UpdateDateColumn()
   updatedAt: Date;
 }

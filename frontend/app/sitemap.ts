@@ -8,7 +8,7 @@ const STATIC_ROUTES = [
   "", "/insights", "/editorial", "/stock-lists", "/companies", "/trades",
   "/insiders/hot", "/insiders/top-buys", "/analyst-ratings", "/analyst-stocks", "/government-contracts", "/market-data/top-gainers",
   "/market-data/top-losers", "/earnings", "/dividends", "/ipos",
-  "/short-interest", "/short-squeeze", "/congressional-trades",
+  "/short-interest", "/short-squeeze", "/congressional-trades", "/cqs-index",
   "/heatmaps/market", "/sectors", "/screener", "/watchlist", "/bubbles", "/congress-bubbles", "/insiders", "/insiders/leaderboard", "/politicians", "/index-ibcx",
   "/stock-lists/hot-sectors", "/learn/insider-buying",
   ...(DATA_ARTICLES_ENABLED ? ["/data"] : []),

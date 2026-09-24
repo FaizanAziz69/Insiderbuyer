@@ -1,11 +1,18 @@
-import PageClient from './PageClient';
+import PageClient from "./PageClient";
+import { SwrFallback } from "@/components/SwrFallback";
+import { ssrFallback } from "@/lib/ssr/prefetch";
 
-export const metadata = {
-  title: 'Congress Quality Score (CQS) Index | InsiderBuying',
-  description:
-    'Stock-level congressional buying conviction index (Brief v9). Ranked by Congress Quality Score (CQS), tracking member purchases, committee influence, and bipartisan clusters.',
-};
-
-export default function Page() {
-  return <PageClient />;
+/**
+ * Server shell: prefetches the leaderboard key the client asks for on first
+ * render and seeds it, so the board is in the HTML a crawler receives instead
+ * of arriving only after hydration — the same pattern every other data route
+ * on the site uses.
+ */
+export default async function Page() {
+  const fallback = await ssrFallback("cqs-index");
+  return (
+    <SwrFallback fallback={fallback}>
+      <PageClient />
+    </SwrFallback>
+  );
 }
