@@ -76,6 +76,8 @@ export interface DiscoveredMatch {
   uei: string | null;
   amount: number;
   key: string;
+  /** How many SAM registrations this company holds under the same name. */
+  registrations?: number;
 }
 
 export interface DiscoveryResult {
@@ -205,18 +207,21 @@ export class ContractorDiscoveryService {
       }
     }
 
-    // One ticker matching two DIFFERENT parent registrations is ambiguous:
-    // we cannot tell which entity the awards belong to, so neither is used.
+    // Several UEIs under ONE ticker is not ambiguity — it is one company with
+    // several SAM registrations. Every match here already agreed on the
+    // normalised legal name (that is how it matched at all), so the entity is
+    // not in doubt; only the registration is. The first cut of this treated a
+    // second UEI as a collision and dropped the row, which threw away Lockheed
+    // Martin (three registrations), General Dynamics, Leidos, McKesson and
+    // SAIC — the largest federal contractors in the file. Amounts are summed
+    // across registrations and the largest one supplies the display name.
     const collisions: DiscoveryResult['collisions'] = [];
     for (const k of ourCollisions) collisions.push({ key: k, tickers: ['(two of our companies share this name)'] });
     const final: DiscoveredMatch[] = [];
-    for (const [ticker, list] of hits) {
-      const ueis = new Set(list.map((m) => m.uei).filter(Boolean));
-      if (ueis.size > 1) {
-        collisions.push({ key: ticker, recipients: list.map((m) => `${m.recipientName} (${m.uei})`) });
-        continue;
-      }
-      final.push(list.sort((a, b) => b.amount - a.amount)[0]);
+    for (const [, list] of hits) {
+      const ordered = list.sort((a, b) => b.amount - a.amount);
+      const total = ordered.reduce((sum, m) => sum + m.amount, 0);
+      final.push({ ...ordered[0], amount: total, registrations: ordered.length });
     }
     final.sort((a, b) => b.amount - a.amount);
 
