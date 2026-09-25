@@ -15,6 +15,15 @@ import { TrackerVerificationService } from './verification.service';
 import { FilingAlertsService } from './filing-alerts.service';
 import { FREE_BOARD_ROWS, PremiumAccessService } from '../common/premium-access';
 
+/** Leaderboard only. Top-ranked members a guest never receives; the page draws
+ *  three blank rows in their place, labelled with the ranks, so the wall names
+ *  what it hides. */
+const LEADERBOARD_TOP_WITHHELD = 3;
+/** Leaderboard only. Ranked members a guest DOES receive: 4th through 7th.
+ *  Deliberately not the site-wide FREE_BOARD_ROWS — this board hides its best
+ *  rows instead of its worst, so it gives away fewer (Faizan 2026-09-25). */
+const LEADERBOARD_FREE_ROWS = 4;
+
 /**
  * Public reads are cached materialisations; the only computation a request
  * can start is behind the admin token. Holdings depth and the CSV export are
@@ -70,14 +79,18 @@ export class WealthTrackerController {
    *
    * Truncating beats blanking the paid columns. Half-populated rows sort and
    * filter into nonsense in the browser, and a scraper that wanted the ranking
-   * would still have it. Six rows is the whole free product, and the member
-   * pages underneath stay reachable and indexable.
+   * would still have it.
    *
-   * Exactly six — not six plus a faded seventh. The table used to render one
-   * real extra row at low opacity as a tease, which left every figure in it
-   * sitting in the DOM (Faizan 2026-09-25: "last 3 nazar na ayein bilkul").
-   * The tease is drawn client-side now from nothing at all, so row seven
-   * never leaves this method.
+   * WHICH rows are free is the part worth reading twice. The first cut handed
+   * out ranks 1 to 6 — the best-performing members on the board — and walled
+   * off the weaker ones behind them, which is the wrong way round for a page
+   * meant to sell the ranking. Faizan 2026-09-25: "table 7 se shurru kro 1 tk
+   * jaye, jo 123 blur hoon, kuch nazar na aaye." So the TOP THREE never leave
+   * this method, and a guest gets ranks 4 to 7, which the page prints from 7
+   * downwards so the reader walks UP the board and hits the wall exactly where
+   * the value is. The three withheld rows are drawn client-side out of
+   * nothing — no faded real row, because CSS opacity never hid a figure from
+   * view-source.
    */
   @Get('leaderboard')
   async leaderboard(
@@ -130,8 +143,12 @@ export class WealthTrackerController {
     const rows = (out.rows || []) as unknown[];
     return {
       ...out,
-      rows: rows.slice(0, FREE_BOARD_ROWS),
+      rows: rows.slice(
+        LEADERBOARD_TOP_WITHHELD,
+        LEADERBOARD_TOP_WITHHELD + LEADERBOARD_FREE_ROWS,
+      ),
       total: out.total ?? rows.length,
+      withheldTop: LEADERBOARD_TOP_WITHHELD,
       premium: false,
     };
   }

@@ -67,6 +67,10 @@ export interface WtLeaderboard {
   minTrades: number;
   computedAt: string | null;
   membersTracked: number;
+  /** Set by the API for a guest: paid data is shaped out of this payload. */
+  premium?: boolean;
+  /** How many top-ranked rows the API withheld (leaderboard, guests only). */
+  withheldTop?: number;
 }
 
 export interface WtHolding {

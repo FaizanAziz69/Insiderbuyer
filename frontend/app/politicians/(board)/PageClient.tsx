@@ -110,6 +110,19 @@ export default function WealthTrackerPage() {
     return all.filter((r) => r.member.name.toLowerCase().includes(s) || (r.member.state || "").toLowerCase() === s || r.stats.topHoldings.some((h) => h.ticker.toLowerCase() === s));
   }, [data, q]);
 
+  // The API withholds the top-ranked members from a guest and says how many.
+  // The board is then printed from the WEAKEST free rank upward, so the reader
+  // climbs toward the blank rows and meets the wall where the value is
+  // (Faizan 2026-09-25: "table 7 se shurru kro 1 tk jaye").
+  const withheldTop = data?.premium === false ? data?.withheldTop ?? 0 : 0;
+  const gated = withheldTop > 0;
+  const withheldRanks = useMemo(
+    // Descending, because they sit under rows that are themselves descending:
+    // 7, 6, 5, 4, then 3, 2, 1.
+    () => Array.from({ length: withheldTop }, (_, i) => withheldTop - i),
+    [withheldTop],
+  );
+
   const viewMeta = VIEWS.find((v) => v.key === view) || VIEWS[0];
   const metricCell = (r: WtLeaderboardRow) => {
     const v = r.metric;
@@ -357,10 +370,13 @@ export default function WealthTrackerPage() {
 
       <div className="card overflow-hidden">
         <DataTable
+          // Remount when entitlement resolves: `initialSort` is only initial,
+          // and the gated board sorts the opposite way to the paid one.
+          key={gated ? "gated" : "full"}
           rows={rows}
           columns={columns}
           rowKey={(r) => r.member.bioguide}
-          initialSort={{ key: "rank", dir: "asc" }}
+          initialSort={{ key: "rank", dir: gated ? "desc" : "asc" }}
           empty={isLoading ? "Building the leaderboard…" : data?.membersTracked === 0 ? "The tracker has not run yet." : "No members match these filters."}
           gate={{
             label: "the Wealth Tracker",
@@ -368,8 +384,14 @@ export default function WealthTrackerPage() {
             // count behind the wall has to come from the payload, not from the
             // rows in hand (George 2026-09-24: paygate the wealth tracker).
             total: data?.total ?? data?.membersTracked,
+            // The rows in hand are already the free allowance — the server cut
+            // them — so the table must not cut them again, and the lock cannot
+            // be inferred from how many arrived.
+            locked: gated,
+            freeRows: rows.length,
+            lockedRowLabels: withheldRanks,
             bullets: [
-              "Every ranked member, not the top six",
+              "The top-ranked members on this board — the three above",
               "Disclosed portfolio growth, hit rate and benchmark gap for each",
               "Age, activity, recency and return-band filters",
               "Full holdings depth per member, and CSV export",

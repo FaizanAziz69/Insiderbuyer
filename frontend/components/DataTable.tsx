@@ -166,6 +166,11 @@ interface Props<T> {
     teaser?: boolean;
     /** How many placeholder rows to draw (default 3). They carry no data. */
     lockedRows?: number;
+    /** First-column text for each placeholder row — the ranks being withheld,
+     *  e.g. [3, 2, 1]. A position in a list is not the paid data; showing it
+     *  is what makes the wall say "the top three are behind this". Its length
+     *  wins over `lockedRows`. */
+    lockedRowLabels?: Array<string | number>;
     /** Only rows passing this are eligible for the free window — e.g. "rows
      *  that carry an Insider Score" — so the preview is never padded with
      *  rows that have nothing to show. The wall still counts every row. */
@@ -431,7 +436,11 @@ export function DataTable<T>({
   // Only wall a table that actually has more rows than the free allowance —
   // otherwise a short or empty result would show a wall hiding nothing.
   const gateUnlocked = gate?.locked != null ? !gate.locked : premiumUnlocked;
-  const locked = !!gate && !gateUnlocked && sortedAll.length > gateFree;
+  // An explicit `gate.locked` means the CALLER owns the decision — typically
+  // because the API already withheld the rows, so counting what arrived would
+  // conclude there is nothing to hide and drop the wall.
+  const locked =
+    !!gate && !gateUnlocked && (gate.locked === true || sortedAll.length > gateFree);
   // Free users see the top `gateFree` of the UNFILTERED ranking. Filters then
   // narrow that window — they can never widen it, so cycling filters cannot be
   // used to page through the locked rows.
@@ -444,7 +453,10 @@ export function DataTable<T>({
   // DOM for view-source. The tease is now `gateLockedRows` placeholder rows
   // that contain no data at all.
   const showTeaser = gate?.teaser !== false;
-  const lockedRowCount = showTeaser ? gate?.lockedRows ?? LOCKED_PLACEHOLDER_ROWS : 0;
+  const lockedLabels = gate?.lockedRowLabels;
+  const lockedRowCount = showTeaser
+    ? lockedLabels?.length ?? gate?.lockedRows ?? LOCKED_PLACEHOLDER_ROWS
+    : 0;
   const freeWindow = useMemo(() => {
     if (!locked) return [];
     const eligible = gate?.freeFilter ? sortedAll.filter(gate.freeFilter) : sortedAll;
@@ -718,13 +730,22 @@ export function DataTable<T>({
                       className={`${alignClass[c.align ?? "left"]} ${c.className ?? ""}`}
                       style={boundaryStyle(c.key)}
                     >
-                      <LockedCell
-                        align={c.align ?? "left"}
-                        // Fade the rows out as they recede so the block reads
-                        // as "the list continues" rather than as broken cells.
-                        opacity={0.5 - i * 0.14}
-                        seed={i * 7 + ci}
-                      />
+                      {ci === 0 && lockedLabels?.[i] != null ? (
+                        <span
+                          className="tabular font-bold text-[12.5px]"
+                          style={{ color: "var(--text-mute)" }}
+                        >
+                          {lockedLabels[i]}
+                        </span>
+                      ) : (
+                        <LockedCell
+                          align={c.align ?? "left"}
+                          // Hold the fade steady rather than tapering: these
+                          // are the rows worth paying for, not an afterthought.
+                          opacity={0.42}
+                          seed={i * 7 + ci}
+                        />
+                      )}
                     </td>
                   ))}
                 </tr>
