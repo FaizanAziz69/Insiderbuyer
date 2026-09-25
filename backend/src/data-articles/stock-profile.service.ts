@@ -53,6 +53,9 @@ export interface StockProfile {
     cash: number | null;
     peRatio: number | null;
     periodEnd: string | null;
+    /** How many quarters the trailing figures actually sum — fewer than four
+     *  means the company has not been filing with us long enough. */
+    quartersCounted: number;
   } | null;
   insider: {
     iqs: number | null;
@@ -157,7 +160,7 @@ export class StockProfileService {
         marketCap: u?.marketCap ?? cq?.marketCap ?? null,
         spark: sparks.get(symbol) ?? [],
         financials: fin ? { ...fin, peRatio } : peRatio !== null
-          ? { revenueTtm: null, netIncomeTtm: null, grossMargin: null, freeCashFlowTtm: null, totalDebt: null, cash: null, peRatio, periodEnd: null }
+          ? { revenueTtm: null, netIncomeTtm: null, grossMargin: null, freeCashFlowTtm: null, totalDebt: null, cash: null, peRatio, periodEnd: null, quartersCounted: 0 }
           : null,
         insider: ins,
         analyst,
@@ -237,27 +240,59 @@ export class StockProfileService {
     return out;
   }
 
-  /** Trailing-twelve-month figures from the point-in-time fundamentals. */
+  /**
+   * Trailing-twelve-month figures.
+   *
+   * `pit_fundamentals` stores QUARTERS. Reading the latest row and calling it
+   * TTM understates revenue roughly fourfold — The Trade Desk came back at
+   * $715M against a real TTM near $2.4bn — so the flow items are summed over
+   * the last four quarters and only the balance-sheet items (which are a
+   * position, not a flow) are taken from the most recent one.
+   */
   private async fundamentals(symbols: string[]): Promise<Map<string, StockProfile['financials']>> {
     const rows = await this.q<any[]>(
-      `SELECT DISTINCT ON (symbol) symbol, to_char(period_end,'YYYY-MM-DD') AS period_end,
-              revenue, net_income, gross_margin, free_cash_flow, total_debt, cash
-         FROM pit_fundamentals
-        WHERE symbol = ANY($1)
-        ORDER BY symbol, period_end DESC`,
+      `WITH ranked AS (
+         SELECT symbol, period_end, revenue, gross_profit, net_income, free_cash_flow,
+                total_debt, cash,
+                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY period_end DESC) AS rn
+           FROM pit_fundamentals
+          WHERE symbol = ANY($1)
+       )
+       SELECT symbol,
+              to_char(MAX(period_end) FILTER (WHERE rn = 1),'YYYY-MM-DD') AS period_end,
+              COUNT(*) FILTER (WHERE rn <= 4)::int                        AS quarters,
+              SUM(revenue)        FILTER (WHERE rn <= 4)                  AS revenue,
+              SUM(gross_profit)   FILTER (WHERE rn <= 4)                  AS gross_profit,
+              SUM(net_income)     FILTER (WHERE rn <= 4)                  AS net_income,
+              SUM(free_cash_flow) FILTER (WHERE rn <= 4)                  AS free_cash_flow,
+              MAX(total_debt)     FILTER (WHERE rn = 1)                   AS total_debt,
+              MAX(cash)           FILTER (WHERE rn = 1)                   AS cash
+         FROM ranked
+        WHERE rn <= 4
+        GROUP BY symbol`,
       [symbols],
     );
     const out = new Map<string, StockProfile['financials']>();
     for (const r of rows) {
+      const revenue = num(r.revenue);
+      const grossProfit = num(r.gross_profit);
+      // A filing that does not break out cost of revenue reports gross profit
+      // equal to revenue. That is a missing disclosure, not a 100% margin, and
+      // publishing it as one would be a confident false claim.
+      const margin =
+        revenue && revenue > 0 && grossProfit !== null && grossProfit < revenue * 0.995
+          ? grossProfit / revenue
+          : null;
       out.set(r.symbol, {
-        revenueTtm: num(r.revenue),
+        revenueTtm: revenue,
         netIncomeTtm: num(r.net_income),
-        grossMargin: num(r.gross_margin),
+        grossMargin: margin,
         freeCashFlowTtm: num(r.free_cash_flow),
         totalDebt: num(r.total_debt),
         cash: num(r.cash),
         peRatio: null,
         periodEnd: r.period_end ?? null,
+        quartersCounted: Number(r.quarters) || 0,
       });
     }
     return out;
@@ -425,12 +460,12 @@ export class StockProfileService {
     // ── the balance sheet ──────────────────────────────────────────────
     if (fin) {
       if (fin.freeCashFlowTtm !== null && fin.freeCashFlowTtm > 0) {
-        bull.push({ text: `Free cash flow ${usd(fin.freeCashFlowTtm)} in the latest reported period.`, source: `Company filings${fin.periodEnd ? `, period to ${fin.periodEnd}` : ''}` });
+        bull.push({ text: `Free cash flow ${usd(fin.freeCashFlowTtm)} over the trailing twelve months.`, source: `Company filings${fin.periodEnd ? `, to ${fin.periodEnd}` : ''}` });
       } else if (fin.freeCashFlowTtm !== null && fin.freeCashFlowTtm < 0) {
-        bear.push({ text: `Free cash flow was ${usd(fin.freeCashFlowTtm)} in the latest reported period.`, source: `Company filings${fin.periodEnd ? `, period to ${fin.periodEnd}` : ''}` });
+        bear.push({ text: `Free cash flow was ${usd(fin.freeCashFlowTtm)} over the trailing twelve months.`, source: `Company filings${fin.periodEnd ? `, to ${fin.periodEnd}` : ''}` });
       }
       if (fin.netIncomeTtm !== null && fin.netIncomeTtm < 0) {
-        bear.push({ text: `Loss-making: net income ${usd(fin.netIncomeTtm)} in the latest reported period.`, source: 'Company filings' });
+        bear.push({ text: `Loss-making: net income ${usd(fin.netIncomeTtm)} over the trailing twelve months.`, source: 'Company filings' });
       }
       if (fin.totalDebt !== null && fin.cash !== null && p.marketCap && fin.totalDebt - fin.cash > p.marketCap * 0.5) {
         bear.push({ text: `Net debt ${usd(fin.totalDebt - fin.cash)} is more than half the company's market value.`, source: 'Company filings' });

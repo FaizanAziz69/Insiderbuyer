@@ -49,6 +49,7 @@ export interface StockProfile {
     cash: number | null;
     peRatio: number | null;
     periodEnd: string | null;
+    quartersCounted: number;
   } | null;
   insider: {
     iqs: number | null;
@@ -210,13 +211,14 @@ function Card({ row, profile }: { row: ChartRow; profile: StockProfile | undefin
         <div className="space-y-3">
           <div>
             <h4 className="font-mono text-[10.5px] font-semibold uppercase tracking-[1.4px] mb-1.5" style={{ color: "var(--text-mute)" }}>
-              Financial snapshot{fin?.periodEnd ? ` · period to ${fin.periodEnd}` : ""}
+              Financial snapshot{fin?.periodEnd ? ` · trailing twelve months to ${fin.periodEnd}` : ""}
+              {fin && fin.quartersCounted > 0 && fin.quartersCounted < 4 ? ` · only ${fin.quartersCounted} quarter${fin.quartersCounted === 1 ? "" : "s"} on file` : ""}
             </h4>
             {fin ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <Stat label="Revenue" value={usd(fin.revenueTtm)} />
-                <Stat label="Net income" value={usd(fin.netIncomeTtm)} tone={fin.netIncomeTtm != null ? (fin.netIncomeTtm >= 0 ? "good" : "bad") : undefined} />
-                <Stat label="Free cash flow" value={usd(fin.freeCashFlowTtm)} tone={fin.freeCashFlowTtm != null ? (fin.freeCashFlowTtm >= 0 ? "good" : "bad") : undefined} />
+                <Stat label="Revenue (TTM)" value={usd(fin.revenueTtm)} />
+                <Stat label="Net income (TTM)" value={usd(fin.netIncomeTtm)} tone={fin.netIncomeTtm != null ? (fin.netIncomeTtm >= 0 ? "good" : "bad") : undefined} />
+                <Stat label="Free cash flow (TTM)" value={usd(fin.freeCashFlowTtm)} tone={fin.freeCashFlowTtm != null ? (fin.freeCashFlowTtm >= 0 ? "good" : "bad") : undefined} />
                 <Stat label="Net debt" value={fin.totalDebt != null && fin.cash != null ? usd(fin.totalDebt - fin.cash) : "—"} />
               </div>
             ) : (
