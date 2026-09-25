@@ -16,6 +16,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { RankedBarChart, type ChartPayload } from "./RankedBarChart";
+import { ListArticleModule } from "./ListArticleModule";
 import { ComplianceFooter } from "@/components/ComplianceFooter";
 import { SUBSCRIBE_HREF } from "@/lib/funnel";
 
@@ -25,7 +26,19 @@ export interface DataArticle {
   dek: string;
   category: string;
   refresh: "weekly" | "monthly" | "quarterly";
-  chart: "insider-buys" | "insider-sells" | "analysts" | "hedge-funds";
+  chart:
+    | "insider-buys"
+    | "insider-sells"
+    | "analysts"
+    | "hedge-funds"
+    | "congress-proximity"
+    | "congress-flags"
+    // George 2026-09-23 — the list articles.
+    | "market-lows"
+    | "market-highs"
+    | "insider-buys-ytd"
+    | "analyst-targets"
+    | "ipos-ytd";
   periods: string[];
   sections: {
     takeaways: string[];
@@ -40,18 +53,36 @@ export interface DataArticle {
 }
 
 const REFRESH_LABEL = { weekly: "refreshes weekly", monthly: "refreshes monthly", quarterly: "refreshes quarterly" } as const;
-const CHART_TITLE: Record<DataArticle["chart"], string> = {
+const CHART_TITLE: Partial<Record<DataArticle["chart"], string>> = {
   "insider-buys": "Top 10 stocks by open-market insider purchases",
   "insider-sells": "Top 10 stocks by insider sales",
   analysts: "Top 10 analysts by hit rate",
   "hedge-funds": "Top 10 managers by trailing-12-month return",
+  "congress-proximity": "Members of Congress holding stocks their committees' agencies awarded",
+  "congress-flags": "Committee and contract flags, newest first",
+  "market-lows": "Trading at a 52-week low",
+  "market-highs": "Trading at a 52-week high",
+  "insider-buys-ytd": "The largest open-market insider buys of the year",
+  "analyst-targets": "The widest gaps to consensus price targets",
+  "ipos-ytd": "This year's listings, ranked by return from the offer price",
 };
-const CHART_SUBTITLE: Record<DataArticle["chart"], string> = {
+const CHART_SUBTITLE: Partial<Record<DataArticle["chart"], string>> = {
   "insider-buys": "Form 4 code P only — 10b5-1 plan buys, option exercises and awards excluded",
   "insider-sells": "Form 4 code S — filter planned 10b5-1 sales from discretionary ones",
   analysts: "Directional hit rate on calls at least 30 days old; 20 graded calls minimum, ranked on the sample-adjusted lower bound",
   "hedge-funds": "Value-weighted return of disclosed 13F long positions, rebalanced at filing dates",
+  "congress-proximity": "Verified committee-to-contract links only",
+  "congress-flags": "Verified committee-to-contract links only",
+  "market-lows": "Every NYSE, NASDAQ and AMEX company above $2bn, within 3% of its lowest price in a year — ranked by the year-to-date move",
+  "market-highs": "Every NYSE, NASDAQ and AMEX company above $2bn, within 3% of its highest price in a year — ranked by the year-to-date move",
+  "insider-buys-ytd": "Discretionary open-market purchases (Form 4 code P) since January 1",
+  "analyst-targets": "Average of targets published in the last 180 days; at least four analysts per name",
+  "ipos-ytd": "Return measured from the offer price, not the first public trade",
 };
+
+/** George's list articles render the table and the per-stock breakdown; the
+ *  original four keep the ranked bar module they launched with. */
+const LIST_CHARTS = new Set<DataArticle["chart"]>(["market-lows", "market-highs", "insider-buys-ytd", "analyst-targets", "ipos-ytd"]);
 
 function fmtLong(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -105,8 +136,25 @@ export function DataArticleView({ article }: { article: DataArticle }) {
         </div>
       </header>
 
-      {/* Locked chart module */}
-      <RankedBarChart slug={article.slug} chart={article.chart} periods={article.periods} title={CHART_TITLE[article.chart]} subtitle={CHART_SUBTITLE[article.chart]} onLoaded={onLoaded} />
+      {/* Locked data module: the visual, plus the per-stock breakdown on list articles */}
+      {LIST_CHARTS.has(article.chart) ? (
+        <ListArticleModule
+          slug={article.slug}
+          period={article.periods[0]}
+          title={CHART_TITLE[article.chart] ?? article.headline}
+          subtitle={CHART_SUBTITLE[article.chart] ?? ""}
+          onLoaded={onLoaded}
+        />
+      ) : (
+        <RankedBarChart
+          slug={article.slug}
+          chart={article.chart}
+          periods={article.periods}
+          title={CHART_TITLE[article.chart] ?? article.headline}
+          subtitle={CHART_SUBTITLE[article.chart] ?? ""}
+          onLoaded={onLoaded}
+        />
+      )}
 
       {/* Key takeaways */}
       <aside className="rounded-xl p-4 sm:p-5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderLeft: "4px solid #C9A227" }} aria-labelledby="takeaways-h">

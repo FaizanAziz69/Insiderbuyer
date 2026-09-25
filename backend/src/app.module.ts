@@ -72,6 +72,7 @@ import { GovContractsModule } from './gov-contracts/gov-contracts.module';
 import { InvestorsModule } from './investors/investors.module';
 import { Iqs2Module } from './iqs2/iqs2.module';
 import { DataArticlesModule } from './data-articles/data-articles.module';
+import { MarketUniverseModule } from './market-universe/market-universe.module';
 import { DeInsidersModule } from './de-insiders/de-insiders.module';
 import { PromoterModule } from './promoter/promoter.module';
 import { DataAccessModule } from './data-access/data-access.module';
@@ -238,6 +239,7 @@ import {
     InvestorsModule,
     Iqs2Module,
     DataArticlesModule,
+    MarketUniverseModule,
     DeInsidersModule,
     PromoterModule,
     DataAccessModule,

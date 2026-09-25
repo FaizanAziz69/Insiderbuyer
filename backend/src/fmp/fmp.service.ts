@@ -295,6 +295,62 @@ export class FmpService {
     return out;
   }
 
+  /**
+   * The listed universe, from `company-screener`. This is the only source we
+   * have for companies that file no Form 4 — the `companies` table is built
+   * from insider filings, so it cannot answer "what is listed and above $X".
+   * One call returns the whole set (≈4,500 U.S. names above $300M).
+   */
+  async getScreener(opts: {
+    exchange?: string;
+    marketCapMoreThan?: number;
+    marketCapLowerThan?: number;
+    sector?: string;
+    limit?: number;
+  } = {}): Promise<
+    Array<{
+      symbol: string;
+      companyName: string | null;
+      marketCap: number | null;
+      sector: string | null;
+      industry: string | null;
+      price: number | null;
+      volume: number | null;
+      avgVolume: number | null;
+      exchange: string | null;
+      exchangeShortName: string | null;
+      country: string | null;
+      isActivelyTrading: boolean;
+    }>
+  > {
+    const rows = await this.get('company-screener', {
+      exchange: opts.exchange ?? 'NYSE,NASDAQ,AMEX',
+      marketCapMoreThan: opts.marketCapMoreThan ?? 300_000_000,
+      ...(opts.marketCapLowerThan ? { marketCapLowerThan: opts.marketCapLowerThan } : {}),
+      ...(opts.sector ? { sector: opts.sector } : {}),
+      isEtf: false,
+      isFund: false,
+      isActivelyTrading: true,
+      limit: opts.limit ?? 6000,
+    });
+    return rows
+      .filter((r) => r?.symbol)
+      .map((r) => ({
+        symbol: String(r.symbol).toUpperCase(),
+        companyName: r.companyName ?? null,
+        marketCap: Number(r.marketCap) || null,
+        sector: r.sector ?? null,
+        industry: r.industry ?? null,
+        price: Number(r.price) || null,
+        volume: Number(r.volume) || null,
+        avgVolume: Number(r.avgVolume) || null,
+        exchange: r.exchange ?? null,
+        exchangeShortName: r.exchangeShortName ?? null,
+        country: r.country ?? null,
+        isActivelyTrading: r.isActivelyTrading !== false,
+      }));
+  }
+
   // ── Dividend calendar (ex-dividend dates) ────────────────────────────
   // Accumulated symbol → most-recent-ex-date, plus the set of calendar days
   // already walked, so a second build on the same instance re-requests nothing.

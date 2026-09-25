@@ -7,7 +7,10 @@ import { FmpService } from '../fmp/fmp.service';
 import { AnalystsService } from '../analysts/analysts.service';
 import { InvestorsService } from '../investors/investors.service';
 import { FlagEngineService } from '../congress-trades/flag-engine.service';
+import { MarketUniverseService } from '../market-universe/market-universe.service';
+import { StockProfile, StockProfileService } from './stock-profile.service';
 import { LAUNCH_ARTICLES, ArticleSeed, ArticleSections } from './seed';
+import { LIST_ARTICLES } from './seed-lists';
 
 /**
  * DATA ARTICLES — Developer Project Brief (Aug 24 2026), Workstream A.
@@ -58,6 +61,17 @@ export interface ChartPayload {
   variants: Partial<Record<Variant, ChartRow[]>>;
   totals: Record<string, number | string | null>;
   source: string;
+  /**
+   * Per-stock breakdown keyed by ticker — George 2026-09-23: "a simple
+   * breakdown via List style … stock charts and financial snapshots for each.
+   * Insider score. Analyst rating and upside … Bullish and bearish notes."
+   * Present only on ticker-keyed articles; an analyst or manager leaderboard
+   * has no stock to profile.
+   */
+  profiles?: Record<string, StockProfile>;
+  /** Shown under the list when the underlying data cannot move as often as the
+   *  page refreshes (13F is quarterly, whatever the cadence above says). */
+  cadenceNote?: string;
 }
 
 const STALE_BY_KIND: Record<ArticleSeed['refresh'], number> = {
@@ -70,6 +84,18 @@ const PERIOD_DAYS: Record<string, number> = { '30d': 30, '90d': 90 };
 const PERIOD_LABEL: Record<Period, string> = { '30d': 'Last 30 days', '90d': 'Last 90 days', '12m': 'Trailing 12 months', ttm: 'Trailing 12 months' };
 /** §3.2 cluster flag: three or more distinct insiders on the same side. */
 const CLUSTER_MIN_INSIDERS = 3;
+/** Article kinds whose rows are stocks, and so carry a per-stock breakdown. */
+const TICKER_KEYED = new Set([
+  // The four launch articles keep the ranked-bar module they shipped with, so
+  // attaching profiles to them would be payload nobody renders.
+  'market-lows',
+  'market-highs',
+  'insider-buys-ytd',
+  'analyst-targets',
+  'ipos-ytd',
+]);
+/** George asked for 15 names in the screen articles, matching his reference. */
+const SCREEN_N = 15;
 const TOP_N = 10;
 /** Analyst leaderboard: graded calls needed before a hit rate is credible. */
 const ANALYST_MIN_GRADED = 20;
@@ -100,6 +126,8 @@ export class DataArticlesService implements OnModuleInit {
     private readonly analysts: AnalystsService,
     private readonly investors: InvestorsService,
     private readonly flags: FlagEngineService,
+    private readonly universe: MarketUniverseService,
+    private readonly profiles: StockProfileService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -162,7 +190,7 @@ export class DataArticlesService implements OnModuleInit {
   /** Seed the four launch articles ONCE; editorial edits live in the DB. */
   private async seed(): Promise<void> {
     let i = 0;
-    for (const a of LAUNCH_ARTICLES) {
+    for (const a of [...LAUNCH_ARTICLES, ...LIST_ARTICLES]) {
       await this.companies.query(
         `INSERT INTO data_articles (slug, headline, dek, category, refresh, chart, periods, sections, sort)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9) ON CONFLICT (slug) DO NOTHING`,
@@ -346,8 +374,31 @@ export class DataArticlesService implements OnModuleInit {
       case 'congress-flags':
         payload = await this.buildCongress(a.slug, period, a.chart);
         break;
+      case 'market-lows':
+      case 'market-highs':
+        payload = await this.buildMarketScreen(a.slug, period, a.chart === 'market-lows' ? 'lows' : 'highs');
+        break;
+      case 'insider-buys-ytd':
+        payload = await this.buildInsiderBuysYtd(a.slug, period);
+        break;
+      case 'analyst-targets':
+        payload = await this.buildAnalystTargets(a.slug, period);
+        break;
+      case 'ipos-ytd':
+        payload = await this.buildIpos(a.slug, period);
+        break;
       default:
         throw new Error(`unknown chart kind ${a.chart}`);
+    }
+    // The per-stock breakdown rides along with every ticker-keyed article, so
+    // one template serves all of them (George: "the same for hit 52 week highs"
+    // — and for every other list).
+    if (TICKER_KEYED.has(a.chart)) {
+      const tickers = Object.values(payload.variants)
+        .flat()
+        .map((r) => (r as ChartRow).label)
+        .filter(Boolean);
+      payload.profiles = await this.profiles.many(tickers);
     }
     await this.companies.query(
       `INSERT INTO data_article_data (slug, period, payload, refreshed_at) VALUES ($1,$2,$3::jsonb, now())
@@ -567,6 +618,256 @@ export class DataArticlesService implements OnModuleInit {
     };
   }
 
+  /* ------------------------------------------ builders: market screens */
+
+  /**
+   * "These Stocks Just Hit 52-Week Lows" (and its mirror for highs).
+   *
+   * Reads `market_universe`, NOT `companies`. George's own example listed FIS,
+   * LVS, TAP, AON, STZ and CLX — none of which are in `companies`, because
+   * that table is built from Form 4 filings. Screening there would have
+   * produced a list missing its most recognisable names with no error to show
+   * for it.
+   */
+  private async buildMarketScreen(slug: string, period: Period, kind: 'lows' | 'highs'): Promise<ChartPayload> {
+    const rows = await this.universe.screen({ kind, limit: SCREEN_N });
+    const list: ChartRow[] = rows.map((r, i) => ({
+      rank: i + 1,
+      key: r.symbol,
+      label: r.symbol,
+      sublabel: r.name,
+      href: `/companies/${r.symbol}`,
+      // The bar is the year-to-date move — the column George's reference shows.
+      value: r.ytdPct ?? 0,
+      valueKind: 'pct',
+      iqs: null,
+      detail: {
+        price: r.price,
+        yearHigh: r.yearHigh,
+        yearLow: r.yearLow,
+        ytdPct: r.ytdPct,
+        changePct: r.changePct,
+        offHighPct: r.offHighPct,
+        offLowPct: r.offLowPct,
+        rangePosition: r.rangePosition,
+        marketCap: r.marketCap,
+        sector: r.sector,
+        industry: r.industry,
+        exchange: r.exchange,
+      },
+    }));
+
+    const status: any = await this.universe.status();
+    return {
+      slug,
+      period,
+      periodLabel: kind === 'lows' ? 'At 52-week lows' : 'At 52-week highs',
+      asOf: new Date().toISOString().slice(0, 10),
+      refreshedAt: new Date().toISOString(),
+      valueKind: 'pct',
+      valueLabel: 'Change (year to date)',
+      variants: { all: list },
+      totals: {
+        universe: status?.symbols ?? null,
+        matched: list.length,
+        medianYtd: list.length ? list[Math.floor(list.length / 2)].value : null,
+        worst: list.length ? list[0].value : null,
+      },
+      source:
+        'Screened across every NYSE, NASDAQ and AMEX company above $2B (FMP listings, 52-week range and year-to-date change); insider, analyst and financial detail from the InsiderBuying pipeline',
+    };
+  }
+
+  /**
+   * "Top Insider Buys of 2026" — the year to date, not a rolling window, so
+   * the headline stays true to its own title. Rebuilt weekly.
+   */
+  private async buildInsiderBuysYtd(slug: string, period: Period): Promise<ChartPayload> {
+    const rows: any[] = await this.companies.query(
+      `SELECT UPPER(c.ticker) AS ticker, c.name, c.sector,
+              SUM(t."totalValue")::float8            AS total,
+              COUNT(DISTINCT t."insiderName")::int   AS insiders,
+              COUNT(*)::int                          AS trades,
+              MAX(t."transactionDate")::text         AS last_date,
+              SUM(t."totalValue")::float8 / NULLIF(SUM(t."sharesBought")::float8, 0) AS avg_price
+         FROM insider_transactions t JOIN companies c ON c.id = t.company_id
+        WHERE t."transactionCode" = 'P' AND t."plannedBuy" = false
+          AND t."totalValue" > 0 AND t."sharesBought" > 0
+          AND t."transactionDate" >= date_trunc('year', CURRENT_DATE)
+          AND c.ticker IS NOT NULL AND c.ticker <> ''
+        GROUP BY UPPER(c.ticker), c.name, c.sector
+        ORDER BY total DESC
+        LIMIT $1`,
+      [SCREEN_N],
+    );
+    const iqs = await this.latestIqs(rows.map((r) => r.ticker));
+    const list: ChartRow[] = rows.map((r, i) => ({
+      rank: i + 1,
+      key: r.ticker,
+      label: r.ticker,
+      sublabel: r.name,
+      href: `/companies/${r.ticker}`,
+      value: Number(r.total),
+      valueKind: 'usd',
+      iqs: iqs.get(r.ticker) ?? null,
+      detail: {
+        total: Number(r.total),
+        insiders: Number(r.insiders),
+        trades: Number(r.trades),
+        avgPrice: Number(r.avg_price) || null,
+        cluster: Number(r.insiders) >= CLUSTER_MIN_INSIDERS,
+        lastDate: r.last_date,
+        sector: r.sector,
+      },
+    }));
+    const [t] = await this.companies.query(
+      `SELECT COALESCE(SUM(t."totalValue"),0)::float8 AS total, COUNT(DISTINCT t.company_id)::int AS companies
+         FROM insider_transactions t
+        WHERE t."transactionCode" = 'P' AND t."plannedBuy" = false
+          AND t."transactionDate" >= date_trunc('year', CURRENT_DATE)`,
+    );
+    return {
+      slug,
+      period,
+      periodLabel: `Year to date, ${new Date().getUTCFullYear()}`,
+      asOf: new Date().toISOString().slice(0, 10),
+      refreshedAt: new Date().toISOString(),
+      valueKind: 'usd',
+      valueLabel: 'Open-market purchases, year to date',
+      variants: { all: list },
+      totals: {
+        total: Number(t.total),
+        companies: Number(t.companies),
+        top15Share: Number(t.total) ? (list.reduce((s, r) => s + r.value, 0) / Number(t.total)) * 100 : null,
+      },
+      source: 'SEC Form 4 — discretionary open-market purchases (code P) only; 10b5-1 plan buys, option exercises and awards excluded',
+    };
+  }
+
+  /**
+   * "Top Ranked Stocks (by analyst targets)" — ranked on consensus upside, but
+   * only where enough analysts have published recently for a consensus to
+   * mean anything, and only inside the screened universe so the list cannot
+   * fill up with untradeable names.
+   */
+  private async buildAnalystTargets(slug: string, period: Period): Promise<ChartPayload> {
+    const rows: any[] = await this.companies.query(
+      `SELECT u.symbol, u.name, u.sector, u.price::float8 AS price, u.market_cap::float8 AS market_cap,
+              AVG(p."priceTarget")::float8  AS target,
+              COUNT(*)::int                 AS analysts,
+              MAX(p."priceTarget")::float8  AS target_high,
+              MIN(p."priceTarget")::float8  AS target_low,
+              to_char(MAX(p."publishedDate"),'YYYY-MM-DD') AS latest
+         FROM market_universe u
+         JOIN analyst_price_targets p ON p.symbol = u.symbol
+        WHERE u.price > 0 AND p."priceTarget" > 0
+          AND p."publishedDate" >= now() - interval '180 days'
+        GROUP BY u.symbol, u.name, u.sector, u.price, u.market_cap
+       HAVING COUNT(*) >= 4 AND AVG(p."priceTarget") > u.price
+        ORDER BY (AVG(p."priceTarget") - u.price) / u.price DESC
+        LIMIT $1`,
+      [SCREEN_N],
+    );
+    const iqs = await this.latestIqs(rows.map((r) => r.symbol));
+    const list: ChartRow[] = rows.map((r, i) => {
+      const upside = ((Number(r.target) - Number(r.price)) / Number(r.price)) * 100;
+      return {
+        rank: i + 1,
+        key: r.symbol,
+        label: r.symbol,
+        sublabel: r.name,
+        href: `/companies/${r.symbol}`,
+        value: upside,
+        valueKind: 'pct' as const,
+        iqs: iqs.get(r.symbol) ?? null,
+        detail: {
+          price: Number(r.price),
+          target: Number(r.target),
+          targetHigh: Number(r.target_high),
+          targetLow: Number(r.target_low),
+          analysts: Number(r.analysts),
+          upsidePct: upside,
+          latest: r.latest,
+          marketCap: Number(r.market_cap),
+          sector: r.sector,
+        },
+      };
+    });
+    return {
+      slug,
+      period,
+      periodLabel: 'Consensus targets, last 180 days',
+      asOf: new Date().toISOString().slice(0, 10),
+      refreshedAt: new Date().toISOString(),
+      valueKind: 'pct',
+      valueLabel: 'Upside to consensus target',
+      variants: { all: list },
+      totals: { minAnalysts: 4, windowDays: 180, matched: list.length },
+      source: 'Published analyst price targets over the last 180 days, averaged; at least four analysts per name',
+      cadenceNote:
+        'A price target is an opinion with a date on it, not a forecast we endorse. Upside is measured against the last close, and a target can be withdrawn without a new filing.',
+    };
+  }
+
+  /** "Best performing IPOs of 2026" — return from the offer price. */
+  private async buildIpos(slug: string, period: Period): Promise<ChartPayload> {
+    const rows: any[] = await this.companies.query(
+      `SELECT symbol, name, exchange, to_char(listing_date,'YYYY-MM-DD') AS listed,
+              ipo_price::float8 AS ipo_price, current_price::float8 AS price,
+              market_cap::float8 AS market_cap,
+              ((current_price - ipo_price) / NULLIF(ipo_price,0) * 100)::float8 AS ret
+         FROM ipo_listings
+        WHERE listing_date >= date_trunc('year', CURRENT_DATE)
+          AND ipo_price > 0 AND current_price > 0
+        ORDER BY ret DESC
+        LIMIT $1`,
+      [SCREEN_N],
+    );
+    const iqs = await this.latestIqs(rows.map((r) => r.symbol));
+    const list: ChartRow[] = rows.map((r, i) => ({
+      rank: i + 1,
+      key: r.symbol,
+      label: r.symbol,
+      sublabel: r.name,
+      href: `/companies/${r.symbol}`,
+      value: Number(r.ret),
+      valueKind: 'pct',
+      iqs: iqs.get(r.symbol) ?? null,
+      detail: {
+        listed: r.listed,
+        ipoPrice: Number(r.ipo_price),
+        price: Number(r.price),
+        returnPct: Number(r.ret),
+        marketCap: Number(r.market_cap),
+        exchange: r.exchange,
+      },
+    }));
+    const [t] = await this.companies.query(
+      `SELECT COUNT(*)::int AS listings,
+              COUNT(*) FILTER (WHERE current_price > ipo_price)::int AS above_offer
+         FROM ipo_listings
+        WHERE listing_date >= date_trunc('year', CURRENT_DATE) AND ipo_price > 0 AND current_price > 0`,
+    );
+    return {
+      slug,
+      period,
+      periodLabel: `Listed in ${new Date().getUTCFullYear()}`,
+      asOf: new Date().toISOString().slice(0, 10),
+      refreshedAt: new Date().toISOString(),
+      valueKind: 'pct',
+      valueLabel: 'Return from the offer price',
+      variants: { all: list },
+      totals: {
+        listings: Number(t.listings),
+        aboveOffer: Number(t.above_offer),
+        aboveOfferPct: Number(t.listings) ? (Number(t.above_offer) / Number(t.listings)) * 100 : null,
+      },
+      source: 'IPO offer prices and current quotes from the InsiderBuying listings feed',
+      cadenceNote:
+        'Return is measured from the offer price, which most investors could not buy at. The first public trade is often well above it.',
+    };
+  }
+
   /* ---------------------------------------------- builders: leaderboards */
 
   /** George (2026-08-29): "no credible analyst has a 100% hit rate". With
@@ -683,6 +984,13 @@ export class DataArticlesService implements OnModuleInit {
         combinedAum: ranked.reduce((s, c) => s + (c.portfolioValue ?? 0), 0),
       },
       source: 'SEC Form 13F-HR via FMP; performance per /methodology#top-insiders',
+      // George asked for a weekly rebalance on this list. Prices move weekly;
+      // the holdings underneath them cannot. 13F is filed once a quarter, up to
+      // 45 days after the quarter ends, so a "weekly rebalanced" manager
+      // ranking would be precision this data does not have. The page says so
+      // rather than implying otherwise.
+      cadenceNote:
+        'Positions come from quarterly 13F filings, which are disclosed up to 45 days after the quarter ends. Valuations on this page refresh with the market, but the holdings behind them change only four times a year — and a manager may have exited a position months before it leaves this list.',
     };
   }
 
@@ -716,6 +1024,19 @@ export class DataArticlesService implements OnModuleInit {
       ctx[`top${n}.aum`] = fmtUsd(r.detail.portfolioValue as number | null);
       // Brief v5 §4 formats #19–20 name a person, a committee and an agency,
       // none of which the generic ticker/name pair can carry.
+      // Screen and target articles: the price context their copy is written on.
+      ctx[`top${n}.price`] = r.detail.price ? `$${Number(r.detail.price).toFixed(2)}` : '—';
+      ctx[`top${n}.ytd`] = fmtPct(r.detail.ytdPct as number | null);
+      ctx[`top${n}.yearLow`] = r.detail.yearLow ? `$${Number(r.detail.yearLow).toFixed(2)}` : '—';
+      ctx[`top${n}.yearHigh`] = r.detail.yearHigh ? `$${Number(r.detail.yearHigh).toFixed(2)}` : '—';
+      ctx[`top${n}.offHigh`] = fmtPct(r.detail.offHighPct as number | null);
+      ctx[`top${n}.target`] = r.detail.target ? `$${Number(r.detail.target).toFixed(2)}` : '—';
+      ctx[`top${n}.upside`] = fmtPct(r.detail.upsidePct as number | null);
+      ctx[`top${n}.analysts`] = String(r.detail.analysts ?? '—');
+      ctx[`top${n}.return`] = fmtPct(r.detail.returnPct as number | null);
+      ctx[`top${n}.ipoPrice`] = r.detail.ipoPrice ? `$${Number(r.detail.ipoPrice).toFixed(2)}` : '—';
+      ctx[`top${n}.listed`] = String(r.detail.listed ?? '—');
+      ctx[`top${n}.sector`] = String(r.detail.sector ?? '—');
       ctx[`top${n}.member`] = String(r.detail.member ?? r.sublabel ?? '—');
       ctx[`top${n}.committee`] = String(r.detail.committee ?? '—');
       ctx[`top${n}.agency`] = String(r.detail.agency ?? '—');

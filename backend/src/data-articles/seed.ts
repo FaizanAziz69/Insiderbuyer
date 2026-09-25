@@ -28,7 +28,19 @@ export interface ArticleSeed {
   dek: string;
   category: string;
   refresh: 'weekly' | 'monthly' | 'quarterly';
-  chart: 'insider-buys' | 'insider-sells' | 'analysts' | 'hedge-funds' | 'congress-proximity' | 'congress-flags';
+  chart:
+    | 'insider-buys'
+    | 'insider-sells'
+    | 'analysts'
+    | 'hedge-funds'
+    | 'congress-proximity'
+    | 'congress-flags'
+    // George 2026-09-23 — the list articles.
+    | 'market-lows'
+    | 'market-highs'
+    | 'insider-buys-ytd'
+    | 'analyst-targets'
+    | 'ipos-ytd';
   periods: string[];
   sections: ArticleSections;
 }

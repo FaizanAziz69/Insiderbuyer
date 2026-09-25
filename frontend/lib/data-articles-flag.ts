@@ -5,4 +5,4 @@
  * /data pages and the sitemap entries in one deploy; the backend (tables,
  * refresh crons, Editorial Desk admin tab) stays untouched either way.
  */
-export const DATA_ARTICLES_ENABLED = false;
+export const DATA_ARTICLES_ENABLED = true;

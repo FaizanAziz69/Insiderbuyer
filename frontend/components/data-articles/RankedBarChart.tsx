@@ -47,6 +47,10 @@ export interface ChartPayload {
   variants: Partial<Record<Variant, ChartRow[]>>;
   totals: Record<string, number | string | null>;
   source: string;
+  /** Per-stock breakdown, keyed by ticker (George 2026-09-23). */
+  profiles?: Record<string, any>;
+  /** Shown under the list when the data cannot move as often as the page does. */
+  cadenceNote?: string;
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -94,7 +98,20 @@ function usePrefersReducedMotion(): boolean {
 
 interface Props {
   slug: string;
-  chart: "insider-buys" | "insider-sells" | "analysts" | "hedge-funds";
+  /** Widened when the list articles landed; this module renders the four
+   *  bar-chart kinds and treats anything else as a plain ranked list. */
+  chart:
+    | "insider-buys"
+    | "insider-sells"
+    | "analysts"
+    | "hedge-funds"
+    | "congress-proximity"
+    | "congress-flags"
+    | "market-lows"
+    | "market-highs"
+    | "insider-buys-ytd"
+    | "analyst-targets"
+    | "ipos-ytd";
   periods: string[];
   title: string;
   subtitle?: string;
