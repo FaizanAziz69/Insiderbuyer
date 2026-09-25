@@ -958,6 +958,10 @@ export class DataArticlesService implements OnModuleInit {
         positions: c.positions,
         asOf: c.asOf,
         topHoldings: c.topHoldings.slice(0, 5),
+        // The detail card states the insider-buy overlap; it has to be the
+        // real one, not a default. Omitting it would render "None in 90d",
+        // which is a claim we would not have checked.
+        overlap: c.overlap.slice(0, 5),
         person: c.person,
         firm: c.firm,
         photo: c.photo,

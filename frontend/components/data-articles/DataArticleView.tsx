@@ -38,7 +38,8 @@ export interface DataArticle {
     | "market-highs"
     | "insider-buys-ytd"
     | "analyst-targets"
-    | "ipos-ytd";
+    | "ipos-ytd"
+    | "hedge-funds-ytd";
   periods: string[];
   sections: {
     takeaways: string[];
@@ -65,6 +66,7 @@ const CHART_TITLE: Partial<Record<DataArticle["chart"], string>> = {
   "insider-buys-ytd": "The largest open-market insider buys of the year",
   "analyst-targets": "The widest gaps to consensus price targets",
   "ipos-ytd": "This year's listings, ranked by return from the offer price",
+  "hedge-funds-ytd": "Top managers by return on disclosed 13F longs, year to date",
 };
 const CHART_SUBTITLE: Partial<Record<DataArticle["chart"], string>> = {
   "insider-buys": "Form 4 code P only — 10b5-1 plan buys, option exercises and awards excluded",
@@ -78,6 +80,7 @@ const CHART_SUBTITLE: Partial<Record<DataArticle["chart"], string>> = {
   "insider-buys-ytd": "Discretionary open-market purchases (Form 4 code P) since January 1",
   "analyst-targets": "Average of targets published in the last 180 days; at least four analysts per name",
   "ipos-ytd": "Return measured from the offer price, not the first public trade",
+  "hedge-funds-ytd": "Value-weighted return of disclosed long positions, rebalanced at each filing date and repriced live",
 };
 
 /** George's list articles render the table and the per-stock breakdown; the

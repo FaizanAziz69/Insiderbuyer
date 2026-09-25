@@ -111,7 +111,8 @@ interface Props {
     | "market-highs"
     | "insider-buys-ytd"
     | "analyst-targets"
-    | "ipos-ytd";
+    | "ipos-ytd"
+    | "hedge-funds-ytd";
   periods: string[];
   title: string;
   subtitle?: string;
@@ -361,6 +362,16 @@ function DetailCard({ row, chart, periodLabel, alignBottom }: { row: ChartRow; c
           ["Cluster", d.cluster ? "Yes — 3+ insiders" : "No"],
           [chart === "insider-buys" ? "Largest buyer" : "Largest seller", d.largest ? `${d.largest.name}${d.largest.role ? ` (${d.largest.role})` : ""} · ${fmtUsd(d.largest.value)}` : "—"],
           ["Window", periodLabel],
+        ]
+      : chart === "hedge-funds-ytd"
+      ? [
+          ["Return, year to date", fmtPct(d.ytdReturn)],
+          ["Return, trailing 12 months", fmtPct(d.ttmReturn)],
+          ["Portfolio value", fmtUsd(d.portfolioValue)],
+          ["Positions", String(d.positions ?? "—")],
+          ["Latest 13F", fmtDate(d.asOf)],
+          ["Top holdings", Array.isArray(d.topHoldings) ? d.topHoldings.map((h: any) => h.ticker).join(", ") : "—"],
+          ["Insider-buy overlap", Array.isArray(d.overlap) && d.overlap.length ? d.overlap.map((h: any) => h.ticker).join(", ") : "None in 90d"],
         ]
       : chart === "analysts"
         ? [
