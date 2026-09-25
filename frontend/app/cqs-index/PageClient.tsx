@@ -341,7 +341,7 @@ export default function CqsIndexPage() {
             <span className="inline-flex flex-col leading-tight">
               <span className="text-[11.5px] font-semibold truncate max-w-[180px]" style={{ color: "var(--text)" }}>
                 {r.committees?.[0]}
-                {r.committees.length > 1 ? ` +${r.committees.length - 1}` : ""}
+                {(r.committees?.length ?? 0) > 1 ? ` +${(r.committees?.length ?? 0) - 1}` : ""}
               </span>
               <span className="text-[10.5px] text-mute">
                 {ROLE_LABEL[r.highestRole || "member"] || r.highestRole}
