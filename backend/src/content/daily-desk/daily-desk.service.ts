@@ -211,14 +211,20 @@ export class DailyDeskService {
     //   1. a photograph we hold, which gives their exact face;
     //   2. otherwise the person drawn from their name, because the cover has to
     //      be of whoever the article is about;
-    //   3. an object scene only when there is no person to draw, i.e. the buyer
-    //      is a fund or a corporate entity with no face behind it.
+    //   3. an ANONYMOUS SUITED FIGURE when there is no person to draw, i.e. the
+    //      buyer is a fund or a corporate entity with no face behind it.
+    //      George 2026-09-25: those covers used to be a pure object scene and
+    //      read flat beside the ones with a face. The figure's identity is
+    //      deliberately unreadable — turned away, cropped, or in shadow — so a
+    //      story with no named subject cannot ship an invented likeness.
     const person = !photo && !looksInstitutional(candidate.who) ? candidate.who : null;
     const cover = await this.cover.generate({
       name: slug,
       scene: written.coverScene,
       grade,
-      halo: photo || person ? halo : undefined,
+      // Every cover now has a cut-out subject, anonymous or not, so every
+      // cover gets the tabloid halo that outlines it.
+      halo,
       personRef: photo ? join(this.thumbsDir(), photo.file) : null,
       personName: person,
       personContext: person

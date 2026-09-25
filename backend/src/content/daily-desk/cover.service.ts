@@ -73,6 +73,35 @@ const HERO_TREATMENT =
   'visible film grain so they separate sharply from the colour-graded ' +
   'background, exactly as in the reference covers.';
 
+/**
+ * The cover for a story with nobody in it.
+ *
+ * George, 2026-09-25: "for the articles / stories that don't attach a person,
+ * we need to create thumbnails that hide the identity but show generic people
+ * in suits."
+ *
+ * Before this the no-person branch produced a pure object scene, which left
+ * those covers flat next to the ones carrying a face. A suited figure restores
+ * the human foreground the house look is built around.
+ *
+ * "Hide the identity" is also the safety rule, not only the art direction. A
+ * story with no named subject must not come back with an invented face that
+ * happens to resemble a real executive — so the figure is turned away, cropped
+ * above the shoulders, or lost in shadow, and never carries readable features.
+ */
+const ANONYMOUS_FIGURES =
+  'There is NO named person in this story. Do not invent a recognisable ' +
+  'individual and do not depict anyone who could be mistaken for a real ' +
+  'executive. Build the foreground from one or two anonymous figures in ' +
+  'business suits whose identity cannot be read: seen from behind, or in ' +
+  'silhouette against the light, or framed from the shoulders down, or with ' +
+  'the face turned away and lost in shadow. No visible eyes, no readable ' +
+  'facial features, no name badge. ' +
+  'Cut the figure out and make it the hero of the cover: large in the frame, ' +
+  'body cropped by the bottom edge, rendered in high-contrast desaturated ' +
+  'black and white with visible film grain so it separates sharply from the ' +
+  'colour-graded background, exactly as in the reference covers.';
+
 const KEEP_LIKENESS =
   'The first reference image is a photograph of the real person this cover is ' +
   'about. Keep their face, hair, build and clothing exactly as they are: the ' +
@@ -157,7 +186,7 @@ export class CoverService {
           ? `The cover is about ${req.personName}${req.personContext ? `, ${req.personContext}` : ''}. ` +
             'Depict them as a real adult person in business dress, photorealistic. '
           : '') +
-        (drawPerson ? HERO_TREATMENT + ' ' : '') +
+        (drawPerson ? HERO_TREATMENT + ' ' : ANONYMOUS_FIGURES + ' ') +
         `The background collage shows: ${req.scene}. ` +
         `Grade the whole background in ${req.grade}. ` +
         (req.halo
@@ -198,7 +227,11 @@ export class CoverService {
       // Three outcomes, not two. Reporting "object cover" whenever there was no
       // photograph on file hid the fact that a subject HAD been drawn from
       // their name: the Grab cover carried Anthony Tan and the log denied it.
-      const how = fromPhoto ? 'from photo' : req.personName ? 'person drawn from name' : 'object cover';
+      const how = fromPhoto
+        ? 'from photo'
+        : req.personName
+          ? 'person drawn from name'
+          : 'anonymous suited figure';
       this.logger.log(
         `cover ${req.name}.jpg written (${how}, og ${Math.round((og as Buffer).length / 1024)} KB)`,
       );
