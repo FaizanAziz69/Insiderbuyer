@@ -62,6 +62,19 @@ export interface ScheduleRow {
  * caller can still require that a House seat match House activity.
  */
 
+/** "House Energy and Commerce Subcommittee on Energy" -> "House Energy and
+ *  Commerce". Seats and jurisdiction are both held at committee level, so a
+ *  subcommittee's activity has to be credited to its parent. */
+export function parentCommittee(name: string): string {
+  return String(name || '').split(/\s+Subcommittee\s+on\s+/i)[0].trim();
+}
+
+/** The detail payload carries no self link, so the stub's url is reused. */
+function m0(batch: any[], details: any[], d: any): string | null {
+  const i = details.indexOf(d);
+  return i >= 0 && batch[i]?.url ? String(batch[i].url) : null;
+}
+
 @Injectable()
 export class LegislativeCalendarService implements OnModuleInit {
   private readonly log = new Logger(LegislativeCalendarService.name);
@@ -130,7 +143,7 @@ export class LegislativeCalendarService implements OnModuleInit {
       out.push({
         chamber: 'Senate',
         committee,
-        committeeKey: committeeKey(committee),
+        committeeKey: committeeKey(parentCommittee(committee)),
         date,
         matter: matter || null,
         sourceUrl: SENATE_XML,
@@ -140,9 +153,13 @@ export class LegislativeCalendarService implements OnModuleInit {
   }
 
   /**
-   * The House, via api.congress.gov. Needs a free key; without one this
-   * returns nothing and the caller reports partial coverage rather than
-   * pretending the House had no meetings.
+   * The House, via api.congress.gov.
+   *
+   * Two things the list endpoint does not tell you, learned by reading it
+   * rather than assuming: it returns only `eventId`, `chamber` and `url` — no
+   * committee and no date — so every meeting needs its detail record; and it
+   * is ordered by `updateDate`, not by when the meeting happens, so a page of
+   * "latest" meetings is full of past and rescheduled ones.
    */
   private async fetchHouse(): Promise<ScheduleRow[]> {
     const key = process.env.CONGRESS_API_KEY;
@@ -152,20 +169,43 @@ export class LegislativeCalendarService implements OnModuleInit {
       const { data } = await this.http.get(`${CONGRESS_API}/committee-meeting`, {
         params: { format: 'json', limit: 250, api_key: key },
       });
-      for (const m of data?.committeeMeetings || []) {
-        const detail = m?.committee?.name || m?.committees?.[0]?.name || '';
-        const chamber = String(m?.chamber || 'House');
-        if (chamber !== 'House') continue;
-        const date = String(m?.date || m?.updateDate || '').slice(0, 10);
-        if (!detail || !date) continue;
-        out.push({
-          chamber: 'House',
-          committee: detail,
-          committeeKey: committeeKey(detail),
-          date,
-          matter: m?.title || null,
-          sourceUrl: m?.url || null,
-        });
+      const stubs: any[] = (data?.committeeMeetings || []).filter(
+        (m: any) => String(m?.chamber) === 'House' && m?.url,
+      );
+      const today = new Date().toISOString().slice(0, 10);
+      // Detail calls in small batches: congress.gov allows 5,000 an hour, and
+      // this runs once a day, but there is no reason to open 250 at once.
+      for (let i = 0; i < stubs.length; i += 8) {
+        const batch = stubs.slice(i, i + 8);
+        const details = await Promise.all(
+          batch.map((m) =>
+            this.http
+              .get(String(m.url), { params: { api_key: key } })
+              .then((r) => r.data?.committeeMeeting)
+              .catch(() => null),
+          ),
+        );
+        for (const d of details) {
+          if (!d) continue;
+          const date = String(d.date || '').slice(0, 10);
+          const name = d.committees?.[0]?.name || '';
+          if (!date || !name) continue;
+          // A meeting that already happened is not pending activity, and a
+          // cancelled one never will be.
+          if (date < today) continue;
+          if (/cancel/i.test(String(d.meetingStatus || ''))) continue;
+          out.push({
+            chamber: 'House',
+            committee: name,
+            // "House Energy and Commerce Subcommittee on Energy" has to key to
+            // the parent, because the seats and the jurisdiction map are both
+            // held at committee level.
+            committeeKey: committeeKey(parentCommittee(name)),
+            date,
+            matter: d.title || null,
+            sourceUrl: String(m0(batch, details, d) || ''),
+          });
+        }
       }
     } catch (e: any) {
       this.log.warn(`House schedule fetch failed: ${e?.message || e}`);
@@ -252,7 +292,7 @@ export class LegislativeCalendarService implements OnModuleInit {
          FROM committee_schedule
         WHERE committee_key = $1 AND event_date >= current_date - 1
         ORDER BY event_date LIMIT 20`,
-      [committeeKey(committee)],
+      [committeeKey(parentCommittee(committee))],
     );
     return rows.map((r) => ({
       chamber: r.chamber,
