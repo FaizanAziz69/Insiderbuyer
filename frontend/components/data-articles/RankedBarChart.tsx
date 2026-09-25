@@ -339,6 +339,10 @@ export function RankedBarChart({ slug, chart, periods, title, subtitle, onLoaded
         <span>
           Source: {data?.source ?? "SEC filings"}
           {data?.asOf ? ` · data to ${fmtDate(data.asOf)}` : ""}
+          {/* When the underlying data cannot move as often as the page
+              refreshes, the caveat belongs under the chart — not only in the
+              body copy further down, which a scanning reader never reaches. */}
+          {data?.cadenceNote ? <span className="block mt-1">{data.cadenceNote}</span> : null}
         </span>
         <span className="inline-flex items-center gap-1 font-semibold" style={{ color: "var(--text-soft)" }}>
           <span className="inline-block w-2 h-2 rounded-full" style={{ background: "var(--good)" }} />
