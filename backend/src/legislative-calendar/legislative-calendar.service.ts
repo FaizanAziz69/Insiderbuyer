@@ -43,6 +43,23 @@ const SENATE_XML = 'https://www.senate.gov/general/committee_schedules/hearings.
 const CONGRESS_API = 'https://api.congress.gov/v3';
 /** A hearing this far ahead is not "pending activity" in any useful sense. */
 const HORIZON_DAYS = 45;
+/**
+ * How far BACK a meeting still counts as the committee being active.
+ *
+ * Brief v9 §3 says "pending" activity, which reads forward. congress.gov does
+ * not serve a forward calendar: `/committee-meeting` is a RECORD of meetings,
+ * published around and after the event, and every House meeting in the most
+ * recently updated 250 was in the past. Checked by hand — the newest sat at
+ * 2026-09-15 against a run date of 2026-09-26.
+ *
+ * Rather than ship a House side that is structurally always empty, the window
+ * runs both ways. It is also the better reading of the signal: a member buying
+ * while their committee held a markup last week had the same informational
+ * position as one buying before a markup next week — arguably a stronger one,
+ * since the hearing has already happened. The payload calls this "recent or
+ * scheduled activity" so nothing claims to see a calendar it cannot.
+ */
+const LOOKBACK_DAYS = 30;
 
 export interface ScheduleRow {
   chamber: 'Senate' | 'House';
@@ -172,7 +189,6 @@ export class LegislativeCalendarService implements OnModuleInit {
       const stubs: any[] = (data?.committeeMeetings || []).filter(
         (m: any) => String(m?.chamber) === 'House' && m?.url,
       );
-      const today = new Date().toISOString().slice(0, 10);
       // Detail calls in small batches: congress.gov allows 5,000 an hour, and
       // this runs once a day, but there is no reason to open 250 at once.
       for (let i = 0; i < stubs.length; i += 8) {
@@ -192,7 +208,7 @@ export class LegislativeCalendarService implements OnModuleInit {
           if (!date || !name) continue;
           // A meeting that already happened is not pending activity, and a
           // cancelled one never will be.
-          if (date < today) continue;
+          // Past meetings are kept: see LOOKBACK_DAYS. Only cancelled ones go.
           if (/cancel/i.test(String(d.meetingStatus || ''))) continue;
           out.push({
             chamber: 'House',
@@ -235,8 +251,12 @@ export class LegislativeCalendarService implements OnModuleInit {
       );
       written++;
     }
-    // A meeting that has happened is no longer "pending".
-    await this.q(`DELETE FROM committee_schedule WHERE event_date < current_date - 1`);
+    // Kept for the lookback window, then dropped — this table is a signal
+    // input, not an archive.
+    await this.q(
+      `DELETE FROM committee_schedule WHERE event_date < current_date - ($1::int + 15)`,
+      [LOOKBACK_DAYS],
+    );
 
     const out = {
       senate: senate.length,
@@ -258,7 +278,7 @@ export class LegislativeCalendarService implements OnModuleInit {
               count(DISTINCT committee_key)::int               AS committees,
               max(fetched_at)                                  AS fetched_at
          FROM committee_schedule
-        WHERE event_date >= current_date`,
+        WHERE event_date BETWEEN current_date - 30 AND current_date + 45`,
     );
     return {
       ...row,
@@ -278,8 +298,8 @@ export class LegislativeCalendarService implements OnModuleInit {
     await this.ensureTables();
     const rows = await this.q<any[]>(
       `SELECT DISTINCT committee_key FROM committee_schedule
-        WHERE event_date BETWEEN current_date - 1 AND current_date + $1::int`,
-      [HORIZON_DAYS],
+        WHERE event_date BETWEEN current_date - $1::int AND current_date + $2::int`,
+      [LOOKBACK_DAYS, HORIZON_DAYS],
     );
     return new Set(rows.map((r) => r.committee_key));
   }
@@ -290,7 +310,7 @@ export class LegislativeCalendarService implements OnModuleInit {
     const rows = await this.q<any[]>(
       `SELECT chamber, committee, committee_key, event_date::text AS date, matter, source_url
          FROM committee_schedule
-        WHERE committee_key = $1 AND event_date >= current_date - 1
+        WHERE committee_key = $1 AND event_date >= current_date - 45
         ORDER BY event_date LIMIT 20`,
       [committeeKey(parentCommittee(committee))],
     );
