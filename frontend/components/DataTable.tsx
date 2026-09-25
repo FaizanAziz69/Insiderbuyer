@@ -162,8 +162,10 @@ interface Props<T> {
     label: string;
     freeRows?: number;
     bullets?: string[];
-    /** Render the faded teaser row after the free ones (default true). */
+    /** Render the locked placeholder rows under the free ones (default true). */
     teaser?: boolean;
+    /** How many placeholder rows to draw (default 3). They carry no data. */
+    lockedRows?: number;
     /** Only rows passing this are eligible for the free window — e.g. "rows
      *  that carry an Insider Score" — so the preview is never padded with
      *  rows that have nothing to show. The wall still counts every row. */
@@ -181,6 +183,51 @@ interface Props<T> {
      *  what it was handed and quote "7" for a 600-row board. */
     total?: number;
   };
+}
+
+/** Rows of "there is more below" drawn under a gated table. Three, so the
+ *  block reads as a continuing list rather than a rendering glitch. */
+const LOCKED_PLACEHOLDER_ROWS = 3;
+
+/**
+ * One cell of a locked placeholder row: a bar, never a value.
+ *
+ * The whole point is that nothing real reaches the browser — no text to read
+ * in view-source, no number to un-blur in devtools, nothing in the SSR HTML
+ * for a crawler. The varying widths come from the cell's position, not from
+ * the data, so the pattern is stable across renders and cannot hint at what
+ * the hidden row actually holds.
+ */
+function LockedCell({
+  align,
+  opacity,
+  seed,
+}: {
+  align: Align;
+  opacity: number;
+  seed: number;
+}) {
+  const widths = [72, 46, 58, 38, 64, 50];
+  return (
+    <span
+      className="inline-flex w-full"
+      style={{
+        justifyContent:
+          align === "right" ? "flex-end" : align === "center" ? "center" : "flex-start",
+      }}
+    >
+      <span
+        className="block rounded-full"
+        style={{
+          width: widths[seed % widths.length],
+          maxWidth: "100%",
+          height: 9,
+          opacity: Math.max(0.12, opacity),
+          background: "var(--border-strong, var(--border))",
+        }}
+      />
+    </span>
+  );
 }
 
 const alignClass: Record<Align, string> = {
@@ -379,22 +426,30 @@ export function DataTable<T>({
   }, [filters, sort, rows.length]);
   const safePage = Math.min(page, pageCount - 1);
   const gateFree = gate ? gate.freeRows ?? FREE_ROWS : 0;
-  // When gated we ignore paging entirely: the free slice plus one faded teaser
-  // row is all that renders until the wall is dismissed.
+  // When gated we ignore paging entirely: the free slice is all that renders,
+  // followed by the locked placeholder rows and the wall.
   // Only wall a table that actually has more rows than the free allowance —
   // otherwise a short or empty result would show a wall hiding nothing.
   const gateUnlocked = gate?.locked != null ? !gate.locked : premiumUnlocked;
   const locked = !!gate && !gateUnlocked && sortedAll.length > gateFree;
-  // Free users see the top `gateFree` of the UNFILTERED ranking plus one faded
-  // teaser. Filters then narrow that window — they can never widen it, so
-  // cycling filters cannot be used to page through the locked rows.
+  // Free users see the top `gateFree` of the UNFILTERED ranking. Filters then
+  // narrow that window — they can never widen it, so cycling filters cannot be
+  // used to page through the locked rows.
+  //
+  // There used to be one extra REAL row rendered under them at opacity 0.28 as
+  // a teaser. Faizan 2026-09-25: "yeh paygate ghalat ha, 7 se shuru ho or last
+  // 3 nazar na ayein bilkul." He is right, and it was breaking this repo's own
+  // stated rule (lockedDecoys.ts): a locked row never carries the real values,
+  // NOT EVEN BLURRED, because CSS opacity leaves every figure sitting in the
+  // DOM for view-source. The tease is now `gateLockedRows` placeholder rows
+  // that contain no data at all.
   const showTeaser = gate?.teaser !== false;
+  const lockedRowCount = showTeaser ? gate?.lockedRows ?? LOCKED_PLACEHOLDER_ROWS : 0;
   const freeWindow = useMemo(() => {
     if (!locked) return [];
     const eligible = gate?.freeFilter ? sortedAll.filter(gate.freeFilter) : sortedAll;
-    return eligible.slice(0, gateFree + (showTeaser ? 1 : 0));
-  }, [locked, sortedAll, gateFree, gate, showTeaser]);
-  const teaserRow = locked && showTeaser ? freeWindow[gateFree] : undefined;
+    return eligible.slice(0, gateFree);
+  }, [locked, sortedAll, gateFree, gate]);
   const pageRows = locked
     ? sortRows(
         matchesFilters ? freeWindow.filter((r, i) => matchesFilters(r, i)) : freeWindow,
@@ -640,15 +695,7 @@ export function DataTable<T>({
               </tr>
             ) : (
               pageRows.map((row, i) => (
-                <tr
-                  key={rowKey(row, safePage * perPage + i)}
-                  className={rowClassName}
-                  style={
-                    locked && teaserRow !== undefined && row === teaserRow
-                      ? { opacity: 0.28, pointerEvents: "none" }
-                      : undefined
-                  }
-                >
+                <tr key={rowKey(row, safePage * perPage + i)} className={rowClassName}>
                   {columns.map((c) => (
                     <td
                       key={c.key}
@@ -661,6 +708,27 @@ export function DataTable<T>({
                 </tr>
               ))
             )}
+            {locked &&
+              sorted.length > 0 &&
+              Array.from({ length: lockedRowCount }).map((_, i) => (
+                <tr key={`locked-${i}`} className={rowClassName} aria-hidden>
+                  {columns.map((c, ci) => (
+                    <td
+                      key={c.key}
+                      className={`${alignClass[c.align ?? "left"]} ${c.className ?? ""}`}
+                      style={boundaryStyle(c.key)}
+                    >
+                      <LockedCell
+                        align={c.align ?? "left"}
+                        // Fade the rows out as they recede so the block reads
+                        // as "the list continues" rather than as broken cells.
+                        opacity={0.5 - i * 0.14}
+                        seed={i * 7 + ci}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>

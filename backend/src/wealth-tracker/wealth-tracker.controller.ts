@@ -70,8 +70,14 @@ export class WealthTrackerController {
    *
    * Truncating beats blanking the paid columns. Half-populated rows sort and
    * filter into nonsense in the browser, and a scraper that wanted the ranking
-   * would still have it. Seven rows is the whole free product, and the member
+   * would still have it. Six rows is the whole free product, and the member
    * pages underneath stay reachable and indexable.
+   *
+   * Exactly six — not six plus a faded seventh. The table used to render one
+   * real extra row at low opacity as a tease, which left every figure in it
+   * sitting in the DOM (Faizan 2026-09-25: "last 3 nazar na ayein bilkul").
+   * The tease is drawn client-side now from nothing at all, so row seven
+   * never leaves this method.
    */
   @Get('leaderboard')
   async leaderboard(
@@ -124,10 +130,7 @@ export class WealthTrackerController {
     const rows = (out.rows || []) as unknown[];
     return {
       ...out,
-      // +1 is the teaser the table fades out; without it the wall would sit
-      // under a table that ends exactly where the free rows do, which reads as
-      // "that is all there is" rather than "there is more".
-      rows: rows.slice(0, FREE_BOARD_ROWS + 1),
+      rows: rows.slice(0, FREE_BOARD_ROWS),
       total: out.total ?? rows.length,
       premium: false,
     };
@@ -207,7 +210,7 @@ export class WealthTrackerController {
       const k = String(c?.type || 'all');
       const n = (perType.get(k) || 0) + 1;
       perType.set(k, n);
-      return n <= FREE_BOARD_ROWS + 1;
+      return n <= FREE_BOARD_ROWS;
     });
     return { ...out, cards: free, premium: false };
   }
