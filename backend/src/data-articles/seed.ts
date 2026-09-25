@@ -40,7 +40,8 @@ export interface ArticleSeed {
     | 'market-highs'
     | 'insider-buys-ytd'
     | 'analyst-targets'
-    | 'ipos-ytd';
+    | 'ipos-ytd'
+    | 'hedge-funds-ytd';
   periods: string[];
   sections: ArticleSections;
 }

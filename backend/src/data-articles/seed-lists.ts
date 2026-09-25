@@ -9,9 +9,12 @@
  *   Plus: top insider buys of 2026, top performing hedge funds, top performing
  *   analysts, top ranked stocks by analyst targets, best performing IPOs.
  *
- * Two of those — top performing analysts and top performing hedge funds —
- * already shipped as data articles in the launch set, so they are not repeated
- * here; they inherit the new per-stock template through the same view.
+ * Top performing analysts already shipped in the launch set and George set no
+ * year or cadence on it, so it is not repeated. Hedge funds IS repeated: the
+ * launch article answers "which are performing best" over a trailing twelve
+ * months, and George asked for "of 2026 … every week", which is a different
+ * question — so the year-to-date version is its own article rather than a
+ * rewrite of a live URL.
  *
  * Copy stays neutral and factual (George's standing rule; brief §2.4: no
  * projections, no "follow these picks" language). Every figure in the body is
@@ -235,6 +238,59 @@ export const LIST_ARTICLES: ArticleSeed[] = [
         { audience: 'Researchers and journalists', text: 'The firms behind each consensus are named in the breakdown, with the count and the window stated.' },
       ],
       cta: { headline: 'See where insiders agree with the street', body: CTA_BODY },
+    },
+  },
+  {
+    slug: 'top-performing-hedge-funds-2026',
+    headline: 'The top performing hedge funds of 2026',
+    dek: 'How the managers we track have done on their disclosed 13F long positions since January 1 — repriced every week, ranked on the year to date.',
+    category: 'Hedge Funds',
+    refresh: 'weekly',
+    chart: 'hedge-funds-ytd',
+    periods: ['30d'],
+    sections: {
+      takeaways: [
+        '{{ranked}} of the {{tracked}} managers we track have a year-to-date figure.',
+        '{{top1.label}} leads at {{top1.value}} on disclosed long positions, against {{top1.aum}} of reported holdings.',
+        'Measured on 13F longs only — shorts, derivatives and anything held outside the filing are invisible to this and to everyone else.',
+        'Repriced weekly. The holdings underneath change four times a year.',
+      ],
+      body: [
+        {
+          heading: 'What this measures',
+          html: '<p>The value-weighted return of each manager&rsquo;s <i>disclosed long equity positions</i>, rebalanced at every 13F filing date and repriced against live quotes. The year-to-date figure chains each quarter of 2026 together; the quarter boundaries fall on 31 December, so the start of the year is a real rebalance point in the data rather than a number cut in half.</p>',
+        },
+        {
+          heading: 'The gap between "weekly" and "quarterly"',
+          html: '<p>This page refreshes every Friday, and the figure genuinely moves — the last leg of every manager&rsquo;s return is priced against the current market. What does <b>not</b> move weekly is what they own. A 13F is filed once a quarter, up to 45 days after that quarter ends, so at the worst point in the cycle you are looking at a portfolio up to four and a half months old. A manager can have sold a position long before it disappears from this list.</p>',
+        },
+        {
+          heading: 'What a 13F cannot show you',
+          html: '<p>It covers U.S.-listed long equity and some options. It does not cover short positions, cash, bonds, foreign listings or anything held through a structure that does not file. A manager who made the year on a short book will look flat here, and one who hedged a rising long book will look better than they were. This is a measure of the disclosed longs, and nothing more.</p>',
+        },
+        {
+          heading: 'Why some managers are missing',
+          html: '<p>A performance figure is suppressed below $100&nbsp;million in reported holdings or fewer than four positions, because a return computed from a handful of names is noise. Managers whose most recent filing has gone stale are suppressed too, rather than carried forward on prices alone.</p>',
+        },
+        {
+          heading: 'Reading it against the insider data',
+          html: '<p>The most useful cross-check on this site is where a manager&rsquo;s disclosed position overlaps with open-market insider buying in the same company. One is a professional allocating other people&rsquo;s money with a quarter&rsquo;s delay; the other is an officer spending their own, disclosed within two business days.</p>',
+        },
+        {
+          heading: 'How often this updates',
+          html: '<p>Rebuilt every Friday after the close. The companion evergreen view — <a href="/data/top-performing-hedge-funds">which hedge funds are performing best</a> over a trailing twelve months — is refreshed when new 13Fs land.</p>',
+        },
+      ],
+      pullQuote: {
+        text: 'A 13F tells you what a manager owned up to four and a half months ago. It is the best public record there is, and it is still a photograph of the past.',
+        attribution: 'InsiderBuying.com editorial standard',
+      },
+      whatItMeans: [
+        { audience: 'Long-term investors', text: 'Use the list to find managers worth following, not positions worth copying. By the time a holding appears here, the price that made it attractive has usually moved.' },
+        { audience: 'Active traders', text: 'The filing date, not the quarter end, is when the information became public. Anything you can trade on was tradeable by everyone else on the same day.' },
+        { audience: 'Researchers and journalists', text: 'Each manager&rsquo;s page carries the per-quarter legs behind the figure, including how much of the portfolio the calculation could price.' },
+      ],
+      cta: { headline: 'See where managers and insiders agree', body: CTA_BODY },
     },
   },
   {

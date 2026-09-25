@@ -397,6 +397,9 @@ export class DataArticlesService implements OnModuleInit {
       case 'ipos-ytd':
         payload = await this.buildIpos(a.slug, period);
         break;
+      case 'hedge-funds-ytd':
+        payload = await this.buildHedgeFundsYtd(a.slug, period);
+        break;
       default:
         throw new Error(`unknown chart kind ${a.chart}`);
     }
@@ -893,6 +896,92 @@ export class DataArticlesService implements OnModuleInit {
       source: 'IPO offer prices and current quotes from the InsiderBuying listings feed',
       cadenceNote:
         'Return is measured from the offer price, which most investors could not buy at. The first public trade is often well above it.',
+    };
+  }
+
+  /**
+   * "Top performing hedge funds of 2026" — George's topic 2, scoped to the
+   * calendar year and refreshed weekly.
+   *
+   * The performance engine already chains quarter-to-quarter legs plus a live
+   * leg to today, and those legs break exactly on 31 December — so the
+   * year-to-date figure is the product of every leg starting at or after the
+   * last year-end. No pro-rating, no approximation: the year boundary is a
+   * real rebalance point in the data.
+   *
+   * What is honestly weekly and what is not: the LIVE leg reprices every
+   * refresh, so the number moves weekly. The HOLDINGS under it come from 13F
+   * and change four times a year. The page says so.
+   */
+  private async buildHedgeFundsYtd(slug: string, period: Period): Promise<ChartPayload> {
+    const yearStart = `${new Date().getUTCFullYear() - 1}-12-31`;
+    const { cards } = await this.investors.list('performance');
+    const perf: any[] = await this.companies.query(
+      `SELECT slug, legs, as_of::text AS as_of FROM investor_perf WHERE ttm_return IS NOT NULL`,
+    );
+    const ytd = new Map<string, { ret: number; legs: number; covered: number }>();
+    for (const row of perf) {
+      const legs: Array<{ from: string; to: string; returnPct: number; weightCovered: number }> =
+        (row.legs as any[]) || [];
+      const inYear = legs.filter((l) => l.from >= yearStart);
+      if (!inYear.length) continue;
+      let factor = 1;
+      let covered = 1;
+      for (const l of inYear) {
+        factor *= 1 + l.returnPct / 100;
+        covered = Math.min(covered, l.weightCovered ?? 1);
+      }
+      ytd.set(row.slug, { ret: (factor - 1) * 100, legs: inYear.length, covered });
+    }
+
+    const ranked = cards
+      .filter((c) => c.performance !== null && ytd.has(c.slug))
+      .map((c) => ({ c, y: ytd.get(c.slug)! }))
+      .sort((a, b) => b.y.ret - a.y.ret)
+      .slice(0, SCREEN_N);
+
+    const list: ChartRow[] = ranked.map(({ c, y }, i) => ({
+      rank: i + 1,
+      key: c.slug,
+      label: c.firm || c.person,
+      sublabel: c.firm ? c.person : null,
+      href: `/investors/${c.slug}`,
+      value: y.ret,
+      valueKind: 'pct',
+      iqs: null,
+      detail: {
+        ytdReturn: y.ret,
+        ttmReturn: c.performance,
+        quartersInYear: y.legs,
+        weightCovered: y.covered,
+        portfolioValue: c.portfolioValue,
+        positions: c.positions,
+        asOf: c.asOf,
+        topHoldings: c.topHoldings.slice(0, 5),
+        person: c.person,
+        firm: c.firm,
+        photo: c.photo,
+      },
+    }));
+    const latestQuarter = ranked.map(({ c }) => c.asOf).filter(Boolean).sort().pop() ?? null;
+    return {
+      slug,
+      period,
+      periodLabel: `Year to date, ${new Date().getUTCFullYear()}`,
+      asOf: new Date().toISOString().slice(0, 10),
+      refreshedAt: new Date().toISOString(),
+      valueKind: 'pct',
+      valueLabel: `Return on disclosed 13F longs, ${new Date().getUTCFullYear()} to date`,
+      variants: { all: list },
+      totals: {
+        tracked: cards.length,
+        ranked: list.length,
+        latestQuarter,
+        combinedAum: ranked.reduce((sum, { c }) => sum + (c.portfolioValue ?? 0), 0),
+      },
+      source: 'SEC Form 13F-HR via FMP; value-weighted return of disclosed long positions, rebalanced at each filing date and repriced live',
+      cadenceNote:
+        'This number is repriced every week, but the holdings under it are not. 13F positions are disclosed once a quarter, up to 45 days after the quarter ends, so a manager may have exited a position months before it leaves this list.',
     };
   }
 
