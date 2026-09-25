@@ -1,5 +1,6 @@
 import { Controller, Get, Header, Headers, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
+import { CqsAlertsService } from './cqs-alerts.service';
 import { CqsService } from './cqs.service';
 import { AdminTokenGuard } from '../common/admin-token.guard';
 import { PremiumAccessService, stripPremiumFields } from '../common/premium-access';
@@ -69,6 +70,7 @@ export class CqsController {
   constructor(
     private readonly cqsService: CqsService,
     private readonly access: PremiumAccessService,
+      private readonly alerts: CqsAlertsService,
   ) {}
 
   @Get('leaderboard')
@@ -130,6 +132,13 @@ export class CqsController {
   @UseGuards(AdminTokenGuard)
   async status() {
     return this.cqsService.status();
+  }
+
+  /** §7 alerts. `send=0` previews the transitions without emailing anyone. */
+  @Post('admin/alerts')
+  @UseGuards(AdminTokenGuard)
+  async runAlerts(@Query('send') send?: string) {
+    return this.alerts.run({ send: send !== '0' });
   }
 
   @Post('admin/recalculate')

@@ -140,7 +140,7 @@ export class CqsService {
     }
 
     // 4. Everything else, in set-based queries.
-    const [companies, iqs, grades, medians, priorBuys, series, seats, juris, agencies, pendingCommittees] =
+    const [companies, iqs, grades, medians, priorBuys, series, adv, seats, juris, agencies, pendingCommittees] =
       await Promise.all([
         this.loadCompanies(tickers),
         this.loadIqs(tickers),
@@ -148,6 +148,7 @@ export class CqsService {
         this.loadMemberMedianBands(),
         this.loadPriorBuys(tickers, windowStart),
         this.loadPriceSeries(tickers),
+        this.loadAdvDollars(tickers),
         this.loadSeats(),
         this.loadJurisdiction(),
         this.loadCompanyAgencies(tickers, flagsByTicker),
@@ -174,6 +175,7 @@ export class CqsService {
         medians,
         priorBuys,
         series: series.get(ticker) || null,
+        advDollars: adv.get(ticker) ?? null,
         seats,
         juris,
         agencies: agencies.get(ticker) || null,
@@ -219,6 +221,8 @@ export class CqsService {
     medians: Map<string, number>;
     priorBuys: Set<string>;
     series: Array<{ t: number; c: number }> | null;
+    /** 60-day average daily dollar volume, for the liquidity multiplier. */
+    advDollars: number | null;
     seats: Map<string, Array<{ committee: string; role: string }>>;
     juris: Map<string, Set<string>>;
     agencies: { agencies: Set<string>; label: string | null; value: number; count: number } | null;
@@ -443,7 +447,10 @@ export class CqsService {
         iqsScore: iqs,
         hasLegislativeCatalyst,
         priceVs52wHighPct: pctVs52wHigh,
-        clusterVsAdvPct: null, // price_history_cache carries closes, not volume
+        // The cluster's total disclosed dollars as a share of one day's
+        // trading. §3 discounts a buy that is immaterial against the float.
+        clusterVsAdvPct:
+          ctx.advDollars && ctx.advDollars > 0 ? totalEstBuyValue / ctx.advDollars : null,
         marketCap: this.num(company?.marketCap),
         maxFilingLagDays: maxLag,
       },
@@ -711,6 +718,49 @@ export class CqsService {
   }
 
   /** Dividend-adjusted closes from the shared cache — no network at scoring time. */
+  /**
+   * 60-day average daily dollar volume, for §3's liquidity normalisation.
+   *
+   * The multiplier shipped marked "unavailable" with a comment saying our
+   * price cache carries closes and no volume. That is true of
+   * `price_history_cache` — and `pit_price_series` stores [t, close, volume]
+   * for 3,265 symbols, which is what the Brief v6 tradability gate already
+   * reads. It was the wrong table, not missing data.
+   */
+  private async loadAdvDollars(tickers: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    try {
+      const spellings = new Map<string, string>();
+      for (const t of tickers) {
+        spellings.set(t, t);
+        if (t.includes('.')) spellings.set(t.replace(/\./g, '-'), t);
+      }
+      const rows: any[] = await this.q(
+        `SELECT symbol, points FROM pit_price_series WHERE symbol = ANY($1::text[])`,
+        [[...spellings.keys()]],
+      );
+      for (const r of rows) {
+        const ticker = spellings.get(String(r.symbol).toUpperCase());
+        if (!ticker || out.has(ticker)) continue;
+        const pts: any[] = Array.isArray(r.points) ? r.points : [];
+        let sum = 0;
+        let n = 0;
+        for (let i = Math.max(0, pts.length - 60); i < pts.length; i++) {
+          const close = Number(pts[i]?.[1]);
+          const vol = Number(pts[i]?.[2]);
+          if (close > 0 && vol > 0) {
+            sum += close * vol;
+            n++;
+          }
+        }
+        if (n) out.set(ticker, sum / n);
+      }
+    } catch (e: any) {
+      this.logger.warn(`CQS: pit_price_series unavailable (${e?.message}) — liquidityNorm stays unavailable.`);
+    }
+    return out;
+  }
+
   private async loadPriceSeries(
     tickers: string[],
   ): Promise<Map<string, Array<{ t: number; c: number }>>> {

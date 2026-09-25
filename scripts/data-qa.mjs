@@ -4,7 +4,9 @@
  * non-zero on any regression. No dependencies (Node 18+, global fetch).
  *
  *   node scripts/data-qa.mjs [apiBase]
- *   apiBase default: https://insiderbuyer-hwrc.vercel.app/api/backend
+ *   apiBase default: https://insiderbuying.com/api/backend (override with
+ *   QA_API_BASE, or 127.0.0.1:4000/api from on the box — the public host is
+ *   behind the bot gate and answers curl with bot_verification_required)
  *
  * Assertions (from the data-integrity remediation spec):
  *  1  IQ composite recomputes from its stored components (dark-mode formula)
@@ -19,11 +21,19 @@
  * 11  price/cap consistent (±2%) between /rankings and /market-stats/quotes
  * 12  no duplicate symbols in the analyst-ratings payload
  * 13  party non-null on 100% of congressional rows
+ * 14  CQS recomputes from its stored components and multipliers
+ * 15  every CQS component and the total sit inside 0..100
+ * 16  each CQS grade matches its own score band
+ * 17  the CQS board is today's, not a stale scoring date
+ * 18  no CQS row is served for a stock that no longer qualifies
+ * 19  a multiplier is never both applied and reported unavailable
  * (10 is a UI-state assertion — covered by IqsScoreCell's explicit
  *  "No recent insider buying" state, not testable from the API.)
  */
 
-const BASE = (process.argv[2] || 'https://insiderbuyer-hwrc.vercel.app/api/backend').replace(/\/$/, '');
+// The site moved to EC2; the old Vercel default had been dead for months, so
+// every run without an explicit argument was testing nothing.
+const BASE = (process.argv[2] || process.env.QA_API_BASE || 'https://insiderbuying.com/api/backend').replace(/\/$/, '');
 const failures = [];
 const warnings = [];
 
@@ -181,6 +191,71 @@ try {
   check('13-party-nonnull', noParty === 0, `${noParty}/${crows.length} rows missing party`);
 } catch (e) {
   warnings.push(`13-party: ${e.message}`);
+}
+
+// ── CQS, Brief v9 (14-19) ────────────────────────────────────────────────
+// The index had none of these. It is the surface most able to fail quietly:
+// a component that reads an empty table returns 0, the score still renders,
+// and nothing anywhere says the number is missing rather than low.
+console.log('cqs…');
+try {
+  const cqs = await get('/cqs/leaderboard?limit=100');
+  const rows = cqs.rows || [];
+  if (!rows.length) {
+    warnings.push('14-19-cqs: leaderboard empty — nothing to assert');
+  } else {
+    const WEIGHTS = {
+      c1ClusterBreadth: 0.2, c2PositionSize: 0.15, c3CommitteeInfluence: 0.15,
+      c4ContractAlignment: 0.15, c5BuyerTrackRecord: 0.12,
+      c6RelativeConviction: 0.08, c7Freshness: 0.1, c8NetDirection: 0.05,
+    };
+    // Premium strips the number for an unauthenticated caller, so the
+    // arithmetic assertions only run on rows that actually carry one.
+    const scored = rows.filter((r) => typeof r.cqs === 'number' && r.c1ClusterBreadth != null);
+    let recomputeDrift = 0;
+    let outOfBand = 0;
+    let gradeMismatch = 0;
+    let bothWays = 0;
+    for (const r of scored) {
+      let weighted = 0;
+      for (const [k, w] of Object.entries(WEIGHTS)) weighted += Number(r[k] || 0) * w;
+      const mult = ['multiplierInsiderOverlap', 'multiplierLegislativeCatalyst', 'multiplierContrarianEntry',
+        'multiplierLiquidityNorm', 'multiplierFilingLag']
+        .reduce((p, k) => p * (r[k] == null ? 1 : Number(r[k])), 1);
+      if (!near(Math.min(100, weighted * mult), Number(r.cqs), 1)) recomputeDrift++;
+      for (const k of Object.keys(WEIGHTS)) {
+        const v = Number(r[k]);
+        if (Number.isFinite(v) && (v < 0 || v > 100)) outOfBand++;
+      }
+      if (Number(r.cqs) < 0 || Number(r.cqs) > 100) outOfBand++;
+      const q = Number(r.cqs);
+      const want = q >= 90 ? 'A+' : q >= 80 ? 'A' : q >= 70 ? 'B+' : q >= 60 ? 'B' : 'C';
+      if (r.grade && r.grade !== want) gradeMismatch++;
+      // A multiplier cannot both have been applied and be reported as one we
+      // could not evaluate — that pairing is how a 1.0 gets read as a real
+      // "checked and did not fire".
+      const un = Array.isArray(r.multipliersUnavailable) ? r.multipliersUnavailable : [];
+      for (const name of un) {
+        const key = 'multiplier' + name.charAt(0).toUpperCase() + name.slice(1);
+        if (r[key] != null && Number(r[key]) !== 1) bothWays++;
+      }
+    }
+    check('14-cqs-recomputes', recomputeDrift === 0, `${recomputeDrift}/${scored.length} rows do not recompute from their components`);
+    check('15-cqs-in-band', outOfBand === 0, `${outOfBand} component/total values outside 0..100`);
+    check('16-cqs-grade-band', gradeMismatch === 0, `${gradeMismatch} grades disagree with their own score`);
+    check('19-cqs-multiplier-honesty', bothWays === 0, `${bothWays} multipliers both applied and reported unavailable`);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const asOf = String(cqs.asOfDate || rows[0]?.asOfDate || '').slice(0, 10);
+    // A weekend or holiday legitimately leaves the last scoring date behind.
+    const ageDays = asOf ? Math.round((Date.parse(today) - Date.parse(asOf)) / 86400000) : 99;
+    check('17-cqs-fresh', ageDays <= 3, `board is ${ageDays} day(s) old (asOf ${asOf || 'unknown'})`);
+
+    const dupes = rows.length - new Set(rows.map((r) => r.ticker)).size;
+    check('18-cqs-no-stale-rows', dupes === 0, `${dupes} duplicate tickers — a scoring date is leaking through`);
+  }
+} catch (e) {
+  warnings.push(`14-19-cqs: ${e.message}`);
 }
 
 // ── Verdict ──────────────────────────────────────────────────────────────
