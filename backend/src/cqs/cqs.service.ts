@@ -7,6 +7,7 @@ import { Company } from '../entities/company.entity';
 import { FlagEngineService } from '../congress-trades/flag-engine.service';
 import { nameKey } from '../congress-trades/influence-map.service';
 import { agencyKey, committeeKey } from '../congress-trades/jurisdiction';
+import { LegislativeCalendarService } from '../legislative-calendar/legislative-calendar.service';
 import {
   assembleCqsScore,
   isExcludedSecurity,
@@ -62,6 +63,7 @@ export class CqsService {
     @InjectRepository(Company)
     private readonly companyRepo: Repository<Company>,
     private readonly flagEngine: FlagEngineService,
+    private readonly legislative: LegislativeCalendarService,
   ) {}
 
   private q<T = any>(sql: string, params: any[] = []): Promise<T> {
@@ -138,7 +140,7 @@ export class CqsService {
     }
 
     // 4. Everything else, in set-based queries.
-    const [companies, iqs, grades, medians, priorBuys, series, seats, juris, agencies] =
+    const [companies, iqs, grades, medians, priorBuys, series, seats, juris, agencies, pendingCommittees] =
       await Promise.all([
         this.loadCompanies(tickers),
         this.loadIqs(tickers),
@@ -149,6 +151,12 @@ export class CqsService {
         this.loadSeats(),
         this.loadJurisdiction(),
         this.loadCompanyAgencies(tickers, flagsByTicker),
+        // Null, not an empty set, when no schedule has ever loaded: "we have
+        // no calendar" and "the calendar is empty this week" score differently.
+        this.legislative
+          .pendingCommitteeKeys()
+          .then((keys) => (keys.size ? keys : null))
+          .catch(() => null),
       ]);
 
     let computed = 0;
@@ -169,6 +177,7 @@ export class CqsService {
         seats,
         juris,
         agencies: agencies.get(ticker) || null,
+        pendingCommittees,
       });
       // Upsert, not save: the row carries no id and the table has a unique
       // index on (ticker, asOfDate, windowDays), so a second run on the same
@@ -213,6 +222,10 @@ export class CqsService {
     seats: Map<string, Array<{ committee: string; role: string }>>;
     juris: Map<string, Set<string>>;
     agencies: { agencies: Set<string>; label: string | null; value: number; count: number } | null;
+    /** Committee keys with markup/hearing activity inside the horizon. Null
+     *  when no schedule has been loaded at all — which is a different thing
+     *  from an empty week and must not be scored as one. */
+    pendingCommittees: Set<string> | null;
   }): CqsScore {
     const { ticker, txs, todayStr, asOfMs, flags, company, iqs, series } = ctx;
     const buys = txs.filter((t) => t.action === 'Buy');
@@ -316,6 +329,16 @@ export class CqsService {
       }
     }
     const committees = [...new Set(qualifyingSeats.map((s) => s.committee))];
+
+    // Brief v9 §3, narrow reading. A qualifying seat already means: this buyer
+    // sits on a committee that oversees an agency awarding this company work.
+    // The catalyst adds one condition — that same committee has markup or
+    // hearing activity scheduled. No bill-to-sector judgement is made, because
+    // that judgement is editorial and nothing here can evidence it.
+    const hasLegislativeCatalyst =
+      ctx.pendingCommittees == null
+        ? null
+        : committees.some((c) => ctx.pendingCommittees!.has(committeeKey(c)));
     const highestRole = qualifyingSeats.length
       ? [...qualifyingSeats].sort((a, b) => roleRank(b.role) - roleRank(a.role))[0].role
       : null;
@@ -418,9 +441,7 @@ export class CqsService {
       },
       {
         iqsScore: iqs,
-        // No legislative-calendar source yet (Brief v9 §9 open item) — reported
-        // as unavailable rather than as "checked and did not fire".
-        hasLegislativeCatalyst: null,
+        hasLegislativeCatalyst,
         priceVs52wHighPct: pctVs52wHigh,
         clusterVsAdvPct: null, // price_history_cache carries closes, not volume
         marketCap: this.num(company?.marketCap),

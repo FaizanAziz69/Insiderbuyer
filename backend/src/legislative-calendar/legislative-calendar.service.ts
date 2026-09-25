@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import axios, { AxiosInstance } from 'axios';
 import { Company } from '../entities/company.entity';
+import { committeeKey } from '../congress-trades/jurisdiction';
 
 /**
  * What Congress has SCHEDULED — the missing half of Brief v9 §3's Legislative
@@ -52,22 +53,14 @@ export interface ScheduleRow {
   sourceUrl: string | null;
 }
 
-/** "Senate Committee on the Judiciary" and a feed's bare "Judiciary" have to
- *  land on the same key, so chamber words, "Committee on", articles and
- *  punctuation all come out. */
-export function committeeKey(chamber: string, name: string | null | undefined): string {
-  const bare = String(name || '')
-    .replace(/[‘’]/g, "'")
-    .replace(/^\s*(House|Senate|Joint)\s+/i, '')
-    .replace(/^\s*(Select\s+)?(Committee|Subcommittee)\s+on\s+/i, '')
-    .replace(/^\s*the\s+/i, '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9 ]+/g, ' ')
-    .replace(/\bAND\b/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return `${String(chamber || '').toUpperCase().slice(0, 1)}|${bare}`;
-}
+/**
+ * Keys come from the Brief v5 influence map's own `committeeKey`, not a second
+ * normaliser. It strips chamber words, so "Judiciary" from the Senate feed and
+ * "Senate Committee on the Judiciary" in ct_jurisdiction land on the same key —
+ * which is the whole point, since the seat and the schedule have to join.
+ * Chamber is kept as its own column rather than folded into the key, so a
+ * caller can still require that a House seat match House activity.
+ */
 
 @Injectable()
 export class LegislativeCalendarService implements OnModuleInit {
@@ -137,7 +130,7 @@ export class LegislativeCalendarService implements OnModuleInit {
       out.push({
         chamber: 'Senate',
         committee,
-        committeeKey: committeeKey('Senate', committee),
+        committeeKey: committeeKey(committee),
         date,
         matter: matter || null,
         sourceUrl: SENATE_XML,
@@ -168,7 +161,7 @@ export class LegislativeCalendarService implements OnModuleInit {
         out.push({
           chamber: 'House',
           committee: detail,
-          committeeKey: committeeKey('House', detail),
+          committeeKey: committeeKey(detail),
           date,
           matter: m?.title || null,
           sourceUrl: m?.url || null,
@@ -259,7 +252,7 @@ export class LegislativeCalendarService implements OnModuleInit {
          FROM committee_schedule
         WHERE committee_key = $1 AND event_date >= current_date - 1
         ORDER BY event_date LIMIT 20`,
-      [committeeKey(chamber, committee)],
+      [committeeKey(committee)],
     );
     return rows.map((r) => ({
       chamber: r.chamber,
