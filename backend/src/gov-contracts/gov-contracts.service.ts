@@ -11,6 +11,7 @@ import {
 import { FmpService } from '../fmp/fmp.service';
 import { IqsService } from '../iqs/iqs.service';
 import { CONTRACTORS, ContractorEntry } from './gov-contracts-map';
+import { ContractorDiscoveryService } from './contractor-discovery.service';
 
 const USA = 'https://api.usaspending.gov/api/v2';
 // Definitive contracts, purchase orders, delivery orders, BPA calls.
@@ -48,6 +49,7 @@ export class GovContractsService {
     private readonly market: MarketStatsService,
     private readonly fmp: FmpService,
     private readonly iqs: IqsService,
+    private readonly discovery: ContractorDiscoveryService,
   ) {
     this.http = axios.create({
       timeout: 25_000,
@@ -121,11 +123,21 @@ export class GovContractsService {
       return !u || Date.now() - new Date(u).getTime() > this.FRESH_MS;
     };
 
-    let pool: ContractorEntry[] = CONTRACTORS.filter((c) => stale(c.ticker));
+    // The universe is whatever contractor discovery matched from USAspending,
+    // falling back to the curated 41 if it has never run. Reading CONTRACTORS
+    // directly is what held gov_contract_cache at 41 rows and, through it,
+    // held CQS component C4 at zero for every stock on the board.
+    const universe: ContractorEntry[] = (await this.discovery.universe()).map((u) => ({
+      ticker: u.ticker,
+      name: u.ticker,
+      recipient: u.recipient,
+      sector: '',
+    }));
+    let pool: ContractorEntry[] = universe.filter((c) => stale(c.ticker));
     if (startAfter) {
-      const i = CONTRACTORS.findIndex((c) => c.ticker === startAfter);
+      const i = universe.findIndex((c) => c.ticker === startAfter);
       if (i >= 0) {
-        const allowed = new Set(CONTRACTORS.slice(i + 1).map((c) => c.ticker));
+        const allowed = new Set(universe.slice(i + 1).map((c) => c.ticker));
         pool = pool.filter((c) => allowed.has(c.ticker));
       }
     }
