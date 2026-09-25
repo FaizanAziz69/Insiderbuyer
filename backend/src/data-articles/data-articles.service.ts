@@ -94,6 +94,16 @@ const TICKER_KEYED = new Set([
   'analyst-targets',
   'ipos-ytd',
 ]);
+/**
+ * A single open-market insider purchase cannot be worth more than the company.
+ *
+ * Reborn Coffee (REBN) reached the top of the year-to-date insider board at
+ * $23.6bn: 131,387 shares recorded at $180,000 each, against a $9.7M market
+ * cap — 2,400x the entire company. The ingestion guard only rejects a price
+ * above $1M/share, which this slipped under. Anything larger than the market
+ * value it was bought in is a filing-parse artifact, not conviction.
+ */
+const SANE_BUY = `AND (c."marketCap" IS NULL OR t."totalValue" <= c."marketCap"::numeric)`;
 /** George asked for 15 names in the screen articles, matching his reference. */
 const SCREEN_N = 15;
 const TOP_N = 10;
@@ -534,6 +544,7 @@ export class DataArticlesService implements OnModuleInit {
            WHERE t."transactionCode" = $1 AND t."totalValue" > 0 AND t."sharesBought" > 0
              AND t."transactionDate" >= CURRENT_DATE - $2::int
              AND c.ticker IS NOT NULL AND c.ticker <> ''
+             ${SANE_BUY}
              ${cond}
            GROUP BY c.id, UPPER(c.ticker), c.name, c.sector, c."lastPrice"
          ),
@@ -695,6 +706,7 @@ export class DataArticlesService implements OnModuleInit {
           AND t."totalValue" > 0 AND t."sharesBought" > 0
           AND t."transactionDate" >= date_trunc('year', CURRENT_DATE)
           AND c.ticker IS NOT NULL AND c.ticker <> ''
+          ${SANE_BUY}
         GROUP BY UPPER(c.ticker), c.name, c.sector
         ORDER BY total DESC
         LIMIT $1`,
@@ -762,6 +774,13 @@ export class DataArticlesService implements OnModuleInit {
          JOIN analyst_price_targets p ON p.symbol = u.symbol
         WHERE u.price > 0 AND p."priceTarget" > 0
           AND p."publishedDate" >= now() - interval '180 days'
+          -- KLA came back with a 432% "upside" on targets of $1,700-$2,250
+          -- published when the stock was $169-$213. A target an order of
+          -- magnitude away from the price it was written against is a feed
+          -- error (usually pre-split), not a call.
+          AND (p."priceWhenPosted" IS NULL OR p."priceWhenPosted" <= 0
+               OR (p."priceTarget" <= p."priceWhenPosted" * 5
+                   AND p."priceTarget" >= p."priceWhenPosted" / 5))
         GROUP BY u.symbol, u.name, u.sector, u.price, u.market_cap
        HAVING COUNT(*) >= 4 AND AVG(p."priceTarget") > u.price
         ORDER BY (AVG(p."priceTarget") - u.price) / u.price DESC
@@ -819,6 +838,15 @@ export class DataArticlesService implements OnModuleInit {
          FROM ipo_listings
         WHERE listing_date >= date_trunc('year', CURRENT_DATE)
           AND ipo_price > 0 AND current_price > 0
+          -- "Best performing IPOs" led with NFEGP (a preferred series), USDEW
+          -- and CXIIW (warrants) at +1,046% / +480% / +115%. Warrants and
+          -- units are leveraged claims that routinely move in hundreds of
+          -- percent; listing one as a company's IPO return is misleading.
+          -- A five-letter symbol ending W/U/R is the NASDAQ convention for a
+          -- warrant, unit or right. A symbol rule alone is unsafe (CSGP is a
+          -- real five-letter ticker ending in P), so the name carries the rest.
+          AND NOT (length(symbol) = 5 AND symbol ~ '[WUR]$')
+          AND name !~* '(warrant|unit[s]?\\M|right[s]?\\M|preferred|depositary|series [A-Z]\\M)'
         ORDER BY ret DESC
         LIMIT $1`,
       [SCREEN_N],
