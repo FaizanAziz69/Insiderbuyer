@@ -993,6 +993,38 @@ export class IngestionService implements OnModuleInit {
    * accession already in `processed_filings` is skipped, so a re-run is free
    * and an interrupted sweep resumes from `cursor`.
    */
+  /**
+   * Keep the 12-month history whole, weekly.
+   *
+   * The daily cron reads the market-wide EFTS feed, which is capped per
+   * 4-day chunk and silently drops busy filers. That is how the 12-month
+   * window came to hold 1,238 open-market buys against a ~1,350/month run
+   * rate — 87% of companies returned identical figures at 90 days and at
+   * 12 months, and it read as a scoring bug rather than a missing-data one.
+   * It was fixed by hand once; without this it simply happens again.
+   *
+   * Sunday 02:00, walking the issuer list a slice at a time. Idempotent —
+   * a filing already in processed_filings is skipped — so an interrupted
+   * run costs nothing but the next one's time.
+   */
+  @Cron('0 2 * * 0')
+  async weeklyForm4Backfill(): Promise<void> {
+    if (process.env.VERCEL) return;
+    let after: string | undefined;
+    let added = 0;
+    for (let i = 0; i < 500; i++) {
+      const r = await this.backfillForm4History({ limit: 25, daysBack: 365, after }).catch((e) => {
+        this.logger.warn(`weekly Form 4 backfill failed: ${e?.message || e}`);
+        return null;
+      });
+      if (!r) break;
+      added += r.transactions || 0;
+      if (r.done || !r.cursor) break;
+      after = r.cursor;
+    }
+    this.logger.log(`weekly Form 4 backfill: ${added} transactions added`);
+  }
+
   async backfillForm4History(opts?: {
     /** Issuers per call. Default 25; the wall-clock budget stops it sooner. */
     limit?: number;
