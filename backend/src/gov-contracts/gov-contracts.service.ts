@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import axios, { AxiosInstance } from 'axios';
@@ -107,6 +108,32 @@ export class GovContractsService {
    * calls this in a loop). `after` is the last ticker processed; entries are
    * ordered by the curated list so paging is deterministic.
    */
+  /**
+   * Walk the whole contractor universe once a week.
+   *
+   * The entity has always described itself as refreshed "a slice at a time
+   * (cloud cron)", but no cron existed anywhere — the 41 rows were topped up
+   * by hand. Trailing-12-month contract dollars decay every quarter, and C4's
+   * materiality ramp reads them, so a stale row quietly mis-scores rather
+   * than visibly failing.
+   */
+  @Cron('0 3 * * 6')
+  async weeklyRefresh(): Promise<void> {
+    if (process.env.VERCEL) return;
+    for (let i = 0; i < 40; i++) {
+      const r = await this.refreshSlice({ limit: 12, after: this.cronCursor }).catch((e) => {
+        this.logger.warn(`weekly contract refresh failed: ${e?.message || e}`);
+        return null;
+      });
+      if (!r) break;
+      this.cronCursor = r.cursor ?? undefined;
+      if (!r.remaining || !r.cursor) break;
+    }
+    this.cronCursor = undefined;
+  }
+
+  private cronCursor: string | undefined;
+
   async refreshSlice(opts?: { limit?: number; after?: string }): Promise<{
     processed: string[];
     remaining: number;

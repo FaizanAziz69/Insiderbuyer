@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import axios, { AxiosInstance } from 'axios';
@@ -121,6 +122,32 @@ export class ContractorDiscoveryService {
     )`);
     await this.q(`CREATE INDEX IF NOT EXISTS gov_contractor_map_amt ON gov_contractor_map (amount DESC)`);
     this.ready = true;
+  }
+
+  /**
+   * Monthly re-discovery — REPORT ONLY.
+   *
+   * New matches are not written automatically and that is deliberate. A match
+   * here asserts that a listed company holds federal contracts, which under
+   * §8 becomes a published claim about oversight; the strict rules make a bad
+   * match unlikely, not impossible. So the cron logs what it WOULD add and a
+   * person runs the write.
+   */
+  @Cron('0 4 1 * *')
+  async monthlyReport(): Promise<void> {
+    if (process.env.VERCEL) return;
+    const before = await this.q<any[]>(`SELECT ticker FROM gov_contractor_map`).catch(() => []);
+    const known = new Set((before || []).map((r: any) => r.ticker));
+    const res = await this.discover({ pages: 60, limit: 100, dryRun: true }).catch((e) => {
+      this.log.warn(`monthly discovery failed: ${e?.message || e}`);
+      return null;
+    });
+    if (!res) return;
+    const fresh = res.sample.filter((m) => !known.has(m.ticker));
+    this.log.log(
+      `contractor discovery (monthly, report only): ${res.matched} matched, ${fresh.length} NOT yet in the map` +
+        (fresh.length ? ` — ${fresh.map((f) => f.ticker).join(', ')}. POST /gov-contracts/admin/discover {"dryRun":false} to accept.` : ''),
+    );
   }
 
   /** One page of USAspending's ranked parent-recipient list. */
