@@ -1,0 +1,94 @@
+name: CQS daily — snapshot, score, alert
+
+# Brief v9's daily chain, driven from outside the box as well as inside it.
+#
+# WHAT THIS IS FOR, AND WHAT IT IS NOT FOR
+#
+# The point-in-time snapshot is the reason this workflow exists. C3-C6 of the
+# CQS read committee seats, contract flags, Brief v7 grades and member medians,
+# and all four are stored as CURRENT STATE with no history. §5 calibration
+# therefore cannot score them historically, and it never will be able to for
+# any day whose snapshot was not taken — there is no backfill for "what did the
+# roster look like in March". A missed day is gone permanently.
+#
+# pm2 already runs the same jobs in-process. This is the second pair of hands:
+# if the box restarts across 05:50, or the in-process scheduler is wedged, the
+# day is still captured. Every endpoint below is idempotent — the snapshot is
+# keyed (as_of, kind, key) and upserts — so running both is a no-op, not a
+# duplicate.
+#
+# It cannot make history accumulate faster. One calendar day produces one
+# as_of, whoever asks for it and however often. Running this hourly would not
+# give you a year of history any sooner than running it daily.
+#
+# Uses api.insiderbuying.com, not the site host: the frontend sits behind the
+# Turnstile bot gate and answers an unattended curl with
+# bot_verification_required.
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - '.github/workflows/cqs-daily.yml'
+  schedule:
+    # 06:20 UTC — after the in-process snapshot (05:50) and recompute (06:10),
+    # so this normally finds the work already done and confirms it.
+    - cron: '20 6 * * *'
+    # A second pass in case the first ran while the box was restarting.
+    - cron: '20 14 * * *'
+
+concurrency:
+  group: cqs-daily
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      API: https://api.insiderbuying.com/api
+      # Repository secret. The admin routes are token-guarded; without it the
+      # steps below 403 and the job fails loudly rather than silently skipping
+      # a day of history it cannot recover.
+      ADMIN_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
+    steps:
+      - name: Guard — token present
+        run: |
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "::error::ADMIN_API_TOKEN secret is not set; the snapshot cannot be taken."
+            exit 1
+          fi
+
+      - name: Point-in-time snapshot (the irreplaceable one)
+        run: |
+          resp=$(curl -s -m 180 -X POST "$API/pit-snapshots/admin/snapshot" \
+            -H "x-admin-token: $ADMIN_TOKEN" -H 'content-type: application/json' -d '{}' \
+            || echo '{"error":"curl failed"}')
+          echo "snapshot -> $resp"
+          case "$resp" in
+            *'"error"'*) echo "::error::snapshot failed"; exit 1 ;;
+          esac
+
+      - name: Refresh committee schedules
+        run: |
+          echo "calendar -> $(curl -s -m 180 -X POST "$API/legislative-calendar/admin/refresh" \
+            -H "x-admin-token: $ADMIN_TOKEN" || echo 'curl failed')"
+
+      - name: Recompute CQS
+        run: |
+          echo "cqs -> $(curl -s -m 300 -X POST "$API/cqs/admin/recalculate" \
+            -H "x-admin-token: $ADMIN_TOKEN" || echo 'curl failed')"
+
+      - name: Extend the calibration walk by a slice
+        # Resumable and idempotent: it re-scores as-of dates it has already
+        # written and moves the cursor on. Kept small so the job stays short.
+        run: |
+          echo "calibration -> $(curl -s -m 300 -X POST "$API/cqs-calibration/admin/run" \
+            -H "x-admin-token: $ADMIN_TOKEN" -H 'content-type: application/json' \
+            -d '{"limitWeeks":26}' || echo 'curl failed')"
+
+      - name: Report coverage
+        run: |
+          echo "snapshots:   $(curl -s -m 60 "$API/pit-snapshots/status" -H "x-admin-token: $ADMIN_TOKEN")"
+          echo "calendar:    $(curl -s -m 60 "$API/legislative-calendar/status")"
+          echo "calibration: $(curl -s -m 60 "$API/cqs-calibration/status" -H "x-admin-token: $ADMIN_TOKEN")"
