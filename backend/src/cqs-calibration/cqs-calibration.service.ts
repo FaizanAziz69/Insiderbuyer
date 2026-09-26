@@ -8,6 +8,7 @@ import {
   clamp,
   isExcludedSecurity,
   scoreC1ClusterBreadth,
+  scoreC6RelativeConviction,
   scoreC2PositionSize,
   scoreC7Freshness,
   scoreC8NetDirection,
@@ -72,20 +73,43 @@ const WINDOW_DAYS = 90;
 export const TRAIN_END = '2023-12-31';
 export const HOLDOUT_START = '2024-01-01';
 
-/** The four components this harness can compute without lookahead. */
+/**
+ * The components this harness can compute without lookahead.
+ *
+ * C6 was on the excluded list on the first cut, and that was my mistake, not
+ * a data limit. Relative conviction is a member's trade band against that
+ * member's OWN median band plus a first-ever-purchase bonus — and both are
+ * derivable from `congressional_transactions` filtered to `reportedDate <=
+ * asOf`, which is the same filter the walk already applies. Nothing about it
+ * needs a stored snapshot. Including it takes the calibrated share of the
+ * live score from 50% to 58%.
+ */
 export const REDUCED_COMPONENTS = [
   'c1ClusterBreadth',
   'c2PositionSize',
+  'c6RelativeConviction',
   'c7Freshness',
   'c8NetDirection',
 ] as const;
 export type ReducedComponent = (typeof REDUCED_COMPONENTS)[number];
 
+/**
+ * Still excluded, and for two different reasons.
+ *
+ * C3 and C4 need committee rosters and contract flags AS THEY STOOD — neither
+ * is stored historically, which is what `cqs_input_snapshots` now begins
+ * accumulating from 2026-09-26 onward.
+ *
+ * C5 is different: the Brief v7 grade derives from trade history we DO hold
+ * (wt_trades carries 84,618 rows with a disclosure_date), so it is
+ * reconstructible in principle. It is excluded because reconstructing it means
+ * running the v7 grading engine as-of each date, which is its own build — not
+ * because the data is missing.
+ */
 export const EXCLUDED_COMPONENTS = [
   'c3CommitteeInfluence',
   'c4ContractAlignment',
   'c5BuyerTrackRecord',
-  'c6RelativeConviction',
 ] as const;
 
 export const HORIZON_MONTHS = [1, 3, 6, 12] as const;
@@ -336,7 +360,9 @@ export class CqsCalibrationService {
 
       for (const asOfMs of slice) {
         const asOf = this.ymd(asOfMs);
-        const res = this.scoreAsOf(txs, asOfMs);
+        // Baselines are per as-of date: a member's median is what it was then.
+        const baselines = await this.memberBaselines(asOf);
+        const res = this.scoreAsOf(txs, asOfMs, baselines);
         excluded += res.excluded;
         for (const t of res.considered) consideredTickers.add(t);
         if (res.rows.length) {
@@ -447,6 +473,7 @@ export class CqsCalibrationService {
   private scoreAsOf(
     all: PitTx[],
     asOfMs: number,
+    baselines?: { medians: Map<string, number>; priorBuys: Set<string> },
   ): { rows: ScoredRow[]; excluded: number; considered: string[] } {
     const asOf = this.ymd(asOfMs);
     const windowStart = asOfMs - WINDOW_DAYS * DAY;
@@ -518,9 +545,26 @@ export class CqsCalibrationService {
       const lastBuyMs = Math.max(...buys.map((b) => b.transactionMs));
       const daysSinceTx = Math.max(0, Math.floor((asOfMs - lastBuyMs) / DAY));
 
+      // C6 measures a trade against the buyer's OWN habit. The cluster's
+      // largest floor is compared with that member's median, and a member who
+      // had never bought this ticker before `asOf` earns the first-purchase
+      // bonus. Both baselines are filed-by-asOf, so neither leaks.
+      let c6 = 50;
+      if (baselines) {
+        const perMember: number[] = [];
+        for (const [key, m] of members) {
+          const floor = Math.max(...m.floors);
+          const median = baselines.medians.get(key) ?? null;
+          const firstEver = !baselines.priorBuys.has(`${key}|${ticker.toUpperCase()}`);
+          perMember.push(scoreC6RelativeConviction(floor, median, firstEver));
+        }
+        if (perMember.length) c6 = Math.max(...perMember);
+      }
+
       const components: Record<ReducedComponent, number> = {
         c1ClusterBreadth: scoreC1ClusterBreadth(members.size, isBipartisan),
         c2PositionSize: scoreC2PositionSize([...members.values()].map((m) => m.floors)),
+        c6RelativeConviction: c6,
         c7Freshness: scoreC7Freshness(daysSinceTx),
         c8NetDirection: scoreC8NetDirection(buyValue, sellValue),
       };
@@ -746,6 +790,48 @@ export class CqsCalibrationService {
     const holdout = out.splits.holdout?.horizons as HorizonStats[] | undefined;
     out.verdict = this.verdict(holdout);
     return out;
+  }
+
+
+  /**
+   * Each member's own median disclosed BUY band floor, and the set of
+   * (member, ticker) pairs they had already bought — both as known on `asOf`.
+   *
+   * C6 asks whether a trade is large FOR THIS MEMBER, so the baseline has to
+   * be the member's history as it stood, not their career to date. Filed-by
+   * filtering is the same `reportedDate <= asOf` rule the walk applies to the
+   * trades being scored; using the full history would leak the future into
+   * the very component meant to measure a departure from habit.
+   */
+  private async memberBaselines(
+    asOf: string,
+  ): Promise<{ medians: Map<string, number>; priorBuys: Set<string> }> {
+    const medians = new Map<string, number>();
+    const priorBuys = new Set<string>();
+    const rows = await this.q<any[]>(
+      `SELECT "politicianName" AS name, ticker, "amountMin"::float8 AS amount_min
+         FROM congressional_transactions
+        WHERE action = 'Buy'
+          AND "reportedDate" IS NOT NULL
+          AND "reportedDate" <= $1::date
+          AND ticker IS NOT NULL AND ticker <> ''`,
+      [asOf],
+    ).catch(() => [] as any[]);
+
+    const byMember = new Map<string, number[]>();
+    for (const r of rows) {
+      const key = nameKey(r.name);
+      const floor = this.num(r.amount_min) ?? 15_001;
+      const list = byMember.get(key);
+      if (list) list.push(floor);
+      else byMember.set(key, [floor]);
+      priorBuys.add(`${key}|${String(r.ticker).toUpperCase()}`);
+    }
+    for (const [key, floors] of byMember) {
+      floors.sort((a, b) => a - b);
+      medians.set(key, floors[Math.floor(floors.length / 2)]);
+    }
+    return { medians, priorBuys };
   }
 
   /**
