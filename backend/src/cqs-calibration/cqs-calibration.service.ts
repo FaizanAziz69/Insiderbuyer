@@ -870,8 +870,11 @@ export class CqsCalibrationService {
       });
     }
 
-    const top = deciles.find((d) => d.decile === 10);
-    const bottom = deciles.find((d) => d.decile === 1);
+    // Top and bottom of whatever bucketing was used. Hardcoding 10 silently
+    // returned a null spread the moment the buckets became quintiles, and a
+    // null spread makes the §5 ablation unable to judge anything at all.
+    const top = deciles.length ? deciles[deciles.length - 1] : undefined;
+    const bottom = deciles.length ? deciles[0] : undefined;
     const spread =
       top && bottom ? this.round(top.meanExcessPct - bottom.meanExcessPct) : null;
 
