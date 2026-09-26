@@ -166,8 +166,31 @@ export interface HorizonStats {
 
 const DEFAULT_FROM = '2015-01-02';
 const DEFAULT_LIMIT_WEEKS = 26;
-/** Below this many scored names an as-of date cannot be split into deciles. */
-const DEFAULT_MIN_CROSS_SECTION = 20;
+/**
+ * HOW THE BUCKETS ARE FORMED, AND WHY NOT DECILES.
+ *
+ * §5 asks for deciles. Run against this index they are not available: the
+ * walk produced 2,688 scores over 458 weekly cross-sections — a mean of 5.9
+ * names a date, and only 11 dates with the 20 names a ten-way split needs.
+ * You cannot cut six stocks into ten buckets, and the stored per-date decile
+ * proves it: with n=6 it emits 1,2,4,5,7,9 and leaves four buckets empty.
+ *
+ * The standard answer in factor research for a thin cross-section is to rank
+ * WITHIN each date, convert that rank to a percentile, and pool the
+ * percentiles across dates — the ranking stays point-in-time and the bucket
+ * count stops depending on how many names happened to qualify that week.
+ * Buckets are then quintiles, the usual choice when a universe is narrow,
+ * with deciles kept available for when it is not.
+ *
+ * Ties share a rank rather than splitting across adjacent buckets. C1 and C2
+ * are coarse step functions, so exact ties are common and positional
+ * assignment would scatter identical scores into different buckets and call
+ * the difference signal.
+ */
+const DEFAULT_BUCKETS = 5;
+
+/** Below this many scored names an as-of date cannot be split into buckets. */
+const DEFAULT_MIN_CROSS_SECTION = 5;
 
 @Injectable()
 export class CqsCalibrationService {
@@ -609,11 +632,13 @@ export class CqsCalibrationService {
    * on which every contributing trade had already been filed — so "measured
    * from filing date" in the brief is honoured by construction.
    */
-  async evaluate(opts: { minCrossSection?: number } = {}): Promise<any> {
+  async evaluate(opts: { minCrossSection?: number; buckets?: number } = {}): Promise<any> {
     const ensured = await this.ensureTables();
     if (!ensured.ok) return { ok: false, error: ensured.error, limitations: this.limitations() };
 
     const minCross = Math.max(0, Number(opts.minCrossSection ?? DEFAULT_MIN_CROSS_SECTION));
+    // Quintiles by default; ask for 10 once the cross-section can carry them.
+    const buckets = Math.max(2, Math.min(Number(opts.buckets ?? DEFAULT_BUCKETS), 10));
 
     let rows: StoredRow[];
     try {
@@ -641,7 +666,7 @@ export class CqsCalibrationService {
       };
     }
 
-    return this.evaluateRows(rows, minCross, null);
+    return this.evaluateRows(rows, minCross, null, undefined, buckets);
   }
 
   /** Shared by evaluate() and ablate(): rows in, split statistics out.
@@ -657,12 +682,13 @@ export class CqsCalibrationService {
       prices?: Map<string, Array<[number, number, number]>>;
       sectors?: Map<string, string>;
     },
+    buckets: number = DEFAULT_BUCKETS,
   ): Promise<any> {
     const tickers = [...new Set(rows.map((r) => r.ticker))];
     const prices = cache?.prices ?? (await this.loadPriceSeries(tickers));
     const sectors = cache?.sectors ?? (await this.loadSectors(tickers));
 
-    // Drop thin cross-sections: fewer than `minCross` names cannot be decile'd.
+    // Drop thin cross-sections: fewer than `minCross` names cannot be bucketed.
     const byDate = new Map<string, StoredRow[]>();
     for (const r of rows) {
       const list = byDate.get(r.asOf);
@@ -707,7 +733,7 @@ export class CqsCalibrationService {
     for (const [name, list] of Object.entries(splits)) {
       const horizons: HorizonStats[] = [];
       for (const months of HORIZON_MONTHS) {
-        horizons.push(this.horizonStats(list, months, prices, sectors));
+        horizons.push(this.horizonStats(list, months, prices, sectors, buckets));
       }
       out.splits[name] = {
         observations: list.length,
@@ -722,12 +748,43 @@ export class CqsCalibrationService {
     return out;
   }
 
+  /**
+   * Percentile of each row inside its own as-of date, ties averaged.
+   * 0 = lowest score that week, 1 = highest.
+   */
+  private withinDatePercentiles(rows: StoredRow[]): Map<StoredRow, number> {
+    const out = new Map<StoredRow, number>();
+    const byDate = new Map<string, StoredRow[]>();
+    for (const r of rows) {
+      const l = byDate.get(r.asOf);
+      if (l) l.push(r);
+      else byDate.set(r.asOf, [r]);
+    }
+    for (const [, list] of byDate) {
+      const sorted = [...list].sort((a, b) => a.cqs - b.cqs);
+      const n = sorted.length;
+      let i = 0;
+      while (i < n) {
+        let j = i;
+        while (j + 1 < n && sorted[j + 1].cqs === sorted[i].cqs) j++;
+        // Average rank across the tie block, then centre it in its slot.
+        const avgRank = (i + j) / 2;
+        const pct = n <= 1 ? 0.5 : (avgRank + 0.5) / n;
+        for (let k = i; k <= j; k++) out.set(sorted[k], pct);
+        i = j + 1;
+      }
+    }
+    return out;
+  }
+
   private horizonStats(
     rows: StoredRow[],
     months: number,
     prices: Map<string, Array<[number, number, number]>>,
     sectors: Map<string, string>,
+    buckets: number = DEFAULT_BUCKETS,
   ): HorizonStats {
+    const pct = this.withinDatePercentiles(rows);
     // 1. Raw forward return per observation.
     interface Obs {
       asOf: string;
@@ -754,9 +811,11 @@ export class CqsCalibrationService {
         continue;
       }
       if (p0 == null || p1 == null || !(p0 > 0)) continue;
+      const p = pct.get(r) ?? 0.5;
       obs.push({
         asOf: r.asOf,
-        decile: r.decile,
+        // Pooled within-date percentile, not the stored per-date decile.
+        decile: Math.min(buckets, Math.max(1, Math.floor(p * buckets) + 1)),
         ret: ((p1 - p0) / p0) * 100,
         sector: sectors.get(r.ticker) || 'Unknown',
       });
@@ -775,7 +834,7 @@ export class CqsCalibrationService {
       } else cohort.set(k, { sum: o.ret, n: 1 });
     }
 
-    const buckets = new Map<number, number[]>();
+    const byBucket = new Map<number, number[]>();
     const excessBuckets = new Map<number, number[]>();
     for (const o of obs) {
       const c = cohort.get(`${o.asOf}|${o.sector}`);
@@ -789,9 +848,9 @@ export class CqsCalibrationService {
         bench = same.length ? same.reduce((a, x) => a + x.ret, 0) / same.length : 0;
       }
       const d = clamp(o.decile, 1, 10);
-      const arr = buckets.get(d);
+      const arr = byBucket.get(d);
       if (arr) arr.push(o.ret);
-      else buckets.set(d, [o.ret]);
+      else byBucket.set(d, [o.ret]);
       const ex = excessBuckets.get(d);
       if (ex) ex.push(o.ret - bench);
       else excessBuckets.set(d, [o.ret - bench]);
@@ -799,7 +858,7 @@ export class CqsCalibrationService {
 
     const deciles: DecileStat[] = [];
     for (let d = 1; d <= 10; d++) {
-      const raw = buckets.get(d) || [];
+      const raw = byBucket.get(d) || [];
       const ex = excessBuckets.get(d) || [];
       if (!raw.length) continue;
       deciles.push({
@@ -868,7 +927,7 @@ export class CqsCalibrationService {
    * not reported here has not been tested — it was never in the historical
    * score to begin with.
    */
-  async ablate(opts: { months?: number; minCrossSection?: number } = {}): Promise<any> {
+  async ablate(opts: { months?: number; minCrossSection?: number; buckets?: number } = {}): Promise<any> {
     const ensured = await this.ensureTables();
     if (!ensured.ok) return { ok: false, error: ensured.error, limitations: this.limitations() };
 
@@ -876,6 +935,8 @@ export class CqsCalibrationService {
       ? Number(opts.months)
       : 6;
     const minCross = Math.max(0, Number(opts.minCrossSection ?? DEFAULT_MIN_CROSS_SECTION));
+    // Quintiles by default; ask for 10 once the cross-section can carry them.
+    const buckets = Math.max(2, Math.min(Number(opts.buckets ?? DEFAULT_BUCKETS), 10));
 
     let rows: StoredRow[];
     try {
@@ -909,12 +970,12 @@ export class CqsCalibrationService {
     };
 
     const baselineRows = this.rescore(rows, null);
-    const baseline = await this.evaluateRows(baselineRows, minCross, null, cache);
+    const baseline = await this.evaluateRows(baselineRows, minCross, null, cache, buckets);
     const baseSpread = this.spreadAt(baseline, months);
 
     const results: any[] = [];
     for (const comp of REDUCED_COMPONENTS) {
-      const ablated = await this.evaluateRows(this.rescore(rows, comp), minCross, comp, cache);
+      const ablated = await this.evaluateRows(this.rescore(rows, comp), minCross, comp, cache, buckets);
       const spread = this.spreadAt(ablated, months);
       const delta =
         baseSpread != null && spread != null ? this.round(spread - baseSpread) : null;

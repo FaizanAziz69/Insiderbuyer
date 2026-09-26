@@ -46,19 +46,22 @@ export class CqsCalibrationController {
   }
 
   @Post('admin/evaluate')
-  async evaluate(@Body() body: { minCrossSection?: number } = {}) {
+  async evaluate(@Body() body: { minCrossSection?: number; buckets?: number } = {}) {
     return this.svc.evaluate({
       minCrossSection:
         body?.minCrossSection == null ? undefined : Number(body.minCrossSection),
+      // Quintiles by default; pass 10 once the cross-section can carry them.
+      buckets: body?.buckets == null ? undefined : Number(body.buckets),
     });
   }
 
   @Post('admin/ablate')
-  async ablate(@Body() body: { months?: number; minCrossSection?: number } = {}) {
+  async ablate(@Body() body: { months?: number; minCrossSection?: number; buckets?: number } = {}) {
     return this.svc.ablate({
       months: body?.months == null ? undefined : Number(body.months),
       minCrossSection:
         body?.minCrossSection == null ? undefined : Number(body.minCrossSection),
+      buckets: body?.buckets == null ? undefined : Number(body.buckets),
     });
   }
 }
