@@ -255,7 +255,7 @@ export const LAUNCH_ARTICLES: ArticleSeed[] = [
         },
         {
           heading: 'How the return is calculated',
-          html: '<p>For each quarter-to-quarter leg we weight every disclosed position by its value at the start of the leg and measure the change in each holding&rsquo;s price to the end of the leg. Legs are chained to produce a trailing-twelve-month figure, with the current leg marked to live prices. The full method is on the <a href="/methodology#top-insiders">methodology page</a>.</p>',
+          html: '<p>For each quarter-to-quarter leg we weight every disclosed position by its value at the start of the leg and measure the change in each holding&rsquo;s price to the end of the leg. Legs are chained to produce a trailing-twelve-month figure, with the current leg marked to live prices.</p>',
         },
         {
           heading: 'Why some managers show no return',

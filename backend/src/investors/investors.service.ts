@@ -684,7 +684,7 @@ export class InvestorsService implements OnModuleInit {
     } else if (tab !== 'popular') {
       out = cards.filter((c) => c.categories.includes(tab));
     }
-    return { tab, count: out.length, cards: out, methodologyUrl: '/methodology#top-insiders' };
+    return { tab, count: out.length, cards: out, methodologyUrl: null };
   }
 
   /** `all` returns every holding; by default the table is capped at the 500
@@ -782,7 +782,7 @@ export class InvestorsService implements OnModuleInit {
       })),
       history,
       overlap,
-      methodologyUrl: '/methodology#top-insiders',
+      methodologyUrl: null,
     };
   }
 }

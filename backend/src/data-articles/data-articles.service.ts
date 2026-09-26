@@ -254,7 +254,7 @@ export class DataArticlesService implements OnModuleInit {
       rawSections: a.sections,
       refreshedAt: primary?.refreshed_at ?? null,
       asOf: (primary?.payload as ChartPayload | undefined)?.asOf ?? null,
-      methodologyUrl: '/methodology#data-articles',
+      methodologyUrl: null,
       href: `/data/${a.slug}`,
     };
   }
@@ -1101,7 +1101,7 @@ export class DataArticlesService implements OnModuleInit {
         latestQuarter,
         combinedAum: ranked.reduce((s, c) => s + (c.portfolioValue ?? 0), 0),
       },
-      source: 'SEC Form 13F-HR via FMP; performance per /methodology#top-insiders',
+      source: 'SEC Form 13F-HR via FMP; value-weighted return of disclosed long positions',
       // George asked for a weekly rebalance on this list. Prices move weekly;
       // the holdings underneath them cannot. 13F is filed once a quarter, up to
       // 45 days after the quarter ends, so a "weekly rebalanced" manager

@@ -50,7 +50,10 @@ export interface DataArticle {
   };
   refreshedAt: string | null;
   asOf: string | null;
-  methodologyUrl: string;
+  /** Null since the client removed the methodology surface on 2026-09-15
+   *  ("hum kabhi bhi methodology user ko nai dekhayein gay"). Kept on the
+   *  type so an older cached payload still parses. */
+  methodologyUrl: string | null;
 }
 
 const REFRESH_LABEL = { weekly: "refreshes weekly", monthly: "refreshes monthly", quarterly: "refreshes quarterly" } as const;

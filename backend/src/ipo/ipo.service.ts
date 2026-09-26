@@ -558,7 +558,7 @@ export class IpoService implements OnModuleInit {
       out.reverse();
     }
     const [meta] = await this.companies.query(`SELECT MAX(price_asof)::text AS t FROM ipo_listings`);
-    return { window: IPO_WINDOW_DAYS, asOf: meta?.t ?? null, count: out.length, rows: out, methodologyUrl: '/methodology#ipo-calendar' };
+    return { window: IPO_WINDOW_DAYS, asOf: meta?.t ?? null, count: out.length, rows: out, methodologyUrl: null };
   }
 
   async upcoming(): Promise<{ count: number; rows: IpoUpcoming[] }> {
