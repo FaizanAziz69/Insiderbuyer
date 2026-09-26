@@ -2,12 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
+import { gradesAsOf, type PitTrade, type Series } from './pit-grades';
 import { nameKey } from '../congress-trades/influence-map.service';
 import {
   CQS_COMPONENT_WEIGHTS,
   clamp,
   isExcludedSecurity,
   scoreC1ClusterBreadth,
+  scoreC5BuyerTrackRecord,
   scoreC6RelativeConviction,
   scoreC2PositionSize,
   scoreC7Freshness,
@@ -87,6 +89,7 @@ export const HOLDOUT_START = '2024-01-01';
 export const REDUCED_COMPONENTS = [
   'c1ClusterBreadth',
   'c2PositionSize',
+  'c5BuyerTrackRecord',
   'c6RelativeConviction',
   'c7Freshness',
   'c8NetDirection',
@@ -109,7 +112,6 @@ export type ReducedComponent = (typeof REDUCED_COMPONENTS)[number];
 export const EXCLUDED_COMPONENTS = [
   'c3CommitteeInfluence',
   'c4ContractAlignment',
-  'c5BuyerTrackRecord',
 ] as const;
 
 export const HORIZON_MONTHS = [1, 3, 6, 12] as const;
@@ -357,12 +359,16 @@ export class CqsCalibrationService {
       const consideredTickers = new Set<string>();
       let excluded = 0;
       let rowsWritten = 0;
+      let gradeInputs: { trades: PitTrade[]; prices: Map<string, Series> } | null = null;
 
       for (const asOfMs of slice) {
         const asOf = this.ymd(asOfMs);
         // Baselines are per as-of date: a member's median is what it was then.
         const baselines = await this.memberBaselines(asOf);
-        const res = this.scoreAsOf(txs, asOfMs, baselines);
+        // Grades likewise — but their evidence is loaded once for the walk.
+        if (!gradeInputs) gradeInputs = await this.loadGradeInputs();
+        const grades = gradesAsOf(gradeInputs.trades, gradeInputs.prices, asOfMs);
+        const res = this.scoreAsOf(txs, asOfMs, baselines, grades);
         excluded += res.excluded;
         for (const t of res.considered) consideredTickers.add(t);
         if (res.rows.length) {
@@ -474,6 +480,7 @@ export class CqsCalibrationService {
     all: PitTx[],
     asOfMs: number,
     baselines?: { medians: Map<string, number>; priorBuys: Set<string> },
+    grades?: Map<string, string>,
   ): { rows: ScoredRow[]; excluded: number; considered: string[] } {
     const asOf = this.ymd(asOfMs);
     const windowStart = asOfMs - WINDOW_DAYS * DAY;
@@ -561,9 +568,22 @@ export class CqsCalibrationService {
         if (perMember.length) c6 = Math.max(...perMember);
       }
 
+      // C5 is volume-weighted across the buyers, exactly as the live scorer
+      // does it — each member's grade AS IT STOOD on this date, weighted by
+      // what they put in.
+      const c5 = grades
+        ? scoreC5BuyerTrackRecord(
+            [...members.entries()].map(([key, m]) => ({
+              grade: (grades.get(key) as any) ?? null,
+              weight: m.floors.reduce((a, b) => a + b, 0),
+            })),
+          )
+        : 40;
+
       const components: Record<ReducedComponent, number> = {
         c1ClusterBreadth: scoreC1ClusterBreadth(members.size, isBipartisan),
         c2PositionSize: scoreC2PositionSize([...members.values()].map((m) => m.floors)),
+        c5BuyerTrackRecord: c5,
         c6RelativeConviction: c6,
         c7Freshness: scoreC7Freshness(daysSinceTx),
         c8NetDirection: scoreC8NetDirection(buyValue, sellValue),
@@ -792,6 +812,54 @@ export class CqsCalibrationService {
     return out;
   }
 
+
+
+  /**
+   * The whole disclosed trade history plus the price series it needs, loaded
+   * ONCE for the walk.
+   *
+   * The grade reconstruction is per as-of date, but the evidence underneath
+   * it is not: `wt_trades` does not change between 2015 and today, so
+   * re-querying it 458 times would be 458 scans for one answer.
+   */
+  private async loadGradeInputs(): Promise<{ trades: PitTrade[]; prices: Map<string, Series> }> {
+    const rows = await this.q<any[]>(
+      `SELECT m.name AS member, t.ticker, t.side,
+              t.amount_min::float8  AS amount_min,
+              t.amount_max::float8  AS amount_max,
+              t.transaction_date, t.disclosure_date
+         FROM wt_trades t
+         JOIN wt_members m ON m.bioguide = t.bioguide
+        WHERE t.ticker IS NOT NULL AND t.ticker <> ''
+          AND t.transaction_date IS NOT NULL
+          AND t.disclosure_date IS NOT NULL`,
+    ).catch((e: any) => {
+      this.logger.warn(`wt_trades unavailable (${e?.message}) — C5 falls back to neutral.`);
+      return [] as any[];
+    });
+
+    const trades: PitTrade[] = [];
+    const tickers = new Set<string>();
+    for (const r of rows) {
+      const tx = new Date(r.transaction_date).getTime();
+      const dz = new Date(r.disclosure_date).getTime();
+      if (!Number.isFinite(tx) || !Number.isFinite(dz)) continue;
+      const ticker = String(r.ticker).toUpperCase();
+      tickers.add(ticker);
+      trades.push({
+        member: nameKey(r.member),
+        ticker,
+        side: String(r.side || ''),
+        amountMin: this.num(r.amount_min),
+        amountMax: this.num(r.amount_max),
+        transactionMs: tx,
+        disclosedMs: dz,
+      });
+    }
+    const prices = (await this.loadPriceSeries([...tickers])) as unknown as Map<string, Series>;
+    this.logger.log(`grade inputs: ${trades.length} disclosed trades, ${prices.size} priced tickers`);
+    return { trades, prices };
+  }
 
   /**
    * Each member's own median disclosed BUY band floor, and the set of
