@@ -163,7 +163,7 @@ export class DeInsidersService implements OnModuleInit {
       this.logger.warn(`de-insiders init failed: ${e?.message || e}`);
     }
     // First fill: the whole 12-month database once, a couple of minutes after boot.
-    if (!process.env.VERCEL) setTimeout(() => void this.backfillIfEmpty().catch(() => undefined), 120_000);
+    setTimeout(() => void this.backfillIfEmpty().catch(() => undefined), 120_000);
   }
 
   /** Like the SEC pipeline: intraday. BaFin publishes notifications during the
@@ -171,7 +171,6 @@ export class DeInsidersService implements OnModuleInit {
    *  the 30-day window (≈200 rows) so late activations are caught too. */
   @Cron('0 5-19/2 * * 1-5')
   async intraday(): Promise<void> {
-    if (process.env.VERCEL) return;
     await this.ingest(2).catch((e) => this.logger.warn(`de-insiders intraday failed: ${e?.message || e}`));
   }
 
@@ -179,7 +178,6 @@ export class DeInsidersService implements OnModuleInit {
    *  anything a transient failure missed. Sunday 03:00 UTC. */
   @Cron('0 3 * * 0')
   async weekly(): Promise<void> {
-    if (process.env.VERCEL) return;
     await this.ingest(3).catch((e) => this.logger.warn(`de-insiders weekly failed: ${e?.message || e}`));
   }
 

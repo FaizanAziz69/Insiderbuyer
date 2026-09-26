@@ -135,7 +135,6 @@ export class ContractorDiscoveryService {
    */
   @Cron('0 4 1 * *')
   async monthlyReport(): Promise<void> {
-    if (process.env.VERCEL) return;
     const before = await this.q<any[]>(`SELECT ticker FROM gov_contractor_map`).catch(() => []);
     const known = new Set((before || []).map((r: any) => r.ticker));
     const res = await this.discover({ pages: 60, limit: 100, dryRun: true }).catch((e) => {

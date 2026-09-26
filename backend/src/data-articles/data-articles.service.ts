@@ -147,24 +147,21 @@ export class DataArticlesService implements OnModuleInit {
     } catch (e: any) {
       this.logger.warn(`data-articles init failed: ${e?.message || e}`);
     }
-    if (!process.env.VERCEL) setTimeout(() => void this.refreshStale().catch(() => undefined), 90_000);
+    setTimeout(() => void this.refreshStale().catch(() => undefined), 90_000);
   }
 
   /** §2.3 "Data article aggregates — Weekly (Fri close) + monthly". */
   @Cron('30 22 * * 5')
   async weekly(): Promise<void> {
-    if (process.env.VERCEL) return;
     await this.refreshKind('weekly').catch((e) => this.logger.warn(`weekly refresh failed: ${e?.message || e}`));
   }
   @Cron('0 6 1 * *')
   async monthly(): Promise<void> {
-    if (process.env.VERCEL) return;
     await this.refreshKind('monthly').catch((e) => this.logger.warn(`monthly refresh failed: ${e?.message || e}`));
   }
   /** Quarterly: the day after the 45-day 13F window closes (Feb/May/Aug/Nov 16). */
   @Cron('0 7 16 2,5,8,11 *')
   async quarterly(): Promise<void> {
-    if (process.env.VERCEL) return;
     await this.refreshKind('quarterly').catch((e) => this.logger.warn(`quarterly refresh failed: ${e?.message || e}`));
   }
 

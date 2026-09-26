@@ -65,10 +65,8 @@ export class IngestionService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // Never on serverless: every cold start would kick off a 30-day backfill,
-    // which outlives the invocation and burns database transfer on each one.
-    // Scheduled ingestion there runs through vercel.json crons → /api/ingest/cron.
-    if (process.env.VERCEL) return;
+    // INGEST_ON_BOOT=false skips the boot backfill for a restart that must
+    // not spend a half-hour catching up.
     if ((process.env.INGEST_ON_BOOT || "true") !== "true") return;
     setTimeout(
       () =>
@@ -1009,7 +1007,6 @@ export class IngestionService implements OnModuleInit {
    */
   @Cron('0 2 * * 0')
   async weeklyForm4Backfill(): Promise<void> {
-    if (process.env.VERCEL) return;
     let after: string | undefined;
     let added = 0;
     for (let i = 0; i < 500; i++) {

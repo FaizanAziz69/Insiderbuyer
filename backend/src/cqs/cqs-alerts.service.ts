@@ -43,7 +43,6 @@ export class CqsAlertsService {
   /** After the CQS recompute at 06:10. */
   @Cron('45 6 * * *')
   async daily(): Promise<void> {
-    if (process.env.VERCEL) return;
     await this.run().catch((e) => this.log.warn(`CQS alerts failed: ${e?.message || e}`));
   }
 

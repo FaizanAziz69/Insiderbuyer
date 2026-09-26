@@ -318,7 +318,6 @@ export class TrackerVerificationService {
   /** Re-verification runs on its own clock, like the v5 agent's tiers. */
   @Cron('35 5 * * *')
   async nightly(): Promise<void> {
-    if (process.env.VERCEL) return;
     try {
       await this.verify(15);
     } catch (e: any) {

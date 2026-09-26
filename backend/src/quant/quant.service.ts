@@ -288,7 +288,7 @@ export class QuantService {
 
   @Cron('20 6 * * *')
   async nightly(): Promise<void> {
-    if (process.env.VERCEL || this.running) return;
+    if (this.running) return;
     try {
       await this.runRanking({});
     } catch (e: any) {

@@ -167,7 +167,6 @@ export class QuantIngestService {
   /** Nightly: refresh the universe, then take one slice of each walk. */
   @Cron('40 3 * * *')
   async nightly(): Promise<void> {
-    if (process.env.VERCEL) return;
     try {
       await this.pit.refreshUniverse();
       await this.ingestBenchmarks();

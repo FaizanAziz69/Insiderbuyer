@@ -34,7 +34,7 @@ export class MarketStatsController {
     return this.snapshot.diagnose();
   }
 
-  /** Intraday refresh target for the Vercel cron (every 30m during US market
+  /** Intraday refresh target for an external scheduler (every 30m during US market
    *  hours). Stale-checked for the same reason as pe-cron below, but with a
    *  window matched to that cadence — the movers read path rejects a snapshot
    *  older than 90 minutes, so a daily window would leave it permanently
@@ -61,7 +61,7 @@ export class MarketStatsController {
   }
 
   /**
-   * Daily refresh target for the Vercel cron (crons issue a plain GET, so this
+   * Daily refresh target for an external scheduler (which issues a plain GET, so this
    * cannot be token-guarded). Re-fetches only when the table is stale, which is
    * also what keeps a public URL from pulling the bulk feeds on every hit.
    *

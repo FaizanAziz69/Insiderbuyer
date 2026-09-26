@@ -284,7 +284,6 @@ export class AnalystsService {
    *  hourly, offset from SEC ingestion so the two don't share a tick. */
   @Cron('40 1,7,13,19 * * *')
   async cronTick(): Promise<void> {
-    if (process.env.VERCEL) return;
     try {
       await this.refresh(25_000);
     } catch (e: any) {

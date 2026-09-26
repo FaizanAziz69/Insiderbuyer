@@ -118,7 +118,6 @@ export class LegislativeCalendarService implements OnModuleInit {
   /** Schedules move daily; 06:40 UTC is before the CQS recompute at 06:10+. */
   @Cron('40 5 * * *')
   async daily(): Promise<void> {
-    if (process.env.VERCEL) return;
     await this.refresh().catch((e) => this.log.warn(`refresh failed: ${e?.message || e}`));
   }
 

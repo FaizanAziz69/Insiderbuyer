@@ -152,7 +152,7 @@ export class IpoService implements OnModuleInit {
       this.logger.warn(`ipo init failed: ${e?.message || e}`);
     }
     // First fill shortly after boot when the table is empty; never blocks start-up.
-    if (!process.env.VERCEL) setTimeout(() => void this.refreshIfStale().catch(() => undefined), 45_000);
+    setTimeout(() => void this.refreshIfStale().catch(() => undefined), 45_000);
   }
 
   /** §7.1: prices update every day after market close. 22:30 UTC = 18:30 ET,
@@ -161,7 +161,6 @@ export class IpoService implements OnModuleInit {
    *  §10 has evidence. */
   @Cron('30 22 * * *')
   async nightly(): Promise<void> {
-    if (process.env.VERCEL) return;
     try {
       await this.refresh();
     } catch (e: any) {

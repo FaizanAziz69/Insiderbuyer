@@ -168,7 +168,6 @@ export class WealthTrackerService {
 
   @Cron('50 4 * * *')
   async nightly(): Promise<void> {
-    if (process.env.VERCEL) return;
     if (this.running) return;
     try {
       const sunday = new Date().getUTCDay() === 0;

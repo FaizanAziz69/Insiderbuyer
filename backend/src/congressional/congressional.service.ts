@@ -302,10 +302,9 @@ export class CongressionalService implements OnModuleInit {
 
   /** Brief §2.3 / §5.3: congressional PTRs refresh DAILY. Nightly, after the
    *  House/Senate clerks' evening postings, on the in-process scheduler (the
-   *  Vercel deployment has no clock and uses the GitHub workflow instead). */
+   *  also reachable as an HTTP target for an external scheduler). */
   @Cron('30 6 * * *')
   async nightlyPtrRefresh(): Promise<void> {
-    if (process.env.VERCEL) return;
     try {
       await this.refreshFromFmp();
     } catch (e: any) {

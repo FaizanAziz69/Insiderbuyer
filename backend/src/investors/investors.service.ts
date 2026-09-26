@@ -106,7 +106,6 @@ export class InvestorsService implements OnModuleInit {
   /** Nightly: new 13F quarters if any, live-price performance recompute. */
   @Cron('15 5 * * *')
   async nightly(): Promise<void> {
-    if (process.env.VERCEL) return;
     try {
       await this.refresh();
     } catch (e: any) {

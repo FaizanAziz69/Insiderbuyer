@@ -119,7 +119,6 @@ export class GovContractsService {
    */
   @Cron('0 3 * * 6')
   async weeklyRefresh(): Promise<void> {
-    if (process.env.VERCEL) return;
     for (let i = 0; i < 40; i++) {
       const r = await this.refreshSlice({ limit: 12, after: this.cronCursor }).catch((e) => {
         this.logger.warn(`weekly contract refresh failed: ${e?.message || e}`);

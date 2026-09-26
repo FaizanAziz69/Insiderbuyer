@@ -170,7 +170,6 @@ export class FilingAlertsService {
 
   @Cron('50 7 * * *')
   async nightly(): Promise<void> {
-    if (process.env.VERCEL) return;
     try {
       await this.dispatch({});
     } catch (e: any) {

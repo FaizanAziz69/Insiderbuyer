@@ -62,7 +62,6 @@ export class BubblesService {
    *  GitHub workflow hits /api/bubbles/cron instead (functions have no clock). */
   @Cron('*/15 * * * *')
   async cronTick(): Promise<void> {
-    if (process.env.VERCEL) return;
     try {
       await this.refreshIfStale();
     } catch (e: any) {

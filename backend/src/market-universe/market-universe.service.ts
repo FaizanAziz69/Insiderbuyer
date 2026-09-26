@@ -87,7 +87,6 @@ export class MarketUniverseService implements OnModuleInit {
   /** Friday after the close, before the data-article crons at 22:30. */
   @Cron('0 22 * * 5')
   async weekly(): Promise<void> {
-    if (process.env.VERCEL) return;
     await this.refresh().catch((e) => this.log.warn(`weekly refresh failed: ${e?.message || e}`));
   }
 

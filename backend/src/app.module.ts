@@ -115,10 +115,6 @@ import {
         !process.env.DATABASE_URL && (dbHost === 'localhost' || dbHost === '127.0.0.1');
       const sslDisabled = process.env.DB_SSL === 'false';
       const useSsl = !isLocal && !sslDisabled;
-      // On Vercel every cold start is a fresh process, so anything that runs at
-      // bootstrap runs per invocation — schema sync and long connect retries are
-      // pure waste there, and they burn the Postgres data-transfer allowance.
-      const serverless = !!process.env.VERCEL;
       return TypeOrmModule.forRoot({
         type: 'postgres',
         ...(process.env.DATABASE_URL
@@ -181,21 +177,19 @@ import {
           VizBiotechProfile,
           VizPayloadCache,
         ],
-        // Schema sync issues a catalog query per entity on every boot. Fine
-        // locally; on serverless it repeats forever. Set DB_SYNC=true for a
-        // one-off migration against a fresh database.
-        synchronize: process.env.DB_SYNC === 'true' || !serverless,
+        // Schema sync issues a catalog query per entity on every boot. It has
+        // always been ON here — the flag it sat behind only ever turned it off
+        // on Vercel, and this runs on EC2 under pm2. DB_SYNC=false opts out of
+        // a boot that must not touch the schema.
+        synchronize: process.env.DB_SYNC !== 'false',
         logging: false,
-        // Default is 10 attempts × 3s. When the database refuses connections
-        // (quota exhausted, paused compute) that stalls ~30s and the platform
-        // kills the function with an opaque FUNCTION_INVOCATION_FAILED instead
-        // of letting Nest return a real error.
-        retryAttempts: serverless ? 1 : 10,
-        retryDelay: serverless ? 500 : 3000,
+        // A long-lived process can afford to wait for a database that is
+        // still coming up.
+        retryAttempts: 10,
+        retryDelay: 3000,
         extra: {
-          // A serverless instance handles one request at a time.
-          max: serverless ? 2 : 10,
-          connectionTimeoutMillis: serverless ? 5000 : 30000,
+          max: 10,
+          connectionTimeoutMillis: 30000,
           idleTimeoutMillis: 10000,
         },
       });

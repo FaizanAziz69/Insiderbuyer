@@ -9,7 +9,7 @@ const FLOW_NAMES: EmailFlowName[] = ['welcome', 'abandoned', 'post_purchase', 'd
 export class EmailFlowsController {
   constructor(private readonly flows: EmailFlowsService) {}
 
-  /** External cron target (Vercel serverless can't run in-process crons
+  /** External cron target (kept so a scheduler outside the process can drive
    *  reliably) — ping every 5–10 minutes. Idempotent. */
   @Post('cron')
   async cronPost() {
