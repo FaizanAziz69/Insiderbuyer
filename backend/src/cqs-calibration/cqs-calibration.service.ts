@@ -114,6 +114,33 @@ export const EXCLUDED_COMPONENTS = [
   'c4ContractAlignment',
 ] as const;
 
+/** Human labels and the share of live weight the walk actually covers. */
+const LABEL: Record<string, string> = {
+  c1ClusterBreadth: 'C1',
+  c2PositionSize: 'C2',
+  c3CommitteeInfluence: 'C3',
+  c4ContractAlignment: 'C4',
+  c5BuyerTrackRecord: 'C5',
+  c6RelativeConviction: 'C6',
+  c7Freshness: 'C7',
+  c8NetDirection: 'C8',
+};
+const listOf = (keys: readonly string[]): string => {
+  const names = keys.map((k) => LABEL[k] ?? k);
+  return names.length <= 1 ? (names[0] ?? 'nothing') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+};
+const REDUCED_LABELS = listOf(REDUCED_COMPONENTS);
+const EXCLUDED_LABELS = listOf(EXCLUDED_COMPONENTS);
+// Widened: `as const` narrows .length to a literal, which makes the plural
+// check look like an impossible comparison to the compiler.
+const EXCLUDED_VERB = (EXCLUDED_COMPONENTS as readonly string[]).length === 1 ? 'is' : 'are';
+const REDUCED_WEIGHT_PCT = Math.round(
+  REDUCED_COMPONENTS.reduce(
+    (sum, k) => sum + ((CQS_COMPONENT_WEIGHTS as Record<string, number>)[k] ?? 0),
+    0,
+  ) * 100,
+);
+
 export const HORIZON_MONTHS = [1, 3, 6, 12] as const;
 export type HorizonMonths = (typeof HORIZON_MONTHS)[number];
 
@@ -249,7 +276,12 @@ export class CqsCalibrationService {
 
   private limitations(): string[] {
     return [
-      'REDUCED SCORE: the historical walk uses only C1, C2, C7 and C8 (50% of the live CQS weight, renormalised to 100). C3, C4, C5 and C6 are excluded because committee rosters, contract flags, Brief v7 member grades and member medians are stored as current state with no point-in-time history — using today\'s values on a 2019 as-of date would be lookahead.',
+      // Derived, never typed out: this sentence was hand-written once and went
+      // stale the moment C5 and C6 joined the walk, still telling readers that
+      // 50% of the score was covered when it had become 70%. A limitation that
+      // misstates itself is worse than none.
+      `REDUCED SCORE: the historical walk covers ${REDUCED_LABELS} — ${REDUCED_WEIGHT_PCT}% of the live CQS weight, renormalised to 100. ${EXCLUDED_LABELS} ${EXCLUDED_VERB} excluded: committee rosters and contract flags are stored as current state with no point-in-time history, so using today's values on a 2019 as-of date would be lookahead.`,
+      'C5 is reconstructed rather than stored: member grades come from the real Brief v7 gradeCongress applied to trades filtered by disclosure_date <= as-of. trades12m and avgLagDays are exact; retAll and hitRate are a mark-to-market of disclosed buys rather than the v7 FIFO lot engine, so C5 here is a close proxy for the live C5, not the identical quantity.',
       'Multipliers (insider overlap, legislative catalyst, contrarian entry, liquidity normalisation, filing lag) are NOT applied historically: IQS, the legislative calendar and the 52-week context are not stored point-in-time either.',
       'The influence qualification trigger from §1 is not applied historically (it reads the same non-PIT flag table), so the historical universe is the size trigger plus the cluster trigger only. The historical universe is therefore slightly narrower than production.',
       'Benchmarks are sector COHORTS of the scored names on the same as-of date, not sector index total returns: no sector index price series is stored. Excess return is relative to scored peers, so it cannot detect the whole scored population drifting with the market.',

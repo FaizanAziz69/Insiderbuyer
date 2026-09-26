@@ -539,8 +539,16 @@ export default function CqsIndexPage() {
         {data?.frame ||
           "Congress Quality Score measures the strength of a disclosed, lawful trading signal from Periodic Transaction Reports filed under the STOCK Act. Dollar figures are estimates: PTRs report ranges, not amounts. Nothing here implies impropriety."}{" "}
         Grade bands match the Insider Score so the two read as one system: 90+ A+, 80–89 A,
-        70–79 B+, 60–69 B, below 60 C. Weights are the Brief v9 starting values and are
-        provisional until the decile calibration is run and published.
+        70–79 B+, 60–69 B, below 60 C. Weights started at Brief v9&rsquo;s values and were
+        adjusted once against a point-in-time backtest of 458 as-of dates from 2018 to today,
+        scored on what had been filed by each date. That backtest does not validate them: on a
+        2024&ndash;2026 holdout the highest-scoring names did not reliably beat the lowest at
+        one, three, six or twelve months, and with roughly six qualifying stocks on a typical
+        date the sample is too thin for the decile test the brief asks for. Two components
+        &mdash; committee influence and contract alignment &mdash; could not be tested at all,
+        because committee rosters and contract flags are only now being recorded day by day.
+        Read the score as a structured summary of disclosed congressional buying, not as a
+        forecast of returns.
       </p>
     </div>
   );
