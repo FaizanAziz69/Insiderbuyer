@@ -52,6 +52,21 @@ const CQS_PREMIUM_FIELDS = [
 ] as const;
 
 /**
+ * The bubble payload's paid half.
+ *
+ * The bubble rows are a projection, not CQS rows, so they cannot reuse the list
+ * above verbatim — most of those keys are simply not on a bubble. What survives
+ * the projection and is still paid is the one thing §6 charges for: the 0-100
+ * number. Grade, ring, sector, dollars, counts and the Insider Score are free
+ * on the board and stay free here.
+ *
+ * `overlap` stays free deliberately: it is a flag, not the multiplier, and the
+ * public leaderboard already exposes exactly this bit through its `overlap=1`
+ * filter. Hiding it here would gate nothing that is not already reachable.
+ */
+const CQS_BUBBLE_PREMIUM_FIELDS = ['cqs'] as const;
+
+/**
  * These responses now vary by Authorization, so they must never sit in a
  * shared cache — a `public, max-age=300` hit would hand one subscriber's
  * payload to the next guest through it. Entitled reads go `private`; guest
@@ -104,6 +119,42 @@ export class CqsController {
       premium: entitled,
       windowDays: 90,
       frame: LEGAL_FRAME,
+    };
+  }
+
+  /**
+   * The "Stocks" mode of /congress-bubbles. PUBLIC — no guard — because the
+   * bubble field is what a logged-out visitor is meant to see and what
+   * Googlebot indexes.
+   *
+   * The paygate is the leaderboard's, unchanged: the GRADE, the ring, the
+   * estimated dollars that set the bubble size and the member counts are free;
+   * the 0-100 number is not, so `cqs` goes through `stripPremiumFields` and is
+   * REMOVED (not zeroed) for guests. `topBuyers` carries name/party/photo only
+   * — never the grade or the per-member dollars that make `buyers` a paid
+   * field on the board.
+   *
+   * `@Header` states the guest cache, then `setEntitlementCache` overrides it:
+   * once a response varies by Authorization, a shared `public, max-age=300`
+   * entry would hand a subscriber's payload to the next guest through it.
+   */
+  @Get('bubbles')
+  @Header('Cache-Control', 'public, max-age=300')
+  async bubbles(
+    @Res({ passthrough: true }) res: Response,
+    @Headers('authorization') authHeader?: string,
+    @Query('period') period?: string,
+  ) {
+    const result = await this.cqsService.bubbles(period);
+    const entitled = await this.access.isPremium(authHeader);
+    setEntitlementCache(res, entitled);
+    return {
+      ...result,
+      bubbles: stripPremiumFields(
+        result.bubbles as any[],
+        CQS_BUBBLE_PREMIUM_FIELDS,
+        entitled,
+      ),
     };
   }
 

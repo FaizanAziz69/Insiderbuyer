@@ -54,6 +54,29 @@ interface ApiMember {
   lastTrade: string | null;
   avgDaysToDisclosure: number | null;
   topTickers: Array<{ ticker: string; name: string; volume: number; trades: number }>;
+  /** Present only in Stocks mode. */
+  stock?: StockFacts;
+}
+
+/**
+ * Brief v9 §7 asks for a second reading of this map: "bubble size = total est.
+ * buy value; ring = gold tier (CQS >= A)". CQS is a STOCK score, so those
+ * bubbles are stocks, not members.
+ *
+ * Rather than thread a second shape through a thousand lines of canvas,
+ * physics and panel code that all speak `ApiMember`, a stock is adapted INTO
+ * that shape and carries its own fields alongside. The renderer keeps working
+ * untouched; only tone(), the ring and the panel branch on `stock`.
+ */
+export interface StockFacts {
+  ticker: string;
+  cqs: number | null;
+  grade: string;
+  isGoldRing: boolean;
+  sector: string | null;
+  buyers: number;
+  overlap: boolean;
+  iqs: number | null;
 }
 
 interface ApiPayload {
@@ -70,6 +93,7 @@ interface Body extends PhysBody {
 }
 
 type ThemeName = "dark" | "light";
+type Mode = "members" | "stocks";
 type Chamber = "" | "House" | "Senate";
 type Party = "" | "D" | "R" | "I";
 
@@ -88,7 +112,20 @@ const PARTIES: Array<[Party, string]> = [
   ["R", "Rep"],
   ["I", "Ind"],
 ];
+const MODES: Array<[Mode, string]> = [
+  ["members", "Members"],
+  ["stocks", "Stocks"],
+];
 const HEADER_CLEAR = 64;
+
+/** Grade drives the colour in Stocks mode, the way party does for members. */
+const GRADE_TONE: Record<string, string> = {
+  "A+": "201,162,39",
+  A: "201,162,39",
+  "B+": "62,155,95",
+  B: "62,155,95",
+  C: "120,138,160",
+};
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -120,8 +157,11 @@ const PALETTES = {
   light: { text: "14,31,53", neutral: "120,138,160", badgeInk: "#ffffff" },
 };
 
-/** Net buying → green, net selling → red (brief §5.3). */
+/** Net buying → green, net selling → red (brief §5.3). In Stocks mode the
+ *  bubble carries a CQS grade instead, so the grade sets the colour. */
 function tone(b: Body): string {
+  const st = b.data.stock;
+  if (st) return GRADE_TONE[st.grade] || GRADE_TONE.C;
   return b.data.net >= 0 ? "62,155,95" : "194,80,74";
 }
 
@@ -129,6 +169,7 @@ function tone(b: Body): string {
 
 export default function CongressBubblesPage() {
   const [period, setPeriod] = useState("30d");
+  const [mode, setMode] = useState<Mode>("members");
   const [chamber, setChamber] = useState<Chamber>("");
   const [party, setParty] = useState<Party>("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -154,11 +195,57 @@ export default function CongressBubblesPage() {
   queryRef.current = query.trim().toUpperCase();
 
   const qs = `period=${period}${chamber ? `&chamber=${chamber}` : ""}${party ? `&party=${party}` : ""}`;
-  const { data, error, isLoading } = useSWR<ApiPayload>(
-    `${API_BASE}/congressional-trades/bubbles?${qs}`,
+  const { data: raw, error, isLoading } = useSWR<any>(
+    mode === "stocks"
+      ? `${API_BASE}/cqs/bubbles`
+      : `${API_BASE}/congressional-trades/bubbles?${qs}`,
     fetcher,
     { refreshInterval: 5 * 60_000, keepPreviousData: true },
   );
+
+  // Stocks arrive as CQS rows; they are adapted into the member shape the
+  // renderer already speaks. `photo` stays null on purpose — the existing
+  // initials fallback then draws the ticker, which is the right mark for a
+  // company and needs no new image plumbing.
+  const data: ApiPayload | undefined = useMemo(() => {
+    if (!raw?.bubbles) return raw;
+    if (mode !== "stocks") return raw as ApiPayload;
+    return {
+      ...raw,
+      bubbles: (raw.bubbles as any[]).map((s) => ({
+        name: s.ticker,
+        chamber: "House" as const,
+        party: null,
+        state: s.sector ?? null,
+        photo: null,
+        buys: Number(s.value) || 0,
+        sells: 0,
+        buyCount: Number(s.trades) || 0,
+        sellCount: 0,
+        volume: Number(s.value) || 0,
+        net: Number(s.value) || 0,
+        trades: Number(s.trades) || 0,
+        lastTrade: null,
+        avgDaysToDisclosure: null,
+        topTickers: (s.topBuyers || []).map((b: any) => ({
+          ticker: b.name,
+          name: b.party ? `${b.name} (${b.party})` : b.name,
+          volume: 0,
+          trades: 0,
+        })),
+        stock: {
+          ticker: s.ticker,
+          cqs: s.cqs == null ? null : Number(s.cqs),
+          grade: String(s.grade || "C"),
+          isGoldRing: !!s.isGoldRing,
+          sector: s.sector ?? null,
+          buyers: Number(s.buyers) || 0,
+          overlap: !!s.overlap,
+          iqs: s.iqs == null ? null : Number(s.iqs),
+        },
+      })),
+    } as ApiPayload;
+  }, [raw, mode]);
 
   /* URL state */
   useEffect(() => {
@@ -169,6 +256,7 @@ export default function CongressBubblesPage() {
     if (ch === "House" || ch === "Senate") setChamber(ch);
     const pt = p.get("party");
     if (pt === "D" || pt === "R" || pt === "I") setParty(pt);
+    if (p.get("mode") === "stocks") setMode("stocks");
     const m = p.get("member");
     if (m) setSelected(m.toLowerCase());
     setBooted(true);
@@ -177,11 +265,12 @@ export default function CongressBubblesPage() {
     if (!booted) return;
     const q =
       `?period=${period}` +
+      (mode === "stocks" ? "&mode=stocks" : "") +
       (chamber ? `&chamber=${chamber}` : "") +
       (party ? `&party=${party}` : "") +
       (selected ? `&member=${encodeURIComponent(selected)}` : "");
     window.history.replaceState(null, "", `/congress-bubbles${q}`);
-  }, [period, chamber, party, selected, booted]);
+  }, [period, mode, chamber, party, selected, booted]);
 
   useEffect(() => {
     const apply = () => {
@@ -326,7 +415,7 @@ export default function CongressBubblesPage() {
       const base = Math.max(8, Math.round(b.targetR));
       const entry = imgCacheRef.current.get(b.key);
       const faceOk = !!entry?.ok && base >= 22;
-      const key = `${b.key}|${themeRef.current}|${base}|${tone(b)}|${faceOk ? 1 : 0}|${b.data.volume}`;
+      const key = `${b.key}|${themeRef.current}|${base}|${tone(b)}|${faceOk ? 1 : 0}|${b.data.volume}|${b.data.stock?.isGoldRing ? "g" : ""}`;
       let cv = sprites.get(key);
       if (!cv) {
         if (sprites.size > 400) sprites.clear();
@@ -349,6 +438,16 @@ export default function CongressBubblesPage() {
         c.arc(cx, cy, r, 0, Math.PI * 2);
         c.fillStyle = grad;
         c.fill();
+        // Gold tier (Brief v9 §3): grade A or better earns a ring. Drawn just
+        // outside the body so it reads as an award on the bubble rather than
+        // as a border of it.
+        if (b.data.stock?.isGoldRing) {
+          c.beginPath();
+          c.arc(cx, cy, r + 3, 0, Math.PI * 2);
+          c.strokeStyle = "rgba(201,162,39,0.95)";
+          c.lineWidth = 3;
+          c.stroke();
+        }
         // face — circular crop filling most of the bubble (brief §5.3)
         const faceR = r * (r > 40 ? 0.74 : 0.8);
         if (faceOk && entry) {
@@ -587,23 +686,33 @@ export default function CongressBubblesPage() {
           <h1>
             CONGRESS BUBBLES<span className="bm-dot">.</span>
           </h1>
-          <span className="bm-tag">House + Senate PTRs</span>
+          <span className="bm-tag">{mode === "stocks" ? "Congress Quality Score · 90-day window" : "House + Senate PTRs"}</span>
         </div>
-        <nav className="bm-windows bm-period" aria-label="Time period">
+        <nav className="bm-windows" aria-label="What the bubbles are">
+          {MODES.map(([v, l]) => (
+            <button key={v} className={v === mode ? "bm-active" : ""} onClick={() => setMode(v)}>
+              {l}
+            </button>
+          ))}
+        </nav>
+        {/* CQS is scored on one fixed 90-day window — cqs_scores holds no
+            other windowDays — so a 30D/90D toggle over it would change the
+            label and not the data. It is hidden rather than made to lie. */}
+        <nav className="bm-windows bm-period" aria-label="Time period" hidden={mode === "stocks"}>
           {PERIODS.map(([v, l]) => (
             <button key={v} className={v === period ? "bm-active" : ""} onClick={() => setPeriod(v)}>
               {l}
             </button>
           ))}
         </nav>
-        <nav className="bm-windows bm-desk" aria-label="Chamber">
+        <nav className="bm-windows bm-desk" aria-label="Chamber" hidden={mode === "stocks"}>
           {CHAMBERS.map(([v, l]) => (
             <button key={v || "both"} className={v === chamber ? "bm-active" : ""} onClick={() => setChamber(v)}>
               {l}
             </button>
           ))}
         </nav>
-        <nav className="bm-windows bm-desk" aria-label="Party">
+        <nav className="bm-windows bm-desk" aria-label="Party" hidden={mode === "stocks"}>
           {PARTIES.map(([v, l]) => (
             <button key={v || "all"} className={v === party ? "bm-active" : ""} onClick={() => setParty(v)}>
               {l}
@@ -613,7 +722,7 @@ export default function CongressBubblesPage() {
         <input
           className="bm-search bm-desk"
           type="search"
-          placeholder="Search member or ticker…"
+          placeholder={mode === "stocks" ? "Search ticker…" : "Search member or ticker…"}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label="Search members on the map"
@@ -754,10 +863,11 @@ function MemberPanel({
   const m = member || lastRef.current;
   if (!m) return <aside className="bm-panel" aria-hidden="true" />;
   const buyPct = m.buys + m.sells === 0 ? 50 : (m.buys / (m.buys + m.sells)) * 100;
-  const days = period === "90d" ? 90 : 30;
+  // Stocks are always the 90-day scoring window, whatever the member toggle says.
+  const days = m?.stock ? 90 : period === "90d" ? 90 : 30;
 
   return (
-    <aside className={`bm-panel ${member ? "bm-open" : ""}`} aria-label="Member profile">
+    <aside className={`bm-panel ${member ? "bm-open" : ""}`} aria-label={m?.stock ? "Stock profile" : "Member profile"}>
       <button className="bm-panel-close" onClick={onClose} aria-label="Close profile">
         &#10005;
       </button>
@@ -773,8 +883,18 @@ function MemberPanel({
           <div>
             <div className="bm-p-name">{m.name}</div>
             <div className="bm-p-tick">
-              {partyName(m.party)}
-              {m.state ? ` · ${m.state}` : ""} · {m.chamber}
+              {m.stock ? (
+                <>
+                  Grade {m.stock.grade}
+                  {m.stock.sector ? ` · ${m.stock.sector}` : ""}
+                  {m.stock.isGoldRing ? " · gold tier" : ""}
+                </>
+              ) : (
+                <>
+                  {partyName(m.party)}
+                  {m.state ? ` · ${m.state}` : ""} · {m.chamber}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -783,13 +903,46 @@ function MemberPanel({
             are the "limited" view; the bio, totals, flow and tickers need a
             signed-in user. The bio fetch sits inside so guests never trigger it. */}
         <PanelSignInGate
-          summary={`${m.trades} trade${m.trades === 1 ? "" : "s"} worth ${fmtK(m.volume)} in the last ${days} days. Sign in to see the buys, the sells, the most-traded tickers and how long the disclosure took.`}
+          summary={
+            m.stock
+              ? `${m.trades} disclosed purchase${m.trades === 1 ? "" : "s"} worth ${fmtK(m.volume)} in the last ${days} days. Sign in to see the score, the buying members and the insider overlap.`
+              : `${m.trades} trade${m.trades === 1 ? "" : "s"} worth ${fmtK(m.volume)} in the last ${days} days. Sign in to see the buys, the sells, the most-traded tickers and how long the disclosure took.`
+          }
         >
         {/* Client request 2026-08-28: who this person is — party, committees,
             and the policy areas they are most influential on. Grounded on the
             public legislators roster; cached server-side for 30 days. */}
-        <MemberAbout name={m.name} />
+        {m.stock ? null : <MemberAbout name={m.name} />}
 
+        {m.stock ? (
+          /* A stock's four numbers are not a member's. Showing "days to
+             disclosure" or "sells" against a ticker would be a label with
+             nothing behind it. */
+          <div className="bm-p-grid">
+            <div className="bm-p-cell">
+              <div className="bm-lbl">Congress Quality Score</div>
+              <div className="bm-val">{m.stock.cqs == null ? "Premium" : m.stock.cqs.toFixed(0)}</div>
+              <div className="bm-sub">grade {m.stock.grade}</div>
+            </div>
+            <div className="bm-p-cell">
+              <div className="bm-lbl">Est. buy value · {days}d</div>
+              <div className="bm-val" style={{ color: "#3E9B5F" }}>{fmtK(m.volume)}</div>
+              <div className="bm-sub">{m.trades} disclosed purchase{m.trades === 1 ? "" : "s"}</div>
+            </div>
+            <div className="bm-p-cell">
+              <div className="bm-lbl">Buying members</div>
+              <div className="bm-val">{m.stock.buyers}</div>
+              <div className="bm-sub">distinct households</div>
+            </div>
+            <div className="bm-p-cell">
+              <div className="bm-lbl">Insider overlap</div>
+              <div className="bm-val">{m.stock.overlap ? "Yes" : "No"}</div>
+              <div className="bm-sub">
+                {m.stock.iqs == null ? "no Insider Score on file" : `Insider Score ${m.stock.iqs.toFixed(0)}`}
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="bm-p-grid">
           <div className="bm-p-cell">
             <div className="bm-lbl">Total buys · {days}d</div>
@@ -816,6 +969,7 @@ function MemberPanel({
             <div className="bm-sub">{m.trades} trade{m.trades === 1 ? "" : "s"} in period</div>
           </div>
         </div>
+        )}
 
         <div className="bm-p-section">Net flow · {days}d</div>
         <div className="bm-flowbar">

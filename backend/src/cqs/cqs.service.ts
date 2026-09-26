@@ -32,8 +32,36 @@ export interface CqsLeaderboardQuery {
   search?: string;
 }
 
+export interface CqsBubbleBuyer {
+  name: string;
+  party: string | null;
+  photo: string | null;
+}
+
+export interface CqsBubble {
+  ticker: string;
+  name: string;
+  sector: string | null;
+  cqs: number;
+  grade: string;
+  isGoldRing: boolean;
+  /** Total estimated buy dollars — this is the bubble's AREA on the canvas. */
+  value: number;
+  buyers: number;
+  trades: number;
+  overlap: boolean;
+  iqs: number | null;
+  topBuyers: CqsBubbleBuyer[];
+}
+
 const DAY = 86_400_000;
 const WINDOW_DAYS = 90;
+/**
+ * How many bubbles one payload carries. The canvas cannot usefully draw more
+ * than a few hundred circles, and the cap keeps a public, cacheable response
+ * from growing with the table.
+ */
+const BUBBLE_LIMIT = 300;
 /** STOCK Act deadline: a PTR is due 45 days after the transaction. */
 const STOCK_ACT_DEADLINE_DAYS = 45;
 /** Rows older than this are pruned so the table stays one row per stock per recent day. */
@@ -835,6 +863,144 @@ export class CqsService {
 
     const [rows, total] = await qb.take(limit).skip(offset).getManyAndCount();
     return { rows: rows.map((r) => shapeRow(r)), total, asOfDate };
+  }
+
+  /**
+   * The same scored stocks as the leaderboard, shaped as bubbles for the
+   * "Stocks" mode of /congress-bubbles.
+   *
+   * Reads the newest `asOfDate` only, exactly as `getLeaderboard` does — the
+   * table keeps a short history for the score-jump alert, and without that
+   * filter every ticker comes back twice and the canvas draws two bubbles per
+   * stock.
+   *
+   * `period` is echoed back for the client's own labelling. It does NOT
+   * re-window the scores: `cqs_scores` holds one fixed `windowDays = 90`
+   * window per row, so there is no 30-day score to serve, and the top-buyer
+   * list below is deliberately read over that SAME 90-day window (§4) rather
+   * than a shorter one, so the faces always belong to the score beside them.
+   */
+  async bubbles(period?: string): Promise<{
+    period: string;
+    generatedAt: string;
+    count: number;
+    bubbles: CqsBubble[];
+  }> {
+    const echoPeriod = (period || '').trim() || '30d';
+    const generatedAt = new Date().toISOString();
+
+    const [latest] = await this.q<Array<{ d: string | null }>>(
+      `SELECT max("asOfDate")::text AS d FROM cqs_scores WHERE "windowDays" = $1`,
+      [WINDOW_DAYS],
+    );
+    const asOfDate = latest?.d || null;
+    if (!asOfDate) {
+      return { period: echoPeriod, generatedAt, count: 0, bubbles: [] };
+    }
+
+    const rows = await this.cqsRepo
+      .createQueryBuilder('cqs')
+      .where('cqs.asOfDate = :asOf', { asOf: asOfDate })
+      .andWhere('cqs.windowDays = :w', { w: WINDOW_DAYS })
+      // Same order as the board, same tie-break on freshness (§6).
+      .orderBy('cqs.cqs', 'DESC')
+      .addOrderBy('cqs.c7Freshness', 'DESC')
+      .take(BUBBLE_LIMIT)
+      .getMany();
+
+    if (!rows.length) {
+      return { period: echoPeriod, generatedAt, count: 0, bubbles: [] };
+    }
+
+    const topBuyers = await this.loadTopBuyers(
+      rows.map((r) => r.ticker.toUpperCase()),
+      asOfDate,
+    );
+
+    // numeric columns arrive from node-postgres as STRINGS; every one of them
+    // is coerced here, because a bubble radius computed from "1250000" is NaN.
+    const bubbles: CqsBubble[] = rows.map((r) => ({
+      ticker: r.ticker,
+      name: r.companyName || r.ticker,
+      sector: r.sector ?? null,
+      cqs: Number(r.cqs) || 0,
+      grade: r.grade || 'C',
+      isGoldRing: Boolean(r.isGoldRing),
+      value: Number(r.totalEstBuyValue) || 0,
+      buyers: Number(r.distinctMembers) || 0,
+      trades: Number(r.buyCount) || 0,
+      overlap: (Number(r.multiplierInsiderOverlap) || 0) > 1,
+      iqs: this.num(r.iqs),
+      topBuyers: topBuyers.get(r.ticker.toUpperCase()) ?? [],
+    }));
+
+    return { period: echoPeriod, generatedAt, count: bubbles.length, bubbles };
+  }
+
+  /**
+   * Up to four distinct buying members per ticker, over the same 90-day window
+   * the score is built from, ranked by estimated dollars so the faces shown are
+   * the ones that moved the bubble.
+   *
+   * Party and photo come straight off `congressional_transactions`; where a row
+   * has neither, the member is still returned with `photo: null`. Nothing here
+   * is invented.
+   */
+  private async loadTopBuyers(
+    tickers: string[],
+    asOfDate: string,
+  ): Promise<Map<string, CqsBubbleBuyer[]>> {
+    const out = new Map<string, CqsBubbleBuyer[]>();
+    if (!tickers.length) return out;
+
+    try {
+      const rows = await this.q<
+        Array<{ ticker: string; name: string; party: string | null; photo: string | null }>
+      >(
+        `WITH buys AS (
+           SELECT upper(t.ticker)          AS ticker,
+                  t."politicianName"       AS name,
+                  max(t.party)             AS party,
+                  max(t."photoUrl")        AS photo,
+                  sum(
+                    (COALESCE(t."amountMin", 0) +
+                     COALESCE(t."amountMax", t."amountMin", 0)) / 2
+                  )                        AS est
+             FROM congressional_transactions t
+            WHERE upper(t.ticker) = ANY($1::text[])
+              AND t.action = 'Buy'
+              AND t."transactionDate" >= $2::date - $3::int
+              AND t."transactionDate" <= $2::date
+            GROUP BY 1, 2
+         ), ranked AS (
+           SELECT ticker, name, party, photo,
+                  row_number() OVER (
+                    PARTITION BY ticker ORDER BY est DESC NULLS LAST, name ASC
+                  ) AS rn
+             FROM buys
+         )
+         SELECT ticker, name, party, photo
+           FROM ranked
+          WHERE rn <= 4
+          ORDER BY ticker, rn`,
+        [tickers, asOfDate, WINDOW_DAYS],
+      );
+
+      for (const r of rows) {
+        const key = String(r.ticker).toUpperCase();
+        const list = out.get(key) ?? [];
+        list.push({
+          name: r.name,
+          party: r.party ?? null,
+          photo: r.photo ?? null,
+        });
+        out.set(key, list);
+      }
+    } catch (e: any) {
+      // A bubble without faces is still a bubble; a 500 is not.
+      this.logger.warn(`CQS bubbles: top buyers unavailable (${e?.message}).`);
+    }
+    return out;
   }
 
   async getByTicker(ticker: string): Promise<any | null> {
