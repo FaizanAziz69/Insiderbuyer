@@ -18,15 +18,48 @@
  *    "checked, did not fire" from "never checked".
  */
 
+/**
+ * Weights, set by §5 calibration rather than by opinion — which is what §2
+ * always said would happen: "Weights below are proposed starting values —
+ * final weights are set by the calibration protocol in §5, not by opinion."
+ *
+ * WHAT THE HOLDOUT SAID (3-month, 2024→present, ablation on the 58% of the
+ * score that is point-in-time computable). Each figure is the change in
+ * holdout excess spread when that component is removed, so a POSITIVE number
+ * means the score got BETTER without it:
+ *
+ *     C1 cluster breadth   +2.58   removing it nearly doubled the spread
+ *     C7 freshness         +0.36   no contribution
+ *     C8 net direction     +0.25   no contribution
+ *     C6 relative convict. −2.41   earns its place, on 8%
+ *     C2 position size     −3.01   carries the most signal
+ *
+ * §5: "any whose removal doesn't degrade holdout decile spread is dropped or
+ * down-weighted." C1, C7 and C8 all qualify. Brief §4.1 predicted precisely
+ * this — "clusters are not automatically signal" — and kept C1 at 20% pending
+ * exactly this test.
+ *
+ * HOW THE NUMBERS WERE DERIVED. The three non-earners are HALVED, not zeroed:
+ * this is one horizon on a reduced score, and C1 is a pillar of the brief, so
+ * the evidence justifies demotion and not deletion. The 17.5 points freed are
+ * split between C2 and C6 in proportion to their measured contribution
+ * (3.01 : 2.41). C3, C4 and C5 are untouched at 42% — they were NOT tested,
+ * and untested is not the same as disproven.
+ *
+ * WHAT THIS IS NOT. The holdout was examined more than once (before and after
+ * C6 joined the calibrated set), which weakens it; §5 wants a single look.
+ * The next run should come after this change, once, and should be treated as
+ * the real test of it.
+ */
 export const CQS_COMPONENT_WEIGHTS = {
-  c1ClusterBreadth: 0.2,
-  c2PositionSize: 0.15,
+  c1ClusterBreadth: 0.1,
+  c2PositionSize: 0.25,
   c3CommitteeInfluence: 0.15,
   c4ContractAlignment: 0.15,
   c5BuyerTrackRecord: 0.12,
-  c6RelativeConviction: 0.08,
-  c7Freshness: 0.1,
-  c8NetDirection: 0.05,
+  c6RelativeConviction: 0.16,
+  c7Freshness: 0.05,
+  c8NetDirection: 0.02,
 } as const;
 
 export const clamp = (x: number, lo: number, hi: number): number =>
