@@ -167,7 +167,11 @@ export function RankedBarChart({ slug, chart, periods, title, subtitle, onLoaded
 
   return (
     <section
-      className="card overflow-hidden"
+      // NOT overflow-hidden: the detail card is absolutely positioned inside a
+      // row, and clipping it cut the last lines off every card that opened
+      // downward — reported on #7 of 10, where "WINDOW · Last 90 days" was
+      // sliced in half. The bar track does its own clipping where it matters.
+      className="card"
       aria-label={title}
       style={{ border: "1px solid var(--border)", borderRadius: 14, background: "var(--bg-elevated)" }}
     >
@@ -264,6 +268,10 @@ export function RankedBarChart({ slug, chart, periods, title, subtitle, onLoaded
                     aria-expanded={isActive}
                     onMouseEnter={() => setActive(i)}
                     onFocus={() => setActive(i)}
+                    // Touch has no hover, and relying on the focus a tap
+                    // happens to raise is not a plan. Tapping a row toggles
+                    // its card; tapping the open one closes it.
+                    onClick={() => setActive((cur) => (cur === i ? null : i))}
                     onBlur={(e) => {
                       if (!e.currentTarget.contains(e.relatedTarget as Node)) setActive((a) => (a === i ? null : a));
                     }}
@@ -311,21 +319,24 @@ export function RankedBarChart({ slug, chart, periods, title, subtitle, onLoaded
                             style={{
                               width: animated || reduced ? `${w}%` : "0%",
                               // One colour for every bar (client, 2026-08-29): the earlier navy #1
-                              // vanished against the dark track, and a gold #1 was not wanted either.
-                              background: "var(--accent)",
-                              opacity: 1 - i * 0.03,
+                              // vanished against the dark track, and a gold #1 was not wanted
+                              // either. Client, 2026-09-26: match the navbar — so the brand
+                              // surface, at full strength. The old `1 - i * 0.03` fade took row
+                              // seven down to 0.82 and row ten to 0.73, which read as a washed-out
+                              // approximation of the bar rather than the bar.
+                              background: "var(--brand-surface)",
                               transition: reduced ? "none" : `width 700ms cubic-bezier(.2,.8,.2,1) ${i * 45}ms`,
                             }}
                           />
                         </div>
-                        <span className="font-mono text-[13px] font-semibold tabular-nums shrink-0 w-[78px] text-right">{valueText}</span>
+                        <span className="font-mono text-[12px] sm:text-[13px] font-semibold tabular-nums shrink-0 w-[62px] sm:w-[78px] text-right">{valueText}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Detail tooltip card (§2.1: navy, mono labels) */}
                   {isActive && (
-                    <DetailCard row={r} chart={chart} periodLabel={data?.periodLabel ?? ""} alignBottom={i >= rows.length - 3} />
+                    <DetailCard row={r} chart={chart} periodLabel={data?.periodLabel ?? ""} alignBottom={i >= Math.ceil(rows.length / 2)} />
                   )}
                 </li>
               );
@@ -398,11 +409,18 @@ function DetailCard({ row, chart, periodLabel, alignBottom }: { row: ChartRow; c
   return (
     <div
       role="tooltip"
-      className="absolute z-20 left-8 right-2 sm:left-auto sm:right-4 sm:w-[340px] rounded-xl p-3.5 shadow-lg"
+      // The card was navy with white text in BOTH themes — correct in dark,
+      // a dark slab on a white page in light (client, 2026-09-26). It now
+      // takes the elevated surface, so it is white on light and navy on dark
+      // without a second set of colours to keep in step.
+      //
+      // max-h + overflow-y: a long card that opens downward near the foot of
+      // the list used to run off the page; it now scrolls inside itself.
+      className="absolute z-20 left-2 right-2 sm:left-auto sm:right-4 sm:w-[340px] max-h-[70vh] overflow-y-auto rounded-xl p-3.5 shadow-lg"
       style={{
-        background: "#0A1E3C",
-        color: "#fff",
-        border: "1px solid rgba(255,255,255,0.12)",
+        background: "var(--bg-elevated)",
+        color: "var(--text)",
+        border: "1px solid var(--border-strong)",
         ...(alignBottom ? { bottom: "100%", marginBottom: 6 } : { top: "100%", marginTop: 6 }),
       }}
     >
@@ -411,14 +429,14 @@ function DetailCard({ row, chart, periodLabel, alignBottom }: { row: ChartRow; c
           <div className="font-bold text-[14px] truncate">
             #{row.rank} {row.label}
           </div>
-          {row.sublabel && <div className="text-[11.5px] truncate" style={{ color: "rgba(255,255,255,0.7)" }}>{row.sublabel}</div>}
+          {row.sublabel && <div className="text-[11.5px] truncate" style={{ color: "var(--text-soft)" }}>{row.sublabel}</div>}
         </div>
         <IqsBadge iqs={row.iqs} size="md" />
       </div>
       <dl className="grid gap-y-1.5" style={{ gridTemplateColumns: "auto 1fr" }}>
         {items.map(([k, v]) => (
           <div key={k} className="contents">
-            <dt className="font-mono text-[10.5px] uppercase tracking-wider pr-3 self-center" style={{ color: "rgba(255,255,255,0.62)" }}>
+            <dt className="font-mono text-[10.5px] uppercase tracking-wider pr-3 self-center" style={{ color: "var(--text-mute)" }}>
               {k}
             </dt>
             <dd className="text-[12.5px] font-medium text-right tabular-nums truncate">{v}</dd>
@@ -426,7 +444,7 @@ function DetailCard({ row, chart, periodLabel, alignBottom }: { row: ChartRow; c
         ))}
       </dl>
       {row.href && (
-        <Link href={row.href} className="mt-2.5 inline-block text-[12px] font-semibold" style={{ color: "#9FD6FF" }}>
+        <Link href={row.href} className="mt-2.5 inline-block text-[12px] font-semibold" style={{ color: "var(--accent)" }}>
           Open →
         </Link>
       )}
