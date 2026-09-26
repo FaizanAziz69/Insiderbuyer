@@ -131,9 +131,20 @@ export class LegislativeCalendarService implements OnModuleInit {
       event_date    date NOT NULL,
       matter        text,
       source_url    text,
-      fetched_at    timestamptz NOT NULL DEFAULT now(),
-      UNIQUE (chamber, committee_key, event_date, matter)
+      fetched_at    timestamptz NOT NULL DEFAULT now()
     )`);
+    // The natural key ends in `matter`, which is a free-text meeting title.
+    // A House title long enough to push the index row past btree's 2,704-byte
+    // ceiling made the whole refresh fail with "index row size 3000 exceeds
+    // btree version 4 maximum" — and it only surfaced once a long one showed
+    // up, days after the table was created. The uniqueness is on the title's
+    // HASH, which is fixed width, so no title can ever break it again.
+    await this.q(
+      `ALTER TABLE committee_schedule DROP CONSTRAINT IF EXISTS
+         committee_schedule_chamber_committee_key_event_date_matter_key`,
+    );
+    await this.q(`CREATE UNIQUE INDEX IF NOT EXISTS committee_schedule_uniq
+      ON committee_schedule (chamber, committee_key, event_date, md5(coalesce(matter, '')))`);
     await this.q(`CREATE INDEX IF NOT EXISTS committee_schedule_key ON committee_schedule (committee_key, event_date)`);
     this.ready = true;
   }
@@ -245,7 +256,7 @@ export class LegislativeCalendarService implements OnModuleInit {
       await this.q(
         `INSERT INTO committee_schedule (chamber, committee, committee_key, event_date, matter, source_url, fetched_at)
          VALUES ($1,$2,$3,$4::date,$5,$6, now())
-         ON CONFLICT (chamber, committee_key, event_date, matter) DO UPDATE SET fetched_at = now()`,
+         ON CONFLICT (chamber, committee_key, event_date, md5(coalesce(matter, ''))) DO UPDATE SET fetched_at = now()`,
         [r.chamber, r.committee, r.committeeKey, r.date, r.matter, r.sourceUrl],
       );
       written++;
