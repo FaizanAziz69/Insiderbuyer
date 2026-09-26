@@ -117,10 +117,27 @@ export class CqsService {
       .slice(0, 10);
 
     // 1. The window, filtered in SQL.
+    //
+    // TWO conditions, and the brief is precise about why each one is there.
+    // §1 measures the 90-day window on the TRANSACTION date — "a rolling
+    // 90-day window (on transaction date, using filings available at scoring
+    // time)". §5 governs what "available" means: "a trade enters the score on
+    // its FILING date, never its transaction date. Anything else is lookahead."
+    //
+    // So the window is transaction-dated and the eligibility is filing-dated.
+    // On a live run the second clause changes nothing — everything on file has
+    // been filed — which is exactly why its absence was invisible. It only
+    // bites when scoring a PAST as-of date, where without it the score sees
+    // trades that were still undisclosed on the day being scored, and any
+    // calibration built on that is measuring the future.
+    //
+    // reportedDate is nullable on older rows; those are admitted, since a row
+    // with no filing date on file is not evidence of a late one.
     const recent: Tx[] = await this.txRepo
       .createQueryBuilder('t')
       .where('t.transactionDate >= :start', { start: windowStart })
       .andWhere('t.transactionDate <= :end', { end: todayStr })
+      .andWhere('(t.reportedDate IS NULL OR t.reportedDate <= :asOf)', { asOf: todayStr })
       .andWhere("t.ticker <> ''")
       .getMany();
 
