@@ -472,8 +472,20 @@ export default function CongressBubblesPage() {
           c.fillStyle = `rgba(${pal.text},0.9)`;
           c.textAlign = "center";
           c.textBaseline = "middle";
-          c.font = `800 ${Math.max(11, faceR * 0.7)}px ${headFam}`;
-          c.fillText(initials(b.data.name), cx, cy);
+          // A member gets initials; a ticker IS the mark, so it is drawn whole.
+          const mark = b.data.stock ? b.data.stock.ticker : initials(b.data.name);
+          // faceR * 0.7 was sized for two letters. A five-character ticker at
+          // that size runs straight out of the circle, so the size is fitted
+          // to the string and then measured to be sure.
+          let fs = Math.max(9, (faceR * 1.5) / Math.max(2, mark.length));
+          c.font = `800 ${fs}px ${headFam}`;
+          const maxW = faceR * 1.62;
+          const w = c.measureText(mark).width;
+          if (w > maxW) {
+            fs = Math.max(8, fs * (maxW / w));
+            c.font = `800 ${fs}px ${headFam}`;
+          }
+          c.fillText(mark, cx, cy);
         }
         // ring
         c.beginPath();
@@ -788,20 +800,23 @@ export default function CongressBubblesPage() {
       <div className="bm-legend">
         <div>
           <span className="bm-sw" style={{ background: "#3E9B5F" }} />
-          Net buying in the period
+          {mode === "stocks" ? "Graded C — gold ring starts at A" : "Net buying in the period"}
         </div>
         <div>
           <span className="bm-sw" style={{ background: "#C2504A" }} />
           Net selling in the period
         </div>
         <div className="bm-note">
-          Bubble size = total reported trade volume (PTR range midpoints) · D/R badge = party
+          {mode === "stocks"
+            ? "Bubble size = total estimated congressional buying (PTR range midpoints) · gold ring = Congress Quality Score A or better"
+            : "Bubble size = total reported trade volume (PTR range midpoints) · D/R badge = party"}
         </div>
       </div>
 
       {totals && (
         <div className="bm-stats">
-          {totals.n} member{totals.n === 1 ? "" : "s"} &middot; {fmtK(totals.vol)} reported
+          {totals.n} {mode === "stocks" ? (totals.n === 1 ? "stock" : "stocks") : totals.n === 1 ? "member" : "members"} &middot;{" "}
+          {fmtK(totals.vol)} {mode === "stocks" ? "disclosed buying" : "reported"}
           <br />
           <span style={{ color: "#3E9B5F" }}>{fmtK(totals.buys)} bought</span> &middot;{" "}
           <span style={{ color: "#C2504A" }}>{fmtK(totals.sells)} sold</span>
@@ -878,7 +893,7 @@ function MemberPanel({
           {m.photo ? (
             <img className="bm-p-face" src={m.photo} alt="" width={56} height={56} />
           ) : (
-            <div className="bm-p-face bm-p-face-txt">{initials(m.name)}</div>
+            <div className="bm-p-face bm-p-face-txt">{m.stock ? m.stock.ticker : initials(m.name)}</div>
           )}
           <div>
             <div className="bm-p-name">{m.name}</div>
