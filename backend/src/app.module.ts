@@ -74,6 +74,7 @@ import { Iqs2Module } from './iqs2/iqs2.module';
 import { DataArticlesModule } from './data-articles/data-articles.module';
 import { MarketUniverseModule } from './market-universe/market-universe.module';
 import { LegislativeCalendarModule } from './legislative-calendar/legislative-calendar.module';
+import { PitSnapshotsModule } from './pit-snapshots/pit-snapshots.module';
 import { CqsCalibrationModule } from './cqs-calibration/cqs-calibration.module';
 import { DeInsidersModule } from './de-insiders/de-insiders.module';
 import { PromoterModule } from './promoter/promoter.module';
@@ -237,6 +238,7 @@ import {
     DataArticlesModule,
     MarketUniverseModule,
     LegislativeCalendarModule,
+    PitSnapshotsModule,
     CqsCalibrationModule,
     DeInsidersModule,
     PromoterModule,
