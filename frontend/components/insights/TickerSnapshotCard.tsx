@@ -59,7 +59,7 @@ export function TickerSnapshotCard({ ticker }: Props) {
       >
         <CompanyLogo ticker={c.ticker} name={c.name} size={40} />
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-baseline gap-2 flex-wrap">
             <span className="font-mono text-[15px] font-bold text-accent">
               {c.ticker}
             </span>
@@ -76,7 +76,7 @@ export function TickerSnapshotCard({ ticker }: Props) {
                 size="sm"
               />
             ) : s && Number(s.iqs) >= 55 ? (
-              <TierBadge iqs={Number(s.iqs)} size="sm" />
+              <TierBadge iqs={Number(s.iqs)} size="sm" withSource />
             ) : null}
           </div>
           <div className="text-[12px] text-soft truncate" title={c.name}>
@@ -86,11 +86,17 @@ export function TickerSnapshotCard({ ticker }: Props) {
       </div>
 
       {/* Price row */}
+      {/* `min-w-0` used to sit on the price group, which let it shrink BELOW its
+          own content — the price and change then spilled rightwards straight
+          across the sector (DKS, "Retail-Miscellaneous Shopping Goods Stores",
+          42 characters). The price is the one thing here that must never
+          compress, so it is `shrink-0`; the sector absorbs the squeeze, wraps
+          inside its own box and stays right-aligned. */}
       <div
-        className="flex items-baseline justify-between px-4 py-3 border-b"
+        className="flex items-baseline justify-between gap-3 px-4 py-3 border-b"
         style={{ borderColor: "var(--border)" }}
       >
-        <div className="flex items-baseline gap-2 min-w-0">
+        <div className="flex items-baseline gap-2 shrink-0">
           <span
             className="tabular font-bold"
             style={{ fontSize: 26, letterSpacing: "-0.5px" }}
@@ -107,7 +113,10 @@ export function TickerSnapshotCard({ ticker }: Props) {
             </span>
           ) : null}
         </div>
-        <span className="text-[10px] uppercase tracking-wider font-bold text-mute">
+        <span
+          className="text-[10px] uppercase tracking-wider font-bold text-mute min-w-0 text-right leading-tight"
+          title={c.sector || undefined}
+        >
           {c.sector || "—"}
         </span>
       </div>
