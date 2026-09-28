@@ -144,12 +144,28 @@ const REDUCED_WEIGHT_PCT = Math.round(
 export const HORIZON_MONTHS = [1, 3, 6, 12] as const;
 export type HorizonMonths = (typeof HORIZON_MONTHS)[number];
 
+export type CalibrationUniverse = 'gated' | 'all';
+
 export interface CalibrationRunOpts {
   from?: string;
   to?: string;
   limitWeeks?: number;
   after?: string;
   label?: string;
+  /**
+   * Which universe to score.
+   *
+   * `gated` applies §1's qualification triggers and is what the product
+   * publishes — about six names on a typical date, which is why §5's decile
+   * test has never been runnable against it.
+   *
+   * `all` scores every stock with a disclosed congressional buy in the window:
+   * 108 names on an average date, 37 at the thinnest. That is a testable
+   * cross-section, and the triggers it drops are already score components, so
+   * dropping them is not removing information — it is removing a filter that
+   * pre-selects on the score's own inputs.
+   */
+  universe?: CalibrationUniverse;
 }
 
 export interface CalibrationRunResult {
@@ -310,6 +326,18 @@ export class CqsCalibrationService {
         components jsonb,
         PRIMARY KEY (as_of, ticker)
       )`);
+      // The gated and ungated walks score the same ticker on the same date to
+      // different values, so without this column the second run silently
+      // overwrites the first and the comparison the whole exercise exists for
+      // becomes impossible. CREATE TABLE IF NOT EXISTS never adds a column to a
+      // table that already exists, hence the explicit ALTER.
+      await this.q(
+        `ALTER TABLE cqs_pit_scores ADD COLUMN IF NOT EXISTS universe text NOT NULL DEFAULT 'gated'`,
+      );
+      await this.q(`ALTER TABLE cqs_pit_scores DROP CONSTRAINT IF EXISTS cqs_pit_scores_pkey`);
+      await this.q(
+        `ALTER TABLE cqs_pit_scores ADD PRIMARY KEY (universe, as_of, ticker)`,
+      ).catch(() => undefined);
       await this.q(
         `CREATE INDEX IF NOT EXISTS cqs_pit_scores_asof_idx ON cqs_pit_scores (as_of)`,
       );
@@ -333,6 +361,7 @@ export class CqsCalibrationService {
    * in slices without ever holding a decade of rows in memory.
    */
   async run(opts: CalibrationRunOpts = {}): Promise<CalibrationRunResult> {
+    const universe: CalibrationUniverse = opts.universe === 'all' ? 'all' : 'gated';
     const base = (ok: boolean, error?: string): CalibrationRunResult => ({
       ok,
       error,
@@ -400,12 +429,12 @@ export class CqsCalibrationService {
         // Grades likewise — but their evidence is loaded once for the walk.
         if (!gradeInputs) gradeInputs = await this.loadGradeInputs();
         const grades = gradesAsOf(gradeInputs.trades, gradeInputs.prices, asOfMs);
-        const res = this.scoreAsOf(txs, asOfMs, baselines, grades);
+        const res = this.scoreAsOf(txs, asOfMs, baselines, grades, universe);
         excluded += res.excluded;
         for (const t of res.considered) consideredTickers.add(t);
         if (res.rows.length) {
           const stored = this.assignDeciles(res.rows);
-          rowsWritten += await this.persist(asOf, stored);
+          rowsWritten += await this.persist(asOf, stored, universe);
         }
         out.weeksDone++;
         out.cursor = asOf;
@@ -513,6 +542,7 @@ export class CqsCalibrationService {
     asOfMs: number,
     baselines?: { medians: Map<string, number>; priorBuys: Set<string> },
     grades?: Map<string, string>,
+    universe: CalibrationUniverse = 'gated',
   ): { rows: ScoredRow[]; excluded: number; considered: string[] } {
     const asOf = this.ymd(asOfMs);
     const windowStart = asOfMs - WINDOW_DAYS * DAY;
@@ -547,7 +577,24 @@ export class CqsCalibrationService {
       const clusterTrigger =
         distinctBuyers.size >= 2 && buys.some((b) => (b.amountMin ?? 0) >= 15_001);
       // The §1 influence trigger is skipped — see `limitations`.
-      if (!sizeTrigger && !clusterTrigger) continue;
+      //
+      // THE GATE IS OPTIONAL HERE, AND THAT IS THE POINT OF THE SECOND RUN.
+      //
+      // §1's triggers produce about SIX qualifying names on a typical date,
+      // which is why §5's decile test has never been possible: ten buckets
+      // cannot be cut from six names. Measured across five years of monthly
+      // samples, the same window WITHOUT the gate holds 108 tickers on average
+      // and never fewer than 37 — enough for deciles on every date.
+      //
+      // The gate is also doing work the score already does. Position size is
+      // C2, cluster breadth is C1, committee influence is C3. Filtering on them
+      // and then ranking the survivors tests the ranking on the tail of its own
+      // inputs; ranking everything and letting the score sort it is what a
+      // factor test is.
+      //
+      // So the walk can run either way: `gated` is the universe the product
+      // publishes, `all` is the universe the score can actually be tested on.
+      if (universe === 'gated' && !sizeTrigger && !clusterTrigger) continue;
 
       const members = new Map<string, { party: string | null; floors: number[] }>();
       let buyValue = 0;
@@ -668,7 +715,7 @@ export class CqsCalibrationService {
     }));
   }
 
-  private async persist(asOf: string, rows: StoredRow[]): Promise<number> {
+  private async persist(asOf: string, rows: StoredRow[], universe: CalibrationUniverse = 'gated'): Promise<number> {
     if (!rows.length) return 0;
     const CHUNK = 500;
     let written = 0;
@@ -678,13 +725,13 @@ export class CqsCalibrationService {
       const params: any[] = [];
       for (const r of chunk) {
         const p = params.length;
-        values.push(`($${p + 1}::date, $${p + 2}, $${p + 3}::numeric, $${p + 4}::int, $${p + 5}::jsonb)`);
-        params.push(asOf, r.ticker, r.cqs, r.decile, JSON.stringify(r.components));
+        values.push(`($${p + 1}::date, $${p + 2}, $${p + 3}::numeric, $${p + 4}::int, $${p + 5}::jsonb, $${p + 6})`);
+        params.push(asOf, r.ticker, r.cqs, r.decile, JSON.stringify(r.components), universe);
       }
       await this.q(
-        `INSERT INTO cqs_pit_scores (as_of, ticker, cqs, decile, components)
+        `INSERT INTO cqs_pit_scores (as_of, ticker, cqs, decile, components, universe)
          VALUES ${values.join(', ')}
-         ON CONFLICT (as_of, ticker) DO UPDATE
+         ON CONFLICT (universe, as_of, ticker) DO UPDATE
            SET cqs = EXCLUDED.cqs, decile = EXCLUDED.decile, components = EXCLUDED.components`,
         params,
       );
@@ -728,7 +775,9 @@ export class CqsCalibrationService {
    * on which every contributing trade had already been filed — so "measured
    * from filing date" in the brief is honoured by construction.
    */
-  async evaluate(opts: { minCrossSection?: number; buckets?: number } = {}): Promise<any> {
+  async evaluate(
+    opts: { minCrossSection?: number; buckets?: number; universe?: CalibrationUniverse } = {},
+  ): Promise<any> {
     const ensured = await this.ensureTables();
     if (!ensured.ok) return { ok: false, error: ensured.error, limitations: this.limitations() };
 
@@ -739,8 +788,12 @@ export class CqsCalibrationService {
     let rows: StoredRow[];
     try {
       const raw: any[] = await this.q(
+        // Filtered by universe: the gated and ungated walks both live in this
+        // table and mixing them would compare one score's ranking against
+        // another's.
         `SELECT to_char(as_of, 'YYYY-MM-DD') AS as_of, ticker, cqs, decile, components
-           FROM cqs_pit_scores ORDER BY as_of, ticker`,
+           FROM cqs_pit_scores WHERE universe = $1 ORDER BY as_of, ticker`,
+        [opts.universe === 'all' ? 'all' : 'gated'],
       );
       rows = raw.map((r) => ({
         asOf: String(r.as_of),
@@ -1116,7 +1169,9 @@ export class CqsCalibrationService {
    * not reported here has not been tested — it was never in the historical
    * score to begin with.
    */
-  async ablate(opts: { months?: number; minCrossSection?: number; buckets?: number } = {}): Promise<any> {
+  async ablate(
+    opts: { months?: number; minCrossSection?: number; buckets?: number; universe?: CalibrationUniverse } = {},
+  ): Promise<any> {
     const ensured = await this.ensureTables();
     if (!ensured.ok) return { ok: false, error: ensured.error, limitations: this.limitations() };
 
@@ -1130,8 +1185,12 @@ export class CqsCalibrationService {
     let rows: StoredRow[];
     try {
       const raw: any[] = await this.q(
+        // Filtered by universe: the gated and ungated walks both live in this
+        // table and mixing them would compare one score's ranking against
+        // another's.
         `SELECT to_char(as_of, 'YYYY-MM-DD') AS as_of, ticker, cqs, decile, components
-           FROM cqs_pit_scores ORDER BY as_of, ticker`,
+           FROM cqs_pit_scores WHERE universe = $1 ORDER BY as_of, ticker`,
+        [opts.universe === 'all' ? 'all' : 'gated'],
       );
       rows = raw.map((r) => ({
         asOf: String(r.as_of),

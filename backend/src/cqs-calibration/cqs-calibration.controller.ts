@@ -29,9 +29,12 @@ export class CqsCalibrationController {
       limitWeeks?: number;
       after?: string;
       label?: string;
+      /** 'gated' = §1's universe (what ships), 'all' = every disclosed buy. */
+      universe?: 'gated' | 'all';
     } = {},
   ) {
     return this.svc.run({
+      universe: body?.universe === 'all' ? 'all' : 'gated',
       from: body?.from,
       to: body?.to,
       limitWeeks: body?.limitWeeks == null ? undefined : Number(body.limitWeeks),
@@ -46,8 +49,11 @@ export class CqsCalibrationController {
   }
 
   @Post('admin/evaluate')
-  async evaluate(@Body() body: { minCrossSection?: number; buckets?: number } = {}) {
+  async evaluate(
+    @Body() body: { minCrossSection?: number; buckets?: number; universe?: 'gated' | 'all' } = {},
+  ) {
     return this.svc.evaluate({
+      universe: body?.universe === 'all' ? 'all' : 'gated',
       minCrossSection:
         body?.minCrossSection == null ? undefined : Number(body.minCrossSection),
       // Quintiles by default; pass 10 once the cross-section can carry them.
@@ -56,8 +62,11 @@ export class CqsCalibrationController {
   }
 
   @Post('admin/ablate')
-  async ablate(@Body() body: { months?: number; minCrossSection?: number; buckets?: number } = {}) {
+  async ablate(
+    @Body() body: { months?: number; minCrossSection?: number; buckets?: number; universe?: 'gated' | 'all' } = {},
+  ) {
     return this.svc.ablate({
+      universe: body?.universe === 'all' ? 'all' : 'gated',
       months: body?.months == null ? undefined : Number(body.months),
       minCrossSection:
         body?.minCrossSection == null ? undefined : Number(body.minCrossSection),
