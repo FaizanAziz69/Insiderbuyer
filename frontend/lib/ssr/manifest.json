@@ -456,5 +456,8 @@
  ],
  "strategies": [
   "/api/backend/strategies"
+ ],
+ "strategies/[slug]": [
+  "/api/backend/strategies/{slug}"
  ]
 }
