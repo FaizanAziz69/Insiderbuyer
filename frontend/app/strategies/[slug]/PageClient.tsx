@@ -308,8 +308,9 @@ function EquityChart({
   const lo = Math.min(...vals);
   const hi = Math.max(...vals);
   const span = hi - lo || 1;
-  const plotW = W - PAD_L;
-  const x = (i: number) => PAD_L + (i / Math.max(1, equity.length - 1)) * plotW;
+  // PAD_L is padding on the WRAPPER now, so the viewBox is all plot.
+  const plotW = W;
+  const x = (i: number) => (i / Math.max(1, equity.length - 1)) * plotW;
   const y = (v: number) => H - ((v - lo) / span) * H;
   const path = (pick: (e: any) => number) =>
     equity.map((e, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(pick(e)).toFixed(1)}`).join(" ");
@@ -357,9 +358,10 @@ function EquityChart({
     const rect = boxRef.current?.getBoundingClientRect();
     if (!rect || !equity.length) return null;
     // The svg is stretched to the box width, so the mapping is linear on it.
-    const frac = (clientX - rect.left) / rect.width;
-    const plotFrac = (frac * W - PAD_L) / plotW;
-    const i = Math.round(plotFrac * (equity.length - 1));
+    // rect is the padded wrapper; the plot starts PAD_L in.
+    const plotPx = rect.width - PAD_L;
+    const frac = (clientX - rect.left - PAD_L) / Math.max(1, plotPx);
+    const i = Math.round(frac * (equity.length - 1));
     return Math.max(0, Math.min(equity.length - 1, i));
   };
 
@@ -400,36 +402,39 @@ function EquityChart({
       <div
         ref={boxRef}
         className="relative"
+        style={{ paddingLeft: PAD_L }}
         onMouseMove={(e) => setHover(pointFromClientX(e.clientX))}
         onMouseLeave={() => setHover(null)}
         onTouchStart={(e) => setHover(pointFromClientX(e.touches[0].clientX))}
         onTouchMove={(e) => setHover(pointFromClientX(e.touches[0].clientX))}
         onTouchEnd={() => setHover(null)}
       >
+        {/* Axis labels are HTML, not SVG text. The chart stretches to the
+            container with preserveAspectRatio="none", which is right for the
+            lines and wrong for type: at 2.5x it smeared the drawdown's "0%"
+            and "-6%" sideways, and the bottom label fell outside the viewBox
+            and was clipped. HTML labels sit beside the plot and do neither. */}
+        {ticks.map((t) => (
+          <span
+            key={t}
+            className="absolute text-[10px] font-bold tabular"
+            style={{ left: 0, top: y(t) - 7, width: PAD_L - 8, textAlign: "right", color: "var(--text-mute)" }}
+          >
+            {money(t)}
+          </span>
+        ))}
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" aria-label="Growth">
           {ticks.map((t) => (
-            <g key={t}>
-              <line
-                x1={PAD_L}
-                x2={W}
-                y1={y(t)}
-                y2={y(t)}
-                stroke="var(--border)"
-                strokeWidth="1"
-                opacity="0.6"
-              />
-              {/* vectorEffect keeps the text from stretching with the viewBox. */}
-              <text
-                x={PAD_L - 6}
-                y={y(t) + 3}
-                textAnchor="end"
-                fontSize="9"
-                fill="var(--text-mute)"
-                style={{ fontVariantNumeric: "tabular-nums" }}
-              >
-                {money(t)}
-              </text>
-            </g>
+            <line
+              key={t}
+              x1={0}
+              x2={W}
+              y1={y(t)}
+              y2={y(t)}
+              stroke="var(--border)"
+              strokeWidth="1"
+              opacity="0.6"
+            />
           ))}
           <path d={path(benchAt)} fill="none" stroke="var(--text-faint)" strokeWidth="1.5" />
           <path d={path((e) => e.value)} fill="none" stroke="var(--accent)" strokeWidth="2" />
@@ -446,9 +451,11 @@ function EquityChart({
           <div
             className="absolute pointer-events-none rounded-lg px-3 py-2 text-[11.5px] shadow-lg"
             style={{
-              // Flip to the left half once past the middle so the card never
-              // runs off the edge of the chart.
-              left: `${(x(hover!) / W) * 100}%`,
+              // An absolutely positioned child measures percentages against the
+              // PADDING box, which includes the axis gutter — so a raw
+              // percentage would drift every tooltip rightwards. This walks the
+              // fraction across the plot only.
+              left: `calc(${PAD_L}px + (100% - ${PAD_L}px) * ${(x(hover!) / W).toFixed(4)})`,
               transform: x(hover!) / W > 0.6 ? "translate(-108%, 0)" : "translate(8%, 0)",
               top: 4,
               background: "var(--bg-elevated)",
@@ -479,16 +486,21 @@ function EquityChart({
       </div>
 
       {/* Year markers, so the shape can be placed in time. */}
-      <div className="relative h-4 mt-0.5" aria-hidden>
-        {yearTicks.map((t) => (
-          <span
-            key={t.label}
-            className="absolute text-[10px] text-mute tabular"
-            style={{ left: `${(x(t.i) / W) * 100}%`, transform: "translateX(-50%)" }}
-          >
-            {t.label}
-          </span>
-        ))}
+      {/* The labels live in a box that starts where the plot starts, so a
+          percentage is a percentage OF THE PLOT rather than of the plot plus
+          the axis gutter — which would drift every label rightwards. */}
+      <div className="h-4 mt-0.5" style={{ paddingLeft: PAD_L }} aria-hidden>
+        <div className="relative h-full">
+          {yearTicks.map((t) => (
+            <span
+              key={t.label}
+              className="absolute text-[10px] text-mute font-bold tabular"
+              style={{ left: `${(x(t.i) / W) * 100}%`, transform: "translateX(-50%)" }}
+            >
+              {t.label}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div className="flex items-baseline justify-between mt-3 mb-1">
@@ -498,24 +510,31 @@ function EquityChart({
           {equity[worstIdx]?.date ? ` · ${equity[worstIdx].date}` : ""}
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${DH}`} width="100%" height={DH} preserveAspectRatio="none" aria-label="Drawdown">
+      <div className="relative" style={{ paddingLeft: PAD_L }}>
         {[0, 0.5, 1].map((f) => (
-          <g key={f}>
-            <line x1={PAD_L} x2={W} y1={ddY(ddMin * f)} y2={ddY(ddMin * f)} stroke="var(--border)" strokeWidth="1" opacity="0.6" />
-            <text
-              x={PAD_L - 6}
-              y={ddY(ddMin * f) + 3}
-              textAnchor="end"
-              fontSize="9"
-              fill="var(--text-mute)"
-              style={{ fontVariantNumeric: "tabular-nums" }}
-            >
-              {(ddMin * f * 100).toFixed(0)}%
-            </text>
-          </g>
+          <span
+            key={f}
+            className="absolute text-[10px] font-bold tabular"
+            style={{
+              left: 0,
+              // The last label sits on the bottom edge, so it is nudged up to
+              // stay inside the box instead of being cut in half by it.
+              top: Math.min(ddY(ddMin * f) - 7, DH - 13),
+              width: PAD_L - 8,
+              textAlign: "right",
+              color: "var(--text-mute)",
+            }}
+          >
+            {(ddMin * f * 100).toFixed(0)}%
+          </span>
         ))}
-        <path d={ddPath} fill="none" stroke="var(--bad)" strokeWidth="1.5" />
-      </svg>
+        <svg viewBox={`0 0 ${W} ${DH}`} width="100%" height={DH} preserveAspectRatio="none" aria-label="Drawdown">
+          {[0, 0.5, 1].map((f) => (
+            <line key={f} x1={0} x2={W} y1={ddY(ddMin * f)} y2={ddY(ddMin * f)} stroke="var(--border)" strokeWidth="1" opacity="0.6" />
+          ))}
+          <path d={ddPath} fill="none" stroke="var(--bad)" strokeWidth="1.5" />
+        </svg>
+      </div>
       <div className="flex justify-between text-[10.5px] text-mute mt-1">
         <span>{equity[0]?.date}</span>
         <span>{equity[equity.length - 1]?.date}</span>
