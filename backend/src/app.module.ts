@@ -10,6 +10,7 @@ import { ProcessedFiling } from './entities/processed-filing.entity';
 import { CongressionalTransaction } from './entities/congressional-transaction.entity';
 import { CqsScore } from './entities/cqs-score.entity';
 import { CqsModule } from './cqs/cqs.module';
+import { StrategiesModule } from './strategies/strategies.module';
 import { Subscriber } from './entities/subscriber.entity';
 import { BlogPost } from './entities/blog-post.entity';
 import { StoryPitch } from './entities/story-pitch.entity';
@@ -249,6 +250,7 @@ import {
     WealthTrackerModule,
     QuantModule,
     CqsModule,
+    StrategiesModule,
   ],
 })
 export class AppModule {}

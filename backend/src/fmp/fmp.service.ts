@@ -1619,6 +1619,24 @@ export class FmpService {
    *  title ENDS in CEO — a business-unit chief ("CEO, Asset & Wealth
    *  Management", "Co-CEO, Commercial & Investment Bank") is a named executive,
    *  not the principal one, and JPM's filing lists several. */
+  /**
+   * Current S&P 500 constituents. Brief v8's index-weighted strategies gate on
+   * membership, and this endpoint publishes TODAY's list only — there is no
+   * historical membership here, which is why the strategies that use it carry a
+   * survivorship-bias limitation rather than pretending otherwise.
+   */
+  async getSp500Constituents(): Promise<Array<{ symbol: string; name: string | null; sector: string | null }>> {
+    if (!this.enabled) return [];
+    const rows = await this.get('sp500-constituent', {});
+    return (rows || [])
+      .map((r: any) => ({
+        symbol: String(r.symbol || '').toUpperCase().trim(),
+        name: r.name ?? r.companyName ?? null,
+        sector: r.sector ?? null,
+      }))
+      .filter((r: any) => !!r.symbol);
+  }
+
   async getExecutiveCompensation(symbolRaw: string): Promise<FmpExecCompYear[]> {
     if (!this.enabled) return [];
     const symbol = String(symbolRaw || '').toUpperCase();
