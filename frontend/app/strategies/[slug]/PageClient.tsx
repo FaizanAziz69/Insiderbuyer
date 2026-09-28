@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { API_BASE } from "@/lib/api";
 import { usePremiumSWR } from "@/lib/premium-fetch";
 import { PremiumValue } from "@/components/premium/PremiumValue";
@@ -278,6 +278,12 @@ function Metric({ label, value }: { label: string; value: string }) {
  *
  * Both series share one scale — separately normalised curves always look close,
  * and the question the chart exists to answer is which one is higher.
+ *
+ * Read in dollars, not index points. The stored curve starts at 1.0, which
+ * tells a reader nothing: a line going up could be 20% or 200%. Scaled to a
+ * $10,000 opening balance it answers the question people actually bring to a
+ * strategy page, and §1 aims this page at a general reader rather than at
+ * someone fluent in normalised series.
  */
 function EquityChart({
   equity,
@@ -287,27 +293,78 @@ function EquityChart({
   benchmarks: Array<{ key: string; label: string }>;
 }) {
   const [benchKey, setBenchKey] = useState(benchmarks[0]?.key ?? "sp500");
+  const [hover, setHover] = useState<number | null>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const active = benchmarks.find((b) => b.key === benchKey) ?? benchmarks[0];
+
   const W = 760;
   const H = 220;
-  const DH = 70;
+  const DH = 80;
+  const PAD_L = 54; // room for the axis labels, which sit inside the viewBox
+  const BASE = 10_000;
+
   const benchAt = (e: any) => (Number.isFinite(e?.[benchKey]) ? e[benchKey] : e.benchmark);
   const vals = equity.flatMap((e) => [e.value, benchAt(e)]).filter(Number.isFinite);
   const lo = Math.min(...vals);
   const hi = Math.max(...vals);
   const span = hi - lo || 1;
-  const x = (i: number) => (i / Math.max(1, equity.length - 1)) * W;
+  const plotW = W - PAD_L;
+  const x = (i: number) => PAD_L + (i / Math.max(1, equity.length - 1)) * plotW;
   const y = (v: number) => H - ((v - lo) / span) * H;
   const path = (pick: (e: any) => number) =>
     equity.map((e, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(pick(e)).toFixed(1)}`).join(" ");
 
+  // Round dollar levels rather than whatever the data's min and max happen to
+  // be — an axis reading "$13,847" is a number nobody asked for.
+  const money = (v: number) => `$${Math.round(v * BASE).toLocaleString()}`;
+  const ticks = (() => {
+    const loD = lo * BASE;
+    const hiD = hi * BASE;
+    const rough = (hiD - loD) / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(Math.max(1, rough))));
+    const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= rough) ?? mag * 10;
+    const out: number[] = [];
+    for (let v = Math.ceil(loD / step) * step; v <= hiD; v += step) out.push(v / BASE);
+    return out;
+  })();
+
+  // Drawdown, recomputed here so the axis beneath can be labelled in percent.
   let peak = -Infinity;
   const dd = equity.map((e) => {
     peak = Math.max(peak, e.value);
     return peak > 0 ? e.value / peak - 1 : 0;
   });
   const ddMin = Math.min(...dd, -0.0001);
-  const ddPath = dd.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${(DH - (d / ddMin) * DH).toFixed(1)}`).join(" ");
+  const ddY = (d: number) => (d / ddMin) * DH;
+  const ddPath = dd.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${ddY(d).toFixed(1)}`).join(" ");
+  const worstIdx = dd.indexOf(Math.min(...dd));
+
+  // One label per calendar year, so a reader can place the shape in time.
+  const yearTicks = (() => {
+    const seen = new Set<string>();
+    const out: Array<{ i: number; label: string }> = [];
+    equity.forEach((e, i) => {
+      const yr = String(e?.date || "").slice(0, 4);
+      if (yr && !seen.has(yr)) {
+        seen.add(yr);
+        out.push({ i, label: yr });
+      }
+    });
+    return out;
+  })();
+
+  const pointFromClientX = (clientX: number) => {
+    const rect = boxRef.current?.getBoundingClientRect();
+    if (!rect || !equity.length) return null;
+    // The svg is stretched to the box width, so the mapping is linear on it.
+    const frac = (clientX - rect.left) / rect.width;
+    const plotFrac = (frac * W - PAD_L) / plotW;
+    const i = Math.round(plotFrac * (equity.length - 1));
+    return Math.max(0, Math.min(equity.length - 1, i));
+  };
+
+  const h = hover != null ? equity[hover] : null;
+  const hDiff = h ? (h.value - benchAt(h)) * BASE : 0;
 
   return (
     <section className="card p-4">
@@ -334,16 +391,131 @@ function EquityChart({
           </div>
         )}
       </div>
-      <div className="overflow-x-auto">
+
+      <p className="text-[11.5px] text-mute mb-2">
+        What ${BASE.toLocaleString()} would have become, before tax. Simulated — see the record
+        badge above.
+      </p>
+
+      <div
+        ref={boxRef}
+        className="relative"
+        onMouseMove={(e) => setHover(pointFromClientX(e.clientX))}
+        onMouseLeave={() => setHover(null)}
+        onTouchStart={(e) => setHover(pointFromClientX(e.touches[0].clientX))}
+        onTouchMove={(e) => setHover(pointFromClientX(e.touches[0].clientX))}
+        onTouchEnd={() => setHover(null)}
+      >
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" aria-label="Growth">
+          {ticks.map((t) => (
+            <g key={t}>
+              <line
+                x1={PAD_L}
+                x2={W}
+                y1={y(t)}
+                y2={y(t)}
+                stroke="var(--border)"
+                strokeWidth="1"
+                opacity="0.6"
+              />
+              {/* vectorEffect keeps the text from stretching with the viewBox. */}
+              <text
+                x={PAD_L - 6}
+                y={y(t) + 3}
+                textAnchor="end"
+                fontSize="9"
+                fill="var(--text-mute)"
+                style={{ fontVariantNumeric: "tabular-nums" }}
+              >
+                {money(t)}
+              </text>
+            </g>
+          ))}
           <path d={path(benchAt)} fill="none" stroke="var(--text-faint)" strokeWidth="1.5" />
           <path d={path((e) => e.value)} fill="none" stroke="var(--accent)" strokeWidth="2" />
+          {hover != null && (
+            <>
+              <line x1={x(hover)} x2={x(hover)} y1={0} y2={H} stroke="var(--text-mute)" strokeWidth="1" opacity="0.5" />
+              <circle cx={x(hover)} cy={y(equity[hover].value)} r="3.5" fill="var(--accent)" />
+              <circle cx={x(hover)} cy={y(benchAt(equity[hover]))} r="3" fill="var(--text-faint)" />
+            </>
+          )}
         </svg>
-        <div className="text-[10px] uppercase tracking-wider text-mute font-bold mt-3 mb-1">Drawdown</div>
-        <svg viewBox={`0 0 ${W} ${DH}`} width="100%" height={DH} preserveAspectRatio="none" aria-label="Drawdown">
-          <path d={ddPath} fill="none" stroke="var(--bad)" strokeWidth="1.5" />
-        </svg>
+
+        {h && (
+          <div
+            className="absolute pointer-events-none rounded-lg px-3 py-2 text-[11.5px] shadow-lg"
+            style={{
+              // Flip to the left half once past the middle so the card never
+              // runs off the edge of the chart.
+              left: `${(x(hover!) / W) * 100}%`,
+              transform: x(hover!) / W > 0.6 ? "translate(-108%, 0)" : "translate(8%, 0)",
+              top: 4,
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              minWidth: 160,
+            }}
+          >
+            <div className="font-semibold tabular" style={{ color: "var(--text)" }}>{h.date}</div>
+            <div className="flex justify-between gap-4 mt-1">
+              <span className="text-mute">Strategy</span>
+              <span className="tabular font-bold" style={{ color: "var(--accent)" }}>{money(h.value)}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-mute">{active?.label}</span>
+              <span className="tabular">{money(benchAt(h))}</span>
+            </div>
+            <div className="flex justify-between gap-4 mt-1 pt-1" style={{ borderTop: "1px solid var(--border)" }}>
+              <span className="text-mute">Difference</span>
+              <span
+                className="tabular font-bold"
+                style={{ color: hDiff >= 0 ? "var(--good)" : "var(--bad)" }}
+              >
+                {hDiff >= 0 ? "+" : "−"}${Math.abs(Math.round(hDiff)).toLocaleString()}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Year markers, so the shape can be placed in time. */}
+      <div className="relative h-4 mt-0.5" aria-hidden>
+        {yearTicks.map((t) => (
+          <span
+            key={t.label}
+            className="absolute text-[10px] text-mute tabular"
+            style={{ left: `${(x(t.i) / W) * 100}%`, transform: "translateX(-50%)" }}
+          >
+            {t.label}
+          </span>
+        ))}
+      </div>
+
+      <div className="flex items-baseline justify-between mt-3 mb-1">
+        <span className="text-[10px] uppercase tracking-wider text-mute font-bold">Drawdown</span>
+        <span className="text-[11px] tabular" style={{ color: "var(--bad)" }}>
+          Worst {(Math.min(...dd) * 100).toFixed(1)}%
+          {equity[worstIdx]?.date ? ` · ${equity[worstIdx].date}` : ""}
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${DH}`} width="100%" height={DH} preserveAspectRatio="none" aria-label="Drawdown">
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={PAD_L} x2={W} y1={ddY(ddMin * f)} y2={ddY(ddMin * f)} stroke="var(--border)" strokeWidth="1" opacity="0.6" />
+            <text
+              x={PAD_L - 6}
+              y={ddY(ddMin * f) + 3}
+              textAnchor="end"
+              fontSize="9"
+              fill="var(--text-mute)"
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              {(ddMin * f * 100).toFixed(0)}%
+            </text>
+          </g>
+        ))}
+        <path d={ddPath} fill="none" stroke="var(--bad)" strokeWidth="1.5" />
+      </svg>
       <div className="flex justify-between text-[10.5px] text-mute mt-1">
         <span>{equity[0]?.date}</span>
         <span>{equity[equity.length - 1]?.date}</span>
