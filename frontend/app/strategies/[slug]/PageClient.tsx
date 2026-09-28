@@ -74,6 +74,9 @@ export default function PageClient({ slug }: { slug: string }) {
               <Metric label="Upside capture" value={num(m.upsideCapture)} />
               <Metric label="Turnover / rebalance" value={pct(data.turnover)} />
               <Metric label="Hit rate" value={pct(data.hitRate)} />
+              {/* §6 models costs; showing what they came to is what lets a
+                  reader weigh a high-turnover strategy against a quiet one. */}
+              <Metric label="Costs paid" value={pct(data.costsPaid)} />
             </div>
           </section>
         </>

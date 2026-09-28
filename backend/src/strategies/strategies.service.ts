@@ -8,6 +8,18 @@ import { ALL_STRATEGIES, SIDE_BY_SIDE_PAIR, strategyBySlug } from './registry';
 import { RECORD_BADGE, type RecordType } from './strategy-types';
 
 /**
+ * The trading assumption every backtest here runs under, stated in the words a
+ * reader needs rather than as a parameter name.
+ *
+ * Ten basis points each way is a reasonable round trip for a liquid US listing
+ * and is optimistic for the small and mid-cap rule sets, where the spread alone
+ * can be wider than that. It is charged on turnover at every rebalance, so the
+ * weekly strategies pay it fifty-two times a year and the quarterly ones four.
+ */
+const COST_ASSUMPTION =
+  'Trading costs are modelled at 10 basis points of turnover each way, charged at every rebalance. That is a fair round trip for a liquid large-cap and an optimistic one for small and mid-caps, where the spread alone can be wider — so the frequently-rebalanced and smaller-company strategies are flattered more than the others by this assumption.';
+
+/**
  * Brief v8's serving layer: materialize every strategy nightly (§6), and answer
  * the index and detail pages from what was materialized.
  *
@@ -211,7 +223,10 @@ export class StrategiesService {
       rulesPlain: def.rulesPlain,
       // §6: the exact parameter set, version-stamped, published.
       params: def.params,
-      limitations: def.limitations,
+      // §6 requires costs and slippage to be modelled; a reader cannot judge a
+      // 22% return without knowing what trading it assumed, so the assumption
+      // travels with every strategy rather than living only in the engine.
+      limitations: [...def.limitations, COST_ASSUMPTION],
       recordType,
       recordBadge: RECORD_BADGE[recordType],
       from: r?.from_date ?? null,
