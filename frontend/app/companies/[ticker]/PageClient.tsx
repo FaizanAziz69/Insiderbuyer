@@ -1132,6 +1132,12 @@ function factorRating(pct: number): { label: string; color: string } {
   return { label: "Neutral", color: "var(--gold)" };
 }
 
+/**
+ * The donut's ring colour IS the tier here. The badge that used to sit inside
+ * the ring was the second one on this page — the Insider Score banner at the
+ * top already carries it — and one direction per stock means one badge
+ * (Faizan, 2026-09-28), not the same verdict printed twice on one scroll.
+ */
 function ringColorForTier(iqs: number): string {
   const tier = tierFor(iqs);
   if (tier === "Bullish") return "var(--good)";
@@ -1229,7 +1235,6 @@ function SmartScorePanel({
               {iqs}
             </span>
             <span className="text-[10px] text-mute mb-1">/ 100</span>
-            <TierBadge iqs={iqs} size="sm" />
           </div>
         </div>
         {/* Factor breakdown bars */}

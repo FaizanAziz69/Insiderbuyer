@@ -47,7 +47,14 @@ function IdeaItem({
           ) : (
             <span className="text-faint">—</span>
           )}
-          {unlocked && <TierBadge iqs={r.iqs} size="sm" />}
+          {/* Desktop only. The mobile badge lives beside the score below, and
+              on a narrow screen both used to render — the same verdict twice
+              in one row. */}
+          {unlocked && (
+            <span className="hidden sm:inline-flex">
+              <TierBadge iqs={r.iqs} size="sm" />
+            </span>
+          )}
           {r.sector && (
             <span className="hidden md:inline text-[11px] text-mute truncate max-w-[200px]">
               {r.sector}
