@@ -253,6 +253,44 @@ try {
 
     const dupes = rows.length - new Set(rows.map((r) => r.ticker)).size;
     check('18-cqs-no-stale-rows', dupes === 0, `${dupes} duplicate tickers — a scoring date is leaking through`);
+
+    // §6 Evidence, marked FREE. The columns existed for a while carrying
+    // nothing, because the PTR link arrived from the feed on every row and was
+    // dropped on save for want of a column. An empty Evidence column is the
+    // failure this catches: the board's whole claim is that each figure traces
+    // to a filing a reader can open.
+    const withLinks = rows.filter((r) => Array.isArray(r.filingLinks) && r.filingLinks.length);
+    check(
+      '20-cqs-filing-links',
+      rows.length === 0 || withLinks.length / rows.length >= 0.8,
+      `${withLinks.length}/${rows.length} rows carry a filing link`,
+    );
+    const badLink = rows
+      .flatMap((r) => r.filingLinks || [])
+      .filter((l) => !/^https:\/\/(disclosures-clerk\.house\.gov|efdsearch\.senate\.gov)\//.test(l.url || ''));
+    check(
+      '21-cqs-links-are-clerk-documents',
+      badLink.length === 0,
+      `${badLink.length} filing link(s) do not point at a House or Senate clerk document`,
+    );
+
+    // §6 Identity and Market data. These are FREE columns, so a guest response
+    // carrying none of them means the row shaping regressed rather than the
+    // paygate working.
+    const withIdentity = rows.filter((r) => r.exchange || r.industry);
+    check(
+      '22-cqs-identity-columns',
+      rows.length === 0 || withIdentity.length > 0,
+      'no row carries industry or exchange',
+    );
+    const changeShape = rows.filter(
+      (r) => ['change1dPct', 'change1mPct', 'changeYtdPct'].some((k) => r[k] != null && typeof r[k] !== 'number'),
+    );
+    check(
+      '23-cqs-changes-are-numbers',
+      changeShape.length === 0,
+      `${changeShape.length} rows return a price change as a string — numeric coercion regressed`,
+    );
   }
 } catch (e) {
   warnings.push(`14-19-cqs: ${e.message}`);
