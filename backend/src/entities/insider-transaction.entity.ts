@@ -93,6 +93,20 @@ export class InsiderTransaction {
   @Column({ type: 'text', nullable: true })
   filingUrl: string;
 
+  /**
+   * The date the Form 4 was FILED, as distinct from the date the trade
+   * happened — and the difference between a strategy that reads a document and
+   * one that guesses at it.
+   *
+   * Section 16 allows two business days, so Brief v8's insider strategies have
+   * been modelling entry at transaction date plus two. That model treats a late
+   * filer as punctual and flatters those strategies by however long the delay
+   * ran. The market-data feed has been sending `filingDate` on every row all
+   * along; only the column was missing.
+   */
+  @Column({ type: 'date', nullable: true })
+  filedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

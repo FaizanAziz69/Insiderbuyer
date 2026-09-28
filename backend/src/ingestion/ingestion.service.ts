@@ -286,6 +286,11 @@ export class IngestionService implements OnModuleInit {
             accessionNumber: f.accessionNo,
             lineNumber: i,
             filingUrl,
+            // The SEC's own file_date, carried on every filing this ingestion
+            // reads and dropped here until now. Brief v8's insider strategies
+            // were modelling this as transaction date plus two business days,
+            // which treats a late filer as punctual.
+            filedAt: f.filedAt ? new Date(f.filedAt) : null,
           }),
         );
         qualifying++;

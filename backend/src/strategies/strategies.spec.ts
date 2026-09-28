@@ -47,14 +47,16 @@ check(
 );
 
 console.log('disclosure lag (§6)');
-// Congress, lobbying and 13F read a real filed date out of the record, so they
-// declare no modelled lag. Form 4 has no filing date stored anywhere, so the
-// brief's own two-day model applies — and must be declared, not assumed.
+// Every dataset here now reads a real filed date: PTRs carry reportedDate,
+// awards carry action_date, 13F carries its filing date, and Form 4 carries the
+// SEC's file_date since the filedAt backfill. The two-day statutory deadline
+// survives only as a FALLBACK for rows the backfill has not reached, which is
+// why these strategies still declare it — and still have to say so.
 const form4 = ALL_STRATEGIES.filter((s) => /insider|ceo|clusters|contrarian|metals/.test(s.slug));
-check('Form 4 strategies model the two-day lag', form4.every((s) => s.disclosureLagDays === 2), true);
+check('Form 4 strategies keep the two-day fallback', form4.every((s) => s.disclosureLagDays === 2), true);
 check(
-  'Form 4 strategies say the lag is modelled',
-  form4.every((s) => s.limitations.some((l) => /two-day|modelled/i.test(l))),
+  'Form 4 strategies disclose when the fallback applies',
+  form4.every((s) => s.limitations.some((l) => /actually filed|two-day/i.test(l))),
   true,
 );
 const realDate = ALL_STRATEGIES.filter((s) => ['Congress', 'Contracts', 'Lobbying', 'Funds'].includes(s.dataset));

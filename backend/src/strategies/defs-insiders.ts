@@ -5,22 +5,23 @@ const ymd = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 /**
  * Brief v8 §3, strategies 7 to 12 — the Form 4 datasets.
  *
- * THE DISCLOSURE LAG HERE IS MODELLED, NOT OBSERVED, and that has to be said
- * plainly. `insider_transactions` stores the transaction date, the accession
- * number and the filing URL — but no filing DATE. Section 16 gives an insider
- * two business days to file, and §5.2 of this brief names exactly that: "Form 4
- * two-day lag". So a purchase becomes tradable two days after the transaction.
+ * THESE NOW READ A REAL FILING DATE. `insider_transactions.filedAt` holds the
+ * SEC's own file_date, which the ingestion had been receiving on every filing
+ * and discarding for want of a column. A purchase becomes tradable on the day
+ * it was actually filed, so a late filer is late here too — which is the whole
+ * point, since the strategies were previously treating everyone as punctual and
+ * collecting returns they could not have collected.
  *
- * It is the brief's own model and it is close to right for most filings, but it
- * is not the same statement as the congress strategies, which read a real filed
- * date out of the PTR. Late filers are treated as punctual here, which flatters
- * these strategies by however long they were late. Stated on every card.
+ * The two-day model remains as a FALLBACK for rows the backfill has not
+ * reached, and any strategy using it says so. Section 16 allows two business
+ * days and §5.2 of the brief names exactly that lag, so the fallback is the
+ * brief's own — but it is a fallback now, not the rule.
  */
 
 const FORM4_LAG_DAYS = 2;
 
 const FORM4_LIMITS = [
-  'Form 4 carries a two-day filing deadline and our records store the transaction date, not the filing date, so entry is modelled at transaction date plus two days. An insider who filed late is treated here as having filed on time, which flatters the result by the length of the delay.',
+  'Entry is on the date the Form 4 was actually filed with the SEC, not the date the trade happened — so a late filer is late here too. Where a row predates the filing-date backfill, the statutory two-day deadline stands in, and a late filer in that remainder is treated as punctual.',
   'Open-market purchases only — transaction code P. Grants, option exercises and sales are not signals of the same kind and are excluded rather than netted.',
   'Prices are dividend-unadjusted daily closes for the symbols we hold. A name we never ingested produces no position rather than a zero return.',
 ];
@@ -41,8 +42,10 @@ async function insiderBuys(
       WHERE t."transactionCode" = 'P'
         AND t."totalValue" > 0
         AND c.ticker IS NOT NULL AND c.ticker <> ''
-        -- The modelled filing date, never the transaction date.
-        AND (t."transactionDate" + $2::int) <= $1::date
+        -- The real filing date where we have it, the statutory deadline where
+        -- we do not. COALESCE, not a join: a row missing its filing date must
+        -- still be tradable on the brief's model rather than vanish.
+        AND COALESCE(t."filedAt", t."transactionDate" + $2::int) <= $1::date
         AND t."transactionDate" >= ($1::date - $3::int)
       GROUP BY 1`,
     [ymd(asOfMs), FORM4_LAG_DAYS, windowDays],
@@ -162,7 +165,7 @@ export const CEO_CONVICTION: StrategyDef = {
         WHERE t."transactionCode" = 'P' AND t."totalValue" > 0
           AND (t.role ILIKE '%CEO%' OR t.role ILIKE '%Chief Executive%'
                OR t."rawTitle" ILIKE '%Chief Executive%')
-          AND (t."transactionDate" + $2::int) <= $1::date
+          AND COALESCE(t."filedAt", t."transactionDate" + $2::int) <= $1::date
           AND t."transactionDate" >= ($1::date - $3::int)
           AND c.ticker IS NOT NULL AND c.ticker <> ''
         GROUP BY 1`,
