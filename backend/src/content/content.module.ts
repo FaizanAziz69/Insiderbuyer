@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
+import { DailyDeskModule } from './daily-desk/daily-desk.module';
 import { FmpModule } from '../fmp/fmp.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlogPost } from '../entities/blog-post.entity';
@@ -22,6 +23,9 @@ import { StoryDeskController } from './story-desk.controller';
     IqsModule,
     NewsModule,
     MarketStatsModule,
+    // For CoverService: the topic rail's covers go through the desk's pipeline
+    // so the anonymous-figures rule applies to them too.
+    forwardRef(() => DailyDeskModule),
   ],
   controllers: [ContentController, StoryDeskController],
   providers: [

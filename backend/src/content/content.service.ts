@@ -17,6 +17,11 @@ import { NewsService } from '../news/news.service';
 import { MarketStatsService } from '../market-stats/market-stats.service';
 import { FmpService } from '../fmp/fmp.service';
 import { TOPICS } from './topics';
+import {
+  GRADES as DESK_GRADES,
+  HALOS as DESK_HALOS,
+} from './daily-desk/daily-desk.service';
+import { CoverService } from './daily-desk/cover.service';
 import { findFormat } from './content-formats';
 import {
   ChecklistReport,
@@ -100,6 +105,9 @@ export class ContentService {
     @InjectRepository(AppSetting)
     private readonly settings: Repository<AppSetting>,
     @Optional() private readonly fmp?: FmpService,
+    // Optional so a context without the desk module still boots; the topic
+    // rail then falls back to the URL builder and says so in the log.
+    @Optional() private readonly cover?: CoverService,
   ) {}
 
   /** app_settings key: when "1", ALL automated article generation is paused
@@ -1623,6 +1631,40 @@ export class ContentService {
         headlines,
         stocks,
       });
+
+      // The cover goes through the DESK's pipeline, not the URL builder the
+      // rest of this service uses.
+      //
+      // George, 2026-09-25: "for the articles / stories that don't attach a
+      // person, we need to create thumbnails that hide the identity but show
+      // generic people in suits." That rule lives in CoverService, and a topic
+      // roundup is by definition a story with nobody in it — so it is exactly
+      // the case the rule was written for. Built on the old builder it came
+      // back as a clean-room object scene, which is what the rule replaced.
+      //
+      // A failure here is not fatal: the article still publishes and persist()
+      // falls back to the builder. A missing cover is a worse article; no
+      // article is worse than that.
+      let coverUrl: string | null = null;
+      try {
+        const seed = Math.abs(
+          [...slug].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7),
+        );
+        const cover = await this.cover?.generate({
+          name: slug,
+          scene: article.imagePrompt || `${topic.label} sector, trading floor context`,
+          grade: DESK_GRADES[seed % DESK_GRADES.length],
+          halo: DESK_HALOS[seed % DESK_HALOS.length],
+          // No person, ever — which is what triggers the anonymous-figures rule.
+          personRef: null,
+          personName: null,
+          personContext: null,
+        });
+        coverUrl = cover?.url ?? null;
+      } catch (e: any) {
+        this.logger.warn(`Topic rail cover failed for ${slug}: ${e?.message || e}`);
+      }
+
       await this.persist({
         slug,
         kind: 'topic-roundup',
@@ -1632,8 +1674,9 @@ export class ContentService {
         iqsAtGeneration: null,
         article,
         inputSnapshot: { topic: topic.slug, headlines, tickers: topic.tickers },
+        imageUrl: coverUrl ?? undefined,
       });
-      this.logger.log(`Topic rail: published ${slug}`);
+      this.logger.log(`Topic rail: published ${slug}${coverUrl ? ' with a desk cover' : ' (builder cover)'}`);
       return { ok: true, topic: topic.slug, slug };
     } catch (err) {
       const msg = (err as Error).message;
@@ -2211,6 +2254,12 @@ export class ContentService {
     inputSnapshot: Record<string, unknown>;
     /** Manual editorial publish — exempt from the programmatic volume ramp. */
     skipRamp?: boolean;
+    /**
+     * A cover already produced elsewhere. The topic rail passes one from the
+     * DESK's pipeline, which applies the anonymous-figures rule for stories
+     * with nobody in them; the URL builder below does not know that rule.
+     */
+    imageUrl?: string;
   }) {
     const { slug, kind, ticker, sector, topic, iqsAtGeneration, article, inputSnapshot } = opts;
     this.guardArticle({ slug, kind, article, inputSnapshot });
@@ -2221,7 +2270,7 @@ export class ContentService {
     article.title = article.title.replace(SCORE_LEAK, '$1');
     article.summary = article.summary.replace(SCORE_LEAK, '$1');
     article.body = article.body.replace(SCORE_LEAK, '$1');
-    const imageUrl = buildAiImageUrl(article.imagePrompt, {
+    const imageUrl = opts.imageUrl ?? buildAiImageUrl(article.imagePrompt, {
       seed: slug,
       ticker,
       sector,

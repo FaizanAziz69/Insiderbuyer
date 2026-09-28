@@ -42,7 +42,7 @@ const PLAN: Array<{ kind: DeskKind; source: 'buy' | 'cluster'; blogKind: string 
  * grade is claimed per batch and the palette rotates by day, which also keeps
  * consecutive days from looking alike.
  */
-const GRADES = [
+export const GRADES = [
   'deep teal with gold highlights',
   'burnt orange with charcoal shadows',
   'magenta and deep purple',
@@ -52,7 +52,7 @@ const GRADES = [
   'forest green with brass',
 ];
 
-const HALOS = ['yellow', 'white', 'hot pink', 'lime green', 'cyan'];
+export const HALOS = ['yellow', 'white', 'hot pink', 'lime green', 'cyan'];
 
 /** Dropped from slugs. The published ones read like
  *  "michael-burry-copper-ero-position" and "steve-eisman-ai-terminator-moats":

@@ -12,6 +12,9 @@ import { WriterService } from './writer.service';
   imports: [IqsModule],
   controllers: [DailyDeskController],
   providers: [DailyDeskService, ResearchService, WriterService, CoverService],
-  exports: [DailyDeskService],
+  // CoverService is exported so the topic rail can use the same cover
+  // pipeline — the anonymous-figures rule for stories with nobody in them
+  // lives there, and duplicating it would mean two rules to keep in step.
+  exports: [DailyDeskService, CoverService],
 })
 export class DailyDeskModule {}
