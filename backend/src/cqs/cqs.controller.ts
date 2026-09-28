@@ -49,6 +49,10 @@ const CQS_PREMIUM_FIELDS = [
   'bestCtsScore',
   'sinceFilingRoiPct',
   'buyers',
+  // §6 Market data marks average daily dollar volume Premium. Industry,
+  // exchange and the 1D/1M/YTD changes are Free in the same table, and filing
+  // links are Free in Evidence — the audit trail is not the paid half.
+  'advUsd',
 ] as const;
 
 /**

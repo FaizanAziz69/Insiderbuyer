@@ -11,12 +11,14 @@ import { CqsController } from './cqs.controller';
 import { CqsCronService } from './cqs.cron';
 import { CongressTradesModule } from '../congress-trades/congress-trades.module';
 import { PremiumAccessModule } from '../common/premium-access.module';
+import { FmpModule } from '../fmp/fmp.module';
 
 @Module({
   imports: [LegislativeCalendarModule, 
     TypeOrmModule.forFeature([CqsScore, CongressionalTransaction, Company, Subscriber]),
     CongressTradesModule,
     PremiumAccessModule,
+    FmpModule,
   ],
   providers: [CqsAlertsService, CqsService, CqsCronService],
   controllers: [CqsController],

@@ -47,8 +47,17 @@ export interface CqsRow {
   c7Freshness: number | null;
   multiplierInsiderOverlap: number | null;
   sector: string | null;
+  industry: string | null;
+  exchange: string | null;
   marketCap: number | null;
   lastPrice: number | null;
+  change1dPct: number | null;
+  change1mPct: number | null;
+  changeYtdPct: number | null;
+  /** Premium — §6 Market data. Absent (not zero) for a guest. */
+  advUsd?: number | null;
+  /** Free — §6 Evidence. The PTR documents behind the row. */
+  filingLinks: Array<{ member: string; date: string; url: string }> | null;
 }
 
 /**
@@ -86,6 +95,41 @@ function fmtPct(raw: number | string | null | undefined): React.ReactNode {
     >
       {v > 0 ? "+" : ""}
       {v.toFixed(1)}%
+    </span>
+  );
+}
+
+/**
+ * §6 Evidence, marked FREE: the PTR documents behind the row.
+ *
+ * Rendered as links to the clerks' own sites, not as a count — the column
+ * exists so a reader can open the filing, and a number they cannot click is
+ * not evidence. Shows the first two and a "+n" for the rest; `title` carries
+ * who filed and when, which is what tells two filings apart.
+ */
+function FilingLinks({
+  links,
+}: {
+  links: Array<{ member: string; date: string; url: string }> | null;
+}) {
+  if (!links?.length) return <span className="text-faint">—</span>;
+  const head = links.slice(0, 2);
+  const rest = links.length - head.length;
+  return (
+    <span className="inline-flex items-center gap-1.5 justify-end">
+      {head.map((l) => (
+        <a
+          key={l.url}
+          href={l.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`${l.member} — filed ${l.date || "date unknown"}`}
+          className="text-accent hover:underline text-[11.5px] font-semibold"
+        >
+          PTR
+        </a>
+      ))}
+      {rest > 0 && <span className="text-[11px] text-faint">+{rest}</span>}
     </span>
   );
 }
@@ -446,6 +490,70 @@ export default function CqsIndexPage() {
           {r.sector || "—"}
         </span>
       ),
+    },
+    // ── The rest of §6's Identity, Market-data and Evidence groups ────────
+    {
+      key: "industry",
+      label: "Industry",
+      group: "Stock",
+      filterable: true,
+      filterType: "select",
+      sortValue: (r) => r.industry || "",
+      filterLabel: (r) => r.industry || "Unclassified",
+      render: (r) => (
+        <span className="text-[11.5px] text-mute truncate block max-w-[170px]">
+          {r.industry || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "exchange",
+      label: "Exchange",
+      group: "Stock",
+      filterable: true,
+      filterType: "select",
+      sortValue: (r) => r.exchange || "",
+      filterLabel: (r) => r.exchange || "Unlisted",
+      render: (r) => (
+        <span className="text-[11.5px] text-mute">{r.exchange || "—"}</span>
+      ),
+    },
+    ...(["change1dPct", "change1mPct", "changeYtdPct"] as const).map((key, i) => ({
+      key,
+      label: (["1D", "1M", "YTD"] as const)[i],
+      group: "Stock" as const,
+      align: "right" as const,
+      sortValue: (r: CqsRow) => num(r[key]) ?? 0,
+      render: (r: CqsRow) => fmtPct(r[key]),
+    })),
+    {
+      key: "advUsd",
+      label: "Avg daily $ vol",
+      group: "Stock",
+      align: "right",
+      pro: true,
+      info: "20-day average daily dollar volume. The liquidity normalisation multiplier divides the cluster's total by this, so a $250k buy counts for more in a thinly traded name than in a mega-cap.",
+      sortValue: (r) => num(r.advUsd) ?? 0,
+      // A guest has the field STRIPPED, not zeroed — so "we have no volume for
+      // this name" and "you are not entitled to see it" must not both render
+      // as a dash. `withheld` is the same flag the committee and contract
+      // columns use.
+      render: (r) =>
+        withheld || r.advUsd != null ? (
+          <PremiumValue label="Average daily dollar volume">
+            <span className="tabular text-[13px] text-mute">{fmtBig(r.advUsd)}</span>
+          </PremiumValue>
+        ) : (
+          <span className="text-faint">—</span>
+        ),
+    },
+    {
+      key: "filingLinks",
+      label: "Filings",
+      group: "Evidence",
+      align: "right",
+      sortValue: (r) => r.filingLinks?.length ?? 0,
+      render: (r) => <FilingLinks links={r.filingLinks} />,
     },
   ];
 

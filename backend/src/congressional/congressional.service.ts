@@ -507,6 +507,15 @@ export class CongressionalService implements OnModuleInit {
         transactionDate: safeDate(t.transactionDate),
         reportedDate: safeDate(t.reportedDate) ?? safeDate(t.transactionDate),
         source: 'fmp',
+        // Three fields the mapper has always produced and the save has always
+        // dropped. `sourceUrl` is the PTR document itself, which §6 lists as a
+        // FREE Evidence column; `assetType` is the filing's own security class,
+        // which §1's fund and bond exclusions should be reading instead of
+        // guessing from the asset's name; `owner` records whose account held
+        // it. See the column comments for what `owner` does NOT establish.
+        sourceUrl: t.sourceUrl,
+        owner: t.owner,
+        assetType: t.assetType,
       }))
       // Drop rows with no usable transaction date or ticker — a single such
       // row violates NOT NULL and aborts the whole batch insert.
@@ -920,6 +929,15 @@ export class CongressionalService implements OnModuleInit {
         transactionDate: safeDate(t.transactionDate),
         reportedDate: safeDate(t.reportedDate) ?? safeDate(t.transactionDate),
         source: 'fmp',
+        // Three fields the mapper has always produced and the save has always
+        // dropped. `sourceUrl` is the PTR document itself, which §6 lists as a
+        // FREE Evidence column; `assetType` is the filing's own security class,
+        // which §1's fund and bond exclusions should be reading instead of
+        // guessing from the asset's name; `owner` records whose account held
+        // it. See the column comments for what `owner` does NOT establish.
+        sourceUrl: t.sourceUrl,
+        owner: t.owner,
+        assetType: t.assetType,
       }))
       // Bond/fund disclosures carry no ticker, and the column is NOT NULL —
       // one such row aborts the whole batch insert. This is a stock feed;

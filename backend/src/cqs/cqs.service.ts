@@ -8,6 +8,7 @@ import { FlagEngineService } from '../congress-trades/flag-engine.service';
 import { nameKey } from '../congress-trades/influence-map.service';
 import { agencyKey, committeeKey } from '../congress-trades/jurisdiction';
 import { LegislativeCalendarService } from '../legislative-calendar/legislative-calendar.service';
+import { FmpService } from '../fmp/fmp.service';
 import {
   assembleCqsScore,
   isExcludedSecurity,
@@ -92,6 +93,7 @@ export class CqsService {
     private readonly companyRepo: Repository<Company>,
     private readonly flagEngine: FlagEngineService,
     private readonly legislative: LegislativeCalendarService,
+    private readonly fmp: FmpService,
   ) {}
 
   private q<T = any>(sql: string, params: any[] = []): Promise<T> {
@@ -147,7 +149,7 @@ export class CqsService {
     for (const t of recent) {
       const sym = String(t.ticker || '').toUpperCase().trim();
       if (!sym) continue;
-      if (isExcludedSecurity(sym, t.companyName)) {
+      if (isExcludedSecurity(sym, t.companyName, t.assetType)) {
         excluded++;
         continue;
       }
@@ -185,7 +187,7 @@ export class CqsService {
     }
 
     // 4. Everything else, in set-based queries.
-    const [companies, iqs, grades, medians, priorBuys, series, adv, seats, juris, agencies, pendingCommittees] =
+    const [companies, iqs, grades, medians, priorBuys, series, adv, seats, juris, agencies, pendingCommittees, priceChanges] =
       await Promise.all([
         this.loadCompanies(tickers),
         this.loadIqs(tickers),
@@ -203,6 +205,13 @@ export class CqsService {
           .pendingCommitteeKeys()
           .then((keys) => (keys.size ? keys : null))
           .catch(() => null),
+        // §6's 1D / 1M / YTD columns. One batched call for the whole board —
+        // `stock-price-change` takes a comma-separated list — and a failure
+        // here leaves those three cells empty rather than failing the recompute:
+        // a board with no percentage change is still a board.
+        this.fmp
+          .getPriceChanges(tickers)
+          .catch(() => new Map<string, Record<string, number | null>>()),
       ]);
 
     let computed = 0;
@@ -221,6 +230,7 @@ export class CqsService {
         priorBuys,
         series: series.get(ticker) || null,
         advDollars: adv.get(ticker) ?? null,
+        priceChange: priceChanges.get(ticker) ?? null,
         seats,
         juris,
         agencies: agencies.get(ticker) || null,
@@ -268,6 +278,8 @@ export class CqsService {
     series: Array<{ t: number; c: number }> | null;
     /** 60-day average daily dollar volume, for the liquidity multiplier. */
     advDollars: number | null;
+    /** FMP's own change keys for this symbol — 1D, 1M, ytd (§6 Market data). */
+    priceChange: Record<string, number | null> | null;
     seats: Map<string, Array<{ committee: string; role: string }>>;
     juris: Map<string, Set<string>>;
     agencies: { agencies: Set<string>; label: string | null; value: number; count: number } | null;
@@ -568,8 +580,17 @@ export class CqsService {
         hasLags: lags.length > 0,
       }),
       sector: company?.sector || null,
+      industry: company?.industry || null,
+      exchange: company?.exchange || null,
       marketCap: this.num(company?.marketCap),
       lastPrice: lastClose ?? this.num(company?.lastPrice),
+      change1dPct: ctx.priceChange?.['1D'] ?? null,
+      change1mPct: ctx.priceChange?.['1M'] ?? null,
+      changeYtdPct: ctx.priceChange?.ytd ?? null,
+      // The liquidity multiplier has been dividing by this all along; §6 lists
+      // it as a column, so stop hiding the number the score already uses.
+      advUsd: ctx.advDollars ?? null,
+      filingLinks: filingLinks(txs),
     });
     return row;
   }
@@ -1113,5 +1134,34 @@ function shapeRow(r: CqsScore): any {
     maxFilingLagDays: n(r.maxFilingLagDays),
     pctVs52wHigh: n(r.pctVs52wHigh),
     dataCompleteness: n(r.dataCompleteness),
+    // numeric → string on the way out of node-postgres. Every new numeric
+    // column has to be listed here or the UI compares a string to a number.
+    change1dPct: n(r.change1dPct),
+    change1mPct: n(r.change1mPct),
+    changeYtdPct: n(r.changeYtdPct),
+    advUsd: n(r.advUsd),
   };
+}
+
+/**
+ * The distinct PTR documents behind a row's qualifying buys — §6's Evidence
+ * group, which the brief marks FREE.
+ *
+ * One entry per document, newest first, capped at 12. A member who filed the
+ * same PTR covering four purchases should appear once: the reader is being
+ * offered something to open, not a count.
+ */
+function filingLinks(
+  txs: Array<{ politicianName: string; reportedDate: any; sourceUrl?: string | null }>,
+): Array<{ member: string; date: string; url: string }> | null {
+  const byUrl = new Map<string, { member: string; date: string; url: string }>();
+  for (const t of txs) {
+    const url = (t.sourceUrl || '').trim();
+    if (!/^https?:\/\//i.test(url)) continue;
+    if (byUrl.has(url)) continue;
+    const d = t.reportedDate ? String(t.reportedDate).slice(0, 10) : '';
+    byUrl.set(url, { member: t.politicianName, date: d, url });
+  }
+  if (!byUrl.size) return null;
+  return [...byUrl.values()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12);
 }

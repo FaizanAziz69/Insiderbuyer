@@ -370,10 +370,23 @@ export function assembleCqsScore(
 // ── Universe filter (Brief v9 §1 exclusions) ──────────────────────────────
 /**
  * ETFs, mutual funds, Treasuries and municipal bonds are out of the universe.
- * PTRs carry no asset-class field on our table, so this reads the security's
- * own name and ticker — the same way the disclosure stream already labels
- * them. Deliberately conservative: it matches fund-issuer and bond wording,
- * not the word "Trust" on its own, which is in plenty of real REIT names.
+ *
+ * The filing classifies its own asset, and when we have that classification it
+ * decides — `assetType` comes straight off the PTR as Stock, ETF, Mutual Fund,
+ * Corporate Bond, REIT or Stock Option. The name and ticker tests below are the
+ * fallback, and they stay because they have to: rows ingested before the column
+ * existed carry no assetType, and a name test is what stands between them and
+ * the board. Deliberately conservative — it matches fund-issuer and bond
+ * wording, not the word "Trust" on its own, which is in plenty of real REIT
+ * names.
+ *
+ * NOT IMPLEMENTED HERE, and deliberately: §1 also asks that third-party-managed
+ * and blind/qualified-trust purchases be tracked and scored at 0.25x. The feed
+ * carries no such marker — `owner` is only ever Self, Spouse, Joint or empty,
+ * and `comment`, the field that would hold a trust note, is empty on every row
+ * of both chambers' feeds. Discounting on `owner` would mark every spouse's
+ * trade as a blind trust, which is a different and false claim. The column is
+ * stored so the rule can be switched on the day the marker appears.
  */
 const FUND_TICKERS = new Set([
   'SPY', 'VOO', 'IVV', 'VTI', 'QQQ', 'QQQM', 'DIA', 'IWM', 'VEA', 'VWO', 'EFA', 'EEM',
@@ -406,12 +419,31 @@ const FUND_NAME_PATTERNS = [
   /\bCERTIFICATE\s+OF\s+DEPOSIT\b/i,
 ];
 
+/** Asset classes §1 puts outside the universe, in the filing's own vocabulary. */
+const EXCLUDED_ASSET_TYPES = new Set([
+  'etf',
+  'mutual fund',
+  'corporate bond',
+  'municipal security',
+  'municipal bond',
+  'government security',
+  'treasury',
+  'money market',
+  'stock option',
+]);
+
 export function isExcludedSecurity(
   ticker: string | null | undefined,
   name: string | null | undefined,
+  assetType?: string | null,
 ): boolean {
   const t = String(ticker || '').toUpperCase().trim();
   if (!t || t.length > 6 || /[^A-Z.\-]/.test(t)) return true;
+  // The filing's own answer wins when it gave one. "Stock" and "REIT" are
+  // securities of an operating company and stay in; everything listed above is
+  // the fund/bond/derivative wrapper §1 rules out.
+  const at = String(assetType || '').trim().toLowerCase();
+  if (at) return EXCLUDED_ASSET_TYPES.has(at);
   if (FUND_TICKERS.has(t)) return true;
   const n = String(name || '');
   return FUND_NAME_PATTERNS.some((re) => re.test(n));

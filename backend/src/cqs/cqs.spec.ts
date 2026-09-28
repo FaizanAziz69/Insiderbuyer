@@ -138,6 +138,34 @@ check('multipliers cannot push past 100', capped.cqs, 100);
 
 console.log('universe exclusions');
 check('index funds are out', [isExcludedSecurity('SPY', 'SPDR S&P 500 ETF Trust'), isExcludedSecurity('AGG', 'iShares Core US Aggregate Bond ETF')], [true, true]);
+
+// §1 exclusions, decided by the filing's OWN classification rather than by
+// reading the asset's name. The name test stays for rows ingested before the
+// column existed, so both paths are checked.
+check(
+  'assetType decides when the filing gave one',
+  [
+    isExcludedSecurity('DKS', "DICK'S Sporting Goods, Inc.", 'Stock'),
+    isExcludedSecurity('O', 'Realty Income Corp', 'REIT'),
+    isExcludedSecurity('AAPL', 'Apple Inc', 'Corporate Bond'),
+    isExcludedSecurity('AAPL', 'Apple Inc', 'Stock Option'),
+    isExcludedSecurity('XYZ', 'Some Fund', 'Mutual Fund'),
+  ],
+  [false, false, true, true, true],
+);
+// A name that trips the fund patterns is still admitted when the filing itself
+// says Stock — that is the point of preferring the issuer's answer.
+check(
+  'a real company is not excluded by a fund-shaped name',
+  [isExcludedSecurity('TRST', 'Investment Trust Holdings Inc', 'Stock')],
+  [false],
+);
+// ...and with no assetType the name test still runs.
+check(
+  'name test still applies without assetType',
+  [isExcludedSecurity('SPY', 'SPDR S&P 500 ETF Trust', null), isExcludedSecurity('DKS', "DICK'S Sporting Goods, Inc.", null)],
+  [true, false],
+);
 check('treasuries and munis are out', [isExcludedSecurity('TBILL', 'US Treasury Bill'), isExcludedSecurity('XYZ', 'California Municipal Bond')], [true, true]);
 check('real companies stay in', [isExcludedSecurity('MSFT', 'MICROSOFT CORP'), isExcludedSecurity('GS', 'GOLDMAN SACHS GROUP INC')], [false, false]);
 // "Trust" alone is in plenty of real REIT and bank names, so it must not match.

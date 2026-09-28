@@ -125,6 +125,40 @@ export class CqsScore {
   @Column({ type: 'numeric', precision: 12, scale: 4, nullable: true })
   lastPrice: number | null;
 
+  // ── The rest of §6's Identity and Market-data groups ───────────────────
+  // Sector alone was carrying both groups. The brief also lists Industry and
+  // Exchange under Identity, and 1D / 1M / YTD change and average daily dollar
+  // volume under Market data. ADV in particular was already being computed for
+  // the liquidity multiplier and then thrown away, so the score used a number
+  // the reader was never shown.
+
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  industry: string | null;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  exchange: string | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 2, nullable: true })
+  change1dPct: number | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 2, nullable: true })
+  change1mPct: number | null;
+
+  @Column({ type: 'numeric', precision: 8, scale: 2, nullable: true })
+  changeYtdPct: number | null;
+
+  /** 20-day average daily DOLLAR volume — the C3 liquidity input, now visible. */
+  @Column({ type: 'numeric', precision: 20, scale: 2, nullable: true })
+  advUsd: number | null;
+
+  /**
+   * Distinct PTR documents behind this row's qualifying buys (§6 Evidence,
+   * marked FREE). Capped at 12: a name with forty filings does not need forty
+   * links to be auditable, and the row is served on every board request.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  filingLinks: Array<{ member: string; date: string; url: string }> | null;
+
   // ── Influence & contract evidence (Brief v9 §6 "Influence" group) ──────
   @Column({ type: 'jsonb', nullable: true })
   committees: string[] | null;

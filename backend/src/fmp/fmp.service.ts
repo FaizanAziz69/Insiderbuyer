@@ -50,6 +50,11 @@ export interface FmpCongressTrade {
    *  its evidence chain is "complete and clickable", and the trade leg has no
    *  document to open without this. */
   sourceUrl: string | null;
+  /** The filing's own security class — "Stock", "ETF", "Mutual Fund",
+   *  "Corporate Bond", "REIT", "Stock Option". Brief v9 §1 excludes funds and
+   *  bonds from the CQS universe, and this is the issuer's answer to that
+   *  question rather than a guess read off the asset's name. */
+  assetType: string | null;
 }
 
 /** A normalized insider Form 4 transaction from FMP's market-wide feed. */
@@ -739,6 +744,7 @@ export class FmpService {
       reportedDate: r.disclosureDate || r.transactionDate,
       owner: r.owner ? String(r.owner) : null,
       sourceUrl: r.link ? String(r.link) : null,
+      assetType: r.assetType ? String(r.assetType) : null,
     };
   }
 
