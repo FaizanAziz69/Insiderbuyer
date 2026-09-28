@@ -193,6 +193,9 @@ export const NAV_GROUPS: NavGroup[] = [
               { label: "Congress Quality Score", href: "/cqs-index", icon: Landmark, badge: "new" },
               // Brief v6: the published proprietary index.
               { label: "Conviction Index (IBCX)", href: "/index-ibcx", icon: Landmark, badge: "new" },
+              // Brief v8: rules-based strategies on public alternative data,
+              // each publishing its own rules, parameters and limitations.
+              { label: "Top Performing Strategies", href: "/strategies", icon: Landmark, badge: "new" },
             ],
           },
         ],
