@@ -142,6 +142,14 @@ export class StrategiesService {
           ? r.equity.filter((_: any, i: number) => i % Math.ceil(r.equity.length / 40 || 1) === 0)
               .map((e: any) => ({ v: e.value, b: e.benchmark }))
           : [],
+        /**
+         * §5.1 sorts by "1y return", which is not the same as total return over
+         * a five-year test and must not be substituted for it. Computed from
+         * the stored curve: the last point against the point closest to a year
+         * before it. Null when the run is shorter than a year, because a
+         * ten-month number labelled 1y is a wrong number, not a rounded one.
+         */
+        return1y: oneYearReturn(r?.equity),
         cagr: m?.cagr ?? null,
         sortino: m?.sortino ?? null,
         sharpe: m?.sharpe ?? null,
@@ -270,4 +278,36 @@ export class StrategiesService {
         'priced at the following close; this is not a live proprietary record and is badged as paper.',
     };
   }
+}
+
+/**
+ * The trailing one-year return of a stored equity curve.
+ *
+ * Curves here are sampled at the rebalance cadence, so "a year ago" is the
+ * nearest stored point to that date rather than an exact one; a weekly strategy
+ * lands within days, a quarterly one within weeks. Returns null rather than a
+ * guess when the curve does not span a year.
+ */
+function oneYearReturn(equity: any): number | null {
+  if (!Array.isArray(equity) || equity.length < 2) return null;
+  const last = equity[equity.length - 1];
+  const lastMs = Date.parse(`${last?.date}T00:00:00Z`);
+  if (!Number.isFinite(lastMs) || !(Number(last?.value) > 0)) return null;
+  const targetMs = lastMs - 365 * 86_400_000;
+  const first = Date.parse(`${equity[0]?.date}T00:00:00Z`);
+  // A curve that does not reach back a year cannot report a one-year number.
+  if (!Number.isFinite(first) || first > targetMs) return null;
+  let best: any = null;
+  let bestGap = Infinity;
+  for (const e of equity) {
+    const ms = Date.parse(`${e?.date}T00:00:00Z`);
+    if (!Number.isFinite(ms)) continue;
+    const gap = Math.abs(ms - targetMs);
+    if (gap < bestGap) {
+      bestGap = gap;
+      best = e;
+    }
+  }
+  const base = Number(best?.value);
+  return base > 0 ? Number(last.value) / base - 1 : null;
 }

@@ -284,45 +284,77 @@ export const CONVICTION_METALS: StrategyDef = {
   slug: 'conviction-metals',
   name: 'Conviction Metals',
   dataset: 'Sector',
-  version: '1.0.0',
+  version: '1.1.0',
   rebalanceDays: 90,
   disclosureLagDays: FORM4_LAG_DAYS,
   rulesPlain:
-    'Hold metals and mining companies carrying open-market insider buying, weighted by dollars bought and capped so no single name dominates. The sector mandate from the backtest runbook, rebalanced quarterly.',
-  params: { lookbackDays: 180, topN: 20, weighting: 'buy-value-capped', maxWeightPct: 10 },
+    'Hold metals and mining companies carrying open-market insider buying, allocated to the runbook mandate: 10% to gold, 25% to junior miners, the remainder across the rest of the sector. Weighted by dollars bought inside each bucket and capped so no single name dominates. Rebalanced quarterly.',
+  params: {
+    lookbackDays: 180,
+    topN: 20,
+    goldAllocationPct: 10,
+    juniorAllocationPct: 25,
+    juniorMaxMarketCapUsd: 500_000_000,
+    maxWeightPct: 10,
+  },
   limitations: [
     ...FORM4_LIMITS,
-    'Sector comes from our security master. The runbook’s explicit gold and junior-miner allocations are NOT applied here: that mandate splits the sleeve by sub-sector and our security master does not distinguish juniors from producers, so this publishes the insider-buying metals rule only and says so rather than claiming the full mandate.',
-    'Canadian SEDI filings are not ingested, and a large share of junior miners are Canadian-listed, so this is a narrower universe than the mandate intends.',
+    'The sector universe is the security master\'s own mining industries — Gold, Other Precious Metals, Copper, Silver, Steel, Aluminum, Uranium and Coal. An earlier version matched any industry containing the word "metal", which swept in metal fabricators, construction materials and waste management: companies that are not miners.',
+    'JUNIOR IS A PROXY. The runbook means exploration-stage miners, and nothing in our data marks a company as exploration-stage, so a junior here is a mining company under $500m of market value. That captures most juniors and will also capture a few small producers. Market capitalisation is also the current value, not the value on each historical date.',
+    'Canadian SEDI filings are not ingested, and a large share of the world\'s junior miners are Canadian-listed, so the junior bucket draws from a much narrower pool than the mandate intends and will often hold fewer names than its allocation allows.',
   ],
   async select(ctx, asOfMs) {
     const rows = await insiderBuys(ctx, asOfMs, 180);
-    const secRows: Array<{ symbol: string; sector: string; industry: string }> = await ctx
+    const secRows: Array<{ symbol: string; industry: string }> = await ctx
       .q(
-        `SELECT upper(symbol) AS symbol, COALESCE(sector,'') AS sector, COALESCE(industry,'') AS industry
-           FROM pit_securities`,
+        `SELECT upper(symbol) AS symbol, COALESCE(industry,'') AS industry
+           FROM pit_securities
+          WHERE industry IN ('Gold','Other Precious Metals','Silver','Copper','Steel','Aluminum','Uranium','Coal')`,
       )
       .catch((e: any) => {
-        // Swallowing this is how three schema mistakes reached production
-        // looking like empty datasets. The engine records a selector failure
-        // as a run note, which is a visible answer; [] is a silent wrong one.
-        throw new Error(`selector query failed: ${e?.message || e}`);
+        throw new Error(`conviction-metals universe query failed: ${e?.message || e}`);
       });
-    const isMetal = new Set<string>();
-    for (const r of secRows) {
-      if (/metal|mining|gold|silver|copper/i.test(`${r.sector} ${r.industry}`)) isMetal.add(r.symbol);
+    const industryOf = new Map<string, string>();
+    for (const r of secRows) industryOf.set(r.symbol, r.industry);
+
+    const inSector = rows.filter((r) => industryOf.has(r.ticker));
+    if (!inSector.length) return [];
+
+    // Three buckets, in the runbook's own proportions. A name is a junior
+    // first and gold second, so a sub-$500m gold explorer is counted once.
+    const JUNIOR_CAP = 500_000_000;
+    const junior = inSector.filter((r) => (ctx.marketCap.get(r.ticker) ?? Infinity) < JUNIOR_CAP);
+    const juniorSet = new Set(junior.map((r) => r.ticker));
+    const gold = inSector.filter((r) => industryOf.get(r.ticker) === 'Gold' && !juniorSet.has(r.ticker));
+    const goldSet = new Set(gold.map((r) => r.ticker));
+    const rest = inSector.filter((r) => !juniorSet.has(r.ticker) && !goldSet.has(r.ticker));
+
+    const buckets: Array<{ names: typeof inSector; share: number; label: string }> = [
+      { names: gold, share: 0.10, label: 'gold' },
+      { names: junior, share: 0.25, label: 'junior miner' },
+      { names: rest, share: 0.65, label: 'metals & mining' },
+    ];
+    // An empty bucket's share is redistributed rather than left in cash: the
+    // mandate is a target allocation, and holding 25% cash because no junior
+    // qualified would be a different strategy from the one published.
+    const live = buckets.filter((b) => b.names.length);
+    const shareSum = live.reduce((a, b) => a + b.share, 0) || 1;
+
+    const picks: Pick[] = [];
+    for (const b of live) {
+      const take = b.names.sort((x, y) => y.value - x.value).slice(0, 20);
+      const total = take.reduce((a, r) => a + r.value, 0) || 1;
+      const bucketShare = b.share / shareSum;
+      for (const r of take) {
+        picks.push({
+          ticker: r.ticker,
+          // Capped at 10% of the whole sleeve so one large buy cannot become it.
+          weight: Math.min((r.value / total) * bucketShare, 0.1),
+          trigger: `$${(r.value / 1e6).toFixed(1)}m of insider buying — ${b.label}`,
+        });
+      }
     }
-    const picked = rows
-      .filter((r) => isMetal.has(r.ticker))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 20);
-    const total = picked.reduce((a, b) => a + b.value, 0) || 1;
-    return picked.map((r): Pick => ({
-      ticker: r.ticker,
-      // Capped at 10% so one large buy cannot become the whole sleeve.
-      weight: Math.min(r.value / total, 0.1),
-      trigger: `$${(r.value / 1e6).toFixed(1)}m of insider buying in metals & mining`,
-    }));
+    return picks;
   },
 };
 

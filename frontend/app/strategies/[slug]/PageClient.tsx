@@ -97,7 +97,12 @@ export default function PageClient({ slug }: { slug: string }) {
 
       {/* §5.3 — holdings and the rebalance log are Premium. */}
       <section className="card p-4">
-        <h2 className="text-[13px] uppercase tracking-wider font-bold text-mute">Current holdings</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-[13px] uppercase tracking-wider font-bold text-mute">Current holdings</h2>
+          {!withheld && (data.holdings || []).length > 0 && (
+            <CsvButton slug={data.slug} holdings={data.holdings} />
+          )}
+        </div>
         {withheld ? (
           <div className="mt-3">
             <PremiumValue label="Strategy holdings">
@@ -134,6 +139,24 @@ export default function PageClient({ slug }: { slug: string }) {
         )}
       </section>
 
+      {/* §5.2's rebalance log — every add and drop with its trigger. Premium. */}
+      <section className="card p-4">
+        <h2 className="text-[13px] uppercase tracking-wider font-bold text-mute">Rebalance log</h2>
+        {withheld ? (
+          <div className="mt-3">
+            <PremiumValue label="Rebalance log">
+              <span className="text-[13px]">
+                Unlock every add and drop this strategy has made, with the trigger for each.
+              </span>
+            </PremiumValue>
+          </div>
+        ) : (data.rebalanceLog || []).length ? (
+          <RebalanceLog log={data.rebalanceLog} />
+        ) : (
+          <p className="text-[13px] text-mute mt-2">No changes recorded over the test window.</p>
+        )}
+      </section>
+
       <section className="card p-4">
         <h2 className="text-[13px] uppercase tracking-wider font-bold text-mute">
           What this strategy cannot see
@@ -145,6 +168,96 @@ export default function PageClient({ slug }: { slug: string }) {
         </ul>
       </section>
     </div>
+  );
+}
+
+/**
+ * §5.2's rebalance log. Newest first, because the question a reader arrives
+ * with is what changed at the last rebalance, not what changed five years ago.
+ * Capped in the view with a control to see the rest — a weekly strategy has
+ * thousands of rows and rendering all of them helps nobody.
+ */
+function RebalanceLog({ log }: { log: Array<{ date: string; ticker: string; action: string; trigger: string }> }) {
+  const [all, setAll] = useState(false);
+  const rows = [...log].reverse();
+  const shown = all ? rows : rows.slice(0, 25);
+  return (
+    <>
+      <div className="mt-2 overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="text-[10.5px] uppercase tracking-wider text-mute">
+              <th className="text-left py-1.5">Date</th>
+              <th className="text-left">Action</th>
+              <th className="text-left">Ticker</th>
+              <th className="text-left pl-4">Trigger</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r, i) => (
+              <tr key={`${r.date}-${r.ticker}-${i}`} className="border-t" style={{ borderColor: "var(--border)" }}>
+                <td className="py-1.5 text-mute tabular whitespace-nowrap">{r.date}</td>
+                <td>
+                  <span
+                    className="text-[10.5px] font-bold uppercase tracking-wider"
+                    style={{ color: r.action === "add" ? "var(--good)" : "var(--bad)" }}
+                  >
+                    {r.action === "add" ? "Added" : "Dropped"}
+                  </span>
+                </td>
+                <td className="font-mono font-bold">
+                  <Link href={`/companies/${r.ticker}`} className="text-accent hover:underline">{r.ticker}</Link>
+                </td>
+                <td className="pl-4 text-mute">{r.trigger}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {rows.length > 25 && (
+        <button
+          onClick={() => setAll((v) => !v)}
+          className="text-[12px] text-accent hover:underline mt-2.5"
+        >
+          {all ? "Show fewer" : `Show all ${rows.length} changes`}
+        </button>
+      )}
+    </>
+  );
+}
+
+/**
+ * §5.3's CSV export, Premium.
+ *
+ * Built in the browser from the holdings already on the page rather than
+ * fetched: the data is here, and a download the viewer starts themselves needs
+ * no second round trip to say the same thing.
+ */
+function CsvButton({ slug, holdings }: { slug: string; holdings: any[] }) {
+  const onClick = () => {
+    const esc = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = ["ticker,weight,entry_date,trigger"];
+    for (const h of holdings) {
+      lines.push([h.ticker, (h.weight ?? 0).toFixed(6), h.entryDate, esc(h.trigger)].join(","));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug}-holdings.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+  return (
+    <button
+      onClick={onClick}
+      className="px-2.5 h-7 rounded-md text-[11.5px] font-semibold"
+      style={{ background: "var(--bg-2)", color: "var(--text-mute)", border: "1px solid var(--border)" }}
+    >
+      Export CSV
+    </button>
   );
 }
 

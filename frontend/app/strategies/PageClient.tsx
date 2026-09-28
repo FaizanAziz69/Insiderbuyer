@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { API_BASE, fetcher } from "@/lib/api";
+import { Landmark, TrendingUp, Megaphone, FileText, Briefcase, Layers } from "lucide-react";
 import { RecordBadge, type RecordType } from "@/components/strategies/RecordBadge";
 import { Sparkline } from "@/components/strategies/Sparkline";
 
@@ -23,7 +24,18 @@ type Card = {
   maxDrawdown: number | null;
   totalReturn: number | null;
   benchmarkTotalReturn: number | null;
+  return1y: number | null;
   thin: boolean;
+};
+
+/** §5.1's dataset icon — one per filter category, so a card is placeable at a glance. */
+const DATASET_ICON: Record<string, any> = {
+  Congress: Landmark,
+  Insiders: TrendingUp,
+  Lobbying: Megaphone,
+  Contracts: FileText,
+  Funds: Briefcase,
+  Sector: Layers,
 };
 
 const pct = (v: number | null | undefined, digits = 1) =>
@@ -34,7 +46,7 @@ const num = (v: number | null | undefined, digits = 2) =>
 const CADENCE = (d: number) =>
   d <= 7 ? "Weekly" : d <= 31 ? "Monthly" : d <= 95 ? "Quarterly" : `${d}-day`;
 
-type SortKey = "sortino" | "cagr" | "maxDrawdown" | "totalReturn";
+type SortKey = "sortino" | "cagr" | "maxDrawdown" | "return1y";
 
 export default function PageClient() {
   const { data } = useSWR<any>(`${API_BASE}/strategies`, fetcher, {
@@ -93,7 +105,7 @@ export default function PageClient() {
         <Chips label="Record" value={record} onChange={setRecord} options={["All", ...(data?.recordTypes ?? [])]} />
         <div className="ml-auto flex items-center gap-1.5">
           <span className="text-[11px] text-mute uppercase tracking-wider font-bold">Sort</span>
-          {(["sortino", "cagr", "totalReturn", "maxDrawdown"] as SortKey[]).map((k) => (
+          {(["sortino", "cagr", "return1y", "maxDrawdown"] as SortKey[]).map((k) => (
             <button
               key={k}
               onClick={() => setSort(k)}
@@ -104,7 +116,7 @@ export default function PageClient() {
                 border: "1px solid var(--border)",
               }}
             >
-              {k === "sortino" ? "Sortino" : k === "cagr" ? "CAGR" : k === "totalReturn" ? "Return" : "Drawdown"}
+              {k === "sortino" ? "Sortino" : k === "cagr" ? "CAGR" : k === "return1y" ? "1Y return" : "Drawdown"}
             </button>
           ))}
         </div>
@@ -209,6 +221,7 @@ function Chips({
 }
 
 function StrategyCard({ c }: { c: Card }) {
+  const Icon = DATASET_ICON[c.dataset] ?? Layers;
   const beat =
     c.totalReturn != null && c.benchmarkTotalReturn != null ? c.totalReturn - c.benchmarkTotalReturn : null;
   return (
@@ -218,10 +231,18 @@ function StrategyCard({ c }: { c: Card }) {
       style={{ border: "1px solid var(--border)" }}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="font-bold text-[14.5px] leading-tight">{c.name}</div>
-          <div className="text-[11px] text-mute mt-0.5">
-            {c.dataset} · {CADENCE(c.rebalanceDays)} · v{c.version}
+        <div className="min-w-0 flex items-start gap-2">
+          <Icon className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "var(--accent)" }} aria-hidden />
+          <div className="min-w-0">
+            <div className="font-bold text-[14.5px] leading-tight">{c.name}</div>
+            <div className="text-[11px] text-mute mt-0.5">
+              {c.dataset} · {CADENCE(c.rebalanceDays)} · v{c.version}
+            </div>
+            {/* §5.1 lists the start date on the card: a three-year record and a
+                three-month one should not look alike at a glance. */}
+            {c.startDate && (
+              <div className="text-[10.5px] text-faint mt-0.5">Tested from {c.startDate}</div>
+            )}
           </div>
         </div>
         <Sparkline points={c.spark} />
