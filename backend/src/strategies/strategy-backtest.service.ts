@@ -111,6 +111,42 @@ export class StrategyBacktestService {
     }
     if (!memberGrades.size) this.log.warn('member grades loaded EMPTY — grade-gated strategies will hold nothing.');
 
+    // The daily snapshots, which ARE point-in-time. They begin 2026-09-26 and
+    // grow by a day each night; nothing before that can ever be recovered, so
+    // the current-state map above stands in for the rest of the history.
+    const snaps = new Map<string, Array<[number, string]>>();
+    try {
+      const rows: Array<{ as_of: string; key: string; grade: string | null }> = await this.q(
+        `SELECT as_of::text AS as_of, key, payload->>'grade' AS grade
+           FROM cqs_input_snapshots WHERE kind = 'grade'`,
+      );
+      for (const r of rows) {
+        if (!r.grade) continue;
+        const ms = Date.parse(`${r.as_of}T00:00:00Z`);
+        if (!Number.isFinite(ms)) continue;
+        const list = snaps.get(r.key) ?? [];
+        list.push([ms, r.grade]);
+        snaps.set(r.key, list);
+      }
+      for (const list of snaps.values()) list.sort((a, b) => a[0] - b[0]);
+    } catch (e: any) {
+      this.log.warn(`grade snapshots failed to load: ${e?.message || e}`);
+    }
+
+    const gradeFor = (memberKey: string, asOfMs: number): string | null => {
+      const list = snaps.get(memberKey);
+      if (list?.length) {
+        // The most recent snapshot at or before the date, never a later one.
+        let best: string | null = null;
+        for (const [ms, g] of list) {
+          if (ms <= asOfMs) best = g;
+          else break;
+        }
+        if (best) return best;
+      }
+      return memberGrades.get(memberKey) ?? null;
+    };
+
     const capRows: Array<{ ticker: string; mc: string }> = await this.q(
       `SELECT ticker, "marketCap"::text AS mc FROM companies WHERE "marketCap" IS NOT NULL`,
     ).catch(() => []);
@@ -134,7 +170,7 @@ export class StrategyBacktestService {
     const sp500 = new Set<string>(spRows.map((r) => String(r.symbol).toUpperCase()));
     if (!sp500.size) this.log.warn('S&P 500 membership is EMPTY — index-gated strategies will hold nothing.');
 
-    return { q: this.q.bind(this), prices, memberGrades, sp500, marketCap };
+    return { q: this.q.bind(this), prices, gradeFor, sp500, marketCap };
   }
 
   /**

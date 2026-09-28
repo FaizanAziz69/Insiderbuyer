@@ -89,13 +89,13 @@ export const CONGRESS_MIRROR: StrategyDef = {
   params: { minGrade: 'A', lookbackDays: 365, weighting: 'equal', maxNames: 30 },
   limitations: [
     ...PTR_LIMITS,
-    'Member grades are read as they stand TODAY, not as they stood on each historical date — the grade table stores current state only. A member who earned an A recently is treated as having had it throughout, which flatters this strategy and cannot be corrected without a stored grade history.',
+    'Member grades are point-in-time from 2026-09-26, the day daily snapshots began, and current-state before it — the grade table stores no history and none can be reconstructed backwards. So for almost all of this test a member who earned an A recently is treated as having had it throughout, which flatters the result. The honest portion grows by one day per day.',
   ],
   async select(ctx, asOfMs) {
     const rows = await disclosedBuys(ctx, asOfMs, 365);
     const byTicker = new Map<string, Set<string>>();
     for (const r of rows) {
-      const grade = ctx.memberGrades.get(r.member.trim().toLowerCase());
+      const grade = ctx.gradeFor(r.member.trim().toLowerCase(), asOfMs);
       if (!grade || !/^A/.test(grade)) continue;
       const set = byTicker.get(r.ticker) || new Set<string>();
       set.add(r.member);

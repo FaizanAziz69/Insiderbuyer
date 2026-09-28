@@ -41,8 +41,16 @@ export interface SelectorContext {
   q: <T = any>(sql: string, params?: any[]) => Promise<T>;
   /** Daily closes as [epochMs, close, volume], ascending, by UPPER ticker. */
   prices: Map<string, Array<[number, number, number]>>;
-  /** Brief v7 member grades by lowercased member key, current state. */
-  memberGrades: Map<string, string>;
+  /**
+   * Brief v7 member grade for a member ON a date.
+   *
+   * Point-in-time where a snapshot exists for that day, and current state
+   * before the snapshots begin — which is most of any backtest, because they
+   * only started on 2026-09-26 and cannot be reconstructed backwards. The
+   * honest portion grows by one day per day; the strategies that read this say
+   * where the line falls.
+   */
+  gradeFor: (memberKey: string, asOfMs: number) => string | null;
   /** S&P 500 membership by ticker — index-weight strategies gate on this. */
   sp500: Set<string>;
   /** Latest known market cap by ticker, for the size gates. */
