@@ -419,14 +419,35 @@ export class EntityResolutionService {
    * a prefix two different tickers both answer to is dropped. Crediting one
    * company's federal contracts to another would put a stranger on the board.
    */
+  /**
+   * Legal form only. `normName` also strips descriptive words — INTERNATIONAL,
+   * GROUP, HOLDINGS — which collapses "American International Group" to
+   * "american", and then "AMERICAN PEST MANAGEMENT" walks down to "american"
+   * and matches AIG. The first run of this pass did exactly that, on five of
+   * the eight names it found. Keeping the descriptive words is what makes the
+   * comparison mean anything.
+   */
+  private static legalOnly(s: string): string {
+    return String(s || '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9 ]+/g, ' ')
+      .replace(/\b(INC|INCORPORATED|CORP|CORPORATION|CO|COMPANY|LLC|LLP|LP|PLC|LTD|LIMITED|NV|SA|AG)\b/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   private async matchSubsidiaryPrefix(
     name: string,
   ): Promise<{ ticker: string; name: string; matched: string } | null> {
-    const words = normName(name).split(' ').filter(Boolean);
+    const words = EntityResolutionService.legalOnly(name).split(' ').filter(Boolean);
     if (!words.length) return null;
     for (let take = words.length; take >= 1; take--) {
       const prefix = words.slice(0, take).join(' ');
       if (prefix.length < 5) break; // shorter than this is a word, not a name
+      // A one-word prefix taken from a longer vendor name is where the false
+      // matches came from: "AMERICAN PEST MANAGEMENT" reduced to "AMERICAN".
+      // It is allowed only when the vendor name IS that one word.
+      if (take === 1 && words.length > 1) break;
       const rows: any[] = await this.q(
         `SELECT ticker, name FROM companies
           WHERE ticker IS NOT NULL AND ticker <> '' AND name IS NOT NULL
@@ -434,7 +455,7 @@ export class EntityResolutionService {
           LIMIT 40`,
         [`${prefix.split(' ')[0].toLowerCase()}%`],
       );
-      const exact = rows.filter((r) => normName(r.name) === prefix);
+      const exact = rows.filter((r) => EntityResolutionService.legalOnly(r.name) === prefix);
       const tickers = new Set(exact.map((r) => String(r.ticker).toUpperCase()));
       if (tickers.size === 1) {
         return { ticker: [...tickers][0], name: exact[0].name, matched: prefix };

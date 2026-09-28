@@ -126,6 +126,25 @@ check('legal suffixes drop out of a vendor comparison',
   normName('WSP USA Solutions, Inc.'), normName('WSP USA Solutions Incorporated'));
 check('and punctuation', normName('Booz Allen Hamilton Inc.'), normName('Booz Allen Hamilton'));
 
+// The subsidiary prefix pass, and the failure that produced it.
+//
+// normName strips descriptive words, so a COMPANY can collapse to a single
+// generic one: "American International Group" becomes "american". A prefix walk
+// over a vendor name then reaches that word on its way down — "AMERICAN PEST
+// MANAGEMENT" to "AMERICAN PEST" to "AMERICAN" — and matches. The first run
+// credited AIG with a pest-control firm's federal contracts on exactly that.
+check(
+  'a company can collapse to one generic word',
+  normName('American International Group'),
+  'american',
+);
+check(
+  'which a vendor prefix then reaches',
+  normName('American Pest Management Inc').split(' ')[0],
+  normName('American International Group'),
+);
+
+
 // ── The seed table ───────────────────────────────────────────────────────
 
 checkWith('the jurisdiction seed covers both chambers', JURISDICTION_SEED,
