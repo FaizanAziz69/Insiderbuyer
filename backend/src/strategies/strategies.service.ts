@@ -178,6 +178,39 @@ export class StrategiesService {
     return { live: wanted.length ? wanted : 'all', rejected: [] };
   }
 
+  /**
+   * The paper-trading start date, §7's open item for George.
+   *
+   * Returned as stored, not parsed into a promise: if he sets a date and the
+   * phase has not begun by it, the panel still shows no curve, because §4.1
+   * keys the curve off real orders and not off a calendar.
+   */
+  private async paperStartDate(): Promise<string | null> {
+    try {
+      const r: Array<{ value: string }> = await this.q(
+        `SELECT value FROM app_settings WHERE key = 'paper_start_date' LIMIT 1`,
+      );
+      const v = (r?.[0]?.value || '').trim();
+      return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Set or clear it. An empty value clears. */
+  async setPaperStartDate(raw: string): Promise<{ startDate: string | null; error?: string }> {
+    const v = String(raw || '').trim();
+    if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      return { startDate: await this.paperStartDate(), error: 'expected YYYY-MM-DD' };
+    }
+    await this.q(
+      `INSERT INTO app_settings (key, value) VALUES ('paper_start_date', $1)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+      [v],
+    );
+    return { startDate: v || null };
+  }
+
   /** §5.1's index — cards, sorted by Sortino unless asked otherwise. */
   async index(): Promise<any> {
     await this.ensureTables();
@@ -336,12 +369,21 @@ export class StrategiesService {
     ]);
     const orderCount = Number(orders[0]?.n || 0);
     if (orderCount === 0) {
+      // §4.1's wording is "Track record begins [date] — methodology here", and
+      // the date is George's to set (§7). It lives in app_settings so he can
+      // set it without a deploy; until he does, the panel says what it honestly
+      // knows — that the phase has not started — rather than inventing a date
+      // to fill the template.
+      const startDate = await this.paperStartDate();
       return {
         state: 'not-started',
         recordType: null,
         recordBadge: null,
         equity: null,
-        headline: 'Track record begins when the paper phase starts',
+        startDate,
+        headline: startDate
+          ? `Track record begins ${startDate}`
+          : 'Track record begins when the paper phase starts',
         detail:
           'The internal Conviction Quant portfolio has not begun trading, so there is no track record to show. ' +
           'No curve appears here until real paper or live orders exist — a simulated line in this position would ' +

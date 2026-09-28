@@ -309,6 +309,9 @@ function InternalPanel({ internal }: { internal: any }) {
           style={{ background: "var(--bg-elevated)", border: "1px dashed var(--border)" }}
         >
           {internal.headline}
+          {/* §4.1's wording is "Track record begins [date] — methodology here".
+              The date arrives once George sets it; until then the headline says
+              what is true instead of a placeholder date. */}
           {internal.methodologyHref && (
             <>
               {" — "}

@@ -89,6 +89,17 @@ export class StrategiesController {
     return this.svc.setLiveSlugs(slugs ?? '');
   }
 
+  /**
+   * §4.1's "[date]" and §7's open item: the paper-trading start date.
+   *   POST /strategies/admin/paper-start?date=2026-11-01
+   *   POST /strategies/admin/paper-start          (clears it)
+   */
+  @Post('admin/paper-start')
+  @UseGuards(AdminTokenGuard)
+  async setPaperStart(@Query('date') date?: string) {
+    return this.svc.setPaperStartDate(date ?? '');
+  }
+
   @Post('admin/refresh-data')
   @UseGuards(AdminTokenGuard)
   async refreshData(
