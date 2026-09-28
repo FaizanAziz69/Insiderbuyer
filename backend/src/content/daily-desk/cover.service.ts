@@ -52,9 +52,22 @@ const STYLE_EXEMPLARS = [
 const NO_TEXT_RULE =
   'Do NOT write any headline, caption, title or watermark into the image, and ' +
   'do not fill the frame with documents, forms, contracts, filings, newspaper ' +
-  'pages or screens of prose. Small incidental lettering that belongs to a real ' +
-  'object is fine: a sign on a building, digits on a ticker board, a brand mark ' +
-  'on a storefront. Nothing with a readable paragraph in it.';
+  'pages or screens of prose. ' +
+  // The earlier version of this rule allowed "digits on a ticker board" and "a
+  // brand mark on a storefront" as incidental. On a finance cover neither is
+  // incidental. The semis roundup came back with NVDA -1.60 and TSM -1.45
+  // readable on screen beside IKIE -0.70 and SGU -7.20 — tickers that do not
+  // exist, at prices nobody quoted — under a Bloomberg logo on two monitors.
+  // A publication whose rule is that nothing invents a fact cannot put invented
+  // prices on its own cover, and it should not carry another firm's mark at all.
+  'Screens, ticker boards and price displays must be present but UNREADABLE: ' +
+  'out of focus, motion-blurred, seen at a steep angle, or too far away to ' +
+  'resolve. No legible ticker symbols, no legible prices or percentages, no ' +
+  'legible numbers of any kind. ' +
+  'No company logos, no brand marks, no trademarks, no product names — not on ' +
+  'screens, buildings, signage, clothing or equipment. ' +
+  'Small unreadable lettering that reads as texture is fine. Nothing a viewer ' +
+  'could quote.';
 
 
 const HOUSE_LOOK =
