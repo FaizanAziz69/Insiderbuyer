@@ -1,6 +1,7 @@
 import { CONGRESS_STRATEGIES } from './defs-congress';
 import { INSIDER_STRATEGIES } from './defs-insiders';
 import { FUND_STRATEGIES } from './defs-funds';
+import { TOP_CQS } from './defs-cqs';
 import type { StrategyDef } from './strategy-types';
 
 /**
@@ -22,6 +23,10 @@ export const ALL_STRATEGIES: StrategyDef[] = [
   INSIDER_STRATEGIES[3],  // 10 Insider Clusters — Small & Mid Cap
   INSIDER_STRATEGIES[4],  // 11 Contrarian Insiders
   INSIDER_STRATEGIES[5],  // 12 Conviction Metals
+  // Brief v9 §7 — the congressional score, tested in public. Added after v8
+  // shipped, and adding it was exactly this line plus its definition file,
+  // which is what §6 meant by "a config, not a code path".
+  TOP_CQS,
 ];
 
 const BY_SLUG = new Map(ALL_STRATEGIES.map((s) => [s.slug, s]));

@@ -17,9 +17,10 @@ function check(name: string, got: unknown, want: unknown): void {
 }
 
 console.log('library shape');
-check('§3 lists twelve strategies', ALL_STRATEGIES.length, 12);
-check('slugs are unique', new Set(ALL_STRATEGIES.map((s) => s.slug)).size, 12);
-check('names are unique', new Set(ALL_STRATEGIES.map((s) => s.name)).size, 12);
+// Twelve from Brief v8 §3, plus Top CQS from Brief v9 §7.
+check('the library holds thirteen strategies', ALL_STRATEGIES.length, 13);
+check('slugs are unique', new Set(ALL_STRATEGIES.map((s) => s.slug)).size, 13);
+check('names are unique', new Set(ALL_STRATEGIES.map((s) => s.name)).size, 13);
 check('every slug resolves', ALL_STRATEGIES.every((s) => strategyBySlug(s.slug) === s), true);
 check('an unknown slug resolves to null', strategyBySlug('no-such-strategy'), null);
 
