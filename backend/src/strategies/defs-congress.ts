@@ -130,14 +130,21 @@ export const CAPITOL_ALIGNMENT: StrategyDef = {
   async select(ctx, asOfMs) {
     const rows: Array<{ ticker: string; score: string; member: string; committee: string }> = await ctx
       .q(
+        // `created_at` is when the flag entered our table — the earliest date
+        // it could have been acted on. An earlier cut named a `flagged_at`
+        // column that does not exist, the query threw, and the catch turned it
+        // into an empty result: a strategy that looked like it found nothing
+        // rather than one that could not run.
         `SELECT upper(ticker) AS ticker, score::text AS score, member, committee
            FROM ct_flags
           WHERE status = 'verified' AND ticker IS NOT NULL AND ticker <> ''
-            AND COALESCE(flagged_at, now()) <= $1::timestamptz
+            AND COALESCE(verified_at, created_at) <= $1::timestamptz
           ORDER BY score DESC NULLS LAST LIMIT 15`,
         [ymd(asOfMs)],
       )
-      .catch(() => []);
+      .catch((e: any) => {
+        throw new Error(`capitol-alignment selector: ${e?.message || e}`);
+      });
     return rows.map((r): Pick => ({
       ticker: r.ticker,
       weight: 1,
@@ -178,7 +185,12 @@ export const CONTRACT_WINNERS: StrategyDef = {
          SELECT ticker, total::text AS total, n::text AS n FROM won`,
         [ymd(asOfMs), 90, 1_000_000],
       )
-      .catch(() => []);
+      .catch((e: any) => {
+        // Swallowing this is how three schema mistakes reached production
+        // looking like empty datasets. The engine records a selector failure
+        // as a run note, which is a visible answer; [] is a silent wrong one.
+        throw new Error(`selector query failed: ${e?.message || e}`);
+      });
     if (!rows.length) return [];
     // Materiality = award ÷ revenue, revenue as of the date (never later).
     const revRows: Array<{ symbol: string; revenue: string }> = await ctx
@@ -189,7 +201,12 @@ export const CONTRACT_WINNERS: StrategyDef = {
           ORDER BY symbol, knowable_from DESC`,
         [ymd(asOfMs)],
       )
-      .catch(() => []);
+      .catch((e: any) => {
+        // Swallowing this is how three schema mistakes reached production
+        // looking like empty datasets. The engine records a selector failure
+        // as a run note, which is a visible answer; [] is a silent wrong one.
+        throw new Error(`selector query failed: ${e?.message || e}`);
+      });
     const rev = new Map<string, number>();
     for (const r of revRows) rev.set(r.symbol, Number(r.revenue) || 0);
     return rows

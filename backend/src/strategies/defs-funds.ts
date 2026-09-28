@@ -111,7 +111,12 @@ export const LOBBYING_SURGE: StrategyDef = {
           LIMIT 10`,
         [ymd(asOfMs), 50_000, 25],
       )
-      .catch(() => []);
+      .catch((e: any) => {
+        // Swallowing this is how three schema mistakes reached production
+        // looking like empty datasets. The engine records a selector failure
+        // as a run note, which is a visible answer; [] is a silent wrong one.
+        throw new Error(`selector query failed: ${e?.message || e}`);
+      });
     return rows.map((r): Pick => ({
       ticker: r.ticker,
       weight: 1,

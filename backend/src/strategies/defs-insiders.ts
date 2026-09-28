@@ -176,7 +176,12 @@ export const CEO_CONVICTION: StrategyDef = {
           WHERE total > 0 AND year IS NOT NULL
           ORDER BY upper(symbol), year DESC`,
       )
-      .catch(() => []);
+      .catch((e: any) => {
+        // Swallowing this is how three schema mistakes reached production
+        // looking like empty datasets. The engine records a selector failure
+        // as a run note, which is a visible answer; [] is a silent wrong one.
+        throw new Error(`selector query failed: ${e?.message || e}`);
+      });
     const pay = new Map<string, number>();
     for (const r of payRows) pay.set(r.symbol, Number(r.pay) || 0);
     return rows
@@ -297,7 +302,12 @@ export const CONVICTION_METALS: StrategyDef = {
         `SELECT upper(symbol) AS symbol, COALESCE(sector,'') AS sector, COALESCE(industry,'') AS industry
            FROM pit_securities`,
       )
-      .catch(() => []);
+      .catch((e: any) => {
+        // Swallowing this is how three schema mistakes reached production
+        // looking like empty datasets. The engine records a selector failure
+        // as a run note, which is a visible answer; [] is a silent wrong one.
+        throw new Error(`selector query failed: ${e?.message || e}`);
+      });
     const isMetal = new Set<string>();
     for (const r of secRows) {
       if (/metal|mining|gold|silver|copper/i.test(`${r.sector} ${r.industry}`)) isMetal.add(r.symbol);
