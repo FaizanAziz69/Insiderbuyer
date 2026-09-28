@@ -46,6 +46,7 @@ export class StrategiesService {
       turnover    numeric(10,4),
       costs_paid  numeric(10,6),
       hit_rate    numeric(6,4),
+      periods_held int NOT NULL DEFAULT 0,
       notes       jsonb,
       -- §6: parameters are frozen before the first published run and
       -- version-stamped. Storing them WITH the run is what makes the
@@ -68,19 +69,19 @@ export class StrategiesService {
     const run = await this.engine.run(def, ctx, { from, to });
     await this.q(
       `INSERT INTO strategy_runs (slug, version, record_type, from_date, to_date, rebalances,
-                                  metrics, equity, holdings, log, turnover, costs_paid, hit_rate, notes, params, ran_at)
-       VALUES ($1,$2,'backtest',$3::date,$4::date,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,$13::jsonb,$14::jsonb, now())
+                                  metrics, equity, holdings, log, turnover, costs_paid, hit_rate, notes, params, ran_at, periods_held)
+       VALUES ($1,$2,'backtest',$3::date,$4::date,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,$13::jsonb,$14::jsonb, now(), $15)
        ON CONFLICT (slug, version) DO UPDATE SET
          record_type = 'backtest', from_date = EXCLUDED.from_date, to_date = EXCLUDED.to_date,
          rebalances = EXCLUDED.rebalances, metrics = EXCLUDED.metrics, equity = EXCLUDED.equity,
          holdings = EXCLUDED.holdings, log = EXCLUDED.log, turnover = EXCLUDED.turnover,
          costs_paid = EXCLUDED.costs_paid, hit_rate = EXCLUDED.hit_rate, notes = EXCLUDED.notes,
-         params = EXCLUDED.params, ran_at = now()`,
+         params = EXCLUDED.params, ran_at = now(), periods_held = EXCLUDED.periods_held`,
       [
         def.slug, def.version, from, to, run.rebalances,
         JSON.stringify(run.metrics), JSON.stringify(run.equity), JSON.stringify(run.holdings),
         JSON.stringify(run.log), run.turnover, run.costsPaid, run.hitRate,
-        JSON.stringify(run.notes), JSON.stringify(def.params),
+        JSON.stringify(run.notes), JSON.stringify(def.params), run.periodsHeld,
       ],
     );
     return run;
@@ -141,8 +142,13 @@ export class StrategiesService {
         turnover: r?.turnover != null ? Number(r.turnover) : null,
         hitRate: r?.hit_rate != null ? Number(r.hit_rate) : null,
         ranAt: r?.ran_at ?? null,
-        /** True when the rule set produced too few names to call a portfolio. */
-        thin: Array.isArray(r?.equity) ? r.equity.length < 8 : true,
+        /**
+         * No result to publish. Either the rule set never held anything, or it
+         * held so briefly there is nothing to judge. A card in this state shows
+         * the reason instead of a CAGR of zero, which would sit in a sorted
+         * column beside strategies that actually traded.
+         */
+        thin: !r || Number(r.periods_held ?? 0) < 4,
       };
     });
     return {

@@ -20,6 +20,15 @@ export interface StrategyRun {
   turnover: number;
   costsPaid: number;
   hitRate: number | null;
+  /**
+   * Rebalances at which the rule set actually produced something to hold.
+   *
+   * A strategy that never picked a name still emits a flat equity line at 1.0,
+   * and a flat line reads as "this returned nothing" when the truth is "this
+   * never ran". Zero here means there is no result to publish, and the card
+   * says so instead of printing 0.0% beside strategies that did trade.
+   */
+  periodsHeld: number;
   notes: string[];
 }
 
@@ -80,11 +89,25 @@ export class StrategyBacktestService {
       }
     }
 
-    const gradeRows: Array<{ member: string; grade: string }> = await this.q(
-      `SELECT lower(member) AS member, grade FROM wt_member_stats WHERE grade IS NOT NULL`,
-    ).catch(() => []);
+    // Grades are keyed by BIOGUIDE, and the trades are keyed by the name the
+    // market-data feed uses, so the join goes through wt_members.fmp_name.
+    // An earlier cut of this selected `member` from wt_member_stats — a column
+    // that does not exist — and the catch below turned the error into an empty
+    // map, which turned into a strategy that quietly held nothing at all. That
+    // is why every loader here now says so when it comes back empty.
     const memberGrades = new Map<string, string>();
-    for (const r of gradeRows) memberGrades.set(r.member, r.grade);
+    try {
+      const gradeRows: Array<{ member: string; grade: string }> = await this.q(
+        `SELECT lower(m.fmp_name) AS member, s.grade
+           FROM wt_member_stats s
+           JOIN wt_members m ON m.bioguide = s.bioguide
+          WHERE s.grade IS NOT NULL AND m.fmp_name IS NOT NULL AND m.fmp_name <> ''`,
+      );
+      for (const r of gradeRows) memberGrades.set(r.member, r.grade);
+    } catch (e: any) {
+      this.log.warn(`member grades failed to load: ${e?.message || e}`);
+    }
+    if (!memberGrades.size) this.log.warn('member grades loaded EMPTY — grade-gated strategies will hold nothing.');
 
     const capRows: Array<{ ticker: string; mc: string }> = await this.q(
       `SELECT ticker, "marketCap"::text AS mc FROM companies WHERE "marketCap" IS NOT NULL`,
@@ -102,8 +125,12 @@ export class StrategyBacktestService {
     // entirely. Point-in-time membership is not in any feed we have.
     const spRows: Array<{ symbol: string }> = await this.q(
       `SELECT symbol FROM sp500_membership`,
-    ).catch(() => []);
+    ).catch((e: any) => {
+      this.log.warn(`S&P 500 membership failed to load: ${e?.message || e}`);
+      return [];
+    });
     const sp500 = new Set<string>(spRows.map((r) => String(r.symbol).toUpperCase()));
+    if (!sp500.size) this.log.warn('S&P 500 membership is EMPTY — index-gated strategies will hold nothing.');
 
     return { q: this.q.bind(this), prices, memberGrades, sp500, marketCap };
   }
@@ -138,6 +165,7 @@ export class StrategyBacktestService {
     const log: StrategyRun['log'] = [];
     let held = new Map<string, { weight: number; entryDate: string; trigger: string }>();
     let rebalances = 0;
+    let periodsHeld = 0;
     let costsPaid = 0;
     let turnoverSum = 0;
     let wins = 0;
@@ -220,6 +248,7 @@ export class StrategyBacktestService {
         });
       }
       held = nextHeld;
+      if (held.size) periodsHeld++;
 
       // 4. The benchmark, priced from the same series over the same dates.
       const bench = StrategyBacktestService.closeAt(benchPts, next);
@@ -254,7 +283,13 @@ export class StrategyBacktestService {
       turnover: rebalances ? turnoverSum / rebalances : 0,
       costsPaid,
       hitRate: closed ? wins / closed : null,
-      notes,
+      periodsHeld,
+      notes: periodsHeld
+        ? notes
+        : [
+            'This rule set never produced a qualifying holding over the test window, so there is no performance to report. The flat line is the absence of a portfolio, not a return of zero.',
+            ...notes,
+          ],
     };
   }
 }

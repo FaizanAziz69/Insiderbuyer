@@ -44,13 +44,17 @@ export const HEDGE_FUND_CONSENSUS: StrategyDef = {
          SELECT slug, upper(ticker) AS ticker, SUM(shares) AS shares
            FROM investor_holdings
           WHERE period = $1::date AND filing_date <= $3::date
-            AND ticker IS NOT NULL AND ticker <> '' AND COALESCE(put_call,'') = ''
+            -- 'Share' is how common stock is labelled here; CALL and PUT are
+            -- the options legs. An earlier cut tested for an EMPTY put_call,
+            -- which excluded every row in the table and produced a strategy
+            -- that held nothing while looking like it simply found nothing.
+            AND ticker IS NOT NULL AND ticker <> '' AND COALESCE(put_call,'Share') NOT IN ('CALL','PUT')
           GROUP BY 1,2
        ), p AS (
          SELECT slug, upper(ticker) AS ticker, SUM(shares) AS shares
            FROM investor_holdings
           WHERE period = $2::date AND ticker IS NOT NULL AND ticker <> ''
-            AND COALESCE(put_call,'') = ''
+            AND COALESCE(put_call,'Share') NOT IN ('CALL','PUT')
           GROUP BY 1,2
        )
        SELECT c.ticker,

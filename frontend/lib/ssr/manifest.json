@@ -453,5 +453,8 @@
  ],
  "cqs-index": [
   "/api/backend/cqs/leaderboard?limit=100"
+ ],
+ "strategies": [
+  "/api/backend/strategies"
  ]
 }
