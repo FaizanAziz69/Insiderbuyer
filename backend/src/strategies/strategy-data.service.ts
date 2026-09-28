@@ -63,6 +63,19 @@ export class StrategyDataService {
       PRIMARY KEY (client_norm, period_key)
     )`);
     await this.q(`CREATE INDEX IF NOT EXISTS lobbying_quarterly_ticker_idx ON lobbying_quarterly (ticker, period_key DESC)`);
+    // The Senate caps page_size at 25 whatever you ask for, and a quarter is
+    // roughly 2,600 pages at ~3.4s each — two and a half hours, far past any
+    // sane request timeout. So the sweep is resumable: this remembers where it
+    // stopped, and each cron run advances it a slice.
+    await this.q(`CREATE TABLE IF NOT EXISTS lobbying_sweep_state (
+      period_key  text NOT NULL,
+      filing_type text NOT NULL,
+      next_url    text,
+      done        boolean NOT NULL DEFAULT false,
+      pages_done  int NOT NULL DEFAULT 0,
+      updated_at  timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (period_key, filing_type)
+    )`);
   }
 
   /** Current S&P 500 constituents. Free on the /stable/ endpoint we already use. */
@@ -136,12 +149,34 @@ export class StrategyDataService {
     return { tried: rows.length, stored };
   }
 
-  /** Strip the suffixes that stop "Apple Inc." matching "APPLE INC". */
+  /**
+   * Strip what stops "Apple Inc." matching "APPLE INC".
+   *
+   * Lobbying registrants are filed under the entity that signs the contract,
+   * which is routinely a subsidiary: "RIVIAN AUTOMOTIVE, LLC", "TENCENT
+   * AMERICA, LLC", "WUXI APPTEC SALES LLC". So the national and functional
+   * qualifiers come off too — AMERICA, USA, NORTH AMERICA, SALES, SERVICES —
+   * along with the legal suffixes.
+   *
+   * It stays deliberately conservative, and the caller drops any key two
+   * different tickers claim. An ambiguous match is worse than none here: it
+   * silently credits one company's lobbying to another, and the strategy then
+   * ranks a company on spending it never did.
+   */
   private static normName(s: string): string {
     return String(s || '')
       .toUpperCase()
+      // "HOGAN LOVELLS, LLP OBO ZHONGJI INNOLIGHT" — the client is what follows
+      // "on behalf of", not the law firm that filed for them.
+      .replace(/^.*\bOBO\b/, ' ')
+      // A trading name in brackets is the one the market knows.
+      .replace(/\(DBA ([^)]+)\)/g, ' $1 ')
+      .replace(/\([^)]*\)/g, ' ')
       .replace(/[^A-Z0-9 ]+/g, ' ')
-      .replace(/\b(INC|INCORPORATED|CORP|CORPORATION|CO|COMPANY|LLC|LP|LTD|LIMITED|PLC|HOLDINGS|HOLDING|GROUP|THE)\b/g, ' ')
+      .replace(
+        /\b(INC|INCORPORATED|CORP|CORPORATION|CO|COMPANY|LLC|LLP|LP|PLC|LTD|LIMITED|NV|SA|AG|HOLDINGS|HOLDING|GROUP|THE|USA|US|AMERICA|AMERICAN|NORTH|SALES|SERVICES|SERVICE|OPCO)\b/g,
+        ' ',
+      )
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -194,15 +229,28 @@ export class StrategyDataService {
       return { filings: 0, clients: 0, matched: 0, pages: 0, complete: false };
     }
 
-    const maxPages = opts.maxPages ?? 1200;
+    const maxPages = opts.maxPages ?? 60;
+    const periodKeyEarly = `${year}-${period}`;
     const agg = new Map<string, { amount: number; name: string; filed: string }>();
     let filings = 0;
     let pages = 0;
     let complete = true;
 
+    // Where each filing type left off last time.
+    const stateRows: Array<{ filing_type: string; next_url: string | null; done: boolean; pages_done: number }> =
+      await this.q(
+        `SELECT filing_type, next_url, done, pages_done FROM lobbying_sweep_state WHERE period_key = $1`,
+        [periodKeyEarly],
+      );
+    const state = new Map(stateRows.map((r) => [r.filing_type, r]));
+
     for (const ft of types) {
+      const prior = state.get(ft);
+      if (prior?.done) continue; // this type is finished; nothing to re-read
       let next: string | null =
+        prior?.next_url ??
         `https://lda.gov/api/v1/filings/?filing_year=${year}&filing_type=${ft}&page_size=25`;
+      let pagesThisType = prior?.pages_done ?? 0;
       while (next && pages < maxPages) {
         const res: any = await axios
           .get(next, { headers: { Authorization: `Token ${this.ldaKey}` }, timeout: 40_000 })
@@ -228,8 +276,17 @@ export class StrategyDataService {
           filings++;
         }
         next = res.data.next || null;
+        pagesThisType++;
       }
       if (next) complete = false;
+      await this.q(
+        `INSERT INTO lobbying_sweep_state (period_key, filing_type, next_url, done, pages_done, updated_at)
+         VALUES ($1,$2,$3,$4,$5, now())
+         ON CONFLICT (period_key, filing_type) DO UPDATE SET next_url = EXCLUDED.next_url,
+           done = EXCLUDED.done, pages_done = EXCLUDED.pages_done, updated_at = now()`,
+        [periodKeyEarly, ft, next, !next, pagesThisType],
+      );
+      if (pages >= maxPages) break;
     }
 
     // Match registrants to tickers by the same normalised name, and drop any
