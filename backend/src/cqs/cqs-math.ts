@@ -419,18 +419,34 @@ const FUND_NAME_PATTERNS = [
   /\bCERTIFICATE\s+OF\s+DEPOSIT\b/i,
 ];
 
-/** Asset classes §1 puts outside the universe, in the filing's own vocabulary. */
+/**
+ * Asset classes §1 puts outside the universe, in the filing's own vocabulary
+ * as it actually appears across the 16,172 disclosures on file.
+ *
+ * "Government Securities" is how the filings spell Treasuries. Cryptocurrency
+ * and Non-Public Stock are not an operating company's listed equity, so there
+ * is nothing for a stock score to be about. Stock options are a derivative and
+ * §9 leaves their treatment to George, unapproved — so they stay out rather
+ * than being silently counted as purchases.
+ */
 const EXCLUDED_ASSET_TYPES = new Set([
   'etf',
   'mutual fund',
+  'money market',
   'corporate bond',
   'municipal security',
   'municipal bond',
   'government security',
+  'government securities',
   'treasury',
-  'money market',
+  'treasuries',
   'stock option',
+  'cryptocurrency',
+  'non-public stock',
 ]);
+
+/** Classes that ARE an operating company's listed equity. §1 keeps REITs. */
+const INCLUDED_ASSET_TYPES = new Set(['stock', 'reit']);
 
 export function isExcludedSecurity(
   ticker: string | null | undefined,
@@ -439,11 +455,15 @@ export function isExcludedSecurity(
 ): boolean {
   const t = String(ticker || '').toUpperCase().trim();
   if (!t || t.length > 6 || /[^A-Z.\-]/.test(t)) return true;
-  // The filing's own answer wins when it gave one. "Stock" and "REIT" are
-  // securities of an operating company and stay in; everything listed above is
-  // the fund/bond/derivative wrapper §1 rules out.
+  // The filing's own answer wins WHEN IT IS AN ANSWER. A vocabulary we
+  // recognise decides outright; anything else — "Other", "Other Securities",
+  // or a label FMP adds next year — falls through to the name test rather
+  // than being waved in. An earlier cut of this returned false for every
+  // unrecognised type, which would have admitted a fund named "iShares
+  // Something" purely because its assetType was "Other".
   const at = String(assetType || '').trim().toLowerCase();
-  if (at) return EXCLUDED_ASSET_TYPES.has(at);
+  if (EXCLUDED_ASSET_TYPES.has(at)) return true;
+  if (INCLUDED_ASSET_TYPES.has(at)) return false;
   if (FUND_TICKERS.has(t)) return true;
   const n = String(name || '');
   return FUND_NAME_PATTERNS.some((re) => re.test(n));

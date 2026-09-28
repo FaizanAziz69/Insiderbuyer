@@ -160,6 +160,27 @@ check(
   [isExcludedSecurity('TRST', 'Investment Trust Holdings Inc', 'Stock')],
   [false],
 );
+// An assetType we do not recognise must fall through to the name test, not be
+// waved in: "Other" is not a statement that this is an operating company.
+check(
+  'unknown assetType falls through to the name test',
+  [
+    isExcludedSecurity('SPY', 'SPDR S&P 500 ETF Trust', 'Other'),
+    isExcludedSecurity('DKS', "DICK'S Sporting Goods, Inc.", 'Other Securities'),
+  ],
+  [true, false],
+);
+// The filings spell Treasuries "Government Securities"; crypto and non-public
+// stock are not a listed company's equity at all.
+check(
+  'the rest of the filing vocabulary §1 excludes',
+  [
+    isExcludedSecurity('XYZ', 'US Treasury Note', 'Government Securities'),
+    isExcludedSecurity('BTC', 'Bitcoin', 'Cryptocurrency'),
+    isExcludedSecurity('XYZ', 'Some Private Co', 'Non-Public Stock'),
+  ],
+  [true, true, true],
+);
 // ...and with no assetType the name test still runs.
 check(
   'name test still applies without assetType',
