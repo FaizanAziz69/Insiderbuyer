@@ -3,6 +3,7 @@ import { AdminTokenGuard } from '../common/admin-token.guard';
 import { PremiumAccessService, stripPremiumFields } from '../common/premium-access';
 import { StrategiesService } from './strategies.service';
 import { StrategyDataService } from './strategy-data.service';
+import { StrategyAlertsService } from './strategy-alerts.service';
 
 /**
  * §5.3 gating, in one place:
@@ -19,6 +20,7 @@ export class StrategiesController {
   constructor(
     private readonly svc: StrategiesService,
     private readonly data: StrategyDataService,
+    private readonly alerts: StrategyAlertsService,
     private readonly access: PremiumAccessService,
   ) {}
 
@@ -62,6 +64,13 @@ export class StrategiesController {
       return r ? { ok: true, slug: body.slug, rebalances: r.rebalances, metrics: r.metrics } : { error: 'not_found' };
     }
     return this.svc.runAll(body);
+  }
+
+  /** §5.3's rebalance alerts. `?send=0` previews without emailing anyone. */
+  @Post('admin/alerts')
+  @UseGuards(AdminTokenGuard)
+  async runAlerts(@Query('send') send?: string) {
+    return this.alerts.run({ send: send !== '0' });
   }
 
   @Post('admin/refresh-data')

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
 import { API_BASE } from "@/lib/api";
 import { usePremiumSWR } from "@/lib/premium-fetch";
 import { PremiumValue } from "@/components/premium/PremiumValue";
@@ -18,6 +19,11 @@ export default function PageClient({ slug }: { slug: string }) {
   if (data.error) return <div className="text-[13px] text-mute py-10">Strategy not found.</div>;
 
   const m = data.metrics || {};
+  // §5.2's benchmark toggles. Which lines exist is decided by the run, because
+  // a benchmark whose price series we do not hold must not be offered as a
+  // choice that silently draws a flat line.
+  const benchmarks: Array<{ key: string; label: string }> =
+    data.benchmarks?.length ? data.benchmarks : [{ key: "sp500", label: "S&P 500" }];
   const equity: Array<{ date: string; value: number; benchmark: number }> = data.equity || [];
   const noResult = (data.rebalances ?? 0) === 0 || equity.length < 4;
   const withheld = data.premium === false;
@@ -52,7 +58,7 @@ export default function PageClient({ slug }: { slug: string }) {
         </section>
       ) : (
         <>
-          <EquityChart equity={equity} />
+          <EquityChart equity={equity} benchmarks={benchmarks} />
           <section className="card p-4">
             <h2 className="text-[13px] uppercase tracking-wider font-bold text-mute">Metrics</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-3">
@@ -157,18 +163,27 @@ function Metric({ label, value }: { label: string; value: string }) {
  * Both series share one scale — separately normalised curves always look close,
  * and the question the chart exists to answer is which one is higher.
  */
-function EquityChart({ equity }: { equity: Array<{ date: string; value: number; benchmark: number }> }) {
+function EquityChart({
+  equity,
+  benchmarks,
+}: {
+  equity: Array<any>;
+  benchmarks: Array<{ key: string; label: string }>;
+}) {
+  const [benchKey, setBenchKey] = useState(benchmarks[0]?.key ?? "sp500");
+  const active = benchmarks.find((b) => b.key === benchKey) ?? benchmarks[0];
   const W = 760;
   const H = 220;
   const DH = 70;
-  const vals = equity.flatMap((e) => [e.value, e.benchmark]).filter(Number.isFinite);
+  const benchAt = (e: any) => (Number.isFinite(e?.[benchKey]) ? e[benchKey] : e.benchmark);
+  const vals = equity.flatMap((e) => [e.value, benchAt(e)]).filter(Number.isFinite);
   const lo = Math.min(...vals);
   const hi = Math.max(...vals);
   const span = hi - lo || 1;
   const x = (i: number) => (i / Math.max(1, equity.length - 1)) * W;
   const y = (v: number) => H - ((v - lo) / span) * H;
-  const path = (k: "value" | "benchmark") =>
-    equity.map((e, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(e[k]).toFixed(1)}`).join(" ");
+  const path = (pick: (e: any) => number) =>
+    equity.map((e, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(pick(e)).toFixed(1)}`).join(" ");
 
   let peak = -Infinity;
   const dd = equity.map((e) => {
@@ -180,14 +195,33 @@ function EquityChart({ equity }: { equity: Array<{ date: string; value: number; 
 
   return (
     <section className="card p-4">
-      <div className="flex items-center gap-4 mb-2">
+      <div className="flex flex-wrap items-center gap-4 mb-2">
         <Legend color="var(--accent)" label="Strategy" />
-        <Legend color="var(--text-faint)" label="S&P 500" />
+        <Legend color="var(--text-faint)" label={active?.label ?? "Benchmark"} />
+        {benchmarks.length > 1 && (
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="text-[10px] uppercase tracking-wider text-mute font-bold">Compare to</span>
+            {benchmarks.map((b) => (
+              <button
+                key={b.key}
+                onClick={() => setBenchKey(b.key)}
+                className="px-2 h-6 rounded-md text-[11px] font-semibold"
+                style={{
+                  background: benchKey === b.key ? "var(--accent-soft)" : "transparent",
+                  color: benchKey === b.key ? "var(--accent)" : "var(--text-mute)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div className="overflow-x-auto">
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" aria-label="Growth">
-          <path d={path("benchmark")} fill="none" stroke="var(--text-faint)" strokeWidth="1.5" />
-          <path d={path("value")} fill="none" stroke="var(--accent)" strokeWidth="2" />
+          <path d={path(benchAt)} fill="none" stroke="var(--text-faint)" strokeWidth="1.5" />
+          <path d={path((e) => e.value)} fill="none" stroke="var(--accent)" strokeWidth="2" />
         </svg>
         <div className="text-[10px] uppercase tracking-wider text-mute font-bold mt-3 mb-1">Drawdown</div>
         <svg viewBox={`0 0 ${W} ${DH}`} width="100%" height={DH} preserveAspectRatio="none" aria-label="Drawdown">

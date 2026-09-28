@@ -29,6 +29,8 @@ export interface StrategyRun {
    * says so instead of printing 0.0% beside strategies that did trade.
    */
   periodsHeld: number;
+  /** §5.2's toggles: which comparison lines this run actually priced. */
+  benchmarks: Array<{ key: string; label: string }>;
   notes: string[];
 }
 
@@ -147,20 +149,46 @@ export class StrategyBacktestService {
   async run(
     def: StrategyDef,
     ctx: SelectorContext,
-    opts: { from: string; to: string; costBps?: number; benchmarkTicker?: string },
+    opts: { from: string; to: string; costBps?: number },
   ): Promise<StrategyRun> {
     const costBps = opts.costBps ?? 10;
-    const benchTicker = (opts.benchmarkTicker ?? 'SPY').toUpperCase();
-    const benchPts = ctx.prices.get(benchTicker);
     const notes: string[] = [];
-    if (!benchPts) notes.push(`No price series for the ${benchTicker} benchmark; the comparison line is flat.`);
+    // §5.2 asks for benchmark TOGGLES, so every run prices more than one: the
+    // plain index the cards compare against, the blended benchmark Brief v6 §7
+    // defines for the fund (60% S&P 500 / 20% S&P-TSX / 20% Russell 2000), and
+    // the small-cap index on its own, which is the fairer bar for the rule sets
+    // that deliberately fish below $10bn.
+    const BENCHMARKS: Array<{ key: string; label: string; parts: Array<[string, number]> }> = [
+      { key: 'sp500', label: 'S&P 500', parts: [['SPY', 1]] },
+      { key: 'blend', label: '60/20/20 blend', parts: [['SPY', 0.6], ['XIC.TO', 0.2], ['IWM', 0.2]] },
+      { key: 'russell', label: 'Russell 2000', parts: [['IWM', 1]] },
+    ];
+    const available = BENCHMARKS.filter((b) => b.parts.every(([sym]) => ctx.prices.get(sym)?.length));
+    for (const b of BENCHMARKS) {
+      if (!available.includes(b)) {
+        notes.push(`No price series for the ${b.label} benchmark, so that comparison is not offered.`);
+      }
+    }
+    const primary = available[0] ?? null;
+    /** A blend is priced as a rebalanced basket, not as a sum of raw prices. */
+    const blendValue = (parts: Array<[string, number]>, ms: number, baseMs: number): number | null => {
+      let total = 0;
+      for (const [sym, w] of parts) {
+        const pts = ctx.prices.get(sym);
+        const p0 = StrategyBacktestService.closeAt(pts, baseMs);
+        const p1 = StrategyBacktestService.closeAt(pts, ms);
+        if (p0 == null || p1 == null || !(p0 > 0)) return null;
+        total += w * (p1 / p0);
+      }
+      return total;
+    };
 
     const fromMs = Date.parse(`${opts.from}T00:00:00Z`);
     const toMs = Date.parse(`${opts.to}T00:00:00Z`);
     const step = def.rebalanceDays * DAY;
 
     let equityValue = 1;
-    let benchStart: number | null = null;
+    let benchBase: number | null = null;
     const equity: StrategyRun['equity'] = [];
     const log: StrategyRun['log'] = [];
     let held = new Map<string, { weight: number; entryDate: string; trigger: string }>();
@@ -250,14 +278,17 @@ export class StrategyBacktestService {
       held = nextHeld;
       if (held.size) periodsHeld++;
 
-      // 4. The benchmark, priced from the same series over the same dates.
-      const bench = StrategyBacktestService.closeAt(benchPts, next);
-      if (bench != null && benchStart == null) benchStart = StrategyBacktestService.closeAt(benchPts, t) ?? bench;
-      equity.push({
-        date: new Date(next).toISOString().slice(0, 10),
-        value: equityValue,
-        benchmark: bench != null && benchStart ? bench / benchStart : 1,
-      });
+      // 4. Every benchmark, priced from the same series over the same dates, so
+      //    no comparison can be flattered by a different price source.
+      if (benchBase == null) benchBase = t;
+      const row: any = { date: new Date(next).toISOString().slice(0, 10), value: equityValue };
+      for (const b of available) {
+        row[b.key] = blendValue(b.parts, next, benchBase) ?? 1;
+      }
+      // `benchmark` stays the primary index so the risk metrics and the card
+      // sparkline keep one obvious meaning.
+      row.benchmark = primary ? (row[primary.key] ?? 1) : 1;
+      equity.push(row);
     }
 
     const metrics = riskMetrics(equity.map((e) => e.value), {
@@ -284,6 +315,7 @@ export class StrategyBacktestService {
       costsPaid,
       hitRate: closed ? wins / closed : null,
       periodsHeld,
+      benchmarks: available.map((b) => ({ key: b.key, label: b.label })),
       notes: periodsHeld
         ? notes
         : [

@@ -84,6 +84,9 @@ export default function PageClient() {
       {/* §4 — the internal portfolio panel, at the top. */}
       {internal && <InternalPanel internal={internal} />}
 
+      {/* §3 — the pair the brief asks to be shown together. */}
+      {data?.sideBySide && <SideBySide data={data} />}
+
       {/* §5.1 filter row */}
       <div className="flex flex-wrap items-center gap-2">
         <Chips label="Dataset" value={dataset} onChange={setDataset} options={["All", ...(data?.datasets ?? [])]} />
@@ -118,6 +121,58 @@ export default function PageClient() {
 
       <p className="text-[12px] text-mute leading-relaxed">{data?.disclaimer}</p>
     </div>
+  );
+}
+
+/**
+ * §3: strategies 7 and 8 "are deliberately published side by side with a plain
+ * buy-and-hold S&P 500 line, so readers can see whether the insider filter adds
+ * anything".
+ *
+ * Put plainly rather than left for a reader to assemble from two cards in a
+ * sorted grid — the comparison is the point of publishing both.
+ */
+function SideBySide({ data }: { data: any }) {
+  const pair: Card[] = (data.sideBySide.slugs || [])
+    .map((slug: string) => data.cards.find((c: Card) => c.slug === slug))
+    .filter(Boolean);
+  if (pair.length < 2 || pair.some((c) => c.thin)) return null;
+  return (
+    <section className="card p-5" style={{ border: "1px solid var(--border)" }}>
+      <h2 className="text-[16px] font-bold">{data.sideBySide.heading}</h2>
+      <p className="text-[13px] text-mute mt-1.5 max-w-3xl leading-relaxed">
+        {data.sideBySide.explainer}
+      </p>
+      <div className="grid sm:grid-cols-2 gap-3 mt-4">
+        {pair.map((c) => {
+          const beat =
+            c.totalReturn != null && c.benchmarkTotalReturn != null
+              ? c.totalReturn - c.benchmarkTotalReturn
+              : null;
+          return (
+            <Link
+              key={c.slug}
+              href={`/strategies/${c.slug}`}
+              className="rounded-lg p-3.5 block hover:border-[var(--accent)] transition"
+              style={{ border: "1px solid var(--border)", background: "var(--bg-elevated)" }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="font-bold text-[14px] leading-tight">{c.name}</div>
+                <Sparkline points={c.spark} width={96} height={30} />
+              </div>
+              <div className="mt-2">
+                <RecordBadge type={c.recordType} />
+              </div>
+              <div className="grid grid-cols-3 gap-2 mt-3">
+                <Stat label="Strategy" value={pct(c.totalReturn, 0)} />
+                <Stat label="S&P 500" value={pct(c.benchmarkTotalReturn, 0)} />
+                <Stat label="Difference" value={pct(beat, 0)} />
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

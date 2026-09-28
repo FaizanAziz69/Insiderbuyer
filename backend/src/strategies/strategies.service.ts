@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
 import { StrategyBacktestService, type StrategyRun } from './strategy-backtest.service';
 import { StrategyDataService } from './strategy-data.service';
-import { ALL_STRATEGIES, strategyBySlug } from './registry';
+import { ALL_STRATEGIES, SIDE_BY_SIDE_PAIR, strategyBySlug } from './registry';
 import { RECORD_BADGE, type RecordType } from './strategy-types';
 
 /**
@@ -47,6 +47,7 @@ export class StrategiesService {
       costs_paid  numeric(10,6),
       hit_rate    numeric(6,4),
       periods_held int NOT NULL DEFAULT 0,
+      benchmarks  jsonb,
       notes       jsonb,
       -- §6: parameters are frozen before the first published run and
       -- version-stamped. Storing them WITH the run is what makes the
@@ -61,6 +62,7 @@ export class StrategiesService {
     // it. Every new column needs its own ALTER, or it is missing in production
     // and present in every fresh checkout — which is the worst of both.
     await this.q(`ALTER TABLE strategy_runs ADD COLUMN IF NOT EXISTS periods_held int NOT NULL DEFAULT 0`);
+    await this.q(`ALTER TABLE strategy_runs ADD COLUMN IF NOT EXISTS benchmarks jsonb`);
   }
 
   /** Materialize one strategy. Backtest only — nothing else has a record yet. */
@@ -74,19 +76,21 @@ export class StrategiesService {
     const run = await this.engine.run(def, ctx, { from, to });
     await this.q(
       `INSERT INTO strategy_runs (slug, version, record_type, from_date, to_date, rebalances,
-                                  metrics, equity, holdings, log, turnover, costs_paid, hit_rate, notes, params, ran_at, periods_held)
-       VALUES ($1,$2,'backtest',$3::date,$4::date,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,$13::jsonb,$14::jsonb, now(), $15)
+                                  metrics, equity, holdings, log, turnover, costs_paid, hit_rate, notes, params, ran_at, periods_held, benchmarks)
+       VALUES ($1,$2,'backtest',$3::date,$4::date,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,$13::jsonb,$14::jsonb, now(), $15, $16::jsonb)
        ON CONFLICT (slug, version) DO UPDATE SET
          record_type = 'backtest', from_date = EXCLUDED.from_date, to_date = EXCLUDED.to_date,
          rebalances = EXCLUDED.rebalances, metrics = EXCLUDED.metrics, equity = EXCLUDED.equity,
          holdings = EXCLUDED.holdings, log = EXCLUDED.log, turnover = EXCLUDED.turnover,
          costs_paid = EXCLUDED.costs_paid, hit_rate = EXCLUDED.hit_rate, notes = EXCLUDED.notes,
-         params = EXCLUDED.params, ran_at = now(), periods_held = EXCLUDED.periods_held`,
+         params = EXCLUDED.params, ran_at = now(), periods_held = EXCLUDED.periods_held,
+         benchmarks = EXCLUDED.benchmarks`,
       [
         def.slug, def.version, from, to, run.rebalances,
         JSON.stringify(run.metrics), JSON.stringify(run.equity), JSON.stringify(run.holdings),
         JSON.stringify(run.log), run.turnover, run.costsPaid, run.hitRate,
         JSON.stringify(run.notes), JSON.stringify(def.params), run.periodsHeld,
+        JSON.stringify(run.benchmarks),
       ],
     );
     return run;
@@ -162,6 +166,16 @@ export class StrategiesService {
       datasets: ['Congress', 'Insiders', 'Lobbying', 'Contracts', 'Funds', 'Sector'],
       recordTypes: ['backtest', 'paper', 'live'],
       cards,
+      // §3: strategies 7 and 8 are "deliberately published side by side with a
+      // plain buy-and-hold S&P 500 line, so readers can see whether the insider
+      // filter adds anything". Naming them here is what makes the index able to
+      // show the comparison rather than leaving it to a reader to assemble.
+      sideBySide: {
+        heading: 'Does the insider filter add anything?',
+        explainer:
+          'These two rule sets differ only in how the insider signal is used, and both are shown against a plain buy-and-hold S&P 500. If the filter earns its place, the difference is here; if it does not, that is here too.',
+        slugs: SIDE_BY_SIDE_PAIR,
+      },
       internal: await this.internalPanel(),
       disclaimer:
         'Every strategy on this page is computed by our own engine from our own data. Figures marked HYPOTHETICAL — BACKTEST are simulated, not traded, and past simulated performance does not predict future results. Nothing here is investment advice or an offer to manage money.',
@@ -201,6 +215,7 @@ export class StrategiesService {
       hitRate: r?.hit_rate != null ? Number(r.hit_rate) : null,
       costsPaid: r?.costs_paid != null ? Number(r.costs_paid) : null,
       notes: r?.notes ?? [],
+      benchmarks: r?.benchmarks ?? [{ key: 'sp500', label: 'S&P 500' }],
       ranAt: r?.ran_at ?? null,
       // Premium (§5.3). Stripped by the controller for everyone else.
       holdings: r?.holdings ?? [],
