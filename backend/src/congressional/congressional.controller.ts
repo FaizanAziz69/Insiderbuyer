@@ -13,6 +13,15 @@ export class CongressionalController {
     return this.svc.refresh();
   }
 
+  /** Fill filing evidence on rows stored before those columns existed. */
+  @Post('admin/backfill-filings')
+  async backfillFilings(@Query('limit') limit?: string, @Query('after') after?: string) {
+    return this.svc.backfillFilingEvidence({
+      limit: limit ? Number(limit) : undefined,
+      after: after || undefined,
+    });
+  }
+
   @Get()
   async list(
     @Query('ticker') ticker?: string,

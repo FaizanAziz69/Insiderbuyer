@@ -533,6 +533,84 @@ export class CongressionalService implements OnModuleInit {
     return realCount > 0;
   }
 
+  /**
+   * Fill `sourceUrl`, `assetType` and `owner` on rows that were stored before
+   * those columns existed — 16,172 of them, which is every row on the board.
+   *
+   * `refreshFromFmp` cannot do this: it dedupes against what is already stored
+   * and inserts only what is new, so a row ingested last year keeps its empty
+   * columns forever no matter how often the feed is re-read. §6 lists filing
+   * links as a FREE Evidence column, and a column that is empty for the whole
+   * board is not evidence of anything.
+   *
+   * Walks members rather than the latest feed, because FMP's by-name endpoints
+   * return a member's COMPLETE history while the latest feeds return one page.
+   * Matches on the same key the dedupe uses (member|ticker|date|action|min),
+   * so a row is only ever updated by the filing it actually came from.
+   *
+   * Resumable and idempotent: `after` is a member name to continue from, and
+   * a row already carrying a sourceUrl is left alone.
+   */
+  async backfillFilingEvidence(opts: { limit?: number; after?: string } = {}): Promise<{
+    membersTried: number;
+    rowsUpdated: number;
+    nextCursor: string | null;
+    done: boolean;
+  }> {
+    const limit = Math.max(1, Math.min(400, opts.limit ?? 60));
+    const names: Array<{ politicianName: string }> = await this.repo.query(
+      `SELECT DISTINCT "politicianName" FROM congressional_transactions
+        WHERE "sourceUrl" IS NULL AND ($1::text IS NULL OR "politicianName" > $1)
+        ORDER BY "politicianName" LIMIT $2`,
+      [opts.after ?? null, limit],
+    );
+    let rowsUpdated = 0;
+    let last: string | null = null;
+    for (const { politicianName } of names) {
+      last = politicianName;
+      let trades: Awaited<ReturnType<typeof this.fmp.getCongressByName>> = [];
+      try {
+        trades = await this.fmp.getCongressByName(politicianName);
+      } catch {
+        continue; // one unreachable member must not end the sweep
+      }
+      for (const t of trades) {
+        if (!t.sourceUrl && !t.assetType && !t.owner) continue;
+        const day = safeDate(t.transactionDate);
+        if (!day || !t.ticker) continue;
+        const res = await this.repo.query(
+          `UPDATE congressional_transactions
+              SET "sourceUrl" = COALESCE("sourceUrl", $1),
+                  "assetType" = COALESCE("assetType", $2),
+                  "owner"     = COALESCE("owner", $3)
+            WHERE "politicianName" = $4
+              AND ticker = $5
+              AND "transactionDate" = $6
+              AND action = $7
+              AND COALESCE("amountMin", 0) = $8
+              AND "sourceUrl" IS NULL`,
+          [
+            t.sourceUrl,
+            t.assetType,
+            t.owner,
+            politicianName,
+            t.ticker,
+            day.toISOString().slice(0, 10),
+            t.action,
+            Number(t.amountMin) || 0,
+          ],
+        );
+        rowsUpdated += Array.isArray(res) ? 0 : Number((res as any)?.rowCount ?? 0);
+      }
+    }
+    const done = names.length < limit;
+    this.logger.log(
+      `Filing-evidence backfill: ${names.length} members, +${rowsUpdated} rows` +
+        (done ? ' (complete)' : ` (cursor ${last})`),
+    );
+    return { membersTried: names.length, rowsUpdated, nextCursor: done ? null : last, done };
+  }
+
   /** Manual re-ingest (FMP → else ensure seeded). Powers a refresh endpoint so
    *  prod can be repopulated without a redeploy. */
   async refresh(): Promise<{ source: string; total: number; fmpEnabled: boolean; fmpError: string | null }> {
