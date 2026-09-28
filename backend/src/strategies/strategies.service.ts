@@ -56,6 +56,11 @@ export class StrategiesService {
       PRIMARY KEY (slug, version)
     )`);
     await this.q(`CREATE INDEX IF NOT EXISTS strategy_runs_ran_idx ON strategy_runs (ran_at DESC)`);
+    // CREATE TABLE IF NOT EXISTS is a no-op once the table exists, so a column
+    // added to the statement above never reaches a database that already ran
+    // it. Every new column needs its own ALTER, or it is missing in production
+    // and present in every fresh checkout — which is the worst of both.
+    await this.q(`ALTER TABLE strategy_runs ADD COLUMN IF NOT EXISTS periods_held int NOT NULL DEFAULT 0`);
   }
 
   /** Materialize one strategy. Backtest only — nothing else has a record yet. */
