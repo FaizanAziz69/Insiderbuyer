@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowUpRight, Plus } from "lucide-react";
 import { API_BASE, CompanyDetail, fetcher, formatCurrency } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
-import { StreetBadge, TierBadge } from "@/components/TierBadge";
+import { TierBadge } from "@/components/TierBadge";
 import { PremiumValue } from "@/components/premium/PremiumValue";
 
 interface Props {
@@ -63,20 +63,15 @@ export function TickerSnapshotCard({ ticker }: Props) {
             <span className="font-mono text-[15px] font-bold text-accent">
               {c.ticker}
             </span>
-            {/* Ticker badge = Wall Street consensus (analyst avg target vs
-                price), NOT the Insider Score — insiders at a Street favourite
-                like NVDA sell for years while the stock is bullish (George,
-                2026-09-01). Insider tier only as a fallback when it's a real
-                positive signal; a low insider score alone must never print
-                "Bearish" next to the ticker. */}
-            {data.analyst ? (
-              <StreetBadge
-                upsidePct={data.analyst.upsidePct}
-                avgTarget={data.analyst.avgTarget}
-                size="sm"
-              />
-            ) : s && Number(s.iqs) >= 55 ? (
-              <TierBadge iqs={Number(s.iqs)} size="sm" withSource />
+            {/* One direction per stock, and it comes from the Insider Score
+                (Faizan, 2026-09-28). The Wall Street consensus badge that used
+                to sit here is gone: on a card whose next rows are INSIDER
+                SCORE 97.18 and INSIDER SCORE BREAKDOWN, a red BEARISH taken
+                from analyst targets read as the page contradicting itself.
+                Shown at every score now, not only above 55 — a badge that
+                appears only when the news is good is not a signal. */}
+            {s && Number.isFinite(Number(s.iqs)) ? (
+              <TierBadge iqs={Number(s.iqs)} size="sm" />
             ) : null}
           </div>
           <div className="text-[12px] text-soft truncate" title={c.name}>
