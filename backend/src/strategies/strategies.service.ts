@@ -134,7 +134,17 @@ export class StrategiesService {
               metrics, equity, turnover, hit_rate, ran_at, periods_held
          FROM strategy_runs`,
     ).catch(() => []);
-    const byslug = new Map(rows.map((r) => [r.slug, r]));
+    // §6 keeps a record per version — "changes create a new version with its
+    // own record, never a silent edit" — so a slug can have several rows.
+    // Keying the map by slug alone lets whichever row Postgres happened to
+    // return last decide the numbers, which would publish one version's RULES
+    // beside another version's PERFORMANCE. That is the silent edit the rule
+    // forbids, arriving from the other direction. Match the version instead.
+    const byslug = new Map<string, any>();
+    for (const def of ALL_STRATEGIES) {
+      const exact = rows.find((r) => r.slug === def.slug && r.version === def.version);
+      if (exact) byslug.set(def.slug, exact);
+    }
     const cards = ALL_STRATEGIES.map((def) => {
       const r = byslug.get(def.slug);
       const m = r?.metrics || null;
@@ -207,9 +217,11 @@ export class StrategiesService {
     const def = strategyBySlug(slug);
     if (!def) return null;
     await this.ensureTables();
+    // The run for the version this strategy IS, not merely the newest run —
+    // re-running an older version last must not repoint the page at it.
     const rows: any[] = await this.q(
-      `SELECT * FROM strategy_runs WHERE slug = $1 ORDER BY ran_at DESC LIMIT 1`,
-      [slug],
+      `SELECT * FROM strategy_runs WHERE slug = $1 AND version = $2 LIMIT 1`,
+      [slug, def.version],
     ).catch(() => []);
     const r = rows[0] || null;
     const recordType = (r?.record_type ?? 'backtest') as RecordType;
