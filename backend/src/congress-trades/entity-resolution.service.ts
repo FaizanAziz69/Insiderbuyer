@@ -400,6 +400,88 @@ export class EntityResolutionService {
     return null;
   }
 
+  /**
+   * Second pass over the vendors the first one could not place.
+   *
+   * Federal awards are signed by the entity that holds the contract, which is
+   * routinely a subsidiary: "AECOM TECHNICAL SERVICES, INC." is AECOM, "AIRBUS
+   * HELICOPTERS, INC." is Airbus. `matchOurUniverse` requires the whole
+   * normalised name to equal a company's, so none of those land.
+   *
+   * This walks the name's PREFIXES from longest to shortest and still demands
+   * an exact match against a company's full normalised name — which is what
+   * keeps it safe. "ADVANCED GLASS INDUSTRIES" tries "ADVANCED GLASS
+   * INDUSTRIES", then "ADVANCED GLASS", then "ADVANCED", and no company is
+   * named exactly "Advanced", so it correctly finds nothing rather than
+   * attaching itself to Advanced Micro Devices.
+   *
+   * Two guards beyond that: a prefix under five characters is never tried, and
+   * a prefix two different tickers both answer to is dropped. Crediting one
+   * company's federal contracts to another would put a stranger on the board.
+   */
+  private async matchSubsidiaryPrefix(
+    name: string,
+  ): Promise<{ ticker: string; name: string; matched: string } | null> {
+    const words = normName(name).split(' ').filter(Boolean);
+    if (!words.length) return null;
+    for (let take = words.length; take >= 1; take--) {
+      const prefix = words.slice(0, take).join(' ');
+      if (prefix.length < 5) break; // shorter than this is a word, not a name
+      const rows: any[] = await this.q(
+        `SELECT ticker, name FROM companies
+          WHERE ticker IS NOT NULL AND ticker <> '' AND name IS NOT NULL
+            AND lower(name) LIKE $1
+          LIMIT 40`,
+        [`${prefix.split(' ')[0].toLowerCase()}%`],
+      );
+      const exact = rows.filter((r) => normName(r.name) === prefix);
+      const tickers = new Set(exact.map((r) => String(r.ticker).toUpperCase()));
+      if (tickers.size === 1) {
+        return { ticker: [...tickers][0], name: exact[0].name, matched: prefix };
+      }
+      // Two companies answering to the same prefix is ambiguity, and ambiguity
+      // stops the walk rather than letting a shorter prefix guess.
+      if (tickers.size > 1) return null;
+    }
+    return null;
+  }
+
+  /**
+   * Run the prefix pass over everything still unresolved and store what it
+   * finds. Report-only by default: a resolution that puts a company on the CQS
+   * board should be looked at before it is trusted.
+   */
+  async resolveSubsidiaries(opts: { commit?: boolean; limit?: number } = {}): Promise<any> {
+    await this.ensureTables();
+    const limit = Math.max(1, Math.min(2000, opts.limit ?? 500));
+    const pending: Array<{ vendor_key: string; vendor_name: string }> = await this.q(
+      `SELECT vendor_key, vendor_name FROM ct_vendor_map
+        WHERE status = 'unresolved' AND vendor_name IS NOT NULL
+        ORDER BY vendor_name LIMIT $1`,
+      [limit],
+    );
+    const found: Array<{ vendor: string; ticker: string; via: string }> = [];
+    for (const v of pending) {
+      const hit = await this.matchSubsidiaryPrefix(v.vendor_name).catch(() => null);
+      if (!hit) continue;
+      found.push({ vendor: v.vendor_name, ticker: hit.ticker, via: hit.matched });
+      if (opts.commit) {
+        await this.q(
+          `UPDATE ct_vendor_map
+              SET status = 'ticker', ticker = $1, listed_name = $2,
+                  method = 'subsidiary-prefix', confidence = 0.8,
+                  evidence = $3, updated_at = now()
+            WHERE vendor_key = $4`,
+          [hit.ticker, hit.name, `matched on "${hit.matched}"`, v.vendor_key],
+        );
+      }
+    }
+    this.log.log(
+      `subsidiary pass: ${pending.length} unresolved tried, ${found.length} matched${opts.commit ? ' (committed)' : ' (report only)'}`,
+    );
+    return { tried: pending.length, matched: found.length, committed: !!opts.commit, sample: found.slice(0, 40) };
+  }
+
   private async matchSec(name: string): Promise<{ ticker: string; title: string } | null> {
     const idx = await this.secIndexed();
     if (!idx) return null;

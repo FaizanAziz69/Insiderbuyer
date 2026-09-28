@@ -141,6 +141,19 @@ export class CongressTradesController {
     return this.vendors.resolvePending(Number(limit) || undefined);
   }
 
+  /**
+   * Second resolution pass, for the vendors filing under a subsidiary name.
+   * Report-only unless `commit=1`, because these land on the CQS board.
+   */
+  @Post('admin/resolve-subsidiaries')
+  @UseGuards(AdminTokenGuard)
+  async resolveSubsidiaries(@Query('limit') limit?: string, @Query('commit') commit?: string) {
+    return this.vendors.resolveSubsidiaries({
+      limit: Number(limit) || undefined,
+      commit: commit === '1',
+    });
+  }
+
   @Post('admin/run-engine')
   @UseGuards(AdminTokenGuard)
   async runEngine(@Query('days') days?: string) {

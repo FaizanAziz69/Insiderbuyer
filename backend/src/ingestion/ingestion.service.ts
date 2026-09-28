@@ -1277,4 +1277,28 @@ export class IngestionService implements OnModuleInit {
       remaining: Math.max(0, pending.length - batch.length),
     };
   }
+  /**
+   * Pick up filing dates for rows the SEC's archives could not cover yet.
+   *
+   * The quarterly Form 345 archives run about a quarter behind, so the current
+   * year's rows — 115,623 of them at the time of writing — have no archive to
+   * read from. New rows get their date from the ingestion directly; these are
+   * the ones already stored when the column did not exist.
+   *
+   * Monthly, because that is roughly how often a new quarter appears, and
+   * because asking more often reads the same missing file more often.
+   */
+  @Cron('30 3 1 * *')
+  async monthlyFiledAtSweep(): Promise<void> {
+    const left: Array<{ n: string }> = await this.txRepo.query(
+      `SELECT COUNT(*)::text AS n FROM insider_transactions WHERE "filedAt" IS NULL`,
+    );
+    const missing = Number(left[0]?.n || 0);
+    if (!missing) return;
+    this.logger.log(
+      `${missing} transactions still lack a filing date; run scripts/backfill-form4-filed-dates.mjs ` +
+        `once the SEC publishes the quarter that covers them.`,
+    );
+  }
+
 }
