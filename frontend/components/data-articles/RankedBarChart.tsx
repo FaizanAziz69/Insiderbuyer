@@ -320,11 +320,18 @@ export function RankedBarChart({ slug, chart, periods, title, subtitle, onLoaded
                               width: animated || reduced ? `${w}%` : "0%",
                               // One colour for every bar (client, 2026-08-29): the earlier navy #1
                               // vanished against the dark track, and a gold #1 was not wanted
-                              // either. Client, 2026-09-26: match the navbar — so the brand
-                              // surface, at full strength. The old `1 - i * 0.03` fade took row
-                              // seven down to 0.82 and row ten to 0.73, which read as a washed-out
-                              // approximation of the bar rather than the bar.
-                              background: "var(--brand-surface)",
+                              // either. Client, 2026-09-26: match the navbar. The old
+                              // `1 - i * 0.03` fade took row seven to 0.82 and row ten to 0.73,
+                              // which read as a washed-out approximation of the bar, and is gone.
+                              //
+                              // Client, 2026-09-28: `--brand-surface` is the navbar, and in DARK
+                              // mode the navbar is #070d1f — the same near-black as the card the
+                              // bars sit on, so every bar disappeared. `--accent` is the same
+                              // #005882 in light mode, which is why light never looked wrong, and
+                              // is the Subscribe button's #20d0ff in dark, which is the colour
+                              // asked for. A bar is DATA, not a surface: it has to be the token
+                              // that stays legible against the page, not the one that matches it.
+                              background: "var(--accent)",
                               transition: reduced ? "none" : `width 700ms cubic-bezier(.2,.8,.2,1) ${i * 45}ms`,
                             }}
                           />
