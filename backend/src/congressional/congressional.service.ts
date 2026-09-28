@@ -588,7 +588,8 @@ export class CongressionalService implements OnModuleInit {
               AND "transactionDate" = $6
               AND action = $7
               AND COALESCE("amountMin", 0) = $8
-              AND "sourceUrl" IS NULL`,
+              AND "sourceUrl" IS NULL
+          RETURNING 1`,
           [
             t.sourceUrl,
             t.assetType,
@@ -600,7 +601,11 @@ export class CongressionalService implements OnModuleInit {
             Number(t.amountMin) || 0,
           ],
         );
-        rowsUpdated += Array.isArray(res) ? 0 : Number((res as any)?.rowCount ?? 0);
+        // TypeORM's query() hands back the ROWS, not an affected count, so an
+        // UPDATE with no RETURNING always looks like zero work — which is what
+        // the first run of this sweep reported while it was in fact filling
+        // 6,470 rows. RETURNING 1 makes the array length the answer.
+        rowsUpdated += Array.isArray(res) ? res.length : 0;
       }
     }
     const done = names.length < limit;
