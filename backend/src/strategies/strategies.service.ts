@@ -115,7 +115,7 @@ export class StrategiesService {
     await this.ensureTables();
     const rows: any[] = await this.q(
       `SELECT slug, version, record_type, from_date::text AS from_date, to_date::text AS to_date,
-              metrics, equity, turnover, hit_rate, ran_at
+              metrics, equity, turnover, hit_rate, ran_at, periods_held
          FROM strategy_runs`,
     ).catch(() => []);
     const byslug = new Map(rows.map((r) => [r.slug, r]));
