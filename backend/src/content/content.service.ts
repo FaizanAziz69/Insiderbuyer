@@ -1539,6 +1539,109 @@ export class ContentService {
   /** Generate one AI news roundup per topic per day — grounded in real source
    *  headlines + live data for the theme's tickers. Date-stamped slugs make the
    *  article and its image roll over every 24 hours. */
+  /**
+   * One topic roundup a day, rotating — the Popular Articles rail.
+   *
+   * That rail claims a single kind, `topic-roundup`, and the daily desk does
+   * not produce one: its four are editorials, a cluster buy and a stock idea.
+   * So the rail was serving whatever was newest among the leftovers and had
+   * been showing the same September 18th piece for ten days.
+   *
+   * This is deliberately NOT a route through `content_generation_off`. George
+   * set that on 2026-08-28 to stop the bulk engine — weekly reports, guide
+   * series, per-ticker filler — and it should keep doing that. This is one
+   * article a day with its own switch, `topic_rail_off`.
+   *
+   * The topic rotates by day-of-year across the nine configured, so a reader
+   * checking daily sees a different subject each time and each topic page
+   * still accumulates over the 28 days those articles live.
+   */
+  async generateDailyTopicRail(opts: { force?: boolean } = {}): Promise<{
+    ok: boolean;
+    topic?: string;
+    slug?: string;
+    skipped?: boolean;
+    error?: string;
+  }> {
+    const off = await this.settings.findOne({ where: { key: 'topic_rail_off' } });
+    if (off?.value === '1' && !opts.force) return { ok: true, skipped: true, error: 'topic rail is off' };
+
+    const now = new Date();
+    const dayKey = now.toISOString().slice(0, 10);
+    const dateLabel = now.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+    // Day-of-year modulo the topic count: a fixed rotation, so two runs on the
+    // same day pick the same topic and the idempotency check below holds.
+    const dayOfYear = Math.floor(
+      (Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) -
+        Date.UTC(now.getUTCFullYear(), 0, 0)) /
+        86_400_000,
+    );
+    const topic = TOPICS[dayOfYear % TOPICS.length];
+    const slug = `topic-${topic.slug}-${dayKey}`;
+    if (!opts.force && (await this.repo.findOne({ where: { slug } }))) {
+      return { ok: true, topic: topic.slug, slug, skipped: true };
+    }
+
+    try {
+      let allNews: Awaited<ReturnType<NewsService['getLatest']>> = [];
+      try {
+        allNews = await this.news.getLatest();
+      } catch {
+        allNews = [];
+      }
+      const headlines = this.news
+        .filter(allNews, { tag: topic.newsTag })
+        .slice(0, 8)
+        .map((h: any) => ({ title: String(h.title || ''), source: String(h.source || '') }))
+        .filter((h) => h.title);
+      let quotes = new Map<string, any>();
+      try {
+        quotes = await this.marketStats.getQuoteBatch(topic.tickers);
+      } catch {
+        quotes = new Map();
+      }
+      const { rows: rankRows } = await this.iqs.getRankings({ limit: 500, offset: 0 });
+      const iqsByTicker = new Map(rankRows.map((r) => [r.ticker, Number(r.iqs)]));
+      const stocks = topic.tickers.map((t) => {
+        const q = quotes.get(t.toUpperCase());
+        return {
+          ticker: t,
+          name: q?.name || t,
+          changePct: q?.changePct ?? null,
+          iqs: iqsByTicker.get(t) ?? null,
+        };
+      });
+      const article = await this.generator.generateTopicRoundup({
+        label: topic.label,
+        angle: topic.angle,
+        dateLabel,
+        headlines,
+        stocks,
+      });
+      await this.persist({
+        slug,
+        kind: 'topic-roundup',
+        ticker: null,
+        sector: topic.photoSector,
+        topic: topic.slug,
+        iqsAtGeneration: null,
+        article,
+        inputSnapshot: { topic: topic.slug, headlines, tickers: topic.tickers },
+      });
+      this.logger.log(`Topic rail: published ${slug}`);
+      return { ok: true, topic: topic.slug, slug };
+    } catch (err) {
+      const msg = (err as Error).message;
+      this.logger.warn(`Topic rail failed for ${topic.slug}: ${msg}`);
+      return { ok: false, topic: topic.slug, error: msg };
+    }
+  }
+
   private async generateTopicRoundups(
     dayKey: string,
     dateLabel: string,

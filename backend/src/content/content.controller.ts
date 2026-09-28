@@ -126,6 +126,17 @@ export class ContentController {
     return this.content.setGenerationOff(on !== '1');
   }
 
+  /**
+   * The Popular Articles rail — one rotating topic roundup a day.
+   *   POST /content/topic-rail            generate today's (skips if it exists)
+   *   POST /content/topic-rail?force=1    regenerate it
+   */
+  @Post('topic-rail')
+  @UseGuards(AdminTokenGuard)
+  async runTopicRail(@Query('force') force?: string) {
+    return this.content.generateDailyTopicRail({ force: force === '1' });
+  }
+
   /** Read the pause switch (public — no secret revealed). */
   @Get('generation')
   async getGeneration() {
