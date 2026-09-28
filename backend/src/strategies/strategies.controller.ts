@@ -73,6 +73,22 @@ export class StrategiesController {
     return this.alerts.run({ send: send !== '0' });
   }
 
+  /**
+   * §7's launch set, so George can choose without a deploy.
+   *
+   *   POST /strategies/admin/live                 → publish the whole library
+   *   POST /strategies/admin/live?slugs=a,b,c     → publish only those
+   *
+   * The brief suggests starting with 1, 3, 7, 8, 9 and 10:
+   *   congress-buys, lobbying-surge, insider-buying-sp500,
+   *   sp500-plus-insider-buying, ceo-conviction, insider-clusters-smid
+   */
+  @Post('admin/live')
+  @UseGuards(AdminTokenGuard)
+  async setLive(@Query('slugs') slugs?: string) {
+    return this.svc.setLiveSlugs(slugs ?? '');
+  }
+
   @Post('admin/refresh-data')
   @UseGuards(AdminTokenGuard)
   async refreshData(

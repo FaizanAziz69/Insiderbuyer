@@ -126,6 +126,58 @@ export class StrategiesService {
     return { ran, failed };
   }
 
+  /**
+   * §7: "Final strategy names + which launch in v1 (suggest 1, 3, 7, 8, 9, 10
+   * first)" — owner George.
+   *
+   * That is a decision, not a build, and it needed a way to be made without a
+   * deploy. `app_settings.strategies_live` holds a comma-separated list of
+   * slugs; anything absent is withheld from the public index and its detail
+   * page. Unset means ALL of them, which is the state the brief describes as
+   * the library, and is what ships until George chooses.
+   *
+   * Deliberately a publish gate, not a delete: a withheld strategy keeps
+   * materializing nightly, so the day it is turned on it arrives with its full
+   * record rather than starting from nothing.
+   */
+  private async liveSlugs(): Promise<Set<string> | null> {
+    try {
+      const r: Array<{ value: string }> = await this.q(
+        `SELECT value FROM app_settings WHERE key = 'strategies_live' LIMIT 1`,
+      );
+      const raw = (r?.[0]?.value || '').trim();
+      if (!raw) return null; // unset = publish the whole library
+      const set = new Set(
+        raw.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean),
+      );
+      return set.size ? set : null;
+    } catch {
+      // A missing settings table must not empty the page.
+      return null;
+    }
+  }
+
+  /**
+   * Set the launch set. An empty string clears it, which publishes everything.
+   * Unknown slugs are rejected rather than silently ignored — a typo that
+   * quietly hides a strategy is the kind of mistake nobody goes looking for.
+   */
+  async setLiveSlugs(raw: string): Promise<{ live: string[] | 'all'; rejected: string[] }> {
+    const wanted = String(raw || '')
+      .split(',')
+      .map((x) => x.trim().toLowerCase())
+      .filter(Boolean);
+    const known = new Set(ALL_STRATEGIES.map((d) => d.slug));
+    const rejected = wanted.filter((x) => !known.has(x));
+    if (rejected.length) return { live: 'all', rejected };
+    await this.q(
+      `INSERT INTO app_settings (key, value) VALUES ('strategies_live', $1)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+      [wanted.join(',')],
+    );
+    return { live: wanted.length ? wanted : 'all', rejected: [] };
+  }
+
   /** §5.1's index — cards, sorted by Sortino unless asked otherwise. */
   async index(): Promise<any> {
     await this.ensureTables();
@@ -140,12 +192,14 @@ export class StrategiesService {
     // return last decide the numbers, which would publish one version's RULES
     // beside another version's PERFORMANCE. That is the silent edit the rule
     // forbids, arriving from the other direction. Match the version instead.
+    const live = await this.liveSlugs();
+    const published = live ? ALL_STRATEGIES.filter((d) => live.has(d.slug)) : ALL_STRATEGIES;
     const byslug = new Map<string, any>();
     for (const def of ALL_STRATEGIES) {
       const exact = rows.find((r) => r.slug === def.slug && r.version === def.version);
       if (exact) byslug.set(def.slug, exact);
     }
-    const cards = ALL_STRATEGIES.map((def) => {
+    const cards = published.map((def) => {
       const r = byslug.get(def.slug);
       const m = r?.metrics || null;
       return {
@@ -216,6 +270,9 @@ export class StrategiesService {
   async detail(slug: string): Promise<any | null> {
     const def = strategyBySlug(slug);
     if (!def) return null;
+    const live = await this.liveSlugs();
+    // A strategy George has not launched is not addressable by URL either.
+    if (live && !live.has(def.slug)) return null;
     await this.ensureTables();
     // The run for the version this strategy IS, not merely the newest run —
     // re-running an older version last must not repoint the page at it.
