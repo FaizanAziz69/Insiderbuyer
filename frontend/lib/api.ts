@@ -118,8 +118,10 @@ export interface CompanyDetail {
     marketCap: number | null;
     lastPrice: number | null;
   };
-  /** Wall Street consensus (avg analyst target vs price) — drives the ticker
-   *  badge; null when no analyst targets exist for the symbol. */
+  /** Analyst coverage: average target against price. Shown in the Analyst
+   *  Ratings sections; it no longer drives any directional badge — the Insider
+   *  Score alone sets Bullish/Neutral/Bearish (Faizan, 2026-09-28). Null when
+   *  no analyst targets exist for the symbol. */
   analyst?: {
     ptCount: number | null;
     avgTarget: number;

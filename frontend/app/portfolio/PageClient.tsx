@@ -84,7 +84,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "What does it mean?",
-    a: "55 and above reads Bullish — unusual, high-conviction buying. 40 to 54 is Neutral — buying is present but routine. Below 40 is Low Buying — filings exist but carry little conviction. It is a research signal about insider behaviour, not a price prediction or a recommendation.",
+    a: "55 and above reads Bullish — unusual, high-conviction buying. 40 to 54 is Neutral — buying is present but routine. Below 40 reads Bearish — filings exist but carry little conviction. It is a research signal about insider behaviour, not a price prediction or a recommendation.",
   },
   {
     q: "How many stocks can I add?",
