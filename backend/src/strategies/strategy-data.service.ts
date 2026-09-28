@@ -149,43 +149,87 @@ export class StrategyDataService {
   /**
    * Market-wide lobbying, one quarter at a time.
    *
-   * The per-company endpoint the stock pages use cannot answer "who increased
-   * the most", so this pages the whole quarter and aggregates by registrant.
-   * Filings are keyed by client and period, and the FILED date is kept, which
-   * is what makes strategy 3 point-in-time.
+   * THREE THINGS THIS API DOES THAT COST A FIRST ATTEMPT:
+   *
+   * The host moved. lda.senate.gov 301s to lda.gov, and while axios follows it,
+   * the canonical host is used directly — a redirect on every one of nine
+   * hundred pages is nine hundred wasted round trips.
+   *
+   * `page_size` is capped at 25 whatever you ask for, so a quarter is roughly
+   * nine hundred pages, not the two hundred a page_size of 100 would suggest.
+   *
+   * And most filings carry no money at all: of 28,320 filings in 2026 Q1,
+   * around 22,000 are Registrations, which announce a lobbying relationship
+   * rather than report spending on it. Only the quarterly REPORT types carry an
+   * amount, which is why this sweeps by filing type rather than filtering after
+   * the fact — it is the difference between 900 pages and 1,100 of which 200
+   * are useful.
+   *
+   * The amount itself lives in one of two fields and never both: a lobbying
+   * firm reports `income` (what the client paid it) and a company lobbying
+   * in-house reports `expenses`. Either way the CLIENT is the company whose
+   * spend we want, so both are read and attributed to the client.
    */
-  async refreshLobbying(year: number, period: string): Promise<{ filings: number; clients: number; matched: number }> {
+  async refreshLobbying(
+    year: number,
+    period: string,
+    opts: { maxPages?: number } = {},
+  ): Promise<{ filings: number; clients: number; matched: number; pages: number; complete: boolean }> {
     await this.ensureTables();
     if (!this.ldaKey) {
       this.log.warn('LDA_API_KEY is not set; lobbying cannot be refreshed.');
-      return { filings: 0, clients: 0, matched: 0 };
+      return { filings: 0, clients: 0, matched: 0, pages: 0, complete: false };
     }
+    // The report types for this quarter: the report itself, its amendment, and
+    // the termination filings, all of which carry a quarter's spend.
+    const QUARTER_TYPES: Record<string, string[]> = {
+      first_quarter: ['Q1', '1A', '1T'],
+      second_quarter: ['Q2', '2A', '2T'],
+      third_quarter: ['Q3', '3A', '3T'],
+      fourth_quarter: ['Q4', '4A', '4T'],
+    };
+    const types = QUARTER_TYPES[period];
+    if (!types) {
+      this.log.warn(`Unknown filing period "${period}".`);
+      return { filings: 0, clients: 0, matched: 0, pages: 0, complete: false };
+    }
+
+    const maxPages = opts.maxPages ?? 1200;
     const agg = new Map<string, { amount: number; name: string; filed: string }>();
     let filings = 0;
-    let next: string | null = `https://lda.senate.gov/api/v1/filings/?filing_year=${year}&filing_period=${period}&page_size=100`;
-    for (let page = 0; page < 60 && next; page++) {
-      const res: any = await axios
-        .get(next, { headers: { Authorization: `Token ${this.ldaKey}` }, timeout: 30_000 })
-        .catch((e: any) => {
-          this.log.warn(`LDA page failed: ${e?.response?.status || ''} ${e?.message || e}`);
-          return null;
-        });
-      if (!res?.data) break;
-      for (const f of res.data.results || []) {
-        const amount = Number(f.income ?? f.expenses ?? 0) || 0;
-        const client = f.client?.name || '';
-        const filed = String(f.dt_posted || f.filing_date || '').slice(0, 10);
-        if (!client || amount <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(filed)) continue;
-        const key = StrategyDataService.normName(client);
-        if (!key) continue;
-        const e = agg.get(key) || { amount: 0, name: client, filed };
-        e.amount += amount;
-        // The quarter becomes knowable when its LAST filing lands.
-        if (filed > e.filed) e.filed = filed;
-        agg.set(key, e);
-        filings++;
+    let pages = 0;
+    let complete = true;
+
+    for (const ft of types) {
+      let next: string | null =
+        `https://lda.gov/api/v1/filings/?filing_year=${year}&filing_type=${ft}&page_size=25`;
+      while (next && pages < maxPages) {
+        const res: any = await axios
+          .get(next, { headers: { Authorization: `Token ${this.ldaKey}` }, timeout: 40_000 })
+          .catch((e: any) => {
+            this.log.warn(`LDA page failed: ${e?.response?.status || ''} ${e?.message || e}`);
+            return null;
+          });
+        pages++;
+        if (!res?.data) break;
+        for (const f of res.data.results || []) {
+          // A firm reports income, an in-house department reports expenses.
+          const amount = Number(f.income ?? f.expenses ?? 0) || 0;
+          const client = f.client?.name || '';
+          const filed = String(f.dt_posted || f.filing_date || '').slice(0, 10);
+          if (!client || amount <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(filed)) continue;
+          const key = StrategyDataService.normName(client);
+          if (!key) continue;
+          const e = agg.get(key) || { amount: 0, name: client, filed };
+          e.amount += amount;
+          // The quarter becomes knowable when its LAST filing lands.
+          if (filed > e.filed) e.filed = filed;
+          agg.set(key, e);
+          filings++;
+        }
+        next = res.data.next || null;
       }
-      next = res.data.next || null;
+      if (next) complete = false;
     }
 
     // Match registrants to tickers by the same normalised name, and drop any
@@ -214,7 +258,9 @@ export class StrategyDataService {
         [key, periodKey, ticker, v.name, v.amount, v.filed],
       );
     }
-    this.log.log(`Lobbying ${periodKey}: ${filings} filings, ${agg.size} registrants, ${matched} matched to a ticker.`);
-    return { filings, clients: agg.size, matched };
+    this.log.log(
+      `Lobbying ${periodKey}: ${pages} pages, ${filings} filings with money, ${agg.size} registrants, ${matched} matched to a ticker${complete ? '' : ' (page cap hit)'}.`,
+    );
+    return { filings, clients: agg.size, matched, pages, complete };
   }
 }

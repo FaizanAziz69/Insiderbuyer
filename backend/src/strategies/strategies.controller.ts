@@ -66,10 +66,16 @@ export class StrategiesController {
 
   @Post('admin/refresh-data')
   @UseGuards(AdminTokenGuard)
-  async refreshData(@Query('year') year?: string, @Query('period') period?: string) {
+  async refreshData(
+    @Query('year') year?: string,
+    @Query('period') period?: string,
+    @Query('maxPages') maxPages?: string,
+  ) {
     const sp500 = await this.data.refreshSp500();
     const comp = await this.data.refreshExecComp();
-    const lobby = year && period ? await this.data.refreshLobbying(Number(year), period) : null;
+    const lobby = year && period
+      ? await this.data.refreshLobbying(Number(year), period, { maxPages: Number(maxPages) || undefined })
+      : null;
     return { sp500, comp, lobby };
   }
 }
