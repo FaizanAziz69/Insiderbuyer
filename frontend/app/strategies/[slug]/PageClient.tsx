@@ -4,9 +4,20 @@ import { useRef, useState } from "react";
 import { API_BASE } from "@/lib/api";
 import { usePremiumSWR } from "@/lib/premium-fetch";
 import { PremiumValue } from "@/components/premium/PremiumValue";
+import { PaywallOverlay } from "@/components/PaywallOverlay";
+import { decoyEquity } from "@/components/strategies/decoy";
 import { RecordBadge, type RecordType } from "@/components/strategies/RecordBadge";
 
-/** Brief v8 §5.2 — one strategy: chart, rules, parameters, metrics, limitations. */
+/**
+ * Brief v8 §5.2 — one strategy: chart, rules, parameters, metrics, limitations.
+ *
+ * Faizan 2026-09-29 ("paygate this page", /strategies): the curve and the
+ * metrics are Premium now, alongside the holdings and log §5.3 already gated.
+ * A guest's payload has them deleted (backend strategies/gating.ts), so the
+ * locked view draws a decoy curve under the site's one paywall overlay. The
+ * rules, exact parameters and limitations stay free — they are the honesty
+ * the page is built on, and what a crawler should index.
+ */
 
 const pct = (v: number | null | undefined, d = 1) =>
   v == null || !Number.isFinite(v) ? "—" : `${v > 0 ? "+" : ""}${(v * 100).toFixed(d)}%`;
@@ -24,9 +35,13 @@ export default function PageClient({ slug }: { slug: string }) {
   // choice that silently draws a flat line.
   const benchmarks: Array<{ key: string; label: string }> =
     data.benchmarks?.length ? data.benchmarks : [{ key: "sp500", label: "S&P 500" }];
-  const equity: Array<{ date: string; value: number; benchmark: number }> = data.equity || [];
-  const noResult = (data.rebalances ?? 0) === 0 || equity.length < 4;
   const withheld = data.premium === false;
+  const equity: Array<{ date: string; value: number; benchmark: number }> = withheld
+    ? decoyEquity(slug)
+    : data.equity || [];
+  // Withheld payloads carry no curve, so its length says nothing about whether
+  // a result exists; the rebalance count is the field that survives.
+  const noResult = (data.rebalances ?? 0) === 0 || (!withheld && equity.length < 4);
 
   return (
     <div className="space-y-6">
@@ -57,7 +72,7 @@ export default function PageClient({ slug }: { slug: string }) {
           </ul>
         </section>
       ) : (
-        <>
+        <Performance withheld={withheld} name={data.name}>
           <EquityChart equity={equity} benchmarks={benchmarks} />
           <section className="card p-4">
             <h2 className="text-[13px] uppercase tracking-wider font-bold text-mute">Metrics</h2>
@@ -79,7 +94,7 @@ export default function PageClient({ slug }: { slug: string }) {
               <Metric label="Costs paid" value={pct(data.costsPaid)} />
             </div>
           </section>
-        </>
+        </Performance>
       )}
 
       <section className="card p-4">
@@ -261,6 +276,38 @@ function CsvButton({ slug, holdings }: { slug: string; holdings: any[] }) {
     >
       Export CSV
     </button>
+  );
+}
+
+/**
+ * The chart and metrics grid, walled for a guest. Under the blur is a decoy
+ * curve and a grid of dashes (the metric fields are absent), which is all a
+ * height-clipped peek needs to show what membership buys.
+ */
+function Performance({
+  withheld,
+  name,
+  children,
+}: {
+  withheld: boolean;
+  name: string;
+  children: React.ReactNode;
+}) {
+  if (!withheld) return <div className="space-y-6">{children}</div>;
+  return (
+    <PaywallOverlay
+      title={`See how ${name} has actually performed`}
+      subtitle="The equity curve, drawdowns and every metric are for members."
+      bullets={[
+        "Total return, CAGR, Sortino, Sharpe, Calmar and max drawdown",
+        "The curve against the S&P 500, Russell 2000 and a 60/20/20 blend",
+        "Current holdings with weights and entry dates, exportable to CSV",
+        "Every rebalance the engine has made, with the trigger for each",
+      ]}
+      peekHeight={380}
+    >
+      <div className="space-y-6">{children}</div>
+    </PaywallOverlay>
   );
 }
 

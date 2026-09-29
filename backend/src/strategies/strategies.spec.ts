@@ -8,6 +8,7 @@
  */
 import { ALL_STRATEGIES, strategyBySlug } from './registry';
 import { RECORD_BADGE } from './strategy-types';
+import { CARD_PREMIUM_FIELDS, STRATEGY_PREMIUM_FIELDS, shapeIndex } from './gating';
 
 let failures = 0;
 function check(name: string, got: unknown, want: unknown): void {
@@ -76,6 +77,36 @@ check(
   ALL_STRATEGIES.every((s) => !BORROWED.some((re) => re.test(s.name))),
   true,
 );
+
+
+console.log('paygate (Faizan 2026-09-29: the figures are Premium, the rules are free)');
+{
+  const card = {
+    slug: 'x', name: 'X', dataset: 'Insiders', version: '1.0.0', rebalanceDays: 30,
+    rulesPlain: 'r', recordType: 'backtest', startDate: '2021-01-04', thin: false,
+    spark: [{ v: 1, b: 1 }], return1y: 0.1, cagr: 0.2, sortino: 1.5, sharpe: 1.1,
+    maxDrawdown: -0.3, totalReturn: 0.9, benchmarkTotalReturn: 0.5, turnover: 0.2, hitRate: 0.55,
+  };
+  const guest = shapeIndex({ cards: [card] }, false);
+  const member = shapeIndex({ cards: [card] }, true);
+  check('a guest payload says premium:false', guest.premium, false);
+  check(
+    'no figure survives for a guest',
+    CARD_PREMIUM_FIELDS.filter((k) => k in guest.cards[0]),
+    [],
+  );
+  check(
+    'the free fields survive for a guest',
+    ['slug', 'name', 'rulesPlain', 'recordType', 'startDate', 'thin'].every((k) => k in guest.cards[0]),
+    true,
+  );
+  check('a subscriber payload is untouched', member.cards[0], card);
+  check(
+    'the detail strips the curve and metrics as well as holdings',
+    ['equity', 'metrics', 'holdings', 'rebalanceLog'].every((k) => (STRATEGY_PREMIUM_FIELDS as readonly string[]).includes(k)),
+    true,
+  );
+}
 
 console.log(failures ? `\nFAIL — ${failures} check(s) failed.` : '\nAll Brief v8 checks passed.');
 if (failures) process.exit(1);

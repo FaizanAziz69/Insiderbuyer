@@ -1,19 +1,10 @@
 import { Body, Controller, Get, Headers, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AdminTokenGuard } from '../common/admin-token.guard';
 import { PremiumAccessService, stripPremiumFields } from '../common/premium-access';
+import { STRATEGY_PREMIUM_FIELDS, shapeIndex } from './gating';
 import { StrategiesService } from './strategies.service';
 import { StrategyDataService } from './strategy-data.service';
 import { StrategyAlertsService } from './strategy-alerts.service';
-
-/**
- * §5.3 gating, in one place:
- *   Free    — index, cards, charts, rules, metrics
- *   Premium — holdings, rebalance logs, CSV export
- *
- * Fields are DELETED for a guest rather than blanked, so nothing downstream can
- * read a mask as a real value — the same rule the CQS board follows.
- */
-const STRATEGY_PREMIUM_FIELDS = ['holdings', 'rebalanceLog'] as const;
 
 @Controller('strategies')
 export class StrategiesController {
@@ -24,13 +15,14 @@ export class StrategiesController {
     private readonly access: PremiumAccessService,
   ) {}
 
-  /** §5.1 — the index, free. */
+  /** §5.1 — the index. Names and rules free, every figure Premium. */
   @Get()
-  async index() {
-    return this.svc.index();
+  async index(@Headers('authorization') auth?: string) {
+    const [payload, entitled] = await Promise.all([this.svc.index(), this.access.isPremium(auth)]);
+    return shapeIndex(payload, entitled);
   }
 
-  /** §5.2 — one strategy. Holdings and the rebalance log are Premium. */
+  /** §5.2 — one strategy. Curve, metrics, holdings and the log are Premium. */
   @Get(':slug')
   async detail(@Param('slug') slug: string, @Headers('authorization') auth?: string) {
     const row = await this.svc.detail(slug);
