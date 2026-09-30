@@ -14,7 +14,10 @@ const FIELDS = [
   { key: "name", label: "Name", placeholder: "Jane Okafor", autoComplete: "name" },
   { key: "title", label: "Title", placeholder: "Head of Research", autoComplete: "organization-title" },
   { key: "company", label: "Company", placeholder: "Northline Capital", autoComplete: "organization" },
-  { key: "companyEmail", label: "Company email", placeholder: "jane@northline.com", autoComplete: "email" },
+  // Labelled "Email", not "Company email": the free-mailbox check was removed
+  // 2026-09-30 and any address is accepted, so a label demanding a work address
+  // would be asking for something the form no longer enforces.
+  { key: "companyEmail", label: "Email", placeholder: "jane@northline.com", autoComplete: "email" },
 ] as const;
 
 type FieldKey = (typeof FIELDS)[number]["key"];
@@ -140,7 +143,7 @@ export function RequestAccessGate({
               {state === "busy" ? "Sending…" : "Request access"}
             </button>
             <span className="text-[11.5px]" style={{ color: "var(--text-mute)" }}>
-              Please use your company email address. We review each request by hand.
+              We review each request by hand.
             </span>
           </div>
         </form>

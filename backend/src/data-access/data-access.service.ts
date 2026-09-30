@@ -51,17 +51,17 @@ const GRANTS: Record<string, readonly string[]> = {
   both: ['promoter-score', 'top-ir-promoters', 'both'],
 };
 
+/**
+ * The only address check: something, an @, something with a dot after it.
+ *
+ * There used to be a free-mailbox blocklist here — gmail, yahoo, outlook and
+ * twenty more were refused at the door on the reasoning that a company address
+ * is what makes the requester identifiable. The client removed it 2026-09-30:
+ * every request is reviewed by hand anyway, so the blocklist was not deciding
+ * anything the reviewer could not decide better, and it was turning away real
+ * people. Plenty of small firms and one-person shops run on Gmail.
+ */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-/** Addresses that are not a company address. The form asks for a COMPANY
- *  email, and the whole point of the gate is knowing who is asking, so a free
- *  mailbox is refused at the door rather than silently accepted and ignored. */
-const FREE_MAIL = new Set([
-  'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.co.uk', 'hotmail.com',
-  'outlook.com', 'live.com', 'msn.com', 'aol.com', 'icloud.com', 'me.com',
-  'mac.com', 'proton.me', 'protonmail.com', 'gmx.com', 'gmx.de', 'yandex.com',
-  'mail.com', 'zoho.com', 'tutanota.com', 'hey.com', 'fastmail.com',
-]);
 
 @Injectable()
 export class DataAccessService {
@@ -112,19 +112,13 @@ export class DataAccessService {
       !name && 'name',
       !title && 'title',
       !company && 'company',
-      !companyEmail && 'company email',
+      !companyEmail && 'email',
     ].filter(Boolean);
     if (missing.length) {
       throw new BadRequestException(`Please fill in your ${missing.join(', ')}.`);
     }
     if (!EMAIL_RE.test(companyEmail)) {
       throw new BadRequestException('Please enter a valid email address.');
-    }
-    const domain = companyEmail.split('@')[1] || '';
-    if (FREE_MAIL.has(domain)) {
-      throw new BadRequestException(
-        'Please use your company email address so we can verify who is requesting access.',
-      );
     }
 
     const existing = await this.repo.findOne({ where: { companyEmail, dataset } });
@@ -348,7 +342,7 @@ export class DataAccessService {
       subjects: [{ subject: `Access request: ${row.company} — ${this.datasetLabel(row.dataset)}` }],
       body: [
         `<p style="margin:0 0 14px;"><strong>${row.name}</strong> (${row.title}) at <strong>${row.company}</strong> has requested access to ${this.datasetLabel(row.dataset)}.</p>`,
-        `<p style="margin:0 0 14px;">Company email: <a href="mailto:${row.companyEmail}">${row.companyEmail}</a></p>`,
+        `<p style="margin:0 0 14px;">Email: <a href="mailto:${row.companyEmail}">${row.companyEmail}</a></p>`,
         // Two buttons, because the alternative was "go and find the admin
         // list", and there is no admin list (George, 2026-09-24). Laid out as
         // a table with inline styles: Outlook ignores flexbox, margins on
