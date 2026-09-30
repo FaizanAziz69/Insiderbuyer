@@ -369,8 +369,22 @@ export class DataAccessService {
     await this.emailFlows.sendOneOff(this.deskAddress, step);
   }
 
+  /**
+   * Where an approved request should be sent.
+   *
+   * This was hardcoded to /promoter-score while the promoter pair was the only
+   * thing behind the gate, and it would have broken IBCX silently and badly:
+   * the link would land on the promoter page, verify() would refuse a token
+   * scoped to 'ibcx', and useDataAccess CLEARS a token that opens nothing — so
+   * the approval email would have destroyed the access it was granting, on the
+   * first click, with no error anywhere.
+   */
+  private grantLanding(dataset: string): string {
+    return dataset === 'ibcx' ? '/index-ibcx' : '/promoter-score';
+  }
+
   private async sendGrant(row: DataAccessRequest): Promise<void> {
-    const url = `${this.siteUrl}/promoter-score?access=${row.token}`;
+    const url = `${this.siteUrl}${this.grantLanding(row.dataset)}?access=${row.token}`;
     const step: FlowEmail = {
       id: 'data-access-granted',
       offsetMinutes: 0,
@@ -386,7 +400,12 @@ export class DataAccessService {
         `Your request for ${this.datasetLabel(row.dataset)} has been approved.`,
         `<p style="margin:16px 0;"><a href="${url}" style="color:#e02b2b;font-weight:600;text-decoration:underline;">Open the dataset</a></p>`,
         'That link carries your access key, so open it on the device you want to use. It stays active in that browser; open it again anywhere else you need it.',
-        'The data covers disclosed investor-relations, promotional and market-making agreements filed under TSX Venture Policy 3.4 and CSE policy, with the issuer, the provider, the fee, the term, and what the share price and traded volume did afterwards.',
+        // What the reader actually gets, which is not the same thing for the
+        // two products. Describing the promoter feed to someone who asked for
+        // the index reads as a mail-merge accident.
+        row.dataset === 'ibcx'
+          ? 'You will see every constituent name and ticker at the current reconstitution, alongside the sector, sleeve and weight already published on the page. The index is rules-based and reconstituted quarterly, and it is published as information rather than investment advice.'
+          : 'The data covers disclosed investor-relations, promotional and market-making agreements filed under TSX Venture Policy 3.4 and CSE policy, with the issuer, the provider, the fee, the term, and what the share price and traded volume did afterwards.',
         'Reply to this email if you need the feed as a scheduled export rather than a web table.',
         '__SIGNOFF__',
       ],
