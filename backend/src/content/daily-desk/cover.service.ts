@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { printBrandmark } from './brandmark';
+import { enforceCensorBar } from './censor-bar';
 
 /**
  * Cover art for the daily desk, in the editorial-thumbs house look.
@@ -59,11 +61,20 @@ const NO_TEXT_RULE =
   // readable on screen beside IKIE -0.70 and SGU -7.20 — tickers that do not
   // exist, at prices nobody quoted — under a Bloomberg logo on two monitors.
   // A publication whose rule is that nothing invents a fact cannot put invented
-  // prices on its own cover, and it should not carry another firm's mark at all.
-  'Screens, ticker boards and price displays must be present but UNREADABLE: ' +
-  'out of focus, motion-blurred, seen at a steep angle, or too far away to ' +
-  'resolve. No legible ticker symbols, no legible prices or percentages, no ' +
-  'legible numbers of any kind. ' +
+  // prices on its own cover, and a mark the model draws from memory is invented
+  // too. The buying firm's real logo does reach some covers — it is composited
+  // from the file Wikimedia served, after generation, by brandmark.ts — which
+  // is precisely why the model is still told to draw none: on a finished cover
+  // the only legible thing is the one mark we fetched and can name.
+  // Retail and studio scenes leak numbers the ticker-board clause never
+  // anticipated: a QVC set came back with $179.00 and $30.00 legible on two
+  // product cards. A price is a price wherever it is printed, so the list has
+  // to name shelf edges and price tags too.
+  'Screens, ticker boards, price displays, price tags, shelf labels and ' +
+  'product signage must be present but UNREADABLE: out of focus, ' +
+  'motion-blurred, seen at a steep angle, or too far away to resolve. No ' +
+  'legible ticker symbols, no legible prices or percentages, no legible ' +
+  'numbers of any kind, anywhere in the frame. ' +
   'No company logos, no brand marks, no trademarks, no product names — not on ' +
   'screens, buildings, signage, clothing or equipment. ' +
   'Small unreadable lettering that reads as texture is fine. Nothing a viewer ' +
@@ -87,33 +98,66 @@ const HERO_TREATMENT =
   'background, exactly as in the reference covers.';
 
 /**
- * The cover for a story with nobody in it.
+ * The cover for a story whose buyer we hold no photograph of.
  *
  * George, 2026-09-25: "for the articles / stories that don't attach a person,
  * we need to create thumbnails that hide the identity but show generic people
- * in suits."
+ * in suits." That produced a figure seen from behind, or in silhouette, or
+ * cropped above the shoulders.
  *
- * Before this the no-person branch produced a pure object scene, which left
- * those covers flat next to the ones carrying a face. A suited figure restores
- * the human foreground the house look is built around.
+ * The client, 2026-09-30, on the GoldenTree/QVC cover that rule produced:
+ * "these images thumbnails created are too fake … if you can't find their face
+ * just cover the eyes with a black line or something. Anonymous insiders, but
+ * make it real."
  *
- * "Hide the identity" is also the safety rule, not only the art direction. A
- * story with no named subject must not come back with an invented face that
- * happens to resemble a real executive — so the figure is turned away, cropped
- * above the shoulders, or lost in shadow, and never carries readable features.
+ * That is a sharper instruction than the one it replaces, and a better one. A
+ * back-of-head silhouette announces that there was nothing to photograph; it
+ * reads as generated because it IS the shape a generator makes when it has been
+ * told not to make a face. A front-facing press photograph with a printed
+ * censor bar reads as a real picture that a desk chose to redact — which is
+ * what it is. The anonymity is identical and the honesty is better.
+ *
+ * Hiding the identity remains the safety rule, not only the art direction: a
+ * story with no named subject must not ship a face that could be mistaken for a
+ * real executive, and the bar is what guarantees it.
  */
-const ANONYMOUS_FIGURES =
-  'There is NO named person in this story. Do not invent a recognisable ' +
-  'individual and do not depict anyone who could be mistaken for a real ' +
-  'executive. Build the foreground from one or two anonymous figures in ' +
-  'business suits whose identity cannot be read: seen from behind, or in ' +
-  'silhouette against the light, or framed from the shoulders down, or with ' +
-  'the face turned away and lost in shadow. No visible eyes, no readable ' +
-  'facial features, no name badge. ' +
+const CENSORED_SUBJECT =
+  'We hold NO photograph of the person this story is about, so the cover must ' +
+  'show an ANONYMISED subject. Do not depict any identifiable real individual. ' +
+  'Depict one adult in business dress as a REAL, straight, front-facing press ' +
+  'photograph: a documentary news picture with natural skin texture, real ' +
+  'fabric, real depth of field and the slightly imperfect framing of a working ' +
+  'photographer. It must look photographed — never illustrated, never ' +
+  'rendered, never a smiling stock portrait. ' +
+  // Every clause here was needed. Without "opaque" it comes back translucent;
+  // without "not following the contours of the face" it wraps the bar around
+  // the cheekbones like face paint; without "everything below the bar stays
+  // visible" it sometimes redacts the whole head, which is the silhouette this
+  // branch exists to replace.
+  'Then redact the identity the way a newspaper does: lay a solid, opaque, ' +
+  'hard-edged BLACK RECTANGLE flat across the eye line, running the full width ' +
+  'of the head and deep enough to cover both eyes and the bridge of the nose ' +
+  'completely. The bar is printed on top of the photograph: flat matte black, ' +
+  'perfectly straight, sharp corners, no glow, no transparency, no blur, no ' +
+  'shadow, and it does not follow the contours of the face. Everything below ' +
+  'the bar — nose, mouth, jaw, collar — stays fully visible. ' +
   'Cut the figure out and make it the hero of the cover: large in the frame, ' +
-  'body cropped by the bottom edge, rendered in high-contrast desaturated ' +
-  'black and white with visible film grain so it separates sharply from the ' +
-  'colour-graded background, exactly as in the reference covers.';
+  'the whole head inside the frame with a little room above it, body cropped ' +
+  'by the bottom edge, head about a third of the picture wide, rendered in ' +
+  'high-contrast desaturated black and white with visible film grain so it ' +
+  'separates sharply from the colour-graded background, exactly as in the ' +
+  'reference covers.';
+
+/**
+ * Asked for whenever a real logo is going to be printed into the corner
+ * afterwards. The model is never told what the mark is or shown it — only to
+ * keep that corner quiet, so the composite lands on flat graded colour instead
+ * of on somebody's face or the busiest part of the collage.
+ */
+const LOGO_SPACE =
+  'Leave the upper-left corner of the background calm and uncluttered — a plain ' +
+  'block of the graded colour with no important detail and nothing the eye ' +
+  'needs — and keep the cut-out subject clear of it. ';
 
 const KEEP_LIKENESS =
   'The first reference image is a photograph of the real person this cover is ' +
@@ -145,6 +189,15 @@ export interface CoverRequest {
   personName?: string | null;
   /** Role and company, used to place an unphotographed subject. */
   personContext?: string | null;
+  /**
+   * Absolute path to the buying firm's REAL logo, when we found one.
+   *
+   * It is never shown to the model. It is printed onto the finished image by
+   * `printBrandmark`, so the mark on the cover is the file Wikimedia served
+   * rather than the model's recollection of it — see brandmark.ts for why that
+   * distinction is the whole feature.
+   */
+  logoRef?: string | null;
 }
 
 export interface CoverResult {
@@ -155,6 +208,10 @@ export interface CoverResult {
   ogBytes: number;
   /** True when a real photograph drove the likeness. */
   fromPhoto: boolean;
+  /** True when the real firm logo was printed onto the finished cover. */
+  logoPrinted: boolean;
+  /** True when the subject is an anonymised figure behind a censor bar. */
+  censored: boolean;
 }
 
 const W = 1606;
@@ -193,13 +250,15 @@ export class CoverService {
       for (const ex of this.exemplarsFor(req.name)) parts.push(this.inlineImage(ex));
 
       const drawPerson = fromPhoto || !!req.personName;
+      const withLogo = !!(req.logoRef && existsSync(req.logoRef));
       const instruction =
         (fromPhoto ? KEEP_LIKENESS : '') +
         (!fromPhoto && req.personName
           ? `The cover is about ${req.personName}${req.personContext ? `, ${req.personContext}` : ''}. ` +
             'Depict them as a real adult person in business dress, photorealistic. '
           : '') +
-        (drawPerson ? HERO_TREATMENT + ' ' : ANONYMOUS_FIGURES + ' ') +
+        (drawPerson ? HERO_TREATMENT + ' ' : CENSORED_SUBJECT + ' ') +
+        (withLogo ? LOGO_SPACE : '') +
         `The background collage shows: ${req.scene}. ` +
         `Grade the whole background in ${req.grade}. ` +
         (req.halo
@@ -217,13 +276,41 @@ export class CoverService {
 
       const sharp = await this.sharp();
       const dest = join(this.thumbsDir, `${req.name}.jpg`);
-      await sharp(raw)
+      let framed = await sharp(raw)
         // 16:9 comes back wider than the house 1.606, so about 10% leaves the
         // sides. "attention" keeps the busiest region, which on these covers is
         // the face; a plain centre crop has clipped a shoulder before now.
         .resize(W, H, { fit: 'cover', position: 'attention' })
         .jpeg({ quality: 88, progressive: false, mozjpeg: true })
-        .toFile(dest);
+        .toBuffer();
+
+      // The redaction is enforced BEFORE the logo, so the detector sees the
+      // cover the generator made rather than one with a brand mark added to
+      // confuse it, and so a repainted bar cannot land on top of the logo.
+      let censorAction = 'n/a';
+      if (!drawPerson) {
+        const censored = await enforceCensorBar(
+          sharp,
+          framed,
+          process.env.GEMINI_API_KEY as string,
+        );
+        framed = censored.image;
+        censorAction = censored.action;
+      }
+
+      // The real mark goes on AFTER the crop, so it cannot be cropped, scaled
+      // or softened by anything downstream.
+      let logoPrinted = false;
+      if (withLogo) {
+        const marked = await printBrandmark(sharp, framed, req.logoRef as string);
+        if (marked) {
+          framed = marked.image;
+          logoPrinted = true;
+        } else {
+          this.logger.warn(`cover ${req.name}: logo ${req.logoRef} could not be printed`);
+        }
+      }
+      writeFileSync(dest, framed);
 
       // The OG copy the unfurl needs: 1200 wide, BASELINE (WhatsApp rejects
       // progressive) and under 200 KB (over ~300 KB it drops the card).
@@ -244,9 +331,11 @@ export class CoverService {
         ? 'from photo'
         : req.personName
           ? 'person drawn from name'
-          : 'anonymous suited figure';
+          : 'censored subject';
       this.logger.log(
-        `cover ${req.name}.jpg written (${how}, og ${Math.round((og as Buffer).length / 1024)} KB)`,
+        `cover ${req.name}.jpg written (${how}${logoPrinted ? ' + real logo' : ''}` +
+          `${drawPerson ? '' : `, bar ${censorAction}`}, ` +
+          `og ${Math.round((og as Buffer).length / 1024)} KB)`,
       );
       return {
         url: `/editorial-thumbs/${req.name}.jpg`,
@@ -254,6 +343,8 @@ export class CoverService {
         height: H,
         ogBytes: (og as Buffer).length,
         fromPhoto,
+        logoPrinted,
+        censored: !drawPerson,
       };
     } catch (e: any) {
       this.logger.error(`cover ${req.name} failed: ${e?.message || e}`);

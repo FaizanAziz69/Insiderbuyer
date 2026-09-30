@@ -437,6 +437,11 @@ export interface BlogPostListItem {
   category?: string | null;
   imageUrl: string | null;
   imageAlt?: string | null;
+  /** Credit line for a cover built from a fetched picture — a Wikimedia
+   *  portrait of the buyer, the buying firm's real logo. Most are CC BY, and
+   *  the credit is the condition of using them. Null on covers built from our
+   *  own thumbs and on censored subjects. */
+  imageCredit?: string | null;
   /** Unlisted draft — live at its URL, absent from every feed, noindex. */
   draft?: boolean;
   /** §4 paid/IR content — labelled SPONSORED and barred from Top Stories. */

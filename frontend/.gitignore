@@ -1,3 +1,9 @@
 .vercel
 .env*
 !.env.example
+
+# Reference pictures the cover pipeline downloads: Wikimedia portraits of the
+# people behind the buying firms, and those firms' logos. Cached on the box by
+# SubjectLookupService, never committed — this repo is mirrored to a PUBLIC
+# GitHub repo, and third-party CC BY images do not belong in it.
+public/editorial-thumbs/refs/

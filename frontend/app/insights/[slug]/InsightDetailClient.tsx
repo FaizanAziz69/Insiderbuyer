@@ -246,6 +246,21 @@ export default function InsightDetailClient({
               />
             </div>
 
+            {/* Cover credit. Present only when the cover was built from a
+                picture we fetched rather than one the client supplied — the
+                Wikimedia portraits behind the fund covers are mostly CC BY, and
+                a generated derivative of a CC BY photograph still owes the
+                attribution. Small, quiet, and under the image where a credit
+                belongs. */}
+            {post.imageCredit ? (
+              <p
+                className="mt-2 text-[11px] leading-snug"
+                style={{ color: "var(--text-faint)" }}
+              >
+                {post.imageCredit}
+              </p>
+            ) : null}
+
             {/* Byline row — author + date on the left, social share on the
                 right. MarketBeat's exact arrangement. */}
             <div

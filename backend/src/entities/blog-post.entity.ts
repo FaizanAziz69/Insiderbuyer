@@ -92,6 +92,19 @@ export class BlogPost {
   imageAlt: string | null;
 
   /**
+   * Credit line for the cover, printed under it.
+   *
+   * Set only when the cover was built from a picture we FETCHED — a Wikimedia
+   * Commons portrait of the buyer, the buying firm's real logo — because most
+   * of those are CC BY, and a CC BY photograph put through a generator makes a
+   * derivative that still owes its attribution. Null on the covers built from
+   * our own client-supplied thumbs, and null on a censored subject, which is
+   * drawn from nothing and owes nobody.
+   */
+  @Column({ type: 'varchar', length: 300, nullable: true })
+  imageCredit: string | null;
+
+  /**
    * Unlisted draft. The article renders at its real URL for anyone holding the
    * link, but it is excluded from every list endpoint — so it cannot appear on
    * the homepage, in /insights, in the ticker rails, in the sitemap (which is

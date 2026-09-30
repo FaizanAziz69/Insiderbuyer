@@ -108,6 +108,65 @@ export class WriterService {
     return this.client;
   }
 
+  /**
+   * A cover scene for an article that is already written.
+   *
+   * Re-rendering an old cover needs the one field the desk never stored: the
+   * collage description. Re-running `write()` to recover it would rewrite the
+   * article as a side effect — a published, indexed article — so this asks for
+   * the sentence and nothing else.
+   *
+   * Falls back to the company and sector rather than returning null. A generic
+   * scene still produces a cover; no scene produces no cover, and the whole
+   * point of a re-do is that the article ends up with a better picture.
+   */
+  async coverSceneFor(a: {
+    title: string;
+    summary: string | null;
+    company: string | null;
+    sector: string | null;
+  }): Promise<string> {
+    const fallback = [a.company, a.sector, 'corporate offices and trading-floor screens']
+      .filter(Boolean)
+      .join(', ');
+    if (!this.isReady()) return fallback;
+
+    const prompt = [
+      'You are art-directing the cover of a financial news article.',
+      '',
+      `Headline: ${a.title}`,
+      a.summary ? `Dek: ${a.summary}` : '',
+      a.company ? `Company: ${a.company}` : '',
+      a.sector ? `Sector: ${a.sector}` : '',
+      '',
+      'Describe, in ONE sentence of plain words, what a photo collage BEHIND the',
+      'subject should show for this story: real places, buildings, products or',
+      'equipment belonging to this company and this story. Never documents, forms,',
+      'filings, newspapers or screens of text. No headline, no lettering.',
+      '',
+      'Output the sentence only.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    try {
+      const res = await this.anthropic().messages.create({
+        model: this.model,
+        max_tokens: 300,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const text = res.content
+        .map((b: any) => (b.type === 'text' ? b.text : ''))
+        .join('')
+        .trim()
+        .replace(/^["']|["']$/g, '');
+      return text.length > 15 ? text.slice(0, 400) : fallback;
+    } catch (e: any) {
+      this.logger.warn(`cover scene failed: ${e?.message || e}`);
+      return fallback;
+    }
+  }
+
   async write(kind: DeskKind, c: BuyCandidate, extra: Record<string, unknown> = {}): Promise<WrittenArticle | null> {
     if (!this.isReady()) {
       this.logger.warn('ANTHROPIC_API_KEY missing, desk cannot write');
