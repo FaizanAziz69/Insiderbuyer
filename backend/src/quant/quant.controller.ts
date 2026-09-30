@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { AdminTokenGuard } from '../common/admin-token.guard';
 import { QuantService } from './quant.service';
 import { QuantIngestService } from './ingest.service';
@@ -6,6 +6,7 @@ import { QuantBacktestService } from './backtest.service';
 import { IndexService } from './index.service';
 import { ExecutionService } from './execution.service';
 import { PitService } from './pit.service';
+import { DataAccessService } from '../data-access/data-access.service';
 
 /**
  * Brief v6 surface. Two public reads only — the index itself, which §10 makes
@@ -21,14 +22,37 @@ export class QuantController {
     private readonly index: IndexService,
     private readonly execution: ExecutionService,
     private readonly pit: PitService,
+    private readonly dataAccess: DataAccessService,
   ) {}
 
   // ── Public: the index as a data product ──────────────────────────────
 
+  /**
+   * The index as a data product — level and history public, NAMES on request.
+   *
+   * The token travels in a header rather than the query string so it stays out
+   * of access logs, referrers and anything a reader might paste. `Vary` is what
+   * makes that safe in front of a cache: without it nginx would serve the first
+   * response it saw to everyone, and whether that is a leak or a lockout
+   * depends only on who happened to ask first. An entitled response is not
+   * cached at all, which costs one uncached request per approved firm and
+   * removes the question entirely.
+   */
   @Get('index')
-  @Header('Cache-Control', 'public, max-age=900')
-  publicIndex() {
-    return this.index.publicView();
+  async publicIndex(
+    @Headers('x-data-access') header: string | undefined,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    const token = (header || '').trim();
+    const granted = token
+      ? !!(await this.dataAccess.verify(token, 'ibcx')).granted
+      : false;
+    res.setHeader('Vary', 'X-Data-Access');
+    res.setHeader(
+      'Cache-Control',
+      granted ? 'private, no-store' : 'public, max-age=900',
+    );
+    return this.index.publicView(granted);
   }
 
   // ── Research interface (admin) ───────────────────────────────────────

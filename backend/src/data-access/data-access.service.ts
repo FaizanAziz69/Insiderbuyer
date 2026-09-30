@@ -30,9 +30,26 @@ export interface ActionSigs {
 /** A queue row carries its own signed actions so the list can act on any row. */
 export type QueueRow = PublicRequest & ActionSigs;
 
-/** The datasets behind the gate. 'both' is what the pages ask for. */
-export const DATASETS = ['promoter-score', 'top-ir-promoters', 'both'] as const;
+/**
+ * The datasets behind the gate.
+ *
+ * 'both' is what the two PROMOTER pages ask for, and it is a name, not a
+ * wildcard. That distinction was free while the promoter pair was everything
+ * behind the gate; it stopped being free when IBCX joined them (client,
+ * 2026-09-30: "put Request Access on /index-ibcx … make sure there's no other
+ * back door to that data"). Reading 'both' as "everything" would have handed
+ * the index constituents to every IR firm ever approved for promoter spend,
+ * which nobody decided and nobody would have noticed. GRANTS says exactly what
+ * each grant opens.
+ */
+export const DATASETS = ['promoter-score', 'top-ir-promoters', 'both', 'ibcx'] as const;
 export type Dataset = (typeof DATASETS)[number];
+
+/** What a granted dataset opens. A grant opens itself and nothing else unless
+ *  it is listed here. */
+const GRANTS: Record<string, readonly string[]> = {
+  both: ['promoter-score', 'top-ir-promoters', 'both'],
+};
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -130,7 +147,7 @@ export class DataAccessService {
     if (!t) return { granted: false };
     const row = await this.repo.findOne({ where: { token: t, status: 'approved' } });
     if (!row) return { granted: false };
-    const ok = row.dataset === 'both' || row.dataset === dataset;
+    const ok = (GRANTS[row.dataset] ?? [row.dataset]).includes(dataset);
     return ok ? { granted: true, dataset: row.dataset, company: row.company } : { granted: false };
   }
 
@@ -299,7 +316,9 @@ export class DataAccessService {
       ? 'the Promoter Score dataset'
       : d === 'top-ir-promoters'
         ? 'the Top IR Promoters dataset'
-        : 'the Promoter Score and Top IR Promoters datasets';
+        : d === 'ibcx'
+          ? 'the InsiderBuying Conviction Index constituents'
+          : 'the Promoter Score and Top IR Promoters datasets';
   }
 
   /** Send the desk notification for a request that already exists.

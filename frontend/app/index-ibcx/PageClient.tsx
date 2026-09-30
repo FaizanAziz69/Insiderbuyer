@@ -15,10 +15,13 @@
 
 import useSWR from "swr";
 import Link from "next/link";
-import { LineChart, ShieldCheck } from "lucide-react";
+import { LineChart, Lock, ShieldCheck } from "lucide-react";
 import { API_BASE, fetcher, formatDate } from "@/lib/api";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { BacktestChart } from "@/components/backtest/BacktestChart";
+import { useDataAccess } from "@/lib/data-access";
+import { RequestAccessGate } from "@/components/promoter/RequestAccessGate";
+import { decoyFor } from "@/components/premium/lockedDecoys";
 
 interface IndexPayload {
   indexId: string;
@@ -27,7 +30,12 @@ interface IndexPayload {
   inception: string | null;
   sinceInception: number | null;
   series: Array<{ date: string; level: number; reconstituted: boolean }>;
-  constituents: Array<{ symbol: string; weight: number; sector: string | null; sleeves: string[] }>;
+  /** `symbol` is absent on every row until the reader is granted access — the
+   *  backend deletes it rather than masking it, so there is nothing in the DOM
+   *  to un-blur. `rank` arrives in its place so the rows stay ordered. */
+  constituents: Array<{ symbol?: string; rank?: number; weight: number; sector: string | null; sleeves: string[] }>;
+  constituentCount?: number;
+  constituentsWithheld?: boolean;
   asOf: string | null;
   disclaimer: string;
   liveFrom: string | null;
@@ -42,7 +50,21 @@ const SLEEVE_LABEL: Record<string, string> = {
 };
 
 export default function IbcxPage() {
-  const { data, isLoading } = useSWR<IndexPayload>(`${API_BASE}/quant/index`, fetcher, { revalidateOnFocus: false });
+  const { granted, checking, token } = useDataAccess("ibcx");
+
+  // The KEY changes when a token is held, and that is load-bearing rather than
+  // tidy. The page is SSR-seeded under the plain string key, and SwrFallback
+  // exempts a seeded key from its first revalidation — so an approved reader
+  // on the seeded key would sit looking at the withheld payload until the ISR
+  // window turned over. An array key is a different key, and refetches.
+  const { data, isLoading } = useSWR<IndexPayload>(
+    token ? [`${API_BASE}/quant/index`, token] : `${API_BASE}/quant/index`,
+    (k: string | [string, string]) =>
+      typeof k === "string"
+        ? fetcher(k)
+        : fetch(k[0], { headers: { "X-Data-Access": k[1] } }).then((r) => r.json()),
+    { revalidateOnFocus: false },
+  );
   const series = data?.series || [];
   const curve = series.map((p) => ({ t: new Date(`${p.date}T00:00:00Z`).getTime(), s: p.level / 10, b: 100 }));
 
@@ -83,7 +105,7 @@ export default function IbcxPage() {
               value={data.sinceInception == null ? "—" : `${data.sinceInception >= 0 ? "+" : ""}${(data.sinceInception * 100).toFixed(1)}%`}
               tone={data.sinceInception == null ? undefined : data.sinceInception >= 0 ? "up" : "down"}
             />
-            <Tile label="Constituents" value={String(data.constituents.length)} />
+            <Tile label="Constituents" value={String(data.constituentCount ?? data.constituents.length)} />
             <Tile label="As of" value={data.asOf ? formatDate(data.asOf) : "—"} />
           </div>
 
@@ -107,7 +129,16 @@ export default function IbcxPage() {
           ) : null}
 
           <section>
-            <h2 className="text-[15px] font-bold uppercase tracking-wide mb-2">Constituents</h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+              <h2 className="text-[15px] font-bold uppercase tracking-wide">Constituents</h2>
+              {data.constituentsWithheld ? (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider"
+                  style={{ color: "var(--text-mute)" }}>
+                  <Lock className="h-3.5 w-3.5" />
+                  Names available on request
+                </span>
+              ) : null}
+            </div>
             <div className="card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="table-base">
@@ -120,13 +151,36 @@ export default function IbcxPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.constituents.map((c) => (
-                      <tr key={c.symbol} style={{ borderTop: "1px solid var(--border)" }}>
+                    {data.constituents.map((c, i) => (
+                      <tr key={c.symbol ?? `row-${c.rank ?? i}`} style={{ borderTop: "1px solid var(--border)" }}>
                         <td className="px-3.5 py-2.5">
-                          <Link href={`/companies/${c.symbol}`} className="flex items-center gap-2 group">
-                            <CompanyLogo ticker={c.symbol} name={c.symbol} size={22} />
-                            <span className="font-mono font-semibold group-hover:text-accent transition">{c.symbol}</span>
-                          </Link>
+                          {c.symbol ? (
+                            <Link href={`/companies/${c.symbol}`} className="flex items-center gap-2 group">
+                              <CompanyLogo ticker={c.symbol} name={c.symbol} size={22} />
+                              <span className="font-mono font-semibold group-hover:text-accent transition">{c.symbol}</span>
+                            </Link>
+                          ) : (
+                            // Nothing real is under this blur. The symbol never
+                            // arrived, the decoy is an invented ticker, there is
+                            // no /companies link to follow and no logo request
+                            // to read off the network tab — a logo is fetched BY
+                            // TICKER, so rendering one would have announced the
+                            // holding to anyone watching DevTools while the page
+                            // looked properly locked.
+                            <span className="flex items-center gap-2" aria-label="Constituent withheld">
+                              <span
+                                className="inline-block rounded-full shrink-0"
+                                style={{ width: 22, height: 22, background: "var(--bg-3)", border: "1px solid var(--border)" }}
+                              />
+                              <span
+                                className="font-mono font-semibold select-none"
+                                style={{ filter: "blur(4.5px)", opacity: 0.75 }}
+                                aria-hidden="true"
+                              >
+                                {decoyFor(i)[0]}
+                              </span>
+                            </span>
+                          )}
                         </td>
                         <td className="px-3.5 py-2.5 text-[12.5px]" style={{ color: "var(--text-soft)" }}>{c.sector || "—"}</td>
                         <td className="px-3.5 py-2.5">
@@ -146,6 +200,27 @@ export default function IbcxPage() {
                 </table>
               </div>
             </div>
+
+            {/* The gate sits UNDER the table rather than over it, because the
+                weights, sectors and sleeves above are genuinely public: the
+                reader can see the shape of the index and judge whether the
+                names are worth asking for. `checking` is waited out so an
+                approved reader never sees the form flash before their token
+                comes back verified. */}
+            {!checking && !granted && data.constituentsWithheld ? (
+              <div className="mt-4">
+                <RequestAccessGate
+                  dataset="ibcx"
+                  title="Constituent names are available on request"
+                  blurb="The index level, its history, and every constituent's sector, sleeve and weight are published openly. The company names and tickers are released to institutions on request — tell us who you are and we will review it."
+                  bullets={[
+                    "Every constituent name and ticker, at the current reconstitution",
+                    "Sector, sleeve and weight for each holding, as published above",
+                    "Reviewed by hand; approval is emailed to your company address",
+                  ]}
+                />
+              </div>
+            ) : null}
           </section>
         </>
       )}

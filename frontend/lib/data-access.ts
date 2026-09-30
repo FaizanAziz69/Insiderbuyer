@@ -17,7 +17,7 @@ import { API_BASE } from "@/lib/api";
 
 const KEY = "ib_data_access_token";
 
-export type DatasetKey = "promoter-score" | "top-ir-promoters" | "both";
+export type DatasetKey = "promoter-score" | "top-ir-promoters" | "both" | "ibcx";
 
 function readToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -32,6 +32,11 @@ export function useDataAccess(dataset: DatasetKey) {
   const [granted, setGranted] = useState(false);
   const [checking, setChecking] = useState(true);
   const [company, setCompany] = useState<string | null>(null);
+  // Returned so a page whose DATA is gated server-side can send the token with
+  // the request. The promoter pages do not need it — their gate is a frontend
+  // one over an open API — but /index-ibcx withholds the constituent names in
+  // the payload itself, so the token has to reach the backend.
+  const [token, setToken] = useState<string | null>(null);
 
   const check = useCallback(
     async (token: string | null) => {
@@ -47,6 +52,7 @@ export function useDataAccess(dataset: DatasetKey) {
         const json = (await res.json()) as { granted?: boolean; company?: string };
         setGranted(!!json.granted);
         setCompany(json.company ?? null);
+        setToken(json.granted ? token : null);
         // A token that no longer opens anything is cleared, so the gate does
         // not sit there checking a dead key on every page load.
         if (!json.granted) {
@@ -88,5 +94,5 @@ export function useDataAccess(dataset: DatasetKey) {
     void check(token);
   }, [check]);
 
-  return { granted, checking, company };
+  return { granted, checking, company, token };
 }

@@ -103,8 +103,28 @@ export class IndexService {
     return best;
   }
 
-  /** Public payload for the index page. */
-  async publicView(): Promise<any> {
+  /**
+   * Payload for the index page.
+   *
+   * WHO IS ALLOWED TO SEE WHAT. The index LEVEL, its history, its sector and
+   * sleeve mix and its weights are the public data product §10 describes, and
+   * they stay public. The NAMES are the product itself — the client, 2026-09-30:
+   * "put Request Access on this page and blur the stock names and tickers only.
+   * Make sure there's not other back door to that data."
+   *
+   * "No back door" is why the stripping is here and not in the page. A blur in
+   * CSS is a decoration over a value the browser already has, readable in
+   * view-source by anyone who thinks to look; the repo learnt that on
+   * /politicians, where the teaser row was a real row at opacity 0.28. So an
+   * ungranted caller never receives a symbol at all. The field is DELETED
+   * rather than nulled, for the same reason the premium stripper deletes:
+   * nothing downstream can mistake a mask for a value.
+   *
+   * The page is SSR-seeded from this endpoint with no token, so the guest HTML
+   * carries the withheld shape too — which is the only version of this that
+   * actually holds.
+   */
+  async publicView(granted = false): Promise<any> {
     await this.quant.ensureTables();
     const series = await this.q<any[]>(
       `SELECT to_char(as_of,'YYYY-MM-DD') AS as_of, level, reconstituted FROM quant_index WHERE index_id = 'IBCX' ORDER BY as_of ASC`,
@@ -135,11 +155,38 @@ export class IndexService {
       hypotheticalNote:
         'Levels dated before this index began publishing are a reconstruction: the same rules applied after the fact to point-in-time data — the filings and statements that were public on each date, and the universe as it was listed then, including companies later delisted. No allowance is made for trading costs, and no money was managed to these levels. Treat reconstructed figures as hypothetical.',
       series: series.map((r) => ({ date: r.as_of, level: Number(r.level), reconstituted: r.reconstituted })),
-      constituents: latest?.constituents || [],
+      constituents: this.shapeConstituents(latest?.constituents || [], granted),
+      // The page needs the count for its tile and for the number of rows to
+      // draw under the wall, and a count identifies nobody.
+      constituentCount: (latest?.constituents || []).length,
+      constituentsWithheld: !granted,
       asOf: latest?.as_of || null,
       // §10: the index is information, not advice, and says so wherever it appears.
       disclaimer:
         'The InsiderBuying Conviction Index is published as information, not investment advice, and is not an offer of any fund or managed product. It is built only from public disclosures — SEC Form 4 and SEDI filings, and as-reported financial statements — using rules applied to point-in-time data. Current InsiderBuying agency and IR clients are excluded from the index by rule, and for six months after an engagement ends.',
     };
+  }
+
+  /**
+   * Constituents as the caller is entitled to see them.
+   *
+   * Withheld rows keep their position, weight, sector and sleeves and lose the
+   * symbol. Position matters: the table is ordered by weight, so a reader can
+   * still see the shape of the index — how concentrated it is, which sectors
+   * carry it — which is the part that makes the gate worth passing.
+   *
+   * `sector` survives deliberately. A sector is not a name: the largest sleeve
+   * holds dozens of companies, and nothing in the row narrows it to one. If
+   * that ever stops being true — a one-company sector, an index small enough
+   * to enumerate — this is the line to revisit.
+   */
+  private shapeConstituents(rows: any[], granted: boolean): any[] {
+    if (granted) return rows;
+    return rows.map((c: any, i: number) => ({
+      rank: i + 1,
+      weight: c.weight,
+      sector: c.sector ?? null,
+      sleeves: c.sleeves ?? [],
+    }));
   }
 }
