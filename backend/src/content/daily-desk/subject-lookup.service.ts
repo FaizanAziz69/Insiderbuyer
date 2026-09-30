@@ -99,9 +99,36 @@ const PRINCIPALS: Array<{ prop: string; role: string }> = [
 const LEGAL_SUFFIX =
   /\b(l\.?l\.?c|l\.?l\.?p|l\.?p|inc|incorporated|corp|corporation|co|company|ltd|limited|plc|gmbh|s\.?a|n\.?v|a\/s|pte|pty|trust|the)\b/gi;
 
+/**
+ * Filers whose Wikidata entity is PINNED by hand.
+ *
+ * The search cannot always disambiguate, and when it cannot the right answer is
+ * to refuse — five entities answer to "John Malone", one of whom is the cable
+ * billionaire who files on Liberty Broadband and four of whom are a footballer,
+ * a college basketball player and two researchers. Refusing costs us a face we
+ * could legitimately have shown.
+ *
+ * This is the escape hatch: a name we have checked BY EYE, pinned to the one
+ * entity we mean. It is the same kind of object as the registry in
+ * person-photos.ts — an editorial decision, written down — and it should grow
+ * the same way, one filer at a time, only when someone has actually looked.
+ *
+ * Every token listed must be present in the filed name, so "Malone John C" and
+ * "John C. Malone" both land and "Malone Gregory" does not.
+ */
+const PINNED: Array<{ tokens: string[]; id: string; why: string }> = [
+  { tokens: ['john', 'malone'], id: 'Q3181165', why: 'Liberty Media; 5 homonyms on Wikidata' },
+];
+
 /** Words that survive the 3-letter cut but carry no identity, so a label may
  *  add or drop them freely: "The Vanguard Group" is "Vanguard Group Inc". */
 const FIRM_FILLER = new Set(['the', 'and', 'for', 'inc', 'ltd', 'llc', 'plc']);
+
+/** Corporate scaffolding at the END of a firm name, stripped one word at a
+ *  time by firmVariants. Roman numerals and digits are here because filings
+ *  number their vehicles: "Blackstone Holdings IV". */
+const STRUCTURAL_TAIL =
+  /^(holdings?|partners?|management|capital|investments?|company|group|funds?|advisors?|advisers?|associates|ventures?|trust|international|global|america|usa|[ivx]+|\d+)$/i;
 
 /** How long a miss is believed. A filer who is not in Wikidata today is very
  *  unlikely to be there tomorrow, and the desk asks about the same handful of
@@ -163,19 +190,21 @@ export class SubjectLookupService {
 
   /** A named individual: their own Wikidata entity, their own P18. */
   private async lookupPerson(name: string): Promise<SubjectMaterial> {
-    const entity = await this.findEntity(this.nameVariants(name), 'human');
+    const entity = await this.findEntity(this.nameVariants(name), 'human', (e) =>
+      // The candidate has to be usable, not merely well-typed. Accepting the
+      // first human and only then asking for a picture stops at the first
+      // namesake with no photograph and never reaches the one who has one.
+      //
+      // A dead man did not file this Form 4, and that matters most here: a
+      // common name reaches deep into history. "Smith John Q" found John
+      // Raphael Smith, an English mezzotint engraver who died in 1812, and he
+      // cleared every other test.
+      !this.claimValue(e.claims, P_DATE_OF_DEATH, { anyType: true }) &&
+      !!this.claimValue(e.claims, P_IMAGE),
+    );
     if (!entity) return EMPTY;
 
-    // The same rule the firm branch applies to principals: a dead man did not
-    // file this Form 4. It matters more here, because a common name reaches
-    // deep into history — "Smith John Q" found John Raphael Smith, an English
-    // mezzotint engraver who died in 1812, and he cleared every other test.
-    if (this.claimValue(entity.claims, P_DATE_OF_DEATH, { anyType: true })) return EMPTY;
-
-    const file = this.claimValue(entity.claims, P_IMAGE);
-    if (!file) return EMPTY;
-
-    const img = await this.commonsFile(file, 1000);
+    const img = await this.commonsFile(this.claimValue(entity.claims, P_IMAGE) as string, 1000);
     if (!img) return EMPTY;
 
     return {
@@ -192,7 +221,17 @@ export class SubjectLookupService {
    * censored subject beats an invented mark on an invented one.
    */
   private async lookupFirm(name: string): Promise<SubjectMaterial> {
-    const entity = await this.findEntity(this.firmVariants(name), 'organisation');
+    const entity = await this.findEntity(
+      this.firmVariants(name),
+      'organisation',
+      // Worth stopping for only if it carries a logo or names somebody. A
+      // holding company with neither is a correct match that cannot improve
+      // the cover, and giving up on it hides the parent that could.
+      (e) =>
+        !!this.claimValue(e.claims, P_LOGO) ||
+        !!this.claimValue(e.claims, P_IMAGE) ||
+        PRINCIPALS.some(({ prop }) => this.claimIds(e.claims, prop).length > 0),
+    );
     if (!entity) return EMPTY;
 
     const logoFile =
@@ -245,20 +284,56 @@ export class SubjectLookupService {
   private async findEntity(
     variants: string[],
     want: 'human' | 'organisation',
+    accept: (e: { label: string; claims: any }) => boolean,
   ): Promise<{ id: string; label: string; claims: any } | null> {
-    for (const q of variants) {
+    // A pinned entity skips the search entirely — it exists precisely because
+    // the search got this name wrong or refused it.
+    const pinned = this.pinnedFor(variants[0]);
+    if (pinned) {
+      const entity = await this.getEntity(pinned);
+      if (entity && (want === 'human') === this.isHuman(entity.claims) && accept(entity)) {
+        return { id: pinned, label: entity.label, claims: entity.claims };
+      }
+    }
+
+    for (let i = 0; i < variants.length; i += 1) {
+      const q = variants[i];
+      // A shortened firm name ("Blackstone" for "Blackstone Holdings IV L.P.")
+      // is a guess, and guesses get the strict rule — see labelMatches.
+      const strict = want === 'human' || i > 0;
       const hits = await this.search(q);
-      for (const hit of hits) {
-        if (!this.labelMatches(hit.label, q, want)) continue;
+      const matching = hits.filter((h) => this.labelMatches(h.label, q, want, strict));
+
+      // AMBIGUITY IS A REFUSAL, NOT A COIN TOSS. Wikidata holds three distinct
+      // people labelled exactly "John Malone". Nothing in a Form 4 says which,
+      // and picking the best-ranked one puts a stranger's face on the site
+      // under a real person's name. Two hits wearing the same name end the
+      // search for this variant.
+      const labels = new Set(matching.map((h) => h.label.toLowerCase().trim()));
+      if (matching.length > 1 && labels.size < matching.length) continue;
+
+      for (const hit of matching) {
         const entity = await this.getEntity(hit.id);
         if (!entity) continue;
         const human = this.isHuman(entity.claims);
-        if (want === 'human' ? human : !human) {
-          return { id: hit.id, label: entity.label || hit.label, claims: entity.claims };
-        }
+        if (want === 'human' ? !human : human) continue;
+        if (!accept(entity)) continue;
+        return { id: hit.id, label: entity.label || hit.label, claims: entity.claims };
       }
     }
     return null;
+  }
+
+  /** The pinned entity for this name, if one was written down for it. */
+  private pinnedFor(name: string): string | null {
+    const have = new Set(
+      (name || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9 ]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    return PINNED.find((p) => p.tokens.every((t) => have.has(t)))?.id ?? null;
   }
 
   private async search(term: string): Promise<Array<{ id: string; label: string }>> {
@@ -388,59 +463,120 @@ export class SubjectLookupService {
    */
   private nameVariants(name: string): string[] {
     const clean = name.replace(/[^A-Za-z .'-]/g, ' ').replace(/\s+/g, ' ').trim();
-    const words = clean.split(' ').filter((w) => !/^(jr|sr|ii|iii|iv|md|phd)\.?$/i.test(w));
+    const words = clean
+      .split(' ')
+      .filter((w) => w && !/^(jr|sr|ii|iii|iv|md|phd|et|al)\.?$/i.test(w));
     // Middle initials are the common miss. "Icahn Carl C" reversed is "Carl C
     // Icahn", which Wikidata's search does not find, while "Carl Icahn" is hit
     // one. Every filing carrying an initial — most of them — depends on this.
-    const noInitials = words.filter((w) => w.replace(/\./g, '').length > 1);
-    const orders = (ws: string[]) =>
-      ws.length >= 2 ? [ws.join(' '), [...ws.slice(1), ws[0]].join(' ')] : [ws.join(' ')];
-    return [...new Set([...orders(noInitials), ...orders(words)].filter(Boolean))];
+    const ws = words.filter((w) => w.replace(/\./g, '').length > 1);
+
+    const out: string[] = [];
+    const push = (...parts: string[]) => {
+      const s = parts.filter(Boolean).join(' ').trim();
+      if (s) out.push(s);
+    };
+
+    push(...ws);
+    if (ws.length >= 2) push(...ws.slice(1), ws[0]);
+    // TWO NAMES, AND ONLY TWO. A filing carries every name a person has —
+    // "Tan Anthony Ping Yeow" — and Wikidata labels them the way the world
+    // does, "Anthony Tan". Neither full ordering finds anything at all, so the
+    // pair has to be asked for directly: given+surname read both ways round,
+    // because the filing's own order is a convention we cannot rely on.
+    if (ws.length > 2) {
+      push(ws[1], ws[0]);
+      push(ws[0], ws[ws.length - 1]);
+    }
+    if (words.length !== ws.length) {
+      push(...words);
+      if (words.length >= 2) push(...words.slice(1), words[0]);
+    }
+    return [...new Set(out)];
   }
 
-  /** A firm with and without its legal tail: Wikidata labels almost never
-   *  carry the "LP" that the SEC filing does. */
+  /**
+   * A firm, progressively shortened from the tail.
+   *
+   * SEC filings name the VEHICLE, Wikidata names the HOUSE. "Blackstone
+   * Holdings IV L.P." is a real filer and there is no such Wikidata entity —
+   * searching it returns nothing at all — while "Blackstone" returns Blackstone
+   * Inc. with its logo, its founders and its chief executive. Every word after
+   * the distinctive one is corporate scaffolding, so it comes off one word at a
+   * time and each stage is tried in turn.
+   *
+   * Shortening is a guess, which is why findEntity marks every variant after
+   * the first as strict: "Juniper Investment Company, LLC" shortens to
+   * "Juniper", whose best hit is Juniper Networks, and the strict rule is what
+   * throws it out.
+   */
   private firmVariants(name: string): string[] {
     const clean = name.replace(/[^A-Za-z0-9 &.'-]/g, ' ').replace(/\s+/g, ' ').trim();
-    const stripped = clean.replace(LEGAL_SUFFIX, ' ').replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
-    return [...new Set([stripped, clean].filter((s) => s.length > 2))];
+    const stripped = clean
+      .replace(LEGAL_SUFFIX, ' ')
+      .replace(/[.,]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const out = [stripped, clean];
+    let words = stripped.split(' ').filter(Boolean);
+    while (words.length > 1 && STRUCTURAL_TAIL.test(words[words.length - 1])) {
+      words = words.slice(0, -1);
+      out.push(words.join(' '));
+    }
+    return [...new Set(out.filter((s) => s.length > 2))];
   }
 
   /**
    * Does this label actually name the thing we searched for?
    *
-   * The two types get different bars, because they fail in different
-   * directions and a wrong face costs far more than a miss — a miss falls
-   * through to the censored subject, which the client has already approved.
+   * There are two failure directions and they need different rules, because a
+   * wrong face costs far more than a miss — a miss falls through to the
+   * censored subject, which the client has already approved.
    *
-   * A FIRM only has to CONTAIN every word of the query. Labels legitimately
-   * carry words the filing drops ("The Vanguard Group" for "Vanguard Group
-   * Inc"), and an extra word almost never changes which firm is meant.
+   * A FIRM, matched on its FULL filed name, only has to CONTAIN every word of
+   * the query. Labels legitimately carry words the filing drops: "Nippon Life
+   * Insurance Company" for "NIPPON LIFE INSURANCE CO".
    *
-   * A PERSON has to match word for word. Containment is far too loose on
-   * names: "John Smith" is contained in "John Raphael Smith", an English
-   * engraver dead since 1812, who is otherwise a perfectly well-formed hit.
-   * Requiring the sets to be equal costs us the nickname cases — "Bill Ackman"
-   * will not answer to "Ackman William A" — and those are exactly the
-   * household names already sitting in person-photos.ts, which is consulted
-   * first and never reaches this code.
+   * STRICT, which covers every person and every SHORTENED firm name, adds the
+   * other direction: the label may not introduce a word we did not ask for.
+   * That is what separates the two hardest cases in this file.
+   *
+   *   "Anthony Tan" is a legitimate label for "Tan Anthony Ping Yeow" — a
+   *   label may DROP given names, and it does so constantly.
+   *   "John Raphael Smith" is not a legitimate label for "Smith John Q" — the
+   *   label ADDED "Raphael", and that engraver died in 1812.
+   *   "Blackstone Inc." is right for a shortened "Blackstone" ("inc" is
+   *   filler); "Juniper Networks" is wrong for a shortened "Juniper", because
+   *   "networks" is a word the filing never contained.
+   *
+   * Two words minimum on a person, so a bare surname cannot match a whole
+   * family.
    */
-  private labelMatches(label: string, query: string, want: 'human' | 'organisation'): boolean {
+  private labelMatches(
+    label: string,
+    query: string,
+    want: 'human' | 'organisation',
+    strict: boolean,
+  ): boolean {
     const words = (s: string) =>
       s
         .toLowerCase()
         .replace(/[^a-z0-9 ]/g, ' ')
         .split(/\s+/)
         .filter((w) => w.length > 2 && !FIRM_FILLER.has(w));
-    const have = new Set(words(label));
+    const have = words(label);
     const asked = words(query);
-    if (!asked.length) return false;
-    if (!asked.every((w) => have.has(w))) return false;
-    if (want === 'organisation') return true;
-    // Equality, expressed as "and nothing else": every word of the label was
-    // also asked for.
+    if (!asked.length || !have.length) return false;
+
+    if (!strict) return asked.every((w) => have.includes(w));
+
+    if (want === 'human' && have.length < 2) return false;
     const askedSet = new Set(asked);
-    return [...have].every((w) => askedSet.has(w));
+    if (!have.every((w) => askedSet.has(w))) return false;
+    // The label may drop given names, but never the last one asked for: on a
+    // Form 4 that is the surname, and it is the word that identifies.
+    return have.includes(asked[asked.length - 1]) || have.includes(asked[0]);
   }
 
   // ------------------------------------------------------------------- cache
@@ -488,10 +624,26 @@ export class SubjectLookupService {
 
   // ------------------------------------------------------------------- fetch
 
+  /** One retry, because a batch makes twenty of these calls in a row and a
+   *  single dropped connection would otherwise cache a miss for a month. */
   private async json(url: string): Promise<any> {
-    const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`${res.status} ${url.slice(0, 80)}`);
-    return res.json();
+    let last: any;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const res = await fetch(url, {
+          headers: { 'User-Agent': UA, Accept: 'application/json' },
+        });
+        if (!res.ok) throw new Error(`${res.status} ${url.slice(0, 80)}`);
+        return await res.json();
+      } catch (e) {
+        last = e;
+        // Wikimedia resets connections under a burst. A short pause is the
+        // difference between a retry that works and one that fails the same
+        // way a millisecond later.
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    }
+    throw last;
   }
 
   private async bytes(url: string): Promise<Buffer | null> {

@@ -89,10 +89,21 @@ export function photoFor(name: string): PersonPhoto | null {
   return null;
 }
 
-/** Whether a name looks like an institution rather than a person. Used to keep
- *  the desk from writing "he bought" about a pension fund. */
+/**
+ * Whether a name looks like an institution rather than a person.
+ *
+ * Used to keep the desk from writing "he bought" about a pension fund, and
+ * since 2026-09-30 to choose which half of SubjectLookupService runs — a firm
+ * resolves through its logo and its principals, a person through their own
+ * entity, and the two searches do not find each other's answers.
+ *
+ * "NIPPON LIFE INSURANCE CO" is what added the second half of this list: it
+ * matched nothing, so the desk looked for a man called Nippon Life Insurance
+ * Co, captioned a drawn face with that name, and never asked Wikidata for the
+ * logo it has.
+ */
 export function looksInstitutional(name: string): boolean {
-  return /\b(inc|corp|llc|l\.?p|ltd|trust|fund|capital|partners|management|advisors?|holdings|group|bank|asset)\b/i.test(
+  return /\b(inc|corp|corporation|llc|l\.?l\.?c|l\.?p|llp|ltd|plc|gmbh|a\.?g|s\.?a|s\.?e|n\.?v|co|company|trust|fund|funds|capital|partners|management|advisors?|advisers?|holdings?|group|bank|banc|bancorp|asset|assets|insurance|assurance|pension|ventures?|investments?|associates|foundation|endowment|society|systems)\b/i.test(
     name || '',
   );
 }
