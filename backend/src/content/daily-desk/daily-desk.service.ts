@@ -112,23 +112,36 @@ export class DailyDeskService {
   }> {
     const errors: string[] = [];
     const items: Array<Record<string, unknown>> = [];
-    const covered = await this.recentTickers();
+    const [coveredLong, coveredShort] = await Promise.all([
+      this.recentTickers(21),
+      this.recentTickers(7),
+    ]);
 
     // Deeper pools than the four articles need, because the pool is now ranked
     // by whether we can photograph the buyer and a shallow pool has nobody to
     // promote: on 2026-10-01 the top four by dollars were an unlisted biotech
     // director, two funds and a private bank, and all four covers were redacted.
-    const buys = (await this.research.biggestBuys(5, 40)).filter((c) => this.eligible(c, covered));
-    const clusters = (await this.research.clusterBuys(10, 24)).filter((c) =>
-      this.eligible(c, covered),
-    );
+    const buys = (await this.research.biggestBuys(5, 40))
+      .map((c) => this.primaryTicker(c))
+      .filter((c) => this.eligible(c));
+    const clusters = (await this.research.clusterBuys(10, 24))
+      .map((c) => this.primaryTicker(c))
+      .filter((c) => this.eligible(c));
 
     // A story whose subject we can photograph leads — and since 2026-10-01 that
     // is the client's standing instruction rather than a tie-break: "har roz
     // priority yehi honi chaiye … top stories mein hamesha popular people ka
     // ho". Both pools are ranked, because the cluster slot publishes under the
-    // same cover rules as the rest.
-    await Promise.all([this.rankByPortrait(buys), this.rankByPortrait(clusters)]);
+    // same cover rules as the rest. Ranking happens BEFORE the recency filter
+    // because how long a stock has to rest now depends on who is buying it.
+    const [buyRank, clusterRank] = await Promise.all([
+      this.rankByPortrait(buys),
+      this.rankByPortrait(clusters),
+    ]);
+    const fresh = (pool: BuyCandidate[], rank: Map<string, number>) =>
+      pool.filter((c) => this.notRecentlyCovered(c, rank, coveredLong, coveredShort));
+    const buysFresh = fresh(buys, buyRank);
+    const clustersFresh = fresh(clusters, clusterRank);
 
     const usedTickers = new Set<string>();
     const dayIndex = Math.floor(Date.now() / 86_400_000);
@@ -136,7 +149,7 @@ export class DailyDeskService {
 
     let slot = 0;
     for (const step of plan) {
-      const pool = step.source === 'cluster' ? clusters : buys;
+      const pool = step.source === 'cluster' ? clustersFresh : buysFresh;
       const candidate = pool.find((c) => c.ticker && !usedTickers.has(c.ticker));
       if (!candidate) {
         errors.push(`no candidate left for ${step.kind}`);
@@ -314,9 +327,27 @@ export class DailyDeskService {
   /** What the desk would do right now, without doing it. */
   async status() {
     const off = await this.isOff();
-    const covered = await this.recentTickers();
-    const buys = (await this.research.biggestBuys(5, 20)).filter((c) => this.eligible(c, covered));
-    const clusters = (await this.research.clusterBuys(10, 12)).filter((c) => this.eligible(c, covered));
+    const [coveredLong, coveredShort] = await Promise.all([
+      this.recentTickers(21),
+      this.recentTickers(7),
+    ]);
+    const buys = (await this.research.biggestBuys(5, 40))
+      .map((c) => this.primaryTicker(c))
+      .filter((c) => this.eligible(c));
+    const clusters = (await this.research.clusterBuys(10, 24))
+      .map((c) => this.primaryTicker(c))
+      .filter((c) => this.eligible(c));
+    // `status` resolves the same way a real run would, so what it reports is
+    // the order the desk would actually publish in — including the portrait
+    // rank, which is the whole point of reading it.
+    const buyRank = await this.rankByPortrait(buys);
+    const clusterRank = await this.rankByPortrait(clusters);
+    const buysFresh = buys.filter((c) =>
+      this.notRecentlyCovered(c, buyRank, coveredLong, coveredShort),
+    );
+    const clustersFresh = clusters.filter((c) =>
+      this.notRecentlyCovered(c, clusterRank, coveredLong, coveredShort),
+    );
     return {
       off,
       schedule: '15:00 Asia/Karachi daily',
@@ -324,23 +355,70 @@ export class DailyDeskService {
       coverReady: this.cover.isReady(),
       thumbsDir: this.thumbsDir(),
       candidates: {
-        buys: buys.slice(0, 6).map((c) => ({
-          ticker: c.ticker, who: c.who, value: Math.round(c.value), photo: !!photoFor(c.who),
+        buys: buysFresh.slice(0, 8).map((c) => ({
+          ticker: c.ticker,
+          who: c.who,
+          value: Math.round(c.value),
+          // 2 = our own photograph, 1 = a creditable one we can fetch, 0 = the
+          // stripe. Reading this is how you tell a thin day from a broken one.
+          portrait: buyRank.get(c.who) ?? 0,
         })),
-        clusters: clusters.slice(0, 4).map((c) => ({
+        clusters: clustersFresh.slice(0, 4).map((c) => ({
           ticker: c.ticker, buyers: c.buyers, value: Math.round(c.value),
+          portrait: clusterRank.get(c.who) ?? 0,
         })),
       },
-      excludedTickers: [...covered].slice(0, 30),
+      excludedTickers: [...coveredLong].slice(0, 30),
     };
   }
 
-  /** Skip anything we wrote about recently, and anything with no usable ticker. */
-  private eligible(c: BuyCandidate, covered: Set<string>): boolean {
+  /**
+   * Worth writing about at all: a real ticker and real money. Coverage recency
+   * is NOT decided here — see `notRecentlyCovered`, which needs the portrait
+   * rank and therefore has to run after it.
+   */
+  private eligible(c: BuyCandidate): boolean {
     if (!c.ticker || c.ticker.length > 8) return false;
-    if (covered.has(c.ticker.toUpperCase())) return false;
     // A sub-$250k "purchase" is a rounding error on a news page.
     return c.value >= 250_000;
+  }
+
+  /**
+   * Collapse a multi-class ticker to the class we write about.
+   *
+   * `companies.ticker` carries every listed class of a dual-class issuer in one
+   * string — Lennar is "LEN,LEN.B" — and the 8-character sanity check in
+   * `eligible` then threw the row away. On 2026-10-01 that silently discarded
+   * BERKSHIRE HATHAWAY INC buying $146.6m of it: the largest buy of the week,
+   * by the one filer whose photograph the site already holds, dropped before
+   * anything had a chance to rank it. The first class listed is the primary
+   * one, and it is the one the site's own company pages are keyed on.
+   */
+  private primaryTicker(c: BuyCandidate): BuyCandidate {
+    if (!c.ticker?.includes(',')) return c;
+    return { ...c, ticker: c.ticker.split(',')[0].trim() };
+  }
+
+  /**
+   * The same stock is not covered twice in three weeks — unless the buyer is
+   * somebody readers know.
+   *
+   * The flat 21-day bar cost 2026-10-01 its second real face: Ryan Cohen bought
+   * $10.6m of GME on 09-29 and the desk refused the story because GME had been
+   * written up on 09-11, twenty days earlier, one day inside the window. A new
+   * Form 4 from a named buyer we can photograph is a different story about the
+   * same stock, not a repeat, and the client's instruction is that those are
+   * the ones to lead with. So a buyer with a real portrait only has to clear a
+   * week; everyone else still clears three.
+   */
+  private notRecentlyCovered(
+    c: BuyCandidate,
+    rank: Map<string, number>,
+    coveredLong: Set<string>,
+    coveredShort: Set<string>,
+  ): boolean {
+    const t = (c.ticker || '').toUpperCase();
+    return (rank.get(c.who) ?? 0) > 0 ? !coveredShort.has(t) : !coveredLong.has(t);
   }
 
   /**
@@ -362,7 +440,7 @@ export class DailyDeskService {
    * Sorted, never filtered. A day on which nobody is photographable still gets
    * four articles — with the stripe, which is exactly what the fallback is for.
    */
-  private async rankByPortrait(pool: BuyCandidate[]): Promise<void> {
+  private async rankByPortrait(pool: BuyCandidate[]): Promise<Map<string, number>> {
     /** How deep to probe. The plan takes four candidates; this is deep enough
      *  that the eligible ones below them get a look without turning a batch
      *  into forty lookups. */
@@ -400,10 +478,11 @@ export class DailyDeskService {
     this.logger.log(
       `portrait ranking: ${withFace}/${probed.length} probed candidates have a real face`,
     );
+    return rank;
   }
 
-  private async recentTickers(): Promise<Set<string>> {
-    const { tickers } = await this.research.recentlyCovered(21);
+  private async recentTickers(days: number): Promise<Set<string>> {
+    const { tickers } = await this.research.recentlyCovered(days);
     return new Set(tickers.map((t) => t.toUpperCase()));
   }
 
