@@ -98,55 +98,50 @@ const HERO_TREATMENT =
   'background, exactly as in the reference covers.';
 
 /**
- * The cover for a story whose buyer we hold no photograph of.
+ * The cover for a story whose subject we hold no photograph of.
  *
- * George, 2026-09-25: "for the articles / stories that don't attach a person,
- * we need to create thumbnails that hide the identity but show generic people
- * in suits." That produced a figure seen from behind, or in silhouette, or
- * cropped above the shoulders.
+ * Three client passes landed here, and the last one is the rule.
  *
- * The client, 2026-09-30, on the GoldenTree/QVC cover that rule produced:
- * "these images thumbnails created are too fake … if you can't find their face
- * just cover the eyes with a black line or something. Anonymous insiders, but
- * make it real."
+ *  - George, 2026-09-25: "show generic people in suits" — a figure seen from
+ *    behind, or in silhouette.
+ *  - The client, 2026-09-30, on what that produced: "too fake … if you can't
+ *    find their face just cover the eyes with a black line." Silhouette out,
+ *    front-facing press photograph with a printed bar in.
+ *  - The client, 2026-10-01, on the ADARx / Baker Bros / Brown Brothers covers
+ *    that produced: the bar is too big and the real answer is upstream —
+ *    *"market mein dekho hot topics, top stories jin ke image find ho wo
+ *    publish kardo … unke image asani se aaye with no black stripe, in case koi
+ *    nai milta phir laga dena."* Pick subjects we can photograph; the bar is the
+ *    fallback, and a small one.
  *
- * That is a sharper instruction than the one it replaces, and a better one. A
- * back-of-head silhouette announces that there was nothing to photograph; it
- * reads as generated because it IS the shape a generator makes when it has been
- * told not to make a face. A front-facing press photograph with a printed
- * censor bar reads as a real picture that a desk chose to redact — which is
- * what it is. The anonymity is identical and the honesty is better.
+ * So this branch is no longer where the desk expects to land — see the portrait
+ * ranking in DailyDeskService, which sorts a buyer we can photograph to the
+ * front of the pool — and the bar it carries is the admission that we could
+ * not. What it must never be is an invented likeness wearing a real person's
+ * name: "George Simeon" resolves on Wikidata to an American anthropologist and
+ * an English politician, neither of whom filed that Form 4.
  *
- * Hiding the identity remains the safety rule, not only the art direction: a
- * story with no named subject must not ship a face that could be mistaken for a
- * real executive, and the bar is what guarantees it.
+ * THE BAR IS NOT ASKED FOR ANY MORE. It used to be part of this prompt and the
+ * model drew it at whatever weight it liked — about 15% of the frame, the slab
+ * the client objected to. Asking for a clean photograph and painting the stripe
+ * afterwards (censor-bar.ts) is the only way its size is ours. The clause
+ * telling the model NOT to draw one is load bearing: without it the model
+ * volunteers a bar anyway, and a bar already on the picture has to be covered
+ * whole rather than restyled.
  */
 const CENSORED_SUBJECT =
   'We hold NO photograph of the person this story is about, so the cover must ' +
-  'show an ANONYMISED subject. Do not depict any identifiable real individual. ' +
+  'show an ANONYMISED subject. Do not depict any identifiable real individual, ' +
+  'living or dead, and do not reproduce the face of any public figure. ' +
   'Depict one adult in business dress as a REAL, straight, front-facing press ' +
   'photograph: a documentary news picture with natural skin texture, real ' +
   'fabric, real depth of field and the slightly imperfect framing of a working ' +
   'photographer. It must look photographed — never illustrated, never ' +
   'rendered, never a smiling stock portrait. ' +
-  // Every clause here was needed. Without "opaque" it comes back translucent;
-  // without "not following the contours of the face" it wraps the bar around
-  // the cheekbones like face paint; without "everything below the bar stays
-  // visible" it sometimes redacts the whole head, which is the silhouette this
-  // branch exists to replace.
-  'Then redact the identity the way a newspaper does: lay a solid, opaque, ' +
-  'hard-edged BLACK RECTANGLE flat across the eye line, running the full width ' +
-  'of the head and deep enough to cover both eyes and the bridge of the nose ' +
-  'completely. The bar is printed on top of the photograph: flat matte black, ' +
-  'perfectly straight, sharp corners, no glow, no transparency, no blur, no ' +
-  'shadow, and it does not follow the contours of the face. Everything below ' +
-  'the bar — nose, mouth, jaw, collar — stays fully visible. ' +
-  'Cut the figure out and make it the hero of the cover: large in the frame, ' +
-  'the whole head inside the frame with a little room above it, body cropped ' +
-  'by the bottom edge, head about a third of the picture wide, rendered in ' +
-  'high-contrast desaturated black and white with visible film grain so it ' +
-  'separates sharply from the colour-graded background, exactly as in the ' +
-  'reference covers.';
+  'Leave the face clean and unobstructed: do NOT draw a censor bar, a black ' +
+  'rectangle, a blur, a mask, sunglasses or any other covering over the eyes. ' +
+  'The redaction is printed on afterwards and must not be in the picture you ' +
+  'make. ';
 
 /**
  * Asked for whenever a real logo is going to be printed into the corner
@@ -249,7 +244,13 @@ export class CoverService {
       if (fromPhoto) parts.push(this.inlineImage(req.personRef as string));
       for (const ex of this.exemplarsFor(req.name)) parts.push(this.inlineImage(ex));
 
-      const drawPerson = fromPhoto || !!req.personName;
+      // Three treatments, one ladder. Only the last one redacts.
+      const mode: 'photo' | 'named' | 'censored' = fromPhoto
+        ? 'photo'
+        : req.personName
+          ? 'named'
+          : 'censored';
+      const drawPerson = mode !== 'censored';
       const withLogo = !!(req.logoRef && existsSync(req.logoRef));
       const instruction =
         (fromPhoto ? KEEP_LIKENESS : '') +
@@ -257,7 +258,9 @@ export class CoverService {
           ? `The cover is about ${req.personName}${req.personContext ? `, ${req.personContext}` : ''}. ` +
             'Depict them as a real adult person in business dress, photorealistic. '
           : '') +
-        (drawPerson ? HERO_TREATMENT + ' ' : CENSORED_SUBJECT + ' ') +
+        (mode === 'censored' ? CENSORED_SUBJECT : '') +
+        HERO_TREATMENT +
+        ' ' +
         (withLogo ? LOGO_SPACE : '') +
         `The background collage shows: ${req.scene}. ` +
         `Grade the whole background in ${req.grade}. ` +
@@ -327,11 +330,11 @@ export class CoverService {
       // Three outcomes, not two. Reporting "object cover" whenever there was no
       // photograph on file hid the fact that a subject HAD been drawn from
       // their name: the Grab cover carried Anthony Tan and the log denied it.
-      const how = fromPhoto
-        ? 'from photo'
-        : req.personName
-          ? 'person drawn from name'
-          : 'censored subject';
+      const how = {
+        photo: 'from photo',
+        named: 'person drawn from name',
+        censored: 'censored subject',
+      }[mode];
       this.logger.log(
         `cover ${req.name}.jpg written (${how}${logoPrinted ? ' + real logo' : ''}` +
           `${drawPerson ? '' : `, bar ${censorAction}`}, ` +

@@ -114,16 +114,21 @@ export class DailyDeskService {
     const items: Array<Record<string, unknown>> = [];
     const covered = await this.recentTickers();
 
-    const buys = (await this.research.biggestBuys(5, 20)).filter((c) => this.eligible(c, covered));
-    const clusters = (await this.research.clusterBuys(10, 12)).filter((c) =>
+    // Deeper pools than the four articles need, because the pool is now ranked
+    // by whether we can photograph the buyer and a shallow pool has nobody to
+    // promote: on 2026-10-01 the top four by dollars were an unlisted biotech
+    // director, two funds and a private bank, and all four covers were redacted.
+    const buys = (await this.research.biggestBuys(5, 40)).filter((c) => this.eligible(c, covered));
+    const clusters = (await this.research.clusterBuys(10, 24)).filter((c) =>
       this.eligible(c, covered),
     );
 
-    // A story whose subject we can photograph leads, because a real face is the
-    // house cover and a censored one is the fallback, not the target. Only the
-    // curated registry is consulted here: the Wikidata lookup is a network call
-    // per candidate and this sorts the whole pool, most of which is discarded.
-    buys.sort((a, b) => Number(!!photoFor(b.who)) - Number(!!photoFor(a.who)) || b.value - a.value);
+    // A story whose subject we can photograph leads — and since 2026-10-01 that
+    // is the client's standing instruction rather than a tie-break: "har roz
+    // priority yehi honi chaiye … top stories mein hamesha popular people ka
+    // ho". Both pools are ranked, because the cluster slot publishes under the
+    // same cover rules as the rest.
+    await Promise.all([this.rankByPortrait(buys), this.rankByPortrait(clusters)]);
 
     const usedTickers = new Set<string>();
     const dayIndex = Math.floor(Date.now() / 86_400_000);
@@ -220,14 +225,13 @@ export class DailyDeskService {
         const personRef = held ? join(this.thumbsDir(), held.file) : found?.person?.path || null;
         const shownPerson = held?.display || found?.person?.display || null;
 
-        // `censoredOnly` means "fix the covers with nobody real in them", so a
-        // lookup that STILL finds nothing leaves the article alone: re-rendering
-        // one censored cover into another censored cover spends a generation to
-        // move a file.
-        if (opts.censoredOnly && !personRef && !found?.logo) {
-          items.push({ slug: r.slug, skipped: 'still nothing real to show', buyer });
-          continue;
-        }
+        // `censoredOnly` used to mean "fix the covers with nobody real in them"
+        // and skipped a buyer the lookup still could not place, because
+        // re-rendering one censored cover into another spent a generation to
+        // move a file. Since 2026-10-01 that is no longer true: a desk cover
+        // with no photograph is re-rendered WITHOUT the bar, which is a
+        // different picture and the whole point of the re-do. Nothing is
+        // skipped here any more.
 
         if (opts.dryRun) {
           items.push({
@@ -339,6 +343,65 @@ export class DailyDeskService {
     return c.value >= 250_000;
   }
 
+  /**
+   * Sort a candidate pool so the buyers we can put a REAL face to come first.
+   *
+   * WHY THIS COSTS A NETWORK CALL AND IS WORTH IT. The old sort consulted only
+   * the curated registry in person-photos.ts, on the reasoning that the
+   * Wikidata lookup is a call per candidate and most of the pool is discarded.
+   * That reasoning produced 2026-10-01: three of the day's four covers were
+   * redacted strangers, because the registry holds a few dozen names and the
+   * biggest buyer on any given day is usually not one of them. The lookup is
+   * what knows that GoldenTree is Steven Tananbaum.
+   *
+   * It is affordable because SubjectLookupService caches BOTH ways on disk, and
+   * a miss is believed for 30 days. The desk asks about the same handful of
+   * funds every morning, so after the first run this is a directory read. The
+   * cap is what bounds the first run: PROBE_DEPTH candidates, not the pool.
+   *
+   * Sorted, never filtered. A day on which nobody is photographable still gets
+   * four articles — with the stripe, which is exactly what the fallback is for.
+   */
+  private async rankByPortrait(pool: BuyCandidate[]): Promise<void> {
+    /** How deep to probe. The plan takes four candidates; this is deep enough
+     *  that the eligible ones below them get a look without turning a batch
+     *  into forty lookups. */
+    const PROBE_DEPTH = 24;
+    /** Wikimedia is not to be hammered; the cache makes this moot after day
+     *  one, and on day one four at a time is polite and still quick. */
+    const CONCURRENCY = 4;
+
+    const probed = pool.slice(0, PROBE_DEPTH);
+    const rank = new Map<string, number>();
+
+    let next = 0;
+    const worker = async () => {
+      for (let i = next++; i < probed.length; i = next++) {
+        const c = probed[i];
+        if (rank.has(c.who)) continue;
+        // 2 = our own photograph of them; 1 = a real one we can fetch and
+        // credit; 0 = a redacted stranger. Ranked rather than boolean so a
+        // client-supplied face still outranks a Wikidata one.
+        if (photoFor(c.who)) {
+          rank.set(c.who, 2);
+          continue;
+        }
+        const found = await this.subjects.lookup(c.who, {
+          institutional: looksInstitutional(c.who),
+        });
+        rank.set(c.who, found.person ? 1 : 0);
+      }
+    };
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+
+    pool.sort((a, b) => (rank.get(b.who) ?? 0) - (rank.get(a.who) ?? 0) || b.value - a.value);
+
+    const withFace = [...rank.values()].filter((v) => v > 0).length;
+    this.logger.log(
+      `portrait ranking: ${withFace}/${probed.length} probed candidates have a real face`,
+    );
+  }
+
   private async recentTickers(): Promise<Set<string>> {
     const { tickers } = await this.research.recentlyCovered(21);
     return new Set(tickers.map((t) => t.toUpperCase()));
@@ -379,17 +442,25 @@ export class DailyDeskService {
     //      the buying firm belongs to — SubjectLookupService resolves
     //      "GoldenTree Asset Management LP" to Steven Tananbaum, who founded it,
     //      because a fund is not faceless;
-    //   3. otherwise the CENSORED SUBJECT: a real-looking press photograph with
-    //      a printed black bar across the eyes.
+    //   3. otherwise an UNNAMED SUBJECT: a real-looking press photograph of an
+    //      executive who is nobody in particular, un-redacted.
     //
-    // WHAT CHANGED, AND IT IS A REVERSAL. Step 2 used to be "draw the person
-    // from their name" (client, 2026-09-23) — an invented likeness, captioned
-    // with a real person's real name. That is the branch the client has now
-    // called too fake, and the new instruction names its replacement outright.
-    // A face we cannot source is no longer drawn; it is redacted. CoverService
-    // still HAS the draw-from-name branch, because the manual /daily-desk/cover
-    // route and the gen-cover CLI both expose it for a deliberate one-off, but
-    // the desk no longer reaches for it on its own.
+    // STEP 3 IS NOW A FAILURE MODE, NOT A DESIGN. Client, 2026-10-01, looking at
+    // three covers that all reached it — the ADARx director, Baker Bros.
+    // Advisors and Brown Brothers Harriman: *"market mein dekho hot topics, top
+    // stories jin ke image find ho wo publish kardo inke jagha … har roz
+    // priority yehi honi chaiye … top stories mein hamesha popular people ka
+    // ho."* The answer to a cover we cannot photograph is to run a different
+    // story, so the fix is in `rankByPortrait` above, not here. The bar stays as
+    // the fallback for the day the pool has nobody — "in case koi nai milta
+    // phir laga dena" — and it is a slim stripe now, not the slab that shipped.
+    //
+    // The desk still does NOT name an unphotographed subject to the model. A
+    // name buys a real likeness only for someone widely photographed, and the
+    // filers that reach step 3 are by definition the ones Wikidata has never
+    // heard of; "George Simeon" matches an anthropologist and an English
+    // politician there, neither of whom filed this Form 4. An invented face
+    // under a real person's name is the thing the client called too fake.
     const held = photoFor(candidate.who);
     const found = held
       ? null

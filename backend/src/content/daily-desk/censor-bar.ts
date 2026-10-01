@@ -13,13 +13,20 @@
  * the moment the pixels are set. What the generator produces is a PLACEMENT
  * suggestion; the redaction itself is arithmetic.
  *
- * The detector is asked for two things at once because the failure modes need
- * different answers:
+ * REVISED 2026-10-01. The generator is no longer asked for a bar at all. Asking
+ * for one and repainting what came back meant the model chose the stripe's
+ * weight, and it chose a slab: about 15% of the frame's height, which is what
+ * the client saw and called too big. Now the cover is made as a plain press
+ * photograph and the stripe is drawn here, at a size we control — see
+ * slimBand(). The detector's job changed with it: what it is really being
+ * asked for is the EYES.
  *
- *   bar present  -> repaint it opaque black, and nothing else changes.
- *   no bar, eyes visible -> the model ignored the instruction; paint the bar
- *                           over the eyes ourselves. This is the case that
- *                           would otherwise ship an unredacted invented face.
+ * It is still asked both questions, because a model told not to draw a bar
+ * occasionally draws one anyway, and a bar on the picture has to be covered
+ * whole — a slim stripe painted over a fat grey one leaves the rest showing:
+ *
+ *   bar present  -> repaint it opaque black, whatever size it is.
+ *   eyes visible -> paint OUR stripe over them. This is now the normal path.
  *   neither      -> there is nothing to redact. The subject is turned away, in
  *                   shadow or cropped, which is the old anonymous treatment and
  *                   was always acceptable.
@@ -41,13 +48,35 @@ type Box = [number, number, number, number];
 const DETECT_MODEL = process.env.GEMINI_DETECT_MODEL || 'gemini-flash-latest';
 
 /** Grown around a bar we are repainting, so a soft edge cannot survive as a
- *  grey fringe just outside the rectangle we paint. */
+ *  grey fringe just outside the rectangle we paint. A bar the generator drew
+ *  has to be covered WHOLE — we cannot paint a slimmer stripe over a fat grey
+ *  one and leave the rest showing — which is exactly why the anonymous branch
+ *  no longer asks for one. */
 const REPAINT_PAD = 0.004;
-/** Grown around bare eyes, which are a much smaller target than the bar a
- *  newspaper would print: a band over the eyes alone leaves brows and the
- *  corners of the sockets, and a face is recognisable from those. */
-const EYES_PAD_X = 0.06;
-const EYES_PAD_Y = 0.035;
+
+/**
+ * The stripe, when we are the ones drawing it.
+ *
+ * The client, 2026-10-01, on the EV roundup cover: the bar should be a "choti
+ * se black stripe" — a small one. The bars that shipped ran to about 15% of the
+ * frame's height, a slab across the middle of the picture, because the
+ * generator was asked for a bar and drew one at whatever weight it liked and
+ * all we could do downstream was repaint the slab opaque. The fix is upstream:
+ * the model is no longer asked for a bar at all, so what the detector finds is
+ * a pair of EYES, and the stripe is ours to size.
+ *
+ * Width still runs past the eye corners — a band that stops at the lashes
+ * leaves the socket corners, and a face is recognisable from those. Height is
+ * clamped: tall enough to cover brow-to-lower-lid on a big head, never deep
+ * enough to read as a censorship slab on a small one.
+ */
+const SLIM_PAD_X = 0.09;
+/** Multiple of the detected eye band's own height. */
+const SLIM_SCALE = 1.45;
+/** Floor and ceiling as a fraction of the PICTURE's height, so the stripe stays
+ *  proportionate whatever the detector returns. */
+const SLIM_MIN_H = 0.022;
+const SLIM_MAX_H = 0.048;
 
 const PROMPT =
   'Look at this magazine cover. Answer about the LARGE cut-out person in the ' +
@@ -84,14 +113,11 @@ export async function enforceCensorBar(
     const W = meta.width || 1606;
     const H = meta.height || 1000;
 
-    const box = bar
-      ? grow(bar, REPAINT_PAD, REPAINT_PAD)
-      : grow(eyes as Box, EYES_PAD_X, EYES_PAD_Y);
+    const rect = bar
+      ? pixels(grow(bar, REPAINT_PAD, REPAINT_PAD), W, H)
+      : slimBand(eyes as Box, W, H);
 
-    const left = Math.max(0, Math.round((box[1] / 1000) * W));
-    const top = Math.max(0, Math.round((box[0] / 1000) * H));
-    const width = Math.min(W - left, Math.round(((box[3] - box[1]) / 1000) * W));
-    const height = Math.min(H - top, Math.round(((box[2] - box[0]) / 1000) * H));
+    const { left, top, width, height } = rect;
 
     // A degenerate box is a detector that misread the picture, not a redaction.
     if (width < 20 || height < 8) return { image, action: 'undetected' };
@@ -113,6 +139,49 @@ export async function enforceCensorBar(
   } catch {
     return { image, action: 'undetected' };
   }
+}
+
+interface Rect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+function pixels([y0, x0, y1, x1]: Box, W: number, H: number): Rect {
+  const left = Math.max(0, Math.round((x0 / 1000) * W));
+  const top = Math.max(0, Math.round((y0 / 1000) * H));
+  return {
+    left,
+    top,
+    width: Math.min(W - left, Math.round(((x1 - x0) / 1000) * W)),
+    height: Math.min(H - top, Math.round(((y1 - y0) / 1000) * H)),
+  };
+}
+
+/**
+ * A newspaper stripe over the detected eyes: widened past the socket corners,
+ * height clamped, and centred on the eye band rather than hung from its top
+ * edge so growing it does not walk the bar down the face.
+ */
+function slimBand([y0, x0, y1, x1]: Box, W: number, H: number): Rect {
+  const cx = ((x0 + x1) / 2 / 1000) * W;
+  const cy = ((y0 + y1) / 2 / 1000) * H;
+
+  const width = Math.min(W, ((x1 - x0) / 1000) * W * (1 + 2 * SLIM_PAD_X));
+  const height = Math.min(
+    SLIM_MAX_H * H,
+    Math.max(SLIM_MIN_H * H, ((y1 - y0) / 1000) * H * SLIM_SCALE),
+  );
+
+  const left = Math.max(0, Math.round(cx - width / 2));
+  const top = Math.max(0, Math.round(cy - height / 2));
+  return {
+    left,
+    top,
+    width: Math.min(W - left, Math.round(width)),
+    height: Math.min(H - top, Math.round(height)),
+  };
 }
 
 function grow([y0, x0, y1, x1]: Box, padX: number, padY: number): Box {
