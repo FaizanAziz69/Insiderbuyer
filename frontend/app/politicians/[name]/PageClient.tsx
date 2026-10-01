@@ -79,10 +79,20 @@ interface Fundraising {
   topContributors: { name: string; amount: number }[];
 }
 
+/**
+ * Tab order, and why Portfolio Growth leads.
+ *
+ * Faizan, 2026-10-01: "make the portfolio growth tab the primary and default
+ * one that auto opens at first, basically switch their position with the trades
+ * tab — users want to see the portfolio growth of them first before specific
+ * trades." So the first entry here is also the landing tab: `active` is seeded
+ * from SECTIONS[0] rather than from a second hard-coded string, which is what
+ * stops the two from drifting apart the next time this order changes.
+ */
 const SECTIONS = [
-  { id: "trades", label: "Trades" },
-  { id: "portfolio", label: "Holdings" },
   { id: "networth", label: "Portfolio Growth" },
+  { id: "portfolio", label: "Holdings" },
+  { id: "trades", label: "Trades" },
   { id: "supporters", label: "Supporters" },
   { id: "opponents", label: "Opponents" },
   { id: "donors", label: "Corporate Donors" },
@@ -116,7 +126,7 @@ export default function PoliticianProfilePage({ params }: { params: Promise<{ na
   );
   const wt = wtData?.member ? wtData : null;
   const wtStats = wt?.stats || null;
-  const [active, setActive] = useState("trades");
+  const [active, setActive] = useState(SECTIONS[0].id);
   const [bioOpen, setBioOpen] = useState(false);
 
   if (isLoading) {
